@@ -28,6 +28,31 @@ suite('SessionDatabase', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('initialization', () => {
+
+		test('retries after a transient initialization failure', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-retry-' + generateUuid()));
+			try {
+				const databaseDir = join(tempRoot, 'blocked');
+				const databasePath = join(databaseDir, 'session.db');
+				await fs.writeFile(databaseDir, '');
+				const database = new SessionDatabase(databasePath);
+				try {
+					await assert.rejects(() => database.setMetadata('key', 'first'), { code: 'EEXIST' });
+					await fs.rm(databaseDir);
+
+					await database.setMetadata('key', 'second');
+
+					assert.strictEqual(await database.getMetadata('key'), 'second');
+				} finally {
+					await database.close();
+				}
+			} finally {
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		}).timeout(10_000);
+	});
+
 	/**
 	 * Extends SessionDatabase to allow ejecting/injecting the raw sqlite3
 	 * Database instance, enabling reopen tests with :memory: databases.
@@ -43,6 +68,13 @@ suite('SessionDatabase', () => {
 			const rawDb = await this._ensureDb();
 			await new Promise<void>((resolve, reject) => {
 				rawDb.run('INSERT OR REPLACE INTO chat_drafts (chat_uri, draft) VALUES (?, ?)', [chat.toString(), draft], err => err ? reject(err) : resolve());
+			});
+		}
+
+		async runRaw(sql: string): Promise<void> {
+			const rawDb = await this._ensureDb();
+			await new Promise<void>((resolve, reject) => {
+				rawDb.exec(sql, err => err ? reject(err) : resolve());
 			});
 		}
 
@@ -414,6 +446,20 @@ suite('SessionDatabase', () => {
 
 	suite('turn event ids', () => {
 
+		test('getTurnEventId resolves protocol and restored SDK turn IDs', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.deepStrictEqual({
+				protocol: await db.getTurnEventId('turn-1'),
+				restored: await db.getTurnEventId('evt-1'),
+			}, {
+				protocol: 'evt-1',
+				restored: 'evt-1',
+			});
+		});
+
 		test('getNextTurnEventId returns the next turn\'s event id by `turns.id`', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('turn-1');
@@ -454,6 +500,134 @@ suite('SessionDatabase', () => {
 			await db.setTurnEventId('turn-1', 'evt-1');
 
 			assert.strictEqual(await db.getNextTurnEventId('does-not-exist'), undefined);
+		});
+	});
+
+	// ---- Turn usage ------------------------------------------------------
+
+	suite('turn usage', () => {
+
+		test('getTurnUsages indexes the last usage by both turn id and SDK event id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.createTurn('request_bbb');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnUsage('request_aaa', '{"inputTokens":1}');
+			await db.setTurnUsage('request_aaa', '{"inputTokens":2}');
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [
+				['request_aaa', '{"inputTokens":2}'],
+				['sdk-evt-1', '{"inputTokens":2}'],
+			]);
+		});
+
+		test('records usage for a turn with no `turns` row, creating one so it can be pruned', async () => {
+			// A turn can report usage without otherwise touching the DB (e.g. a
+			// Claude turn that edits no files). The parent row is created so the
+			// usage is reachable by the cascade; without it the row would survive
+			// every prune path and the table would grow for the life of the
+			// session. Creating it cannot disturb the turn ordering that
+			// `getNextTurnEventId` / checkpoint resolution rely on, because a
+			// turn's usage is always reported before the next turn begins.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.createTurn('turn-2');
+			await db.setTurnEventId('turn-2', 'evt-2');
+
+			await db.setTurnUsage('usage-only-turn', '{"inputTokens":9}');
+
+			assert.deepStrictEqual({
+				usage: (await db.getTurnUsages()).get('usage-only-turn'),
+				// Ordering is untouched: turn-1's successor is still turn-2.
+				next: await db.getNextTurnEventId('turn-1'),
+				first: await db.getFirstTurnEventId(),
+			}, {
+				usage: '{"inputTokens":9}',
+				next: 'evt-2',
+				first: 'evt-1',
+			});
+		});
+
+		test('truncation prunes usage for turns that have no other DB rows', async () => {
+			// The unbounded-growth case: turns whose only DB footprint is their
+			// usage row. They must be pruned by a rewind like any other turn.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnUsage('turn-1', '{"inputTokens":1}');
+			await db.setTurnUsage('usage-only-2', '{"inputTokens":2}');
+			await db.setTurnUsage('usage-only-3', '{"inputTokens":3}');
+
+			await db.deleteTurnsAfter('turn-1');
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['turn-1', '{"inputTokens":1}']]);
+		});
+
+		test('deleting a session\'s turns leaves no usage behind', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnUsage('usage-only-1', '{"inputTokens":1}');
+			await db.setTurnUsage('usage-only-2', '{"inputTokens":2}');
+
+			await db.deleteAllTurns();
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], []);
+		});
+
+		test('reads see a fire-and-forget write submitted before them', async () => {
+			// `setTurnUsage` is deliberately fire-and-forget and sqlite3 runs parallelized, so the
+			// restore read must queue behind prior writes. Without that ordering a reconnect can
+			// read first and permanently rebuild the turn without its cost.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+
+			const write = db.setTurnUsage('turn-1', '{"inputTokens":7}');
+			const usages = await db.getTurnUsages();
+			await write;
+
+			assert.deepStrictEqual([...usages.entries()], [['turn-1', '{"inputTokens":7}']]);
+		});
+
+		test('truncation prunes the usage of removed turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.setTurnUsage('turn-1', '{"inputTokens":1}');
+			await db.setTurnUsage('turn-2', '{"inputTokens":2}');
+
+			await db.deleteTurnsAfter('turn-1');
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['turn-1', '{"inputTokens":1}']]);
+		});
+
+		test('remapTurnIds carries usage and replaces event IDs on imported forks', async () => {
+			// Fork file-copies the source database then remaps turn ids. Without
+			// remapping `turn_usage` the forked session restores with no gauge
+			// and zero cost, and rows past the fork point leak permanently
+			// (every prune path joins through `turns`).
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('old-1');
+			await db.createTurn('old-2');
+			await db.setTurnEventId('old-1', 'old-event-1');
+			await db.setTurnEventId('old-2', 'old-event-2');
+			await db.setTurnUsage('old-1', '{"inputTokens":1}');
+			await db.setTurnUsage('old-2', '{"inputTokens":2}');
+
+			// Fork keeping only `old-1`, remapped to a fresh id.
+			await db.remapTurnIds(
+				new Map([['old-1', 'new-1']]),
+				new Map([['new-1', 'new-event-1']]),
+			);
+
+			assert.deepStrictEqual({
+				usages: [...(await db.getTurnUsages()).entries()],
+				eventId: await db.getTurnEventId('new-1'),
+			}, {
+				usages: [
+					['new-1', '{"inputTokens":1}'],
+					['new-event-1', '{"inputTokens":1}'],
+				],
+				eventId: 'new-event-1',
+			});
 		});
 	});
 
@@ -558,6 +732,50 @@ suite('SessionDatabase', () => {
 			await db.setMetadata('customTitle', 'First');
 			await db.setMetadata('customTitle', 'Second');
 			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
+		});
+
+		test('setMetadataValues rolls back every key when one write fails', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.setMetadata('customTitle', 'Original title');
+			await database.setMetadata('customTitleSource', 'user');
+			await database.runRaw(`CREATE TRIGGER fail_title_source BEFORE INSERT ON session_metadata
+				WHEN NEW.key = 'customTitleSource' BEGIN SELECT RAISE(ABORT, 'source write failed'); END`);
+
+			await assert.rejects(() => database.setMetadataValues({
+				customTitle: 'Replacement title',
+				customTitleSource: 'agent',
+			}), /source write failed/);
+
+			assert.deepStrictEqual(await database.getMetadataObject({
+				customTitle: true,
+				customTitleSource: true,
+			}), {
+				customTitle: 'Original title',
+				customTitleSource: 'user',
+			});
+		});
+
+		test('setMetadataValues serializes with turn ID remapping transactions', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('old-1');
+			await db.setTurnUsage('old-1', '{"inputTokens":1}');
+
+			await Promise.all([
+				db.setMetadataValues({
+					customTitle: 'Concurrent title',
+					customTitleSource: 'agent',
+				}),
+				db.remapTurnIds(new Map([['old-1', 'new-1']])),
+			]);
+
+			assert.deepStrictEqual({
+				metadata: await db.getMetadataObject({ customTitle: true, customTitleSource: true }),
+				usages: [...(await db.getTurnUsages()).entries()],
+			}, {
+				metadata: { customTitle: 'Concurrent title', customTitleSource: 'agent' },
+				usages: [['new-1', '{"inputTokens":1}']],
+			});
 		});
 
 		test('metadata persists across reopen', async () => {

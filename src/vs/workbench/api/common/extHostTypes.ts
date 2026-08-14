@@ -49,6 +49,18 @@ export { SymbolInformation, SymbolKind, SymbolTag } from './extHostTypes/symbolI
 export { EndOfLine, TextEdit } from './extHostTypes/textEdit.js';
 export { FileEditType, WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
 
+export enum DataWatcherKind {
+	AgentSession,
+}
+
+export enum AgentSessionStatus {
+	Untitled,
+	InProgress,
+	NeedsInput,
+	Completed,
+	Error,
+}
+
 export enum TerminalOutputAnchor {
 	Top = 0,
 	Bottom = 1
@@ -3193,6 +3205,7 @@ export class ChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	modelName?: string;
 	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
 		this.description = description;
 		this.agentName = agentName;
@@ -3267,6 +3280,17 @@ export class ChatResponseHookPart {
 		this.stopReason = stopReason;
 		this.systemMessage = systemMessage;
 		this.metadata = metadata;
+	}
+}
+
+export type ChatResponseVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+export class ChatResponseVoiceProgressPart {
+	readonly id: ChatResponseVoiceProgressStage;
+	readonly value: string;
+	constructor(id: ChatResponseVoiceProgressStage, value: string) {
+		this.id = id;
+		this.value = value;
 	}
 }
 

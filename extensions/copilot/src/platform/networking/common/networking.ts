@@ -107,6 +107,7 @@ export interface IEndpointBody {
 	input?: readonly any[];
 	truncation?: 'auto' | 'disabled';
 	prompt_cache_key?: string;
+	prompt_cache_options?: { mode: 'implicit' | 'explicit' };
 	include?: ['reasoning.encrypted_content'];
 	store?: boolean;
 	text?: {
@@ -206,6 +207,8 @@ export interface IMakeChatRequestOptions {
 	source?: Source;
 	/** Conversation identifier used for request-scoped state (for example WebSocket connection reuse). */
 	conversationId?: string;
+	/** Optional identifier for an independent WebSocket connection within a conversation. */
+	webSocketConnectionId?: string;
 	/** Identifier for a single tool-calling turn within a conversation. */
 	turnId?: string;
 	/** Additional request options */
@@ -297,7 +300,7 @@ export interface ITokenPriceTier {
 	readonly cacheWriteTokenPrice: number | undefined;
 	/**
 	 * The largest prompt size (in tokens) billed at this tier's rates.
-	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
+	 * Derived from CAPI `billing.token_prices.<tier>.max_prompt_tokens`.
 	 * Present only when CAPI provides a `long_context` tier.
 	 */
 	readonly contextMax?: number;
@@ -339,9 +342,14 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
 	readonly warningText?: Record<string, string>;
-	readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string };
+	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
+	/**
+	 * Discount applied when this model is reached through Auto, as a fraction
+	 * (e.g. `0.1` for 10% off). Only set on models Auto can route to.
+	 */
+	readonly autoDiscount?: number;
 	/**
 	 * Normalized token pricing in AICs per million tokens.
 	 * Computed from the raw billing token_prices and normalized

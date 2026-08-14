@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest } from '../../common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest } from '../../common/state/sessionState.js';
 import type { ToolRequestUserInputAnswer } from './protocol/generated/v2/ToolRequestUserInputAnswer.js';
 import type { ToolRequestUserInputQuestion } from './protocol/generated/v2/ToolRequestUserInputQuestion.js';
 import type { ToolRequestUserInputResponse } from './protocol/generated/v2/ToolRequestUserInputResponse.js';
@@ -18,6 +18,7 @@ import type { ToolRequestUserInputResponse } from './protocol/generated/v2/ToolR
 export function buildUserInputRequest(requestId: string, questions: readonly ToolRequestUserInputQuestion[]): ChatInputRequest {
 	return {
 		id: requestId,
+		purpose: ChatInputRequestPurpose.AskUser,
 		questions: questions.map((q): ChatInputQuestion => {
 			if (q.options && q.options.length > 0) {
 				return {

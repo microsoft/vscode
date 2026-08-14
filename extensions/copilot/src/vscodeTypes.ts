@@ -27,6 +27,7 @@ export import ChatResponseClearToPreviousToolInvocationReason = vscode.ChatRespo
 export import ChatResponseMarkdownPart = vscode.ChatResponseMarkdownPart;
 export import ChatResponseThinkingProgressPart = vscode.ChatResponseThinkingProgressPart;
 export import ChatResponseHookPart = vscode.ChatResponseHookPart;
+export import ChatResponseVoiceProgressPart = vscode.ChatResponseVoiceProgressPart;
 export import ChatHookType = vscode.ChatHookType;
 export import ChatResponseFileTreePart = vscode.ChatResponseFileTreePart;
 export import ChatResponseAnchorPart = vscode.ChatResponseAnchorPart;

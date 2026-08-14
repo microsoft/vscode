@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, isEqualOrParent, relativePath } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -85,4 +86,35 @@ export function buildAgentFeedbackValue(feedbackItems: readonly IAgentFeedback[]
 	}
 
 	return parts.join('\n\n');
+}
+
+/** Appends draft feedback comments to a new-session prompt. */
+export function buildNewSessionPrompt(prompt: string, feedbackItems: readonly IAgentFeedback[], workspaceRoots: readonly URI[]): string {
+	const parts: string[] = [];
+	const trimmedPrompt = prompt.trim();
+	if (trimmedPrompt) {
+		parts.push(trimmedPrompt);
+	}
+
+	const useCommentBullets = !!trimmedPrompt || feedbackItems.length !== 1;
+	for (const item of feedbackItems) {
+		const location = formatFeedbackLocation(item, workspaceRoots);
+		parts.push(formatPromptLine(`${item.text} (${location})`, useCommentBullets ? '- ' : '', useCommentBullets ? '  ' : ''));
+		for (const reply of item.replies ?? []) {
+			parts.push(formatPromptLine(`reply: ${reply}`, '  - ', '    '));
+		}
+	}
+
+	return parts.join('\n');
+}
+
+function formatFeedbackLocation(item: IAgentFeedback, workspaceRoots: readonly URI[]): string {
+	const containingRoot = workspaceRoots.find(root => isEqualOrParent(item.resourceUri, root));
+	const workspaceRelativePath = containingRoot && relativePath(containingRoot, item.resourceUri);
+	const resourcePath = workspaceRelativePath || (item.resourceUri.scheme === Schemas.file ? item.resourceUri.fsPath.replaceAll('\\', '/') : item.resourceUri.path);
+	return `${resourcePath}:${item.range.startLineNumber}:${item.range.startColumn}-${item.range.endLineNumber}:${item.range.endColumn}`;
+}
+
+function formatPromptLine(text: string, prefix: string, continuationPrefix: string): string {
+	return prefix + text.replace(/\r?\n/g, `\n${continuationPrefix}`);
 }

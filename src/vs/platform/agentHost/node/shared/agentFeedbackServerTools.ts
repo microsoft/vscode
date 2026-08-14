@@ -10,6 +10,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { parseChatUri, type Annotation, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
+import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
 /**
@@ -43,14 +44,12 @@ export const viewUnreviewedCommentsToolName = VIEW_UNREVIEWED_COMMENTS_TOOL_NAME
 const REVIEWABLE_FEEDBACK_KINDS: ReadonlySet<string> = new Set(['prReview', 'codeReview']);
 
 /**
- * Server tools that must not be auto-approved: invoking them surfaces a
- * confirmation to the user (rendered by a custom client content part) before
- * the tool body runs. Providers consult {@link feedbackToolRequiresConfirmation}
- * (via the host) to exclude these from their server-tool auto-approve lists.
+ * Server tools with a confirmation UI. An explicit auto-approve policy can
+ * bypass the UI and is reported to the executor through its execution context.
  */
 const feedbackConfirmationToolNames: ReadonlySet<string> = new Set([viewUnreviewedCommentsToolName]);
 
-/** Whether the given feedback server tool requires user confirmation before it runs. */
+/** Whether the feedback server tool has a confirmation UI when not auto-approved. */
 export function feedbackToolRequiresConfirmation(toolName: string): boolean {
 	return feedbackConfirmationToolNames.has(toolName);
 }
@@ -139,9 +138,9 @@ export const feedbackServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: viewUnreviewedCommentsToolName,
 		title: 'View Unreviewed Comments (Agent Feedback)',
-		description: 'View pull request or code review comments that the user has not reviewed yet. Calling this asks the user to choose which of those comments to reveal; only the comments the user reveals are returned.',
+		description: 'View pull request or code review comments that the user has not reviewed yet. The user may be asked to choose which comments to reveal, in which case only the comments they select are returned; otherwise every unreviewed comment is returned.',
 		inputSchema: viewUnreviewedCommentsInputSchema,
-		annotations: { readOnlyHint: true },
+		annotations: { readOnlyHint: false },
 	},
 ];
 
@@ -301,8 +300,8 @@ function listableAnnotations(state: AnnotationsState): Annotation[] {
 /**
  * Feedback annotations of a {@link REVIEWABLE_FEEDBACK_KINDS reviewable kind}
  * the user has flagged for reveal to the agent (via the confirmation of the
- * {@link viewUnreviewedCommentsToolName} tool). These are exactly the comments
- * the user chose to reveal for the current invocation; everything else
+ * {@link viewUnreviewedCommentsToolName} tool). These are the comments the user
+ * chose to reveal and have not yet been delivered; everything else
  * (including review comments that happen to be accepted from a previous reveal
  * or a manual accept) is excluded.
  */
@@ -326,6 +325,16 @@ function clearPendingReveal(annotation: Annotation): Annotation {
 	return { ...annotation, _meta: { ...annotation._meta, [FEEDBACK_ANNOTATION_META_KEY]: nextMeta } };
 }
 
+/** Returns a copy of {@link annotation} in the submitted state. */
+function markSubmitted(annotation: Annotation): Annotation {
+	const meta = readMeta(annotation);
+	if (!meta) {
+		return annotation;
+	}
+	const nextMeta: IFeedbackAnnotationMeta = { ...meta, state: 'submitted', pendingAgentReveal: undefined };
+	return { ...annotation, _meta: { ...annotation._meta, [FEEDBACK_ANNOTATION_META_KEY]: nextMeta } };
+}
+
 /**
  * Reviewable (PR / code review) feedback annotations the user has not reviewed
  * yet, i.e. still in the `created` state. Used to build the
@@ -339,6 +348,10 @@ function createdReviewableAnnotations(state: AnnotationsState): Annotation[] {
 		}
 		return REVIEWABLE_FEEDBACK_KINDS.has(meta.kind) && !annotation.resolved && (meta.state ?? 'accepted') === 'created';
 	});
+}
+
+function hasRevealableComments(state: AnnotationsState): boolean {
+	return pendingRevealAnnotations(state).length > 0 || createdReviewableAnnotations(state).length > 0;
 }
 
 /**
@@ -425,14 +438,23 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			return { actions: [], result: JSON.stringify(payload, undefined, 2) };
 		}
 		case viewUnreviewedCommentsToolName: {
+			const pending = pendingRevealAnnotations(state);
+			if (!pending.length) {
+				const unreviewed = createdReviewableAnnotations(state);
+				return {
+					actions: unreviewed.map(annotation => ({
+						type: ActionType.AnnotationsSet,
+						annotation: markSubmitted(annotation),
+					})),
+					result: JSON.stringify({ comments: unreviewed.map(serializeComment) }, undefined, 2),
+				};
+			}
 			// The confirmation gate runs before this body. When the user accepts
 			// the confirmation, the client flags exactly the comments they chose
 			// to reveal with `pendingAgentReveal` on the shared annotations
-			// channel. Return those comments and clear the flag so a later
-			// invocation does not re-return them; comments the user left
-			// unchecked (and review comments accepted by other means) are not
-			// flagged and so are excluded.
-			const pending = pendingRevealAnnotations(state);
+			// channel. Return those comments and clear the flag after delivery;
+			// comments the user left unchecked (and review comments accepted by
+			// other means) are not flagged and so are excluded.
 			const comments = pending.map(serializeComment);
 			const actions: AnnotationsAction[] = pending.map(annotation => ({
 				type: ActionType.AnnotationsSet,
@@ -503,24 +525,6 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 }
 
 /**
- * Parses the number of comments returned by the {@link listCommentsToolName}
- * tool from its JSON result (`{ comments: [...] }`). Returns `undefined` when
- * the result is missing or not in the expected shape, so the caller can fall
- * back to a count-less message.
- */
-function parseListedCommentCount(resultText: string | undefined): number | undefined {
-	if (!resultText) {
-		return undefined;
-	}
-	try {
-		const parsed = JSON.parse(resultText) as { comments?: unknown };
-		return Array.isArray(parsed.comments) ? parsed.comments.length : undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-/**
  * Display strings for the feedback ("comments") tools, authored here so every
  * provider (Copilot, Claude, Codex, …) renders them identically instead of
  * each provider's display layer re-deriving the strings from the tool name.
@@ -530,47 +534,32 @@ function parseListedCommentCount(resultText: string | undefined): number | undef
  * {@link toolName} is the bare tool name (any transport prefix such as Claude's
  * `mcp__<server>__` has already been stripped by the dispatcher).
  */
-function getFeedbackToolDisplay(toolName: string, _args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
+function getFeedbackToolDisplay(toolName: string, _args: unknown, _result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 	switch (toolName) {
 		case addCommentToolName:
 			return {
 				displayName: localize('toolName.addComment', "Add Comment"),
-				invocationMessage: localize('toolInvoke.addComment', "Adding comment"),
-				pastTenseMessage: localize('toolComplete.addComment', "Added comment"),
+				invocationMessage: localize('toolInvoke.addComment', "Add comment"),
 			};
-		case listCommentsToolName: {
-			let pastTenseMessage: StringOrMarkdown;
-			const count = result ? parseListedCommentCount(result.text) : undefined;
-			if (count === undefined) {
-				pastTenseMessage = localize('toolComplete.listComments', "Checked comments");
-			} else if (count === 1) {
-				pastTenseMessage = localize('toolComplete.listComments.one', "Checked 1 comment");
-			} else {
-				pastTenseMessage = localize('toolComplete.listComments.many', "Checked {0} comments", count);
-			}
+		case listCommentsToolName:
 			return {
 				displayName: localize('toolName.listComments', "List Comments"),
-				invocationMessage: localize('toolInvoke.listComments', "Checking comments"),
-				pastTenseMessage,
+				invocationMessage: localize('toolInvoke.listComments', "List comments"),
 			};
-		}
 		case deleteCommentsToolName:
 			return {
 				displayName: localize('toolName.deleteComments', "Delete Comments"),
-				invocationMessage: localize('toolInvoke.deleteComments', "Deleting comments"),
-				pastTenseMessage: localize('toolComplete.deleteComments', "Deleted comments"),
+				invocationMessage: localize('toolInvoke.deleteComments', "Delete comments"),
 			};
 		case resolveCommentsToolName:
 			return {
 				displayName: localize('toolName.resolveComments', "Resolve Comments"),
-				invocationMessage: localize('toolInvoke.resolveComments', "Resolving comments"),
-				pastTenseMessage: localize('toolComplete.resolveComments', "Resolved comments"),
+				invocationMessage: localize('toolInvoke.resolveComments', "Resolve comments"),
 			};
 		case viewUnreviewedCommentsToolName:
 			return {
 				displayName: localize('toolName.viewUnreviewedComments', "View Comments"),
-				invocationMessage: localize('toolInvoke.viewUnreviewedComments', "Viewing comments"),
-				pastTenseMessage: localize('toolComplete.viewUnreviewedComments', "Viewed comments"),
+				invocationMessage: localize('toolInvoke.viewUnreviewedComments', "View comments"),
 			};
 		default:
 			return undefined;
@@ -587,21 +576,23 @@ function getFeedbackToolDisplay(toolName: string, _args: unknown, result?: IServ
  */
 export const feedbackServerToolGroup: IServerToolGroup = {
 	definitions: feedbackServerToolDefinitions,
-	requiresConfirmation(toolName): boolean {
+	isEnabled(): boolean {
+		return true;
+	},
+	canRequireConfirmation(toolName): boolean {
 		return feedbackToolRequiresConfirmation(toolName);
+	},
+	requiresConfirmation(stateManager, chatUri, toolName): boolean {
+		if (!feedbackToolRequiresConfirmation(toolName)) {
+			return false;
+		}
+		return hasRevealableComments(getFeedbackToolState(stateManager, chatUri).state);
 	},
 	getDisplay(toolName, args, result): IServerToolDisplay | undefined {
 		return getFeedbackToolDisplay(toolName, args, result);
 	},
 	execute(stateManager, chatUri, toolName, rawArgs): string {
-		// A session can contain multiple chats, each addressed by its own
-		// `ahp-chat` URI but sharing the same context/workspace. Comments belong
-		// to the session as a whole, so always resolve a chat URI back to its
-		// owning session and operate on the main session's annotations channel.
-		const mainSessionUri = parseChatUri(chatUri)?.session ?? chatUri;
-		const annotationsUri = buildAnnotationsUri(mainSessionUri);
-		const snapshot = stateManager.getSnapshot(annotationsUri);
-		const state: AnnotationsState = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
+		const { mainSessionUri, annotationsUri, state } = getFeedbackToolState(stateManager, chatUri);
 		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs);
 		for (const action of outcome.actions) {
 			stateManager.dispatchServerAction(annotationsUri, action);
@@ -609,3 +600,12 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 		return outcome.result;
 	},
 };
+
+function getFeedbackToolState(stateManager: AgentHostStateManager, chatUri: string): { mainSessionUri: string; annotationsUri: string; state: AnnotationsState } {
+	// Peer chats share feedback with their owning session.
+	const mainSessionUri = parseChatUri(chatUri)?.session ?? chatUri;
+	const annotationsUri = buildAnnotationsUri(mainSessionUri);
+	const snapshot = stateManager.getSnapshot(annotationsUri);
+	const state = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
+	return { mainSessionUri, annotationsUri, state };
+}

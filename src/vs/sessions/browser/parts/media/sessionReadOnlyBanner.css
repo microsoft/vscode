@@ -16,9 +16,9 @@
 	box-sizing: border-box;
 	/* Match the VS Code editor read-only banner: 26px tall, 12px text. */
 	height: 26px;
-	/* Inset horizontally to align with the tab bar's content (its `padding: 0
-		10px`), and pull up slightly so only a small gap remains under the tab strip. */
-	margin: calc(-1 * var(--vscode-spacing-size20, 2px)) var(--vscode-spacing-size100, 10px) 0;
+	/* Match the tab strip's insets so the banner starts and ends flush with the
+		tabs; the extra left inset accounts for the header's status-icon column. */
+	margin: calc(-1 * var(--vscode-spacing-size20, 2px)) var(--vscode-spacing-size100, 10px) 0 calc(var(--vscode-spacing-size100, 10px) + var(--vscode-codiconFontSize, 16px) + var(--vscode-spacing-size60, 6px));
 	padding: 0 var(--vscode-spacing-size100, 10px);
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 4%, var(--vscode-editorWidget-background));
 	color: var(--vscode-descriptionForeground);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -11,22 +12,33 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
-import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
-import { CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
-import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
+import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
+import type { Implementation } from '../../common/state/protocol/common/commands.js';
+import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, type SessionSummary } from '../../common/state/sessionState.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
+import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostFileSystemProvider, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
+import { AgentHostFileSystemProvider, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
+import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
+import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
+import { AgentHostClientConnectionTelemetryTracker } from '../../node/agentHostClientConnectionTelemetry.js';
+import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
 class MockProtocolTransport implements IProtocolTransport {
+	constructor(readonly transportKind = AgentHostTransportKind.Unknown) { }
+
 	private readonly _onMessage = new Emitter<ProtocolMessage>();
 	readonly onMessage = this._onMessage.event;
 	private readonly _onDidSend = new Emitter<ProtocolMessage>();
@@ -78,20 +90,54 @@ class CountingLogService extends NullLogService {
 	}
 }
 
+class FailingAgentHostFileSystemProvider extends AgentHostFileSystemProvider {
+	override registerAuthority(_authority: string, _connection: IRemoteFilesystemConnection): never {
+		throw new Error('registration failed');
+	}
+}
+
+class FailingReconnectAgentHostFileSystemProvider extends AgentHostFileSystemProvider {
+	private _registrationCount = 0;
+
+	override registerAuthority(authority: string, connection: IRemoteFilesystemConnection) {
+		this._registrationCount++;
+		if (this._registrationCount === 2) {
+			throw new Error('registration failed');
+		}
+		return super.registerAuthority(authority, connection);
+	}
+}
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { eventName: string; data: unknown }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ eventName, data });
+		}
+	}
+}
+
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	readonly handledActions: (SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction)[] = [];
+	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
+	readonly handledClientContexts: (IAgentHostClientTelemetryContext | undefined)[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 	readonly readErrors = new Map<string, Error>();
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
+	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
+	shutdownCalls = 0;
+	createSessionBarrier: DeferredPromise<void> | undefined;
+	subscribeBarrier: DeferredPromise<void> | undefined;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<import('../../common/state/sessionActions.js').INotification>();
 	readonly onDidNotification = this._onDidNotification.event;
-	private readonly _onMcpNotification = new Emitter<import('../../common/agentService.js').IMcpNotification>();
+	private readonly _onMcpNotification = new Emitter<import('../../common/agent.js').IMcpNotification>();
 	readonly onMcpNotification = this._onMcpNotification.event;
 
 	private _stateManager!: AgentHostStateManager;
@@ -101,13 +147,16 @@ class MockAgentService implements IAgentService {
 		this._stateManager = sm;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void {
 		this.handledActions.push(action);
+		this.handledClientTypes.push(clientContext?.clientType);
+		this.handledClientContexts.push(clientContext);
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(channel, action, origin);
 	}
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		this.createSessionConfigs.push(config);
+		await this.createSessionBarrier?.p;
 		const session = config?.session ?? URI.parse('copilot:///new-session');
 		this._stateManager.createSession({
 			resource: session.toString(),
@@ -117,7 +166,7 @@ class MockAgentService implements IAgentService {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
-			workingDirectory: config?.workingDirectory?.toString(),
+			workingDirectories: config?.workingDirectories?.[0] ? [config.workingDirectories?.[0].toString()] : undefined,
 		});
 		return session;
 	}
@@ -127,10 +176,10 @@ class MockAgentService implements IAgentService {
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
-	readonly createdChats: { session: string; chat: string }[] = [];
+	readonly createdChats: { session: string; chat: string; options?: IAgentCreateChatOptions }[] = [];
 	readonly disposedChats: { session: string; chat: string }[] = [];
-	async createChat(session: URI, chat: URI): Promise<void> {
-		this.createdChats.push({ session: session.toString(), chat: chat.toString() });
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}) });
 		this._stateManager.addChat(session.toString(), chat.toString());
 	}
 	async disposeChat(session: URI, chat: URI): Promise<void> {
@@ -139,6 +188,7 @@ class MockAgentService implements IAgentService {
 	}
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
 	async subscribe(resource: URI, _clientId: string): Promise<IStateSnapshot> {
+		await this.subscribeBarrier?.p;
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
 			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
@@ -147,7 +197,10 @@ class MockAgentService implements IAgentService {
 	}
 	addSubscriber(_resource: URI, _clientId: string): void { }
 	unsubscribe(_resource: URI, _clientId: string): void { }
-	async shutdown(): Promise<void> { }
+	async shutdown(): Promise<void> { this.shutdownCalls++; }
+	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
+	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
+	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	getAuthToken(): string | undefined { return undefined; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
@@ -218,7 +271,7 @@ function findNotifications(sent: ProtocolMessage[], method: string): AhpNotifica
 }
 
 function findResponse(sent: ProtocolMessage[], id: number): ProtocolMessage | undefined {
-	return sent.find(isJsonRpcResponse) as ProtocolMessage | undefined;
+	return sent.find(message => isJsonRpcResponse(message) && message.id === id);
 }
 
 function waitForResponse(transport: MockProtocolTransport, id: number): Promise<ProtocolMessage> {
@@ -233,9 +286,11 @@ suite('ProtocolServerHandler', () => {
 	let stateManager: AgentHostStateManager;
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
+	let managedSettingsService: AgentHostManagedSettingsService;
 	let handler: ProtocolServerHandler;
 	let fileSystemProvider: AgentHostFileSystemProvider;
 	let logService: CountingLogService;
+	let telemetryService: TestTelemetryService;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -252,12 +307,14 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
-	function connectClient(clientId: string, initialSubscriptions?: readonly string[]): MockProtocolTransport {
+	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>): MockProtocolTransport {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId,
+			clientInfo,
+			_meta: meta,
 			initialSubscriptions,
 		}));
 		return transport;
@@ -269,15 +326,19 @@ suite('ProtocolServerHandler', () => {
 		server = disposables.add(new MockProtocolServer());
 		agentService = new MockAgentService();
 		agentService.setStateManager(stateManager);
+		managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 		logService = new CountingLogService();
+		telemetryService = new TestTelemetryService();
 		disposables.add(agentService);
 		disposables.add(handler = new ProtocolServerHandler(
 			agentService,
 			stateManager,
 			server,
-			{ defaultDirectory: URI.file('/home/testuser').toString() },
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, defaultDirectory: URI.file('/home/testuser').toString() },
 			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			logService,
+			telemetryService,
+			managedSettingsService,
 		));
 	});
 
@@ -395,6 +456,28 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
 
+	test('handshake retains an initial subscription whose state has not materialized', () => {
+		const transport = connectClient('client-1', [defaultChatUri]);
+		const response = findResponse(transport.sent, 1) as { result: InitializeResult };
+		assert.deepStrictEqual(response.result.snapshots, []);
+		transport.sent.length = 0;
+
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello after restore', origin: { kind: MessageKind.User } },
+		});
+
+		const actionMessages = findNotifications(transport.sent, 'action');
+		const turnStarted = actionMessages.find(message => {
+			const envelope = message.params as unknown as { action?: { type: string } };
+			return envelope.action?.type === ActionType.ChatTurnStarted;
+		});
+		assert.ok(turnStarted, 'should deliver actions after the initially missing state materializes');
+	});
+
 	test('ping responds before initialize', async () => {
 		const transport = new MockProtocolTransport();
 		disposables.add(transport);
@@ -406,6 +489,82 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(resp.id, 7);
 		assert.strictEqual(resp.result, null);
 		transport.simulateClose();
+	});
+
+	test('unknown requests return MethodNotFound before and after initialize', () => {
+		const transport = new MockProtocolTransport();
+		disposables.add(transport);
+		server.simulateConnection(transport);
+
+		transport.simulateMessage(request(7, 'notARealMethod', { channel: 'ahp-root://' }));
+		transport.simulateMessage(request(8, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'client-1',
+		}));
+		transport.simulateMessage(request(9, 'notARealMethod', { channel: 'ahp-root://' }));
+
+		assert.deepStrictEqual(
+			[findResponse(transport.sent, 7), findResponse(transport.sent, 9)],
+			[
+				{ jsonrpc: '2.0', id: 7, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: notARealMethod' } },
+				{ jsonrpc: '2.0', id: 9, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: notARealMethod' } },
+			],
+		);
+	});
+
+	test('extension methods remain enabled by default', async () => {
+		const transport = connectClient('client-extension-default');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 11);
+
+		transport.simulateMessage(request(11, 'shutdown', {}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			shutdownCalls: agentService.shutdownCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 11, result: null },
+			shutdownCalls: 1,
+		});
+	});
+
+	test('extension methods can be disabled without blocking managed settings contributions', () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const localServer = localDisposables.add(new MockProtocolServer());
+		localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			localServer,
+			{
+				defaultDirectory: URI.file('/home/testuser').toString(),
+				allowExtensionMethods: false,
+			},
+			localDisposables.add(new AgentHostFileSystemProvider()),
+			logService,
+			NullTelemetryService,
+			managedSettingsService,
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'client-extension-disabled',
+		}));
+		transport.sent.length = 0;
+		transport.simulateMessage(request(2, 'shutdown', {}));
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+		}));
+
+		assert.deepStrictEqual({
+			response: findResponse(transport.sent, 2),
+			shutdownCalls: agentService.shutdownCalls,
+			managedSettingsPermissions: managedSettingsService.permissions,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
+			shutdownCalls: 0,
+			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+		});
 	});
 
 	test('ping responds after initialize', async () => {
@@ -449,6 +608,7 @@ suite('ProtocolServerHandler', () => {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			},
 		}));
@@ -462,6 +622,69 @@ suite('ProtocolServerHandler', () => {
 		const envelope = turnStarted!.params as unknown as { origin: { clientId: string; clientSeq: number } };
 		assert.strictEqual(envelope.origin.clientId, 'client-1');
 		assert.strictEqual(envelope.origin.clientSeq, 1);
+	});
+
+	test('unsupported chat working-directory actions are rejected, not dispatched', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+
+		const cases: readonly { readonly type: ActionType; readonly channel: string }[] = [
+			{ type: ActionType.ChatWorkingDirectorySet, channel: defaultChatUri },
+			{ type: ActionType.ChatWorkingDirectoryRemoved, channel: defaultChatUri },
+		];
+
+		for (const [index, { type, channel }] of cases.entries()) {
+			const clientId = `wd-client-${index}`;
+			const clientSeq = 100 + index;
+			const transport = connectClient(clientId, [sessionUri, defaultChatUri]);
+			transport.sent.length = 0;
+			agentService.handledActions.length = 0;
+
+			transport.simulateMessage(notification('dispatchAction', {
+				channel,
+				clientSeq,
+				action: { type, directory: 'file:///tmp/extra-root' },
+			}));
+
+			// No dispatch: the gate intercepts before reaching the agent service,
+			// so the reducer never runs and synchronized state is untouched.
+			assert.deepStrictEqual(agentService.handledActions, [], `${type} must not be dispatched`);
+
+			// Exactly one rejection envelope, preserving the original origin so the
+			// client can reconcile its optimistic action.
+			const actionMsgs = findNotifications(transport.sent, 'action');
+			assert.strictEqual(actionMsgs.length, 1, `${type} should emit exactly one envelope`);
+			const envelope = actionMsgs[0].params as unknown as { action: { type: string }; origin: { clientId: string; clientSeq: number }; rejectionReason?: string };
+			assert.strictEqual(envelope.action.type, type);
+			assert.ok(envelope.rejectionReason, `${type} envelope should carry a rejectionReason`);
+			assert.strictEqual(envelope.origin.clientId, clientId);
+			assert.strictEqual(envelope.origin.clientSeq, clientSeq);
+		}
+	});
+
+	test('session working-directory actions reach the agent service', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+		const transport = connectClient('working-directory-client', [sessionUri], editorWindowAgentHostClientInfo);
+		transport.sent.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///tmp/extra-root' },
+		}));
+
+		const action = agentService.handledActions.at(-1);
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			action,
+			clientType: agentService.handledClientTypes.at(-1),
+			rejectionReason: envelope?.rejectionReason,
+		}, {
+			action: { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///tmp/extra-root' },
+			clientType: AgentHostClientType.EditorWindow,
+			rejectionReason: undefined,
+		});
 	});
 
 	test('actions are scoped to subscribed sessions', () => {
@@ -618,22 +841,172 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {
+	test('listSessions carries the workspace-less marker on _meta', async () => {
+		// Regression: the client resolves a session's kind (quick chat vs.
+		// workspace) from `_meta.workspaceless`, and a listing is the first
+		// thing it sees after a window reload.
+		// Dropping `_meta` here made every restored quick chat look
+		// workspace-bound and leak the host's scratch cwd as a workspace folder.
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Quick Chat',
+			workingDirectories: [URI.file('/home/user/.copilot/chats/session-1')],
+			_meta: withSessionWorkspaceless(undefined, true),
+		});
+
+		const transport = connectClient('client-list-workspaceless');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => readSessionWorkspaceless(item._meta)), [true]);
+	});
+
+	test('listSessions carries external provenance on _meta', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Native Chat',
+			_meta: withSessionExternal(undefined, true),
+		});
+
+		const transport = connectClient('client-list-external');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => readSessionExternal(item._meta)), [true]);
+	});
+
+	test('listSessions omits _meta when the agent provides none', async () => {
+		// The wire item is built field by field and `satisfies SessionSummary`
+		// cannot catch a dropped optional, so pin the absent case too: a
+		// listing must not start manufacturing an empty `_meta` bag that later
+		// overwrites a richer one on the client.
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Session Summary',
+		});
+
+		const transport = connectClient('client-list-no-meta');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => item._meta), [undefined]);
+	});
+
+	test('createSession forwards request metadata and broadcasts project in sessionAdded summary', async () => {
 		const transport = connectClient('client-create');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 2);
 
 		const newSession = URI.parse('copilot:///created-session').toString();
-		transport.simulateMessage(request(2, 'createSession', { channel: newSession }));
+		const _meta = { multiRoot: { workspaceFile: 'file:///demo.code-workspace' } };
+		transport.simulateMessage(request(2, 'createSession', { channel: newSession, _meta }));
 		const resp = await responsePromise;
 
 		const added = findNotifications(transport.sent, 'root/sessionAdded')[0];
 		assert.deepStrictEqual({
 			result: (resp as { result: null }).result,
 			project: (added!.params as SessionAddedParams).summary.project,
+			_meta: agentService.createSessionConfigs.at(-1)?._meta,
 		}, {
 			result: null,
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
+			_meta,
+		});
+	});
+
+	test('createSession rejects a fork targeting its source session', async () => {
+		const transport = connectClient('client-self-fork');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+		const session = URI.parse('copilot:///same-session').toString();
+
+		transport.simulateMessage(request(2, 'createSession', {
+			channel: session,
+			provider: 'copilot',
+			fork: { session, turnId: 'turn-1' },
+		}));
+		const response = await responsePromise as { error?: { code: number; message: string } };
+
+		assert.deepStrictEqual({
+			errorCode: response.error?.code,
+			errorMessage: response.error?.message,
+			createCalls: agentService.createSessionConfigs.length,
+		}, {
+			errorCode: AhpErrorCodes.SessionAlreadyExists,
+			errorMessage: `Fork target session must differ from source session: ${session}`,
+			createCalls: 0,
+		});
+	});
+
+	test('whenIdle waits for in-flight protocol requests after disposal', async () => {
+		const transport = connectClient('client-drain');
+		agentService.createSessionBarrier = new DeferredPromise<void>();
+		const newSession = URI.parse('copilot:///drain-session').toString();
+		transport.simulateMessage(request(2, 'createSession', { channel: newSession }));
+		handler.dispose();
+		let idle = false;
+		const whenIdle = handler.whenIdle().then(() => idle = true);
+
+		await Promise.resolve();
+		const idleWhileRequestPending = idle;
+		agentService.createSessionBarrier.complete();
+		await whenIdle;
+
+		assert.deepStrictEqual({
+			idleWhileRequestPending,
+			idleAfterRequest: idle,
+		}, {
+			idleWhileRequestPending: false,
+			idleAfterRequest: true,
+		});
+	});
+
+	test('whenIdle waits for reconnect subscription restoration', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const initialTransport = connectClient('client-drain-reconnect', [sessionUri]);
+		const initialResponse = findResponse(initialTransport.sent, 1) as { result: InitializeResult };
+		initialTransport.simulateClose();
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+
+		const reconnectTransport = new MockProtocolTransport();
+		server.simulateConnection(reconnectTransport);
+		reconnectTransport.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-drain-reconnect',
+			lastSeenServerSeq: initialResponse.result.serverSeq,
+			subscriptions: [sessionUri],
+		}));
+		await Promise.resolve();
+		let idle = false;
+		const whenIdle = handler.whenIdle().then(() => idle = true);
+
+		await Promise.resolve();
+		const idleWhileRestoring = idle;
+		agentService.subscribeBarrier.complete();
+		await whenIdle;
+
+		assert.deepStrictEqual({
+			idleWhileRestoring,
+			idleAfterRestore: idle,
+		}, {
+			idleWhileRestoring: false,
+			idleAfterRestore: true,
 		});
 	});
 
@@ -675,6 +1048,122 @@ suite('ProtocolServerHandler', () => {
 				result: null,
 				created: [{ session: sessionUri, chat: peerChat }],
 				inCatalog: true,
+			});
+		});
+
+		test('createChat forwards a fork source to the agent service', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' },
+			}));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				created: agentService.createdChats,
+			}, {
+				result: null,
+				created: [{
+					session: sessionUri,
+					chat: peerChat,
+					options: {
+						fork: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-1' },
+					},
+				}],
+			});
+		});
+
+		test('createChat rejects a source without kind', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: {
+					chat: buildDefaultChatUri(sessionUri),
+					turnId: 'turn-1',
+				},
+			}));
+			const resp = await responsePromise as { error?: { code: number; message: string } };
+
+			assert.deepStrictEqual({
+				code: resp.error?.code,
+				message: resp.error?.message,
+				created: agentService.createdChats,
+			}, {
+				code: JsonRpcErrorCodes.InvalidParams,
+				message: 'Unsupported createChat source kind: undefined',
+				created: [],
+			});
+		});
+
+		test('createChat forwards a side chat source to the agent service', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: {
+					kind: ChatSourceKind.SideChat,
+					chat: buildDefaultChatUri(sessionUri),
+					turnId: 'turn-active',
+					selection: { text: '  selected text  ', responsePartId: 'response-part-1' },
+				},
+			}));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				created: agentService.createdChats,
+			}, {
+				result: null,
+				created: [{
+					session: sessionUri,
+					chat: peerChat,
+					options: {
+						sideChat: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-active', selection: { text: '  selected text  ', responsePartId: 'response-part-1' } },
+					},
+				}],
+			});
+		});
+
+		test('createChat rejects an unknown source kind', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: {
+					kind: 'unknown',
+					chat: buildDefaultChatUri(sessionUri),
+					turnId: 'turn-1',
+				},
+			}));
+			const resp = await responsePromise as { error?: { code: number; message: string } };
+
+			assert.deepStrictEqual({
+				code: resp.error?.code,
+				message: resp.error?.message,
+				created: agentService.createdChats,
+			}, {
+				code: JsonRpcErrorCodes.InvalidParams,
+				message: 'Unsupported createChat source kind: unknown',
+				created: [],
 			});
 		});
 
@@ -738,6 +1227,293 @@ suite('ProtocolServerHandler', () => {
 		if (result.type === 'replay') {
 			assert.strictEqual(result.actions.length, 2);
 		}
+	});
+
+	test('reconnect rejects a client the server no longer remembers', async () => {
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		const responsePromise = waitForResponse(transport, 1);
+		transport.simulateMessage(request(1, 'reconnect', {
+			clientId: 'forgotten-client',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+
+		const response = await responsePromise;
+		assert.deepStrictEqual((response as { error: { code: number; message: string } }).error, {
+			code: AhpErrorCodes.NotFound,
+			message: 'Reconnect client not found: forgotten-client',
+		});
+		transport.simulateClose();
+	});
+
+	test('retains client info for action attribution across reconnect', async () => {
+		const transport1 = connectClient('client-attribution', undefined, agentsWindowAgentHostClientInfo, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel,
+		});
+		transport1.simulateMessage(notification('dispatchAction', {
+			channel: 'ahp-root://',
+			clientSeq: 1,
+			action: { type: ActionType.RootConfigChanged, config: {} },
+		}));
+		transport1.simulateClose();
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-attribution',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+		transport2.simulateMessage(notification('dispatchAction', {
+			channel: 'ahp-root://',
+			clientSeq: 2,
+			action: { type: ActionType.RootConfigChanged, config: {} },
+		}));
+
+		assert.deepStrictEqual({
+			clientTypes: agentService.handledClientTypes,
+			connectionKinds: agentService.handledClientContexts.map(context => context?.connectionKind),
+		}, {
+			clientTypes: ['agents_window', 'agents_window'],
+			connectionKinds: ['dev_tunnel', 'dev_tunnel'],
+		});
+	});
+
+	test('reports client topology and attributes actions to the initiating connection', () => {
+		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'tunnel-client',
+			clientInfo: { name: 'vscode-agents-window', version: '1.2.3', title: 'VS Code Agents Window' },
+			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel },
+		}));
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: 'ahp-root://',
+			clientSeq: 1,
+			action: { type: ActionType.RootConfigChanged, config: {} },
+		}));
+		transport.simulateClose();
+
+		const connectionEvents = telemetryService.events.map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				...event,
+				data: {
+					...data,
+					connectionDurationMs: typeof data.connectionDurationMs,
+				},
+			};
+		});
+		assert.deepStrictEqual({
+			clientContext: agentService.handledClientContexts.at(-1),
+			connectionEvents,
+		}, {
+			clientContext: {
+				clientType: 'agents_window',
+				connectionKind: 'dev_tunnel',
+				transportKind: 'websocket',
+				hostLaunchKind: 'vscode_main_process',
+			},
+			connectionEvents: [{
+				eventName: 'agentHost.clientConnection',
+				data: {
+					action: 'connected',
+					hostLaunchKind: 'vscode_main_process',
+					clientId: 'tunnel-client',
+					clientType: 'agents_window',
+					clientImplementationName: 'vscode-agents-window',
+					clientImplementationVersion: '1.2.3',
+					connectionKind: 'dev_tunnel',
+					transportKind: 'websocket',
+					protocolVersion: PROTOCOL_VERSION,
+					isReconnect: false,
+					connectedClientCount: 1,
+					connectedTransportCount: 1,
+					clientTransportCount: 1,
+					connectionDurationMs: 'undefined',
+					subscriptionCount: undefined,
+				},
+			}, {
+				eventName: 'agentHost.clientConnection',
+				data: {
+					action: 'disconnected',
+					hostLaunchKind: 'vscode_main_process',
+					clientId: 'tunnel-client',
+					clientType: 'agents_window',
+					clientImplementationName: 'vscode-agents-window',
+					clientImplementationVersion: '1.2.3',
+					connectionKind: 'dev_tunnel',
+					transportKind: 'websocket',
+					protocolVersion: PROTOCOL_VERSION,
+					isReconnect: false,
+					connectedClientCount: 0,
+					connectedTransportCount: 0,
+					clientTransportCount: 0,
+					connectionDurationMs: 'number',
+					subscriptionCount: 0,
+				},
+			}],
+		});
+	});
+
+	test('reports process-wide client counts across protocol listeners', () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const tracker = localDisposables.add(new AgentHostClientConnectionTelemetryTracker());
+		const firstServer = localDisposables.add(new MockProtocolServer());
+		const secondServer = localDisposables.add(new MockProtocolServer());
+		const handlers: ProtocolServerHandler[] = [];
+		for (const listener of [firstServer, secondServer]) {
+			handlers.push(localDisposables.add(new ProtocolServerHandler(
+				agentService,
+				stateManager,
+				listener,
+				{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, connectionTelemetryTracker: tracker },
+				localDisposables.add(new AgentHostFileSystemProvider()),
+				logService,
+				telemetryService,
+				managedSettingsService,
+			)));
+		}
+
+		for (const [index, listener] of [firstServer, secondServer].entries()) {
+			const transport = new MockProtocolTransport(index === 0 ? AgentHostTransportKind.MessagePort : AgentHostTransportKind.WebSocket);
+			listener.simulateConnection(transport);
+			transport.simulateMessage(request(index + 1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `client-${index}`,
+			}));
+		}
+		handlers[0].dispose();
+
+		assert.deepStrictEqual(telemetryService.events.map(event => {
+			const data = event.data as { action: string; connectedClientCount: number; connectedTransportCount: number };
+			return {
+				action: data.action,
+				connectedClientCount: data.connectedClientCount,
+				connectedTransportCount: data.connectedTransportCount,
+			};
+		}), [
+			{ action: 'connected', connectedClientCount: 1, connectedTransportCount: 1 },
+			{ action: 'connected', connectedClientCount: 2, connectedTransportCount: 2 },
+			{ action: 'disconnected', connectedClientCount: 1, connectedTransportCount: 1 },
+		]);
+	});
+
+	test('expires disconnected client reconnect history', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const tracker = disposables.add(new AgentHostClientConnectionTelemetryTracker(100));
+			const firstTransport = {};
+			assert.strictEqual(tracker.connect('client', firstTransport).isReconnect, false);
+			tracker.disconnect('client', firstTransport);
+			assert.strictEqual(tracker.hasSeenClient('client'), true);
+
+			await new Promise(resolve => setTimeout(resolve, 101));
+
+			assert.deepStrictEqual({
+				hasSeenClient: tracker.hasSeenClient('client'),
+				isReconnect: tracker.connect('client', {}).isReconnect,
+			}, {
+				hasSeenClient: false,
+				isReconnect: false,
+			});
+		});
+	});
+
+	test('does not count a client when initialization fails after negotiation', () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const localServer = localDisposables.add(new MockProtocolServer());
+		const localTelemetry = new TestTelemetryService();
+		const localHandler = localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			localServer,
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess },
+			localDisposables.add(new FailingAgentHostFileSystemProvider()),
+			logService,
+			localTelemetry,
+			managedSettingsService,
+		));
+		const counts: number[] = [];
+		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
+		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
+		localServer.simulateConnection(transport);
+
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'failed-client',
+		}));
+		const responseCode = (findResponse(transport.sent, 1) as { error: { code: number } }).error.code;
+		transport.simulateClose();
+
+		assert.deepStrictEqual({
+			counts,
+			events: localTelemetry.events,
+			responseCode,
+		}, {
+			counts: [],
+			events: [],
+			responseCode: JSON_RPC_INTERNAL_ERROR,
+		});
+	});
+
+	test('rolls back reconnect when filesystem authority registration fails', async () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const localServer = localDisposables.add(new MockProtocolServer());
+		const localTelemetry = new TestTelemetryService();
+		const localHandler = localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			localServer,
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess },
+			localDisposables.add(new FailingReconnectAgentHostFileSystemProvider()),
+			logService,
+			localTelemetry,
+			managedSettingsService,
+		));
+		const counts: number[] = [];
+		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
+
+		const initialTransport = new MockProtocolTransport();
+		localServer.simulateConnection(initialTransport);
+		initialTransport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'reconnecting-client',
+		}));
+		initialTransport.simulateClose();
+
+		const failedTransport = new MockProtocolTransport();
+		localServer.simulateConnection(failedTransport);
+		failedTransport.simulateMessage(request(2, 'reconnect', {
+			clientId: 'reconnecting-client',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		const failedResponseCode = (findResponse(failedTransport.sent, 2) as { error: { code: number } }).error.code;
+		failedTransport.simulateClose();
+
+		const retryTransport = new MockProtocolTransport();
+		localServer.simulateConnection(retryTransport);
+		const retryResponsePromise = waitForResponse(retryTransport, 3);
+		retryTransport.simulateMessage(request(3, 'reconnect', {
+			clientId: 'reconnecting-client',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		await retryResponsePromise;
+
+		assert.deepStrictEqual({
+			counts,
+			connectionActions: localTelemetry.events.map(event => (event.data as { action: string }).action),
+			failedResponseCode,
+		}, {
+			counts: [1, 0, 1],
+			connectionActions: ['connected', 'disconnected', 'connected'],
+			failedResponseCode: JSON_RPC_INTERNAL_ERROR,
+		});
 	});
 
 	test('reconnect replays missed changeset actions to changeset subscribers', async () => {
@@ -973,6 +1749,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1035,6 +1812,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1083,6 +1861,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1125,6 +1904,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1174,6 +1954,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1232,6 +2013,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1284,6 +2066,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1329,26 +2112,26 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('client tool call stamped for a never-connected client fails after the grace period', () => {
+	test('client tool call stamped for a disconnected protocol client fails after the grace period', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			const chatUri = buildDefaultChatUri(sessionUri);
+			const transport = connectClient('disconnected-client', [sessionUri]);
+			transport.simulateClose();
 			stateManager.dispatchServerAction(chatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			// Tool call stamped for a clientId that never connected (e.g. a
-			// stale stamp from a long-dead window). No disconnect event ever
-			// fires for it; the issuance-time orphan check must arm the timeout.
 			stateManager.dispatchServerAction(chatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				contributor: { kind: ToolCallContributorKind.Client, clientId: 'ghost-client' },
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'disconnected-client' },
 			});
 
 			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
@@ -1364,8 +2147,41 @@ suite('ProtocolServerHandler', () => {
 			} : undefined, {
 				status: ToolCallStatus.Completed,
 				success: false,
-				error: 'Client ghost-client disconnected before completing Run Task',
+				error: 'Client disconnected-client disconnected before completing Run Task',
 			});
+		});
+	});
+
+	test('client tool call owned by an active local IPC client is not treated as orphaned', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'local-client',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'local-client' },
+			});
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
 		});
 	});
 
@@ -1373,9 +2189,12 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			const transport = connectClient('late-client', [sessionUri]);
+			transport.simulateClose();
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1387,8 +2206,7 @@ suite('ProtocolServerHandler', () => {
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'late-client' },
 			});
 
-			// The owning client connects (and subscribes) within the grace
-			// window — the subscribe path clears the armed timeout.
+			// The owning client reconnects within the grace window.
 			connectClient('late-client', [sessionUri]);
 
 			await new Promise(r => setTimeout(r, 30_001));
@@ -1402,26 +2220,25 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			const transport = connectClient('disconnected-client', [sessionUri]);
+			transport.simulateClose();
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			// First orphaned tool call (owner never connected) arms the grace timer.
+			// First orphaned tool call arms the grace timer.
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				contributor: { kind: ToolCallContributorKind.Client, clientId: 'ghost-client' },
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'disconnected-client' },
 			});
 
-			// A second call for the same never-connected owner arrives partway
-			// through the window and re-arms the (shared) timer. The grace clock
-			// is pinned to the first arm, so the re-arm must NOT reset the
-			// deadline — otherwise the first call could be kept alive
-			// indefinitely.
+			// Re-arming for a later call must retain the original deadline.
 			await new Promise(r => setTimeout(r, 20_000));
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
@@ -1429,7 +2246,7 @@ suite('ProtocolServerHandler', () => {
 				toolCallId: 'tool-2',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				contributor: { kind: ToolCallContributorKind.Client, clientId: 'ghost-client' },
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'disconnected-client' },
 			});
 
 			// 31s after the FIRST call: both must have failed.
@@ -1456,6 +2273,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction(defaultChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'run it', origin: { kind: MessageKind.User } },
 		});
 		stateManager.dispatchServerAction(defaultChatUri, {
@@ -1510,6 +2328,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction(defaultChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'run it', origin: { kind: MessageKind.User } },
 		});
 		stateManager.dispatchServerAction(defaultChatUri, {
@@ -1574,6 +2393,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction(defaultChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'run it', origin: { kind: MessageKind.User } },
 		});
 		stateManager.dispatchServerAction(defaultChatUri, {
@@ -1701,6 +2521,122 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(resp.result, {});
 	});
 
+	test('getManagedSettingsDiagnostics returns provider SDK snapshots', async () => {
+		agentService.managedSettingsDiagnostics = [{
+			provider: 'copilot',
+			snapshot: {
+				source: 'device',
+				serverManaged: false,
+				deviceManaged: true,
+				failClosed: false,
+				bypassPermissionsDisabled: false,
+				managedKeys: ['permissions'],
+				settings: { permissions: { allow: ['Shell(echo *)'] } },
+			},
+		}];
+		const transport = connectClient('client-managed-settings');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'getManagedSettingsDiagnostics'));
+		const response = await responsePromise as { result?: unknown; error?: { message: string } };
+
+		assert.ok(!response.error, `unexpected error: ${response.error?.message}`);
+		assert.deepStrictEqual(response.result, agentService.managedSettingsDiagnostics);
+	});
+
+	test('setClientManagedSettingsPermissions validates and attributes contributions to the connected client', async () => {
+		const transport = connectClient('client-managed-settings-contribution');
+		transport.sent.length = 0;
+
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+		}));
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { allow: ['Shell'] },
+		}));
+		await Promise.resolve();
+
+		assert.deepStrictEqual(managedSettingsService.permissions, {
+			disableBypassPermissionsMode: 'disable',
+			ask: ['Shell'],
+		});
+	});
+
+	test('scopes managed settings contributions to each protocol handler', () => {
+		const firstTransport = connectClient('shared-client-id');
+		firstTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { ask: ['Shell'] },
+		}));
+
+		const localDisposables = disposables.add(new DisposableStore());
+		const secondServer = localDisposables.add(new MockProtocolServer());
+		const secondHandler = localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			secondServer,
+			{ defaultDirectory: URI.file('/home/testuser').toString() },
+			localDisposables.add(new AgentHostFileSystemProvider()),
+			logService,
+			NullTelemetryService,
+			managedSettingsService,
+		));
+		const secondTransport = new MockProtocolTransport();
+		secondServer.simulateConnection(secondTransport);
+		secondTransport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'shared-client-id',
+		}));
+		secondTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}));
+
+		assert.deepStrictEqual(managedSettingsService.permissions, {
+			disableBypassPermissionsMode: 'disable',
+			ask: ['Shell'],
+		});
+
+		secondTransport.simulateClose();
+		secondHandler.dispose();
+
+		assert.deepStrictEqual(managedSettingsService.permissions, { ask: ['Shell'] });
+	});
+
+	test('removes managed settings contributions for active and grace clients on dispose', () => {
+		const activeTransport = connectClient('client-managed-settings-active');
+		activeTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { ask: ['Shell'] },
+		}));
+		const graceTransport = connectClient('client-managed-settings-grace');
+		graceTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}));
+		graceTransport.simulateClose();
+
+		assert.deepStrictEqual(managedSettingsService.permissions, {
+			disableBypassPermissionsMode: 'disable',
+			ask: ['Shell'],
+		});
+
+		handler.dispose();
+
+		assert.deepStrictEqual(managedSettingsService.permissions, {});
+	});
+
+	test('removes a managed settings contribution after disconnect grace expires', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const transport = connectClient('client-managed-settings-disconnect');
+			transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+				permissions: { ask: ['Shell'] },
+			}));
+			transport.simulateClose();
+
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+
+			assert.deepStrictEqual(managedSettingsService.permissions, {});
+		});
+	});
+
 	test('extension request preserves ProtocolError code and data', async () => {
 		// Override authenticate to throw a ProtocolError with data
 		const origHandler = agentService.authenticate;
@@ -1732,6 +2668,43 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 
 		assert.deepStrictEqual(counts, [1, 2, 1]);
+	});
+
+	test('shares connection count across MessagePort and external listeners', async () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const messagePortServer = new MessagePortProtocolServer<string>();
+		const socketServer = new MockProtocolServer();
+		const combinedServer = localDisposables.add(new CompositeProtocolServer([messagePortServer, socketServer]));
+		const combinedHandler = localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			combinedServer,
+			{ defaultDirectory: URI.file('/home/testuser').toString() },
+			localDisposables.add(new AgentHostFileSystemProvider()),
+			logService,
+			NullTelemetryService,
+			managedSettingsService,
+		));
+		const counts: number[] = [];
+		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
+
+		await messagePortServer.call<void>('message-port-client', 'connect');
+		await messagePortServer.call<void>('message-port-client', 'send', JSON.stringify(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'message-port-client',
+		})));
+
+		const socketTransport = new MockProtocolTransport();
+		socketServer.simulateConnection(socketTransport);
+		socketTransport.simulateMessage(request(2, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'socket-client',
+		}));
+
+		messagePortServer.closeClient('message-port-client');
+		socketTransport.simulateClose();
+
+		assert.deepStrictEqual(counts, [1, 2, 1, 0]);
 	});
 
 	test('onDidChangeConnectionCount is not decremented by stale reconnect close', () => {
@@ -1847,6 +2820,8 @@ suite('ProtocolServerHandler', () => {
 				{ defaultDirectory: URI.file('/home/testuser').toString(), otlpLogEmitter: otlpEmitter },
 				localDisposables.add(new AgentHostFileSystemProvider()),
 				new NullLogService(),
+				NullTelemetryService,
+				managedSettingsService,
 			));
 		});
 
@@ -2016,6 +2991,8 @@ suite('ProtocolServerHandler', () => {
 				{ defaultDirectory: URI.file('/home/testuser').toString() },
 				localDisposables.add(new AgentHostFileSystemProvider()),
 				new NullLogService(),
+				NullTelemetryService,
+				managedSettingsService,
 			));
 		});
 

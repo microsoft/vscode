@@ -27,16 +27,15 @@ import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/d
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
-import { SessionHasChangesContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver, SessionChangesFileResourceContext, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
+import { ChangesMultiDiffSourceResolver, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
 
 // --- View All Changes action
@@ -57,7 +56,10 @@ class ViewAllChangesAction extends Action2 {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(SessionHasChangesContext, IsQuickChatSessionContext.negate())
+				when: ContextKeyExpr.and(
+					SessionHasChangesContext,
+					ContextKeyExpr.or(IsQuickChatSessionContext.negate(), SinglePaneLayoutEnabledContext)
+				)
 			},
 		});
 	}
@@ -65,7 +67,6 @@ class ViewAllChangesAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
-		const changesViewService = accessor.get(IChangesViewService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
@@ -76,20 +77,13 @@ class ViewAllChangesAction extends Action2 {
 			return;
 		}
 
-		// The header pill reflects the session's default changeset, so reset any
-		// Changes-view selection to the default before opening so the diff editor
-		// (a shared per-session resource) shows the same changes as the pill.
-		changesViewService.setChangesetId(undefined);
-
 		// Opening the Changes editor from the pill is a deliberate user action, so
 		// reveal the (possibly hidden) editor area explicitly — the automatic
 		// single-pane hide rules must not undo it.
 		layoutService.revealEditorPartExplicitly();
 
-		// Open the session Changes editor in the editor part. The resource list is
-		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
-		// a workbench contribution.
-		await sessionChangesService.openChangesEditor(sessionResource);
+		// The header pill reflects the default changeset.
+		await sessionChangesService.openChangesEditor(sessionResource, { changesetSelection: { kind: 'id', id: undefined } });
 	}
 }
 registerAction2(ViewAllChangesAction);
@@ -323,8 +317,8 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 	protected override getTooltip(): string {
 		const { branch } = this._diffStatsObs.get();
 		return branch
-			? localize('agentSessions.viewChanges.tooltip.branch', "View Changes ({0})", branch)
-			: localize('agentSessions.viewChanges.tooltip', "View Changes");
+			? localize('agentSessions.viewChanges.tooltip.branch', "View All Changes ({0})", branch)
+			: localize('agentSessions.viewChanges.tooltip', "View All Changes");
 	}
 
 	protected override getAriaLabel(): string {
@@ -332,7 +326,7 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 		const filesLabel = files === 1
 			? localize('agentSessions.changes.file', "{0} file", files)
 			: localize('agentSessions.changes.files', "{0} files", files);
-		// e.g. "View Changes (main): 3 files, +10, -4"
+		// e.g. "View All Changes (main): 3 files, +10, -4"
 		return localize('agentSessions.viewChanges.ariaLabel', "{0}: {1}, +{2}, -{3}", this.getTooltip(), filesLabel, insertions, deletions);
 	}
 }
@@ -449,36 +443,13 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 							title: operation.label,
 							icon: operation.icon,
 							f1: false,
-							toggled: ContextKeyExpr.in(
-								SessionChangesFileResourceContext.key,
-								SessionChangesReviewedFilesContext.key),
 							menu: [{
 								id: MenuId.AgentsChangeInlineToolbar,
-								// This is a temporary solution until the agent host protocol
-								// adds support to specify operations for each individual file
-								when: operation.group === 'review'
-									? ContextKeyExpr.false()
-									: ContextKeyExpr.true(),
 								group: 'navigation',
 								order: 100
 							},
 							{
 								id: MenuId.MultiDiffEditorFileToolbar,
-								// This is a temporary solution until the agent host protocol
-								// adds support to specify operations for each individual file
-								when: operation.group === 'review'
-									? operation.id === 'mark-as-reviewed'
-										? ContextKeyExpr.and(
-											ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
-											ContextKeyExpr.notIn(
-												SessionChangesFileResourceContext.key,
-												SessionChangesReviewedFilesContext.key))
-										: ContextKeyExpr.and(
-											ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
-											ContextKeyExpr.in(
-												SessionChangesFileResourceContext.key,
-												SessionChangesReviewedFilesContext.key))
-									: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
 								group: 'navigation',
 								order: 100
 							}]
@@ -486,36 +457,12 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 					}
 
 					async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-						const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-
 						// The Changes view provides the resource as the third argument (uses a
 						// custom action runner) while the multi-file diff editor provides the
 						// resource as the first argument.
 						const resource = args.length === 3 ? args[2] : args[0];
 						if (!resource || !(resource instanceof URI)) {
 							return;
-						}
-
-						// Optimistic update the state
-						if (operation.id === 'mark-as-reviewed') {
-							// Update context key for the toolbar
-							const agentHostReviewedFiles = agentHostReviewedFilesObs.read(undefined);
-							clientReviewedFilesObs.set([...agentHostReviewedFiles, resource.toString()], undefined);
-
-							// Collapse multi-file diff editor item
-							if (activeEditorPane instanceof MultiDiffEditor) {
-								const viewModel = activeEditorPane.viewModel;
-								const item = viewModel?.items.read(undefined)
-									.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));
-
-								if (item) {
-									viewModel!.collapse(item);
-								}
-							}
-						} else if (operation.id === 'mark-as-unreviewed') {
-							// Update context key for the toolbar
-							const agentHostReviewedFiles = agentHostReviewedFilesObs.read(undefined);
-							clientReviewedFilesObs.set([...agentHostReviewedFiles.filter(f => f !== resource.toString())], undefined);
 						}
 
 						await changeset?.invokeOperation(operation.id, {
