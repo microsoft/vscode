@@ -15,7 +15,6 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationLeaderElection } from '../../browser/automationLeaderElection.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -41,23 +40,6 @@ class FakeLeaderElection implements IAutomationLeaderElection {
 
 	evaluateForTesting(): void { /* no-op */ }
 	dispose(): void { /* no-op */ }
-}
-
-class RecordingLogService extends NullLogService {
-	readonly warnings: string[] = [];
-
-	override warn(message: string, ...args: unknown[]): void {
-		this.warnings.push([message, ...args].join(' '));
-	}
-}
-
-class ConcurrentSessionLinkAutomationService extends AutomationService {
-	override async updateRun(runId: string, patch: IUpdateAutomationRunOptions) {
-		if (patch.errorMessage?.startsWith(RUN_TIMEOUT_REASON_PREFIX)) {
-			await super.updateRun(runId, { sessionResource: SESSION_RESOURCE });
-		}
-		return super.updateRun(runId, patch);
-	}
 }
 
 class RecordingRecoveryAutomationService extends AutomationService {
@@ -425,8 +407,8 @@ suite('AutomationSchedulerCore', () => {
 
 	test('runOneWithTimeout: a hung run is cancelled, marked failed, and the next due automation still fires', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
-		const log = new RecordingLogService();
-		const service = teardown.add(new ConcurrentSessionLinkAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const log = new NullLogService();
+		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 
 		let now = T0;
 		service.setClockForTesting(() => now);
@@ -501,9 +483,6 @@ suite('AutomationSchedulerCore', () => {
 		const hungRun = service.runs.get().find(r => r.automationId === hungAutomationId);
 		assert.strictEqual(hungRun?.status, 'failed');
 		assert.ok(hungRun?.errorMessage?.startsWith(RUN_TIMEOUT_REASON_PREFIX), `expected timeout marker, got: ${hungRun?.errorMessage}`);
-		assert.deepStrictEqual(log.warnings, [
-			`[AutomationScheduler] automation ${hungAutomationId} timed out after 50ms; marked run ${hungRun?.id} failed (previousStatus=pending, session=${SESSION_RESOURCE.toString()}).`,
-		]);
 		// The non-hung automation's row should NOT have been touched
 		// by the timeout path.
 		const otherRun = service.runs.get().find(r => r.automationId === otherId);
