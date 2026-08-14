@@ -24,7 +24,7 @@ import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/p
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ContributionEnablementState, isContributionDisabled } from '../../common/enablement.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived, observableSignalFromEvent, type IObservable, type IReader } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -120,6 +120,49 @@ type IMcpListEntry = IMcpGroupHeaderEntry | IMcpServerItemEntry | IMcpSessionSer
 export type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled';
 
 /**
+ * Reads the live view of an agent-host MCP server, reactively.
+ *
+ * A list entry holds the snapshot taken when the list was last built, and `getMcpServers` is a
+ * plain read rather than an observable, so nothing derived from it would re-run on its own.
+ * Reading through here inside an `autorun` or `derived` puts agent-host state into the same
+ * reactive graph as the local runtime's observables, so a row's status -- and the accessible
+ * name spoken beside it -- keep up with a server that starts, fails, or asks to sign in.
+ */
+class ActiveSessionMcpServerReader {
+
+	private readonly _changes: IObservable<void>;
+
+	constructor(
+		private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
+		private readonly _customizationHarnessService: ICustomizationHarnessService,
+	) {
+		this._changes = observableSignalFromEvent('agentHostCustomizations', this._agentHostCustomizationService.onDidChangeCustomizations);
+	}
+
+	/**
+	 * Re-reads `snapshot` from the service. Falls back to the snapshot itself when the server has
+	 * gone, so a row keeps describing what it last knew rather than blanking.
+	 */
+	read(snapshot: AgentHostMcpServer | undefined, reader: IReader | undefined): AgentHostMcpServer | undefined {
+		if (!snapshot) {
+			return undefined;
+		}
+		this._changes.read(reader);
+		const sessionResource = this._customizationHarnessService.activeSessionResource.read(reader);
+		return this._agentHostCustomizationService.getMcpServers(sessionResource).find(server => server.id === snapshot.id) ?? snapshot;
+	}
+}
+
+/** The parts of a row that come from observables and change while the row is bound to an element. */
+interface IMcpRowState {
+	readonly status: McpStatusKind | undefined;
+	/** Why the row is off, when it is. Names the layer, or the plugin that owns it. */
+	readonly disabledReason?: CustomizationDisabledReason;
+	/** The live agent-host view of this row's server, re-read rather than the stale snapshot. */
+	readonly activeSessionServer?: AgentHostMcpServer;
+}
+
+/**
  * Delegate for the MCP server list.
  */
 class McpServerItemDelegate implements IListVirtualDelegate<IMcpListEntry> {
@@ -176,6 +219,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 
 	constructor(
 		private readonly _afterShowOutput: () => Promise<void>,
+		private readonly _activeSessionReader: ActiveSessionMcpServerReader,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -234,7 +278,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 				templateData.description.textContent = '';
 				templateData.description.style.display = 'none';
 			}
-			this.updateKnownServerStatus(templateData, element);
+			this.bindRowState(templateData, element);
 
 			// Add hover with plugin provenance for plugin-sourced builtin items
 			const pluginUriStr = getPluginUriFromCollectionId(element.collectionId);
@@ -259,7 +303,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			templateData.name.textContent = formatDisplayName(element.server.name);
 			templateData.description.textContent = '';
 			templateData.description.style.display = 'none';
-			this.updateActiveSessionStatus(templateData, element);
+			this.bindRowState(templateData, element);
 			return;
 		}
 
@@ -280,56 +324,30 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			templateData.description.style.display = 'none';
 		}
 
-		if (element.activeSessionServer !== undefined) {
-			this.updateKnownServerStatus(templateData, element);
-		} else if (this.workspaceService.isSessionsWindow) {
-			this.updateKnownServerStatus(templateData, element);
-		} else {
-			templateData.elementDisposables.add(autorun(reader => {
-				const disabled = element.localServer ? isContributionDisabled(element.localServer.enablement.read(reader)) : false;
-				const connectionState = element.localServer?.connectionState.read(reader);
-				templateData.container.classList.toggle('disabled', disabled);
-				this.updateStatus(templateData, element, disabled ? 'disabled' : connectionState?.state);
-			}));
-		}
+		this.bindRowState(templateData, element);
 	}
 
-	private updateKnownServerStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpBuiltinItemEntry): void {
-		let localDisabled = false;
-		const update = () => {
-			const activeSessionServer = element.activeSessionServer === undefined
-				? undefined
-				: this.agentHostCustomizationService.getMcpServers(this.customizationHarnessService.activeSessionResource.get()).find(server => server.id === element.activeSessionServer?.id) ?? element.activeSessionServer;
-			if (activeSessionServer !== undefined) {
-				const presentation = getActiveSessionServerPresentation(activeSessionServer);
-				templateData.container.classList.toggle('disabled', !presentation.enabled);
-				this.updateStatus(templateData, element, presentation.status, presentation.enabled ? undefined : activeSessionServer.disabledReason);
-				return;
-			}
-			templateData.container.classList.toggle('disabled', localDisabled);
-			this.updateStatus(templateData, element, localDisabled ? 'disabled' : undefined);
-		};
+	/**
+	 * Drives a row from one resolver, for every kind of row.
+	 *
+	 * There were three paths here: two that shared `updateKnownServerStatus` and a third that
+	 * computed the same answer inline. They agreed only by coincidence, and this is the same
+	 * file whose history says copies of a status rule had already drifted apart.
+	 */
+	private bindRowState(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): void {
 		templateData.elementDisposables.add(autorun(reader => {
-			localDisabled = element.localServer ? isContributionDisabled(element.localServer.enablement.read(reader)) : false;
-			update();
+			const rowState = resolveMcpRowState(element, this._activeSessionReader, this.workspaceService.isSessionsWindow, reader);
+			templateData.container.classList.toggle('disabled', rowState.status === 'disabled');
+			this.updateStatus(templateData, element, rowState);
 		}));
-		templateData.elementDisposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(update));
 	}
 
-	private updateActiveSessionStatus(templateData: IMcpServerItemTemplateData, element: IMcpSessionServerItemEntry): void {
-		const update = () => {
-			const server = this.agentHostCustomizationService.getMcpServers(this.customizationHarnessService.activeSessionResource.get()).find(server => server.id === element.server.id);
-			const presentation = server && getActiveSessionServerPresentation(server);
-			templateData.container.classList.toggle('disabled', presentation?.enabled === false);
-			this.updateStatus(templateData, element, presentation?.status, server?.disabledReason);
-		};
-		update();
-		templateData.elementDisposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(update));
-	}
-
-	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, state: McpStatusKind | undefined, disabledReason?: CustomizationDisabledReason): void {
-		const presentation = getMcpStatusPresentation(state, disabledReason);
-		const activeSessionServer = getActiveSessionServer(element);
+	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, rowState: IMcpRowState): void {
+		const state = rowState.status;
+		const presentation = getMcpStatusPresentation(state, rowState.disabledReason);
+		// The live agent-host view rather than the entry's snapshot, so the sign-in and output
+		// actions are bound to the server as it is now.
+		const activeSessionServer = rowState.activeSessionServer;
 		const label = getMcpEntryLabel(element);
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const localServer = element.type === 'session-server-item' ? undefined : element.localServer;
@@ -559,43 +577,68 @@ function getMcpEntryLabel(element: IMcpServerItemEntry | IMcpSessionServerItemEn
 			: element.server.label;
 }
 
-function getMcpStatusKind(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, isSessionsWindow: boolean): McpStatusKind | undefined {
+/**
+ * The single answer to "what is this row's state right now".
+ *
+ * Every surface that describes a row -- the rendered status, its accessible name, and the switch
+ * -- reads through here, so they cannot disagree about the same server. When an agent host has a
+ * view of a server it wins: the agent is the one actually running it, and it is also the only
+ * layer that knows a server is held off by the plugin that owns it.
+ */
+function resolveMcpRowState(
+	entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry,
+	activeSessionReader: ActiveSessionMcpServerReader,
+	isSessionsWindow: boolean,
+	reader: IReader | undefined,
+): IMcpRowState {
+	const activeSessionServer = activeSessionReader.read(getActiveSessionServer(entry), reader);
+	if (activeSessionServer !== undefined) {
+		const presentation = getActiveSessionServerPresentation(activeSessionServer);
+		return {
+			status: presentation.status,
+			disabledReason: presentation.enabled ? undefined : activeSessionServer.disabledReason,
+			activeSessionServer,
+		};
+	}
+
 	if (entry.type === 'session-server-item') {
-		return getActiveSessionServerPresentation(entry.server).status;
+		return { status: undefined };
 	}
-	if (entry.activeSessionServer !== undefined) {
-		return getActiveSessionServerPresentation(entry.activeSessionServer).status;
+
+	if (entry.localServer && isContributionDisabled(entry.localServer.enablement.read(reader))) {
+		return { status: 'disabled' };
 	}
-	if (entry.localServer && isContributionDisabled(entry.localServer.enablement.get())) {
-		return 'disabled';
-	}
+
+	// Only a plain local row reports its connection state. A built-in row has never shown it, and
+	// in the Agents window the local runtime is not what governs whether a server is working.
 	if (entry.type === 'server-item' && !isSessionsWindow) {
-		return entry.localServer?.connectionState.get().state;
+		return { status: entry.localServer?.connectionState.read(reader).state };
 	}
-	return undefined;
+	return { status: undefined };
 }
 
-function getMcpEntryAriaLabel(element: IMcpListEntry, isSessionsWindow: boolean): string {
+/**
+ * The accessible name for a row, as an observable.
+ *
+ * It has to be observable because a row's status changes without the list being spliced: the
+ * visible status is driven by an autorun over the runtime's observables and the agent host's
+ * change signal, and nothing re-renders the row around it. A plain string would be computed once
+ * and then quietly describe the past.
+ */
+function observeMcpEntryAriaLabel(element: IMcpListEntry, activeSessionReader: ActiveSessionMcpServerReader, isSessionsWindow: boolean): IObservable<string> {
+	return derived(reader => getMcpEntryAriaLabel(element, activeSessionReader, isSessionsWindow, reader));
+}
+
+function getMcpEntryAriaLabel(element: IMcpListEntry, activeSessionReader: ActiveSessionMcpServerReader, isSessionsWindow: boolean, reader: IReader | undefined): string {
 	if (element.type === 'group-header') {
 		return localize('mcpGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 	}
 	const label = getMcpEntryLabel(element);
-	const statusKind = getMcpStatusKind(element, isSessionsWindow);
-	const disabledReason = statusKind === 'disabled' ? getMcpDisabledReason(element) : undefined;
-	const status = getMcpStatusPresentation(statusKind, disabledReason);
+	const rowState = resolveMcpRowState(element, activeSessionReader, isSessionsWindow, reader);
+	const status = getMcpStatusPresentation(rowState.status, rowState.disabledReason);
 	return status
 		? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", label, status.label)
 		: label;
-}
-
-function getMcpDisabledReason(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): CustomizationDisabledReason | undefined {
-	if (entry.type === 'session-server-item') {
-		return entry.server.disabledReason;
-	}
-	if (entry.activeSessionServer !== undefined) {
-		return entry.activeSessionServer.disabledReason;
-	}
-	return undefined;
 }
 
 function normalizeMcpMatchKey(value: string | undefined): string | undefined {
@@ -1170,7 +1213,10 @@ export class McpListWidget extends Disposable {
 		// Create list
 		const delegate = new McpServerItemDelegate();
 		const groupHeaderRenderer = new CustomizationGroupHeaderRenderer<IMcpGroupHeaderEntry>('mcpGroupHeader', this.hoverService);
-		const localRenderer = this.instantiationService.createInstance(McpServerItemRenderer, () => this._closeCustomizationEditor());
+		// Shared by the rows and their accessible names, so both observe the same agent-host
+		// state through the same signal rather than each installing their own listener.
+		const activeSessionReader = new ActiveSessionMcpServerReader(this.agentHostCustomizationService, this.customizationHarnessService);
+		const localRenderer = this.instantiationService.createInstance(McpServerItemRenderer, () => this._closeCustomizationEditor(), activeSessionReader);
 		const galleryRenderer = new GalleryItemRenderer<IMcpServerItemEntry>(MCP_GALLERY_ITEM_TEMPLATE_ID, new McpGalleryItemProvider(this.mcpWorkbenchService));
 
 		this.list = this._register(this.instantiationService.createInstance(
@@ -1185,7 +1231,7 @@ export class McpListWidget extends Disposable {
 				horizontalScrolling: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IMcpListEntry) => {
-						return getMcpEntryAriaLabel(element, this.workspaceService.isSessionsWindow);
+						return observeMcpEntryAriaLabel(element, activeSessionReader, this.workspaceService.isSessionsWindow);
 					},
 					getWidgetAriaLabel() {
 						return localize('mcpServersListAriaLabel', "MCP Servers");
