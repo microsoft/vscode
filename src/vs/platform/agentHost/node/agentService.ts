@@ -2354,8 +2354,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * exactly that window; every other caller relies on the exhaustive origin
 	 * {@link _chatContext} stamps.
 	 */
-	private async _getChatMessages(provider: IAgent, chat: URI, session?: URI, origin?: ChatOrigin): Promise<readonly Turn[]> {
-		const context = session ? { ...this._chatContext(session, chat), ...(origin ? { origin } : {}) } : undefined;
+	private async _getChatMessages(provider: IAgent, chat: URI, session: URI, origin?: ChatOrigin): Promise<readonly Turn[]> {
+		const context = { ...this._chatContext(session, chat), ...(origin ? { origin } : {}) };
 		const turns = await this._applyPersistedTurnUsage(chat, await provider.chats.getMessages(chat, context));
 		// Host-owned worktree restore announcement: re-inject the "Created isolated
 		// worktree" message at the top of the default chat's first turn from
