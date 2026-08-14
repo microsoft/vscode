@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatWidget.css';
+import '../../../../workbench/contrib/chat/browser/viewsWelcome/media/chatProviderSetup.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action } from '../../../../base/common/actions.js';
@@ -20,6 +21,8 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ChatProviderSetupPart } from '../../../../workbench/contrib/chat/browser/viewsWelcome/chatProviderSetupPart.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
@@ -121,6 +124,7 @@ export class NewChatWidget extends Disposable {
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -343,6 +347,7 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
+		this._renderProviderSetup(chatWidgetContent);
 		this._chatTipContainer = dom.append(chatWidgetContent, dom.$('.chat-getting-started-tip-container'));
 		this._renderChatTip();
 		this._newChatInput.render(chatWidgetContent, parent);
@@ -863,6 +868,48 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 		return true;
+	}
+
+	/**
+	 * The Agents composer is the first thing a new user sees, so when there is
+	 * no way to run a model yet it offers the provider list above the input
+	 * rather than an input that cannot do anything.
+	 *
+	 * Driven by an autorun because entitlement resolves asynchronously — the
+	 * composer is built while the sign-in dialog is still up, so a one-shot
+	 * check at render time reads a state that has not settled yet.
+	 */
+	private _renderProviderSetup(container: HTMLElement): void {
+		const host = dom.append(container, dom.$('.new-session-provider-setup'));
+		const part = this._register(new MutableDisposable<DisposableStore>());
+		let dismissed = false;
+
+		this._register(autorun(reader => {
+			const entitlement = this.chatEntitlementService.entitlementObs.read(reader);
+			const sentiment = this.chatEntitlementService.sentimentObs.read(reader);
+			const needsProvider = !dismissed
+				&& entitlement === ChatEntitlement.Unknown
+				&& !this.chatEntitlementService.hasByokModels
+				&& !sentiment.hidden;
+
+			part.clear();
+			dom.clearNode(host);
+			host.classList.toggle('hidden', !needsProvider);
+			if (!needsProvider) {
+				return;
+			}
+
+			const store = new DisposableStore();
+			part.value = store;
+			const setup = store.add(this.instantiationService.createInstance(ChatProviderSetupPart, { showDismiss: true }));
+			store.add(setup.onDidDismiss(() => {
+				dismissed = true;
+				dom.clearNode(host);
+				host.classList.add('hidden');
+				part.clear();
+			}));
+			dom.append(host, setup.element);
+		}));
 	}
 
 	private _renderFeedbackBanner(container: HTMLElement): void {

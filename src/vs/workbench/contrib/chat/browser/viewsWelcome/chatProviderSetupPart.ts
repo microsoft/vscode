@@ -7,6 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
@@ -33,10 +34,19 @@ interface IChatProviderRow {
 	readonly markClass?: string;
 	readonly icon?: ThemeIcon;
 	readonly name: string;
-	readonly description?: string;
+	readonly description: string;
 	readonly actionLabel: string;
 	readonly primary?: boolean;
 	readonly commandId: string;
+}
+
+export interface IChatProviderSetupOptions {
+	/**
+	 * Renders a close affordance. Surfaces with no other way past the panel —
+	 * the Agents window composer — need one; the editor sidebar reveals its
+	 * input as soon as a provider exists.
+	 */
+	readonly showDismiss?: boolean;
 }
 
 /**
@@ -44,14 +54,19 @@ interface IChatProviderRow {
  * hides every other way of working, this lists the ways to get models and lets
  * the user pick one without leaving chat.
  *
- * GitHub Copilot leads because it is the shortest path to a working setup, but
- * the alternatives are visible rather than buried behind a secondary link.
+ * The list adapts to the width it is given: a narrow sidebar stacks the rows,
+ * a wide composer lays them out side by side. Both come from the same DOM, so
+ * there is one structure to reason about rather than two layouts to sync.
  */
 export class ChatProviderSetupPart extends Disposable {
 
 	readonly element: HTMLElement;
 
+	private readonly _onDidDismiss = this._register(new Emitter<void>());
+	readonly onDidDismiss: Event<void> = this._onDidDismiss.event;
+
 	constructor(
+		private readonly options: IChatProviderSetupOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
@@ -63,10 +78,22 @@ export class ChatProviderSetupPart extends Disposable {
 
 	private render(): void {
 		const intro = dom.append(this.element, $('.chat-provider-setup-intro'));
-		const title = dom.append(intro, $('h2.chat-provider-setup-title'));
+		const heading = dom.append(intro, $('.chat-provider-setup-heading'));
+		const title = dom.append(heading, $('h2.chat-provider-setup-title'));
 		title.textContent = localize('chat.providerSetup.title', "Choose how to get models");
-		const subtitle = dom.append(intro, $('p.chat-provider-setup-subtitle'));
+		const subtitle = dom.append(heading, $('p.chat-provider-setup-subtitle'));
 		subtitle.textContent = localize('chat.providerSetup.subtitle', "Pick a provider to start chatting. You can add more later.");
+
+		if (this.options.showDismiss) {
+			const dismiss = dom.append(intro, $<HTMLButtonElement>('button.chat-provider-setup-dismiss'));
+			dismiss.type = 'button';
+			dismiss.appendChild(renderIcon(Codicon.close));
+			dismiss.setAttribute('aria-label', localize('chat.providerSetup.dismiss.aria', "Dismiss provider setup"));
+			dismiss.title = localize('chat.providerSetup.dismiss', "Dismiss");
+			this._register(dom.addDisposableListener(dismiss, dom.EventType.CLICK, () => {
+				this._onDidDismiss.fire();
+			}));
+		}
 
 		const list = dom.append(this.element, $('.chat-provider-setup-list'));
 		list.setAttribute('role', 'group');
@@ -77,7 +104,7 @@ export class ChatProviderSetupPart extends Disposable {
 				id: 'copilot',
 				icon: Codicon.github,
 				name: localize('chat.providerSetup.copilot.name', "GitHub Copilot"),
-				description: localize('chat.providerSetup.copilot.description', "Free to start with your GitHub account."),
+				description: localize('chat.providerSetup.copilot.description', "Free with your GitHub account."),
 				actionLabel: localize('chat.providerSetup.copilot.action', "Sign in"),
 				primary: true,
 				commandId: CHAT_SETUP_ACTION_ID,
@@ -86,6 +113,7 @@ export class ChatProviderSetupPart extends Disposable {
 				id: 'chatgpt',
 				markClass: 'openai',
 				name: localize('chat.providerSetup.chatgpt.name', "ChatGPT"),
+				description: localize('chat.providerSetup.chatgpt.description', "Use your OpenAI account or key."),
 				actionLabel: localize('chat.providerSetup.chatgpt.action', "Sign in"),
 				commandId: MANAGE_CHAT_COMMAND_ID,
 			},
@@ -93,6 +121,7 @@ export class ChatProviderSetupPart extends Disposable {
 				id: 'byok',
 				icon: Codicon.key,
 				name: localize('chat.providerSetup.byok.name', "Your own key"),
+				description: localize('chat.providerSetup.byok.description', "Anthropic, Azure, OpenRouter and more."),
 				actionLabel: localize('chat.providerSetup.byok.action', "Configure"),
 				commandId: MANAGE_CHAT_COMMAND_ID,
 			},
@@ -120,10 +149,8 @@ export class ChatProviderSetupPart extends Disposable {
 		const copy = dom.append(row, $('.chat-provider-setup-copy'));
 		const name = dom.append(copy, $('span.chat-provider-setup-name'));
 		name.textContent = descriptor.name;
-		if (descriptor.description) {
-			const description = dom.append(copy, $('span.chat-provider-setup-description'));
-			description.textContent = descriptor.description;
-		}
+		const description = dom.append(copy, $('span.chat-provider-setup-description'));
+		description.textContent = descriptor.description;
 
 		const action = dom.append(row, $<HTMLButtonElement>('button.chat-provider-setup-action'));
 		action.type = 'button';

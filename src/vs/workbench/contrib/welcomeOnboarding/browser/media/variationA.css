@@ -339,65 +339,134 @@
 }
 
 /*
- * Provider list. Every row is the same object at a different scale, so the
- * comparison stays a comparison — the eye only has to weigh emphasis, not
- * re-read a new layout on each line.
+ * Provider list. Each row is a single inline line — switch, mark, name,
+ * description — so three options can be compared by scanning one column
+ * instead of re-reading a new shape on every line. Nothing is scaled up;
+ * emphasis comes from the selected state, which is where the meaning is.
  */
 .onboarding-a-provider-list {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: 6px;
 	width: 100%;
 }
 
 .onboarding-a-provider-row {
+	position: relative;
 	display: flex;
 	align-items: center;
-	gap: 14px;
+	gap: 12px;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 12px 16px;
-	border: 1px solid transparent;
-	border-radius: 8px;
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 4%, transparent);
-	transition: background 120ms ease, border-color 120ms ease;
+	padding: 13px 16px;
+	border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
+	cursor: pointer;
+	transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .onboarding-a-provider-row:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
-	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 14%, transparent);
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 6%, transparent);
 }
 
-/* Copilot is the path we want most people to take, so it carries more weight. */
-.onboarding-a-provider-row.primary {
-	padding: 18px 16px;
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 32%, transparent);
-	background: color-mix(in srgb, var(--vscode-focusBorder) 8%, transparent);
+/*
+ * Selected rows lift rather than merely tint, so what is on reads at a
+ * glance without the list turning into a field of competing colour.
+ */
+.onboarding-a-provider-row.selected {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 42%, transparent);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 9%, transparent);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16), 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 14%, transparent);
 }
 
-.onboarding-a-provider-row.primary:hover {
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 52%, transparent);
-	background: color-mix(in srgb, var(--vscode-focusBorder) 11%, transparent);
+.onboarding-a-provider-row.selected:hover {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 60%, transparent);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
 }
 
-.onboarding-a-provider-row-mark {
+/* The real input stays in the accessibility tree; the pill below is its skin. */
+.onboarding-a-provider-checkbox {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: 0;
+	padding: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.onboarding-a-provider-toggle {
+	position: relative;
 	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	box-sizing: border-box;
+	width: 30px;
+	height: 18px;
+	padding: 2px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 22%, transparent);
+	transition: background 140ms ease;
+}
+
+.onboarding-a-provider-row:hover .onboarding-a-provider-toggle {
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 32%, transparent);
+}
+
+.onboarding-a-provider-row.selected .onboarding-a-provider-toggle {
+	background: var(--vscode-button-background);
+}
+
+.onboarding-a-provider-row.selected:hover .onboarding-a-provider-toggle {
+	background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+}
+
+/*
+ * The knob must read against both the neutral and accent track, so it uses
+ * the button foreground rather than the editor background (dark on dark).
+ */
+.onboarding-a-provider-toggle-knob {
+	width: 14px;
+	height: 14px;
+	border-radius: 999px;
+	background: var(--vscode-button-foreground, #ffffff);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+	transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onboarding-a-provider-row.selected .onboarding-a-provider-toggle-knob {
+	transform: translateX(12px);
+}
+
+.onboarding-a-provider-checkbox:focus-visible + .onboarding-a-provider-toggle {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.onboarding-a-provider-mark {
+	display: flex;
+	flex: 0 0 auto;
 	align-items: center;
 	justify-content: center;
-	flex: 0 0 auto;
-	width: 28px;
-	height: 28px;
-	border-radius: 6px;
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
+	width: 20px;
+	height: 20px;
 	color: var(--vscode-editor-foreground);
+	opacity: 0.7;
+	transition: opacity 140ms ease;
 }
 
-.onboarding-a-provider-row-mark .codicon {
+.onboarding-a-provider-row.selected .onboarding-a-provider-mark {
+	opacity: 1;
+}
+
+.onboarding-a-provider-mark .codicon {
 	font-size: 16px;
 }
 
 /* Brand marks are masked so they inherit the theme's foreground colour. */
-.onboarding-a-provider-row-mark.openai::before {
+.onboarding-a-provider-mark.openai::before {
 	content: '';
 	width: 16px;
 	height: 16px;
@@ -412,69 +481,53 @@
 	mask-size: contain;
 }
 
-.onboarding-a-provider-row.primary .onboarding-a-provider-row-mark {
-	width: 36px;
-	height: 36px;
-}
-
-.onboarding-a-provider-row.primary .onboarding-a-provider-row-mark .codicon {
-	font-size: 20px;
-}
-
-.onboarding-a-provider-row-copy {
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	gap: 2px;
-	min-width: 0;
-}
-
-.onboarding-a-provider-row-name-row {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	min-width: 0;
-}
-
-.onboarding-a-provider-row-name {
-	margin: 0;
+.onboarding-a-provider-name {
+	flex: 0 0 auto;
 	font-size: 13px;
 	font-weight: 600;
 	line-height: 1.3;
 	color: var(--vscode-foreground);
+	letter-spacing: -0.005em;
 }
 
-.onboarding-a-provider-row.primary .onboarding-a-provider-row-name {
-	font-size: 15px;
-}
-
-.onboarding-a-provider-row-badge {
+.onboarding-a-provider-badge {
 	flex: 0 0 auto;
-	padding: 1px 7px;
-	border-radius: 10px;
-	background: color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent);
+	padding: 2px 7px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--vscode-focusBorder) 26%, transparent);
 	color: var(--vscode-foreground);
-	font-size: 10px;
+	font-size: 9px;
 	font-weight: 600;
-	letter-spacing: 0.02em;
+	letter-spacing: 0.04em;
 	text-transform: uppercase;
 }
 
-.onboarding-a-provider-row-description {
-	margin: 0;
+/*
+ * The description trails on the same line and truncates rather than wrapping,
+ * so every row stays one line tall and the column keeps its rhythm.
+ */
+.onboarding-a-provider-description {
+	flex: 1 1 auto;
+	min-width: 0;
 	font-size: 12px;
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
+	text-align: right;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.onboarding-a-provider-row-alternates {
-	margin-top: 4px;
+/* Copilot's other sign-in routes: available, but not competing with the list. */
+.onboarding-a-provider-alternates {
+	margin-top: 2px;
+	padding: 0 2px;
 	font-size: 12px;
-	line-height: 1.4;
+	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
 }
 
-.onboarding-a-provider-row-alternate {
+.onboarding-a-provider-alternate {
 	padding: 0;
 	border: none;
 	background: none;
@@ -483,48 +536,14 @@
 	cursor: pointer;
 }
 
-.onboarding-a-provider-row-alternate:hover {
+.onboarding-a-provider-alternate:hover {
 	text-decoration: underline;
 }
 
-.onboarding-a-provider-row-alternate:focus-visible {
+.onboarding-a-provider-alternate:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 	border-radius: 2px;
-}
-
-.onboarding-a-provider-row-action {
-	flex: 0 0 auto;
-	padding: 5px 14px;
-	border: 1px solid var(--vscode-button-border, transparent);
-	border-radius: 4px;
-	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	font-size: 12px;
-	font-weight: 500;
-	cursor: pointer;
-	transition: background 120ms ease;
-}
-
-.onboarding-a-provider-row-action:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
-
-.onboarding-a-provider-row-action.primary {
-	padding: 7px 20px;
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	font-size: 13px;
-	font-weight: 600;
-}
-
-.onboarding-a-provider-row-action.primary:hover {
-	background: var(--vscode-button-hoverBackground);
-}
-
-.onboarding-a-provider-row-action:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
 }
 
 .onboarding-a-signin-footer {

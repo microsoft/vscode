@@ -59,3 +59,43 @@
 .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
 	background-image: url('./apple-dark.svg');
 }
+
+/*
+ * Agents window sign-in. That window is wide, so stacking the account choices
+ * leaves a tall column of near-identical buttons. Sitting them side by side
+ * reads as one row of alternatives — which is what they are — and keeps the
+ * dialog's height proportional to what it actually asks.
+ *
+ * Scoped to the Agents workbench rather than a dialog class: the sign-in
+ * dialog is built by chatSetup, which does not know which window asked for
+ * it, so the window itself is the honest place to make this distinction.
+ *
+ * The enterprise link stays on its own line below: it is a different kind of
+ * choice, not another account button.
+ */
+.agent-sessions-workbench .chat-setup-dialog .dialog-buttons-row > .dialog-buttons {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: stretch;
+	justify-content: center;
+	gap: 8px;
+}
+
+/* Wide enough that the three account choices sit on one comfortable row. */
+.agent-sessions-workbench .chat-setup-dialog.monaco-dialog-box {
+	width: 560px;
+	max-width: 92vw;
+}
+
+.agent-sessions-workbench .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button {
+	flex: 1 1 0;
+	min-width: 148px;
+	margin: 0;
+	justify-content: center;
+}
+
+.agent-sessions-workbench .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button {
+	flex: 1 0 100%;
+	margin: 2px auto 0;
+}

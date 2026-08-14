@@ -4,26 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Signed-out chat panel provider list. This sits where the welcome message
- * normally goes, directly above the input, so the decision and the place you
- * act on it stay together.
+ * Signed-out chat provider list. This sits where the welcome message normally
+ * goes, directly above the input, so the decision and the place you act on it
+ * stay together.
+ *
+ * One DOM, two shapes: the narrow editor sidebar stacks the rows, the wide
+ * Agents composer lays them out side by side. A container query does the
+ * switch, so the panel also adapts when the user drags the sidebar wider
+ * rather than only matching whichever surface it was built for.
  */
 
 .chat-provider-setup {
+	container-type: inline-size;
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
 	box-sizing: border-box;
 	width: 100%;
-	max-width: 460px;
+	max-width: 900px;
 	margin: 0 auto;
 	padding: 0 16px;
 }
 
 .chat-provider-setup-intro {
 	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+}
+
+.chat-provider-setup-heading {
+	display: flex;
+	flex: 1;
 	flex-direction: column;
 	gap: 2px;
+	min-width: 0;
 }
 
 .chat-provider-setup-title {
@@ -32,6 +46,7 @@
 	font-weight: 600;
 	line-height: 1.3;
 	color: var(--vscode-foreground);
+	letter-spacing: -0.005em;
 }
 
 .chat-provider-setup-subtitle {
@@ -39,6 +54,40 @@
 	font-size: 12px;
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
+}
+
+/* Quiet until sought: the panel is the point, dismissing it is the exception. */
+.chat-provider-setup-dismiss {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: 5px;
+	background: none;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	opacity: 0.7;
+	transition: background 120ms ease, opacity 120ms ease;
+}
+
+.chat-provider-setup-dismiss:hover {
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 9%, transparent);
+	color: var(--vscode-foreground);
+	opacity: 1;
+}
+
+.chat-provider-setup-dismiss:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	opacity: 1;
+}
+
+.chat-provider-setup-dismiss .codicon {
+	font-size: 14px;
 }
 
 .chat-provider-setup-list {
@@ -53,28 +102,28 @@
 	gap: 10px;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 8px 10px;
-	border: 1px solid transparent;
-	border-radius: 6px;
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 4%, transparent);
-	transition: background 120ms ease, border-color 120ms ease;
+	padding: 9px 11px;
+	border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
+	transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .chat-provider-setup-row:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
-	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 6%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 14%, transparent);
 }
 
 /* Copilot is the shortest path to a working setup, so it carries more weight. */
 .chat-provider-setup-row.primary {
-	padding: 11px 10px;
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 32%, transparent);
-	background: color-mix(in srgb, var(--vscode-focusBorder) 8%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 42%, transparent);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 9%, transparent);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
 }
 
 .chat-provider-setup-row.primary:hover {
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 52%, transparent);
-	background: color-mix(in srgb, var(--vscode-focusBorder) 11%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 60%, transparent);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
 }
 
 .chat-provider-setup-mark {
@@ -82,22 +131,25 @@
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 auto;
-	width: 22px;
-	height: 22px;
-	border-radius: 4px;
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
+	width: 20px;
+	height: 20px;
 	color: var(--vscode-editor-foreground);
+	opacity: 0.85;
+}
+
+.chat-provider-setup-row.primary .chat-provider-setup-mark {
+	opacity: 1;
 }
 
 .chat-provider-setup-mark .codicon {
-	font-size: 13px;
+	font-size: 15px;
 }
 
 /* Brand marks are masked so they inherit the theme's foreground colour. */
 .chat-provider-setup-mark.openai::before {
 	content: '';
-	width: 13px;
-	height: 13px;
+	width: 15px;
+	height: 15px;
 	background-color: currentColor;
 	-webkit-mask-image: url('./openai-logo.svg');
 	mask-image: url('./openai-logo.svg');
@@ -138,9 +190,9 @@
 
 .chat-provider-setup-action {
 	flex: 0 0 auto;
-	padding: 3px 10px;
+	padding: 4px 11px;
 	border: 1px solid var(--vscode-button-border, transparent);
-	border-radius: 4px;
+	border-radius: 5px;
 	background: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
 	font-size: 11px;
@@ -154,10 +206,8 @@
 }
 
 .chat-provider-setup-action.primary {
-	padding: 4px 14px;
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
-	font-size: 12px;
 	font-weight: 600;
 }
 
@@ -168,4 +218,42 @@
 .chat-provider-setup-action:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
+}
+
+/*
+ * Wide surfaces (the Agents composer, or a sidebar dragged out) get the rows
+ * side by side. Each becomes a small card: the mark and copy stack above a
+ * full-width action, so the three options read as siblings rather than as a
+ * list that happened to be stretched.
+ */
+@container (min-width: 620px) {
+	.chat-provider-setup-list {
+		flex-direction: row;
+		align-items: stretch;
+		gap: 10px;
+	}
+
+	.chat-provider-setup-row {
+		flex: 1 1 0;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+		padding: 14px;
+		min-width: 0;
+	}
+
+	.chat-provider-setup-copy {
+		flex: 1 1 auto;
+		gap: 2px;
+	}
+
+	.chat-provider-setup-description {
+		white-space: normal;
+	}
+
+	.chat-provider-setup-action {
+		width: 100%;
+		padding: 5px 11px;
+		text-align: center;
+	}
 }

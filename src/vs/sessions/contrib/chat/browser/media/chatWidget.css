@@ -472,3 +472,21 @@
 .action-widget .monaco-list-row.action.sessions-browse-inline-item.focused:not(.option-disabled) .description {
 	visibility: visible;
 }
+
+/*
+ * Provider setup in the new-session composer. It sits directly above the
+ * input and inherits the composer's width, so the shared panel picks its
+ * wide layout here without needing to know which window it is in.
+ */
+.new-session-provider-setup {
+	width: 100%;
+	margin-bottom: 12px;
+}
+
+.new-session-provider-setup .chat-provider-setup {
+	padding: 0;
+}
+
+.new-session-provider-setup.hidden {
+	display: none;
+}

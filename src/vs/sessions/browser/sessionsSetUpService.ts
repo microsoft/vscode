@@ -76,6 +76,11 @@ class SessionsSetUpWidget extends Disposable {
 	private _initialSetupFlow = true;
 	/** True while the window is open for a signed-out user via the conditional-auth opt-in. */
 	private _proceedingSignedOut = false;
+	/**
+	 * Set when the user closes the sign-in dialog. Honoured for the rest of the
+	 * session so the gate does not immediately put the dialog back up.
+	 */
+	private _signInDismissed = false;
 	/** Whether a signed-out user can work without GitHub right now. */
 	private readonly _usableWithoutGitHub: IObservable<boolean>;
 
@@ -241,7 +246,7 @@ class SessionsSetUpWidget extends Disposable {
 	 * mandatory-sign-in behavior.
 	 */
 	private _mustForceGitHubSignIn(): boolean {
-		return !this._usableWithoutGitHub.get();
+		return !this._signInDismissed && !this._usableWithoutGitHub.get();
 	}
 
 	/**
@@ -412,7 +417,10 @@ class SessionsSetUpWidget extends Disposable {
 			forceSignInDialog: true,
 			dialogIcon: Codicon.agent,
 			dialogTitle: localize('sessions.signIn', "Sign in to use Agents"),
-			disableCloseButton: true,
+			// A user who cannot sign in — or wants their own key — needs a way
+			// past this dialog to reach the composer, where the provider list
+			// offers the other routes.
+			disableCloseButton: false,
 			onSignInStarted: () => {
 				const disposables = new DisposableStore();
 				signingInDialogRef.value = disposables;
@@ -442,7 +450,13 @@ class SessionsSetUpWidget extends Disposable {
 			this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			this.serviceMarkDone();
 		} else {
-			this.logService.info('[sessions welcome] Sign-in was canceled or failed');
+			// Dismissing is a choice, not a failure: the user may want to bring
+			// their own key, which can only be set up inside the window. Let
+			// them through to the composer, where the provider list offers the
+			// other routes. The choice is not persisted — a user who set nothing
+			// up is asked again next launch.
+			this.logService.info('[sessions welcome] Sign-in was canceled; opening the window so other providers can be set up');
+			this._signInDismissed = true;
 		}
 	}
 
