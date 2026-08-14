@@ -520,6 +520,16 @@
 	pointer-events: auto;
 }
 
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions,
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-unfocused-hover-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-unfocused-hover-background));
+}
+
 .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions,
 .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within {
 	background-color: var(--modern-ui-editor-tab-action-active-background);
@@ -528,6 +538,32 @@
 .monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before,
 .monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within::before {
 	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-active-background));
+}
+
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions,
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-unfocused-active-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-unfocused-active-background));
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions {
+	background-color: var(--modern-ui-editor-tab-action-active-hover-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-active-hover-background));
+}
+
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions {
+	background-color: var(--modern-ui-editor-tab-action-unfocused-active-hover-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-unfocused-active-hover-background));
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab:not(:hover) > .chat-composite-bar-tab-actions .action-label:not(:focus) {
