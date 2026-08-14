@@ -1937,9 +1937,11 @@ export interface ExtHostUriOpenersShape {
 export interface MainThreadChatOutputRendererShape extends IDisposable {
 	$registerChatOutputRenderer(viewType: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
 	$unregisterChatOutputRenderer(viewType: string): void;
+	$openChatOutputInModal(webviewHandle: string, title: string | undefined): Promise<void>;
 }
 
 export interface IChatOutputRenderContextDto {
+	readonly isInModal?: boolean;
 	readonly codeBlockContext?: {
 		readonly languageIdentifier: string;
 	};

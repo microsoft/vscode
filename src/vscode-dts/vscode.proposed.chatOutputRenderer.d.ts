@@ -54,6 +54,13 @@ declare module 'vscode' {
 		readonly webview: Webview;
 
 		/**
+		 * Opens this output in a modal editor.
+		 *
+		 * @param title The title of the modal editor.
+		 */
+		openInModal(title?: string): Thenable<void>;
+
+		/**
 		 * Fired when the webview is disposed.
 		 */
 		readonly onDidDispose: Event<void>;
@@ -63,6 +70,11 @@ declare module 'vscode' {
 	 * Additional context for rendering chat output.
 	 */
 	export interface ChatOutputRenderContext {
+		/**
+		 * Whether the output is being rendered in a modal editor.
+		 */
+		readonly isInModal?: boolean;
+
 		/**
 		 * Context when a code block is being rendered.
 		 *

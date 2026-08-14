@@ -20,6 +20,8 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ExtensionKeyedWebviewOriginStore, IWebview, IWebviewService, WebviewContentPurpose } from '../../../contrib/webview/browser/webview.js';
+import { IWebviewWorkbenchService } from '../../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
+import { MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry, IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
 import { IChatWidgetService } from './chat.js';
@@ -29,6 +31,7 @@ export interface IChatOutputItemRenderer {
 }
 
 export interface IChatOutputRenderContext {
+	readonly isInModal?: boolean;
 	readonly codeBlockContext?: {
 		readonly languageIdentifier: string;
 	};
@@ -53,6 +56,8 @@ export interface IChatOutputRendererService {
 	renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart>;
 
 	renderCodeBlock(languageIdentifier: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderCodeBlockWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart>;
+
+	openOutputInModal(viewType: string, mime: string, data: Uint8Array, context: IChatOutputRenderContext, title: string | undefined): Promise<void>;
 }
 
 export interface RenderedOutputPart extends IDisposable {
@@ -96,6 +101,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IStorageService storageService: IStorageService,
 	) {
@@ -144,6 +150,29 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		}
 
 		return this.doRenderOutputPart(rendererData, 'text/x-vscode-chat-code-block', data, { codeBlockContext: { languageIdentifier } }, parent, webviewOptions, token);
+	}
+
+	async openOutputInModal(viewType: string, mime: string, data: Uint8Array, context: IChatOutputRenderContext, title: string | undefined): Promise<void> {
+		const rendererData = this._renderers.get(viewType);
+		if (!rendererData) {
+			throw new Error(`No chat output renderer registered for view type: ${viewType}`);
+		}
+
+		const modalTitle = title ?? nls.localize('chatOutputModal.title', "Chat Output");
+		const input = this._webviewWorkbenchService.openWebview({
+			title: modalTitle,
+			origin: this.getOrigin(rendererData),
+			providedViewType: rendererData.viewType,
+			options: {
+				enableFindWidget: false,
+				purpose: WebviewContentPurpose.ChatOutputItem,
+				tryRestoreScrollPosition: false,
+			},
+			contentOptions: {},
+			extension: rendererData.options.extension,
+		}, rendererData.viewType, modalTitle, undefined, { group: MODAL_GROUP });
+
+		await rendererData.renderer.renderOutputPart(mime, data, input.webview, { ...context, isInModal: true }, CancellationToken.None);
 	}
 
 	private async doRenderOutputPart(rendererData: RendererEntry, mime: string, data: Uint8Array, context: IChatOutputRenderContext, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart> {
@@ -304,4 +333,3 @@ const chatOutputRenderContributionPoint = ExtensionsRegistry.registerExtensionPo
 		items: chatOutputRendererContributionSchema,
 	}
 });
-

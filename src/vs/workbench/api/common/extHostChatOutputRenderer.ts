@@ -50,6 +50,7 @@ export class ExtHostChatOutputRenderer implements ExtHostChatOutputRendererShape
 		const extHostWebview = this.webviews.createNewWebview(webviewHandle, {}, entry.extension);
 		const chatOutputWebview: vscode.ChatOutputWebview = Object.freeze({
 			webview: extHostWebview,
+			openInModal: (title: string | undefined) => this._proxy.$openChatOutputInModal(webviewHandle, title),
 			onDidDispose: extHostWebview._onDidDispose,
 		});
 		return entry.renderer.renderChatOutput(Object.freeze({ mime, value: valueData.buffer }), chatOutputWebview, Object.freeze(context), token);
