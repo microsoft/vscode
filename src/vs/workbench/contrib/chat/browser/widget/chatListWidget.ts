@@ -676,7 +676,7 @@ export class ChatListWidget extends Disposable {
 			return;
 		}
 
-		const holder = this._container.ownerDocument.createElement('div');
+		const holder = dom.$('div');
 		for (const fragment of fragments) {
 			holder.appendChild(fragment);
 		}
