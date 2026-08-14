@@ -44,6 +44,17 @@ export class HoverWidget extends Disposable {
 		this.containerDomNode.appendChild(this.scrollbar.getDomNode());
 	}
 
+	/**
+	 * Constrains the maximum height of the hover. The constraint is applied to the hover
+	 * container, the scrollable element and the content element so that overflowing content
+	 * activates the hover's scrollbar instead of being clipped by the container.
+	 */
+	public set maxHeight(value: number) {
+		this.containerDomNode.style.maxHeight = `${value}px`;
+		this.scrollbar.getDomNode().style.maxHeight = `${value}px`;
+		this.contentsDomNode.style.maxHeight = `${value}px`;
+	}
+
 	public onContentsChanged(): void {
 		this.scrollbar.scanDomNode();
 	}
