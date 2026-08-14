@@ -7,12 +7,14 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
@@ -33,6 +35,7 @@ import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLog
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 import { AgentHostClientConnectionTelemetryTracker } from '../../node/agentHostClientConnectionTelemetry.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -108,14 +111,27 @@ class FailingReconnectAgentHostFileSystemProvider extends AgentHostFileSystemPro
 	}
 }
 
-class TestTelemetryService extends NullTelemetryServiceShape {
+class TestTelemetryService implements ITelemetryService {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.USAGE;
+	readonly sendErrorTelemetry = true;
+	readonly sessionId = 'session';
+	readonly machineId = 'machine';
+	readonly sqmId = 'sqm';
+	readonly devDeviceId = 'device';
+	readonly firstSessionDate = 'first-session';
 	readonly events: { eventName: string; data: unknown }[] = [];
 
-	override publicLog2(eventName?: string, data?: unknown): void {
+	publicLog(): void { }
+	publicLog2(eventName?: string, data?: unknown): void {
 		if (eventName) {
 			this.events.push({ eventName, data });
 		}
 	}
+	publicLogError(): void { }
+	publicLogError2(): void { }
+	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
 }
 
 class MockAgentService implements IAgentService {
@@ -291,6 +307,7 @@ suite('ProtocolServerHandler', () => {
 	let fileSystemProvider: AgentHostFileSystemProvider;
 	let logService: CountingLogService;
 	let telemetryService: TestTelemetryService;
+	let agentHostTelemetryService: AgentHostTelemetryService;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -314,7 +331,10 @@ suite('ProtocolServerHandler', () => {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId,
 			clientInfo,
-			_meta: meta,
+			_meta: {
+				'vscode.telemetryLevel': 'all',
+				...meta,
+			},
 			initialSubscriptions,
 		}));
 		return transport;
@@ -329,6 +349,7 @@ suite('ProtocolServerHandler', () => {
 		managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 		logService = new CountingLogService();
 		telemetryService = new TestTelemetryService();
+		agentHostTelemetryService = disposables.add(new AgentHostTelemetryService(telemetryService));
 		disposables.add(agentService);
 		disposables.add(handler = new ProtocolServerHandler(
 			agentService,
@@ -337,7 +358,7 @@ suite('ProtocolServerHandler', () => {
 			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, defaultDirectory: URI.file('/home/testuser').toString() },
 			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			logService,
-			telemetryService,
+			agentHostTelemetryService,
 			managedSettingsService,
 		));
 	});
@@ -352,10 +373,36 @@ suite('ProtocolServerHandler', () => {
 		const transport = connectClient('client-1');
 
 		const resp = findResponse(transport.sent, 1);
-		assert.ok(resp, 'should have sent initialize response');
-		const result = (resp as { result: InitializeResult }).result;
+		if (!resp || !hasKey(resp, { result: true })) {
+			assert.fail('should have sent initialize response');
+		}
+		const result = resp.result as InitializeResult;
 		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
 		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
+	});
+
+	test('applies telemetry disablement before reporting the client connection', () => {
+		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'telemetry-disabled-client',
+			clientInfo: editorWindowAgentHostClientInfo,
+			_meta: {
+				'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
+				'vscode.telemetryLevel': 'off',
+			},
+		}));
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			events: telemetryService.events,
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			events: [],
+		});
+		transport.simulateClose();
+		transport.dispose();
 	});
 
 	test('handshake rejects unsupported protocol versions', () => {
@@ -1282,6 +1329,33 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('applies telemetry disablement before reporting a reconnected client', async () => {
+		const transport1 = connectClient('telemetry-reconnect-client');
+		transport1.simulateClose();
+		const eventsBeforeReconnect = [...telemetryService.events];
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectResponse = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'telemetry-reconnect-client',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+			_meta: { 'vscode.telemetryLevel': 'off' },
+		}));
+		await reconnectResponse;
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			events: telemetryService.events,
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			events: eventsBeforeReconnect,
+		});
+		transport2.simulateClose();
+		transport2.dispose();
+	});
+
 	test('reports client topology and attributes actions to the initiating connection', () => {
 		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
 		server.simulateConnection(transport);
@@ -1289,7 +1363,10 @@ suite('ProtocolServerHandler', () => {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: 'tunnel-client',
 			clientInfo: { name: 'vscode-agents-window', version: '1.2.3', title: 'VS Code Agents Window' },
-			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel },
+			_meta: {
+				'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel,
+				'vscode.telemetryLevel': 'all',
+			},
 		}));
 		transport.simulateMessage(notification('dispatchAction', {
 			channel: 'ahp-root://',

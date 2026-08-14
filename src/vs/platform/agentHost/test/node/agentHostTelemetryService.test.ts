@@ -161,11 +161,13 @@ suite('AgentHostTelemetryService', () => {
 		assert.strictEqual((internalSender as unknown as { _options: { extensionVersion: string | undefined } })._options.extensionVersion, '0.58.0');
 	});
 
-	test('permanently disables usage and error telemetry after TelemetryLevel.NONE', async () => {
+	test('suppresses telemetry until the first client level and permanently disables after TelemetryLevel.NONE', async () => {
 		const delegate = new TestTelemetryService();
 		const service = disposables.add(new AgentHostTelemetryService(delegate));
 
-		service.publicLog('beforeDisable', { count: 1 });
+		service.publicLog('beforeClientLevel', { count: 1 });
+		service.updateTelemetryLevel(TelemetryLevel.USAGE);
+		service.publicLog('afterClientLevel', { count: 2 });
 		service.updateTelemetryLevel(TelemetryLevel.NONE);
 		service.updateTelemetryLevel(TelemetryLevel.USAGE);
 		service.publicLog2('afterDisable');
@@ -181,7 +183,7 @@ suite('AgentHostTelemetryService', () => {
 		}, {
 			telemetryLevel: TelemetryLevel.NONE,
 			sendErrorTelemetry: false,
-			events: [{ eventName: 'beforeDisable', data: { count: 1 } }],
+			events: [{ eventName: 'afterClientLevel', data: { count: 2 } }],
 			errorEvents: [],
 		});
 	});
@@ -218,6 +220,7 @@ suite('AgentHostTelemetryService', () => {
 	test('enhanced GH telemetry is gated on the restricted (rt) opt-in; standard GH telemetry is not', () => {
 		const restricted = new TestRestrictedSink();
 		const service = disposables.add(new AgentHostTelemetryService(new TestTelemetryService(), restricted));
+		service.updateTelemetryLevel(TelemetryLevel.USAGE);
 
 		service.sendEnhancedGHTelemetryEvent('request.options.tools'); // dropped: rt disabled by default
 		service.sendGHTelemetryEvent('completion'); // sent: standard GH telemetry is not rt-gated
@@ -247,6 +250,7 @@ suite('AgentHostTelemetryService', () => {
 		delegate.telemetryLevel = TelemetryLevel.ERROR; // user opted below USAGE
 		const restricted = new TestRestrictedSink();
 		const service = disposables.add(new AgentHostTelemetryService(delegate, restricted));
+		service.updateTelemetryLevel(TelemetryLevel.USAGE);
 
 		service.setRestrictedTelemetryEnabled(true); // rt=1
 		service.sendEnhancedGHTelemetryEvent('request.options.tools');
@@ -259,6 +263,7 @@ suite('AgentHostTelemetryService', () => {
 	test('internal telemetry is independently gated and identity is cleared on account changes', () => {
 		const restricted = new TestRestrictedSink();
 		const service = disposables.add(new AgentHostTelemetryService(new TestTelemetryService(), restricted));
+		service.updateTelemetryLevel(TelemetryLevel.USAGE);
 		const internalContext = { isInternal: true, trackingId: 'tid-1', userName: 'octocat', isVscodeTeamMember: true };
 
 		service.sendInternalMSFTTelemetryEvent('beforeIdentity');

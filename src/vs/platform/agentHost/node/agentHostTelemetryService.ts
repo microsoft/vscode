@@ -46,7 +46,7 @@ export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHos
 export class AgentHostTelemetryService extends Disposable implements IAgentHostTelemetryService {
 	declare readonly _serviceBrand: undefined;
 
-	private _telemetryLevel = TelemetryLevel.USAGE;
+	private _telemetryLevel: TelemetryLevel | undefined;
 
 	/**
 	 * Whether the current Copilot token opts into enhanced/restricted telemetry (`rt=1`). Defaults
@@ -77,7 +77,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	}
 
 	get telemetryLevel(): TelemetryLevel {
-		return Math.min(this._delegate.telemetryLevel, this._telemetryLevel);
+		return Math.min(this._delegate.telemetryLevel, this._telemetryLevel ?? TelemetryLevel.NONE);
 	}
 
 	get sendErrorTelemetry(): boolean {
@@ -200,7 +200,9 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	}
 
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void {
-		this._telemetryLevel = Math.min(this._telemetryLevel, telemetryLevel);
+		this._telemetryLevel = this._telemetryLevel === undefined
+			? telemetryLevel
+			: Math.min(this._telemetryLevel, telemetryLevel);
 	}
 }
 
