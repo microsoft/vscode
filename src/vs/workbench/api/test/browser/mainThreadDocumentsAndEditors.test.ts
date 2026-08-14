@@ -27,7 +27,6 @@ import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from '.
 import { UriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { TextModel } from '../../../../editor/common/model/textModel.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -48,6 +47,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let modelService: ModelService;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
+	let configService: TestConfigurationService;
 	const deltas: IDocumentsAndEditorsDelta[] = [];
 
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
@@ -63,7 +63,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		disposables = new DisposableStore();
 
 		deltas.length = 0;
-		const configService = new TestConfigurationService();
+		configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
@@ -165,11 +165,13 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 	test('ignore huge model', function () {
 
-		const oldLimit = TextModel._MODEL_SYNC_LIMIT;
-		try {
-			const largeModelString = 'abc'.repeat(1024);
-			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
+		const largeModelString = 'abc'.repeat(1024);
+		const limitInMB = (largeModelString.length / 2) / (1024 * 1024);
 
+		// Override configuration for this test
+		configService.setUserConfiguration('editor.largeFileSizeLimit', limitInMB);
+
+		try {
 			const model = modelService.createModel(largeModelString, null);
 			disposables.add(model);
 			assert.ok(model.isTooLargeForSyncing());
@@ -181,19 +183,20 @@ suite('MainThreadDocumentsAndEditors', () => {
 			assert.strictEqual(delta.removedDocuments, undefined);
 			assert.strictEqual(delta.addedEditors, undefined);
 			assert.strictEqual(delta.removedEditors, undefined);
-
 		} finally {
-			TextModel._MODEL_SYNC_LIMIT = oldLimit;
+			configService.setUserConfiguration('editor.largeFileSizeLimit', undefined);
 		}
 	});
 
 	test('ignore huge model from editor', function () {
 
-		const oldLimit = TextModel._MODEL_SYNC_LIMIT;
-		try {
-			const largeModelString = 'abc'.repeat(1024);
-			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
+		const largeModelString = 'abc'.repeat(1024);
+		const limitInMB = (largeModelString.length / 2) / (1024 * 1024);
 
+		// Override configuration for this test
+		configService.setUserConfiguration('editor.largeFileSizeLimit', limitInMB);
+
+		try {
 			const model = modelService.createModel(largeModelString, null);
 			const editor = myCreateTestCodeEditor(model);
 
@@ -204,7 +207,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			model.dispose();
 
 		} finally {
-			TextModel._MODEL_SYNC_LIMIT = oldLimit;
+			configService.setUserConfiguration('editor.largeFileSizeLimit', undefined);
 		}
 	});
 

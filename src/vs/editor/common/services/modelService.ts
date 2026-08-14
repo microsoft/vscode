@@ -58,6 +58,7 @@ interface IRawEditorConfig {
 	trimAutoWhitespace?: unknown;
 	creationOptions?: unknown;
 	largeFileOptimizations?: unknown;
+	largeFileSizeLimit?: unknown;
 	bracketPairColorization?: unknown;
 }
 
@@ -159,6 +160,12 @@ export class ModelService extends Disposable implements IModelService {
 		if (config.editor && typeof config.editor.largeFileOptimizations !== 'undefined') {
 			largeFileOptimizations = (config.editor.largeFileOptimizations === 'false' ? false : Boolean(config.editor.largeFileOptimizations));
 		}
+
+		let largeFileSizeLimit = EDITOR_MODEL_DEFAULTS.largeFileSizeLimit;
+		if (config.editor && typeof config.editor.largeFileSizeLimit !== 'undefined') {
+			largeFileSizeLimit = clampedInt(config.editor.largeFileSizeLimit, EDITOR_MODEL_DEFAULTS.largeFileSizeLimit, 0, Number.MAX_SAFE_INTEGER);
+		}
+
 		let bracketPairColorizationOptions = EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions;
 		if (config.editor?.bracketPairColorization && typeof config.editor.bracketPairColorization === 'object') {
 			const bpConfig = config.editor.bracketPairColorization as { enabled?: unknown; independentColorPoolPerBracketType?: unknown };
@@ -177,6 +184,7 @@ export class ModelService extends Disposable implements IModelService {
 			defaultEOL: newDefaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
 			largeFileOptimizations: largeFileOptimizations,
+			largeFileSizeLimit: largeFileSizeLimit,
 			bracketPairColorizationOptions
 		};
 	}

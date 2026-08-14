@@ -637,6 +637,7 @@ export interface ITextModelCreationOptions {
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
 	largeFileOptimizations: boolean;
+	largeFileSizeLimit: number;
 	bracketPairColorizationOptions: BracketPairColorizationOptions;
 }
 

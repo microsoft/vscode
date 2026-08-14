@@ -63,6 +63,12 @@ const editorConfiguration: IConfigurationNode = {
 			default: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 			description: nls.localize('largeFileOptimizations', "Special handling for large files to disable certain memory intensive features.")
 		},
+		'editor.largeFileSizeLimit': {
+			type: 'number',
+			default: EDITOR_MODEL_DEFAULTS.largeFileSizeLimit,
+			minimum: 0,
+			markdownDescription: nls.localize('largeFileSizeLimit', "Maximum file size in MB for which editor features are fully enabled. Files larger than this size will have certain features disabled for performance. Use 0 for no limit.")
+		},
 		'editor.wordBasedSuggestions': {
 			enum: ['off', 'offWithInlineSuggestions', 'currentDocument', 'matchingDocuments', 'allDocuments'],
 			default: 'offWithInlineSuggestions',
