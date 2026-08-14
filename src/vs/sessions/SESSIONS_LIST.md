@@ -45,6 +45,8 @@ Continuous row animations preserve their existing appearance while limiting rend
 
 `SessionsFlatList` reuses the same session row renderer for sectionless surfaces, including the approval row and dynamic row height updates. Consumers that size their own container listen for content-height changes and relayout the list. When embedded inside another hover, consumers disable row hovers so moving over the list does not replace the parent hover.
 
+Automation run history uses `SessionsFlatList` for runs backed by a live session. Pending and running runs without a resolved session use a lightweight `Working...` row; date grouping and run actions remain owned by the Automations view.
+
 ### Grouping
 
 Sessions are organized into sections with fixed priority:
