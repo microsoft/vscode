@@ -15,6 +15,7 @@ shasum.update(fs.readFileSync(path.join(ROOT, 'build/.cachesalt')));
 shasum.update(fs.readFileSync(path.join(ROOT, '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'build', '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'remote', '.npmrc')));
+shasum.update(fs.readFileSync(path.join(ROOT, 'build', 'azure-pipelines', 'common', 'foundryLocalInstallUtils.cjs')));
 
 // Add `package.json` and `package-lock.json` files
 for (const dir of dirs) {
