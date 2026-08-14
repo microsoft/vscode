@@ -1300,6 +1300,11 @@ export class ChatService extends Disposable implements IChatService {
 				this.chatSessionService.updateSessionOptions(realModel.sessionResource, initialSessionOptions);
 			}
 
+			// The real session continues the untitled conversation rather than replacing it, so the
+			// model it was meant to run on carries over. Without this the choice would be stranded
+			// on the discarded untitled model and never reclaimed if the catalog drops it.
+			realModel.inputModel.setIntendedModel(untitledModel.inputModel.intendedModel);
+
 			// Publish the forward mapping only after a successful load (see
 			// `setMaterializedSessionResource`).
 			this.chatSessionService.setMaterializedSessionResource(untitledResource, newItem.resource);
