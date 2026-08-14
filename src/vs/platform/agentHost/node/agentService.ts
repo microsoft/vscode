@@ -529,6 +529,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const configurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService, this._rootConfigResource, providerConfigurations));
 		this._configurationService = configurationService;
 		let externalSessionsMode = this._getExternalSessionsMode();
+		this._lastMigrateLegacyEnabled = this._isMigrateLegacyEnabled();
 		this._register(configurationService.onDidRootConfigChange(() => {
 			const nextMode = this._getExternalSessionsMode();
 			if (nextMode !== externalSessionsMode) {
@@ -536,6 +537,7 @@ export class AgentService extends Disposable implements IAgentService {
 				externalSessionsMode = nextMode;
 				this._queueSessionListReconciliation(previousMode);
 			}
+			this._onMigrateLegacySettingChanged();
 		}));
 		const fileMonitorService = _fileMonitorService ?? this._register(new AgentHostFileMonitorService(this._fileService, this._logService));
 		this._storageService = this._register(new AgentHostStorageService(storageResource, this._logService));
@@ -1648,6 +1650,42 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _announcedSurfacedKeys = new Set<string>();
 	private readonly _broadcastExternalSessions = new Set<string>();
 	private _sessionListReconciliation = Promise.resolve();
+
+	/** Tracks the migrate-legacy setting so the config listener acts only on transitions. */
+	private _lastMigrateLegacyEnabled = false;
+
+	private _isMigrateLegacyEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+	}
+
+	/**
+	 * On the migrate-legacy setting turning off, drop every surfaced (but never
+	 * opened) adoptable-legacy entry so a later open falls back to the
+	 * extension-host path instead of migrating. `retractSurfacedSession` only
+	 * clears the surfaced summary — it deletes no data — and already-adopted
+	 * sessions (which have live state) are left untouched.
+	 */
+	private _onMigrateLegacySettingChanged(): void {
+		const enabled = this._isMigrateLegacyEnabled();
+		if (enabled === this._lastMigrateLegacyEnabled) {
+			return;
+		}
+		this._lastMigrateLegacyEnabled = enabled;
+		if (enabled) {
+			return; // turning on re-surfaces through the normal discovery / list path
+		}
+		for (const key of [...this._announcedSurfacedKeys]) {
+			if (this._stateManager.getSessionState(key)) {
+				continue; // already adopted / restored — keep it
+			}
+			if (!readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(key)?._meta)) {
+				continue; // only retract adoptable-legacy entries, never native / external ones
+			}
+			this._announcedSurfacedKeys.delete(key);
+			this._broadcastExternalSessions.delete(key);
+			this._stateManager.retractSurfacedSession(key);
+		}
+	}
 
 	private _queueSessionListReconciliation(previousMode?: AgentHostExternalSessionsMode): void {
 		this._sessionListReconciliation = this._sessionListReconciliation
@@ -3379,6 +3417,16 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
+	/**
+	 * A passive session-metadata toggle (read / archived state) carries no user
+	 * intent to open the session. Such actions must not trigger legacy Copilot
+	 * CLI adoption when they land on an un-loaded, surfaced-adoptable session —
+	 * otherwise merely listing or scrolling the sessions view would migrate it.
+	 */
+	private _isPassiveMetadataAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): boolean {
+		return action.type === ActionType.SessionIsReadChanged || action.type === ActionType.SessionIsArchivedChanged;
+	}
+
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void {
 		const clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
@@ -3409,6 +3457,15 @@ export class AgentService extends Disposable implements IAgentService {
 				const subagent = parseSubagentSessionUri(sessionUri);
 				if (subagent) {
 					await this._restoreSubagentSession(sessionChannel, subagent.parentSession);
+				} else if (this._isPassiveMetadataAction(action) && readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionChannel)?._meta)) {
+					// A passive read/archive toggle must never migrate a legacy
+					// Copilot CLI session: restoring an un-adopted, surfaced-adoptable
+					// session here would call `ensureChatAdopted` and write the
+					// migration database, so merely listing / scrolling would adopt.
+					// Only an explicit open (a channel subscribe) adopts. Drop the
+					// action — the client already applied it optimistically and the
+					// read/archive state stays view-level until the session is opened.
+					return;
 				} else {
 					await this.restoreSession(sessionUri);
 				}
@@ -3774,14 +3831,14 @@ export class AgentService extends Disposable implements IAgentService {
 		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session: seed its
 		// VS Code-layer metadata in place (reusing the on-disk event log) so the
 		// restore below can hydrate it. A no-op for native / already-adopted sessions.
-		// Adopt when the migrate setting is on OR the session is already surfaced as
-		// adoptable — the latter so an entry the user can see in the list never
-		// dead-ends on "not found" if the setting was toggled off after surfacing.
+		// Adoption is strictly gated on the live migrate setting: turning it off
+		// un-surfaces adoptable entries (see the `onDidRootConfigChange` handler),
+		// so opening one afterwards falls back to the extension-host path rather
+		// than migrating.
 		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
-		const surfacedAdoptable = readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionStr)?._meta);
 		const migrationStartTime = Date.now();
 		let adoption: IAgentChatAdoptionResult = { adopted: false, eligible: false };
-		if (!external && (migrateLegacyEnabled || surfacedAdoptable) && agent.ensureChatAdopted) {
+		if (!external && migrateLegacyEnabled && agent.ensureChatAdopted) {
 			try {
 				const defaultChat = URI.parse(buildDefaultChatUri(session));
 				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat));
