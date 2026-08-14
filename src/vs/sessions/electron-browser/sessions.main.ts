@@ -70,6 +70,7 @@ import { createSessionsWorkbench } from '../browser/workbenchFactory.js';
 import { NativeMenubarControl } from '../../workbench/electron-browser/parts/titlebar/menubarControl.js';
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
 import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
+import { ConfigurationCache } from '../../workbench/services/configuration/common/configurationCache.js';
 import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
 import { getWorkspaceIdentifier } from '../../platform/workspaces/common/workspaceIdentifier.js';
 
@@ -221,7 +222,7 @@ export class SessionsMain extends Disposable {
 		// Policies
 		let policyService: IPolicyService;
 		const policyChannel = this.configuration.policiesData ? this._register(new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'))) : undefined;
-		const nativeManagedSettings = this._register(new NativeManagedSettingsChannelClient(mainProcessService.getChannel('nativeManagedSettings')));
+		const nativeManagedSettings = this._register(new NativeManagedSettingsChannelClient(mainProcessService.getChannel('nativeManagedSettings'), logService));
 		serviceCollection.set(INativeManagedSettingsService, nativeManagedSettings);
 		const fileManagedSettings = this._register(new FileManagedSettingsChannelClient(mainProcessService.getChannel('fileManagedSettings')));
 		serviceCollection.set(IFileManagedSettingsService, fileManagedSettings);
@@ -309,7 +310,7 @@ export class SessionsMain extends Disposable {
 		serviceCollection.set(IWorkspaceEditingService, workspaceContextService);
 
 		const [configurationService, storageService] = await Promise.all([
-			this.createConfigurationService(workspaceContextService, userDataProfileService, uriIdentityService, fileService, logService, policyService).then(configurationService => {
+			this.createConfigurationService(workspaceContextService, userDataProfileService, uriIdentityService, fileService, logService, policyService, environmentService).then(configurationService => {
 
 				// Configuration
 				serviceCollection.set(IWorkbenchConfigurationService, configurationService);
@@ -361,9 +362,11 @@ export class SessionsMain extends Disposable {
 		uriIdentityService: IUriIdentityService,
 		fileService: FileService,
 		logService: ILogService,
-		policyService: IPolicyService
+		policyService: IPolicyService,
+		environmentService: INativeWorkbenchEnvironmentService,
 	): Promise<ConfigurationService> {
-		const configurationService = new ConfigurationService(userDataProfileService, workspaceContextService, uriIdentityService, fileService, policyService, logService);
+		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData], environmentService, fileService);
+		const configurationService = new ConfigurationService(userDataProfileService, workspaceContextService, uriIdentityService, fileService, policyService, logService, configurationCache, environmentService);
 		try {
 			await configurationService.initialize();
 		} catch (error) {

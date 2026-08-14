@@ -7,8 +7,8 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSyncOperationHandler } from './agentHostSyncOperationHandler.js';
 
 export class AgentHostSyncOperationContribution extends Disposable implements IChangesetOperationContribution {
@@ -16,7 +16,7 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 	private _registry: IChangesetOperationRegistry | undefined;
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -32,7 +32,14 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 		return store;
 	}
 
-	getOperations({ gitState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
+	getOperations({ sessionKey, gitState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
+		// New Session
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (state?.lifecycle === SessionLifecycle.Creating && (gitState?.uncommittedChanges ?? 0) > 0) {
+			return undefined;
+		}
+
+		// No upstream branch or no outgoing changes
 		if (!gitState?.upstreamBranchName || (gitState?.outgoingChanges ?? 0) === 0) {
 			return undefined;
 		}

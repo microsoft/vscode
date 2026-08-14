@@ -66,7 +66,7 @@ interface _CustomOAIModelConfig {
 	requestHeaders?: Record<string, string>;
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
-	reasoningEffortFormat?: 'chat-completions' | 'responses';
+	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
 
 export interface CustomOAIModelConfig extends _CustomOAIModelConfig {

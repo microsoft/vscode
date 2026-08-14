@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -12,24 +13,33 @@ import { EditorInput } from '../../../../workbench/common/editor/editorInput.js'
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 
 /**
  * Editor input for the Agents window Changes tab. It wraps the session's
  * multi-diff source and exposes the resolved multi-diff view model so the
  * {@link SessionChangesEditor} can render the diffs beneath its own header.
  */
-export class SessionChangesEditorInput extends EditorInput {
+export class SessionChangesEditorInput extends DockedEditorInput {
 
 	static readonly ID = 'workbench.input.agentSessions.sessionChanges';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.sessionChanges';
 
-	private _innerInput: MultiDiffEditorInput | undefined;
+	private readonly _innerInput = this._register(new MutableDisposable<MultiDiffEditorInput>());
 
 	constructor(
 		readonly multiDiffSource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+		this._register(layoutService.onDidChangePartVisibility(event => {
+			if (event.partId === Parts.EDITOR_PART) {
+				this._onDidChangeCapabilities.fire();
+			}
+		}));
 	}
 
 	override get resource(): URI {
@@ -45,7 +55,8 @@ export class SessionChangesEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
+		const capabilities = super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
+		return this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) ? capabilities : capabilities | EditorInputCapabilities.CannotClose;
 	}
 
 	override getName(): string {
@@ -61,17 +72,30 @@ export class SessionChangesEditorInput extends EditorInput {
 	}
 
 	private get innerInput(): MultiDiffEditorInput {
-		if (!this._innerInput) {
-			this._innerInput = this._register(MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
+		if (!this._innerInput.value) {
+			this._innerInput.value = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
 				multiDiffSource: this.multiDiffSource,
 				label: this.getName(),
-			}, this.instantiationService));
+			}, this.instantiationService);
 		}
-		return this._innerInput;
+		return this._innerInput.value;
+	}
+
+	/**
+	 * The wrapped multi-diff input, whose {@link MultiDiffEditorInput.resources}
+	 * expose the session's individual file diffs. Used to resolve the session's
+	 * files (e.g. for the agent feedback affordances) from this editor input.
+	 */
+	get multiDiffInput(): MultiDiffEditorInput {
+		return this.innerInput;
 	}
 
 	async getViewModel(): Promise<MultiDiffEditorViewModel> {
 		return this.innerInput.getViewModel();
+	}
+
+	clear(): void {
+		this._innerInput.clear();
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

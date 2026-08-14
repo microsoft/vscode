@@ -55,7 +55,7 @@ export function getRecentCodeSnippets(
 
 	const langCtxSnippets: string[] = [];
 	if (langCtx) {
-		appendLanguageContextSnippets(langCtx, langCtxSnippets, opts.languageContext.maxTokens, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+		appendLanguageContextSnippets(langCtx, langCtxSnippets, opts.languageContext.maxTokens, computeTokens);
 	}
 
 	const neighborOutSnippets: string[] = [];
@@ -344,6 +344,7 @@ export function historyEntriesToCodeSnippet(entries: IXtabHistoryEntry[]): Recen
 
 /**
  * Append language context snippets to the snippets array, respecting the token budget.
+ * Language context snippets omit line numbers because providers do not report source ranges.
  *
  * @returns the number of tokens consumed (matches the same per-snippet accounting
  * the function uses internally for budget decisions).
@@ -353,7 +354,6 @@ export function appendLanguageContextSnippets(
 	snippets: string[],
 	tokenBudget: number,
 	computeTokens: (code: string) => number,
-	includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption,
 ): number {
 	const initialBudget = tokenBudget;
 	for (const langCtxEntry of langCtx.items) {
@@ -373,7 +373,11 @@ export function appendLanguageContextSnippets(
 				break;
 			}
 			const documentId = DocumentId.create(ctx.uri.toString());
-			snippets.push(formatCodeSnippet(documentId, langCtxSnippet.split(/\r?\n/), { truncated: false, includeLineNumbers, startLineOffset: 0 }));
+			snippets.push(formatCodeSnippet(documentId, langCtxSnippet.split(/\r?\n/), {
+				truncated: false,
+				includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption.None,
+				startLineOffset: 0,
+			}));
 			tokenBudget = potentialBudget;
 		}
 	}
@@ -439,10 +443,15 @@ export function appendNeighborFileSnippets(
 	// Reverse so the highest-scoring snippet is appended last (closest to the current file).
 	for (let i = selected.length - 1; i >= 0; i--) {
 		const neighborSnippet = selected[i].snippet;
+		// Related (language-service) files omit line numbers, matching the language-context path;
+		// open-tab neighbors keep the configured line-number formatting.
+		const snippetIncludeLineNumbers = neighborSnippet.isFromRelatedFile
+			? xtabPromptOptions.IncludeLineNumbersOption.None
+			: includeLineNumbers;
 		snippets.push(formatCodeSnippet(
 			DocumentId.create(neighborSnippet.uri),
 			neighborSnippet.snippet.split(/\r?\n/),
-			{ truncated: false, includeLineNumbers, startLineOffset: neighborSnippet.lineRange.startLine },
+			{ truncated: false, includeLineNumbers: snippetIncludeLineNumbers, startLineOffset: neighborSnippet.lineRange.startLine },
 		));
 	}
 	const includedIndices = selected.map(s => s.originalIndex).sort((a, b) => a - b);
@@ -752,4 +761,3 @@ function buildCodeSnippetsWithProportionalBudget(
 	// of the entire pool, so consumed = totalBudget - finalUnspentBudget.
 	return { snippets: result.snippets.reverse(), docsInPrompt: result.docsInPrompt, tokensConsumed: totalBudget - unspentBudget };
 }
-

@@ -59,6 +59,12 @@ function tokenResponse(overrides?: Record<string, unknown>): Response {
 	}), { status: 200 });
 }
 
+function userResponse(): Response {
+	return new Response(JSON.stringify({
+		endpoints: { api: 'https://api.githubcopilot.com' },
+	}), { status: 200 });
+}
+
 function anthropicResponse(content: Array<{ type: string; text?: string }>, stopReason = 'end_turn'): Response {
 	return new Response(JSON.stringify({
 		id: 'msg_test',
@@ -125,6 +131,39 @@ function streamService(chunks: Uint8Array[], tokenOverrides?: Record<string, unk
 suite('CopilotApiService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('combines internal organizations from the Copilot token with login from user discovery', async () => {
+		const service = createService(async input => {
+			const url = getUrl(input);
+			if (url.endsWith('/copilot_internal/user')) {
+				return new Response(JSON.stringify({
+					login: 'octocat',
+					copilotignore_enabled: true,
+					endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+				}), { status: 200 });
+			}
+			if (url.includes('/token')) {
+				return tokenResponse({
+					token: 'rt=1;tid=tracking-id',
+					organization_list: [
+						'a5db0bcaae94032fe715fb34a5e4bce2',
+						'551cca60ce19654d894e786220822482',
+					],
+				});
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		});
+
+		assert.deepStrictEqual(await service.resolveRestrictedTelemetryContext('gh-token'), {
+			restrictedTelemetryEnabled: true,
+			trackingId: 'tracking-id',
+			telemetryEndpoint: 'https://telemetry.example',
+			isInternal: true,
+			userName: 'octocat',
+			isVscodeTeamMember: true,
+			copilotIgnoreEnabled: true,
+		});
+	});
 
 	// #region Endpoint Discovery
 
@@ -247,6 +286,30 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(captured().url, 'https://custom.copilot.example.com/v1/messages');
 		});
 
+		test('reuses endpoint discovery when resolving the GitHub login', async () => {
+			let discoveryCount = 0;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal/user')) {
+					discoveryCount++;
+					return new Response(JSON.stringify({
+						login: 'octocat',
+						endpoints: { api: 'https://custom.copilot.example.com' },
+					}), { status: 200 });
+				}
+				throw new Error(`Unexpected URL: ${url}`);
+			});
+
+			const apiEndpoint = await service.resolveApiEndpoint('gh-tok');
+			const login = await service.resolveUserLogin('gh-tok');
+
+			assert.deepStrictEqual({ apiEndpoint, login, discoveryCount }, {
+				apiEndpoint: 'https://custom.copilot.example.com',
+				login: 'octocat',
+				discoveryCount: 1,
+			});
+		});
+
 		test('falls back to default API base when endpoints.api is missing', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(
 				() => anthropicResponse([{ type: 'text', text: 'ok' }]),
@@ -288,11 +351,31 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(discoveryUrl, 'https://api.acme.ghe.com/copilot_internal/user');
 		});
 
-		test('throws on 403 from endpoint discovery', async () => {
-			const service = createService(async () => new Response('{"message":"Not authorized"}', { status: 403, statusText: 'Forbidden' }));
+		test('preserves authentication errors from endpoint discovery', async () => {
+			const service = createService(async () => new Response('{"message":"Bad credentials"}', { status: 401, statusText: 'Unauthorized' }));
 			await assert.rejects(
 				() => service.messages('bad-tok', baseRequest),
-				(err: Error) => err.message.includes('Copilot endpoint discovery failed: 403'),
+				(err: Error) => {
+					assert.deepStrictEqual({
+						isCopilotApiError: err instanceof CopilotApiError,
+						status: err instanceof CopilotApiError ? err.status : undefined,
+						message: err.message,
+						envelope: err instanceof CopilotApiError ? err.envelope : undefined,
+					}, {
+						isCopilotApiError: true,
+						status: 401,
+						message: 'Copilot endpoint discovery failed: 401 Unauthorized — {"message":"Bad credentials"}',
+						envelope: {
+							type: 'error',
+							error: {
+								type: 'api_error',
+								message: '{"message":"Bad credentials"}',
+							},
+							request_id: null,
+						},
+					});
+					return true;
+				},
 			);
 		});
 
@@ -391,14 +474,25 @@ suite('CopilotApiService', () => {
 
 		suite('CAPI URL override (VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE)', () => {
 			const ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+			const SMOKE_TEST_ENV = 'VSCODE_SMOKE_TEST_PROXY_HEADER';
 			let saved: string | undefined;
+			let savedSmokeTestEnv: string | undefined;
 
-			setup(() => { saved = process.env[ENV]; });
+			setup(() => {
+				saved = process.env[ENV];
+				savedSmokeTestEnv = process.env[SMOKE_TEST_ENV];
+				delete process.env[SMOKE_TEST_ENV];
+			});
 			teardown(() => {
 				if (saved === undefined) {
 					delete process.env[ENV];
 				} else {
 					process.env[ENV] = saved;
+				}
+				if (savedSmokeTestEnv === undefined) {
+					delete process.env[SMOKE_TEST_ENV];
+				} else {
+					process.env[SMOKE_TEST_ENV] = savedSmokeTestEnv;
 				}
 			});
 
@@ -419,8 +513,27 @@ suite('CopilotApiService', () => {
 				assert.strictEqual(discoveryHit, false, 'discovery must be skipped for a loopback override');
 			});
 
+			test('the reserved smoke-test host skips discovery only with the proxy marker', async () => {
+				process.env[ENV] = 'http://vscode-smoke.test:12345';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, false, 'the smoke-test override must skip endpoint discovery');
+			});
+
 			test('a non-loopback override is ignored and normal discovery runs (no token leak)', async () => {
 				process.env[ENV] = 'https://evil.example.com';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
 				let discoveryHit = false;
 				const service = createService(async (input) => {
 					const url = getUrl(input);
@@ -478,6 +591,84 @@ suite('CopilotApiService', () => {
 			const body = JSON.parse(captured().init?.body as string);
 
 			assert.strictEqual(body.max_tokens, 8192);
+		});
+
+		test('sends utility maxTokens as max_tokens in the body', async () => {
+			let capturedBody: string | undefined;
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal')) {
+					return tokenResponse();
+				}
+				if (url.endsWith('/models')) {
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				capturedBody = init?.body as string;
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+
+			await service.utilityChatCompletion('gh-tok', {
+				messages: [{ role: 'user', content: 'Generate a title' }],
+				maxTokens: 32,
+			});
+
+			assert.strictEqual(JSON.parse(capturedBody ?? '{}').max_tokens, 32);
+		});
+
+		test('uses the GitHub OAuth token directly for utility completions', async () => {
+			const requests: Array<{ url: string; authorization: string | undefined }> = [];
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				requests.push({ url, authorization: (init?.headers as Record<string, string> | undefined)?.['Authorization'] });
+				if (url.endsWith('/models')) {
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+
+			await service.utilityChatCompletion('gh-oauth-token', {
+				messages: [{ role: 'user', content: 'Generate a title' }],
+			});
+
+			assert.deepStrictEqual(requests.map(request => ({
+				path: new URL(request.url).pathname,
+				authorization: request.authorization,
+			})), [
+				{ path: '/copilot_internal/user', authorization: 'Bearer gh-oauth-token' },
+				{ path: '/models', authorization: 'Bearer gh-oauth-token' },
+				{ path: '/chat/completions', authorization: 'Bearer gh-oauth-token' },
+			]);
+		});
+
+		test('utility auth failure rediscovers endpoints and utility model', async () => {
+			let userCount = 0;
+			let modelsCount = 0;
+			let completionCount = 0;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.endsWith('/copilot_internal/user')) {
+					userCount++;
+					return userResponse();
+				}
+				if (url.endsWith('/models')) {
+					modelsCount++;
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				completionCount++;
+				return completionCount === 1
+					? new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' })
+					: new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+			const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }] };
+
+			await assert.rejects(() => service.utilityChatCompletion('gh-oauth-token', request));
+			await service.utilityChatCompletion('gh-oauth-token', request);
+
+			assert.deepStrictEqual({ userCount, modelsCount, completionCount }, {
+				userCount: 2,
+				modelsCount: 2,
+				completionCount: 2,
+			});
 		});
 
 		test('non-streaming sends stream=false in the body', async () => {

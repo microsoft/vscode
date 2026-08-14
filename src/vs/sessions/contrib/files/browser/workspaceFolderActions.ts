@@ -16,21 +16,25 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
 import { SessionHasWorkspaceContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getSessionWorkspaceKind, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { SESSIONS_FILES_VIEW_ID } from './filesView.js';
 
 // --- Open Files view action
 
-class OpenFilesViewAction extends Action2 {
+export class OpenFilesViewAction extends Action2 {
 	static readonly ID = 'workbench.agentSessions.action.openFilesView';
 
 	constructor() {
@@ -54,6 +58,8 @@ class OpenFilesViewAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const viewsService = accessor.get(IViewsService);
+		const commandService = accessor.get(ICommandService);
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
@@ -61,6 +67,10 @@ class OpenFilesViewAction extends Action2 {
 		const targetSession = session ?? sessionsService.activeSession.get();
 		if (!targetSession) {
 			return;
+		}
+
+		if (layoutService.isSinglePaneLayoutEnabled) {
+			await commandService.executeCommand(NEW_FILE_TAB_COMMAND_ID);
 		}
 
 		await viewsService.openView(SESSIONS_FILES_VIEW_ID, false);
@@ -75,6 +85,8 @@ interface IWorkspaceInfo {
 	readonly icon: ThemeIcon;
 	readonly workingDirectoryPath: string | undefined;
 	readonly branch: string | undefined;
+	/** The session's worktree does not exist yet, so path and branch are unknown. */
+	readonly worktreePending: boolean;
 }
 
 /**
@@ -100,14 +112,14 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 			if (!workspace?.label) {
 				return undefined;
 			}
-			// Mirror the sessions list / hover icon logic: cloud for virtual
-			// workspaces, folder when the session runs in the repo checkout,
-			// worktree otherwise.
+			// Path and branch still describe the checkout while the worktree is pending, so withhold them.
+			const worktreePending = session?.worktreePending?.read(reader) ?? false;
+			const kind = getSessionWorkspaceKind(workspace, worktreePending);
+			const icon = workspace.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact);
 			const folder = workspace.folders[0];
-			const isWorkspaceFolder = workspace.folders.length > 0 && folder?.gitRepository?.workTreeUri === undefined;
-			const icon = workspace.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceFolder ? Codicon.folderCompact : Codicon.worktreeCompact;
-			const branch = folder?.gitRepository?.branchName?.trim() || undefined;
-			return { label: workspace.label, icon, workingDirectoryPath: folder?.workingDirectory.fsPath, branch };
+			const branch = worktreePending ? undefined : folder?.gitRepository?.branchName?.trim() || undefined;
+			const workingDirectoryPath = worktreePending ? undefined : folder?.workingDirectory.fsPath;
+			return { label: workspace.label, icon, workingDirectoryPath, branch, worktreePending };
 		});
 
 		this._register(autorun(reader => {
@@ -138,14 +150,25 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 	}
 
 	protected override getAriaLabel(): string {
-		const label = this._workspaceObs.get()?.label;
-		return label
-			? localize('agentSessions.openFilesView.ariaLabel', "Open Files: {0}", label)
-			: this.getTooltip();
+		const workspace = this._workspaceObs.get();
+		if (!workspace?.label) {
+			return this.getTooltip();
+		}
+		return workspace.worktreePending
+			? localize('agentSessions.openFilesView.worktreePendingAriaLabel', "Open Files: {0}, creating worktree", workspace.label)
+			: localize('agentSessions.openFilesView.ariaLabel', "Open Files: {0}", workspace.label);
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
 		const workspace = this._workspaceObs.get();
+		if (workspace?.worktreePending) {
+			const message = localize('agentSessions.openFilesView.worktreePending', "Creating worktree… Its folder and branch are shown once ready.");
+			const md = new MarkdownString('', { supportThemeIcons: true });
+			md.appendMarkdown(`$(${Codicon.worktree.id}) `);
+			md.appendText(message);
+			return { markdown: md, markdownNotSupportedFallback: message };
+		}
+
 		if (!workspace?.workingDirectoryPath) {
 			return this.getTooltip();
 		}

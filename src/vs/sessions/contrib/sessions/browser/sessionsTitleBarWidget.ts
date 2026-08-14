@@ -5,14 +5,14 @@
 
 import './media/sessionsTitleBarWidget.css';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getDomNodePagePosition, getWindow, isAncestor, reset } from '../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -24,16 +24,18 @@ import { URI } from '../../../../base/common/uri.js';
 import { AnchorAlignment, AnchorPosition, IAnchor } from '../../../../base/common/layout.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IContextViewService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsBlockedSessionsVisibleContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getUntitledSessionTitle } from '../../../services/sessions/common/session.js';
 import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
-import { BlockedSessionsList } from './blockedSessionsList.js';
+import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
+import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
@@ -45,6 +47,68 @@ import { openSessionToTheSide } from './views/sessionsView.js';
  * opening the full sessions picker so the popup doesn't linger behind it.
  */
 const SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID = 'sessions.blockedSessions.showAllSessions';
+
+/** Internal command behind the blocked-sessions dropdown header's bulk-ignore action. */
+const IGNORE_ALL_INPUT_NEEDED_COMMAND_ID = 'sessions.blockedSessions.ignoreAllInputNeeded';
+
+/**
+ * Internal command that dismisses the blocked-sessions dropdown. Bound to Escape
+ * (scoped to {@link SessionsBlockedSessionsVisibleContext}) so the dropdown can
+ * be closed from anywhere in the sessions window while it is open, not only when
+ * focus happens to be inside it.
+ */
+const HIDE_BLOCKED_SESSIONS_COMMAND_ID = 'sessions.blockedSessions.hide';
+
+/** Register the actions shown in the blocked-sessions dropdown header toolbar. */
+export function registerBlockedSessionsHeaderActions(): IDisposable {
+	return combinedDisposable(
+		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
+			command: {
+				id: SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID,
+				title: localize('showAllSessions', "Show All Sessions"),
+				icon: Codicon.listSelection,
+			},
+			group: 'navigation',
+			order: 1,
+		}),
+		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
+			command: {
+				id: IGNORE_ALL_INPUT_NEEDED_COMMAND_ID,
+				title: localize('ignoreAllInputNeeded', "Ignore All Input Needed"),
+				icon: Codicon.bellSlash,
+			},
+			group: 'navigation',
+			order: 2,
+		}),
+		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
+			command: {
+				id: HIDE_BLOCKED_SESSIONS_COMMAND_ID,
+				title: localize('closeBlockedSessions', "Close"),
+				icon: Codicon.close,
+			},
+			group: 'z_close',
+			order: 1,
+		}),
+	);
+}
+
+/** Register the commands invoked by the blocked-sessions header toolbar. */
+export function registerBlockedSessionsHeaderCommands(): IDisposable {
+	return combinedDisposable(
+		CommandsRegistry.registerCommand(SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID, (_accessor, context: IBlockedSessionsHeaderActionContext) => {
+			context.showAllSessions();
+		}),
+		CommandsRegistry.registerCommand(IGNORE_ALL_INPUT_NEEDED_COMMAND_ID, (_accessor, context: IBlockedSessionsHeaderActionContext) => {
+			context.ignoreAllSessions();
+		}),
+	);
+}
+
+/**
+ * The currently-open blocked-sessions dropdown, shared with the Escape command so
+ * it closes this specific context view.
+ */
+let openBlockedSessionsView: IOpenContextView | undefined;
 
 /**
  * Minimum width of the blocked-sessions dropdown, in pixels. The dropdown is at
@@ -67,9 +131,8 @@ const BLOCKED_DROPDOWN_MAX_WIDTH_RATIO = 0.9;
  * - Kind icon at the beginning (provider type icon)
  * - Repository folder name and active branch/worktree name when available
  *
- * When at least one session is blocked (needs input, has failing CI checks, or
- * has unresolved pull request comments), the widget instead adopts an orange
- * "N sessions require input" state and, on click, reveals those sessions as a
+ * When at least one session is blocked (needs input or has failing CI checks),
+ * the widget instead adopts an orange "N sessions require input" state and reveals those sessions as a
  * flat list in a dropdown anchored below the command center box. A short blink
  * animation plays whenever a new session becomes blocked. In every other case it
  * behaves as the active-session pill and opens the sessions picker on click.
@@ -103,6 +166,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	/** The blocked-sessions list rendered inside the open dropdown, if any. */
 	private _blockedList: BlockedSessionsList | undefined;
 
+	/** Tracks whether the blocked-sessions dropdown is open (drives the Escape keybinding). */
+	private readonly _blockedSessionsVisibleContext: IContextKey<boolean>;
+
 	/** Drives the transient "Approved N sessions" confirmation. Owned by the widget. */
 	private readonly _sessionActionFeedback: SessionActionFeedback;
 
@@ -112,6 +178,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		sessionActionFeedback: SessionActionFeedback | undefined,
 		approvalModel: AgentSessionApprovalModel | undefined,
 		blockedSessions: BlockedSessions | undefined,
+		ciFixModel: BlockedSessionsCIFixModel | undefined,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -119,8 +186,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super(undefined, action, options);
+
+		this._blockedSessionsVisibleContext = SessionsBlockedSessionsVisibleContext.bindTo(contextKeyService);
 
 		// The widget owns the approval-feedback state; the optional parameter is a
 		// test seam so fixtures can supply a preset instance.
@@ -128,9 +199,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		// The blocked-session indicator model owns the requires-input logic (the
 		// visible-filtered blocked set, the requires-input kind, optimistic approval
-		// dismissals, labels and blink detection). The optional `approvalModel` and
-		// `blockedSessions` are test seams forwarded to it so fixtures can preset them.
-		this._blockedIndicator = this._register(this.instantiationService.createInstance(BlockedSessionsIndicatorModel, approvalModel, blockedSessions));
+		// dismissals, labels and blink detection). The optional `approvalModel`,
+		// `blockedSessions` and `ciFixModel` are test seams forwarded to it so
+		// fixtures can preset them.
+		this._blockedIndicator = this._register(this.instantiationService.createInstance(BlockedSessionsIndicatorModel, approvalModel, blockedSessions, ciFixModel));
 
 		// Replay the attention blink when the model reports a genuinely new, not-yet-
 		// visible block. Invalidate the cached render state so the identical pill is
@@ -505,10 +577,18 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				const list = store.add(this.instantiationService.createInstance(BlockedSessionsList, viewContainer, {
 					width,
 					approvalModel: this._blockedIndicator.approvalModel,
+					ciFixModel: this._blockedIndicator.ciFixModel,
 					onSessionOpen: (resource, preserveFocus, sideBySide) => {
-						this.contextViewService.hideContextView();
+						this._openContextView?.close();
 						this._openBlockedSession(resource, preserveFocus, sideBySide);
 					},
+					onIgnoreSession: session => this._blockedIndicator.ignoreSession(session),
+					onShowAllSessions: () => {
+						this._openContextView?.close();
+						this._showSessionsPicker();
+					},
+					onIgnoreAllSessions: () => this._blockedIndicator.ignoreAllSessions(),
+					onClose: () => this._openContextView?.close(),
 				}));
 				list.setSessions(this._blockedIndicator.blockedSessions.get().map(entry => entry.session));
 				store.add(list.onDidChangeContentHeight(() => this.contextViewService.layout()));
@@ -525,32 +605,41 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 					this.contextViewService.layout();
 				}));
 
+				// Dismiss the dropdown when a quick pick opens on top of it (e.g. the
+				// sessions picker), so it doesn't linger behind the quick input. Close
+				// our specific context view rather than whatever happens to be open.
+				store.add(this.quickInputService.onShow(() => this._openContextView?.close()));
+
 				this._blockedList = list;
 				return store;
 			},
 			focus: () => this._blockedList?.focus(),
 			onDOMEvent: (e: Event) => {
-				// Dismiss on Escape, or on a click outside the dropdown. Clicks on the
-				// anchor are ignored here because the anchor toggles the dropdown itself.
-				if (e.type === EventType.KEY_DOWN) {
-					if (new StandardKeyboardEvent(e as KeyboardEvent).equals(KeyCode.Escape)) {
-						this.contextViewService.hideContextView();
-					}
-				} else if (e.type === EventType.CLICK) {
+				// Dismiss on a click outside the dropdown. Clicks on the anchor are
+				// ignored here because the anchor toggles the dropdown itself. Escape
+				// is handled by a dedicated high-weight keybinding (see
+				// HIDE_BLOCKED_SESSIONS_COMMAND_ID) so it dismisses the dropdown even
+				// when focus is outside of it.
+				if (e.type === EventType.CLICK) {
 					const target = e.target as HTMLElement | null;
 					if (target
 						&& !isAncestor(target, this.contextViewService.getContextViewElement())
 						&& !isAncestor(target, container)) {
-						this.contextViewService.hideContextView();
+						this._openContextView?.close();
 					}
 				}
 			},
 			onHide: () => {
+				this._blockedSessionsVisibleContext.set(false);
 				store.dispose();
 				this._openContextView = undefined;
+				openBlockedSessionsView = undefined;
 				this._blockedList = undefined;
 			},
 		});
+
+		openBlockedSessionsView = this._openContextView;
+		this._blockedSessionsVisibleContext.set(true);
 	}
 
 	/**
@@ -671,28 +760,34 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 		// The blocked-sessions dropdown header's "Show All Sessions" action dismisses
 		// the dropdown (a transient context view) before opening the full sessions
 		// picker, so the popup doesn't linger behind it.
-		this._register(CommandsRegistry.registerCommand(SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID, accessor => {
-			accessor.get(IContextViewService).hideContextView();
-			return accessor.get(ICommandService).executeCommand(SHOW_SESSIONS_PICKER_COMMAND_ID);
-		}));
-
-		// Contribute the action to the blocked-sessions dropdown header toolbar.
-		this._register(MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
-			command: {
-				id: SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID,
-				title: localize('showAllSessions', "Show All Sessions"),
-				icon: Codicon.listSelection,
-			},
-			group: 'navigation',
-			order: 1,
-			when: IsAuxiliaryWindowContext.negate()
-		}));
+		this._register(registerBlockedSessionsHeaderCommands());
+		this._register(registerBlockedSessionsHeaderActions());
+		this._register(registerBlockedSessionsItemActions());
 
 		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(SessionsTitleBarWidget, action, options, undefined, undefined, undefined);
+			return instantiationService.createInstance(SessionsTitleBarWidget, action, options, undefined, undefined, undefined, undefined);
 		}, undefined));
 	}
 }
+
+// Escape closes the blocked-sessions dropdown while it is open. Registered as a
+// high-weight keybinding scoped to `SessionsBlockedSessionsVisibleContext` (rather
+// than relying on focus being inside the dropdown) so it reliably wins over other
+// Escape handlers, mirroring how the quick pick scopes its dismiss keybinding to an
+// "is visible" context key.
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: HIDE_BLOCKED_SESSIONS_COMMAND_ID,
+	weight: KeybindingWeight.SessionsContrib + 100,
+	when: SessionsBlockedSessionsVisibleContext,
+	primary: KeyCode.Escape,
+	handler: (_accessor, context?: IBlockedSessionsHeaderActionContext) => {
+		if (context) {
+			context.close();
+		} else {
+			openBlockedSessionsView?.close();
+		}
+	},
+});

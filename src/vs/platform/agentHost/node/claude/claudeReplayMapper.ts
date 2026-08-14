@@ -5,6 +5,7 @@
 
 import type { SessionMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import type { ILogService } from '../../../log/common/log.js';
 import {
 	ResponsePartKind,
@@ -23,8 +24,9 @@ import {
 } from '../../common/state/protocol/state.js';
 import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { formatGenericToolInput } from '../../common/streamingToolCallDisplay.js';
 import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudePastTenseMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
-import { stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
+import { hasClientToolNamePrefix, stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 
 /**
  * Phase 13 — replay mapper. Reduces a flat `SessionMessage[]` (the SDK's
@@ -62,12 +64,13 @@ export function mapSessionMessagesToTurns(
  * Phase 6.5 — translate a protocol `turnId` (the last KEPT turn N) into the
  * SDK envelope `uuid` that `forkSession({ upToMessageId })` accepts
  * (INCLUSIVE). Returns the `uuid` of turn N's last `'assistant'` envelope,
- * or `turnId` itself when turn N has no assistant reply (still a valid
- * inclusive anchor), or `undefined` when `turnId` is not in the transcript.
+ * or `undefined` when `turnId` is not in the transcript or the turn has no
+ * assistant envelope yet. Agent Host Protocol request turn IDs are not valid SDK fork UUIDs.
  * Reuses {@link parseSessionMessage} so the turn-boundary rule matches
  * {@link ReplayBuilder}; always returns an envelope `uuid`, never a `msg_…` id.
  */
 export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnId: string): string | undefined {
+	let turnOpen = false;
 	let seenTarget = false;
 	let lastAssistantUuid: string | undefined;
 	for (const msg of messages) {
@@ -80,18 +83,32 @@ export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnI
 				// First genuine user-text after turn N started → turn N is over.
 				break;
 			}
+			turnOpen = true;
 			if (parsed.uuid === turnId) {
 				seenTarget = true;
 			}
-		} else if (parsed.kind === 'assistant' && seenTarget) {
-			lastAssistantUuid = parsed.uuid;
+		} else if (parsed.kind === 'assistant') {
+			if (!turnOpen) {
+				// Mirrors {@link ReplayBuilder._consumeAssistant}: an assistant
+				// envelope with no turn open starts one keyed on its own uuid
+				// (subagent transcript, or a truncated slice that lost its
+				// prompt). Without this the resolver can't anchor a fork on
+				// such a turn.
+				turnOpen = true;
+				if (parsed.uuid === turnId) {
+					seenTarget = true;
+				}
+			}
+			if (seenTarget) {
+				lastAssistantUuid = parsed.uuid;
+			}
 		}
 		// 'user-tool-results' / 'system-notification' never flip the turn.
 	}
 	if (!seenTarget) {
 		return undefined;
 	}
-	return lastAssistantUuid ?? turnId;
+	return lastAssistantUuid;
 }
 
 // #region Parsed message union — narrow-at-the-seam adapter
@@ -110,21 +127,30 @@ interface AssistantBlock { readonly type: string; readonly text?: string; readon
  * stateful reduction (the {@link ReplayBuilder}) — see CONTEXT M7.
  */
 type ParsedSessionMessage =
-	| { readonly kind: 'user-text'; readonly uuid: string; readonly text: string }
-	| { readonly kind: 'user-tool-results'; readonly uuid: string; readonly results: readonly UserToolResultBlock[] }
-	| { readonly kind: 'assistant'; readonly uuid: string; readonly blocks: readonly AssistantBlock[]; readonly isInner: boolean }
-	| { readonly kind: 'system-notification'; readonly uuid: string; readonly subtype: string; readonly text: string };
+	| { readonly kind: 'user-text'; readonly uuid: string; readonly text: string; readonly timestamp?: string }
+	| { readonly kind: 'user-tool-results'; readonly uuid: string; readonly results: readonly UserToolResultBlock[]; readonly timestamp?: string }
+	| { readonly kind: 'assistant'; readonly uuid: string; readonly blocks: readonly AssistantBlock[]; readonly isInner: boolean; readonly timestamp?: string }
+	| { readonly kind: 'system-notification'; readonly uuid: string; readonly subtype: string; readonly text: string; readonly timestamp?: string };
 
 function parseSessionMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
+	const timestamp = readTimestamp(msg);
 	switch (msg.type) {
-		case 'user': return parseUserMessage(msg);
-		case 'assistant': return parseAssistantMessage(msg);
-		case 'system': return parseSystemMessage(msg);
+		case 'user': return parseUserMessage(msg, timestamp);
+		case 'assistant': return parseAssistantMessage(msg, timestamp);
+		case 'system': return parseSystemMessage(msg, timestamp);
 		default: return undefined;
 	}
 }
 
-function parseUserMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
+function readTimestamp(msg: SessionMessage & { readonly timestamp?: unknown }): string | undefined {
+	if (typeof msg.timestamp !== 'string') {
+		return undefined;
+	}
+	const timestamp = Date.parse(msg.timestamp);
+	return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
+}
+
+function parseUserMessage(msg: SessionMessage, timestamp: string | undefined): ParsedSessionMessage | undefined {
 	const content = readUserContent(msg.message);
 	if (content === undefined) {
 		return undefined;
@@ -133,19 +159,19 @@ function parseUserMessage(msg: SessionMessage): ParsedSessionMessage | undefined
 		return undefined;
 	}
 	if (typeof content === 'string') {
-		return { kind: 'user-text', uuid: msg.uuid, text: content };
+		return { kind: 'user-text', uuid: msg.uuid, text: content, timestamp };
 	}
 	const textBlocks = content.filter((b): b is UserTextBlock => b.type === 'text');
 	if (textBlocks.length === 0) {
 		const results = content.filter((b): b is UserToolResultBlock => b.type === 'tool_result');
-		return results.length > 0 ? { kind: 'user-tool-results', uuid: msg.uuid, results } : undefined;
+		return results.length > 0 ? { kind: 'user-tool-results', uuid: msg.uuid, results, timestamp } : undefined;
 	}
 	// Mixed or text-only: text wins — matches prior behavior where tool_results
 	// in a text-bearing envelope are dropped (they should already have been delivered).
-	return { kind: 'user-text', uuid: msg.uuid, text: textBlocks.map(b => b.text).join('\n') };
+	return { kind: 'user-text', uuid: msg.uuid, text: textBlocks.map(b => b.text).join('\n'), timestamp };
 }
 
-function parseAssistantMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
+function parseAssistantMessage(msg: SessionMessage, timestamp: string | undefined): ParsedSessionMessage | undefined {
 	const blocks = readAssistantBlocks(msg.message);
 	if (blocks === undefined || blocks.length === 0) {
 		return undefined;
@@ -154,16 +180,16 @@ function parseAssistantMessage(msg: SessionMessage): ParsedSessionMessage | unde
 	// `parent_tool_use_id` on every envelope and have no synthetic spawning
 	// user prompt, so they legitimately open with an assistant message —
 	// `isInner` lets the builder synthesize a turn instead of dropping it.
-	return { kind: 'assistant', uuid: msg.uuid, blocks, isInner: msg.parent_tool_use_id !== null };
+	return { kind: 'assistant', uuid: msg.uuid, blocks, isInner: msg.parent_tool_use_id !== null, timestamp };
 }
 
-function parseSystemMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
+function parseSystemMessage(msg: SessionMessage, timestamp: string | undefined): ParsedSessionMessage | undefined {
 	const subtype = readSystemSubtype(msg.message);
 	if (subtype === undefined || !ALLOWED_SYSTEM_SUBTYPES.has(subtype)) {
 		return undefined;
 	}
 	const text = readSystemText(msg.message) ?? `[${subtype}]`;
-	return { kind: 'system-notification', uuid: msg.uuid, subtype, text };
+	return { kind: 'system-notification', uuid: msg.uuid, subtype, text, timestamp };
 }
 
 // #endregion
@@ -195,9 +221,23 @@ const ALLOWED_SYSTEM_SUBTYPES: ReadonlySet<string> = new Set([
  */
 const CLI_ECHO_MARKER_PATTERN = /^<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>/;
 
+/**
+ * Stand-in prompt for a turn whose user message is not present in the
+ * transcript slice we were handed. This happens when the SDK truncates a
+ * large transcript (it returns only the bytes after the last compact
+ * boundary), which cuts the opening prompt off mid-turn. Showing the
+ * recovered assistant content under a placeholder prompt is strictly better
+ * than dropping the turn — dropping can silently empty an entire session.
+ */
+export function missingPromptPlaceholder(): string {
+	return localize('claude.replay.missingPrompt', "Message content could not be retrieved");
+}
+
 interface InProgressTurn {
 	readonly id: string;
 	readonly userText: string;
+	readonly startedAt?: string;
+	lastResponseAt?: string;
 	readonly responseParts: ResponsePart[];
 	/**
 	 * `tool_use_id`s announced by THIS turn. Drained when the matching
@@ -227,7 +267,13 @@ class ReplayBuilder {
 	 *   pattern but simpler (replay has the full input synchronously on
 	 *   the `tool_use` block).
 	 */
-	private readonly _toolUses = new Map<string, { readonly turnId: string; readonly parsedInput: Record<string, unknown> | undefined }>();
+	private readonly _toolUses = new Map<string, { readonly turnId: string; readonly parsedInput: Record<string, unknown> | undefined; readonly isClientTool: boolean }>();
+
+	/** Turns opened from a leading assistant envelope because the prompt was missing. Reported once by {@link finish}. */
+	private _recoveredPromptlessTurns = 0;
+
+	/** `tool_result` blocks whose announcing `tool_use` was not in the slice. Reported once by {@link finish}. */
+	private _orphanToolResults = 0;
 
 	constructor(private readonly _session: URI, private readonly _logService: ILogService) { }
 
@@ -238,16 +284,22 @@ class ReplayBuilder {
 				this._active = {
 					id: msg.uuid,
 					userText: msg.text,
+					startedAt: msg.timestamp,
 					responseParts: [],
 					pendingToolUseIds: new Set(),
 					toolCallParts: new Map(),
 				};
 				return;
-			case 'user-tool-results':
+			case 'user-tool-results': {
+				let updatesActiveTurn = false;
 				for (const block of msg.results) {
-					this._attachToolResult(block);
+					updatesActiveTurn = this._attachToolResult(block) === this._active?.id || updatesActiveTurn;
+				}
+				if (updatesActiveTurn && this._active && msg.timestamp) {
+					this._active.lastResponseAt = msg.timestamp;
 				}
 				return;
+			}
 			case 'assistant':
 				this._consumeAssistant(msg);
 				return;
@@ -260,32 +312,46 @@ class ReplayBuilder {
 					kind: ResponsePartKind.SystemNotification,
 					content: msg.text,
 				});
+				if (msg.timestamp) {
+					this._active.lastResponseAt = msg.timestamp;
+				}
 				return;
 		}
 	}
 
 	finish(): readonly Turn[] {
 		this._closeActive();
+		// One summary line per replay instead of one warn per envelope: a
+		// truncated transcript produces these by the hundred, and the
+		// per-envelope form drowned out the fact that the whole session had
+		// been reduced to nothing.
+		if (this._recoveredPromptlessTurns > 0 || this._orphanToolResults > 0) {
+			this._logService.warn(`[claudeReplayMapper] incomplete transcript for ${this._session.toString()}: ${this._recoveredPromptlessTurns} turn(s) recovered without their prompt, ${this._orphanToolResults} orphaned tool_result(s)`);
+		}
 		return this._turns;
 	}
 
 	private _consumeAssistant(msg: ParsedSessionMessage & { kind: 'assistant' }): void {
 		if (this._active === undefined) {
+			// Two ways a transcript legitimately opens with an assistant
+			// envelope:
+			// - Subagent transcript (`isInner`): every envelope carries
+			//   `parent_tool_use_id` and the SDK omits the synthetic spawning
+			//   prompt, so there is genuinely no prompt to show.
+			// - Truncated parent transcript: the SDK drops everything before
+			//   the last compact boundary for transcripts over its size
+			//   threshold, which can cut the prompt off mid-turn.
+			// Either way, synthesize a turn to hold the reply. Dropping would
+			// discard the assistant content — and when the truncated slice
+			// contains no user message at all (one long agentic turn), that
+			// means discarding the entire session.
 			if (!msg.isInner) {
-				// Top-level assistant envelope without a preceding user message —
-				// anomalous; synthesizing an empty user turn would be wrong, so
-				// drop with a warn.
-				this._logService.warn(`[claudeReplayMapper] assistant envelope ${msg.uuid} arrived before any user message; dropping`);
-				return;
+				this._recoveredPromptlessTurns++;
 			}
-			// Subagent transcript: every envelope carries `parent_tool_use_id`
-			// and the SDK omits the synthetic spawning prompt, so the transcript
-			// legitimately opens with an assistant message. Synthesize an
-			// empty-prompt turn to hold the subagent's reply instead of dropping
-			// it (which would lose the entire subagent transcript on replay).
 			this._active = {
 				id: msg.uuid,
-				userText: '',
+				userText: msg.isInner ? '' : missingPromptPlaceholder(),
+				startedAt: msg.timestamp,
 				responseParts: [],
 				pendingToolUseIds: new Set(),
 				toolCallParts: new Map(),
@@ -311,27 +377,32 @@ class ReplayBuilder {
 				// the workbench-registered tool by its unprefixed name (matches the
 				// live stream mapper). Without this, replayed client-tool calls
 				// fall back to the generic "Run MCP tool" rendering.
-				this._openToolUse(block.id, stripClientToolNamePrefix(block.name), block.input);
+				this._openToolUse(block.id, stripClientToolNamePrefix(block.name), block.input, hasClientToolNamePrefix(block.name));
 			}
 			// Other block types (server_tool_use, etc.) are dropped silently per M7.
 		}
+		if (msg.timestamp) {
+			this._active.lastResponseAt = msg.timestamp;
+		}
 	}
 
-	private _openToolUse(toolUseId: string, toolName: string, input: unknown): void {
+	private _openToolUse(toolUseId: string, toolName: string, input: unknown, isClientTool: boolean): void {
 		if (this._active === undefined) {
 			return;
 		}
-		const displayName = getClaudeToolDisplayName(toolName);
+		const displayName = isClientTool ? toolName : getClaudeToolDisplayName(toolName);
 		const parsedInput = input !== null && typeof input === 'object' ? input as Record<string, unknown> : undefined;
-		const meta = buildClaudeToolMeta(toolName);
+		const meta = isClientTool ? undefined : buildClaudeToolMeta(toolName);
 		// Build a placeholder Cancelled state by default; replaced with Completed when the tool_result lands.
 		const placeholder: ToolCallCancelledState = {
 			status: ToolCallStatus.Cancelled,
 			toolCallId: toolUseId,
 			toolName,
 			displayName,
-			invocationMessage: getClaudeInvocationMessage(toolName, displayName, parsedInput),
-			toolInput: parsedInput !== undefined ? getClaudeToolInputString(toolName, parsedInput) : (typeof input === 'string' ? input : input !== undefined ? safeStringify(input) : undefined),
+			invocationMessage: isClientTool ? displayName : getClaudeInvocationMessage(toolName, displayName, parsedInput),
+			toolInput: parsedInput !== undefined
+				? isClientTool ? formatGenericToolInput(parsedInput) : getClaudeToolInputString(toolName, parsedInput)
+				: (typeof input === 'string' ? input : input !== undefined ? safeStringify(input) : undefined),
 			reason: ToolCallCancellationReason.Skipped,
 			...(meta ? { _meta: meta } : {}),
 		};
@@ -342,20 +413,20 @@ class ReplayBuilder {
 		this._active.responseParts.push(part);
 		this._active.toolCallParts.set(toolUseId, part);
 		this._active.pendingToolUseIds.add(toolUseId);
-		this._toolUses.set(toolUseId, { turnId: this._active.id, parsedInput });
+		this._toolUses.set(toolUseId, { turnId: this._active.id, parsedInput, isClientTool });
 	}
 
-	private _attachToolResult(block: UserToolResultBlock): void {
+	private _attachToolResult(block: UserToolResultBlock): string | undefined {
 		const entry = this._toolUses.get(block.tool_use_id);
 		if (entry === undefined) {
-			this._logService.warn(`[claudeReplayMapper] tool_result for unknown tool_use_id ${block.tool_use_id}`);
-			return;
+			this._orphanToolResults++;
+			return undefined;
 		}
 		const announcingTurnId = entry.turnId;
 		// Find the part — it lives on the announcing turn (which may be `_active` or one already pushed to `_turns`).
 		const part = this._findToolCallPart(announcingTurnId, block.tool_use_id);
 		if (part === undefined) {
-			return;
+			return undefined;
 		}
 		const isError = block.is_error;
 		const previousState = part.toolCall;
@@ -381,7 +452,9 @@ class ReplayBuilder {
 			toolInput: previousState.status === ToolCallStatus.Streaming ? undefined : previousState.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: !isError,
-			pastTenseMessage: getClaudePastTenseMessage(previousState.toolName, previousState.displayName, entry.parsedInput, !isError, resultText),
+			pastTenseMessage: entry.isClientTool
+				? previousState.displayName
+				: getClaudePastTenseMessage(previousState.toolName, previousState.displayName, entry.parsedInput, !isError, resultText),
 			content: content.length > 0 ? content : undefined,
 			...(previousState._meta ? { _meta: previousState._meta } : {}),
 		};
@@ -394,6 +467,7 @@ class ReplayBuilder {
 		if (this._active?.id === announcingTurnId) {
 			this._active.pendingToolUseIds.delete(block.tool_use_id);
 		}
+		return announcingTurnId;
 	}
 
 	private _findToolCallPart(turnId: string, toolUseId: string): ToolCallResponsePart | undefined {
@@ -421,8 +495,15 @@ class ReplayBuilder {
 		}
 		const a = this._active;
 		const state = a.pendingToolUseIds.size === 0 ? TurnState.Complete : TurnState.Cancelled;
+		const startedAt = a.startedAt === undefined ? undefined : Date.parse(a.startedAt);
+		const endedAt = a.lastResponseAt === undefined ? undefined : Date.parse(a.lastResponseAt);
+		const duration = startedAt !== undefined && endedAt !== undefined && Number.isFinite(startedAt) && Number.isFinite(endedAt)
+			? Math.max(0, endedAt - startedAt)
+			: undefined;
 		const turn: Turn = {
 			id: a.id,
+			startedAt: a.startedAt,
+			duration,
 			message: { text: a.userText, origin: { kind: MessageKind.User } },
 			responseParts: a.responseParts,
 			usage: undefined,

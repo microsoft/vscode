@@ -80,6 +80,13 @@ export class ChatResponseHookPart {
 	}
 }
 
+export class ChatResponseVoiceProgressPart {
+	constructor(
+		readonly id: vscode.ChatResponseVoiceProgressStage,
+		readonly value: string,
+	) { }
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -633,6 +640,7 @@ export class ChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	modelName?: string;
 	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
 		this.description = description;
 		this.agentName = agentName;
