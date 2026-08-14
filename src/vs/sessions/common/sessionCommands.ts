@@ -30,3 +30,6 @@ export const SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID = 'agents.shouldShow
 
 /** Starts GitHub Copilot sign-in. Registered in `account.contribution.ts`. */
 export const AGENTIC_SIGN_IN_COMMAND_ID = 'workbench.action.agenticSignIn';
+
+/** Opens the managed Files editor. Registered in `addTabActions.ts`. */
+export const NEW_FILE_TAB_COMMAND_ID = 'workbench.action.agentSessions.newFileTab';
