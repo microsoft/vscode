@@ -427,7 +427,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		override get activeEditorPane() { return undefined; }
 		override get selectedEditors() { return model.selectedEditors; }
 		override get ariaLabel() { return 'Editor Group 1'; }
-		override get groupsView() { return groupsView; }
+		override get groupsView(): IEditorGroupsView { return groupsView; }
 		override getEditorByIndex(index: number) { return model.getEditorByIndex(index); }
 		override getIndexOfEditor(editor: EditorInput) { return model.indexOf(editor); }
 		override getEditors(order: EditorsOrder, opts?: { excludeSticky?: boolean }) { return model.getEditors(order, opts); }
@@ -448,8 +448,8 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 
 	const groupsView = new class extends mock<IEditorGroupsView>() {
 		override get partOptions() { return partOptions; }
-		override get activeGroup() { return isGroupActive ? groupView : otherActiveGroup; }
-		override get groups() { return [groupView]; }
+		override get activeGroup(): IEditorGroupView { return isGroupActive ? groupView : otherActiveGroup; }
+		override get groups(): IEditorGroupView[] { return [groupView]; }
 		override readonly onDidChangeEditorPartOptions = Event.None;
 		override readonly onDidVisibilityChange = Event.None;
 	};
