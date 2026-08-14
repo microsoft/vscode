@@ -163,7 +163,7 @@ suite('AgentHostTelemetryService', () => {
 
 	test('suppresses telemetry until the first client level and permanently disables after TelemetryLevel.NONE', async () => {
 		const delegate = new TestTelemetryService();
-		const service = disposables.add(new AgentHostTelemetryService(delegate));
+		const service = disposables.add(new AgentHostTelemetryService(delegate, undefined, undefined, undefined, null));
 
 		service.publicLog('beforeClientLevel', { count: 1 });
 		service.updateTelemetryLevel(TelemetryLevel.USAGE);

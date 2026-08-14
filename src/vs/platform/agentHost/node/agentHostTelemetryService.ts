@@ -61,8 +61,10 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		private readonly _restricted?: IAgentHostRestrictedTelemetry,
 		copilotSdkVersion?: string,
 		copilotRuntimeVersion?: string,
+		initialTelemetryLevel: TelemetryLevel | null = TelemetryLevel.USAGE,
 	) {
 		super();
+		this._telemetryLevel = initialTelemetryLevel ?? undefined;
 		if (isDisposable(_delegate)) {
 			this._register(_delegate);
 		}
@@ -275,5 +277,5 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 	const internalSender = loggingOnly ? undefined : disposables.add(new AgentHostInternalTelemetrySender({ requestService: options.requestService, commonProperties, extensionVersion }));
 	const restricted = loggingOnly ? undefined : new AgentHostRestrictedTelemetrySender(commonProperties, logService, undefined, internalSender, options.fetchFn);
 
-	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted, productService.copilotVersions?.sdk, productService.copilotVersions?.runtime));
+	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted, productService.copilotVersions?.sdk, productService.copilotVersions?.runtime, null));
 }
