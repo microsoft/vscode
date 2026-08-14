@@ -82,6 +82,7 @@ import { IChatAttachmentResolveService } from '../attachments/chatAttachmentReso
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
+import { resolveEditedRequestSelection } from './input/chatInputModelUtils.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
 import { setChatInputStackInputWorking } from './input/chatInputStack.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
@@ -2140,13 +2141,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 
 		if (!isInput) {
-			this.inputPart.setChatMode(this.input.currentModeObs.get().id);
-			this.inputPart.setPermissionLevel(this.input.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
-			const editModelId = this.input.currentLanguageModel;
-			if (editModelId) {
-				void this.inputPart.requestModelByIdentifier(editModelId);
-			}
-
+			// The inline editor is self-contained: it shows the model its request ran on, submits
+			// with it (see `acceptInput`, which reads the model from here before this runs), and
+			// disappears. The bottom input keeps whatever the user left it on.
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
 				if (editedRequest?.rowContainer?.contains(this.inputContainer)) {
@@ -2977,9 +2974,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
-		const editedModelRequestOptions = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input'
-			? this.getSelectedModelRequestOptions()
-			: undefined;
+		// Captured before `finishedEditing` tears the inline editor down, while `this.input` still
+		// resolves to it. The inline editor owns the model and mode for a resubmit — those are the
+		// pickers the user actually chose in — so these stay authoritative over the bottom input.
+		const isInlineEdit = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input';
+		const editedModelRequestOptions = isInlineEdit ? this.getSelectedModelRequestOptions() : undefined;
+		const editedModeKind = isInlineEdit ? this.input.currentModeKind : undefined;
+		const editedModeInfo = isInlineEdit ? this.input.currentModeInfo : undefined;
+		// Tools and instruction routing belong to the mode, so they come from the same editor at the
+		// same moment.
+		const editedModeRequestOptions = isInlineEdit ? this.getModeRequestOptions() : undefined;
+		const editedInstructionRouting = isInlineEdit ? this._getInstructionRouting() : undefined;
 		let cancelledCurrentRequest = false;
 		if (isEditing) {
 			// Clear the carousel since the existing request is being replaced
@@ -3044,7 +3049,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
-		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
+		if (this.viewOptions.enableWorkingSet !== undefined && resolveEditedRequestSelection(editedModeKind, this.input.currentModeKind) === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 			const editingSessionAttachedContext: ChatRequestVariableSet = requestInputs.attachedContext;
 
@@ -3098,12 +3103,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
 		const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
 
-		const modeKind = this.input.currentModeKind;
-		const modeInfo = this.input.currentModeInfo;
-		const currentModelRequestOptions = this.getSelectedModelRequestOptions();
-		const selectedModelRequestOptions = editedModelRequestOptions?.userSelectedModelId === currentModelRequestOptions.userSelectedModelId
-			? editedModelRequestOptions
-			: currentModelRequestOptions;
+		const modeKind = resolveEditedRequestSelection(editedModeKind, this.input.currentModeKind);
+		const modeInfo = resolveEditedRequestSelection(editedModeInfo, this.input.currentModeInfo);
+		const selectedModelRequestOptions = resolveEditedRequestSelection(editedModelRequestOptions, this.getSelectedModelRequestOptions());
 
 		const transcriptContext = this.transcriptContextValue;
 		if (transcriptContext) {
@@ -3121,14 +3123,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				resolvedVariables: resolvedImageVariables,
 				noCommandDetection: options?.noCommandDetection,
 				isVoiceModeInput: options?.isVoiceModeInput,
-				...this.getModeRequestOptions(),
+				...resolveEditedRequestSelection(editedModeRequestOptions, this.getModeRequestOptions()),
 				modeInfo,
 				agentIdSilent: this._lockedAgent?.id,
 				queue: options?.queue,
 				instructionContext: autoAttachEnabled ? {
 					modeKind,
-					enabledTools: modeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
-					enabledSubAgents: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined
+					...resolveEditedRequestSelection(editedInstructionRouting, this._getInstructionRouting()),
 				} : undefined,
 			});
 		} catch (error) {
@@ -3361,6 +3362,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return {
 			userSelectedModelId: modelId,
 			userSelectedModelConfiguration: modelId ? this.input.getModelConfiguration(modelId) : undefined,
+		};
+	}
+
+	/** The tool and subagent routing of whichever input this is called on, for its current mode. */
+	private _getInstructionRouting(): Pick<NonNullable<IChatSendRequestOptions['instructionContext']>, 'enabledTools' | 'enabledSubAgents'> {
+		const isAgent = this.input.currentModeKind === ChatModeKind.Agent;
+		return {
+			enabledTools: isAgent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
+			enabledSubAgents: isAgent ? this.input.currentModeObs.get().agents?.get() : undefined,
 		};
 	}
 
