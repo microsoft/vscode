@@ -202,6 +202,21 @@ function dirtyEditorSpecs(): IEditorSpec[] {
 	];
 }
 
+/**
+ * A mix of clean, dirty and sticky tabs used to show `tabActionReserveSpace`:
+ * clean tabs collapse to the compact width when the column is not reserved,
+ * while the dirty and sticky tabs keep their persistent-indicator column.
+ */
+function reserveSpaceEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/src/app/main.ts'), icon: ThemeIcon.fromId(Codicon.symbolFile.id), sticky: true, pinned: true },
+		{ resource: file('/project/src/app/index.ts'), pinned: true },
+		{ resource: file('/project/README.md'), icon: ThemeIcon.fromId(Codicon.markdown.id), pinned: true },
+		{ resource: file('/project/package.json'), icon: ThemeIcon.fromId(Codicon.json.id), pinned: true, dirty: true, active: true },
+		{ resource: file('/project/src/app/components/button.tsx'), pinned: true },
+	];
+}
+
 /** Sticky (pinned) editors to show the sticky tab styling. */
 function stickyEditorSpecs(): IEditorSpec[] {
 	return [
@@ -584,6 +599,10 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 
 		// tabActionUnpinVisibility (with sticky/compact tabs where the unpin action shows)
 		TabActionUnpinHidden: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionUnpinVisibility: false, pinnedTabSizing: 'normal' }, editors: stickyEditorSpecs() }) }),
+
+		// tabActionReserveSpace (Modern UI: reserved by default; when disabled clean tabs go compact while dirty/sticky still reserve their indicator column)
+		TabActionReserveSpaceOn: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionReserveSpace: true }, editors: reserveSpaceEditorSpecs() }) }),
+		TabActionReserveSpaceOff: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionReserveSpace: false }, editors: reserveSpaceEditorSpecs() }) }),
 
 		// showTabIndex
 		ShowTabIndex: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabIndex: true } }) }),

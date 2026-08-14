@@ -85,7 +85,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		return content.join('\n');
 	}
 	if (type === 'panelChat' || type === 'quickChat' || type === 'editsView' || type === 'agentView') {
-		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files.'));
+		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files. Focus an additions and deletions label and press Enter or Space to open the changes in a diff editor.'));
 	}
 	if (type === 'panelChat' || type === 'quickChat' || type === 'agentView') {
 		if (type === 'quickChat') {
