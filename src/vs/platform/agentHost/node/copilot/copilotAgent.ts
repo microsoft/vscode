@@ -39,10 +39,10 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
+import { prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -603,7 +603,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _capiModels: readonly IAgentModelInfo[] = [];
 	private _byokModels: readonly IAgentModelInfo[] = [];
 
-	/** Model IDs whose long-context tier costs the same as the default tier. */
+	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
 	private readonly _freeLongContextModels = new Set<string>();
 
 	/**
@@ -777,10 +777,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
 			: undefined;
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
-		// Session titles are host-owned; just mirror the filtered signal into telemetry.
-		this._register(sessionTitleSignal.onDidChangeSessionTitle(({ provider, session, conversationId, title }) => {
+		// Mirror host-owned titles under the SDK conversation id used by the agent's turn spans.
+		this._register(sessionTitleSignal.onDidChangeSessionTitle(({ provider, session, title }) => {
 			if (provider === this.id) {
-				this._otelService.emitSessionTitleChanged(conversationId, session.toString(), title);
+				this._otelService.emitSessionTitleChanged(this._sdkConversationId(session), session.toString(), title);
 			}
 		}));
 		// Mirror the sub-agent fan-out signals onto the first-class spawned-
@@ -888,10 +888,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _getEnterpriseHost(): string | undefined {
 		return this._gitHubEndpointService.getEnterpriseHost();
-	}
-
-	private _isPreferLongContextEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostPreferLongContextEnabledConfigKey) === true;
 	}
 
 	private _isSystemProxyEnabled(): boolean {
@@ -1383,6 +1379,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} else {
 			await this._restartClientIfProxyChanged();
 		}
+		await this._resolveCopilotSku(token);
 		void this._scheduleModelRefresh();
 	}
 
@@ -1391,6 +1388,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			resource: this._gitHubEndpointService.getCopilotResource(),
 			reason: AuthRequiredReason.Expired,
 		}, undefined);
+	}
+
+	private async _resolveCopilotSku(githubToken: string): Promise<void> {
+		try {
+			const copilotSku = await this._copilotApiService.resolveCopilotSku?.(githubToken);
+			if (copilotSku && this._githubToken === githubToken) {
+				// __GDPR__COMMON__ "copilotSku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU of the authenticated GitHub account." }
+				this._telemetryService.setCommonProperty('copilotSku', copilotSku);
+			}
+		} catch (err) {
+			this._logService.debug(`[Copilot] SKU resolution failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
@@ -1901,26 +1910,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		// When both tiers cost the same and the user prefers long context, show only the long-context option as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
-		if (this._isPreferLongContextEnabled() && !hasLongContextSurcharge(billing)) {
-			return {
-				type: 'number',
-				title: localize('copilot.modelContextSize.title', "Context Size"),
-				description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-				default: longContextMax,
-				enum: [longContextMax],
-				enumLabels: [formatTokenCount(longContextMax)],
-				enumDescriptions: [
-					localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
-				],
-			};
-		}
-
+		// Offer both sizes; default to the full window when long context is free, else the smaller tier.
 		return {
 			type: 'number',
 			title: localize('copilot.modelContextSize.title', "Context Size"),
 			description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-			default: defaultMax,
+			default: hasLongContextSurcharge(billing) ? defaultMax : longContextMax,
 			enum: [defaultMax, longContextMax],
 			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
 			enumDescriptions: [
@@ -1947,9 +1942,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Whether the model has a long-context window available at no additional cost.
-	 * When true the model should always run in `long_context` tier without showing
-	 * a context-size picker.
+	 * Whether the model has a larger long-context window at no additional cost. When true, a session
+	 * with no explicit selection defaults to `long_context` while the picker still offers both sizes.
 	 */
 	private _isFreeLongContext(modelId: string | undefined): boolean {
 		return !!modelId && this._freeLongContextModels.has(modelId);
@@ -2189,16 +2183,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const client = await this._ensureClient();
 		const { models } = await client.rpc.models.list({ gitHubToken });
 		this._freeLongContextModels.clear();
-		const preferLongContext = this._isPreferLongContextEnabled();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
 			const configSchema = this._createModelConfigSchema(m, billing);
-			// A model has free long context (larger window, no surcharge), but only treat it as free when the user prefers long context.
+			// Free long context: a larger long-context window at no surcharge. Defaults to the full window; picker keeps both.
 			const tokenPrices = billing?.tokenPrices;
 			const hasLargerLongContext = !!tokenPrices?.contextMax
 				&& !!tokenPrices.longContext?.contextMax
 				&& tokenPrices.longContext.contextMax > tokenPrices.contextMax;
-			if (preferLongContext && hasLargerLongContext && !hasLongContextSurcharge(billing)) {
+			if (hasLargerLongContext && !hasLongContextSurcharge(billing)) {
 				this._freeLongContextModels.add(m.id);
 			}
 			return {
@@ -2328,13 +2321,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
+	/** Resolves the Copilot SDK conversation id backing a session URI, falling back to the AH session id. */
+	private _sdkConversationId(session: URI): string {
+		const sessionId = AgentSession.id(session);
+		return this._findSessionChat(session)?.sessionId
+			?? this._provisionalSessions.get(sessionId)?.sdkSessionId
+			?? this._chatBackings.get(buildDefaultChatUri(session))?.sdkSessionId
+			?? sessionId;
+	}
+
 	/** Returns the chat URI bound to the session-backed chat, if any. */
 	private _findSessionChatUri(session: URI): URI | undefined {
-		const sessionId = AgentSession.id(session);
-		const sdkSessionId = this._findSessionChat(session)?.sessionId
-			?? this._provisionalSessions.get(sessionId)?.sdkSessionId
-			?? sessionId;
-		return this._findBoundSessionChatUri(sdkSessionId);
+		return this._findBoundSessionChatUri(this._sdkConversationId(session));
 	}
 
 	/** Normalizes an addressed chat operation and refreshes any host snapshot carried in its context. */
@@ -3166,7 +3164,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const turns = await entry.getMessages();
 		const sideChat = this._chatBackings.get(context.chatKey)?.sideChat;
-		return stripSideChatContext(turns.slice(sideChat?.inheritedTurnCount ?? 0), sideChat);
+		return sliceSideChatTurns(turns, sideChat);
 	}
 
 	/** Reconstructs a subagent transcript from the parent chat named by the host-supplied tool origin. */
@@ -3323,7 +3321,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					turnId: options.sideChat.turnId,
 					...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}),
 					...(options.sideChat.providerAnchorTurnId ? { providerAnchorTurnId: options.sideChat.providerAnchorTurnId } : {}),
-					inheritedTurnCount: forked.inheritedTurnCount,
+					...(forked.inheritedTurnId !== undefined ? { inheritedTurnId: forked.inheritedTurnId } : {}),
 					...(options.sideChat.sourceContext ? { context: options.sideChat.sourceContext } : {}),
 					...(options.sideChat.partialResponse ? { partialResponse: options.sideChat.partialResponse } : {}),
 				};
@@ -3377,9 +3375,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			try {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: session, chatChannelUri: chat, resource: storageScope });
 				await agentSession.initializeSession();
-				if (sideChat) {
-					sideChat = { ...sideChat, inheritedTurnCount: (await agentSession.getMessages()).length };
-				}
 				if (fork?.turnIdMapping) {
 					await agentSession.remapTurnIds(fork.turnIdMapping);
 				}
@@ -3461,10 +3456,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * so the forked chat inherits turn event IDs and file-edit
 	 * snapshots. Returns the new SDK session id.
 	 */
-	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnCount: number }> {
+	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnId: string | undefined }> {
 		const sourceTurns = await sourceEntry.getMessages();
 		const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === turnId);
-		const inheritedTurnCount = sourceTurnIndex === -1 ? sourceTurns.length : sourceTurnIndex + 1;
+		if (sourceTurnIndex === -1) {
+			this._logService.warn(`[Copilot] fork: turn ${turnId} not found in source session ${sourceEntry.sessionId}; inheriting all ${sourceTurns.length} turns`);
+		}
+		const inheritedTurnIndex = sourceTurnIndex === -1 ? sourceTurns.length - 1 : sourceTurnIndex;
+		const inheritedTurnId = sourceTurns[inheritedTurnIndex]?.id;
 		// toEventId is exclusive — events before it are included. If there's no
 		// next turn, omit it to include all events.
 		const toEventId = await sourceEntry.getNextTurnEventId(turnId);
@@ -3492,7 +3491,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (err) {
 			this._logService.warn(`[Copilot] Failed to copy session database for chat fork: ${err instanceof Error ? err.message : String(err)}`);
 		}
-		return { sessionId: newSessionId, inheritedTurnCount };
+		return { sessionId: newSessionId, inheritedTurnId };
 	}
 
 	private async _disposeChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {

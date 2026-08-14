@@ -96,6 +96,8 @@ interface ICachedClient {
 	readonly capiClient: CAPIClient;
 	readonly expiresAt: number;
 	readonly utilityModelIdsByFamily: Map<string, string>;
+	/** The raw Copilot entitlement SKU returned by `/copilot_internal/user`, when present. */
+	readonly copilotSku?: string;
 	/** GitHub login returned by `/copilot_internal/user`, when present. */
 	readonly login?: string;
 	/** The CAPI `endpoints.telemetry` base URL discovered for this token, if any. */
@@ -551,6 +553,9 @@ export interface ICopilotApiService {
 
 	/** Resolve the GitHub login cached from `/copilot_internal/user`. */
 	resolveUserLogin?(githubToken: string): Promise<string | undefined>;
+
+	/** Resolve the raw Copilot entitlement SKU cached from `/copilot_internal/user`. */
+	resolveCopilotSku?(githubToken: string): Promise<string | undefined>;
 }
 
 export class CopilotApiService implements ICopilotApiService {
@@ -918,6 +923,10 @@ export class CopilotApiService implements ICopilotApiService {
 		return (await this._getEntryForToken(githubToken)).login;
 	}
 
+	async resolveCopilotSku(githubToken: string): Promise<string | undefined> {
+		return (await this._getEntryForToken(githubToken)).copilotSku;
+	}
+
 	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
 		const nowSeconds = Date.now() / 1000;
 		const existing = this._clientsByToken.get(githubToken);
@@ -1015,6 +1024,7 @@ export class CopilotApiService implements ICopilotApiService {
 			capiClient,
 			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
 			utilityModelIdsByFamily: new Map(),
+			copilotSku: envelope.access_type_sku,
 			login: envelope.login,
 			telemetryEndpoint: envelope.endpoints?.telemetry,
 			apiEndpoint: envelope.endpoints?.api,
