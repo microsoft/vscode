@@ -383,6 +383,17 @@ class TestChatService extends mock<IChatService>() {
 	override async acquireOrLoadSession(): Promise<undefined> { return undefined; }
 }
 
+class TrackingLoadChatService extends TestChatService {
+	readonly loaded: string[] = [];
+
+	override async acquireOrLoadSession(resource?: URI): Promise<undefined> {
+		if (resource) {
+			this.loaded.push(resource.toString());
+		}
+		return undefined;
+	}
+}
+
 /**
  * Chat service that records session creation and sends, so the `new_session`
  * flag on `send_to_chat` can be checked end to end.
@@ -5909,6 +5920,19 @@ suite('VoiceSessionController', () => {
 		controller.setOmniInputActive(false);
 
 		assert.strictEqual(shouldDefer.call(controller, resource.toString()), false);
+	});
+
+	test('loads an unloaded omni-routed session so its final response is observable', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new TrackingLoadChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const resource = URI.parse('agent-host-copilotcli:/new-omni-target');
+
+		await connectWithOmniOpen(controller, voiceClientService);
+		controller.markRoutedRequestPending(resource, 'new-request');
+		await Promise.resolve();
+
+		assert.deepStrictEqual(chatService.loaded, [resource.toString()]);
 	});
 
 	test('an omni response is never requested again after it has been heard', () => {

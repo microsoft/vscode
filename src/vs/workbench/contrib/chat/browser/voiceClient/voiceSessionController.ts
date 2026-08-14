@@ -3271,6 +3271,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		const model = this.chatService.getSession(resource);
+		if (!model && this._isOmniVoiceInboxActive()) {
+			// Sessions-layer routes can resolve before their chat model is resident
+			// in this renderer. Keep the routed model loaded so its response text is
+			// observable when the provider later reports completion.
+			this._ensureModelLoaded(resource);
+		}
 		if (model && this._isCurrentRoutedRequest(resource.toString(), routedRequest)) {
 			const state = this._getAgentStateInfo(model);
 			if (state.state === 'thinking') {
