@@ -1,0 +1,108 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { IChannelClient, IChannelServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { AGENT_HOST_CLIENT_PROXY_CHANNEL } from '../../common/agentHostClientProxyChannel.js';
+import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../../common/agentHostClientByokLmChannel.js';
+import { LocalAgentHostManagementConnection, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
+
+/**
+ * Regression coverage for the renderer reverse-RPC channel registration. The
+ * BYOK language-model bridge depends on `IAgentHostByokLmHandler`, registered by
+ * the chat contribution of every window that backs BYOK (the main workbench and
+ * the Agents app). The registration must still degrade gracefully should a
+ * window ever connect without binding the handler — `createInstance` then throws,
+ * and that must NOT abort the rest of `_connect` (client completion,
+ * action/notification wiring, root-state subscription), or the whole window loses
+ * its agent host.
+ */
+suite('registerAgentHostClientChannels', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function fakeChannelServer(): { server: IChannelServer; registered: string[] } {
+		const registered: string[] = [];
+		const server: IChannelServer = {
+			registerChannel: (name: string, _channel: IServerChannel) => { registered.push(name); },
+		};
+		return { server, registered };
+	}
+
+	/**
+	 * Minimal {@link IInstantiationService} whose `createInstance` throws for the
+	 * BYOK channel when `byokHandlerMissing`, mirroring the strict "UNKNOWN
+	 * service agentHostByokLmHandler" failure in windows without the handler.
+	 */
+	function fakeInstantiationService(byokHandlerMissing: boolean): IInstantiationService {
+		return {
+			createInstance: (ctor: unknown) => {
+				if (ctor === AgentHostClientByokLmChannel && byokHandlerMissing) {
+					throw new Error('[createInstance] AgentHostClientByokLmChannel depends on UNKNOWN service agentHostByokLmHandler.');
+				}
+				return {};
+			},
+		} as unknown as IInstantiationService;
+	}
+
+	test('registers both channels when BYOK is enabled and the handler is available', () => {
+		const { server, registered } = fakeChannelServer();
+		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService(), true);
+		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
+	});
+
+	suite('LocalAgentHostManagementConnection', () => {
+
+		const client: IChannelClient = {
+			getChannel: () => { throw new Error('Not called by this test.'); },
+		};
+
+		test('rotates management generations across reconnect and close', async () => {
+			const connection = disposables.add(new LocalAgentHostManagementConnection());
+			const beforeReconnect = connection.client();
+
+			connection.reconnecting();
+			const duringReconnect = connection.client();
+			let connected = false;
+			void duringReconnect.then(() => connected = true);
+			await Promise.resolve();
+			const connectedBeforeAcquisition = connected;
+			await connection.acquire(Promise.resolve(client));
+			connection.connected();
+			const reconnectedClient = await duringReconnect;
+
+			connection.reconnecting();
+			const beforeClose = connection.client();
+			connection.closed('Local agent host protocol is incompatible.');
+
+			await assert.rejects(beforeReconnect, /reconnecting/);
+			await assert.rejects(beforeClose, /incompatible/);
+			assert.deepStrictEqual({
+				connectedBeforeAcquisition,
+				reconnectedClient,
+			}, {
+				connectedBeforeAcquisition: false,
+				reconnectedClient: client,
+			});
+		});
+	});
+
+	test('registers only the proxy channel and does NOT throw when the BYOK handler is missing', () => {
+		const { server, registered } = fakeChannelServer();
+		// Must not throw: the agent host connection has to come up even if a
+		// window connects without the handler and so cannot serve BYOK itself.
+		registerAgentHostClientChannels(server, fakeInstantiationService(true), new NullLogService(), true);
+		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL]);
+	});
+
+	test('registers only the proxy channel when BYOK is disabled', () => {
+		const { server, registered } = fakeChannelServer();
+		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService(), false);
+		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL]);
+	});
+});

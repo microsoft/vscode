@@ -43,7 +43,7 @@ suite('AgentHostCommitOperationContribution', () => {
 
 		const operations = provider.getOperations({ sessionKey, changesetUri: uncommittedChangesetUri, changesetKind: ChangesetKind.Uncommitted, gitState: { ...gitStateWithUncommittedChanges, uncommittedChanges: 0 } });
 
-		assert.strictEqual(operations, undefined);
+		assert.deepStrictEqual(operations?.map(op => op.id), []);
 	});
 
 	test('advertises commit on the session changeset when there are uncommitted changes', () => {
@@ -51,6 +51,18 @@ suite('AgentHostCommitOperationContribution', () => {
 
 		const operations = provider.getOperations({ sessionKey, changesetUri: buildSessionChangesetUri(sessionKey), changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges });
 
-		assert.deepStrictEqual(operations?.map(op => op.id), ['commit']);
+		assert.deepStrictEqual(operations?.map(op => op.id), []);
+	});
+
+	test('advertises commit on the session changeset only for a pull request on the current branch', () => {
+		const provider = createContribution();
+		const sessionChangesetUri = buildSessionChangesetUri(sessionKey);
+
+		const actual = [
+			provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges, gitHubState: { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/test' } }),
+			provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges, gitHubState: { pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'feature/other' } }),
+		];
+
+		assert.deepStrictEqual(actual.map(operations => operations?.map(op => op.id)), [['commit'], []]);
 	});
 });

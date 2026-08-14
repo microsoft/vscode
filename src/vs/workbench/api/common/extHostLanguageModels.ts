@@ -244,6 +244,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					statusIcon: m.statusIcon,
 					targetChatSessionType: m.targetChatSessionType,
 					configurationSchema: m.configurationSchema as IJSONSchema | undefined,
+					warningText: m.warningText,
+					promo: m.promo,
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,
 						editTools: m.capabilities.editTools,
@@ -342,7 +344,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				knownModel.info,
 				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
 				// todo@connor4312: move `core` -> `undefined` after 1.111 Insiders is out
-				{ ...options, modelOptions: options.modelOptions ?? {}, modelConfiguration: options.configuration, requestInitiator: from ? ExtensionIdentifier.toKey(from) : 'core', toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto },
+				{ ...options, modelOptions: options.modelOptions ?? {}, modelConfiguration: options.configuration, requestInitiator: from ? ExtensionIdentifier.toKey(from) : 'core', toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto, includeEncryptedThinking: options.includeEncryptedThinking },
 				progress,
 				providerToken
 			);

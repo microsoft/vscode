@@ -12,6 +12,7 @@ import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../..
 import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { AgentHostAutoReplyAnswer } from '../../../../../../../platform/agentHost/common/agentHostSchema.js';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
 	return {
@@ -22,7 +23,8 @@ function createMockCarousel(questions: IChatQuestionCarousel['questions'], allow
 }
 
 function createMockContext(): IChatContentPartRenderContext {
-	return {} as IChatContentPartRenderContext;
+	const context: Partial<IChatContentPartRenderContext> = { content: [], contentIndex: 0 };
+	return context as IChatContentPartRenderContext;
 }
 
 suite('ChatQuestionCarouselPart', () => {
@@ -31,11 +33,12 @@ suite('ChatQuestionCarouselPart', () => {
 	let widget: ChatQuestionCarouselPart;
 	let submittedAnswers: Map<string, IChatQuestionAnswerValue> | undefined | null = null;
 
-	function createWidget(carousel: IChatQuestionCarousel): ChatQuestionCarouselPart {
+	function createWidget(carousel: IChatQuestionCarousel, onSubmit?: () => void): ChatQuestionCarouselPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const options: IChatQuestionCarouselOptions = {
 			onSubmit: (answers) => {
 				submittedAnswers = answers;
+				onSubmit?.();
 			}
 		};
 		widget = store.add(instantiationService.createInstance(ChatQuestionCarouselPart, carousel, createMockContext(), options));
@@ -100,6 +103,30 @@ suite('ChatQuestionCarouselPart', () => {
 			const title = widget.domNode.querySelector('.chat-question-title');
 			assert.ok(title, 'title element should exist');
 			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
+		});
+
+		test('sanitizes agent-provided markdown', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'text',
+					title: 'Question',
+					message: new MarkdownString('![remote](https://example.com/question.png)'),
+					detailedMessage: new MarkdownString('![remote](https://example.com/details.png)')
+				}
+			]);
+			carousel.message = new MarkdownString('![remote](https://example.com/carousel.png)');
+			createWidget(carousel);
+
+			assert.deepStrictEqual({
+				carouselMessageImages: widget.domNode.querySelectorAll('.chat-question-carousel-message img').length,
+				questionMessageImages: widget.domNode.querySelectorAll('.chat-question-title img').length,
+				detailedMessageImages: widget.domNode.querySelectorAll('.chat-question-detailed-message img').length,
+			}, {
+				carouselMessageImages: 0,
+				questionMessageImages: 0,
+				detailedMessageImages: 0,
+			});
 		});
 
 		test('renders plain string question message as text', () => {
@@ -450,6 +477,18 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(answer.selectedValues.length, 2);
 			assert.strictEqual(answer.freeformValue, undefined);
 		});
+
+		test('does not render a summary after onSubmit disposes the part', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question', defaultValue: 'answer' }
+			]);
+			createWidget(carousel, () => widget.dispose());
+
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			submitButton.click();
+
+			assert.strictEqual(widget.domNode.querySelector('.chat-question-carousel-summary'), null);
+		});
 	});
 
 	suite('Navigation', () => {
@@ -534,6 +573,22 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(result, false, 'Second skip() should return false');
 			assert.strictEqual(submittedAnswers, null, 'onSubmit should not be called again');
 		});
+
+		test('skip no-ops when the carousel was already resolved externally', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default answer' }
+			], true);
+			createWidget(carousel);
+
+			// A voice answer resolves the carousel directly, after this part has
+			// already rendered interactively. The auto-skip that fires on the next
+			// request submit must not overwrite it with defaults.
+			carousel.isUsed = true;
+
+			const result = widget.skip();
+			assert.strictEqual(result, false, 'skip() must not re-submit a carousel resolved elsewhere');
+			assert.strictEqual(submittedAnswers, null, 'onSubmit should not overwrite the external answers');
+		});
 	});
 
 	suite('Ignore Functionality', () => {
@@ -570,6 +625,19 @@ suite('ChatQuestionCarouselPart', () => {
 			const result = widget.ignore();
 			assert.strictEqual(result, false, 'Second ignore() should return false');
 			assert.strictEqual(submittedAnswers, null, 'onSubmit should not be called again');
+		});
+
+		test('ignore no-ops when the carousel was already resolved externally', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], true);
+			createWidget(carousel);
+
+			carousel.isUsed = true;
+
+			const result = widget.ignore();
+			assert.strictEqual(result, false, 'ignore() must not re-submit a carousel resolved elsewhere');
+			assert.strictEqual(submittedAnswers, null, 'onSubmit should not overwrite the external answers');
 		});
 
 		test('skip and ignore are mutually exclusive', () => {
@@ -881,6 +949,78 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(summaryValue?.textContent?.includes('saved answer'), 'Summary should show saved answer from data');
 		});
 
+		test('renders conversational summary with expandable selected options', () => {
+			const carousel = new ChatQuestionCarouselData([{
+				id: 'q1',
+				type: 'singleSelect',
+				title: 'What should we prioritize if the refactor affects multiple platforms and may require migration work?',
+				options: [
+					{ id: 'fix', label: 'Fix a bug', value: 'fix' },
+					{ id: 'feature', label: 'Implement a feature', value: 'feature' },
+				],
+			}], true, undefined, { q1: { selectedValue: 'fix' } }, true);
+			carousel.answerPresentation = 'conversation';
+			createWidget(carousel.toJSON());
+
+			const question = widget.domNode.querySelector('.chat-question-summary-question');
+			const answerButton = widget.domNode.querySelector('.chat-question-answer-collapsible .monaco-button') as HTMLElement | null;
+			assert.ok(question && answerButton);
+			assert.strictEqual(widget.domNode.querySelector('.chat-question-summary-option-list'), null);
+			answerButton.click();
+
+			assert.deepStrictEqual({
+				question: question.textContent,
+				questionExpandable: question.hasAttribute('aria-expanded'),
+				answer: answerButton.textContent,
+				answerExpanded: answerButton.getAttribute('aria-expanded'),
+				answerIcon: answerButton.querySelector('.chat-question-summary-answer-icon')?.classList.contains('codicon-comment'),
+				hasChevron: !!answerButton.querySelector('.chat-collapsible-hover-chevron'),
+				optionsTitle: widget.domNode.querySelector('.chat-question-summary-options-title')?.textContent,
+				options: Array.from(widget.domNode.querySelectorAll('.chat-question-summary-option')).map(option => ({
+					label: option.querySelector('.chat-question-summary-option-label')?.textContent,
+					selected: option.classList.contains('selected'),
+					hasCompactCheck: !!option.querySelector('.chat-question-summary-option-selected .codicon-check-compact'),
+				})),
+			}, {
+				question: 'Question: What should we prioritize if the refactor affects multiple platforms and may require migration work?',
+				answer: 'Answered: Fix a bug',
+				questionExpandable: false,
+				answerExpanded: 'true',
+				answerIcon: true,
+				hasChevron: true,
+				optionsTitle: 'Options',
+				options: [
+					{ label: 'Fix a bug', selected: true, hasCompactCheck: true },
+					{ label: 'Implement a feature', selected: false, hasCompactCheck: false },
+				],
+			});
+		});
+
+		test('uses a non-interactive collapsible header for free responses', () => {
+			const carousel = new ChatQuestionCarouselData([{
+				id: 'q1',
+				type: 'text',
+				title: 'What would you like me to help you with?',
+			}], true, undefined, { q1: 'Review the changes' }, true);
+			carousel.answerPresentation = 'conversation';
+			createWidget(carousel.toJSON());
+
+			const answerButton = widget.domNode.querySelector('.chat-question-answer-collapsible .monaco-button') as HTMLElement | null;
+			assert.deepStrictEqual({
+				answer: answerButton?.textContent,
+				disabled: answerButton?.getAttribute('aria-disabled'),
+				tabIndex: answerButton?.tabIndex,
+				expanded: answerButton?.getAttribute('aria-expanded'),
+				hasChevron: !!answerButton?.querySelector('.chat-collapsible-hover-chevron'),
+			}, {
+				answer: 'Answered: Review the changes',
+				disabled: 'true',
+				tabIndex: -1,
+				expanded: null,
+				hasChevron: false,
+			});
+		});
+
 		test('shows skipped message when constructed with isUsed but no data', () => {
 			const carousel: IChatQuestionCarousel = {
 				kind: 'questionCarousel',
@@ -897,6 +1037,91 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(summary, 'Should show summary container');
 			const skippedMessage = summary?.querySelector('.chat-question-summary-skipped');
 			assert.ok(skippedMessage, 'Should show skipped message when no data');
+		});
+
+		test('renders a skipped conversational question with its options', () => {
+			const carousel: IChatQuestionCarousel = {
+				kind: 'questionCarousel',
+				questions: [{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Which environment?',
+					options: [
+						{ id: 'staging', label: 'Staging', value: 'staging' },
+						{ id: 'production', label: 'Production', value: 'production' },
+					],
+				}],
+				allowSkip: true,
+				isUsed: true,
+				answerPresentation: 'conversation',
+			};
+			createWidget(carousel);
+
+			const answerButton = widget.domNode.querySelector('.chat-question-answer-collapsible .monaco-button') as HTMLElement | null;
+			assert.ok(answerButton);
+			answerButton.click();
+			assert.deepStrictEqual({
+				question: widget.domNode.querySelector('.chat-question-summary-question')?.textContent,
+				answer: answerButton.textContent,
+				answerIcon: answerButton.querySelector('.chat-question-summary-answer-icon')?.classList.contains('codicon-close-compact'),
+				hasChevron: !!answerButton.querySelector('.chat-collapsible-hover-chevron'),
+				options: Array.from(widget.domNode.querySelectorAll('.chat-question-summary-option-label')).map(option => option.textContent),
+			}, {
+				question: 'Question: Which environment?',
+				answer: 'Skipped question',
+				answerIcon: true,
+				hasChevron: true,
+				options: ['Staging', 'Production'],
+			});
+		});
+
+		test('shows answered message when answeredExternally but no data', () => {
+			const carousel: IChatQuestionCarousel = {
+				kind: 'questionCarousel',
+				questions: [
+					{ id: 'q1', type: 'text', title: 'Question 1' }
+				],
+				allowSkip: true,
+				isUsed: true,
+				answeredExternally: true,
+				answerPresentation: 'conversation',
+			};
+			createWidget(carousel);
+
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'), 'Should have used class');
+			const summary = widget.domNode.querySelector('.chat-question-carousel-summary');
+			assert.ok(summary, 'Should show summary container');
+			assert.ok(!summary?.querySelector('.chat-question-summary-skipped'), 'Should not show skipped message');
+			assert.ok(summary?.querySelector('.chat-question-summary-answered'), 'Should show answered message when answered externally');
+			assert.ok(!summary?.querySelector('.codicon-copilot-compact'), 'Should not present a generic external answer as an automatic reply');
+		});
+
+		test('renders a Copilot icon for a structured automatic answer', () => {
+			const carousel: IChatQuestionCarousel = {
+				kind: 'questionCarousel',
+				questions: [
+					{ id: 'q1', type: 'text', title: 'What should we work on next?' }
+				],
+				allowSkip: true,
+				isUsed: true,
+				answeredExternally: true,
+				autoReply: true,
+				answerPresentation: 'conversation',
+				data: { q1: AgentHostAutoReplyAnswer },
+			};
+			createWidget(carousel);
+
+			assert.deepStrictEqual({
+				question: widget.domNode.querySelector('.chat-question-summary-question')?.textContent,
+				answer: widget.domNode.querySelector('.chat-question-answer-collapsible .monaco-button')?.textContent,
+				answerIcon: widget.domNode.querySelector('.chat-question-summary-answer-icon')?.classList.contains('codicon-copilot-compact'),
+				hasGenericMessage: !!widget.domNode.querySelector('.chat-question-summary-answered'),
+			}, {
+				question: 'Question: What should we work on next?',
+				answer: `Answered: ${AgentHostAutoReplyAnswer}`,
+				answerIcon: true,
+				hasGenericMessage: false,
+			});
 		});
 	});
 
@@ -946,6 +1171,8 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(message, 'Carousel message should be rendered');
 			assert.ok(message?.querySelector('.rendered-markdown'), 'Message should be rendered as markdown');
 		});
+
+
 
 		test('shows required indicator on required questions', () => {
 			const carousel = createMockCarousel([

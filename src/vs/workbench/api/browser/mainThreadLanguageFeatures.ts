@@ -1513,6 +1513,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			editKind: lifetimeSummary.editKind,
 			longDistanceHintVisible: lifetimeSummary.longDistanceHintVisible,
 			longDistanceHintDistance: lifetimeSummary.longDistanceHintDistance,
+			isForAnotherDocument: lifetimeSummary.isForAnotherDocument,
 			...forwardToChannelIf(isCopilotLikeExtension(this.providerId.extensionId!)),
 		};
 

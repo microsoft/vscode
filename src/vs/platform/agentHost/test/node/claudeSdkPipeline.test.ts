@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Query, SDKMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { Query, SDKControlInterruptResponse, SDKMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -20,6 +20,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -59,7 +60,7 @@ class ImmediatelyDoneQuery implements Query {
 	async applyFlagSettings(_settings: Parameters<Query['applyFlagSettings']>[0]): Promise<void> { /* not exercised here */ }
 	async setPermissionMode(): Promise<void> { /* not exercised here */ }
 	async setMcpPermissionModeOverride(): Promise<{ warning?: string }> { return {}; }
-	async interrupt(): Promise<void> { /* not exercised here */ }
+	async interrupt(): Promise<SDKControlInterruptResponse | undefined> { return undefined; }
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }
 	reloadSkills(): never { throw new Error('not modeled'); }
@@ -68,6 +69,7 @@ class ImmediatelyDoneQuery implements Query {
 	async [Symbol.asyncDispose](): Promise<void> { /* not exercised here */ }
 	setMaxThinkingTokens(): never { throw new Error('not modeled'); }
 	initializationResult(): never { throw new Error('not modeled'); }
+	reinitialize(): never { throw new Error('not modeled'); }
 	supportedCommands(): never { throw new Error('not modeled'); }
 	supportedModels(): never { throw new Error('not modeled'); }
 	supportedAgents(): never { throw new Error('not modeled'); }
@@ -208,6 +210,7 @@ function createPipeline(
 	const pipeline = disposables.add(inst.createInstance(
 		ClaudeSdkPipeline,
 		'sess-1',
+		URI.parse(buildDefaultChatUri('claude:/sess-1')),
 		URI.parse('claude:/sess-1'),
 		warm,
 		controller,
@@ -279,6 +282,7 @@ suite('ClaudeSdkPipeline', () => {
 			const pipeline = disposables.add(inst.createInstance(
 				ClaudeSdkPipeline,
 				'sess-2',
+				URI.parse(buildDefaultChatUri('claude:/sess-2')),
 				URI.parse('claude:/sess-2'),
 				warm,
 				controller,

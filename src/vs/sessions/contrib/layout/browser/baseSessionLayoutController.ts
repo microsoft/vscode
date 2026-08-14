@@ -7,6 +7,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { isThenable, Sequencer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -17,8 +18,9 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILifecycleService } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -26,6 +28,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -33,12 +36,13 @@ import { IPaneCompositePartService } from '../../../../workbench/services/paneco
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
+import { IChangesViewService } from '../../changes/common/changesViewService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 
 const secondarySidebarToggleClosedIcon = registerIcon('agent-secondary-sidebar-toggle-closed', Codicon.layoutSidebarRightOff, localize('agentSecondarySidebarToggleClosedIcon', "Icon for the sessions secondary sidebar when closed."));
 const secondarySidebarToggleOpenIcon = registerIcon('agent-secondary-sidebar-toggle-open', Codicon.layoutSidebarRight, localize('agentSecondarySidebarToggleOpenIcon', "Icon for the sessions secondary sidebar when open."));
@@ -51,6 +55,8 @@ const secondarySidebarToggleOpenIcon = registerIcon('agent-secondary-sidebar-tog
 export interface ISessionViewState {
 	readonly auxiliaryBarVisible: boolean;
 	readonly auxiliaryBarActiveViewContainerId: string | undefined;
+	/** [D9] Marks an aux-bar hide caused only by collapsing the whole side pane. */
+	readonly auxiliaryBarHiddenByCollapse?: boolean;
 }
 
 /**
@@ -108,20 +114,49 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	/**
-	 * [D9] `true` while {@link toggleSidePane} hides/shows the editor + auxiliary
-	 * bar together. The desktop controller's per-session aux-bar capture skips
-	 * this window, so toggling the whole side pane is never recorded as an
-	 * aux-bar choice.
+	 * Fires when a session-switch layout restore fully settles (the restore depth
+	 * returns to 0, after the — possibly async — working-set apply and aux-bar
+	 * restore complete). Subclasses reconcile off this instead of reacting to the
+	 * transient part/editor changes *during* the restore, which race the settled
+	 * state (e.g. a new session's empty working set closing the docked tabs).
+	 */
+	private readonly _onDidEndSessionLayoutRestore = this._register(new Emitter<void>());
+	protected readonly onDidEndSessionLayoutRestore: Event<void> = this._onDidEndSessionLayoutRestore.event;
+
+	/**
+	 * [D9] `true` between the layout service's side-pane will/did toggle events.
+	 * The per-session aux-bar capture skips this window, so toggling the whole
+	 * side pane is never recorded as an explicit aux-bar choice.
 	 */
 	protected _togglingSidePane = false;
 
-	/**
-	 * Remembers which parts were visible when the side pane was last hidden, so
-	 * re-opening restores the same parts instead of always showing both.
-	 */
-	private _lastVisibleSidePaneParts: { readonly editor: boolean; readonly auxiliaryBar: boolean } | undefined;
-
 	private readonly _useModalConfigObs;
+
+	/**
+	 * Storage key for this controller's per-session layout state. Overridable so a
+	 * sibling controller (e.g. single-pane) persists to a fresh key instead of
+	 * sharing the classic desktop state.
+	 */
+	protected get _layoutStateStorageKey(): string {
+		return SESSION_LAYOUT_STATE_KEY;
+	}
+
+	/**
+	 * Legacy key migrated on first load, or `undefined` to skip migration (a fresh
+	 * sibling controller has no legacy state to migrate).
+	 */
+	protected get _legacyWorkingSetsStorageKey(): string | undefined {
+		return WORKING_SETS_STORAGE_KEY;
+	}
+
+	protected get _isEditorPartVisibilityPerSession(): boolean {
+		return true;
+	}
+
+	protected get _isViewStatePerSession(): boolean {
+		return true;
+	}
+
 	constructor(
 
 		@IAgentWorkbenchLayoutService protected readonly _layoutService: IAgentWorkbenchLayoutService,
@@ -132,9 +167,14 @@ export abstract class BaseLayoutController extends Disposable {
 		@IStorageService protected readonly _storageService: IStorageService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IEditorService protected readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IEditorGroupsService protected readonly _editorGroupsService: IEditorGroupsService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISessionChangesService protected readonly _sessionChangesService: ISessionChangesService,
+		@IChangesViewService protected readonly _changesViewService: IChangesViewService,
+		@IViewDescriptorService protected readonly _viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
+		@ILifecycleService protected readonly _lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -168,7 +208,9 @@ export abstract class BaseLayoutController extends Disposable {
 				if (!session) {
 					continue;
 				}
-				this._viewStateBySession.delete(session.resource);
+				if (this._isViewStatePerSession) {
+					this._viewStateBySession.delete(session.resource);
+				}
 				this._panelVisibilityBySession.delete(session.resource);
 			}
 		}));
@@ -187,12 +229,34 @@ export abstract class BaseLayoutController extends Disposable {
 			if (e.partId !== Parts.PANEL_PART) {
 				return;
 			}
-			if (this.multipleSessionsVisibleObs.get()) {
+			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
 			if (activeSession) {
 				this._panelVisibilityBySession.set(activeSession.resource, e.visible);
+			}
+		}));
+
+		// [B2] Track editor-part (docked side-pane) visibility changes by the user
+		// so a session's closed/open editor state is captured at the moment it
+		// changes — not lazily re-read at switch-away time, which races with the
+		// incoming session's async layout restore (the switch derive lags behind
+		// the raw active-session change, so by the time the previous session is
+		// saved the editor part may already reflect the new session). Skipped
+		// while multiple sessions are visible (the editor area is shared) and
+		// during a session-switch restore (those changes are layout-driven, not
+		// user choices).
+		this._register(this._layoutService.onDidChangePartVisibility(e => {
+			if (!this._isEditorPartVisibilityPerSession || e.partId !== Parts.EDITOR_PART || this._isRestoringSessionLayout) {
+				return;
+			}
+			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
+				return;
+			}
+			const activeSession = this._sessionsService.activeSession.get();
+			if (activeSession) {
+				this._editorPartHiddenBySession.set(activeSession.resource, !e.visible);
 			}
 		}));
 
@@ -226,36 +290,62 @@ export abstract class BaseLayoutController extends Disposable {
 			return activeSession;
 		});
 
-		this._register(autorun(reader => {
-			const useModalConfig = this._useModalConfigObs.read(reader);
-			if (useModalConfig === 'all') {
-				return;
+		// Working sets are always active: browser editors dock in the shared grid
+		// editor part even when `workbench.editor.useModal` is `'all'` (they
+		// deliberately except themselves from the modal part), so their tabs
+		// still need to be captured/restored per session in that mode.
+
+		// [B2] Save the outgoing session's working set eagerly on the raw active
+		// session change, not on the workspace-gated `activeSessionForWorkingSet`
+		// derive below. The derive lags while the incoming session's workspace
+		// resolves, and autoruns driven by the raw active session (e.g. the
+		// single-pane managed-tabs sync) async-close the outgoing session's docked
+		// editors during that window. Saving here synchronously — before those
+		// closes run — captures which editor was active (e.g. the Changes tab) so it
+		// is restored active on return.
+		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
+			if (
+				previousSession
+				&& !isEqual(previousSession.resource, session?.resource)
+				&& previousSession.status.read(undefined) !== SessionStatus.Untitled
+				&& !this._isRestoringSessionLayout
+			) {
+				this._saveWorkingSet(previousSession.resource);
 			}
+		}));
 
-			// [B2] Session changed (save, apply)
-			reader.store.add(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
-				// Save working set for previous session (skip for untitled sessions)
-				if (previousSession && previousSession.status.read(undefined) !== SessionStatus.Untitled) {
-					this._saveWorkingSet(previousSession.resource);
-				}
+		// [B2] Session changed (apply)
+		this._register(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
+			// Apply working set for current session.
+			// On initial load (no previous session), only apply if we have a saved working set —
+			// skip applying 'empty' to avoid closing editors that are being restored.
+			if (previousSession || (session && this._workingSets.has(session.resource))) {
+				this._withSessionLayoutRestore(() => this._applyWorkingSet(session?.resource, { isInitialRestore: !previousSession }));
+			}
+		}));
 
-				// Apply working set for current session.
-				// On initial load (no previous session), only apply if we have a saved working set —
-				// skip applying 'empty' to avoid closing editors that are being restored.
-				if (previousSession || (session && this._workingSets.has(session.resource))) {
-					this._withSessionLayoutRestore(() => this._applyWorkingSet(session?.resource, { isInitialRestore: !previousSession }));
-				}
-			}));
+		// [B2] Session state changed (archive, delete)
+		this._register(this._sessionManagementService.onDidChangeSessions(e => {
+			const archivedSessions = e.changed.filter(session => session.isArchived.read(undefined));
+			for (const session of [...e.removed, ...archivedSessions]) {
+				this._deleteWorkingSet(session.resource);
+				this._viewStateBySession.delete(session.resource);
+				this._editorPartHiddenBySession.delete(session.resource);
+			}
+		}));
+		this._register(this._sessionManagementService.onDidReplaceSession(({ from, to }) => this._onSessionReplaced(from, to)));
 
-			// [B2] Session state changed (archive, delete)
-			reader.store.add(this._sessionManagementService.onDidChangeSessions(e => {
-				const archivedSessions = e.changed.filter(session => session.isArchived.read(undefined));
-				for (const session of [...e.removed, ...archivedSessions]) {
-					this._deleteWorkingSet(session.resource);
-					this._viewStateBySession.delete(session.resource);
-					this._editorPartHiddenBySession.delete(session.resource);
-				}
-			}));
+		this._register(this._layoutService.onWillToggleSidePane(() => {
+			this._togglingSidePane = true;
+		}));
+		this._register(this._layoutService.onDidToggleSidePane(({ before, after }) => {
+			try {
+				const wasVisible = before.editor || before.auxiliaryBar;
+				const visible = after.editor || after.auxiliaryBar;
+				this._onSidePaneToggled(wasVisible && !visible, before.auxiliaryBar, after.auxiliaryBar);
+			} finally {
+				this._togglingSidePane = false;
+			}
 		}));
 
 		// Side-pane toggle UI (menu item, keybinding, command-palette entry).
@@ -263,16 +353,34 @@ export abstract class BaseLayoutController extends Disposable {
 
 		// Platform-specific auxiliary bar / view-state management.
 		this._registerViewStateManagement();
+
+		// Layout-specific auxiliary controllers (e.g. single-pane detail/tab
+		// controllers), created and owned by the layout controller so they share
+		// its lifecycle and coordinate through it.
+		this._registerAuxiliaryControllers();
 	}
 
 	/**
-	 * Registers the `Toggle Side Panel` action (menu item, keybinding,
-	 * command-palette entry). The action delegates straight to `toggleSidePane()`,
-	 * so no command/service indirection is needed; the controller owns the toggle
-	 * behaviour and its memory.
+	 * Hook for a layout controller to create and own its auxiliary controllers.
+	 * The base implementation does nothing.
+	 */
+	protected _registerAuxiliaryControllers(): void { }
+
+	/**
+	 * Whether a custom view currently replaces the sessions grid. The parts it
+	 * covers are force-hidden, so those transitions must not be captured as the
+	 * active session's layout preference.
+	 */
+	protected _isCustomViewVisible(): boolean {
+		return this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART);
+	}
+
+	/**
+	 * Registers the `Toggle Side Panel` action (menu item, keybinding, and
+	 * command-palette entry). The command calls the workbench layout service
+	 * directly; this controller observes the service's toggle lifecycle events.
 	 */
 	private _registerSidePaneToggleAction(): IDisposable {
-		const that = this;
 		return registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -288,6 +396,10 @@ export abstract class BaseLayoutController extends Disposable {
 					},
 					category: Categories.View,
 					f1: true,
+					precondition: ContextKeyExpr.and(
+						ContextKeyExpr.or(IsQuickChatSessionContext.negate(), SinglePaneLayoutEnabledContext),
+						CustomViewVisibleContext.negate()
+					),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
@@ -296,7 +408,7 @@ export abstract class BaseLayoutController extends Disposable {
 						{
 							id: Menus.TitleBarSessionMenu,
 							group: 'navigation',
-							order: 11, // After Open in VS Code (7), Run Script (8), and Open Terminal (10)
+							order: 11, // After Open in VS Code (7), Run Script (8), and Toggle Panel (10)
 							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 						}
 					]
@@ -304,7 +416,7 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 
 			run(accessor: ServicesAccessor): void {
-				const nowVisible = that.toggleSidePane();
+				const nowVisible = accessor.get(IAgentWorkbenchLayoutService).toggleSidePane();
 
 				logSidePanelToggle(accessor.get(ITelemetryService), nowVisible);
 
@@ -323,65 +435,42 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	protected _registerViewStateManagement(): void { }
 
-	/**
-	 * Toggle the **side pane** — the editor area together with the auxiliary bar.
-	 * Closing it hides both; re-opening restores exactly the parts that were
-	 * visible when it was last closed (defaulting to both). The whole operation
-	 * runs under {@link _togglingSidePane} so the desktop controller does not
-	 * record it as a per-session aux-bar choice ([D9]). Returns `true` if the
-	 * side pane is now visible.
-	 */
-	toggleSidePane(): boolean {
-		this._togglingSidePane = true;
-		try {
-			// Treat the side pane as visible when *either* part is visible so the
-			// toggle always closes both, instead of just revealing the auxiliary
-			// bar on top of an already-visible editor area.
-			const editorVisible = this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
-			const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-			const isCurrentlyVisible = editorVisible || auxiliaryBarVisible;
-
-			// When hiding and unhiding the editor part and auxiliary bar, hiding
-			// must be done in the opposite order than showing for sizing to restore
-			// correct dimensions.
-			if (isCurrentlyVisible) {
-				this._lastVisibleSidePaneParts = { editor: editorVisible, auxiliaryBar: auxiliaryBarVisible };
-				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-				this._layoutService.setPartHidden(true, Parts.EDITOR_PART);
-			} else {
-				// Restore only the parts that were visible before hiding (default to
-				// both when there is no remembered state, e.g. after a reload).
-				const restore = this._lastVisibleSidePaneParts ?? { editor: true, auxiliaryBar: true };
-				const hasEditors = this._editorGroupsService.groups.some(group => !group.isEmpty);
-				if (restore.editor && hasEditors) {
-					this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
-				}
-				if (restore.auxiliaryBar) {
-					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-				}
-				// Ensure the toggle always has a visible effect (e.g. the remembered
-				// state was editor-only but there are no editors to show now).
-				if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-				}
-			}
-
-			// Let subclasses record the resulting side-pane state ([D2] capture is suppressed while toggling).
-			this._onSidePaneToggled();
-
-			return !isCurrentlyVisible;
-		} finally {
-			this._togglingSidePane = false;
+	protected _onSessionReplaced(from: ISession, to: ISession): void {
+		if (!this._isEditorPartVisibilityPerSession) {
+			return;
+		}
+		// `onDidReplaceSession` fires only when an untitled draft is atomically
+		// replaced by its committed session on submit, so it always means "the
+		// committed session inherits the draft's on-screen side-pane layout".
+		// Persist the draft's live editor-part visibility onto the committed
+		// session so the delayed working-set apply restores it as-left (instead of
+		// the created-session default, which would reveal the docked editor) and it
+		// also survives a reload.
+		const activeSession = this._sessionsService.activeSession.get();
+		const replacedSessionIsActive = isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource);
+		const editorPartHidden = this._editorPartHiddenBySession.get(from.resource)
+			?? (replacedSessionIsActive ? !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) : undefined);
+		if (editorPartHidden !== undefined) {
+			this._editorPartHiddenBySession.set(to.resource, editorPartHidden);
 		}
 	}
 
 	/**
-	 * Hook invoked at the end of {@link toggleSidePane}, while
-	 * {@link _togglingSidePane} is still set, so subclasses can record the
-	 * resulting side-pane state (which the [D2] capture listener deliberately
-	 * ignores). The base implementation does nothing.
+	 * Whether the auxiliary bar currently has at least one active view container
+	 * (shown as a tab). Mirrors the workbench's own container-visibility rule
+	 * (`!hideIfEmpty || isViewContainerActive`, folded into `isViewContainerActive`).
 	 */
-	protected _onSidePaneToggled(): void { }
+	protected _hasActiveAuxViewContainers(): boolean {
+		return this._viewDescriptorService
+			.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar)
+			.some(container => this._viewsService.isViewContainerActive(container.id));
+	}
+
+	/**
+	 * Records a completed whole-side-pane toggle from the did event's before/after
+	 * state while {@link _togglingSidePane} is still set.
+	 */
+	protected _onSidePaneToggled(_collapsed: boolean, _previousAuxiliaryBarVisible: boolean, _auxiliaryBarVisible: boolean): void { }
 
 	/**
 	 * [B4] Hook that lets a subclass snapshot the active session's view state when
@@ -396,19 +485,68 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	protected _withSessionLayoutRestore(work: () => void | Promise<unknown>): void {
 		this._restoringSessionLayoutDepth++;
+		const suppression = this._suppressEditorVisibilityDuringRestore();
 		let settledSync = true;
 		try {
 			const result = work();
 			if (isThenable(result)) {
 				settledSync = false;
-				Promise.resolve(result).catch(() => undefined).finally(() => this._restoringSessionLayoutDepth--);
+				Promise.resolve(result).catch(() => undefined).finally(() => {
+					this._endSessionLayoutRestore(suppression);
+				});
 			}
 		} finally {
 			if (settledSync) {
-				this._restoringSessionLayoutDepth--;
+				this._endSessionLayoutRestore(suppression);
 			}
 		}
 	}
+
+	private _endSessionLayoutRestore(suppression: IDisposable | undefined): void {
+		this._restoringSessionLayoutDepth--;
+		suppression?.dispose();
+		if (this._restoringSessionLayoutDepth === 0) {
+			this._onDidEndSessionLayoutRestore.fire();
+		}
+	}
+
+	/**
+	 * Hook to suppress editor-part auto-visibility for the whole session-switch
+	 * restore. The base restore causes no layout-driven editor closes, so it
+	 * returns `undefined`.
+	 */
+	protected _suppressEditorVisibilityDuringRestore(): IDisposable | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Hook deciding whether {@link _applyWorkingSet} reveals the editor part when
+	 * restoring a non-empty working set.
+	 */
+	protected _shouldRevealEditorPartOnApply(editorPartHidden: boolean, isModal: boolean): boolean {
+		return !editorPartHidden && !isModal;
+	}
+
+	/**
+	 * Hook deciding whether {@link _applyWorkingSet} reveals the editor part for an
+	 * empty working set. The base never reveals in this case.
+	 */
+	protected _shouldRevealEditorPartForEmptyWorkingSet(_revealEditorPart: boolean): boolean {
+		return false;
+	}
+
+	/**
+	 * Hook deciding whether {@link _applyWorkingSet} actively hides the editor part
+	 * when restoring a session that had it hidden. The base never hides (in the
+	 * classic layout the editor part visibility is not a per-session choice); the
+	 * single-pane layout restores its docked editor part both ways.
+	 */
+	protected _shouldHideEditorPartOnApply(_editorPartHidden: boolean): boolean {
+		return false;
+	}
+
+	/** Hook invoked before a session working set is queued for application. */
+	protected _onWillApplyWorkingSet(_workingSet: IEditorWorkingSet | 'empty'): void { }
 
 	// --- Editor part reveal ---
 
@@ -420,11 +558,16 @@ export abstract class BaseLayoutController extends Disposable {
 		this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 	}
 
+	/** Hides the editor part to restore a session that had its docked editor closed. */
+	private _hideEditorPartForWorkingSet(): void {
+		this._layoutService.setPartHidden(true, Parts.EDITOR_PART);
+	}
+
 	// --- Persistence [B3] ---
 
 	private _loadState(): void {
 		// Load from new key first
-		const raw = this._storageService.get(SESSION_LAYOUT_STATE_KEY, StorageScope.WORKSPACE);
+		const raw = this._storageService.get(this._layoutStateStorageKey, StorageScope.WORKSPACE);
 		if (raw) {
 			try {
 				for (const entry of JSON.parse(raw) as ISessionLayoutEntry[]) {
@@ -432,22 +575,26 @@ export abstract class BaseLayoutController extends Disposable {
 					if (entry.editorWorkingSet) {
 						this._workingSets.set(resource, entry.editorWorkingSet);
 					}
-					if (entry.editorPartHidden !== undefined) {
+					if (this._isEditorPartVisibilityPerSession && entry.editorPartHidden !== undefined) {
 						this._editorPartHiddenBySession.set(resource, entry.editorPartHidden);
 					}
-					if (entry.viewState) {
+					if (this._isViewStatePerSession && entry.viewState) {
 						this._viewStateBySession.set(resource, entry.viewState);
 					}
 				}
 				return;
 			} catch {
 				// Corrupted data — remove the bad key so we don't keep failing, then fall through to legacy migration
-				this._storageService.remove(SESSION_LAYOUT_STATE_KEY, StorageScope.WORKSPACE);
+				this._storageService.remove(this._layoutStateStorageKey, StorageScope.WORKSPACE);
 			}
 		}
 
 		// Migrate from legacy key (sessions.workingSets)
-		const legacyRaw = this._storageService.get(WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
+		const legacyKey = this._legacyWorkingSetsStorageKey;
+		if (!legacyKey) {
+			return;
+		}
+		const legacyRaw = this._storageService.get(legacyKey, StorageScope.WORKSPACE);
 		if (legacyRaw) {
 			try {
 				type LegacyEntry = { sessionResource: string; editorWorkingSet?: IEditorWorkingSet; auxiliaryBarState?: { visible: boolean; activeViewContainerId: string | undefined } };
@@ -467,7 +614,7 @@ export abstract class BaseLayoutController extends Disposable {
 				// ignore corrupted data
 			}
 			// Remove legacy key after migration
-			this._storageService.remove(WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
+			this._storageService.remove(legacyKey, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -488,11 +635,15 @@ export abstract class BaseLayoutController extends Disposable {
 		// Collect all session resources across all maps
 		const allResources = new ResourceMap<true>();
 		this._workingSets.forEach((_, r) => allResources.set(r, true));
-		this._viewStateBySession.forEach((_, r) => allResources.set(r, true));
-		this._editorPartHiddenBySession.forEach((_, r) => allResources.set(r, true));
+		if (this._isViewStatePerSession) {
+			this._viewStateBySession.forEach((_, r) => allResources.set(r, true));
+		}
+		if (this._isEditorPartVisibilityPerSession) {
+			this._editorPartHiddenBySession.forEach((_, r) => allResources.set(r, true));
+		}
 
 		if (allResources.size === 0) {
-			this._storageService.remove(SESSION_LAYOUT_STATE_KEY, StorageScope.WORKSPACE);
+			this._storageService.remove(this._layoutStateStorageKey, StorageScope.WORKSPACE);
 			return;
 		}
 
@@ -501,11 +652,11 @@ export abstract class BaseLayoutController extends Disposable {
 			entries.push({
 				sessionResource: resource.toString(),
 				editorWorkingSet: this._workingSets.get(resource),
-				viewState: this._viewStateBySession.get(resource),
-				editorPartHidden: this._editorPartHiddenBySession.get(resource),
+				viewState: this._isViewStatePerSession ? this._viewStateBySession.get(resource) : undefined,
+				editorPartHidden: this._isEditorPartVisibilityPerSession ? this._editorPartHiddenBySession.get(resource) : undefined,
 			});
 		});
-		this._storageService.store(SESSION_LAYOUT_STATE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._storageService.store(this._layoutStateStorageKey, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	// --- Panel [B1] ---
@@ -534,6 +685,7 @@ export abstract class BaseLayoutController extends Disposable {
 		const workingSet: IEditorWorkingSet | 'empty' = sessionResource
 			? (this._workingSets.get(sessionResource) ?? 'empty')
 			: 'empty';
+		this._onWillApplyWorkingSet(workingSet);
 
 		return this._workingSetSequencer.queue(async () => {
 			// When multiple sessions are visible, applying a working set must never
@@ -551,14 +703,38 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 
 			const isModal = this._useModalConfigObs.get() === 'all';
+			// The user may have hidden the editor part for this session (e.g. by
+			// closing the Side Panel while keeping editors open). Restore it as
+			// left instead of forcing the editor part back open on switch. A
+			// draft→committed submit records the draft's editor-part visibility onto
+			// the committed session (see `_onSessionReplaced`), so this restores the
+			// submitted layout too.
+			const editorPartHidden = this._isEditorPartVisibilityPerSession && sessionResource
+				? this._editorPartHiddenBySession.get(sessionResource) === true
+				: false;
+			const revealEditorPart = !options?.isInitialRestore
+				&& this._shouldRevealEditorPartOnApply(editorPartHidden, isModal);
+			// Restore a session that had its (docked) editor part closed by actively
+			// hiding it, so returning from a session that had it open does not leave
+			// it visible. Mutually exclusive with revealing.
+			const hideEditorPart = !options?.isInitialRestore
+				&& !revealEditorPart
+				&& this._shouldHideEditorPartOnApply(editorPartHidden);
 
 			if (workingSet === 'empty') {
 				await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+				if (this._shouldRevealEditorPartForEmptyWorkingSet(revealEditorPart) && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+					this._revealEditorPartForWorkingSet();
+				} else if (hideEditorPart && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+					this._hideEditorPartForWorkingSet();
+				}
 				return;
 			}
 
 			// On the initial restore after a reload, preserve the editor part
-			// visibility that the workbench already restored.
+			// visibility that the workbench already restored. Single-pane is the
+			// Layouts may opt into an authoritative editor-hidden restore through
+			// `_shouldHideEditorPartOnApply`; the classic and single-pane layouts do not.
 			if (options?.isInitialRestore) {
 				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 				try {
@@ -566,21 +742,23 @@ export abstract class BaseLayoutController extends Disposable {
 				} finally {
 					suppression.dispose();
 				}
+				if (this._shouldHideEditorPartOnApply(editorPartHidden) && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+					this._hideEditorPartForWorkingSet();
+				}
 				return;
 			}
 
-			// The user may have hidden the editor part for this session (e.g. by
-			// closing the Side Panel while keeping editors open). Restore it as
-			// left instead of forcing the editor part back open on switch.
-			const editorPartHidden = sessionResource ? this._editorPartHiddenBySession.get(sessionResource) === true : false;
-
-			if (!isModal && !editorPartHidden && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (revealEditorPart && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._revealEditorPartForWorkingSet();
+			} else if (hideEditorPart && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._hideEditorPartForWorkingSet();
 			}
 
 			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
-			if (!isModal && !editorPartHidden && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (revealEditorPart && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._revealEditorPartForWorkingSet();
+			} else if (hideEditorPart && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._hideEditorPartForWorkingSet();
 			}
 		});
 	}
@@ -588,13 +766,10 @@ export abstract class BaseLayoutController extends Disposable {
 	private _saveWorkingSet(sessionResource: URI): void {
 		this._deleteWorkingSet(sessionResource);
 
-		// Remember the editor part's hidden state so restoring the session does
-		// not force it back open (see _applyWorkingSet). Skipped while multiple
-		// sessions are visible: the editor area is shared across them, so its
-		// visibility is not a per-session choice.
-		if (this._sessionsService.visibleSessions.get().length <= 1) {
-			this._editorPartHiddenBySession.set(sessionResource, !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
-		}
+		// Note: the editor part's hidden state is captured eagerly by the [B2]
+		// part-visibility listener at the moment the user changes it, not here —
+		// re-reading it lazily at switch-away time races with the incoming
+		// session's async layout restore and could record the wrong value.
 
 		if (this._editorService.visibleEditors.length > 0) {
 			const workingSetName = `session-working-set:${sessionResource.toString()}`;

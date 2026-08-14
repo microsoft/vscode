@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -29,6 +29,8 @@ import { IInputBox, IQuickInputHideEvent, IQuickInputService, QuickInputHideReas
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 
 suite('LanguageModels', function () {
 
@@ -61,6 +63,7 @@ suite('LanguageModels', function () {
 			new class extends mock<IRequestService>() { },
 			new TestNotificationService(),
 			NullOpenerService,
+			NullTelemetryService,
 		);
 
 		languageModels.deltaLanguageModelChatProviderDescriptors([
@@ -217,6 +220,90 @@ suite('LanguageModels', function () {
 		assert.ok(vendors.some(v => v.vendor === 'actual-vendor'));
 	});
 
+	test('BYOK display names use provider and optional configured group paths', function () {
+		const originalIdentifier = 'openrouter/OpenRouter 2/amazon/nova-micro-v1';
+		const originalModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: originalIdentifier,
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				name: 'Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+				id: 'amazon/nova-micro-v1',
+				vendor: 'openrouter',
+				version: '1.0',
+				family: 'amazon/nova-micro-v1',
+				maxInputTokens: 100,
+				maxOutputTokens: 100,
+				isDefaultForLocation: {},
+				isBYOK: true,
+			},
+		};
+		const bridgedModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1',
+			metadata: {
+				...originalModel.metadata,
+				vendor: 'agent-host-copilotcli',
+				isBYOK: undefined,
+				modelGroup: { id: 'openrouter' },
+				byokModelIdentifier: originalIdentifier,
+			},
+		};
+		const nativeModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'agent-host-copilotcli:claude-sonnet-4.6',
+			metadata: {
+				...originalModel.metadata,
+				name: 'Claude Sonnet 4.6',
+				vendor: 'agent-host-copilotcli',
+				isBYOK: undefined,
+				modelGroup: { id: 'copilotcli' },
+			},
+		};
+		const geminiModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'gemini/models/gemini-3.1-pro-preview',
+			metadata: {
+				...originalModel.metadata,
+				name: 'Gemini 3.1 Pro Preview (models/gemini-3.1-pro-preview)',
+				id: 'models/gemini-3.1-pro-preview',
+				vendor: 'gemini',
+			},
+		};
+		const meaningfulParenthesesModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'openrouter/amazon/nova-micro-v1',
+			metadata: {
+				...originalModel.metadata,
+				name: 'Amazon: Nova Micro 1.0 (Preview)',
+			},
+		};
+		const createService = (groupName?: string): ILanguageModelsService => ({
+			getVendors: () => [
+				{ vendor: 'openrouter', displayName: 'OpenRouter' },
+				{ vendor: 'gemini', displayName: 'Gemini' },
+			],
+			getLanguageModelGroups: (vendor: string) => vendor === 'openrouter' && groupName ? [{
+				group: { vendor, name: groupName },
+				modelIdentifiers: [originalIdentifier],
+			}] : [],
+			lookupLanguageModel: (identifier: string) => identifier === originalIdentifier ? originalModel.metadata : undefined,
+		} as unknown as ILanguageModelsService);
+
+		assert.deepStrictEqual({
+			direct: getLanguageModelDisplayNameWithProvider(originalModel, createService()),
+			bridged: getLanguageModelDisplayNameWithProvider(bridgedModel, createService()),
+			grouped: getLanguageModelDisplayNameWithProvider(bridgedModel, createService('OpenRouter 2')),
+			duplicateGroup: getLanguageModelDisplayNameWithProvider(bridgedModel, createService('OpenRouter')),
+			gemini: getLanguageModelDisplayNameWithProvider(geminiModel, createService()),
+			meaningfulParentheses: getLanguageModelDisplayNameWithProvider(meaningfulParenthesesModel, createService()),
+			native: getLanguageModelDisplayNameWithProvider(nativeModel, createService('OpenRouter 2')),
+		}, {
+			direct: 'OpenRouter/Amazon: Nova Micro 1.0',
+			bridged: 'OpenRouter/Amazon: Nova Micro 1.0',
+			grouped: 'OpenRouter/OpenRouter 2/Amazon: Nova Micro 1.0',
+			duplicateGroup: 'OpenRouter/Amazon: Nova Micro 1.0',
+			gemini: 'Gemini/Gemini 3.1 Pro Preview',
+			meaningfulParentheses: 'OpenRouter/Amazon: Nova Micro 1.0 (Preview)',
+			native: 'Claude Sonnet 4.6',
+		});
+	});
+
 	test('selectLanguageModels matches by id for copilot vendor models even when isUserSelectable is false', async function () {
 		// Mirrors how the copilot extension publishes utility aliases such as
 		// `copilot-utility-small`: under the `copilot` (default) vendor, with
@@ -288,6 +375,24 @@ suite('LanguageModels', function () {
 
 		languageModels.setModelHidden('test-id-1', false);
 		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+		assert.strictEqual(fired, 2);
+	});
+
+	test('model visibility — bulk updates fire once', async function () {
+		await languageModels.selectLanguageModels({});
+
+		let fired = 0;
+		store.add(languageModels.onDidChangeModelVisibility(() => fired++));
+
+		languageModels.setModelsHidden(['test-id-1', 'test-id-12'], true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1', 'test-id-12']);
+		assert.strictEqual(fired, 1);
+
+		languageModels.setModelsHidden(['test-id-1', 'test-id-12'], true);
+		assert.strictEqual(fired, 1);
+
+		languageModels.setModelsHidden(['test-id-1', 'test-id-12'], false);
 		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
 		assert.strictEqual(fired, 2);
 	});
@@ -397,6 +502,57 @@ suite('LanguageModels', function () {
 		languageModels.setModelHidden('test-id-1', true);
 		assert.strictEqual(fired, 1);
 	});
+
+	test('model visibility — hiding an agent-host group excludes BYOK model copies', async function () {
+		// An agent host surfaces the user's BYOK models as copies under its own vendor.
+		// Those copies (id carries the upstream provider prefix + `modelGroup`) are not
+		// listed in Manage Models under the agent host, so group-level visibility toggles
+		// must not touch them — their visibility is owned by the real provider row.
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'agent-host-copilotcli', displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+		store.add(languageModels.registerLanguageModelProvider('agent-host-copilotcli', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [
+				{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Claude Haiku 4.5', vendor: 'agent-host-copilotcli', family: 'claude-haiku-4.5', version: '1.0',
+						id: 'claude-haiku-4.5', maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {},
+						targetChatSessionType: 'agent-host-copilotcli', modelGroup: { id: 'copilotcli' },
+					} satisfies ILanguageModelChatMetadata,
+					identifier: 'agent-host-copilotcli:claude-haiku-4.5',
+				},
+				{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'AionLabs: Aion-3.0', vendor: 'agent-host-copilotcli', family: 'openrouter/aion-labs/aion-3.0', version: '1.0',
+						id: 'openrouter/aion-labs/aion-3.0', maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {},
+						targetChatSessionType: 'agent-host-copilotcli', modelGroup: { id: 'openrouter' },
+						byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0',
+					} satisfies ILanguageModelChatMetadata,
+					identifier: 'agent-host-copilotcli:openrouter/aion-labs/aion-3.0',
+				},
+			],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+		await languageModels.selectLanguageModels({ vendor: 'agent-host-copilotcli' });
+
+		languageModels.setGroupHidden('agent-host-copilotcli', 'Copilot', true);
+
+		// Only the native agent-host model is hidden; the BYOK copy is untouched, and the
+		// group reads as hidden because every model it actually owns (the native one) is.
+		assert.deepStrictEqual({
+			hiddenModels: languageModels.getHiddenModelIds(),
+			groupHidden: languageModels.isGroupHidden('agent-host-copilotcli', 'Copilot'),
+			byokCopyHidden: languageModels.isModelHidden('agent-host-copilotcli:openrouter/aion-labs/aion-3.0'),
+		}, {
+			hiddenModels: ['agent-host-copilotcli:claude-haiku-4.5'],
+			groupHidden: true,
+			byokCopyHidden: false,
+		});
+	});
 });
 
 suite('LanguageModels - When Clause', function () {
@@ -444,6 +600,7 @@ suite('LanguageModels - When Clause', function () {
 			new class extends mock<IRequestService>() { },
 			new TestNotificationService(),
 			NullOpenerService,
+			NullTelemetryService,
 		);
 
 		languageModelsWithWhen.deltaLanguageModelChatProviderDescriptors([
@@ -509,6 +666,7 @@ suite('LanguageModels - Model Change Events', function () {
 			new class extends mock<IRequestService>() { },
 			new TestNotificationService(),
 			NullOpenerService,
+			NullTelemetryService,
 		);
 
 		// Register the vendor first
@@ -562,6 +720,24 @@ suite('LanguageModels - Model Change Events', function () {
 
 		const firedVendorId = await eventPromise;
 		assert.strictEqual(firedVendorId, 'test-vendor', 'Should fire event when new models are added');
+	});
+
+	test('fires onChange when the first authoritative model resolution is empty', async function () {
+		const events: string[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendorId => events.push(vendorId)));
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+
+		const models = await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+
+		assert.deepStrictEqual({ models, events }, {
+			models: [],
+			events: ['test-vendor'],
+		});
 	});
 
 	test('does not fire onChange event when models are unchanged', async function () {
@@ -855,6 +1031,7 @@ suite('LanguageModels - Vendor Change Events', function () {
 			new class extends mock<IRequestService>() { },
 			new TestNotificationService(),
 			NullOpenerService,
+			NullTelemetryService,
 		);
 	});
 
@@ -979,6 +1156,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 			new class extends mock<IRequestService>() { },
 			new TestNotificationService(),
 			NullOpenerService,
+			NullTelemetryService,
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1163,6 +1341,7 @@ suite('LanguageModels - Per-Model Configuration with multiple same-vendor groups
 			new class extends mock<IRequestService>() { },
 			new TestNotificationService(),
 			NullOpenerService,
+			NullTelemetryService,
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1306,6 +1485,7 @@ suite('LanguageModels - Provider Group Management', function () {
 			new class extends mock<IRequestService>() { },
 			new TestNotificationService(),
 			NullOpenerService,
+			NullTelemetryService,
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1360,27 +1540,19 @@ suite('LanguageModels - Provider Group Management', function () {
 		}]);
 	});
 
-	test('updateLanguageModelsProviderGroupApiKey stores the new secret and preserves model settings', async function () {
-		acceptedInputValues.push('new-api-key');
-		await secretStorageService.set('existing-secret', 'old-api-key');
+	test('updateLanguageModelsProviderGroupApiKey trims whitespace from the new apiKey secret', async function () {
+		acceptedInputValues.push('new-api-key\r\n');
 
 		await languageModelsService.updateLanguageModelsProviderGroupApiKey('custom-vendor', 'Custom Group');
 
-		const updatedGroup = updateCalls[0]?.to;
-		const encodedApiKey = typeof updatedGroup?.apiKey === 'string' ? updatedGroup.apiKey : '';
+		const encodedApiKey = typeof updateCalls[0]?.to.apiKey === 'string' ? updateCalls[0].to.apiKey : '';
 		const secretKey = encodedApiKey.substring('${input:'.length, encodedApiKey.length - 1);
 		assert.deepStrictEqual({
 			encodedApiKeyUsesSecretStorage: encodedApiKey.startsWith('${input:chat.lm.secret.'),
-			newSecretValue: await secretStorageService.get(secretKey),
-			oldSecretValue: await secretStorageService.get('existing-secret'),
-			settings: updatedGroup?.settings,
-			identity: { name: updatedGroup?.name, vendor: updatedGroup?.vendor }
+			newSecretValue: await secretStorageService.get(secretKey)
 		}, {
 			encodedApiKeyUsesSecretStorage: true,
-			newSecretValue: 'new-api-key',
-			oldSecretValue: undefined,
-			settings: { model: { temperature: 0.7 } },
-			identity: { name: 'Custom Group', vendor: 'custom-vendor' }
+			newSecretValue: 'new-api-key'
 		});
 	});
 
@@ -1471,6 +1643,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new class extends mock<IRequestService>() { },
 			new TestNotificationService(),
 			NullOpenerService,
+			NullTelemetryService,
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1545,6 +1718,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new class extends mock<IRequestService>() { },
 			new TestNotificationService(),
 			NullOpenerService,
+			NullTelemetryService,
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1608,6 +1782,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new class extends mock<IRequestService>() { },
 			new TestNotificationService(),
 			NullOpenerService,
+			NullTelemetryService,
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1702,6 +1877,7 @@ suite('LanguageModels - Provider Deprecation Notice', function () {
 					return true;
 				}
 			},
+			NullTelemetryService
 		));
 
 		service.deltaLanguageModelChatProviderDescriptors([
@@ -1844,3 +2020,119 @@ suite('createModelConfigurationActions', function () {
 	});
 });
 
+suite('LanguageModels - provider usage telemetry', function () {
+
+	const disposables = new DisposableStore();
+
+	teardown(function () {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class CapturingTelemetryService implements Partial<ITelemetryService> {
+		readonly events: { eventName: string; data: any }[] = [];
+		publicLog2<E extends Record<string, any>, T extends Record<string, any>>(eventName: string, data?: E): void {
+			this.events.push({ eventName, data });
+		}
+	}
+
+	async function sendRequestForVendor(vendor: string, extension: ExtensionIdentifier, isBYOK?: boolean): Promise<{ eventName: string; data: any }[]> {
+		const telemetry = new CapturingTelemetryService();
+		const service = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() { return Promise.resolve(); }
+			},
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() { return []; }
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
+			telemetry as unknown as ITelemetryService,
+		));
+
+		service.deltaLanguageModelChatProviderDescriptors([
+			{ vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(service.registerLanguageModelProvider(vendor, {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => ([{
+				metadata: {
+					extension,
+					name: 'Model',
+					vendor,
+					family: 'family',
+					version: '1.0',
+					id: `${vendor}-model`,
+					maxInputTokens: 100,
+					maxOutputTokens: 100,
+					isBYOK,
+					isDefaultForLocation: {}
+				} satisfies ILanguageModelChatMetadata,
+				identifier: `${vendor}-model`
+			}]),
+			sendChatRequest: async () => {
+				const defer = new DeferredPromise<void>();
+				const stream = new AsyncIterableSource<IChatResponsePart>();
+				stream.resolve();
+				defer.complete();
+				return { stream: stream.asyncIterable, result: defer.p };
+			},
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		const models = await service.selectLanguageModels({ vendor });
+		assert.strictEqual(models.length, 1);
+
+		const cts = disposables.add(new CancellationTokenSource());
+		const request = await service.sendChatRequest(models[0], nullExtensionDescription.identifier, [{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] }], {}, cts.token);
+		await request.result;
+
+		return telemetry.events.filter(e => e.eventName === 'chat.languageModelRequest');
+	}
+
+	test('getByokProviderTelemetryName classifies vendors', function () {
+		const copilotExtension = new ExtensionIdentifier('github.copilot-chat');
+		const thirdPartyExtension = new ExtensionIdentifier('publisher.third-party');
+		assert.deepStrictEqual(
+			[
+				getByokProviderTelemetryName(undefined, copilotExtension),
+				getByokProviderTelemetryName(COPILOT_VENDOR_ID, copilotExtension),
+				getByokProviderTelemetryName('openai', copilotExtension),
+				getByokProviderTelemetryName('ollama', copilotExtension),
+				getByokProviderTelemetryName('openai', thirdPartyExtension),
+				getByokProviderTelemetryName('some-third-party-vendor', thirdPartyExtension),
+			],
+			[undefined, undefined, 'openai', 'ollama', THIRD_PARTY_PROVIDER_TELEMETRY_NAME, THIRD_PARTY_PROVIDER_TELEMETRY_NAME]
+		);
+	});
+
+	test('sendChatRequest reports an in-built BYOK provider by name', async function () {
+		const events = await sendRequestForVendor('openai', new ExtensionIdentifier('github.copilot-chat'), true);
+		assert.deepStrictEqual(events.map(e => e.data), [{ provider: 'openai', isBYOK: true }]);
+	});
+
+	test('sendChatRequest buckets built-in vendor ids from third-party extensions as 3p-extension', async function () {
+		const events = await sendRequestForVendor('openai', new ExtensionIdentifier('publisher.third-party'), true);
+		assert.deepStrictEqual(events.map(e => e.data), [{ provider: THIRD_PARTY_PROVIDER_TELEMETRY_NAME, isBYOK: true }]);
+	});
+
+	test('sendChatRequest buckets third-party extension providers as 3p-extension', async function () {
+		const events = await sendRequestForVendor('some-third-party-vendor', new ExtensionIdentifier('publisher.third-party'));
+		assert.deepStrictEqual(events.map(e => e.data), [{ provider: THIRD_PARTY_PROVIDER_TELEMETRY_NAME, isBYOK: false }]);
+	});
+
+	test('sendChatRequest does not report first-party Copilot models', async function () {
+		const events = await sendRequestForVendor(COPILOT_VENDOR_ID, new ExtensionIdentifier('github.copilot-chat'));
+		assert.strictEqual(events.length, 0);
+	});
+});

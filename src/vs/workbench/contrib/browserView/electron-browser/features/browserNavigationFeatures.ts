@@ -23,7 +23,6 @@ import { BrowserViewCommandId } from '../../../../../platform/browserView/common
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import {
@@ -34,7 +33,6 @@ import {
 	getBrowserSearchEngineLabel,
 	resolveAddressBarInputType,
 } from '../../common/browserSearch.js';
-import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 import {
 	BROWSER_EDITOR_ACTIVE,
 	BrowserActionCategory,
@@ -60,6 +58,9 @@ const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoF
 class BrowserNavigationBar extends Disposable {
 	readonly element: HTMLElement;
 	private readonly _urlBar: BrowserUrlBarWidget;
+	private readonly _navToolbar: MenuWorkbenchToolBar;
+	private readonly _contributionListeners = this._register(new DisposableStore());
+	private _contributions: readonly BrowserEditorContribution[] = [];
 
 	constructor(
 		editor: BrowserEditor,
@@ -86,22 +87,32 @@ class BrowserNavigationBar extends Disposable {
 		));
 
 		const navContainer = $('.browser-nav-toolbar');
-		const navToolbar = this._register(scopedInstantiationService.createInstance(
+		this._navToolbar = this._register(scopedInstantiationService.createInstance(
 			MenuWorkbenchToolBar,
 			navContainer,
 			MenuId.BrowserNavigationToolbar,
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
+				actionViewItemProvider: (action, options) => {
+					for (const contribution of this._contributions) {
+						const viewItem = contribution.getActionViewItem(action, options, scopedInstantiationService);
+						if (viewItem) {
+							return viewItem;
+						}
+					}
+					return undefined;
+				},
 				// Render all actions inline regardless of group.
 				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 				menuOptions: { shouldForwardArgs: true }
 			}
 		));
-		navToolbar.context = editor;
+		this._navToolbar.context = editor;
 
 		const urlBarHost: IBrowserUrlBarHost = {
 			get input() { return editor.input instanceof BrowserEditorInput ? editor.input : undefined; },
+			get isReadonly() { return editor.input instanceof BrowserEditorInput && editor.input.associatedResource !== undefined; },
 			ensureBrowserFocus: () => editor.ensureBrowserFocus(),
 			getPrimaryActions: (text) => this._resolvePrimaryActions(text),
 			getPlaceholder: () => this._searchEngine
@@ -150,7 +161,15 @@ class BrowserNavigationBar extends Disposable {
 	openUrlPicker(): void { this._urlBar.openUrlPicker(); }
 	clear(): void { this._urlBar.clear(); }
 
-	mountContributions(contributions: readonly BrowserEditorContribution[]): void { this._urlBar.mountContributions(contributions); }
+	mountContributions(contributions: readonly BrowserEditorContribution[]): void {
+		this._contributions = contributions;
+		this._contributionListeners.clear();
+		for (const contribution of contributions) {
+			this._contributionListeners.add(contribution.onDidChangeActionViewItems(() => this._navToolbar.refresh()));
+		}
+		this._navToolbar.refresh();
+		this._urlBar.mountContributions(contributions);
+	}
 
 	/**
 	 * The configured address bar search engine, or `undefined` when search
@@ -220,6 +239,13 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	private readonly _canGoForwardContext: IContextKey<boolean>;
 	private readonly _pendingTryFocus = this._register(new MutableDisposable());
 
+	/**
+	 * Whether a navigation has been initiated on the current tab. Once true,
+	 * an empty URL means "navigation in flight" rather than "fresh tab", so
+	 * {@link tryFocus} keeps focus on the page instead of reopening the picker.
+	 */
+	private _hasInitiatedNavigation = false;
+
 	constructor(
 		editor: BrowserEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -262,12 +288,19 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	}
 
 	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
+		// A model that is already loading on attach (e.g. switching back to a
+		// tab mid-navigation) counts as having initiated navigation.
+		this._hasInitiatedNavigation = model.loading;
 		this._updateFromModel(model);
 		store.add(model.onDidNavigate(() => this._updateFromModel(model)));
-		store.add(model.onWillNavigate(url => this._navbar.previewUrl(url)));
+		store.add(model.onWillNavigate(url => {
+			this._hasInitiatedNavigation = true;
+			this._navbar.previewUrl(url);
+		}));
 	}
 
 	override onModelDetached(): void {
+		this._hasInitiatedNavigation = false;
 		this._navbar.clear();
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
@@ -283,16 +316,13 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 				return;
 			}
 
-			// A new tab (no URL loaded) auto-opens the picker so the user can
-			// immediately type / browse suggestions. For tabs that already have a
-			// URL (e.g. error or loading state — page-renderer focus didn't claim
-			// us, or input is still prerendering before the model attaches) we
-			// just focus the display so the URL stays visible.
+			// A new tab (no URL loaded) auto-opens the picker so the user can immediately type / browse suggestions.
+			// Otherwise we move focus into the browser editor so it doesn't stay on the tab control.
 			const url = this.editor.model?.url ?? (input instanceof BrowserEditorInput ? input.url : undefined);
-			if (!url) {
+			if (!url && !this._hasInitiatedNavigation) {
 				this._navbar.openUrlPicker();
 			} else {
-				this._navbar.focusUrlInput();
+				this.editor.ensureBrowserFocus();
 			}
 		}, 0);
 		return true;
@@ -527,12 +557,7 @@ class OpenBrowserSettingsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const ids = ['workbench.browser.*', 'chat.sendElementsToChat.*'];
-		if (IsSessionsWindowContext.getValue(contextKeyService)) {
-			ids.push(AgentHostChatToolsEnabledSettingId);
-		}
-		await preferencesService.openSettings({ query: `@id:${ids.join(',')}` });
+		await preferencesService.openSettings({ query: `@id:workbench.browser.*` });
 	}
 }
 

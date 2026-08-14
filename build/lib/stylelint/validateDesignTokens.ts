@@ -121,12 +121,12 @@ export function validateCodiconFontSizes(text: string): IDesignTokenViolation[] 
 
 /** Exact px value -> suggested token var(s). Ambiguous values list alternatives. */
 const FONT_SIZE_RAMP: ReadonlyMap<number, string> = new Map([
-	[26, 'var(--vscode-agents-fontSize-heading1)'],
-	[18, 'var(--vscode-agents-fontSize-heading2)'],
-	[13, 'var(--vscode-bodyFontSize) or var(--vscode-agents-fontSize-heading3) or var(--vscode-agents-fontSize-body1)'],
-	[12, 'var(--vscode-bodyFontSize-small) or var(--vscode-agents-fontSize-label1)'],
-	[11, 'var(--vscode-bodyFontSize-xSmall) or var(--vscode-agents-fontSize-body2) or var(--vscode-agents-fontSize-label2)'],
-	[10, 'var(--vscode-agents-fontSize-label3)'],
+	[26, 'var(--vscode-fontSize-heading1)'],
+	[18, 'var(--vscode-fontSize-heading2)'],
+	[13, 'var(--vscode-fontSize-body1) or var(--vscode-fontSize-heading3)'],
+	[12, 'var(--vscode-fontSize-label1)'],
+	[11, 'var(--vscode-fontSize-body2) or var(--vscode-fontSize-label2)'],
+	[10, 'var(--vscode-fontSize-label3)'],
 ]);
 
 /**
@@ -255,7 +255,7 @@ export function validateCornerRadiusTokens(text: string): IDesignTokenViolation[
 // Font-weight token suggestions (sessions design-system area only)
 // ---------------------------------------------------------------------------
 //
-// The agents font ramp defines exactly two weights: regular (400) and
+// The font ramp defines exactly two weights: regular (400) and
 // semiBold (600). Any other numeric weight (e.g. 500, 700) is off the ramp and
 // snaps to the nearer of the two. The CSS keywords `normal` (400) and `bold`
 // (700) are normalised before snapping. `inherit`, `lighter`, `bolder` and
@@ -268,7 +268,7 @@ interface IFontWeightToken {
 	readonly name: string;
 }
 
-/** The only two weights in the agents ramp. */
+/** The only two weights in the font ramp. */
 const FONT_WEIGHT_TOKENS: readonly IFontWeightToken[] = [
 	{ weight: 400, name: 'regular' },
 	{ weight: 600, name: 'semiBold' },
@@ -303,7 +303,7 @@ function snapFontWeight(weight: number): IFontWeightToken {
 }
 
 /**
- * Finds hardcoded `font-weight` values and suggests the agents weight-ramp var.
+ * Finds hardcoded `font-weight` values and suggests the weight-ramp var.
  * Exact ramp values (400 / 600, plus `normal` = 400) are flagged as drop-in
  * replacements; off-ramp values (e.g. 500, 700, `bold`) snap to the nearer
  * token and call out that the value is off the two-weight ramp. `inherit`,
@@ -332,7 +332,7 @@ export function validateFontWeightTokens(text: string): IDesignTokenViolation[] 
 		const note = exact ? '' : ' (off-ramp, 400/600 only)';
 		violations.push({
 			line,
-			message: `${shown} -> var(--vscode-agents-fontWeight-${token.name})${note}`
+			message: `${shown} -> var(--vscode-fontWeight-${token.name})${note}`
 		});
 	});
 
@@ -471,6 +471,58 @@ export function validateStrokeTokens(text: string): IDesignTokenViolation[] {
 			line,
 			message: `${decl[1].trim()}: ${value.trim()} -> use var(--vscode-strokeThickness) for the 1px width`
 		});
+	});
+
+	return violations;
+}
+
+// ---------------------------------------------------------------------------
+// Deprecated token usage
+// ---------------------------------------------------------------------------
+//
+// Some `--vscode-*` size tokens have been superseded by more generic ones and
+// are marked `@deprecated` in the size registry. Any remaining usage of a
+// deprecated token var is reported with its drop-in replacement, regardless of
+// which property it appears in.
+
+interface IDeprecatedToken {
+	readonly deprecated: string;
+	readonly replacement: string;
+}
+
+/** Deprecated token var -> its replacement. */
+const DEPRECATED_TOKENS: readonly IDeprecatedToken[] = [
+	{ deprecated: '--vscode-bodyFontSize', replacement: '--vscode-fontSize-body1' },
+	{ deprecated: '--vscode-bodyFontSize-small', replacement: '--vscode-fontSize-label1' },
+	{ deprecated: '--vscode-bodyFontSize-xSmall', replacement: '--vscode-fontSize-body2' },
+];
+
+// Longest-first so a suffixed token (e.g. `-small`) matches before the base
+// token that is its prefix (`--vscode-bodyFontSize`).
+const DEPRECATED_TOKENS_SORTED = [...DEPRECATED_TOKENS].sort((a, b) => b.deprecated.length - a.deprecated.length);
+
+/**
+ * Finds usages of deprecated token vars and suggests the replacement token.
+ * A match is only reported when the token is not the prefix of a longer token
+ * (the next character does not continue the identifier). Returns one finding
+ * per occurrence so the terminal can linkify each `file(line,col)`.
+ */
+export function validateDeprecatedTokens(text: string): IDesignTokenViolation[] {
+	const violations: IDesignTokenViolation[] = [];
+
+	forEachDeclaration(text, (line, _selector, declaration) => {
+		for (const { deprecated, replacement } of DEPRECATED_TOKENS_SORTED) {
+			for (let idx = declaration.indexOf(deprecated); idx !== -1; idx = declaration.indexOf(deprecated, idx + deprecated.length)) {
+				const nextChar = declaration[idx + deprecated.length] ?? '';
+				if (/[\w-]/.test(nextChar)) {
+					continue; // prefix of a longer token
+				}
+				violations.push({
+					line,
+					message: `${deprecated} -> ${replacement} (deprecated)`
+				});
+			}
+		}
 	});
 
 	return violations;

@@ -21,10 +21,6 @@ import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 
-interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDetails {
-	firstAuthAttempt?: boolean; // https://github.com/electron/electron/blob/84a42a050e7d45225e69df5bd2d2bf9f1037ea41/shell/browser/login_handler.cc#L70
-}
-
 type LoginEvent = {
 	event?: ElectronEvent;
 	webContents?: WebContents;
@@ -65,7 +61,7 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 	}
 
 	private registerListeners(): void {
-		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event: ElectronEvent, webContents: WebContents, req: ElectronAuthenticationResponseDetails, authInfo: ElectronAuthInfo, callback) => ({ event, webContents, authInfo: { ...authInfo, attempt: req.firstAuthAttempt ? 1 : 2 }, callback } satisfies LoginEvent));
+		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event: ElectronEvent, webContents: WebContents, req: AuthenticationResponseDetails, authInfo: ElectronAuthInfo, callback) => ({ event, webContents, authInfo: { ...authInfo, attempt: req.firstAuthAttempt ? 1 : 2 }, callback } satisfies LoginEvent));
 		this._register(onLogin(this.onLogin, this));
 	}
 

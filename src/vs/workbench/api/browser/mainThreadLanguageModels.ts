@@ -15,6 +15,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
 import { resizeImage } from '../../contrib/chat/browser/chatImageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
@@ -26,6 +27,27 @@ import { SerializableObjectWithBuffers } from '../../services/extensions/common/
 import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
 import { LanguageModelError } from '../common/extHostTypes.js';
 
+class RequestCancellationTokenSource extends Disposable {
+
+	private readonly _source: CancellationTokenSource;
+
+	constructor(parent: CancellationToken, onCancellationRequested?: () => void) {
+		super();
+		this._source = this._register(new CancellationTokenSource(parent));
+		if (onCancellationRequested) {
+			this._register(this._source.token.onCancellationRequested(onCancellationRequested));
+		}
+	}
+
+	get token(): CancellationToken {
+		return this._source.token;
+	}
+
+	cancel(): void {
+		this._source.cancel();
+	}
+}
+
 @extHostNamedCustomer(MainContext.MainThreadLanguageModels)
 export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
@@ -34,13 +56,14 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _providerRegistrations = new DisposableMap<string>();
 	private readonly _lmProviderChange = new Emitter<{ vendor: string }>();
 	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<unknown>; stream: AsyncIterableSource<IChatResponsePart | IChatResponsePart[]> }>();
-	private readonly _pendingCancelCTS = new DisposableMap<number, CancellationTokenSource>();
+	private readonly _pendingCancelCTS = new DisposableMap<number, RequestCancellationTokenSource>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ILanguageModelsService private readonly _chatProviderService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
+		@IProductService private readonly _productService: IProductService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -79,12 +102,18 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				onDidChange: Event.filter(this._lmProviderChange.event, e => e.vendor === vendor, disposables) as unknown as Event<void>,
 				provideLanguageModelChatInfo: async (options, token) => {
 					const modelsAndIdentifiers = await this._proxy.$provideLanguageModelChatInfo(vendor, options, token);
-					modelsAndIdentifiers.forEach(m => {
+					const copilotExtensionId = this._productService.defaultChatAgent?.chatExtensionId;
+					return modelsAndIdentifiers.map(m => {
 						if (m.metadata.auth) {
 							disposables.add(this._registerAuthenticationProvider(m.metadata.extension, m.metadata.auth));
 						}
+						if (m.metadata.isBYOK !== undefined) {
+							return m; // provider declared it explicitly
+						}
+						// Any contributed model that isn't from the built-in Copilot chat extension is BYOK.
+						const isBuiltinCopilot = !!copilotExtensionId && ExtensionIdentifier.equals(m.metadata.extension, copilotExtensionId);
+						return { ...m, metadata: { ...m.metadata, isBYOK: !isBuiltinCopilot } };
 					});
-					return modelsAndIdentifiers;
 				},
 				sendChatRequest: async (modelId, messages, from, options, token) => {
 					const requestId = (Math.random() * 1e6) | 0;
@@ -100,11 +129,10 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 					try {
 						this._pendingProgress.set(requestId, { defer, stream });
 
-						const cts = new CancellationTokenSource(token);
-						this._pendingCancelCTS.set(requestId, cts);
-						cts.token.onCancellationRequested(() => {
+						const cts = new RequestCancellationTokenSource(token, () => {
 							this._proxy.$cancelLanguageModelChatRequest(requestId);
 						});
+						this._pendingCancelCTS.set(requestId, cts);
 
 						await Promise.all(
 							messages.flatMap(msg => msg.content)
@@ -194,7 +222,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		// Create a local CTS so cancellation can be signalled via
 		// $cancelLanguageModelChatRequest even after the RPC cancel
 		// handler for the original token has been removed.
-		const cts = new CancellationTokenSource(token);
+		const cts = new RequestCancellationTokenSource(token);
 		this._pendingCancelCTS.set(requestId, cts);
 
 		let response: ILanguageModelChatResponse;

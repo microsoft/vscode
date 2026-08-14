@@ -102,8 +102,7 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 	});
 }
 
-const { msBuildId } = util.getElectronVersion();
-export const electronVersion = '42.2.0';
+const { electronVersion, msBuildId } = util.getElectronVersion();
 
 // In product builds, `@vscode/gulp-electron` is given an asset resolver (via the
 // `repo` option) that fetches the prebuilt Electron archives on demand from the

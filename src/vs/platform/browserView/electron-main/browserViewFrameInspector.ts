@@ -5,12 +5,13 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { IElementData, IElementAncestor, IBrowserViewTheme } from '../common/browserView.js';
+import { BrowserElementSelectionMode, IElementData, IElementAncestor, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewTheme } from '../common/browserView.js';
 import { collapseToShorthands, formatMatchedStyles, keyComputedProperties, type IMatchedStyles } from '../common/cssHelpers.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 
 export interface IFrameElementHandle extends IDisposable {
 	addToChat(): Promise<void>;
+	addComment(): void;
 	highlight(): Promise<void>;
 	hideHighlight(): Promise<void>;
 }
@@ -40,6 +41,11 @@ interface ILayoutMetricsResult {
 	cssVisualViewport?: {
 		scale?: number;
 	};
+}
+
+interface IActiveInspection extends IDisposable {
+	readonly mode: 'cdp' | 'preload';
+	stop(): Promise<void>;
 }
 
 /** Slightly customised CDP debugger inspect highlight colours. */
@@ -107,12 +113,14 @@ export class BrowserViewFrameInspector extends Disposable {
 
 	private readonly _onDidInspectElement = this._register(new Emitter<IElementData>());
 	readonly onDidInspectElement: Event<IElementData> = this._onDidInspectElement.event;
+	private readonly _onDidRemoveElementComment = this._register(new Emitter<string>());
+	readonly onDidRemoveElementComment = this._onDidRemoveElementComment.event;
 
 	private readonly _onDidStopPicking = this._register(new Emitter<void>());
 	readonly onDidStopPicking: Event<void> = this._onDidStopPicking.event;
 
 	private _isPaused = false;
-	private readonly _activeInspection = this._register(new MutableDisposable<IDisposable>());
+	private readonly _activeInspection = this._register(new MutableDisposable<IActiveInspection>());
 
 	/** Whether this frame's JavaScript execution is currently paused by the debugger. */
 	get isPaused(): boolean { return this._isPaused; }
@@ -177,19 +185,27 @@ export class BrowserViewFrameInspector extends Disposable {
 		}));
 
 		// Listen for element-picked IPC from this frame's preload
-		const onPicked = async (event: Electron.IpcMainEvent, pickId: string) => {
-			if (!pickId || event.senderFrame !== this.frame) {
+		const onPicked = async (event: Electron.IpcMainEvent, result: { elementId?: string; comment?: string }) => {
+			if (!result?.elementId || event.senderFrame !== this.frame) {
 				return;
 			}
 			try {
-				const nodeData = await this.extractNodeDataById(pickId);
-				this._onDidInspectElement.fire(nodeData);
+				const nodeData = await this.extractNodeDataById(result.elementId);
+				this._onDidInspectElement.fire({ ...nodeData, elementId: result.elementId, comment: result.comment });
 			} catch {
+				this._updateElementComments({ pendingCommentIdsToDiscard: [result.elementId] });
 				// Best effort; user can re-pick.
 			}
 		};
 		frame.ipc.on('vscode:browserView:elementPicked', onPicked);
 		this._register({ dispose: () => frame.ipc.removeListener('vscode:browserView:elementPicked', onPicked) });
+		const onCommentRemoved = (event: Electron.IpcMainEvent, elementId: string) => {
+			if (elementId && event.senderFrame === this.frame) {
+				this._onDidRemoveElementComment.fire(elementId);
+			}
+		};
+		frame.ipc.on('vscode:browserView:elementCommentRemoved', onCommentRemoved);
+		this._register({ dispose: () => frame.ipc.removeListener('vscode:browserView:elementCommentRemoved', onCommentRemoved) });
 
 		// Listen for pick-stopped IPC from this frame's preload
 		const onPickStopped = (event: Electron.IpcMainEvent) => {
@@ -233,38 +249,64 @@ export class BrowserViewFrameInspector extends Disposable {
 	 * Uses CDP inspect mode if paused, otherwise the preload picker.
 	 * Stores a disposable so stop always tears down the correct mode.
 	 */
-	async startInspection(): Promise<void> {
-		if (this._isPaused) {
+	async startInspection(options: IBrowserElementSelectionOptions): Promise<void> {
+		const mode = this._isPaused && options.mode !== BrowserElementSelectionMode.Comment ? 'cdp' : 'preload';
+		if (this._activeInspection.value?.mode === mode) {
+			if (mode === 'preload') {
+				this.frame.postMessage('vscode:browserView:startElementPicker', options);
+			}
+			return;
+		}
+
+		await this._stopInspection();
+		if (mode === 'cdp') {
 			await this.connection.sendCommand('Overlay.setInspectMode', {
 				mode: 'searchForNode',
 				highlightConfig: inspectHighlightConfig,
 			});
+			const stop = async () => {
+				if (this.frame.isDestroyed()) {
+					return;
+				}
+				try {
+					await this.connection.sendCommand('Overlay.setInspectMode', {
+						mode: 'none',
+						highlightConfig: { showInfo: false, showStyles: false }
+					});
+					await this.connection.sendCommand('Overlay.hideHighlight');
+				} catch {
+					// Best effort.
+				}
+			};
 			this._activeInspection.value = {
-				dispose: async () => {
-					if (this.frame.isDestroyed()) {
-						return;
-					}
-					try {
-						await this.connection.sendCommand('Overlay.setInspectMode', {
-							mode: 'none',
-							highlightConfig: { showInfo: false, showStyles: false }
-						});
-						await this.connection.sendCommand('Overlay.hideHighlight');
-					} catch {
-						// Best effort.
-					}
+				mode,
+				stop,
+				dispose: () => {
+					void stop();
 				}
 			};
 		} else {
-			this.frame.postMessage('vscode:browserView:startElementPicker', {});
-			this._activeInspection.value = {
-				dispose: () => {
-					if (this.frame.isDestroyed()) {
-						return;
-					}
+			this.frame.postMessage('vscode:browserView:startElementPicker', options);
+			const stop = async () => {
+				if (!this.frame.isDestroyed()) {
 					this.frame.postMessage('vscode:browserView:stopElementPicker', {});
 				}
 			};
+			this._activeInspection.value = {
+				mode,
+				stop,
+				dispose: () => {
+					void stop();
+				}
+			};
+		}
+	}
+
+	private async _stopInspection(): Promise<void> {
+		const activeInspection = this._activeInspection.value;
+		if (activeInspection) {
+			this._activeInspection.clearAndLeak();
+			await activeInspection.stop();
 		}
 	}
 
@@ -272,7 +314,17 @@ export class BrowserViewFrameInspector extends Disposable {
 	 * Stop element inspection on this frame.
 	 */
 	async stopInspection(): Promise<void> {
-		this._activeInspection.clear();
+		await this._stopInspection();
+	}
+
+	setElementComments(update: IBrowserElementCommentsUpdate): void {
+		this._updateElementComments(update);
+	}
+
+	private _updateElementComments(update: IBrowserElementCommentsUpdate): void {
+		if (!this.frame.isDestroyed()) {
+			this.frame.postMessage('vscode:browserView:setElementComments', update);
+		}
 	}
 
 	/**
@@ -327,6 +379,9 @@ export class BrowserViewFrameInspector extends Disposable {
 			addToChat: async () => {
 				const nodeData = await this.extractNodeDataById(elementId);
 				this._onDidInspectElement.fire(nodeData);
+			},
+			addComment: () => {
+				this.frame.postMessage('vscode:browserView:showElementComment', { elementId });
 			},
 			highlight: async () => {
 				this.frame.postMessage('vscode:browserView:highlightElement', { elementId });

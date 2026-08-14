@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isMacintosh } from '../../../../../base/common/platform.js';
+
 /**
  * Visual design tokens for the agentsVoice floating pane.
  * Centralize sizes and colors so every component pulls from the same palette.
@@ -40,4 +42,13 @@ export function addKeyboardActivation(el: HTMLElement): void {
 			el.click();
 		}
 	});
+}
+
+/**
+ * Whether a mouse event is a secondary-click / context-menu gesture (right-click,
+ * or Ctrl-click on macOS) rather than a primary press. Used to keep such gestures
+ * from starting/stopping push-to-talk when the mic also opens a context menu.
+ */
+export function isSecondaryPointerGesture(e: MouseEvent): boolean {
+	return e.button !== 0 || (isMacintosh && e.ctrlKey);
 }

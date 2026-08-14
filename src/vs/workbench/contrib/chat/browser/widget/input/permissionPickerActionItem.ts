@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -27,7 +28,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -62,7 +63,7 @@ export interface IPermissionPickerDelegate {
 	readonly getPermissionLevelHover?: (level: ChatPermissionLevel, meta: IPermissionLevelMeta) => string | undefined;
 	/**
 	 * Whether the experimental "Sandboxing for terminal" toggle may be shown on
-	 * the Default Approvals option. The toggle is specific to the local harness
+	 * the Default permissions option. The toggle is specific to the local harness
 	 * (which runs the built-in terminal tool); agent-host harnesses such as
 	 * Copilot CLI and Claude Code do not implement this and never show it.
 	 * Evaluated each time the picker opens so a harness switch is reflected.
@@ -90,12 +91,22 @@ interface IPermissionLevelMeta {
 
 function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {
 	switch (level) {
+		case ChatPermissionLevel.Assisted:
+			return {
+				id: 'chat.permissions.assisted',
+				label: localize('permissions.assisted', "Assisted permissions"),
+				shortLabel: localize('permissions.assisted.label', "Assisted permissions"),
+				detail: localize('permissions.assisted.subtext', "Evaluates risk before running tools"),
+				icon: ThemeIcon.fromId(Codicon.sparkle.id),
+				description: localize('permissions.assisted.description', "An LLM judge evaluates each tool call. Tools it doesn't approve require your approval."),
+				elevated: true,
+			};
 		case ChatPermissionLevel.AutoApprove:
 			return {
 				id: 'chat.permissions.autoApprove',
-				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				shortLabel: localize('permissions.autoApprove.label', "Bypass Approvals"),
-				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+				label: localize('permissions.autoApprove', "Allow all"),
+				shortLabel: localize('permissions.autoApprove.label', "Allow all"),
+				detail: localize('permissions.autoApprove.subtext', "Runs tool calls without asking"),
 				icon: ThemeIcon.fromId(Codicon.warning.id),
 				description: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors"),
 				elevated: true,
@@ -105,7 +116,7 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 				id: 'chat.permissions.autopilot',
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
 				shortLabel: localize('permissions.autopilot.label', "Autopilot (Preview)"),
-				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				detail: localize('permissions.autopilot.subtext', "Works autonomously within permissions"),
 				icon: ThemeIcon.fromId(Codicon.rocket.id),
 				description: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs."),
 				elevated: true,
@@ -114,9 +125,9 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 		default:
 			return {
 				id: 'chat.permissions.default',
-				label: localize('permissions.default', "Default Approvals"),
-				shortLabel: localize('permissions.default.label', "Default Approvals"),
-				detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+				label: localize('permissions.default', "Default permissions"),
+				shortLabel: localize('permissions.default.label', "Default permissions"),
+				detail: localize('permissions.default.subtext', "Asks when approval settings don't apply"),
 				icon: ThemeIcon.fromId(Codicon.shield.id),
 				description: localize('permissions.default.description', "Use configured approval settings"),
 				elevated: false,
@@ -127,6 +138,10 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 /** Sanitize a free-form id segment so it is safe to embed in a stable action identifier. */
 function sanitizeIdSegment(value: string): string {
 	return value.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function getSandboxEnabledSettingId(): AgentSandboxSettingId.AgentSandboxEnabled | AgentSandboxSettingId.AgentSandboxWindowsEnabled {
+	return isWindows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
 
 export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
@@ -185,7 +200,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				const setSandboxEnabled = async (enableSandbox: boolean) => {
 					const target: AgentSandboxEnabledValue = enableSandbox ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 					if (this.isSandboxingEnabled() !== enableSandbox) {
-						await configurationService.updateValue(AgentSandboxSettingId.AgentSandboxEnabled, target);
+						await configurationService.updateValue(getSandboxEnabledSettingId(), target);
 					}
 				};
 				const levels = delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
@@ -223,7 +238,10 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						},
 						run: async () => {
 							// Elevated levels show a one-time confirmation warning.
-							if (meta.elevated && !await maybeConfirmElevatedPermissionLevel(level, this.dialogService, storageService, { defaultSettingKey: delegate.defaultSettingKey })) {
+							if (meta.elevated && !await maybeConfirmElevatedPermissionLevel(level, this.dialogService, storageService, {
+								defaultSettingKey: delegate.defaultSettingKey,
+								levelLabel: meta.label,
+							})) {
 								return;
 							}
 							delegate.setPermissionLevel(level);
@@ -247,26 +265,26 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				enabled: true,
 				run: async () => {
 					const ext = delegate.getExtensionPermissions?.();
-					const url = ext?.sessionType === SessionType.ClaudeCode
+					const url = ext?.sessionType === SessionType.AgentHostClaude
 						? 'https://code.claude.com/docs/en/permission-modes#available-modes'
 						: 'https://aka.ms/vscode/docs/permissions';
 					await openerService.open(URI.parse(url));
 				}
 			}],
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
-			listOptions: { minWidth: 255, detailItemHeight: 44 },
+			listOptions: { minWidth: 255, detailItemHeight: 44, ...pickerOptions.listOptions },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if ((e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) || e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)) && this.element) {
+			if ((e.affectsConfiguration(getSandboxEnabledSettingId()) || e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)) && this.element) {
 				this.renderLabel(this.element);
 			}
 		}));
 	}
 
 	private isSandboxingEnabled(): boolean {
-		const value = this.configurationService.getValue<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled);
-		return value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
+		const value = this.configurationService.getValue<AgentSandboxEnabledSettingValue>(getSandboxEnabledSettingId());
+		return isAgentSandboxEnabledValue(value);
 	}
 
 	private isSandboxToggleSettingEnabled(): boolean {
@@ -303,7 +321,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			label = meta.shortLabel;
 			tooltip = this.delegate.getPermissionLevelHover?.(level, meta) ?? meta.description;
 			if (level === ChatPermissionLevel.Default && this.isSandboxToggleAvailable() && this.isSandboxingEnabled()) {
-				label = localize('permissions.defaultSandboxed.label', "Default Approvals (Sandboxed)");
+				label = localize('permissions.defaultSandboxed.label', "Default permissions (sandboxed)");
 			}
 		}
 
@@ -312,7 +330,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 
 		dom.reset(element, ...labelElements);
-		element.classList.toggle('warning', !ext && level === ChatPermissionLevel.Autopilot);
+		element.classList.toggle('warning', !ext && (level === ChatPermissionLevel.Autopilot || level === ChatPermissionLevel.Assisted));
 		element.classList.toggle('info', !ext && level === ChatPermissionLevel.AutoApprove);
 
 		this._currentTooltip = tooltip;
