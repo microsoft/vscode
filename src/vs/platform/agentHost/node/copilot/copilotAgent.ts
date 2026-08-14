@@ -42,7 +42,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
+import { prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -3146,7 +3146,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const turns = await entry.getMessages();
 		const sideChat = this._chatBackings.get(context.chatKey)?.sideChat;
-		return stripSideChatContext(turns.slice(sideChat?.inheritedTurnCount ?? 0), sideChat);
+		return sliceSideChatTurns(turns, sideChat);
 	}
 
 	/** Reconstructs a subagent transcript from the parent chat named by the host-supplied tool origin. */
@@ -3303,7 +3303,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					turnId: options.sideChat.turnId,
 					...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}),
 					...(options.sideChat.providerAnchorTurnId ? { providerAnchorTurnId: options.sideChat.providerAnchorTurnId } : {}),
-					inheritedTurnCount: forked.inheritedTurnCount,
+					...(forked.inheritedTurnId !== undefined ? { inheritedTurnId: forked.inheritedTurnId } : {}),
 					...(options.sideChat.sourceContext ? { context: options.sideChat.sourceContext } : {}),
 					...(options.sideChat.partialResponse ? { partialResponse: options.sideChat.partialResponse } : {}),
 				};
@@ -3357,9 +3357,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			try {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: session, chatChannelUri: chat, resource: storageScope });
 				await agentSession.initializeSession();
-				if (sideChat) {
-					sideChat = { ...sideChat, inheritedTurnCount: (await agentSession.getMessages()).length };
-				}
 				if (fork?.turnIdMapping) {
 					await agentSession.remapTurnIds(fork.turnIdMapping);
 				}
@@ -3441,10 +3438,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * so the forked chat inherits turn event IDs and file-edit
 	 * snapshots. Returns the new SDK session id.
 	 */
-	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnCount: number }> {
+	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnId: string | undefined }> {
 		const sourceTurns = await sourceEntry.getMessages();
 		const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === turnId);
-		const inheritedTurnCount = sourceTurnIndex === -1 ? sourceTurns.length : sourceTurnIndex + 1;
+		if (sourceTurnIndex === -1) {
+			this._logService.warn(`[Copilot] fork: turn ${turnId} not found in source session ${sourceEntry.sessionId}; inheriting all ${sourceTurns.length} turns`);
+		}
+		const inheritedTurnIndex = sourceTurnIndex === -1 ? sourceTurns.length - 1 : sourceTurnIndex;
+		const inheritedTurnId = sourceTurns[inheritedTurnIndex]?.id;
 		// toEventId is exclusive — events before it are included. If there's no
 		// next turn, omit it to include all events.
 		const toEventId = await sourceEntry.getNextTurnEventId(turnId);
@@ -3472,7 +3473,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (err) {
 			this._logService.warn(`[Copilot] Failed to copy session database for chat fork: ${err instanceof Error ? err.message : String(err)}`);
 		}
-		return { sessionId: newSessionId, inheritedTurnCount };
+		return { sessionId: newSessionId, inheritedTurnId };
 	}
 
 	private async _disposeChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
