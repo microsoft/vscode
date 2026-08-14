@@ -88,7 +88,8 @@ function renderInputWidget(context: ComponentFixtureContext, options: IInputFixt
 	context.container.style.padding = '24px';
 	context.container.style.background = 'var(--vscode-editor-background)';
 
-	const widget = context.disposableStore.add(new AgentFeedbackInputWidget(createFakeEditor()));
+	const instantiationService = createEditorServices(context.disposableStore, { colorTheme: context.theme });
+	const widget = context.disposableStore.add(instantiationService.createInstance(AgentFeedbackInputWidget, createFakeEditor()));
 	const domNode = widget.getDomNode();
 	domNode.style.position = 'static';
 	// When absolutely positioned (as in the editor) the widget shrinks to its
