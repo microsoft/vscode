@@ -242,7 +242,6 @@ class AutomationCardsSection extends Disposable {
 		if (automations.length === 0) {
 			this.container.style.display = 'none';
 			this.emptyContainer.style.display = '';
-			this.renderEmptyState();
 			return;
 		}
 

@@ -709,6 +709,23 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('empty state is rendered once across repeated empty updates', () => {
+		const { automationService, widget } = setup();
+
+		automationService.setAutomations([]);
+		automationService.setAutomations([]);
+
+		assert.deepStrictEqual({
+			titles: widget.element.querySelectorAll('.automations-cards-empty-title').length,
+			descriptions: widget.element.querySelectorAll('.automations-cards-empty-description').length,
+			buttons: widget.element.querySelectorAll('.automations-cards-create-button').length,
+		}, {
+			titles: 1,
+			descriptions: 1,
+			buttons: 1,
+		});
+	});
+
 	test('clicking the card opens edit without intercepting action clicks', async () => {
 		const { automationDialogService, automationService, runner, widget } = setup();
 		const item = automation();
