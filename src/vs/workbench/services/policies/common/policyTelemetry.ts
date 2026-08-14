@@ -17,9 +17,9 @@ export const CORE_POLICY_NAMES = [
 	'ChatAgentSandboxAllowNetwork',
 	'ChatAgentSandboxAllowUnsandboxedCommands',
 	'ChatAgentSandboxEnabled',
-	'ChatAllowedMcpServers',
 	'ChatAllowManagedHooksOnly',
 	'ChatAllowManagedMcpServersOnly',
+	'ChatAllowedMcpServers',
 	'ChatApprovedAccountOrganizations',
 	'ChatDefaultModel',
 	'ChatDeniedMcpServers',
@@ -58,4 +58,4 @@ export const CORE_POLICY_NAMES = [
 	'McpGalleryServiceUrl',
 	'TelemetryLevel',
 	'UpdateMode',
-].sort() satisfies readonly PolicyName[];
+] as const satisfies readonly PolicyName[];

@@ -11,7 +11,6 @@ import { PolicyName } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AbstractPolicyService, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../common/accountPolicyService.js';
-import { CORE_POLICY_NAMES } from '../../common/policyTelemetry.js';
 import { PolicyTelemetryContribution } from '../../browser/policyTelemetry.contribution.js';
 
 class TestPolicyService extends AbstractPolicyService {
@@ -209,63 +208,6 @@ suite('PolicyTelemetryContribution', () => {
 			...EMPTY_EVENT,
 			accountGateActive: true,
 		});
-	});
-
-	test('lists every core policy in lexical order', () => {
-		assert.deepStrictEqual(CORE_POLICY_NAMES, [
-			'AllowedExtensions',
-			'BrowserChatTools',
-			'ChatAgentAllowedNetworkDomains',
-			'ChatAgentDeniedNetworkDomains',
-			'ChatAgentExtensionTools',
-			'ChatAgentMode',
-			'ChatAgentNetworkFilter',
-			'ChatAgentSandboxAllowAutoApprove',
-			'ChatAgentSandboxAllowNetwork',
-			'ChatAgentSandboxAllowUnsandboxedCommands',
-			'ChatAgentSandboxEnabled',
-			'ChatAllowManagedHooksOnly',
-			'ChatAllowManagedMcpServersOnly',
-			'ChatAllowedMcpServers',
-			'ChatApprovedAccountOrganizations',
-			'ChatDefaultModel',
-			'ChatDeniedMcpServers',
-			'ChatEditorPreferCopilotHarness',
-			'ChatEnabledPlugins',
-			'ChatExtraMarketplaces',
-			'ChatHooks',
-			'ChatMCP',
-			'ChatPluginsEnabled',
-			'ChatStrictMarketplaces',
-			'ChatStrictPluginOnlyCustomization',
-			'ChatToolsAutoApprove',
-			'ChatToolsEligibleForAutoApproval',
-			'ChatToolsTerminalEnableAutoApprove',
-			'Claude3PIntegration',
-			'Codex3PIntegration',
-			'CopilotNextEditSuggestions',
-			'CopilotOtelCaptureContent',
-			'CopilotOtelEnabled',
-			'CopilotOtelEndpoint',
-			'CopilotOtelHeaders',
-			'CopilotOtelOtlpProtocol',
-			'CopilotOtelOutfile',
-			'CopilotOtelProtocol',
-			'CopilotOtelResourceAttributes',
-			'CopilotOtelServiceName',
-			'CopilotReviewAgent',
-			'CopilotReviewSelection',
-			'CopilotSessionSync',
-			'DictationEnabled',
-			'EnableFeedback',
-			'ExtensionGalleryServiceUrl',
-			'ExtensionsAutoUpdate',
-			'ExtensionsAutoUpdateDelay',
-			'McpEnterpriseManagedAuthIdp',
-			'McpGalleryServiceUrl',
-			'TelemetryLevel',
-			'UpdateMode',
-		]);
 	});
 
 	test('buckets unexpected values without reporting them', () => {

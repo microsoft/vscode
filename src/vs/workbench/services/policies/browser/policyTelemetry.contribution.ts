@@ -9,7 +9,7 @@ import { PolicyName } from '../../../../base/common/policy.js';
 import { IPolicyService, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../common/accountPolicyService.js';
+import { AccountPolicyGateState, IAccountPolicyGateService, isAccountPolicyGateBlocked } from '../common/accountPolicyService.js';
 import { CORE_POLICY_NAMES } from '../common/policyTelemetry.js';
 
 const enum PolicyNames {
@@ -20,8 +20,8 @@ const enum PolicyNames {
 	TelemetryLevel = 'TelemetryLevel',
 }
 
-const CORE_POLICY_NAME_SET = new Set<PolicyName>(CORE_POLICY_NAMES);
 type ReportedPolicyValueSource = Exclude<PolicyValueSource, PolicyValueSource.AccountGate>;
+type TelemetryLevelBucket = 'off' | 'crash' | 'error' | 'all' | 'unknown' | undefined;
 
 type PolicyAppliedEvent = {
 	devicePolicyCount: number;
@@ -36,7 +36,7 @@ type PolicyAppliedEvent = {
 	toolsAutoApproveForcedOff: boolean;
 	strictMarketplacesLockdown: boolean;
 	otelForcedEnabled: boolean;
-	telemetryLevel: string | undefined;
+	telemetryLevel: TelemetryLevelBucket;
 	devicePolicyKeys: string;
 	nativeMdmPolicyKeys: string;
 	serverManagedSettingsPolicyKeys: string;
@@ -48,12 +48,12 @@ type PolicyAppliedEvent = {
 type PolicyAppliedClassification = {
 	owner: 'joshspicer';
 	comment: 'Reports effective policy values by privacy-safe delivery source and selected value buckets, to distinguish device policy, managed-settings channels, and account-driven restrictions. No raw policy values are collected.';
-	devicePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, from OS or device policy or without more specific tracked provenance.' };
-	nativeMdmPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, caused by managed settings delivered through native MDM.' };
-	serverManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, caused by managed settings delivered from GitHub services.' };
-	fileManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, caused by managed settings delivered through a policy file.' };
-	mixedManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, caused by managed settings from more than one delivery channel.' };
-	accountPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, derived from GitHub account policy or entitlement data.' };
+	devicePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective non-gate policy values, including dynamically registered policies, from OS or device policy or without more specific tracked provenance.' };
+	nativeMdmPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective non-gate policy values, including dynamically registered policies, caused by managed settings delivered through native MDM.' };
+	serverManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective non-gate policy values, including dynamically registered policies, caused by managed settings delivered from GitHub services.' };
+	fileManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective non-gate policy values, including dynamically registered policies, caused by managed settings delivered through a policy file.' };
+	mixedManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective non-gate policy values, including dynamically registered policies, caused by managed settings from more than one delivery channel.' };
+	accountPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective non-gate policy values, including dynamically registered policies, derived from GitHub account policy or entitlement data.' };
 	accountGateActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True when an approved-account gate is configured, whether it is satisfied or restrictive.' };
 	accountGateBlocked: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True when an unsatisfied approved-account gate actively restricts access to AI features.' };
 	defaultModelForcedToAuto: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the default chat model policy forces the "auto" model.' };
@@ -99,12 +99,14 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 
 	private buildEvent(): PolicyAppliedEvent {
 		const value = (name: PolicyName): PolicyValue | undefined => this.policyService.getPolicyValue(name);
-		let devicePolicyCount = 0;
-		let nativeMdmPolicyCount = 0;
-		let serverManagedSettingsPolicyCount = 0;
-		let fileManagedSettingsPolicyCount = 0;
-		let mixedManagedSettingsPolicyCount = 0;
-		let accountPolicyCount = 0;
+		const policyCountsBySource: Record<ReportedPolicyValueSource, number> = {
+			[PolicyValueSource.Device]: 0,
+			[PolicyValueSource.NativeMdm]: 0,
+			[PolicyValueSource.ServerManagedSettings]: 0,
+			[PolicyValueSource.FileManagedSettings]: 0,
+			[PolicyValueSource.MixedManagedSettings]: 0,
+			[PolicyValueSource.Account]: 0,
+		};
 		const policyKeysBySource: Record<ReportedPolicyValueSource, PolicyName[]> = {
 			[PolicyValueSource.Device]: [],
 			[PolicyValueSource.NativeMdm]: [],
@@ -114,34 +116,21 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 			[PolicyValueSource.Account]: [],
 		};
 		for (const name in this.policyService.policyDefinitions) {
-			if (value(name) !== undefined) {
-				const source = this.policyService.getPolicyValueSource(name) ?? PolicyValueSource.Device;
-				if (source === PolicyValueSource.AccountGate) {
-					continue;
-				}
-				if (CORE_POLICY_NAME_SET.has(name)) {
-					policyKeysBySource[source].push(name);
-				}
-				switch (source) {
-					case PolicyValueSource.Device:
-						devicePolicyCount++;
-						break;
-					case PolicyValueSource.NativeMdm:
-						nativeMdmPolicyCount++;
-						break;
-					case PolicyValueSource.ServerManagedSettings:
-						serverManagedSettingsPolicyCount++;
-						break;
-					case PolicyValueSource.FileManagedSettings:
-						fileManagedSettingsPolicyCount++;
-						break;
-					case PolicyValueSource.MixedManagedSettings:
-						mixedManagedSettingsPolicyCount++;
-						break;
-					case PolicyValueSource.Account:
-						accountPolicyCount++;
-						break;
-				}
+			if (value(name) === undefined) {
+				continue;
+			}
+			const source = this.policyService.getPolicyValueSource(name) ?? PolicyValueSource.Device;
+			if (source !== PolicyValueSource.AccountGate) {
+				policyCountsBySource[source]++;
+			}
+		}
+		for (const name of CORE_POLICY_NAMES) {
+			if (value(name) === undefined) {
+				continue;
+			}
+			const source = this.policyService.getPolicyValueSource(name) ?? PolicyValueSource.Device;
+			if (source !== PolicyValueSource.AccountGate) {
+				policyKeysBySource[source].push(name);
 			}
 		}
 
@@ -153,25 +142,25 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 		const accountGateInfo = this.accountPolicyGateService.gateInfo;
 
 		return {
-			devicePolicyCount,
-			nativeMdmPolicyCount,
-			serverManagedSettingsPolicyCount,
-			fileManagedSettingsPolicyCount,
-			mixedManagedSettingsPolicyCount,
-			accountPolicyCount,
+			devicePolicyCount: policyCountsBySource[PolicyValueSource.Device],
+			nativeMdmPolicyCount: policyCountsBySource[PolicyValueSource.NativeMdm],
+			serverManagedSettingsPolicyCount: policyCountsBySource[PolicyValueSource.ServerManagedSettings],
+			fileManagedSettingsPolicyCount: policyCountsBySource[PolicyValueSource.FileManagedSettings],
+			mixedManagedSettingsPolicyCount: policyCountsBySource[PolicyValueSource.MixedManagedSettings],
+			accountPolicyCount: policyCountsBySource[PolicyValueSource.Account],
 			accountGateActive: accountGateInfo.state !== AccountPolicyGateState.Inactive,
-			accountGateBlocked: accountGateInfo.state === AccountPolicyGateState.Restricted && accountGateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved,
+			accountGateBlocked: isAccountPolicyGateBlocked(accountGateInfo),
 			defaultModelForcedToAuto: defaultModel === 'auto',
 			toolsAutoApproveForcedOff: toolsAutoApprove === false,
 			strictMarketplacesLockdown: isEmptyMarketplaceAllowlist(strictMarketplaces),
 			otelForcedEnabled: otel === true,
 			telemetryLevel: telemetryLevelBucket(telemetryLevel),
-			devicePolicyKeys: policyKeysBySource[PolicyValueSource.Device].sort().join(','),
-			nativeMdmPolicyKeys: policyKeysBySource[PolicyValueSource.NativeMdm].sort().join(','),
-			serverManagedSettingsPolicyKeys: policyKeysBySource[PolicyValueSource.ServerManagedSettings].sort().join(','),
-			fileManagedSettingsPolicyKeys: policyKeysBySource[PolicyValueSource.FileManagedSettings].sort().join(','),
-			mixedManagedSettingsPolicyKeys: policyKeysBySource[PolicyValueSource.MixedManagedSettings].sort().join(','),
-			accountPolicyKeys: policyKeysBySource[PolicyValueSource.Account].sort().join(','),
+			devicePolicyKeys: policyKeysBySource[PolicyValueSource.Device].join(','),
+			nativeMdmPolicyKeys: policyKeysBySource[PolicyValueSource.NativeMdm].join(','),
+			serverManagedSettingsPolicyKeys: policyKeysBySource[PolicyValueSource.ServerManagedSettings].join(','),
+			fileManagedSettingsPolicyKeys: policyKeysBySource[PolicyValueSource.FileManagedSettings].join(','),
+			mixedManagedSettingsPolicyKeys: policyKeysBySource[PolicyValueSource.MixedManagedSettings].join(','),
+			accountPolicyKeys: policyKeysBySource[PolicyValueSource.Account].join(','),
 		};
 	}
 }
@@ -188,9 +177,9 @@ function isEmptyMarketplaceAllowlist(rawValue: PolicyValue | undefined): boolean
 	}
 }
 
-const KNOWN_TELEMETRY_LEVELS: ReadonlySet<string> = new Set(['off', 'crash', 'error', 'all']);
+const KNOWN_TELEMETRY_LEVELS: ReadonlySet<Exclude<TelemetryLevelBucket, 'unknown' | undefined>> = new Set(['off', 'crash', 'error', 'all']);
 
-function telemetryLevelBucket(rawValue: PolicyValue | undefined): string | undefined {
+function telemetryLevelBucket(rawValue: PolicyValue | undefined): TelemetryLevelBucket {
 	if (rawValue === undefined) {
 		return undefined;
 	}
