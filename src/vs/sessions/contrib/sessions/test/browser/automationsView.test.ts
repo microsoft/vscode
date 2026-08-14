@@ -22,6 +22,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -42,7 +43,6 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
-import { AutomationsCardsWidget, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -58,6 +58,17 @@ const SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-1');
 const SECOND_SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-2');
 const FOLDER = URI.parse('file:///workspace');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
+
+type AutomationsCardsWidget = import('../../browser/views/automationsView.js').AutomationsCardsWidget;
+let AutomationsCardsWidget: typeof import('../../browser/views/automationsView.js').AutomationsCardsWidget;
+let AutomationsCustomViewContribution: typeof import('../../browser/views/automationsView.js').AutomationsCustomViewContribution;
+let automationsViewLoadedBySessionsContribution = false;
+
+async function setupAutomationsView(): Promise<void> {
+	await import('../../browser/sessions.contribution.js');
+	automationsViewLoadedBySessionsContribution = Boolean(CommandsRegistry.getCommand('sessionsView.newAutomation'));
+	({ AutomationsCardsWidget, AutomationsCustomViewContribution } = await import('../../browser/views/automationsView.js'));
+}
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -442,6 +453,12 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 
 suite('AutomationsCardsWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suiteSetup(setupAutomationsView);
+
+	test('is loaded by the Sessions contribution', () => {
+		assert.strictEqual(automationsViewLoadedBySessionsContribution, true);
+	});
 
 	function getSessionAction(widget: AutomationsCardsWidget, label: string): HTMLElement | undefined {
 		return [...widget.element.querySelectorAll<HTMLElement>('.automations-run-session-list .action-label')]
@@ -1235,6 +1252,8 @@ suite('AutomationsCardsWidget', () => {
 
 suite('AutomationsCustomViewContribution — context key', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suiteSetup(setupAutomationsView);
 
 	function setup(automationsEnabled = true) {
 		const automationService = new FakeAutomationService();
