@@ -2601,13 +2601,68 @@ suite('AgentService (node dispatcher)', () => {
 			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length < 2; i++) {
 				await timeout(0);
 			}
-			assert.deepStrictEqual({ externalCalls: agent.externalCalls, migrationRetried: agent.legacyCalls >= 1 }, { externalCalls: 1, migrationRetried: true });
+			assert.deepStrictEqual({ externalCalls: agent.externalCalls, legacyCalls: agent.legacyCalls }, { externalCalls: 1, legacyCalls: 1 });
 
 			agent.fireDiscoveredChats([discoveredChat(legacy)]);
 			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length < 2; i++) {
 				await timeout(0);
 			}
-			assert.deepStrictEqual({ externalCalls: agent.externalCalls, migrationRetried: agent.legacyCalls >= 2 }, { externalCalls: 1, migrationRetried: true });
+			assert.deepStrictEqual({ externalCalls: agent.externalCalls, legacyCalls: agent.legacyCalls }, { externalCalls: 1, legacyCalls: 1 });
+		});
+
+		test('one invalid discovered chat does not block sibling registration', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			const invalid = AgentSession.uri('copilot', 'invalid-discovered');
+			const valid = AgentSession.uri('copilot', 'valid-discovered');
+			const internals = svc as unknown as { _isChatBacking(session: URI): Promise<boolean> };
+			const originalIsChatBacking = internals._isChatBacking.bind(svc);
+			internals._isChatBacking = async session => {
+				if (session.toString() === invalid.toString()) {
+					throw new Error('invalid backing');
+				}
+				return originalIsChatBacking(session);
+			};
+
+			agent.fireDiscoveredChats([discoveredChat(invalid), discoveredChat(valid)]);
+			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(session => session.toString()), [valid.toString()]);
+		});
+
+		test('failed discovery announcement releases its deduplication reservation', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			const session = AgentSession.uri('copilot', 'announcement-retry');
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const originalIsTombstoned = registry.isTombstoned.bind(registry);
+			let fail = true;
+			registry.isTombstoned = async candidate => {
+				if (fail && candidate.toString() === session.toString()) {
+					fail = false;
+					throw new Error('transient tombstone read failure');
+				}
+				return originalIsTombstoned(candidate);
+			};
+
+			agent.fireDiscoveredChats([discoveredChat(session)]);
+			for (let i = 0; i < 50 && fail; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(svc.stateManager.getSurfacedSessionSummary(session.toString()), undefined);
+
+			await (svc as unknown as { _announceSurfacedSession(meta: IAgentSessionMetadata, provider: string): Promise<void> })._announceSurfacedSession({
+				session,
+				startTime: 1,
+				modifiedTime: 1,
+			}, agent.id);
+			assert.strictEqual(svc.stateManager.getSurfacedSessionSummary(session.toString())?.resource, session.toString());
 		});
 
 		test('migration candidates derive provenance from the workspaceless marker', async () => {
@@ -3031,7 +3086,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.listExternalChatsCalls, 1);
 		});
 
-		test('a readiness signal retries legacy migration when initial enumeration is unavailable', async () => {
+		test('a discovery signal does not bypass completed legacy migration semantics', async () => {
 			class NotYetMigratableAgent extends MockAgent {
 				migrationCalls = 0;
 				enumerable = false;
@@ -3050,16 +3105,14 @@ suite('AgentService (node dispatcher)', () => {
 
 			agent.enumerable = true;
 			agent.fireDiscoveredChats([]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await timeout(0);
 
 			assert.deepStrictEqual({
-				migrationRetried: agent.migrationCalls >= 2,
+				migrationCalls: agent.migrationCalls,
 				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
 			}, {
-				migrationRetried: true,
-				registered: [legacy.toString()],
+				migrationCalls: 1,
+				registered: [],
 			});
 		});
 

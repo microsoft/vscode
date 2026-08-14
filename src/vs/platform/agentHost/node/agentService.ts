@@ -874,8 +874,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._providerSubscriptions.add(provider.onDidDiscoverChats(chats => {
 			void this._registerDiscoveredChats(provider, chats).catch(err =>
 				this._logService.warn(`[AgentService] registering discovered chats for provider ${provider.id} failed`, err));
-			void this._ensureLegacyChatsMigrated(provider, true).catch(err =>
-				this._logService.warn(`[AgentService] retrying registry migration for provider ${provider.id} failed`, err));
 		}));
 		if (provider.onMcpNotification) {
 			this._providerSubscriptions.add(provider.onMcpNotification(e => this._onMcpNotification.fire(e)));
@@ -1105,11 +1103,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Awaits discovery started at provider registration. Refreshing the session
-	 * list never starts another native enumeration; providers request additive
-	 * follow-ups through their chat-list readiness signal.
+	 * Awaits legacy migration started at provider registration. Provider-owned
+	 * discovery is independent and surfaces unknown chats additively.
 	 */
-	private async _awaitInitialProviderDiscovery(): Promise<void> {
+	private async _awaitInitialProviderMigration(): Promise<void> {
 		const providers = [...this._providers.values()];
 		const results = await Promise.allSettled(providers.map(provider => this._initialProviderMigrations.get(provider.id) ?? Promise.resolve()));
 		for (let index = 0; index < results.length; index++) {
@@ -1212,31 +1209,29 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 
 	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> {
-		const discoveryLimiter = new Limiter<{ readonly identity: IRegisteredSession; readonly metadata: IAgentSessionMetadata } | undefined>(4);
-		const identities = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
+		const discoveryLimiter = new Limiter<boolean>(4);
+		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
-			if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
-				return undefined;
+			try {
+				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
+					return false;
+				}
+				const identity: IRegisteredSession = { session, provider: provider.id, startTime: metadata.startTime, external, source: external ? 'discovery' : 'restore' };
+				const registered = await this._retryRegistryMutation(
+					() => this._sessionRegistry.register(session, identity, { checkTombstone: true }),
+					`discovery registration for ${session.toString()}`,
+				);
+				if (registered) {
+					await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
+				}
+				return registered;
+			} catch (err) {
+				this._logService.warn(`[AgentService] Failed to register discovered chat ${session.toString()} for provider ${provider.id}`, err);
+				return false;
 			}
-			return {
-				identity: { session, provider: provider.id, startTime: metadata.startTime, external, source: external ? 'discovery' : 'restore' },
-				metadata: { ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) },
-			};
 		})));
-		let changed = false;
-		for (const discovered of identities) {
-			if (!discovered) {
-				continue;
-			}
-			const { identity, metadata } = discovered;
-			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
-			if (registered) {
-				await this._announceSurfacedSession(metadata, provider.id);
-			}
-			changed = registered || changed;
-		}
-		return changed;
+		return results.some(changed => changed);
 	}
 
 	private async _migrateLegacyProviderChats(provider: IAgent, force = false): Promise<void> {
@@ -1338,8 +1333,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
-		// The first list waits for registration-time discovery if it is still in flight.
-		await this._awaitInitialProviderDiscovery();
+		// The first list waits for registration-time legacy migration if it is still in flight.
+		await this._awaitInitialProviderMigration();
 		// The registry is the source of truth for top-level sessions. Internal
 		// chat backings and subagent sessions never enter it, and a transiently
 		// missing provider snapshot no longer evicts a session.
@@ -1593,11 +1588,16 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._announcedSurfacedKeys.add(key);
-		if (await this._sessionRegistry.isTombstoned(meta.session)) {
+		try {
+			if (await this._sessionRegistry.isTombstoned(meta.session)) {
+				this._announcedSurfacedKeys.delete(key);
+				return;
+			}
+			this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(meta, provider));
+		} catch (err) {
 			this._announcedSurfacedKeys.delete(key);
-			return;
+			throw err;
 		}
-		this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(meta, provider));
 	}
 
 	/** Synthesizes the minimal {@link SessionSummary} for a provider session surfaced outside the normal list response. */

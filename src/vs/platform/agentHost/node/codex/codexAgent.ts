@@ -5306,7 +5306,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		if (!(await this._isSdkResolvableWithoutDownload())) {
+		try {
+			await this._resolveSdkRoot();
+		} catch (err) {
+			this._logService.warn(`[Codex] SDK unavailable while listing chats to migrate: ${err instanceof Error ? err.message : String(err)}`);
 			return undefined;
 		}
 		const chats = await this._listCodexChats();
