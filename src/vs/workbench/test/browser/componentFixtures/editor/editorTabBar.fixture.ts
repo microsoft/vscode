@@ -21,6 +21,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colors/listColors.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
+import { asCssVariableName } from '../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -30,7 +32,20 @@ import { TreeViewsDnDService } from '../../../../../editor/common/services/treeV
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, IToolbarActions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
-import { EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from '../../../../common/theme.js';
+import {
+	EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND,
+	EDITOR_GROUP_HEADER_TABS_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_FOREGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND,
+	MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND,
+	MODERN_EDITOR_TAB_HOVER_BACKGROUND,
+	MODERN_EDITOR_TAB_HOVER_FOREGROUND,
+	MODERN_EDITOR_TAB_INACTIVE_BACKGROUND,
+	MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND,
+} from '../../../../common/theme.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
 import { EditorTitleControl } from '../../../../browser/parts/editor/editorTitleControl.js';
@@ -43,6 +58,7 @@ import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import '../../../../contrib/styleOverrides/browser/media/tabs.css';
+import './editorTabBar.fixture.css';
 
 // ============================================================================
 // Fixture editor input
@@ -327,6 +343,9 @@ export interface IEditorTabBarFixtureOptions {
 	readonly dropTargetBetweenTabs?: boolean;
 	readonly showHeader?: boolean;
 	readonly headerMenuIds?: IEditorGroupMenuIds;
+	readonly colorCustomizations?: Readonly<Record<string, string>>;
+	readonly forcedHoverTab?: number;
+	readonly focusedTabAction?: number;
 }
 
 function createPartOptions(overrides?: Partial<IEditorPartOptions>): IEditorPartOptions {
@@ -369,6 +388,10 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 	const width = options.width ?? 820;
 	const isGroupActive = options.active ?? true;
 	const partOptions = createPartOptions(options.partOptions);
+
+	for (const [colorId, color] of Object.entries(options.colorCustomizations ?? {})) {
+		container.style.setProperty(asCssVariableName(colorId), color);
+	}
 
 	const configurationService = new TestConfigurationService();
 	configurationService.setUserConfiguration('breadcrumbs', {
@@ -507,10 +530,16 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 
 	titleControl.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 	titleControl.setActive(isGroupActive);
+	const tabs = titleContainer.querySelectorAll<HTMLElement>('.tabs-container > .tab');
 	if (options.dropTargetBetweenTabs) {
-		const tabs = titleContainer.querySelectorAll<HTMLElement>('.tabs-container > .tab');
 		tabs[1]?.classList.add('drop-target-left');
 		tabs[2]?.classList.add('drop-target-right');
+	}
+	if (options.forcedHoverTab !== undefined) {
+		tabs[options.forcedHoverTab]?.classList.add('fixture-hover');
+	}
+	if (options.focusedTabAction !== undefined) {
+		tabs[options.focusedTabAction]?.querySelector<HTMLElement>('.tab-actions .action-label')?.focus();
 	}
 	layout();
 }
@@ -633,7 +662,43 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 	};
 }
 
+function getModernEditorTabColorCustomizations(theme: ComponentFixtureContext['theme']): Readonly<Record<string, string>> {
+	const dark = isDark(theme.type);
+	return {
+		[MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: dark ? '#164E63' : '#BAE6FD',
+		[MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND]: dark ? '#0E3747' : '#7DD3FC',
+		[MODERN_EDITOR_TAB_ACTIVE_FOREGROUND]: dark ? '#CFFAFE' : '#0C4A6E',
+		[MODERN_EDITOR_TAB_INACTIVE_BACKGROUND]: dark ? '#1E293B' : '#E2E8F0',
+		[MODERN_EDITOR_TAB_HOVER_BACKGROUND]: dark ? '#7C2D12' : '#FED7AA',
+		[MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND]: dark ? '#5A1F0C' : '#FDBA74',
+		[MODERN_EDITOR_TAB_HOVER_FOREGROUND]: dark ? '#FFEDD5' : '#7C2D12',
+		[MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND]: dark ? '#6B21A8' : '#E9D5FF',
+		[MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND]: dark ? '#4C1678' : '#D8B4FE',
+		[MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND]: dark ? '#166534' : '#BBF7D0',
+	};
+}
+
+function renderThemeColors(options: Omit<IEditorTabBarFixtureOptions, 'modernUI' | 'colorCustomizations'>): (ctx: ComponentFixtureContext) => void {
+	return ctx => renderEditorTabBarFixture(ctx, {
+		...options,
+		modernUI: true,
+		colorCustomizations: getModernEditorTabColorCustomizations(ctx.theme),
+	});
+}
+
+function createThemeColorFixtures() {
+	return {
+		TabStates: defineComponentFixture({ render: renderThemeColors({ forcedHoverTab: 2, focusedTabAction: 2 }) }),
+		ActiveAction: defineComponentFixture({ render: renderThemeColors({ focusedTabAction: 3 }) }),
+		ActiveHover: defineComponentFixture({ render: renderThemeColors({ forcedHoverTab: 3, focusedTabAction: 3 }) }),
+		SelectedAction: defineComponentFixture({ render: renderThemeColors({ editors: multiSelectEditorSpecs(), focusedTabAction: 0 }) }),
+	};
+}
+
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 	ModernUIOff: defineThemedFixtureGroup(createFixtures(false, ['darkHighContrast'])),
-	ModernUIOn: defineThemedFixtureGroup(createFixtures(true, ['darkHighContrast'])),
+	ModernUIOn: defineThemedFixtureGroup({
+		...createFixtures(true, ['darkHighContrast']),
+		ThemeColors: defineThemedFixtureGroup(createThemeColorFixtures()),
+	}),
 });
