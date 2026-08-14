@@ -345,6 +345,94 @@ suite('agentPeerChats', () => {
 		});
 	});
 
+	test('keeps a nested child that has not sent anything at its inherited turn', () => {
+		const parentSeed: Turn = {
+			...sourceTurn,
+			id: 'parent-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Parent prompt') },
+		};
+		const parentOwnTurns: Turn[] = Array.from({ length: 2 }, (_, index) => ({
+			...sourceTurn,
+			id: `parent-own-${index}`,
+			message: { ...sourceTurn.message, text: `Parent follow up ${index}` },
+		}));
+		// The child forked the parent side chat but has not sent a message, so the
+		// only marker in its transcript is the one it inherited from the parent.
+		const turns = [sourceTurn, parentSeed, ...parentOwnTurns];
+		const childSideChat = { ...sideChat, inheritedTurnId: 'parent-own-1' };
+		const prepared = prepareSideChatPrompt('Child prompt', turns, childSideChat);
+		const visible = sliceSideChatTurns(turns, childSideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, childSideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+			seedsTheFirstPrompt: prepared.startsWith('<side-chat-context>'),
+		}, {
+			boundary: 4,
+			visibleTurnIds: [],
+			seedsTheFirstPrompt: true,
+		});
+	});
+
+	test('keeps the inherited turn of a nested child that already sent messages', () => {
+		const parentSeed: Turn = {
+			...sourceTurn,
+			id: 'parent-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Parent prompt') },
+		};
+		const childSeed: Turn = {
+			...sourceTurn,
+			id: 'child-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Child prompt') },
+		};
+		const turns = [sourceTurn, parentSeed, { ...sourceTurn, id: 'parent-own' }, childSeed, { ...sourceTurn, id: 'child-own' }];
+		const childSideChat = { ...sideChat, inheritedTurnId: 'parent-own' };
+		const visible = sliceSideChatTurns(turns, childSideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, childSideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+		}, {
+			boundary: 3,
+			visibleTurnIds: ['child-seed', 'child-own'],
+		});
+	});
+
+	test('falls back to the last marker when the inherited turn is gone', () => {
+		const childSeed: Turn = {
+			...sourceTurn,
+			id: 'child-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Child prompt') },
+		};
+		const turns = [sourceTurn, childSeed, { ...sourceTurn, id: 'child-own' }];
+		// A truncation removed the recorded turn, so its id no longer resolves.
+		const childSideChat = { ...sideChat, inheritedTurnId: 'removed-turn' };
+		const visible = sliceSideChatTurns(turns, childSideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, childSideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+		}, {
+			boundary: 1,
+			visibleTurnIds: ['child-seed', 'child-own'],
+		});
+	});
+
+	test('round-trips the inherited turn id through provider data', () => {
+		const providerData = encodeProviderData({
+			sdkSessionId: 'sdk-session',
+			sideChat: { ...sideChat, inheritedTurnCount: undefined, inheritedTurnId: 'inherited-3' },
+		});
+
+		assert.deepStrictEqual({
+			decodedTurnId: decodeProviderData(providerData)?.sideChat?.inheritedTurnId,
+			decodedLegacyCount: decodeProviderData(providerData)?.sideChat?.inheritedTurnCount,
+		}, {
+			decodedTurnId: 'inherited-3',
+			decodedLegacyCount: undefined,
+		});
+	});
+
 	test('falls back to the recorded boundary when a new side chat has no seed yet', () => {
 		const visible = sliceSideChatTurns([sourceTurn], sideChat);
 

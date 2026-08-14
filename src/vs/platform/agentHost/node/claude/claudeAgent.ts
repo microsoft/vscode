@@ -1391,7 +1391,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			sideChat: {
 				turnId: source.turnId,
 				...(source.selection ? { selection: source.selection } : {}),
-				inheritedTurnCount: forked?.inheritedTurnCount ?? 0,
+				...(forked?.inheritedTurnId !== undefined ? { inheritedTurnId: forked.inheritedTurnId } : {}),
 				...(fallbackContext ? { context: fallbackContext } : {}),
 				...(source.partialResponse ? { partialResponse: source.partialResponse } : {}),
 			},
@@ -1612,7 +1612,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * the source's sequencer would park the new chat behind the very turn it
 	 * branches from. The SDK's flushed transcript is read-only here.
 	 */
-	private async _forkChat(fork: { readonly source: URI; readonly turnId: string }): Promise<{ sessionId: string; inheritedTurnCount: number } | undefined> {
+	private async _forkChat(fork: { readonly source: URI; readonly turnId: string }): Promise<{ sessionId: string; inheritedTurnId: string | undefined } | undefined> {
 		const sourceSdkId = this._sourceChatSdkId(fork.source);
 		if (!sourceSdkId) {
 			this._logService.warn(`[Claude] createChat fork: source ${fork.source.toString()} has no SDK chat; creating fresh chat`);
@@ -1626,8 +1626,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		const { sessionId } = await this._sdkService.forkSession(sourceSdkId, { upToMessageId });
 		const anchorIndex = messages.findIndex(message => message.uuid === upToMessageId);
-		const inheritedTurnCount = mapSessionMessagesToTurns(messages.slice(0, anchorIndex + 1), fork.source, this._logService).length;
-		return { sessionId, inheritedTurnCount };
+		const inheritedTurns = mapSessionMessagesToTurns(messages.slice(0, anchorIndex + 1), fork.source, this._logService);
+		return { sessionId, inheritedTurnId: inheritedTurns.at(-1)?.id };
 	}
 
 

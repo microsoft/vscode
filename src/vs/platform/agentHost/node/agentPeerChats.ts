@@ -18,7 +18,20 @@ export interface IPersistedSideChat {
 	readonly turnId: string;
 	readonly selection?: { readonly text: string; readonly responsePartId?: string };
 	readonly providerAnchorTurnId?: string;
-	readonly inheritedTurnCount: number;
+	/**
+	 * Id of the last turn the chat inherited from its source. The own turns of
+	 * the chat begin right after it. The id names a turn of the transcript that
+	 * the reads slice, so it stays correct while the chat grows, and it tells
+	 * the marker of this chat apart from the markers of the side chats it
+	 * descends from.
+	 */
+	readonly inheritedTurnId?: string;
+	/**
+	 * Number of inherited turns, written by builds that had no
+	 * {@link inheritedTurnId}. A count is a copy of a value that changes with
+	 * time and it can drift, so it is the last resort.
+	 */
+	readonly inheritedTurnCount?: number;
 	readonly partialResponse?: string;
 	readonly context?: string;
 }
@@ -155,17 +168,27 @@ export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersiste
 /**
  * Resolves the index of the first turn owned by a side chat.
  *
- * The transcript holds the inherited turns and then the own turns, and the
- * first own turn carries the seed marker. The marker is therefore the
- * boundary, and the last marker wins, because a side chat that forks another
- * side chat inherits the markers of its ancestors and they all precede its
- * own. The persisted count is only a fallback for a chat that did not send a
- * message yet: the count is a copy of a value that changes with time and it
- * can drift, while the marker stays correct.
+ * The transcript holds the inherited turns and then the own turns. The
+ * recorded id of the last inherited turn names that boundary exactly, so it
+ * wins whenever the transcript still holds that turn.
+ *
+ * Without the id the last seed marker wins. The first own turn of a side chat
+ * carries a marker, and the markers of the side chats it descends from all
+ * precede it, so the last marker is the boundary once the chat has sent a
+ * message.
+ *
+ * The recorded count is the last resort. It comes from builds that wrote no
+ * id, and it can drift.
  */
 export function resolveSideChatBoundary(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): number {
 	if (!sideChat) {
 		return 0;
+	}
+	if (sideChat.inheritedTurnId !== undefined) {
+		const inheritedIndex = turns.findIndex(turn => turn.id === sideChat.inheritedTurnId);
+		if (inheritedIndex !== -1) {
+			return inheritedIndex + 1;
+		}
 	}
 	for (let i = turns.length - 1; i >= 0; i--) {
 		if (parseSideChatSeed(turns[i].message.text) !== undefined) {
@@ -245,7 +268,7 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 		const validAgent = agent && typeof agent === 'object' && typeof agent.uri === 'string'
 			? { uri: agent.uri }
 			: undefined;
-		const sideChat = value.sideChat as { source?: unknown; turnId?: unknown; selection?: unknown; providerAnchorTurnId?: unknown; inheritedTurnCount?: unknown; partialResponse?: unknown; context?: unknown } | undefined;
+		const sideChat = value.sideChat as { source?: unknown; turnId?: unknown; selection?: unknown; providerAnchorTurnId?: unknown; inheritedTurnId?: unknown; inheritedTurnCount?: unknown; partialResponse?: unknown; context?: unknown } | undefined;
 		const validSelection = sideChat?.selection
 			&& typeof sideChat.selection === 'object'
 			&& typeof (sideChat.selection as { text?: unknown }).text === 'string'
@@ -259,7 +282,8 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 			&& (sideChat.source === undefined || typeof sideChat.source === 'string')
 			&& typeof sideChat.turnId === 'string'
 			&& (sideChat.providerAnchorTurnId === undefined || typeof sideChat.providerAnchorTurnId === 'string')
-			&& typeof sideChat.inheritedTurnCount === 'number'
+			&& (sideChat.inheritedTurnId === undefined || typeof sideChat.inheritedTurnId === 'string')
+			&& (sideChat.inheritedTurnCount === undefined || typeof sideChat.inheritedTurnCount === 'number')
 			&& (sideChat.partialResponse === undefined || typeof sideChat.partialResponse === 'string')
 			&& (sideChat.context === undefined || typeof sideChat.context === 'string')
 			? {
@@ -267,7 +291,8 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 				turnId: sideChat.turnId,
 				...(validSelection ? { selection: validSelection } : {}),
 				...(sideChat.providerAnchorTurnId ? { providerAnchorTurnId: sideChat.providerAnchorTurnId } : {}),
-				inheritedTurnCount: sideChat.inheritedTurnCount,
+				...(sideChat.inheritedTurnId !== undefined ? { inheritedTurnId: sideChat.inheritedTurnId } : {}),
+				...(sideChat.inheritedTurnCount !== undefined ? { inheritedTurnCount: sideChat.inheritedTurnCount } : {}),
 				...(sideChat.partialResponse ? { partialResponse: sideChat.partialResponse } : {}),
 				...(sideChat.context ? { context: sideChat.context } : {}),
 			}

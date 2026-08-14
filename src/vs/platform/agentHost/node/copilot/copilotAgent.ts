@@ -3323,7 +3323,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					turnId: options.sideChat.turnId,
 					...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}),
 					...(options.sideChat.providerAnchorTurnId ? { providerAnchorTurnId: options.sideChat.providerAnchorTurnId } : {}),
-					inheritedTurnCount: forked.inheritedTurnCount,
+					...(forked.inheritedTurnId !== undefined ? { inheritedTurnId: forked.inheritedTurnId } : {}),
 					...(options.sideChat.sourceContext ? { context: options.sideChat.sourceContext } : {}),
 					...(options.sideChat.partialResponse ? { partialResponse: options.sideChat.partialResponse } : {}),
 				};
@@ -3458,13 +3458,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * so the forked chat inherits turn event IDs and file-edit
 	 * snapshots. Returns the new SDK session id.
 	 */
-	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnCount: number }> {
+	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnId: string | undefined }> {
 		const sourceTurns = await sourceEntry.getMessages();
 		const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === turnId);
 		if (sourceTurnIndex === -1) {
 			this._logService.warn(`[Copilot] fork: turn ${turnId} not found in source session ${sourceEntry.sessionId}; inheriting all ${sourceTurns.length} turns`);
 		}
 		const inheritedTurnCount = sourceTurnIndex === -1 ? sourceTurns.length : sourceTurnIndex + 1;
+		const inheritedTurnId = sourceTurns[inheritedTurnCount - 1]?.id;
 		// toEventId is exclusive — events before it are included. If there's no
 		// next turn, omit it to include all events.
 		const toEventId = await sourceEntry.getNextTurnEventId(turnId);
@@ -3492,7 +3493,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (err) {
 			this._logService.warn(`[Copilot] Failed to copy session database for chat fork: ${err instanceof Error ? err.message : String(err)}`);
 		}
-		return { sessionId: newSessionId, inheritedTurnCount };
+		return { sessionId: newSessionId, inheritedTurnId };
 	}
 
 	private async _disposeChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {

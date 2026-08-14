@@ -9260,7 +9260,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forkCall: { sessionId: parentId, options: { upToMessageId: 'a1' } },
 			sentPrompt: injectedPrompt,
 			turns: ['side question'],
-			sideChat: { turnId: 'u1', inheritedTurnCount: 1, partialResponse },
+			sideChat: { turnId: 'u1', inheritedTurnId: 'u1', partialResponse },
 		});
 	});
 
@@ -9285,7 +9285,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forked: 0,
 			sideChat: {
 				turnId: 'turn-source',
-				inheritedTurnCount: 0,
 				context: sourceContext,
 			},
 		});
@@ -9308,7 +9307,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
 		}, {
 			forked: 0,
-			sideChat: { turnId: 'turn-source', inheritedTurnCount: 0 },
+			sideChat: { turnId: 'turn-source' },
 		});
 	});
 
@@ -9344,7 +9343,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forked: 0,
 			sideChat: {
 				turnId,
-				inheritedTurnCount: 0,
 				context: sourceContext,
 			},
 		});
@@ -9396,7 +9394,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			turns: ['side question'],
 			sideChat: {
 				turnId: 'local-1',
-				inheritedTurnCount: 1,
+				inheritedTurnId: 'u1',
 				context: sourceContext,
 			},
 		});
