@@ -15,7 +15,7 @@ import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpService, McpConnectionState } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import {
 	AgentHostMcpServer,
@@ -30,6 +30,7 @@ import {
 	getMcpServerOutputHandler,
 	getMcpStatusPresentation,
 	getMcpStatusRenderSignature,
+	isNoteworthyMcpStatus,
 	getServerItemContextMenuActions,
 	registerMcpInlineButtonAction,
 	type IMcpStatusRenderInput,
@@ -121,6 +122,43 @@ suite('mcpListWidget', () => {
 			'Running',
 			'Disabled',
 		]);
+	});
+
+	suite('isNoteworthyMcpStatus', () => {
+
+		test('lifecycle is not news, but anything needing attention is', () => {
+			assert.deepStrictEqual([
+				undefined,
+				McpServerStatus.Ready,
+				McpConnectionState.Kind.Running,
+				McpServerStatus.Stopped,
+				McpConnectionState.Kind.Stopped,
+				McpServerStatus.Starting,
+				McpServerStatus.AuthRequired,
+				McpServerStatus.Error,
+				McpConnectionState.Kind.Error,
+				'disabled' as const,
+			].map(isNoteworthyMcpStatus), [
+				false, false, false, false, false,
+				true, true, true, true, true,
+			]);
+		});
+
+		test('names a state for every status a row can be in', () => {
+			assert.deepStrictEqual([
+				getMcpStatusPresentation(McpServerStatus.Stopped)?.label,
+				getMcpStatusPresentation(McpServerStatus.Starting)?.label,
+				getMcpStatusPresentation(McpServerStatus.AuthRequired)?.label,
+				getMcpStatusPresentation(McpServerStatus.Error)?.label,
+				getMcpStatusPresentation(undefined)?.label,
+			], [
+				'Idle',
+				'Starting',
+				'Sign-in needed',
+				'Failed',
+				undefined,
+			]);
+		});
 	});
 
 	test('uses the current active-session server enablement for rows and lifecycle actions', () => {
@@ -517,7 +555,6 @@ suite('mcpListWidget', () => {
 			state: McpServerStatus.Error,
 			statusLabel: 'Error',
 			statusClassName: 'error',
-			statusIconId: 'error',
 			activeSessionServerId: 'session-1/notion',
 			logOutputChannelId: 'mcp.session-1.notion',
 			localServerId: 'mcp.config.workspace/notion',
@@ -533,7 +570,6 @@ suite('mcpListWidget', () => {
 			state: McpServerStatus.Ready,
 			statusLabel: 'Running',
 			statusClassName: 'running',
-			statusIconId: 'check',
 			activeSessionServerId: 'session-1/other',
 			logOutputChannelId: 'mcp.session-1.other',
 			localServerId: 'mcp.config.user/notion',

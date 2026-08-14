@@ -612,11 +612,14 @@ casing is also not a transform that survives translation. */
 	margin-right: 4px;
 }
 
-/* MCP bridged badge — shown inline next to the server name */
+/* Name and status share a line so state reads as part of the server's identity. */
 .mcp-server-item .mcp-server-name-row {
 	display: flex;
+	/* Center, not baseline: the status dot is an empty box, so baseline alignment would anchor to
+	its bottom edge and drop the status word below the name. */
 	align-items: center;
 	gap: 6px;
+	min-width: 0;
 }
 
 .ai-customization-list-item .item-type-icon {
@@ -1737,6 +1740,17 @@ casing is also not a transform that survives translation. */
 	line-height: 18px;
 }
 
+/* Scoped to the name row so the plugin list, which reuses `.mcp-server-name` as a flex container
+for its own name and badge, is not dragged into this sizing. */
+.mcp-server-item .mcp-server-name-row .mcp-server-name {
+	/* Sized to its text, and the first thing to shrink, so the status stays pinned to the name
+	instead of drifting away from short names or being pushed off by long ones. It keeps a floor,
+	though: the name is what the row is *for*, and without one a narrow pane spent its width on
+	the qualifier -- "Web S... - Disabled (Workspace)". Identity does not yield to its own note. */
+	flex: 0 1 auto;
+	min-width: 7em;
+}
+
 .mcp-server-item .mcp-server-description {
 	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
@@ -1762,50 +1776,73 @@ casing is also not a transform that survives translation. */
 }
 
 .mcp-server-item .mcp-server-status {
-	flex-shrink: 0;
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
+	min-width: 0;
+	overflow: hidden;
+	flex: 0 1 auto;
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	font-size: var(--vscode-codiconFontSize);
+	gap: var(--vscode-spacing-size40);
+	font-size: var(--vscode-agents-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
 }
 
-.mcp-server-item .mcp-server-status-action.monaco-button {
-	min-width: var(--vscode-spacing-size240);
+.mcp-server-item .mcp-server-status-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.mcp-server-item .mcp-server-status:empty {
+	display: none;
+}
+
+.mcp-server-item .mcp-server-status-dot {
+	/* The dot is the redundancy that keeps status from being colour-only, so it is the one part
+	of the status that must never be squeezed away. */
+	flex: 0 0 auto;
+	width: var(--vscode-spacing-size40);
+	height: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: currentColor;
+}
+
+.mcp-server-item .mcp-server-inline-button.monaco-button {
+	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
-	padding: var(--vscode-spacing-size40);
-	border: 0;
+	padding: 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-agents-fontSize-label1);
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: transparent;
+	white-space: nowrap;
 }
 
-.mcp-server-item .mcp-server-status-action.monaco-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.mcp-server-item .mcp-server-status.running {
+/* Status colour is shared by the list row and the detail pane so the two can never disagree
+about what "Running" looks like. Layout stays scoped to each surface. */
+.mcp-server-status.running {
 	color: var(--vscode-charts-green);
 }
 
-.mcp-server-item .mcp-server-status.starting {
+.mcp-server-status.starting {
 	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 
-.mcp-server-item .mcp-server-status.auth-required {
+.mcp-server-status.auth-required {
 	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
 }
 
-.mcp-server-item .mcp-server-status.error {
+.mcp-server-status.error {
 	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
 }
 
-.mcp-server-item.disabled {
-	opacity: 0.5;
+.mcp-server-status.stopped,
+.mcp-server-status.disabled {
+	color: var(--vscode-descriptionForeground);
 }
 
-.mcp-server-item .mcp-server-status.disabled {
-	color: var(--vscode-disabledForeground);
+/* Only the name dims when a server is off. Status and errors must stay readable -- they are the
+reason the user is looking at the row. */
+.mcp-server-item.disabled .mcp-server-name,
+.mcp-server-item.disabled .mcp-server-description {
+	opacity: 0.6;
 }
 
 /* On/off switch

@@ -22,7 +22,7 @@ import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServe
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { ContributionEnablementState, isContributionDisabled } from '../../common/enablement.js';
+import { ContributionEnablementState, isContributionDisabled, isWorkspaceScopedEnablement } from '../../common/enablement.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, observableSignalFromEvent, type IObservable, type IReader } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -201,6 +201,8 @@ interface IMcpServerItemTemplateData {
 	readonly container: HTMLElement;
 	readonly typeIcon: HTMLElement;
 	readonly name: HTMLElement;
+	/** Status word and dot, next to the name so state reads as part of the server's identity. */
+	readonly status: HTMLElement;
 	readonly description: HTMLElement;
 	readonly actions: HTMLElement;
 	readonly elementDisposables: DisposableStore;
@@ -237,6 +239,9 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
+		// Status sits next to the name rather than in the far-right actions slot: it describes the
+		// server, so it belongs where the eye already is when reading which server this is.
+		const status = DOM.append(nameRow, $('.mcp-server-status'));
 
 		const description = DOM.append(details, $('.mcp-server-description'));
 
@@ -246,6 +251,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			container,
 			typeIcon,
 			name,
+			status,
 			description,
 			actions,
 			elementDisposables: new DisposableStore(),
@@ -362,7 +368,6 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			state,
 			statusLabel: presentation?.label,
 			statusClassName: presentation?.className,
-			statusIconId: presentation?.icon?.id,
 			activeSessionServerId: activeSessionServer?.id,
 			logOutputChannelId: activeSessionServer?.logOutputChannelId,
 			localServerId: localServer?.definition.id,
@@ -375,6 +380,18 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 
 		templateData.actionDisposables.clear();
 		DOM.clearNode(templateData.actions);
+		DOM.clearNode(templateData.status);
+		templateData.status.className = 'mcp-server-status';
+
+		// Status reads as a word beside the name, including the states that used to resolve to an
+		// icon-less presentation and therefore drew nothing at all -- which was every idle server,
+		// the most common row in the list.
+		if (presentation && isNoteworthyMcpStatus(state)) {
+			templateData.status.classList.add(presentation.className);
+			// A dot as well as the word: colour alone is not a distinction everyone can make.
+			DOM.append(templateData.status, $('.mcp-server-status-dot'));
+			DOM.append(templateData.status, $('.mcp-server-status-label')).textContent = presentation.label;
+		}
 
 		if (!presentation) {
 			return;
@@ -393,7 +410,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 				ariaLabel: signInLabel,
 			}));
 			signInButton.label = localize('signIn', "Sign In");
-			signInButton.element.classList.add('mcp-server-sign-in');
+			signInButton.element.classList.add('mcp-server-inline-button', 'mcp-server-sign-in');
 			registerMcpInlineButtonAction(templateData.actionDisposables, signInButton, async () => {
 				signInButton.enabled = false;
 				try {
@@ -404,29 +421,25 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			});
 		}
 
-		if (!presentation.icon) {
-			return;
-		}
-
+		// An explicit, labelled action now that the status is a word: the coloured icon-button it
+		// replaces was the only thing saying a row had failed *and* the only way to read why, so
+		// its meaning had to be guessed from its colour.
 		const showOutput = state === McpServerStatus.Error || state === McpConnectionState.Kind.Error
 			? getMcpServerOutputHandler(this.outputService, localServer, activeSessionServer, this._afterShowOutput, showActiveSessionOutput)
 			: undefined;
 		if (showOutput) {
 			const showOutputLabel = localize('showMcpServerOutput', "Show output for {0}", label);
-			const statusButton = templateData.actionDisposables.add(new Button(templateData.actions, {
+			const outputButton = templateData.actionDisposables.add(new Button(templateData.actions, {
+				...defaultButtonStyles,
+				secondary: true,
+				small: true,
 				title: showOutputLabel,
 				ariaLabel: showOutputLabel,
 			}));
-			statusButton.icon = presentation.icon;
-			statusButton.element.classList.add('mcp-server-status', 'mcp-server-status-action', presentation.className);
-			registerMcpInlineButtonAction(templateData.actionDisposables, statusButton, showOutput);
-			return;
+			outputButton.label = localize('showOutput', "Show Output");
+			outputButton.element.classList.add('mcp-server-inline-button');
+			registerMcpInlineButtonAction(templateData.actionDisposables, outputButton, showOutput);
 		}
-
-		const statusElement = DOM.append(templateData.actions, $('.mcp-server-status'));
-		statusElement.classList.add(presentation.className, ...ThemeIcon.asClassNameArray(presentation.icon));
-		statusElement.setAttribute('aria-hidden', 'true');
-		templateData.actionDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), statusElement, presentation.label));
 	}
 
 	disposeTemplate(templateData: IMcpServerItemTemplateData): void {
@@ -473,7 +486,6 @@ export function getMcpServerOutputHandler(outputService: Pick<IOutputService, 's
 export interface IMcpStatusPresentation {
 	readonly label: string;
 	readonly className: string;
-	readonly icon?: ThemeIcon;
 }
 
 export function getMcpStatusPresentation(state: McpStatusKind | undefined, disabledReason?: CustomizationDisabledReason): IMcpStatusPresentation | undefined {
@@ -481,24 +493,51 @@ export function getMcpStatusPresentation(state: McpStatusKind | undefined, disab
 		return undefined;
 	}
 	if (state === 'disabled') {
-		return { label: getCustomizationDisabledLabel(disabledReason), className: 'disabled', icon: Codicon.circleSlash };
+		return { label: getCustomizationDisabledLabel(disabledReason), className: 'disabled' };
 	}
 	switch (state) {
 		case McpConnectionState.Kind.Running:
 		case McpServerStatus.Ready:
-			return { label: localize('running', "Running"), className: 'running', icon: Codicon.check };
+			return { label: localize('running', "Running"), className: 'running' };
 		case McpConnectionState.Kind.Starting:
 		case McpServerStatus.Starting:
-			return { label: localize('starting', "Starting"), className: 'starting', icon: ThemeIcon.modify(Codicon.loading, 'spin') };
+			return { label: localize('starting', "Starting"), className: 'starting' };
 		case McpServerStatus.AuthRequired:
-			return { label: localize('authRequired', "Authentication required"), className: 'auth-required', icon: Codicon.account };
+			// "Sign-in needed" rather than "Authentication required": it is the same fact in the
+			// words the button beside it uses, and it fits a row.
+			return { label: localize('authRequired', "Sign-in needed"), className: 'auth-required' };
 		case McpConnectionState.Kind.Error:
 		case McpServerStatus.Error:
-			return { label: localize('error', "Error"), className: 'error', icon: Codicon.error };
+			// "Failed" rather than "Error": a row says what happened to the server, and the row
+			// is not itself an error message.
+			return { label: localize('error', "Failed"), className: 'error' };
 		case McpConnectionState.Kind.Stopped:
 		case McpServerStatus.Stopped:
 		default:
-			return { label: localize('stopped', "Stopped"), className: 'stopped' };
+			// "Idle" rather than "Stopped": MCP servers start lazily, so not holding a process is
+			// the resting state, not something that went wrong.
+			return { label: localize('stopped', "Idle"), className: 'stopped' };
+	}
+}
+
+/**
+ * Whether a status is worth saying at all.
+ *
+ * Running and Idle are lifecycle, not news. VS Code starts MCP servers lazily -- a server launches
+ * when a tool call needs it and shuts down afterwards -- so whether a process happens to be alive
+ * right now is an implementation detail that flickers and that nobody acts on. Printing it made the
+ * most common word in the list also the least informative one.
+ */
+export function isNoteworthyMcpStatus(state: McpStatusKind | undefined): boolean {
+	switch (state) {
+		case undefined:
+		case McpConnectionState.Kind.Running:
+		case McpServerStatus.Ready:
+		case McpConnectionState.Kind.Stopped:
+		case McpServerStatus.Stopped:
+			return false;
+		default:
+			return true;
 	}
 }
 
@@ -531,7 +570,6 @@ export interface IMcpStatusRenderInput {
 	readonly state: McpStatusKind | undefined;
 	readonly statusLabel: string | undefined;
 	readonly statusClassName: string | undefined;
-	readonly statusIconId: string | undefined;
 	/** The active-session twin the sign-in and output actions are bound to. */
 	readonly activeSessionServerId: string | undefined;
 	readonly logOutputChannelId: string | undefined;
@@ -561,7 +599,6 @@ export function getMcpStatusRenderSignature(input: IMcpStatusRenderInput): strin
 		input.state ?? null,
 		input.statusLabel ?? null,
 		input.statusClassName ?? null,
-		input.statusIconId ?? null,
 		input.activeSessionServerId ?? null,
 		input.logOutputChannelId ?? null,
 		input.localServerId ?? null,
@@ -605,8 +642,19 @@ function resolveMcpRowState(
 		return { status: undefined };
 	}
 
-	if (entry.localServer && isContributionDisabled(entry.localServer.enablement.read(reader))) {
-		return { status: 'disabled' };
+	if (entry.localServer) {
+		const enablement = entry.localServer.enablement.read(reader);
+		if (isContributionDisabled(enablement)) {
+			// Described as a scope reason so the wording comes from the same helper the agent-host
+			// rows use. A workspace choice is worth naming; "off everywhere" is just off.
+			return {
+				status: 'disabled',
+				disabledReason: {
+					source: 'scope',
+					scope: isWorkspaceScopedEnablement(enablement) ? CustomizationEnablementKind.Workspace : CustomizationEnablementKind.Global,
+				},
+			};
+		}
 	}
 
 	// Only a plain local row reports its connection state. A built-in row has never shown it, and
@@ -635,7 +683,9 @@ function getMcpEntryAriaLabel(element: IMcpListEntry, activeSessionReader: Activ
 	}
 	const label = getMcpEntryLabel(element);
 	const rowState = resolveMcpRowState(element, activeSessionReader, isSessionsWindow, reader);
-	const status = getMcpStatusPresentation(rowState.status, rowState.disabledReason);
+	// Deliberately looser than the row: a screen reader reads the row label on its own, so a
+	// status the row can leave to a neighbouring control is still new information here.
+	const status = isNoteworthyMcpStatus(rowState.status) ? getMcpStatusPresentation(rowState.status, rowState.disabledReason) : undefined;
 	return status
 		? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", label, status.label)
 		: label;
