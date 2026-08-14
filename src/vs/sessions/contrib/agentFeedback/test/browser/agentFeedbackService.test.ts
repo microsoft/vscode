@@ -11,7 +11,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService, whenWidgetForSession } from '../../browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../browser/sessionEditorComments.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService, IChatAcceptInputOptions, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -23,6 +23,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { whenChatWidgetForSession } from '../../../../browser/chatWidgetUtils.js';
 import { ISession, SessionFileOperation, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -846,7 +847,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	});
 });
 
-suite('AgentFeedbackService - whenWidgetForSession', () => {
+suite('whenChatWidgetForSession', () => {
 
 	const store = new DisposableStore();
 	const session = URI.parse('test://session/1');
@@ -886,13 +887,13 @@ suite('AgentFeedbackService - whenWidgetForSession', () => {
 		const host = createWidgetHost();
 		host.load();
 
-		assert.strictEqual(await whenWidgetForSession(host.service, session, 0), host.widget);
+		assert.strictEqual(await whenChatWidgetForSession(host.service, session, 0), host.widget);
 	});
 
 	test('resolves once a widget loads the session', async () => {
 		const host = createWidgetHost();
 
-		const pending = whenWidgetForSession(host.service, session, 5000);
+		const pending = whenChatWidgetForSession(host.service, session, 5000);
 		await timeout(0);
 		host.load();
 
@@ -902,7 +903,7 @@ suite('AgentFeedbackService - whenWidgetForSession', () => {
 	test('resolves undefined when no widget loads the session in time', async () => {
 		const host = createWidgetHost();
 
-		assert.strictEqual(await whenWidgetForSession(host.service, session, 1), undefined);
+		assert.strictEqual(await whenChatWidgetForSession(host.service, session, 1), undefined);
 	});
 
 	test('resolves when a widget that already has the session is added later', async () => {
@@ -916,7 +917,7 @@ suite('AgentFeedbackService - whenWidgetForSession', () => {
 			override getWidgetBySessionResource(_resource: URI): IChatWidget | undefined { return widgets[0]; }
 		};
 
-		const pending = whenWidgetForSession(service, session, 5000);
+		const pending = whenChatWidgetForSession(service, session, 5000);
 		await timeout(0);
 		widgets = [widget];
 		onDidAddWidget.fire(widget);

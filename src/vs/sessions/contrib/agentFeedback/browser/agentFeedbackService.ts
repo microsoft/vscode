@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { derived, IObservable, runOnChange } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -31,6 +31,7 @@ import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMem
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentFeedbackAttachmentEntry.js';
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
 import { SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
+import { whenChatWidgetForSession } from '../../../browser/chatWidgetUtils.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -43,57 +44,6 @@ export { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback };
 
 /** Shared feedback scope for every undefined or uncreated active session. */
 export const AGENT_FEEDBACK_NEW_SESSION_RESOURCE = URI.from({ scheme: 'agent-feedback', path: '/new-session' });
-
-/**
- * How long submitting feedback waits for the session's chat model to be loaded into a chat widget
- * before giving up.
- */
-const WIDGET_LOAD_TIMEOUT_MS = 10_000;
-
-/**
- * Resolves the chat widget that has the session loaded, waiting for it to appear when the session's
- * model has not been loaded into a widget yet.
- *
- * Feedback can be submitted (e.g. from the Changes editor or the comments input banner) while the
- * session is still being restored into its chat widget. `getWidgetBySessionResource` matches on the
- * widget's *loaded* view model, so it returns `undefined` until the model arrives — submitting then
- * would silently drop the feedback. Resolves `undefined` if no widget loads the session in time.
- *
- * Exported for tests.
- */
-export async function whenWidgetForSession(chatWidgetService: IChatWidgetService, sessionResource: URI, timeoutMs: number = WIDGET_LOAD_TIMEOUT_MS): Promise<IChatWidget | undefined> {
-	const existing = chatWidgetService.getWidgetBySessionResource(sessionResource);
-	if (existing) {
-		return existing;
-	}
-
-	const store = new DisposableStore();
-	try {
-		const loaded = new Promise<IChatWidget>(resolve => {
-			const check = () => {
-				const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
-				if (widget) {
-					resolve(widget);
-				}
-			};
-
-			const observe = (candidate: IChatWidget) => store.add(candidate.onDidChangeViewModel(check));
-
-			chatWidgetService.getAllWidgets().forEach(observe);
-			store.add(chatWidgetService.onDidAddWidget(added => {
-				observe(added);
-				check();
-			}));
-
-			// A widget may have loaded the session while the listeners were being wired up.
-			check();
-		});
-
-		return await raceTimeout(loaded, timeoutMs);
-	} finally {
-		store.dispose();
-	}
-}
 
 export interface INavigableSessionComment {
 	readonly id: string;
@@ -881,7 +831,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 		if (!this._isAgentHostSession(sessionResource)) {
 			// Wait for the attachment contribution to update the chat widget's attachment model
-			const widget = await whenWidgetForSession(this._chatWidgetService, sessionResource);
+			const widget = await whenChatWidgetForSession(this._chatWidgetService, sessionResource);
 			if (widget) {
 				const attachmentId = ATTACHMENT_ID_PREFIX + sessionResource.toString();
 				const hasAttachment = () => widget.attachmentModel.attachments.some(a => a.id === attachmentId);
@@ -912,7 +862,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return this._sessionsService.submitNewSessionInput();
 		}
 
-		const widget = await whenWidgetForSession(this._chatWidgetService, sessionResource);
+		const widget = await whenChatWidgetForSession(this._chatWidgetService, sessionResource);
 		if (!widget) {
 			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', sessionResource.toString());
 			return false;
