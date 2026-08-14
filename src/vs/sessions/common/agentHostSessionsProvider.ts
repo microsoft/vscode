@@ -6,6 +6,7 @@
 import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
+import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
@@ -22,6 +23,43 @@ import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../p
 export interface IAgentHostConnectProgress {
 	readonly connectionKey: string;
 	readonly message: string;
+}
+
+/**
+ * Declares that a provider is one of many interchangeable members of a single
+ * user-facing host, rather than a host in its own right.
+ *
+ * A connection is the unit of implementation (one address, one credential set,
+ * one session-type authority), but it is not always the unit users think in.
+ * Cloud sandboxes are the motivating case: Mission Control hands out one
+ * ephemeral environment per task, so a user with 20 tasks has 20 connections
+ * and therefore 20 providers — but only one place, "Cloud Sandboxes". Members
+ * of a group collapse into a single {@link IAgentHostFilterEntry}, which scopes
+ * the sessions list to all of them at once.
+ *
+ * Hosts that *are* a place (a tunnel machine, a WSL distro, an SSH target)
+ * leave this undefined and keep the 1 provider = 1 entry mapping.
+ */
+export interface IAgentHostGroup {
+	/** Stable id shared by every member, and the filter key of the collapsed entry. */
+	readonly id: string;
+	/** Display name of the collapsed entry (e.g. "Cloud Sandboxes"). */
+	readonly label: string;
+	/** Icon for the collapsed entry. Falls back to the generic remote icon. */
+	readonly icon?: ThemeIcon;
+	/**
+	 * Sort rank of the collapsed entry among host filter entries; lower comes
+	 * first. Ungrouped hosts rank `0`, so a group with a positive order sorts
+	 * after the user's own machines. Defaults to `0`.
+	 */
+	readonly order?: number;
+	/**
+	 * Whether the collapsed entry offers a manual connect/disconnect toggle.
+	 * `false` for groups whose members connect implicitly (a sandbox connects
+	 * when one of its sessions is opened), where the toggle would control
+	 * nothing the user asked for. Defaults to `true`.
+	 */
+	readonly connectable?: boolean;
 }
 
 /**
@@ -62,6 +100,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
+	/**
+	 * Set when this provider is one member of a larger user-facing host (see
+	 * {@link IAgentHostGroup}). Members share one host filter entry instead of
+	 * getting one each.
+	 */
+	readonly hostGroup?: IAgentHostGroup;
 	/**
 	 * Stable preference key used to persist/read a
 	 * {@link IRemoteAgentHostLocationPreferenceService} choice for this

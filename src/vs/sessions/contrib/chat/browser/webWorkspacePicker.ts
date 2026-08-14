@@ -66,7 +66,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		super(
 			{
 				...options,
-				sessionWorkspaceProviderFilter: providerId => providerId === _agentHostFilterService.selectedProviderId,
+				sessionWorkspaceProviderFilter: providerId => _agentHostFilterService.selectedHost?.providerIds.includes(providerId) === true,
 			},
 			actionWidgetService,
 			uriIdentityService,
@@ -120,9 +120,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	}
 
 	private _onScopedHostChanged(): void {
-		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
+		const scoped = this._agentHostFilterService.selectedHost;
 		const currentResolved = this.selectedResolved;
-		if (currentResolved && scopedProviderId !== undefined && currentResolved.providerId === scopedProviderId) {
+		if (currentResolved && scoped?.providerIds.includes(currentResolved.providerId)) {
 			this._onDidChangeSelection.fire();
 			return;
 		}
@@ -133,19 +133,20 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
-		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
-		if (scopedProviderId === undefined) {
+		const scoped = this._agentHostFilterService.selectedHost;
+		if (!scoped) {
 			return [];
 		}
-		const provider = this.sessionsProvidersService.getProvider(scopedProviderId);
-		if (!provider) {
+		const scopedProviderIds = new Set(scoped.providerIds);
+		if (!scoped.providerIds.some(id => this.sessionsProvidersService.getProvider(id))) {
 			return items;
 		}
 
-		// 1. Recent workspaces for the scoped provider
+		// 1. Recent workspaces for the scoped host — for a grouped entry that
+		// spans every member (e.g. all of the user's sandbox environments).
 		const isGitHubCategory = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB;
 		const recents = this._getRecentWorkspaces().filter(w =>
-			(w.providerId === scopedProviderId || isGitHubCategory)
+			(scopedProviderIds.has(w.providerId) || isGitHubCategory)
 			&& this._directPickerAttachesContext !== true
 			&& (this._directPickerGroup === undefined || w.workspace.group === this._directPickerGroup)
 		);
@@ -166,11 +167,15 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			});
 		}
 
-		// 2. Browse actions for the scoped provider and selected category.
+		// 2. Browse actions for the scoped host and selected category. A
+		// grouped entry contributes none of its own: there is no single
+		// machine to browse, and its members (cloud sandboxes) are created by
+		// the service rather than by picking a folder here. GitHub actions are
+		// not machine-bound, so they still apply.
 		const allBrowseActions = this._getAllBrowseActions();
 		const browseActions = allBrowseActions
 			.map((action, index) => ({ action, index }))
-			.filter(({ action }) => action.providerId === scopedProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
+			.filter(({ action }) => (scoped.connectable && scopedProviderIds.has(action.providerId)) || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB);
 		if (browseActions.length > 0) {
 			if (items.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });

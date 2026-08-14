@@ -243,7 +243,8 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 			}());
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
-				override readonly selectedProviderId = undefined;
+				override readonly selectedHostId = undefined;
+				override readonly selectedHost = undefined;
 			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;

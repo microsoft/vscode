@@ -30,6 +30,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { extUri } from '../../../../../base/common/resources.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
@@ -2724,7 +2725,7 @@ function createTestablePicker(
 }
 
 const buildWebWorkspacePickerItems = Reflect.get(WebWorkspacePicker.prototype, '_buildItems') as (this: {
-	readonly _agentHostFilterService: { readonly selectedProviderId: string | undefined };
+	readonly _agentHostFilterService: { readonly selectedHost: IAgentHostFilterEntry | undefined };
 	readonly sessionsProvidersService: ISessionsProvidersService;
 	readonly _directPickerAttachesContext: boolean | undefined;
 	readonly _directPickerGroup: string | undefined;
@@ -2734,6 +2735,20 @@ const buildWebWorkspacePickerItems = Reflect.get(WebWorkspacePicker.prototype, '
 	_isProviderUnavailable(providerId: string): boolean;
 	_removeRecentWorkspace(folderUri: URI): void;
 }) => IActionListItem<IWorkspacePickerItem>[];
+
+/** An ungrouped host filter entry scoping to a single provider. */
+function hostEntry(providerId: string): IAgentHostFilterEntry {
+	return {
+		id: providerId,
+		providerIds: [providerId],
+		label: providerId,
+		grouped: false,
+		address: undefined,
+		icon: Codicon.remote,
+		status: AgentHostFilterConnectionStatus.Connected,
+		connectable: true,
+	};
+}
 
 suite('WorkspacePicker - Tab discovery', () => {
 
@@ -2857,7 +2872,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		const repositoryAction = makeBrowseAction('default-copilot', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...');
 
 		const items = buildWebWorkspacePickerItems.call({
-			_agentHostFilterService: { selectedProviderId: remoteProvider.id },
+			_agentHostFilterService: { selectedHost: hostEntry(remoteProvider.id) },
 			sessionsProvidersService: providersService,
 			_directPickerAttachesContext: false,
 			_directPickerGroup: SESSION_WORKSPACE_GROUP_GITHUB,

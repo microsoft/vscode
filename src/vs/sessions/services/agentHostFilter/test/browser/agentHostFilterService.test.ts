@@ -5,13 +5,16 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../sessions/common/sessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
 import { AgentHostFilterService } from '../../browser/agentHostFilterService.js';
@@ -20,20 +23,33 @@ import { AgentHostFilterConnectionStatus } from '../../common/agentHostFilter.js
 class StubRemoteProvider {
 	readonly id: string;
 	readonly label: string;
+	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
+	readonly hostGroup: IAgentHostGroup | undefined;
 	private readonly _status;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus>;
+	connectCalls = 0;
+	disconnectCalls = 0;
 
-	constructor(address: string, label: string, status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected) {
+	constructor(address: string, label: string, status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected, hostGroup?: IAgentHostGroup) {
 		this.id = `agenthost-${address}`;
 		this.label = label;
 		this.remoteAddress = address;
+		this.hostGroup = hostGroup;
 		this._status = observableValue<RemoteAgentHostConnectionStatus>('status', status);
 		this.connectionStatus = this._status;
 	}
 
 	setStatus(status: RemoteAgentHostConnectionStatus): void {
 		this._status.set(status, undefined);
+	}
+
+	async connect(): Promise<void> {
+		this.connectCalls++;
+	}
+
+	async disconnect(): Promise<void> {
+		this.disconnectCalls++;
 	}
 }
 
@@ -72,6 +88,15 @@ function pid(address: string): string {
 	return `agenthost-${address}`;
 }
 
+/** A cloud-sandbox-shaped group: many connections, one user-facing entry. */
+const SANDBOX_GROUP: IAgentHostGroup = {
+	id: 'cloudsandbox',
+	label: 'Cloud Sandboxes',
+	icon: Codicon.package,
+	order: 1,
+	connectable: false,
+};
+
 suite('AgentHostFilterService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -87,7 +112,7 @@ suite('AgentHostFilterService', () => {
 	test('defaults to undefined when no selection persisted and no hosts', () => {
 		const providers = new StubSessionsProvidersService();
 		const service = createService(providers);
-		assert.strictEqual(service.selectedProviderId, undefined);
+		assert.strictEqual(service.selectedHostId, undefined);
 		assert.deepStrictEqual([...service.hosts], []);
 	});
 
@@ -96,7 +121,7 @@ suite('AgentHostFilterService', () => {
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:9999', 'Host B') as unknown as ISessionsProvider));
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A', RemoteAgentHostConnectionStatus.disconnected) as unknown as ISessionsProvider));
 		const service = createService(providers);
-		assert.strictEqual(service.selectedProviderId, isWeb ? pid('localhost:4321') : undefined);
+		assert.strictEqual(service.selectedHostId, isWeb ? pid('localhost:4321') : undefined);
 	});
 
 	test('surfaces registered remote providers with their connection status', () => {
@@ -105,10 +130,10 @@ suite('AgentHostFilterService', () => {
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:9999', 'Host B', RemoteAgentHostConnectionStatus.disconnected) as unknown as ISessionsProvider));
 		const service = createService(providers);
 
-		const hosts = [...service.hosts].map(h => ({ label: h.label, status: h.status, providerId: h.providerId }));
+		const hosts = [...service.hosts].map(h => ({ label: h.label, status: h.status, id: h.id }));
 		assert.deepStrictEqual(hosts, [
-			{ label: 'Host A', status: AgentHostFilterConnectionStatus.Connected, providerId: pid('localhost:4321') },
-			{ label: 'Host B', status: AgentHostFilterConnectionStatus.Disconnected, providerId: pid('localhost:9999') },
+			{ label: 'Host A', status: AgentHostFilterConnectionStatus.Connected, id: pid('localhost:4321') },
+			{ label: 'Host B', status: AgentHostFilterConnectionStatus.Disconnected, id: pid('localhost:9999') },
 		]);
 	});
 
@@ -126,7 +151,7 @@ suite('AgentHostFilterService', () => {
 		assert.strictEqual(events, 1);
 	});
 
-	test('setSelectedProviderId fires change and restores based on platform', () => {
+	test('setSelectedHostId fires change and restores based on platform', () => {
 		const providers = new StubSessionsProvidersService();
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:9999', 'Host B') as unknown as ISessionsProvider));
@@ -136,13 +161,13 @@ suite('AgentHostFilterService', () => {
 		let events = 0;
 		store.add(service.onDidChange(() => events++));
 
-		service.setSelectedProviderId(pid('localhost:9999'));
-		assert.strictEqual(service.selectedProviderId, pid('localhost:9999'));
+		service.setSelectedHostId(pid('localhost:9999'));
+		assert.strictEqual(service.selectedHostId, pid('localhost:9999'));
 		assert.strictEqual(events, 1);
 
 		// Recreate service with same storage — selection is restored only on web.
 		const service2 = createService(providers, storage);
-		assert.strictEqual(service2.selectedProviderId, isWeb ? pid('localhost:9999') : undefined);
+		assert.strictEqual(service2.selectedHostId, isWeb ? pid('localhost:9999') : undefined);
 	});
 
 	test('fallback selection depends on platform when selected host disappears', () => {
@@ -153,21 +178,95 @@ suite('AgentHostFilterService', () => {
 		const hostBReg = providers.registerProvider(hostB as unknown as ISessionsProvider);
 		const service = createService(providers);
 
-		service.setSelectedProviderId(pid('localhost:9999'));
-		assert.strictEqual(service.selectedProviderId, pid('localhost:9999'));
+		service.setSelectedHostId(pid('localhost:9999'));
+		assert.strictEqual(service.selectedHostId, pid('localhost:9999'));
 
 		// Remove Host B — selection falls back only on web.
 		hostBReg.dispose();
-		assert.strictEqual(service.selectedProviderId, isWeb ? pid('localhost:4321') : undefined);
+		assert.strictEqual(service.selectedHostId, isWeb ? pid('localhost:4321') : undefined);
 	});
 
-	test('setSelectedProviderId ignores unknown hosts', () => {
+	test('setSelectedHostId ignores unknown hosts', () => {
 		const providers = new StubSessionsProvidersService();
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
 		const service = createService(providers);
-		service.setSelectedProviderId(pid('localhost:4321'));
-		assert.strictEqual(service.selectedProviderId, pid('localhost:4321'));
-		service.setSelectedProviderId('agenthost-nonexistent');
-		assert.strictEqual(service.selectedProviderId, pid('localhost:4321'));
+		service.setSelectedHostId(pid('localhost:4321'));
+		assert.strictEqual(service.selectedHostId, pid('localhost:4321'));
+		service.setSelectedHostId('agenthost-nonexistent');
+		assert.strictEqual(service.selectedHostId, pid('localhost:4321'));
+	});
+
+	test('folds grouped providers into a single entry scoping to all of them', () => {
+		const providers = new StubSessionsProvidersService();
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
+		store.add(providers.registerProvider(new StubRemoteProvider('cloudsandbox:env-1', 'Task one', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP) as unknown as ISessionsProvider));
+		store.add(providers.registerProvider(new StubRemoteProvider('cloudsandbox:env-2', 'Task two', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP) as unknown as ISessionsProvider));
+		const service = createService(providers);
+
+		assert.deepStrictEqual([...service.hosts].map(h => ({ id: h.id, label: h.label, providerIds: [...h.providerIds], connectable: h.connectable })), [
+			// Ungrouped hosts sort first — a fresh profile must not land in the group.
+			{ id: pid('localhost:4321'), label: 'Host A', providerIds: [pid('localhost:4321')], connectable: true },
+			{ id: 'cloudsandbox', label: 'Cloud Sandboxes', providerIds: [pid('cloudsandbox:env-1'), pid('cloudsandbox:env-2')], connectable: false },
+		]);
+		assert.strictEqual(service.hosts[1].icon, Codicon.package);
+		assert.strictEqual(service.hosts[1].address, undefined);
+	});
+
+	test('grouped entry status is the most alive of its members', () => {
+		const providers = new StubSessionsProvidersService();
+		const envOne = new StubRemoteProvider('cloudsandbox:env-1', 'Task one', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP);
+		store.add(providers.registerProvider(envOne as unknown as ISessionsProvider));
+		store.add(providers.registerProvider(new StubRemoteProvider('cloudsandbox:env-2', 'Task two', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP) as unknown as ISessionsProvider));
+		const service = createService(providers);
+
+		assert.strictEqual(service.hosts[0].status, AgentHostFilterConnectionStatus.Disconnected);
+
+		envOne.setStatus(RemoteAgentHostConnectionStatus.connected);
+		assert.strictEqual(service.hosts[0].status, AgentHostFilterConnectionStatus.Connected);
+	});
+
+	test('selectedHost exposes every provider a grouped selection covers', () => {
+		const providers = new StubSessionsProvidersService();
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
+		store.add(providers.registerProvider(new StubRemoteProvider('cloudsandbox:env-1', 'Task one', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP) as unknown as ISessionsProvider));
+		store.add(providers.registerProvider(new StubRemoteProvider('cloudsandbox:env-2', 'Task two', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP) as unknown as ISessionsProvider));
+		const service = createService(providers);
+
+		service.setSelectedHostId('cloudsandbox');
+		assert.strictEqual(service.selectedHost?.id, 'cloudsandbox');
+		assert.deepStrictEqual([...(service.selectedHost?.providerIds ?? [])], [pid('cloudsandbox:env-1'), pid('cloudsandbox:env-2')]);
+	});
+
+	test('reconnect and disconnect fan out to every member of a group', () => {
+		const providers = new StubSessionsProvidersService();
+		const envOne = new StubRemoteProvider('cloudsandbox:env-1', 'Task one', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP);
+		const envTwo = new StubRemoteProvider('cloudsandbox:env-2', 'Task two', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP);
+		store.add(providers.registerProvider(envOne as unknown as ISessionsProvider));
+		store.add(providers.registerProvider(envTwo as unknown as ISessionsProvider));
+		const service = createService(providers);
+
+		service.reconnect('cloudsandbox');
+		service.disconnect('cloudsandbox');
+
+		assert.strictEqual(envOne.connectCalls, 1);
+		assert.strictEqual(envTwo.connectCalls, 1);
+		assert.strictEqual(envOne.disconnectCalls, 1);
+		assert.strictEqual(envTwo.disconnectCalls, 1);
+	});
+
+	test('falls back to a connectable host rather than a group', () => {
+		const providers = new StubSessionsProvidersService();
+		const hostA = new StubRemoteProvider('localhost:4321', 'Host A');
+		const hostAReg = providers.registerProvider(hostA as unknown as ISessionsProvider);
+		store.add(providers.registerProvider(new StubRemoteProvider('cloudsandbox:env-1', 'Task one', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP) as unknown as ISessionsProvider));
+		// 'Cloud Sandboxes' sorts before 'Host A' alphabetically, so only the
+		// connectable-first rule keeps the default off the sandbox group.
+		const service = createService(providers);
+
+		assert.strictEqual(service.selectedHostId, isWeb ? pid('localhost:4321') : undefined);
+
+		// With no connectable host left there is nothing better to fall back to.
+		hostAReg.dispose();
+		assert.strictEqual(service.selectedHostId, isWeb ? 'cloudsandbox' : undefined);
 	});
 });

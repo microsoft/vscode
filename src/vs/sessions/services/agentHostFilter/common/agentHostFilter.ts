@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
@@ -17,40 +18,74 @@ export const enum AgentHostFilterConnectionStatus {
 }
 
 /**
- * A single host entry the user can scope the sessions list to.
+ * A single entry the user can scope the sessions list to.
+ *
+ * Usually one entry is one host provider, but a provider may declare an
+ * {@link IAgentHostGroup} to be folded together with its peers into a single
+ * entry — cloud sandboxes do this, since every sandbox environment is its own
+ * connection (and therefore its own provider) while the user thinks of them as
+ * one place. {@link providerIds} is what the entry actually scopes to.
  */
 export interface IAgentHostFilterEntry {
-	/** The {@link ISession.providerId} of the host — stable filter key. */
-	readonly providerId: string;
-	/** Display name for the host. */
+	/**
+	 * Stable filter key: the {@link IAgentHostGroup.id} for a grouped entry,
+	 * otherwise the {@link ISession.providerId} of the single host.
+	 */
+	readonly id: string;
+	/**
+	 * The provider ids this entry scopes the sessions list to. Exactly one
+	 * for an ungrouped host; one per member for a grouped entry.
+	 */
+	readonly providerIds: readonly string[];
+	/** Display name for the entry. */
 	readonly label: string;
-	/** The raw host address (e.g. `localhost:4321`, `tunnel+abc123`). */
-	readonly address: string;
-	/** Current connection status for this host. */
+	/**
+	 * The raw host address (e.g. `localhost:4321`, `tunnel+abc123`), or
+	 * `undefined` for a grouped entry, which has no single address.
+	 */
+	readonly address: string | undefined;
+	/** Icon representing the entry. */
+	readonly icon: ThemeIcon;
+	/** Current connection status; the rollup of its members for a grouped entry. */
 	readonly status: AgentHostFilterConnectionStatus;
+	/**
+	 * Whether the entry offers a manual connect/disconnect affordance. `false`
+	 * for hosts that are connected implicitly (a cloud sandbox connects when
+	 * one of its sessions is opened), where a connect button would be a
+	 * control over nothing.
+	 */
+	readonly connectable: boolean;
 }
 
 export const IAgentHostFilterService = createDecorator<IAgentHostFilterService>('agentHostFilterService');
 
 /**
  * Tracks the currently selected agent host used to scope the sessions list
- * and other workbench surfaces. The selection is always a valid
- * {@link ISession.providerId} of a known host, or `undefined` when no
- * hosts are known.
+ * and other workbench surfaces. The selection is always the {@link
+ * IAgentHostFilterEntry.id} of a known entry, or `undefined` when no hosts
+ * are known.
  */
 export interface IAgentHostFilterService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when {@link selectedProviderId} or {@link hosts} changes. */
+	/** Fires when {@link selectedHostId} or {@link hosts} changes. */
 	readonly onDidChange: Event<void>;
 
 	/** Fires when {@link isDiscovering} changes. */
 	readonly onDidChangeDiscovering: Event<void>;
 
-	/** The currently selected providerId, or `undefined` when no hosts are known. */
-	readonly selectedProviderId: string | undefined;
+	/** The currently selected entry id, or `undefined` when no hosts are known. */
+	readonly selectedHostId: string | undefined;
 
-	/** All known hosts the user can switch between. */
+	/**
+	 * The currently selected entry, or `undefined` when nothing is selected
+	 * (no hosts known, or on desktop where the filter is not surfaced). Read
+	 * {@link IAgentHostFilterEntry.providerIds} to scope by provider — a
+	 * grouped entry covers several.
+	 */
+	readonly selectedHost: IAgentHostFilterEntry | undefined;
+
+	/** All known entries the user can switch between. */
 	readonly hosts: readonly IAgentHostFilterEntry[];
 
 	/**
@@ -61,22 +96,24 @@ export interface IAgentHostFilterService {
 	readonly isDiscovering: boolean;
 
 	/**
-	 * Update the selection. Ignored if `providerId` does not match a
-	 * known host.
+	 * Update the selection. Ignored if `hostId` does not match a known
+	 * entry.
 	 */
-	setSelectedProviderId(providerId: string): void;
+	setSelectedHostId(hostId: string): void;
 
 	/**
-	 * Tear down any existing connection for the given host and start a
-	 * fresh connect attempt. No-op if the host is unknown.
+	 * Tear down any existing connection for the given entry and start a
+	 * fresh connect attempt. No-op if the entry is unknown. A grouped entry
+	 * fans out to every member.
 	 */
-	reconnect(providerId: string): void;
+	reconnect(hostId: string): void;
 
 	/**
-	 * Tear down the active connection for the given host without forgetting
-	 * the entry. No-op if the host is unknown or already disconnected.
+	 * Tear down the active connection for the given entry without forgetting
+	 * it. No-op if the entry is unknown or already disconnected. A grouped
+	 * entry fans out to every member.
 	 */
-	disconnect(providerId: string): void;
+	disconnect(hostId: string): void;
 
 	/**
 	 * Trigger every registered discovery handler and resolve once they

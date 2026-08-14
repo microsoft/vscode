@@ -14,6 +14,7 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
@@ -43,6 +44,7 @@ import { IWorkbenchContribution } from '../../../../../workbench/common/contribu
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessionHandler.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionSchemeAlias, IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
@@ -60,6 +62,27 @@ const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const SANDBOX_SESSION_SCHEME_ALIAS: ISessionSchemeAlias = {
 	ui: CLOUD_SANDBOX_AGENT_PROVIDER,
 	backend: CLOUD_SANDBOX_SESSION_SCHEME,
+};
+
+/**
+ * Folds every sandbox environment into one entry in the host filter.
+ *
+ * Each environment is its own connection and therefore its own provider, but a user with 20 Mission
+ * Control tasks has 20 of them — as individual hosts they would bury the machines the picker exists
+ * to switch between, and each would show a session list of exactly one. Grouping keeps the
+ * per-environment connections and gives the user a single "Cloud Sandboxes" place holding all of
+ * their sandbox sessions.
+ *
+ * `connectable: false` because a sandbox connects when one of its sessions is opened, so a
+ * connect/disconnect toggle on the group would act on nothing the user pointed at. `order: 1` sorts
+ * it after the user's own hosts, which also keeps a fresh profile from defaulting into it.
+ */
+const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
+	id: 'cloudsandbox',
+	label: localize('cloudSandbox.hostGroup', "Cloud Sandboxes"),
+	icon: Codicon.package,
+	order: 1,
+	connectable: false,
 };
 
 /** A discovered sandbox environment we can create a provider for. */
@@ -666,6 +689,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			omitHostFromWorkspaceLabel: true,
 			// A sandbox is a disposable remote environment, not a checkout on disk.
 			workspaceTypeIcon: Codicon.package,
+			hostGroup: CLOUD_SANDBOX_HOST_GROUP,
 		});
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));

@@ -2927,11 +2927,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 	update(expandAll?: boolean): void {
 		const activeSession = this._sessionsService.activeSession.get();
 
-		// Filter by session type and status
+		// Filter by session type and status. The host filter scopes to a set of
+		// providers, not one: a grouped entry (e.g. Cloud Sandboxes) fans out
+		// over every environment's provider.
 		let filtered = this.sessions.filter(session => !isAutomationSession(session));
-		const hostFilter = this._agentHostFilterService.selectedProviderId;
-		if (hostFilter !== undefined) {
-			filtered = filtered.filter(s => s.providerId === hostFilter);
+		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
+		if (scopedProviderIds?.length) {
+			const scoped = new Set(scopedProviderIds);
+			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
 		if (this.excludedSessionTypes.size > 0) {
 			filtered = filtered.filter(s => !this.excludedSessionTypes.has(s.sessionType));
