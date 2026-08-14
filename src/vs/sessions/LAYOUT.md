@@ -180,7 +180,7 @@ Approval acknowledgement must use the pending tool call's stable id, not the app
 
 ### Account Widget (Right)
 
-Shows the signed-in GitHub profile image (falls back to the account codicon). Clicking opens a combined account and Copilot status panel with sign-in/sign-out and settings actions.
+Shows the account profile image, preferring the avatar supplied by the authentication provider for the default account's session, falling back to the public GitHub profile image URL derived from the account name, and finally to the account codicon. Clicking opens a combined account and Copilot status panel with sign-in/sign-out and settings actions.
 
 ### Remote Connections (Right)
 
