@@ -45,10 +45,10 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionIsActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
 import { ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -60,6 +60,7 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
@@ -81,7 +82,7 @@ import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
+import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -156,6 +157,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		});
 
 		const runningLabelObs = observableValue<string | IMarkdownString | undefined>(this, undefined);
+		const sessionIsActiveObs = observableFromEvent(contextKeyService.onDidChangeContext, () => SessionIsActiveContext.getValue(contextKeyService) ?? false);
 
 		// Clear the running label override
 		this._register(autorun(reader => {
@@ -166,6 +168,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 
 		this._register(autorun(reader => {
 			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
+			sessionIsActiveObs.read(reader);
 			const sessionResource = changesViewService.activeSessionResourceObs.read(reader);
 			const outgoingChanges = outgoingChangesObs.read(reader) ?? 0;
 
@@ -285,7 +288,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 	) {
 		super();
 
-		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService));
+		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		const buttonBar = this._buttonBar = this._register(instantiationService.createInstance(
 			WorkbenchButtonBar,
@@ -586,6 +589,7 @@ export class ChangesViewPane extends ViewPane {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
+		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1274,39 +1278,36 @@ export class ChangesViewPane extends ViewPane {
 			return undefined;
 		}
 
-		// Get the repository details for the session
-		// - uri: location of the repository
-		// - workingDirectory: location of the worktree
 		const activeSession = this.sessionsService.activeSession.get();
 		const folder = activeSession?.workspace.get()?.folders[0];
-		const workspaceFolderUri = folder?.workingDirectory;
-		if (!folder?.root || !workspaceFolderUri) {
+		if (!folder) {
 			return undefined;
 		}
 
-		let name: string = '';
-		let resourceTreeRootUri = workspaceFolderUri;
-
+		const workspaceFolderUri = folder.workingDirectory;
 		if (workspaceFolderUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			// Cloud session
-			resourceTreeRootUri = URI.from({ scheme: Schemas.copilotPr, path: '/' });
 			const segments = workspaceFolderUri.path.split('/').filter(Boolean);
-			name = `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`;
-		} else {
-			// Local session
-			const branchName = this.changesViewService.activeSessionStateObs.get()?.branchName;
-			name = branchName
-				? `${basename(folder.workingDirectory)} (${branchName})`
-				: basename(folder.workingDirectory);
+			return {
+				root: {
+					type: 'root',
+					uri: workspaceFolderUri,
+					name: `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`
+				},
+				resourceTreeRootUri: URI.from({ scheme: Schemas.copilotPr, path: '/' })
+			};
 		}
 
+		const folderLabel = this.workspaceFolderLabelService.getWorkspaceFolderLabel(
+			new WorkspaceFolder({ uri: folder.workingDirectory, name: folder.name, index: 0 }),
+			true
+		) ?? folder.name;
 		return {
 			root: {
 				type: 'root',
 				uri: workspaceFolderUri,
-				name
+				name: folderLabel
 			},
-			resourceTreeRootUri
+			resourceTreeRootUri: workspaceFolderUri
 		};
 	}
 
@@ -1699,7 +1700,7 @@ export class ChangesViewPane extends ViewPane {
 		// current change list, so the multi-diff editor can navigate to it.
 		let options: IMultiDiffEditorOptions | undefined;
 		if (reveal) {
-			const target = changes.find(c => isEqual(c.modifiedUri, reveal));
+			const target = changes.find(c => isChangesFileResource(c, reveal));
 			if (target) {
 				options = {
 					viewState: {

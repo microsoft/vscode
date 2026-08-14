@@ -538,6 +538,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * second click, once the widget finally takes focus). Tracking the last-shown
 	 * session across all widgets closes that gap. */
 	private _lastShownSessionId: string | undefined;
+	private readonly _widgetSessionListeners = this._register(new DisposableMap<IChatWidget>());
 	/**
 	 * Agents-window active-session override. Beats focus/last-shown heuristics,
 	 * which are unreliable with multiple rendered chat widgets.
@@ -909,6 +910,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._trackWidgetSession(widget);
 		}
 		this._register(this.chatWidgetService.onDidAddWidget(widget => this._trackWidgetSession(widget)));
+		this._register(this.chatWidgetService.onDidRemoveWidget(widget => this._widgetSessionListeners.deleteAndDispose(widget)));
 
 		// Set up the tool dispatch delegate — uses command bridge for widget ops
 		this.voiceToolDispatchService.setDelegate({
@@ -4317,7 +4319,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * chat view pane this way.
 	 */
 	private _trackWidgetSession(widget: IChatWidget): void {
-		this._register(widget.onDidChangeViewModel(e => {
+		if (this._widgetSessionListeners.has(widget)) {
+			return;
+		}
+
+		this._widgetSessionListeners.set(widget, widget.onDidChangeViewModel(e => {
 			this._rebindMaterializedSession(e.previousSessionResource, e.currentSessionResource);
 			this._onSessionShown(e.currentSessionResource);
 		}));

@@ -19,8 +19,8 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsChatAccessibilityHelp } from '../../../chat/browser/sessionsChatAccessibilityHelp.js';
 import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { createListHarness, createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
-import { createListHarness, createSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 
 class TestQuickInputService extends mock<IQuickInputService>() {
 	result: string | undefined;
@@ -47,7 +47,7 @@ suite('Sessions rename', () => {
 
 	suite('list interaction', () => {
 		test('title double-click opens once and requests rename once', () => {
-			const { session } = createSession('First');
+			const { session } = createTestSession('First');
 			const harness = createListHarness(disposables, [session]);
 			const openCalls: URI[] = [];
 			const container = harness.createContainer();
@@ -78,7 +78,7 @@ suite('Sessions rename', () => {
 		});
 
 		test('rename is title-only, unmodified, capability-gated, and rebound safely', () => {
-			const first = createSession('First', 'shared');
+			const first = createTestSession('First', { resourceId: 'shared' });
 			const harness = createListHarness(disposables, [first.session]);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -103,7 +103,7 @@ suite('Sessions rename', () => {
 			assert.strictEqual(unsupported.defaultPrevented, false);
 			assert.strictEqual(harness.commandService.calls.filter(call => call.commandId === RENAME_SESSION_COMMAND_ID).length, 0);
 
-			const replacement = createSession('Replacement', 'shared');
+			const replacement = createTestSession('Replacement', { resourceId: 'shared' });
 			harness.managementService.sessions = [replacement.session];
 			list.refresh();
 			list.layout(300, 400);
@@ -119,7 +119,7 @@ suite('Sessions rename', () => {
 		});
 
 		test('flat session lists do not request rename', () => {
-			const { session } = createSession('Flat');
+			const { session } = createTestSession('Flat');
 			const harness = createListHarness(disposables, [session]);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
@@ -142,7 +142,7 @@ suite('Sessions rename', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const quickInputService = new TestQuickInputService();
 			const managementService = new TestSessionsManagementService([]);
-			const sessionData = createSession(title);
+			const sessionData = createTestSession(title);
 			sessionData.capabilities.set({ supportsMultipleChats: false, supportsRename }, undefined);
 			instantiationService.stub(IQuickInputService, quickInputService);
 			instantiationService.stub(ISessionsManagementService, managementService);

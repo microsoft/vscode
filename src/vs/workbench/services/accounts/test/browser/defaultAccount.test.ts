@@ -52,16 +52,14 @@ suite('DefaultAccountProvider managed settings', () => {
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
-			editorVersion: requestService.requests[0].headers?.['Editor-Version'],
-			runtimeVersion: requestService.requests[0].headers?.['Copilot-Runtime-Version'],
-			cacheControl: requestService.requests[0].headers?.['Cache-Control'],
+			headers: requestService.requests[0].headers,
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
-			editorVersion: 'vscode/1.132.0',
-			runtimeVersion: 'copilot-runtime/0.0.344',
-			cacheControl: 'no-cache',
+			// The request carries authorization only: client-identity headers are dropped by
+			// GitHub's edge, so we do not send any.
+			headers: { 'Authorization': 'Bearer token' },
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
@@ -160,12 +158,10 @@ suite('DefaultAccountProvider managed settings', () => {
 		assert.deepStrictEqual({
 			status: provider.managedSettingsFetchStatus,
 			refreshState: provider.managedSettingsRefreshState,
-			cacheControl: requestService.requests[0].headers?.['Cache-Control'],
 			data: result.data,
 		}, {
 			status: 'no-response',
 			refreshState: 'blocked',
-			cacheControl: 'no-cache',
 			data: { managedSettings: undefined },
 		});
 	});

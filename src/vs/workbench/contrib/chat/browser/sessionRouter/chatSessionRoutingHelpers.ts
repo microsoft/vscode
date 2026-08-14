@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult } from '../../common/sessionRouter.js';
 
 /** Number of top-ranked candidates whose conversation content should be resolved. */
 export const ROUTE_ENRICH_MAX_CANDIDATES = 12;
 const RELATED_SESSION_FOLDER_CONFIDENCE = 0.35;
+
+export interface IChatSessionRoutingFolder {
+	readonly uri: URI;
+	readonly name: string;
+	readonly aliases?: readonly string[];
+}
 
 /**
  * Extracts the task from an explicit request to start a new session.
@@ -28,7 +33,7 @@ export function parseExplicitNewSessionRequest(utterance: string): string | unde
  */
 export function resolveNewSessionWorkspaceFolder(
 	utterance: string,
-	folders: readonly IWorkspaceFolder[],
+	folders: readonly IChatSessionRoutingFolder[],
 	results: readonly ISessionRouteResult[],
 	candidates: readonly IRoutableSession[],
 	defaultFolder: URI | undefined,
@@ -40,11 +45,17 @@ export function resolveNewSessionWorkspaceFolder(
 }
 
 /** Resolves an explicitly mentioned workspace folder name or path basename. */
-export function resolveMentionedWorkspaceFolder(utterance: string, folders: readonly IWorkspaceFolder[]): IWorkspaceFolder | undefined {
+export function resolveMentionedWorkspaceFolder<T extends IChatSessionRoutingFolder>(utterance: string, folders: readonly T[]): T | undefined {
 	const normalizedUtterance = normalizeFolderMentionText(utterance);
-	let best: { folder: IWorkspaceFolder; length: number } | undefined;
+	let best: { folder: T; length: number } | undefined;
 	for (const folder of folders) {
-		const names = new Set([folder.name, folder.uri.path.split('/').filter(Boolean).at(-1)]);
+		const names = new Set([
+			folder.name,
+			folder.uri.path.split('/').filter(Boolean).at(-1),
+			folder.uri.path,
+			folder.uri.fsPath,
+			...folder.aliases ?? [],
+		]);
 		for (const name of names) {
 			if (!name || name.length < 3) {
 				continue;
@@ -74,7 +85,7 @@ function normalizeFolderMentionText(value: string): string {
 }
 
 /** Returns the workspace folder represented by a routed session's working-directory metadata. */
-export function resolveSessionWorkspaceFolder(candidate: IRoutableSession, folders: readonly IWorkspaceFolder[]): IWorkspaceFolder | undefined {
+export function resolveSessionWorkspaceFolder<T extends IChatSessionRoutingFolder>(candidate: IRoutableSession, folders: readonly T[]): T | undefined {
 	return folderForSessionMetadata(candidate, folders);
 }
 
@@ -129,7 +140,7 @@ function sessionStatusPriority(status: string | undefined): number {
 function folderFromRelatedSession(
 	results: readonly ISessionRouteResult[],
 	candidates: readonly IRoutableSession[],
-	folders: readonly IWorkspaceFolder[],
+	folders: readonly IChatSessionRoutingFolder[],
 ): URI | undefined {
 	const candidateById = new Map(candidates.map(candidate => [candidate.sessionId, candidate]));
 	for (const result of results) {
@@ -145,7 +156,7 @@ function folderFromRelatedSession(
 	return undefined;
 }
 
-function folderForSessionMetadata(candidate: IRoutableSession, folders: readonly IWorkspaceFolder[]): IWorkspaceFolder | undefined {
+function folderForSessionMetadata<T extends IChatSessionRoutingFolder>(candidate: IRoutableSession, folders: readonly T[]): T | undefined {
 	for (const path of [candidate.cwd, candidate.repo]) {
 		if (!path) {
 			continue;

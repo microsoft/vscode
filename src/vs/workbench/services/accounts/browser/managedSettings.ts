@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
-import { IProductConfiguration } from '../../../../base/common/product.js';
 import { isString } from '../../../../base/common/types.js';
-import { IHeaders } from '../../../../base/parts/request/common/request.js';
 import { IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
@@ -34,7 +32,18 @@ export type IManagedMcpServerMatcher =
 export interface IManagedSettingsResponse {
 	readonly permissions?: {
 		readonly disableBypassPermissionsMode?: string;
+		/**
+		 * Legacy location for the default chat model. Retained for deployments authored against
+		 * the original schema; the top-level {@link IManagedSettingsResponse.model} wins when both
+		 * are present.
+		 */
+		readonly model?: string;
 	};
+	/**
+	 * Default chat model (`auto`, a model family name, or a full model id). Canonical top-level
+	 * location in the current schema; supersedes the legacy nested `permissions.model`.
+	 */
+	readonly model?: string;
 	readonly enabledPlugins?: Record<string, boolean>;
 	readonly extraKnownMarketplaces?: Record<string, {
 		readonly source:
@@ -60,20 +69,6 @@ export interface IManagedSettingsResponse {
 	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
-}
-
-export function getManagedSettingsClientHeaders(product: Pick<IProductConfiguration, 'version' | 'copilotVersions'>, forceRefresh = false): IHeaders {
-	const headers: IHeaders = {
-		'Editor-Version': `vscode/${product.version}`,
-	};
-	if (forceRefresh) {
-		headers['Cache-Control'] = 'no-cache';
-	}
-	const runtimeVersion = product.copilotVersions?.runtime;
-	if (runtimeVersion) {
-		headers['Copilot-Runtime-Version'] = `copilot-runtime/${runtimeVersion}`;
-	}
-	return headers;
 }
 
 interface IManagedSettingsCompatibilityErrorResponse {

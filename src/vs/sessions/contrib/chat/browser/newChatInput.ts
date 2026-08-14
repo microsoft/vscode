@@ -88,6 +88,7 @@ import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { registerChatInputOnboardingHosts } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHub.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
@@ -498,8 +499,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// --- Rendering ---
 
 	render(parent: HTMLElement, root: HTMLElement): void {
-		// Input slot
-		const chatInputContainer = dom.append(parent, dom.$('.new-chat-input-container'));
+		// Input slot, and the stack the notices, prompt options and input area sit in.
+		const chatInputContainer = dom.append(parent, dom.$(`.new-chat-input-container.${chatInputStackClass}`));
 
 		// Overflow widget DOM node at the top level so the suggest widget
 		// is not clipped by any overflow:hidden ancestor.
@@ -526,7 +527,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(composerFocusTracker.onDidBlur(() => composerFocusKey.set(false)));
 
 		// Notification widget above the input area
-		const notificationContainer = dom.append(chatInputContainer, dom.$('.chat-input-notification-container'));
+		const notificationContainer = dom.append(chatInputContainer, dom.$(`.chat-input-notification-container.${chatInputStackSlotClass}`));
 		// Declared up front: the visibility callback can fire while the widget is
 		// still being constructed, before the binding below is assigned.
 		const notificationWidget: ChatInputNotificationWidget = this._register(this.instantiationService.createInstance(
@@ -540,12 +541,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				focusInput: () => this.focus(),
 			},
 		));
-		notificationContainer.appendChild(notificationWidget.domNode);
+		notificationWidget.attachTo(notificationContainer);
 
 		// First-run voice and dictation introductions, docked directly above the
 		// input area so they read as one stack with it.
-		const voiceOnboardingContainer = dom.append(chatInputContainer, dom.$('.voice-mode-onboarding-container'));
-		const dictationOnboardingContainer = dom.append(chatInputContainer, dom.$('.dictation-onboarding-container'));
+		const voiceOnboardingContainer = dom.append(chatInputContainer, dom.$(`.voice-mode-onboarding-container.${chatInputStackSlotClass}`));
+		const dictationOnboardingContainer = dom.append(chatInputContainer, dom.$(`.dictation-onboarding-container.${chatInputStackSlotClass}`));
 		this._register(registerChatInputOnboardingHosts(
 			this.noticeHost,
 			{ voice: voiceOnboardingContainer, dictation: dictationOnboardingContainer },
@@ -557,8 +558,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		// Getting-started tip: the canonical notice slot, directly above and
 		// attached to the input, matching the workbench chat input.
-		this._gettingStartedTipContainer = dom.append(chatInputContainer, dom.$('.chat-getting-started-tip-container'));
-		this._gettingStartedTipContainer.style.display = 'none';
+		this._gettingStartedTipContainer = dom.append(chatInputContainer, dom.$(`.chat-getting-started-tip-container.${chatInputStackSlotClass}`));
 
 		this._promptOptionsWidget.value = this.instantiationService.createInstance(NewSessionPromptOptionsWidget, chatInputContainer, {
 			selectOption: async (option, expectedInput, animate) => {
@@ -641,6 +641,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		// Restore draft input state from storage
 		this._restoreState();
+
+		// The composer is a stack, and was just added to its host's stack. Hosts
+		// often dock a notice - the sub-session tip, a feedback banner - before
+		// this point, and nothing reports for a child being added.
+		//
+		// Standalone, not docked: the composer draws its own frame, so a notice
+		// above it joins it but the run stops before the controls row below.
+		setChatInputStackSlot(chatInputContainer, ChatInputStackSlot.Standalone);
+		refreshChatInputStack(parent);
 
 		// Layout editor after the input slot fade-in animation completes
 		this._register(dom.addDisposableListener(chatInputContainer, 'animationend', () => {

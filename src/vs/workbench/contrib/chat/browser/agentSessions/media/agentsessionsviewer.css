@@ -80,8 +80,9 @@
 		height: 16px;
 		align-items: center;
 		color: var(--vscode-descriptionForeground);
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 		pointer-events: none;
+		margin-right: 3px;
 
 		&.visible {
 			display: flex;
