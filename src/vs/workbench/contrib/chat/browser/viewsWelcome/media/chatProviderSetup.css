@@ -83,10 +83,18 @@
 	font-size: 14px;
 }
 
+/*
+ * One container around the group, not three around each row. The list is a
+ * single object, so it gets a single edge; the rows inside are separated by
+ * hairlines rather than each being re-boxed.
+ */
 .chat-provider-setup-list {
 	display: flex;
 	flex-direction: column;
-	gap: 1px;
+	overflow: hidden;
+	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 11%, transparent));
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
 }
 
 /*
@@ -100,9 +108,10 @@
 	gap: 10px;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 8px 10px;
+	padding: 9px 11px;
 	border: none;
-	border-radius: 6px;
+	border-top: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 9%, transparent);
+	border-radius: 0;
 	background: none;
 	color: inherit;
 	font: inherit;
@@ -111,8 +120,12 @@
 	transition: background 100ms ease;
 }
 
+.chat-provider-setup-row:first-child {
+	border-top: none;
+}
+
 .chat-provider-setup-row:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
 }
 
 .chat-provider-setup-row:focus-visible {
@@ -208,6 +221,12 @@
 	.chat-provider-setup-row {
 		flex: 1 1 0;
 		min-width: 0;
+		border-top: none;
+		border-left: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 9%, transparent);
+	}
+
+	.chat-provider-setup-row:first-child {
+		border-left: none;
 	}
 
 	.chat-provider-setup-description {

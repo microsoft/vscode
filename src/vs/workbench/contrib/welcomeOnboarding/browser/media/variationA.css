@@ -320,11 +320,19 @@
  * instead of re-reading a new shape on every line. Nothing is scaled up;
  * emphasis comes from the selected state, which is where the meaning is.
  */
+/*
+ * One container around the group, not three around each row. The list is a
+ * single object, so it gets a single edge; the rows inside are separated by
+ * hairlines rather than each being re-boxed.
+ */
 .onboarding-a-provider-list {
 	display: flex;
 	flex-direction: column;
-	gap: 2px;
 	width: 100%;
+	overflow: hidden;
+	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 11%, transparent));
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
 }
 
 .onboarding-a-provider-row {
@@ -334,13 +342,16 @@
 	gap: 12px;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 11px 12px;
-	/* Only high-contrast themes need a drawn edge; elsewhere the row is a line. */
-	border: 1px solid var(--vscode-contrastBorder, transparent);
-	border-radius: 8px;
+	padding: 12px 14px;
+	border: none;
+	border-top: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 9%, transparent);
 	background: none;
 	cursor: pointer;
 	transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.onboarding-a-provider-row:first-child {
+	border-top: none;
 }
 
 .onboarding-a-provider-row:hover {
