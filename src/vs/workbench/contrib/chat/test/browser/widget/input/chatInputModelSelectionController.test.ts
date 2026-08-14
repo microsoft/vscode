@@ -101,12 +101,12 @@ suite('ChatInputModelSelectionController', () => {
 		const first = model('test/first');
 		const second = model('test/second');
 
-		controller.applyAutomaticSelection(first, () => { });
+		controller.applySelection(first, () => { }, false);
 		const automatic = {
 			current: controller.currentModel.get()?.identifier,
 			explicit: controller.selectionReason,
 		};
-		controller.applyExplicitSelection(second, () => { }, false);
+		controller.applySelection(second, () => { }, true, false);
 
 		assert.deepStrictEqual({
 			automatic,
@@ -124,9 +124,9 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [], sessionType: 'test' }, modelChanges, [])));
 		const first = model('test/first');
 		const second = model('test/second');
-		controller.applyAutomaticSelection(first, () => { });
+		controller.applySelection(first, () => { }, false);
 
-		assert.throws(() => controller.applyExplicitSelection(second, () => { throw new Error('rejected'); }, true), /rejected/);
+		assert.throws(() => controller.applySelection(second, () => { throw new Error('rejected'); }, true, true), /rejected/);
 		assert.deepStrictEqual({
 			current: controller.currentModel.get()?.identifier,
 			reason: controller.selectionReason,
@@ -261,7 +261,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
 		controller.initialize(remembered.identifier);
-		controller.applyExplicitSelection(explicit, () => applied.push(explicit.identifier), false);
+		controller.applySelection(explicit, () => applied.push(explicit.identifier), true, false);
 		state.models = [fallback, explicit, remembered];
 		modelChanges.fire('loaded');
 
@@ -345,7 +345,7 @@ suite('ChatInputModelSelectionController', () => {
 			() => state.models.find(model => model.identifier === requested.identifier),
 			'chat:one',
 		);
-		controller.applyExplicitSelection(explicit, () => applied.push(explicit.identifier), false);
+		controller.applySelection(explicit, () => applied.push(explicit.identifier), true, false);
 		state.models = [explicit, requested];
 		modelChanges.fire('loaded');
 
@@ -450,7 +450,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.applyExplicitSelection(selected, () => { }, false);
+		controller.applySelection(selected, () => { }, true, false);
 		state.models = [other];
 		modelChanges.fire('agent-host-restarting');
 		const duringRestart = controller.currentModel.get()?.identifier;
@@ -513,7 +513,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.applyExplicitSelection(selected, () => { }, false);
+		controller.applySelection(selected, () => { }, true, false);
 		state.models = [substitute];
 		modelChanges.fire('model-gone');
 		const duringOutage = controller.currentModel.get()?.identifier;
@@ -541,10 +541,10 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.applyExplicitSelection(selected, () => { }, false);
+		controller.applySelection(selected, () => { }, true, false);
 		state.models = [other, chosen];
 		modelChanges.fire('model-removed');
-		controller.applyExplicitSelection(chosen, () => { }, false);
+		controller.applySelection(chosen, () => { }, true, false);
 		state.models = [selected, other, chosen];
 		modelChanges.fire('model-back');
 
@@ -573,7 +573,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.applyExplicitSelection(picked, () => { }, false);
+		controller.applySelection(picked, () => { }, true, false);
 		state.models = [configured];
 		modelChanges.fire('picked-gone');
 		const duringOutage = controller.currentModel.get()?.identifier;
@@ -720,7 +720,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
 		controller.initialize(undefined);
-		controller.applyExplicitSelection(explicit, () => applied.push(explicit.identifier), false);
+		controller.applySelection(explicit, () => applied.push(explicit.identifier), true, false);
 		models = [byok, explicit, configured];
 		controller.reconcileModelListChange(models);
 
@@ -943,7 +943,7 @@ suite('ChatInputModelSelectionController', () => {
 			createRuntime({ models: [gpt, opus], sessionType: 'test', configuredModel: gpt.metadata.id }, modelChanges, applied)));
 
 		controller.beginSessionSwitch(true, false, false);
-		controller.applyExplicitSelection(opus, () => applied.push(opus.identifier), false);
+		controller.applySelection(opus, () => applied.push(opus.identifier), true, false);
 		const configuredApplied = controller.applyConfiguredDefault();
 
 		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier, userPicked: controller.selectionReason === ModelSelectionReason.UserSelection }, {
@@ -1396,7 +1396,7 @@ suite('ChatInputModelSelectionController', () => {
 			},
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-		controller.applyAutomaticSelection(general, () => { });
+		controller.applySelection(general, () => { }, false);
 		state.sessionType = 'agent-host-test';
 
 		controller.revalidateForSessionType(() => { });
@@ -1433,7 +1433,7 @@ suite('ChatInputModelSelectionController', () => {
 			applyModel: selected => applied.push(selected.identifier),
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-		controller.applyAutomaticSelection(general, () => { });
+		controller.applySelection(general, () => { }, false);
 
 		state.sessionType = sessionType;
 		controller.revalidateForSessionType(() => { });
@@ -1560,7 +1560,7 @@ suite('ChatInputModelSelectionController', () => {
 
 		controller.initialize(remembered.identifier);
 		const pendingAfterInit = controller.isAwaitingRememberedModel();
-		controller.applyExplicitSelection(explicit, () => applied.push(explicit.identifier), false);
+		controller.applySelection(explicit, () => applied.push(explicit.identifier), true, false);
 		const pendingAfterExplicit = controller.isAwaitingRememberedModel();
 		models = [fallback, explicit, remembered];
 		modelChanges.fire('loaded');
@@ -1586,14 +1586,14 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
 
 		// The user explicitly picks `second` in the conversation the input is bound to.
-		controller.applyExplicitSelection(second, () => { }, false);
+		controller.applySelection(second, () => { }, true, false);
 		const afterPick = controller.currentModel.get()?.identifier;
 
 		// The input rebinds to a different conversation, which lands on `first`. That
 		// conversation carries no model of its own, so nothing re-remembers here.
 		state.conversationKey = 'chat:two';
 		controller.beginSessionSwitch(false, true, true);
-		controller.applyAutomaticSelection(first, () => { });
+		controller.applySelection(first, () => { }, false);
 		controller.endSessionSwitch();
 		const afterSwitch = controller.currentModel.get()?.identifier;
 
@@ -1621,7 +1621,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
 
 		// The user picks `second` in an untitled conversation.
-		controller.applyExplicitSelection(second, () => { }, false);
+		controller.applySelection(second, () => { }, true, false);
 
 		// The first send materializes it into a real session, which carries the untitled
 		// conversation's intended model over to the real one (see `_materializeUntitledSession`).

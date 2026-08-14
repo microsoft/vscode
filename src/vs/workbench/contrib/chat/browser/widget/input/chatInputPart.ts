@@ -1750,11 +1750,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			this._syncInputStateToModel();
 		};
-		if (isUserAction) {
-			this._modelSelectionController.applyExplicitSelection(model, apply, false);
-		} else {
-			this._modelSelectionController.applyAutomaticSelection(model, apply);
-		}
+		this._modelSelectionController.applySelection(model, apply, isUserAction);
 	}
 
 	private _applyProgrammaticLanguageModel(model: ILanguageModelChatMetadataAndIdentifier): void {

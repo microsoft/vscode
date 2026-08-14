@@ -100,11 +100,22 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._clearIntent();
 	}
 
-	applyExplicitSelection(
+	/**
+	 * Shows `model` and runs `apply`. A user action claims authority over the conversation and is
+	 * rolled back if `apply` throws; anything else is a mechanical follow-on that leaves the
+	 * conversation's intent — and the authority already in force — untouched.
+	 */
+	applySelection(
 		model: ILanguageModelChatMetadataAndIdentifier,
 		apply: () => void,
-		rollbackOnError: boolean,
+		isUserAction: boolean,
+		rollbackOnError = false,
 	): void {
+		if (!isUserAction) {
+			this._display(model);
+			apply();
+			return;
+		}
 		this._clearIntent();
 		const previousModel = this._currentModel.get();
 		const previousReason = this._selectionReason;
@@ -125,11 +136,6 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._diagnostics.report('explicit-selection-failed', { model: model.identifier, error: String(error) }, 'error');
 			throw error;
 		}
-	}
-
-	applyAutomaticSelection(model: ILanguageModelChatMetadataAndIdentifier, apply: () => void): void {
-		this._currentModel.set(model, undefined);
-		apply();
 	}
 
 	applyProgrammaticSelection(model: ILanguageModelChatMetadataAndIdentifier): void {
@@ -535,8 +541,13 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
-	private _applyModel(model: ILanguageModelChatMetadataAndIdentifier): void {
+	/** Shows `model` without touching the authority already in force. */
+	private _display(model: ILanguageModelChatMetadataAndIdentifier): void {
 		this._currentModel.set(model, undefined);
+	}
+
+	private _applyModel(model: ILanguageModelChatMetadataAndIdentifier): void {
+		this._display(model);
 		this._runtime.applyModel(model);
 	}
 
