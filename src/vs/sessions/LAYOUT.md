@@ -42,7 +42,7 @@ Editors open as modal overlays via `ModalEditorPart`. The main editor part exist
 | Auxiliary Bar | Right side | Visible | Changes view, file tree |
 | Panel | Below Sessions Part + Aux Bar | Hidden | Terminal, debug output |
 
-The Panel and Auxiliary Bar tab strips inherit the shared Modern UI pane-tab presentation from `workbench/contrib/styleOverrides/browser/media/tabs.css` through the workbench root's `modern-ui-tabs` class. Sessions-owned styles define only the part surface and inset; action geometry, active/hover/focus states, and badge placement remain owned by the shared pane-tab stylesheet so the Editor and Agents windows stay aligned.
+The Panel and Auxiliary Bar tab strips inherit the shared Modern UI pane-tab presentation from `workbench/contrib/styleOverrides/browser/media/tabs.css` through the workbench root's `modern-ui-tabs` class. The chat tab strip consumes the reusable editor-tab hooks from the same stylesheet. Sessions-owned styles define only the part surface, inset, and chat-specific adornments; tab geometry, typography, and active/hover/focus states remain owned by the shared editor-tab stylesheet so the Editor and Agents windows stay aligned.
 
 Standard dialogs retain their full-window modal blocker. The Agents sign-in blocker occupies a lower layer; while it is visible, notification toasts and Quick Input surfaces are placed between it and normal dialogs so authentication progress, its actions, and PAT input remain pointer-interactive without appearing above a later modal. The sign-in dialog also allows Quick Input focus and keybindings through its focus trap, and does not consume the Quick Input's Escape dismissal.
 
