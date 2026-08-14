@@ -6797,7 +6797,7 @@ suite('VoiceSessionController', () => {
 			args: { text: 'run the tests' },
 		});
 		controller.announceSessionInOmni(resource);
-		assert.deepStrictEqual(voiceClientService.requests, []);
+		assert.strictEqual(voiceClientService.requests.length, 0);
 
 		voiceClientService.fireAudioResponse({
 			audio: 'I sent that request.',
