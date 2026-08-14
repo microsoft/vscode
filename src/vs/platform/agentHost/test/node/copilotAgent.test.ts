@@ -36,7 +36,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
@@ -3602,7 +3602,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('configSchema shows both context options by default when long_context tier has no surcharge', async () => {
+	test('configSchema shows both context options with the longer window as default when long_context tier has no surcharge', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'free-long-context',
@@ -3624,38 +3624,8 @@ suite('CopilotAgent', () => {
 			const contextSize = models[0].configSchema?.properties?.contextSize;
 			assert.strictEqual(contextSize?.type, 'number');
 			assert.deepStrictEqual(contextSize?.enum, [200_000, 1_000_000]);
-			assert.strictEqual(contextSize?.default, 200_000);
-			assert.deepStrictEqual(contextSize?.enumLabels, ['200K', '1M']);
-		} finally {
-			await disposeAgent(agent);
-		}
-	});
-
-	test('configSchema shows only long context option when long_context tier has no surcharge and preferLongContext is enabled', async () => {
-		const { agent, configurationService } = createTestAgentContext(disposables, {
-			copilotClient: new TestCopilotClient([], [{
-				id: 'free-long-context',
-				name: 'Free Long Context',
-				capabilities: { limits: { max_context_window_tokens: 200_000 } },
-				billing: {
-					multiplier: 1,
-					tokenPrices: {
-						contextMax: 200_000,
-						longContext: { contextMax: 1_000_000 },
-					},
-				},
-			}]),
-		});
-		try {
-			configurationService.updateRootConfig({ [AgentHostPreferLongContextEnabledConfigKey]: true });
-			await agent.authenticate('https://api.github.com', 'token');
-			const models = await waitForState(agent.models, models => models.length > 0);
-
-			const contextSize = models[0].configSchema?.properties?.contextSize;
-			assert.strictEqual(contextSize?.type, 'number');
-			assert.deepStrictEqual(contextSize?.enum, [1_000_000]);
 			assert.strictEqual(contextSize?.default, 1_000_000);
-			assert.deepStrictEqual(contextSize?.enumLabels, ['1M']);
+			assert.deepStrictEqual(contextSize?.enumLabels, ['200K', '1M']);
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -3675,7 +3645,7 @@ suite('CopilotAgent', () => {
 			},
 		};
 
-		async function captureSessionConfig(model: ModelSelection | undefined, models: readonly ITestCopilotModelInfo[], preferLongContext?: boolean): Promise<CopilotCreateSessionOptions | undefined> {
+		async function captureSessionConfig(model: ModelSelection | undefined, models: readonly ITestCopilotModelInfo[]): Promise<CopilotCreateSessionOptions | undefined> {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], models);
 			let capturedConfig: CopilotCreateSessionOptions | undefined;
@@ -3683,11 +3653,8 @@ suite('CopilotAgent', () => {
 				capturedConfig = config;
 				return new MockCopilotSession() as unknown as CopilotSession;
 			};
-			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
 			try {
-				if (preferLongContext) {
-					configurationService.updateRootConfig({ [AgentHostPreferLongContextEnabledConfigKey]: true });
-				}
 				await agent.authenticate('https://api.github.com', 'token');
 				await waitForState(agent.models, m => m.length > 0);
 				const result = await provisionSession(agent, {
@@ -3729,7 +3696,7 @@ suite('CopilotAgent', () => {
 			assert.strictEqual(config.contextTier, 'long_context');
 		});
 
-		test('leaves the SDK on its default tier when model has no surcharge and no explicit selection', async () => {
+		test('defaults to long_context when model has no surcharge and no explicit selection (free long context)', async () => {
 			const freeLongContextModel: ITestCopilotModelInfo = {
 				id: 'free-long-ctx',
 				name: 'Free Long Ctx',
@@ -3743,24 +3710,6 @@ suite('CopilotAgent', () => {
 				},
 			};
 			const config = await captureSessionConfig({ id: 'free-long-ctx' }, [freeLongContextModel]);
-			assert.ok(config);
-			assert.strictEqual(config.contextTier, undefined);
-		});
-
-		test('uses long_context when model has no surcharge, no explicit selection and preferLongContext is enabled', async () => {
-			const freeLongContextModel: ITestCopilotModelInfo = {
-				id: 'free-long-ctx',
-				name: 'Free Long Ctx',
-				capabilities: { limits: { max_context_window_tokens: 200_000 } },
-				billing: {
-					multiplier: 1,
-					tokenPrices: {
-						contextMax: 200_000,
-						longContext: { contextMax: 1_000_000 },
-					},
-				},
-			};
-			const config = await captureSessionConfig({ id: 'free-long-ctx' }, [freeLongContextModel], true);
 			assert.ok(config);
 			assert.strictEqual(config.contextTier, 'long_context');
 		});

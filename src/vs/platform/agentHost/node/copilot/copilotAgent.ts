@@ -39,7 +39,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
@@ -603,7 +603,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _capiModels: readonly IAgentModelInfo[] = [];
 	private _byokModels: readonly IAgentModelInfo[] = [];
 
-	/** Model IDs whose long-context tier costs the same as the default tier. */
+	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
 	private readonly _freeLongContextModels = new Set<string>();
 
 	/**
@@ -888,10 +888,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _getEnterpriseHost(): string | undefined {
 		return this._gitHubEndpointService.getEnterpriseHost();
-	}
-
-	private _isPreferLongContextEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostPreferLongContextEnabledConfigKey) === true;
 	}
 
 	private _isSystemProxyEnabled(): boolean {
@@ -1901,26 +1897,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		// When both tiers cost the same and the user prefers long context, show only the long-context option as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
-		if (this._isPreferLongContextEnabled() && !hasLongContextSurcharge(billing)) {
-			return {
-				type: 'number',
-				title: localize('copilot.modelContextSize.title', "Context Size"),
-				description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-				default: longContextMax,
-				enum: [longContextMax],
-				enumLabels: [formatTokenCount(longContextMax)],
-				enumDescriptions: [
-					localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
-				],
-			};
-		}
-
+		// Offer both sizes; default to the full window when long context is free, else the smaller tier.
 		return {
 			type: 'number',
 			title: localize('copilot.modelContextSize.title', "Context Size"),
 			description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-			default: defaultMax,
+			default: hasLongContextSurcharge(billing) ? defaultMax : longContextMax,
 			enum: [defaultMax, longContextMax],
 			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
 			enumDescriptions: [
@@ -1947,9 +1929,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Whether the model has a long-context window available at no additional cost.
-	 * When true the model should always run in `long_context` tier without showing
-	 * a context-size picker.
+	 * Whether the model has a larger long-context window at no additional cost. When true, a session
+	 * with no explicit selection defaults to `long_context` while the picker still offers both sizes.
 	 */
 	private _isFreeLongContext(modelId: string | undefined): boolean {
 		return !!modelId && this._freeLongContextModels.has(modelId);
@@ -2189,16 +2170,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const client = await this._ensureClient();
 		const { models } = await client.rpc.models.list({ gitHubToken });
 		this._freeLongContextModels.clear();
-		const preferLongContext = this._isPreferLongContextEnabled();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
 			const configSchema = this._createModelConfigSchema(m, billing);
-			// A model has free long context (larger window, no surcharge), but only treat it as free when the user prefers long context.
+			// Free long context: a larger long-context window at no surcharge. Defaults to the full window; picker keeps both.
 			const tokenPrices = billing?.tokenPrices;
 			const hasLargerLongContext = !!tokenPrices?.contextMax
 				&& !!tokenPrices.longContext?.contextMax
 				&& tokenPrices.longContext.contextMax > tokenPrices.contextMax;
-			if (preferLongContext && hasLargerLongContext && !hasLongContextSurcharge(billing)) {
+			if (hasLargerLongContext && !hasLongContextSurcharge(billing)) {
 				this._freeLongContextModels.add(m.id);
 			}
 			return {
