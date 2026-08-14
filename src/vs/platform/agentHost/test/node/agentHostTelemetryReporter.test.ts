@@ -175,19 +175,19 @@ suite('AgentHostTelemetryReporter', () => {
 		const reporter = new AgentHostTelemetryReporter(telemetryService);
 
 		await reporter.toolCallDetails({
-			provider: 'copilotcli', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.Unknown, model: 'gpt-x', responseType: 'success',
+			provider: 'copilot', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.Unknown, model: 'gpt-x', responseType: 'success',
 			toolCounts: {}, availableTools: [],
 			turnIndex: 2, turnDuration: 1200, messageCharLen: 11,
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
 		}); // dropped: no tools were available
 		await reporter.toolCallDetails({
-			provider: 'copilotcli', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.EditorWindow, model: 'gpt-x', responseType: 'success',
+			provider: 'copilot', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.EditorWindow, model: 'gpt-x', responseType: 'success',
 			toolCounts: {}, availableTools: ['grep', 'edit'],
 			turnIndex: 2, turnDuration: 1200, messageCharLen: 11,
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
 		}); // emitted: tools available, even though no tool calls were made
 		await reporter.toolCallDetails({
-			provider: 'copilotcli', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.AgentsWindow, model: 'gpt-x', responseType: 'cancelled',
+			provider: 'copilot', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.AgentsWindow, model: 'gpt-x', responseType: 'cancelled',
 			toolCounts: { grep: 2, edit: 1 }, availableTools: ['grep', 'edit'],
 			turnIndex: 3, turnDuration: 2400, messageCharLen: undefined,
 			numRequests: 2, totalToolCalls: 3, parallelToolCallRounds: 1, parallelToolCallsTotal: 2,
@@ -196,7 +196,7 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.standardEvents, [{
 			eventName: 'toolCallDetails',
 			data: {
-				provider: 'copilotcli',
+				provider: 'copilot',
 				copilotSku: 'copilot_for_business_seat',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
@@ -217,7 +217,7 @@ suite('AgentHostTelemetryReporter', () => {
 		}, {
 			eventName: 'toolCallDetails',
 			data: {
-				provider: 'copilotcli',
+				provider: 'copilot',
 				copilotSku: 'copilot_for_business_seat',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,

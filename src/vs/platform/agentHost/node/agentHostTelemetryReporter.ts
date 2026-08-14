@@ -741,7 +741,7 @@ export class AgentHostTelemetryReporter {
 	constructor(private readonly _telemetryService: ITelemetryService) { }
 
 	private _getCopilotSku(provider: string): string | undefined {
-		return provider === 'copilotcli' && isAgentHostTelemetryService(this._telemetryService)
+		return (provider === 'copilotcli' || provider === 'copilot') && isAgentHostTelemetryService(this._telemetryService)
 			? this._telemetryService.copilotSku
 			: undefined;
 	}
