@@ -514,9 +514,6 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 	}
 
 	private _getUnsupportedOptions(options: IChatSendRequestOptions): IChatSessionRoutingDispatchResult | undefined {
-		if (options.userSelectedModelConfiguration && Object.keys(options.userSelectedModelConfiguration).length) {
-			return this._unsupported(localize('omniSessionRouting.modelConfigurationUnsupported', "The selected model configuration cannot be sent through Sessions."));
-		}
 		// The chat widget snapshots every default-enabled tool as `true`. Sessions
 		// providers own that default tool set, so only an actual disabled-tool
 		// override is unsupported and must be rejected rather than dropped.

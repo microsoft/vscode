@@ -449,7 +449,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		assert.strictEqual(managementService.existingSend, undefined);
 	});
 
-	test('rejects unsupported model configuration instead of dropping it', async () => {
+	test('sends with the selected model when its configuration cannot be forwarded', async () => {
 		const session = createSession('provider:session');
 		managementService.sessions = [session];
 
@@ -458,12 +458,21 @@ suite('OmniSessionRoutingAdapter', () => {
 			userSelectedModelConfiguration: { reasoningEffort: 'high', contextSize: 1_000_000 },
 		}, CancellationToken.None);
 
-		assert.deepStrictEqual(result, {
-			status: 'rejected',
-			reasonCode: 'unsupportedOptions',
-			reason: 'The selected model configuration cannot be sent through Sessions.',
+		assert.deepStrictEqual({
+			result,
+			send: managementService.existingSend,
+		}, {
+			result: {
+				status: 'sent',
+				resource: session.mainChat.get().resource,
+				activityBaseline: session.lastTurnEnd.get()!.getTime(),
+			},
+			send: {
+				session,
+				chat: session.mainChat.get(),
+				options: { query: 'Continue', attachedContext: undefined, background: true },
+			},
 		});
-		assert.strictEqual(managementService.existingSend, undefined);
 	});
 
 	test('rejects cancelled sends before dispatch', async () => {
