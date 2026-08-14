@@ -20,6 +20,7 @@ import type { ChangesSummary } from '../../common/state/protocol/state.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { type IComputeSessionFileDiffsOptions } from '../../common/agentHostGitService.js';
 import { NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -1663,6 +1664,44 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				await timeout(1);
 			}
 		}
+
+		test('branch changes are anchored on the session baseline, not the whole branch divergence', async () => {
+			const options: { baseBranch?: string; baseCommit?: string }[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async (_wd, opts: IComputeSessionFileDiffsOptions) => {
+				options.push({ baseBranch: opts.baseBranch, baseCommit: opts.baseCommit });
+				// A long-lived shared branch: its divergence from the base branch
+				// dwarfs anything this session did.
+				return opts.baseCommit
+					? [gitDiff('/wd/touched.ts', 4, 1)]
+					: [gitDiff('/wd/touched.ts', 4, 1), gitDiff('/wd/history.ts', 9000, 500)];
+			};
+			const checkpoint = { ...NULL_CHECKPOINT_SERVICE, getBaselineCheckpoint: async () => 'baseline-sha' } as IAgentHostCheckpointService;
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
+
+			svc.refreshBranchChangeset(sessionStr);
+			const changes = await waitForSummaryChanges(stateManager);
+
+			assert.deepStrictEqual({
+				changes,
+				anchoredOnBaseline: options.some(o => o.baseCommit === 'baseline-sha'),
+			}, {
+				changes: { additions: 4, deletions: 1, files: 1 },
+				anchoredOnBaseline: true,
+			});
+		});
+
+		test('branch changes fall back to the base branch when the session has no baseline checkpoint', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async () => [gitDiff('/wd/a.ts', 2, 1)];
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+
+			svc.refreshBranchChangeset(sessionStr);
+
+			assert.deepStrictEqual(await waitForSummaryChanges(stateManager), { additions: 2, deletions: 1, files: 1 });
+		});
 
 		test('sums every repository branch diff, not just the primary', async () => {
 			const git = createNoopGitService();

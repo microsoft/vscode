@@ -58,6 +58,12 @@ export interface IComputeSessionFileDiffsOptions {
 	 * which surfaces uncommitted work but no committed-on-branch work.
 	 */
 	readonly baseBranch?: string;
+	/**
+	 * Commit-ish to diff against, bypassing base-branch resolution. Set when
+	 * the caller already knows the anchor, such as a session's baseline
+	 * checkpoint.
+	 */
+	readonly baseCommit?: string;
 }
 
 /** Cheap repository facts used to decide whether a branch diff is safe to compute. */

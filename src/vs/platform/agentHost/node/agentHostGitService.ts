@@ -456,8 +456,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		// Resolve the merge-base commit the Branch Changes diff is anchored on.
-		const mergeBaseCommit = await this._resolveBranchMergeBaseCommit(repositoryRoot, options.baseBranch);
+		// The commit the Branch Changes diff is anchored on: a caller-supplied
+		// anchor when given, otherwise the merge-base with the base branch.
+		const anchorCommit = options.baseCommit ?? await this._resolveBranchMergeBaseCommit(repositoryRoot, options.baseBranch);
 
 		// Detect whether the working tree has any untracked files. If so we
 		// have to use the temp-index trick so the untracked content is
@@ -471,17 +472,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 		let rawDiffOutput: string | undefined;
 		if (!hasUntracked) {
-			rawDiffOutput = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--']);
+			rawDiffOutput = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', anchorCommit, '--']);
 		} else {
 			const changedPaths = parseChangedPaths(statusOut);
-			rawDiffOutput = await this._runWithTempIndex(repositoryRoot, mergeBaseCommit, changedPaths);
+			rawDiffOutput = await this._runWithTempIndex(repositoryRoot, anchorCommit, changedPaths);
 		}
 
 		if (rawDiffOutput === undefined) {
 			return undefined;
 		}
 
-		return parseGitDiffRawNumstat(rawDiffOutput, repositoryRoot, options.sessionUri, mergeBaseCommit);
+		return parseGitDiffRawNumstat(rawDiffOutput, repositoryRoot, options.sessionUri, anchorCommit);
 	}
 
 	async resolveBranchBaselineCommit(workingDirectory: URI, baseBranch?: string): Promise<string | undefined> {

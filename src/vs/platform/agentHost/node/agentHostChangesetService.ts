@@ -34,7 +34,7 @@ import {
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, IComputeSessionFileDiffsOptions, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
@@ -980,8 +980,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					// instead of re-diffing the primary repo. Only supplied on the
 					// success path, where the session has its own working directories,
 					// so the branch changeset's primary repo == this primary repo and
-					// both measure from the session base branch — identical result,
-					// one fewer git diff per recompute.
+					// both resolve the same anchor — identical result, one fewer git
+					// diff per recompute.
 					if (isPrimary && primaryBranchDiffs) {
 						return primaryBranchDiffs;
 					}
@@ -1031,16 +1031,34 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
+	 * Options anchoring a repository's Branch Changes diff: the session's
+	 * baseline checkpoint when it has one, so a session on a long-lived shared
+	 * branch reports its own footprint rather than the branch's whole
+	 * divergence, and the base branch otherwise.
+	 */
+	private async _branchDiffAnchor(session: ProtocolURI, directory: URI, baseBranch: string | undefined): Promise<IComputeSessionFileDiffsOptions> {
+		try {
+			const baseCommit = await this._checkpointService.getBaselineCheckpoint(URI.parse(session), directory);
+			if (baseCommit) {
+				return { sessionUri: session, baseCommit };
+			}
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to resolve the baseline checkpoint for ${session} in ${directory.toString()}; anchoring on base branch ${baseBranch ?? 'HEAD'}`, err);
+		}
+		return { sessionUri: session, baseBranch };
+	}
+
+	/**
 	 * Computes one git repository's branch diff for the multi-folder summary,
 	 * logging and returning `undefined` on any failure so a single repo never
 	 * fails the whole aggregate and an unavailable repo is counted as such (not
-	 * as a spurious zero). Uses the same `computeSessionFileDiffs` primitive as
-	 * the primary branch changeset, threading the resolved `baseBranch` so
-	 * committed-on-branch work is counted (not just uncommitted).
+	 * as a spurious zero). Uses the same `computeSessionFileDiffs` primitive and
+	 * anchor as the primary branch changeset, so committed-on-branch work is
+	 * counted (not just uncommitted).
 	 */
 	private async _computeRepoBranchDiffs(session: ProtocolURI, repoRoot: URI, baseBranch: string | undefined): Promise<readonly ISessionFileDiff[] | undefined> {
 		try {
-			const diffs = await this._gitService.computeSessionFileDiffs(repoRoot, { sessionUri: session, baseBranch });
+			const diffs = await this._gitService.computeSessionFileDiffs(repoRoot, await this._branchDiffAnchor(session, repoRoot, baseBranch));
 			if (!diffs) {
 				this._logService.error(`[AgentHostChangesetService] Git branch diff unavailable for multi-folder branch summary ${session} in repository ${repoRoot.toString()}; skipping that repository.`);
 				return undefined;
@@ -1573,10 +1591,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const baseBranch = await this._resolveBranchBaseBranch(session, db);
 
 		try {
-			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, {
-				sessionUri: session,
-				baseBranch
-			});
+			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, await this._branchDiffAnchor(session, workingDirectoryUri, baseBranch));
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] git-driven ${kind} diff computation failed; falling back to edit-tracker`, err);
 			return undefined;
