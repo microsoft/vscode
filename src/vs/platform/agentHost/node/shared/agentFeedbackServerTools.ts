@@ -76,7 +76,9 @@ const addCommentInputSchema: ToolDefinition['inputSchema'] = {
 
 const listCommentsInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
-	properties: {},
+	properties: {
+		includeResolved: { type: 'boolean', description: 'Whether resolved comments should be included. Defaults to false.' },
+	},
 };
 
 const viewUnreviewedCommentsInputSchema: ToolDefinition['inputSchema'] = {
@@ -117,7 +119,7 @@ export const feedbackServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: listCommentsToolName,
 		title: 'List Comments (Agent Feedback)',
-		description: 'List comments for this session.',
+		description: 'List comments for this session. Resolved comments are omitted by default.',
 		inputSchema: listCommentsInputSchema,
 		annotations: { readOnlyHint: true },
 	},
@@ -161,6 +163,10 @@ interface IAddCommentArgs {
 
 interface IDeleteCommentsArgs {
 	readonly commentIds?: unknown;
+}
+
+interface IListCommentsArgs {
+	readonly includeResolved?: unknown;
 }
 
 interface IResolveCommentsArgs {
@@ -219,6 +225,16 @@ function getResolvedFlag(value: unknown): boolean {
 	}
 	if (typeof value !== 'boolean') {
 		throw new Error(`Invalid ${resolveCommentsToolName} input: resolved must be a boolean.`);
+	}
+	return value;
+}
+
+function getIncludeResolvedFlag(value: unknown): boolean {
+	if (value === undefined) {
+		return false;
+	}
+	if (typeof value !== 'boolean') {
+		throw new Error(`Invalid ${listCommentsToolName} input: includeResolved must be a boolean.`);
 	}
 	return value;
 }
@@ -428,8 +444,11 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			};
 		}
 		case listCommentsToolName: {
+			const includeResolved = getIncludeResolvedFlag((rawArgs as IListCommentsArgs)?.includeResolved);
 			const payload: { comments: ISerializedComment[]; note?: string } = {
-				comments: listableAnnotations(state).map(serializeComment),
+				comments: listableAnnotations(state)
+					.filter(annotation => includeResolved || !annotation.resolved)
+					.map(serializeComment),
 			};
 			const note = buildUnreviewedCommentsNote(state);
 			if (note) {

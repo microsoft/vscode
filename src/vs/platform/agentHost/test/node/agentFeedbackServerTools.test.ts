@@ -63,10 +63,11 @@ suite('AgentFeedbackServerTools', () => {
 		assert.deepStrictEqual(set.annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY], { kind: 'codeReview', state: 'created', sessionResource });
 	});
 
-	test('listComments hides created items and serializes the rest', () => {
+	test('listComments hides created and resolved items by default', () => {
 		const state = stateWith(
 			annotation('a', 'created', false, 'hidden'),
 			annotation('b', 'accepted', false, 'visible'),
+			annotation('c', 'resolved', true, 'resolved'),
 		);
 		const outcome = applyFeedbackTool(state, sessionResource, listCommentsToolName, {});
 		assert.strictEqual(outcome.actions.length, 0);
@@ -81,6 +82,25 @@ suite('AgentFeedbackServerTools', () => {
 			}],
 			note: 'There is 1 code review comment which the user has not reviewed yet. If the user wants you to tackle them, call the `viewUnreviewedComments` tool to view them.',
 		});
+	});
+
+	test('listComments includes resolved items when requested', () => {
+		const state = stateWith(
+			annotation('a', 'accepted', false, 'visible'),
+			annotation('b', 'resolved', true, 'resolved'),
+		);
+		const outcome = applyFeedbackTool(state, sessionResource, listCommentsToolName, { includeResolved: true });
+		assert.deepStrictEqual(
+			JSON.parse(outcome.result).comments.map((comment: { id: string }) => comment.id),
+			['a', 'b'],
+		);
+	});
+
+	test('listComments rejects a non-boolean includeResolved value', () => {
+		assert.throws(
+			() => applyFeedbackTool(stateWith(), sessionResource, listCommentsToolName, { includeResolved: 'true' }),
+			/includeResolved must be a boolean/,
+		);
 	});
 
 	test('deleteComments removes listable items and reports unknown ids', () => {
