@@ -463,6 +463,9 @@ export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 /** Root config key forwarded from the renderer for active-agent title generation. */
 export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
 
+/** Root config key controlling rich-link guidance for Markdown plan documents. */
+export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
+
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
@@ -755,6 +758,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
 		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of utility-model title generation."),
+		default: false,
+	}),
+	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.markdownPlanRichLinksEnabled.title', "Markdown Plan Rich Links"),
+		description: localize('agentHost.config.markdownPlanRichLinksEnabled.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
 		default: false,
 	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
