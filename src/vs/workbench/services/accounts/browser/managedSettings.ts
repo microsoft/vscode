@@ -4,7 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { isString } from '../../../../base/common/types.js';
+import { IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+
+/**
+ * A single MCP server matcher entry in the `allowedMcpServers` / `deniedMcpServers` managed
+ * settings, identifying a server by exactly one strategy: name, remote URL pattern, or local
+ * command invocation.
+ */
+export type IManagedMcpServerMatcher =
+	| { readonly serverName: string }
+	| { readonly serverUrl: string }
+	| { readonly serverCommand: readonly string[] };
 
 /**
  * Response shape from the Copilot `/copilot_internal/managed_settings` endpoint.
@@ -20,7 +32,18 @@ import { normalizeManagedSettings } from '../../../../platform/policy/common/cop
 export interface IManagedSettingsResponse {
 	readonly permissions?: {
 		readonly disableBypassPermissionsMode?: string;
+		/**
+		 * Legacy location for the default chat model. Retained for deployments authored against
+		 * the original schema; the top-level {@link IManagedSettingsResponse.model} wins when both
+		 * are present.
+		 */
+		readonly model?: string;
 	};
+	/**
+	 * Default chat model (`auto`, a model family name, or a full model id). Canonical top-level
+	 * location in the current schema; supersedes the legacy nested `permissions.model`.
+	 */
+	readonly model?: string;
 	readonly enabledPlugins?: Record<string, boolean>;
 	readonly extraKnownMarketplaces?: Record<string, {
 		readonly source:
@@ -28,6 +51,12 @@ export interface IManagedSettingsResponse {
 		| { readonly source: 'git'; readonly url: string; readonly ref?: string };
 	}>;
 	readonly strictKnownMarketplaces?: readonly unknown[];
+	readonly allowedMcpServers?: ReadonlyArray<IManagedMcpServerMatcher>;
+	readonly deniedMcpServers?: ReadonlyArray<IManagedMcpServerMatcher>;
+	readonly strictPluginOnlyCustomization?: boolean;
+	readonly allowManagedMcpServersOnly?: boolean;
+	readonly allowManagedHooksOnly?: boolean;
+	readonly forceRemoteSettingsRefresh?: boolean;
 	readonly telemetry?: {
 		readonly enabled?: boolean;
 		readonly endpoint?: string;
@@ -40,6 +69,30 @@ export interface IManagedSettingsResponse {
 	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
+}
+
+interface IManagedSettingsCompatibilityErrorResponse {
+	readonly error_code?: unknown;
+	readonly client_version?: unknown;
+	readonly minimum_client_version?: unknown;
+}
+
+function isManagedSettingsCompatibilityErrorResponse(response: unknown): response is IManagedSettingsCompatibilityErrorResponse {
+	return typeof response === 'object' && response !== null;
+}
+
+export function parseManagedSettingsCompatibilityError(response: unknown): IManagedSettingsCompatibilityError | undefined {
+	if (!isManagedSettingsCompatibilityErrorResponse(response) || response.error_code !== MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE) {
+		return undefined;
+	}
+
+	const clientVersion = isString(response.client_version) ? response.client_version : undefined;
+	const minimumClientVersion = isString(response.minimum_client_version) ? response.minimum_client_version : undefined;
+	return {
+		errorCode: MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE,
+		...(clientVersion ? { clientVersion } : {}),
+		...(minimumClientVersion ? { minimumClientVersion } : {}),
+	};
 }
 
 /**

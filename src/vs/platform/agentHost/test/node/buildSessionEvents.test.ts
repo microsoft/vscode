@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
@@ -204,6 +204,16 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 				{ kind: ResponsePartKind.Markdown, content: 'Done.' },
 			],
 		}]);
+	});
+
+	test('omits array tool input from structured session event arguments', () => {
+		const events = buildSessionEventsFromTurns([
+			userTurn(generateUuid(), 'run it', [toolCallPart(generateUuid(), 'tool', '["one", "two"]', '')]),
+		], { sessionId });
+		const started = events.find(e => e.type === 'tool.execution_start');
+
+		assert.ok(started && started.type === 'tool.execution_start');
+		assert.strictEqual(started.data.arguments, undefined);
 	});
 
 	test('round-trips a failed tool call preserving the error message', async () => {

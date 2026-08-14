@@ -182,7 +182,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 	}
 
 	protected static getActionBarActions(openerService: IOpenerService) {
-		const learnMoreUrl = 'https://aka.ms/vscode-continue-chat-in';
+		const learnMoreUrl = 'https://aka.ms/vscode-agent-handoff';
 		return [{
 			id: 'workbench.action.chat.continueChatInSession.learnMore',
 			label: localize('chat.learnMore', "Learn More"),
@@ -595,6 +595,14 @@ export class CreateRemoteAgentJobAction {
 								type: continuationTargetType,
 								displayName: continuationTarget.displayName,
 								position: isSidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
+								// Replace the source chat editor in place so switching harness
+								// feels like the same chat continues rather than opening a new
+								// tab. The source (local) session stays in chat history and is
+								// recoverable. The sidebar path already swaps in place via
+								// `loadSession`, so it needs no replacement. Pass the source
+								// resource (not a bare flag) so the correct editor is resolved
+								// at replace time even if the active editor changed meanwhile.
+								replaceEditorForResource: isSidebar ? undefined : sessionResource,
 							},
 							{
 								prompt: handoffPrompt,

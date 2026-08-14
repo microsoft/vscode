@@ -48,6 +48,7 @@ export class PlaywrightDriver {
 
 	private static traceCounter = 1;
 	private static screenShotCounter = 1;
+	private static reloadMarkerCounter = 1;
 
 	private static readonly vscodeToPlaywrightKey: { [key: string]: string } = {
 		cmd: 'Meta',
@@ -141,6 +142,151 @@ export class PlaywrightDriver {
 			url: p.url(),
 			isCurrent: p === this._currentPage
 		}));
+	}
+
+	async getCDPTargets(): Promise<Protocol.Target.TargetInfo[]> {
+		const session = await this.context.newCDPSession(this.page);
+		try {
+			return (await session.send('Target.getTargets')).targetInfos;
+		} finally {
+			await session.detach();
+		}
+	}
+
+	async evaluateCDPTarget<T>(targetId: string, expression: string): Promise<T> {
+		const response = await this.sendCDPTargetCommand(targetId, 'Runtime.evaluate', {
+			expression,
+			awaitPromise: true,
+			returnByValue: true
+		}) as Protocol.Runtime.evaluateReturnValue;
+		if (response.exceptionDetails) {
+			throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+		}
+		return response.result.value as T;
+	}
+
+	async evaluateCDPTargetFrame<T>(targetId: string, frameUrlPattern: string, expression: string): Promise<T> {
+		const { frameTree } = await this.sendCDPTargetCommand(targetId, 'Page.getFrameTree', {}) as Protocol.Page.getFrameTreeReturnValue;
+		const frame = findFrame(frameTree, frameUrlPattern);
+		let frameId = frame?.id;
+		if (!frameId) {
+			const { root } = await this.sendCDPTargetCommand(targetId, 'DOM.getDocument', {
+				depth: -1,
+				pierce: true
+			}) as Protocol.DOM.getDocumentReturnValue;
+			frameId = findDOMFrameId(root, frameUrlPattern);
+		}
+		if (!frameId) {
+			throw new Error(`Frame not found for URL pattern '${frameUrlPattern}'.`);
+		}
+		const { executionContextId } = await this.sendCDPTargetCommand(targetId, 'Page.createIsolatedWorld', {
+			frameId,
+			worldName: 'vscodeAutomation',
+			grantUniveralAccess: true
+		}) as Protocol.Page.createIsolatedWorldReturnValue;
+		const response = await this.sendCDPTargetCommand(targetId, 'Runtime.evaluate', {
+			expression,
+			contextId: executionContextId,
+			awaitPromise: true,
+			returnByValue: true
+		}) as Protocol.Runtime.evaluateReturnValue;
+		if (response.exceptionDetails) {
+			throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+		}
+		return response.result.value as T;
+	}
+
+	private async sendCDPTargetCommand(targetId: string, method: string, params: object): Promise<unknown> {
+		const rootSession = await this.context.newCDPSession(this.page);
+		let sessionId: string | undefined;
+		const messageId = 1;
+		let listener: ((event: { sessionId: string; message: string }) => void) | undefined;
+		let detachedListener: ((event: { sessionId: string; targetId?: string }) => void) | undefined;
+		let timeout: NodeJS.Timeout | undefined;
+		try {
+			sessionId = (await rootSession.send('Target.attachToTarget', { targetId, flatten: false })).sessionId;
+			const response = new Promise<unknown>((resolve, reject) => {
+				listener = event => {
+					if (event.sessionId !== sessionId) {
+						return;
+					}
+					const message = JSON.parse(event.message) as { id?: number; result?: unknown; error?: { message: string } };
+					if (message.id !== messageId) {
+						return;
+					}
+					if (message.error) {
+						reject(new Error(message.error.message));
+					} else {
+						resolve(message.result);
+					}
+				};
+				detachedListener = event => {
+					if (event.sessionId === sessionId) {
+						reject(new Error(`CDP target '${targetId}' detached while running '${method}'.`));
+					}
+				};
+				rootSession.on('Target.receivedMessageFromTarget', listener);
+				rootSession.on('Target.detachedFromTarget', detachedListener);
+				timeout = setTimeout(() => reject(new Error(`Timed out running CDP command '${method}' on target '${targetId}'.`)), 15_000);
+			});
+			const send = rootSession.send('Target.sendMessageToTarget', {
+				sessionId,
+				message: JSON.stringify({ id: messageId, method, params })
+			});
+			const [, result] = await Promise.all([send, response]);
+			return result;
+		} finally {
+			if (listener) {
+				rootSession.off('Target.receivedMessageFromTarget', listener);
+			}
+			if (detachedListener) {
+				rootSession.off('Target.detachedFromTarget', detachedListener);
+			}
+			if (timeout) {
+				clearTimeout(timeout);
+			}
+			if (sessionId) {
+				await rootSession.send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
+			}
+			await rootSession.detach();
+		}
+	}
+
+	/**
+	 * Wait for an open window/page whose URL contains the provided pattern.
+	 */
+	async waitForPage(urlPattern: string, timeoutMs: number = 10_000): Promise<playwright.Page> {
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const page = this.getAllWindows().find(candidate => !candidate.isClosed() && candidate.url().includes(urlPattern));
+			if (page) {
+				return page;
+			}
+			await wait(100);
+		} while (Date.now() < deadline);
+
+		const openUrls = this.getAllWindows().map(page => page.url());
+		throw new Error(`Timed out waiting for page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+	}
+
+	/**
+	 * Run an action and wait for a newly opened window/page whose URL contains the provided pattern.
+	 */
+	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = 10_000): Promise<playwright.Page> {
+		const existingPages = new Set(this.getAllWindows());
+		await action();
+
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const page = this.getAllWindows().find(candidate => !existingPages.has(candidate) && !candidate.isClosed() && candidate.url().includes(urlPattern));
+			if (page) {
+				return page;
+			}
+			await wait(100);
+		} while (Date.now() < deadline);
+
+		const openUrls = this.getAllWindows().map(page => page.url());
+		throw new Error(`Timed out waiting for new page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
 	}
 
 	/**
@@ -397,6 +543,25 @@ export class PlaywrightDriver {
 
 	async didFinishLoad(): Promise<void> {
 		await this.whenLoaded;
+	}
+
+	/**
+	 * Stamps the current document so that {@link waitForWindowReload} can tell the
+	 * document apart from the one that a window reload will bring up.
+	 */
+	async markWindowForReload(): Promise<string> {
+		const marker = `vscodeSmokeTestReloadMarker${PlaywrightDriver.reloadMarkerCounter++}`;
+		await this.page.evaluate(m => { (window as unknown as Record<string, boolean>)[m] = true; }, marker);
+
+		return marker;
+	}
+
+	/**
+	 * Waits until the document that was stamped via {@link markWindowForReload} is
+	 * gone, meaning the window reload actually took effect.
+	 */
+	async waitForWindowReload(marker: string, timeout: number = 60_000): Promise<void> {
+		await this.page.waitForFunction(m => !(window as unknown as Record<string, boolean>)[m], marker, { timeout, polling: 100 });
 	}
 
 	private _cdpSession: playwright.CDPSession | undefined;
@@ -828,6 +993,40 @@ export class PlaywrightDriver {
 
 export function wait(ms: number): Promise<void> {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+function findFrame(frameTree: Protocol.Page.FrameTree, urlPattern: string): Protocol.Page.Frame | undefined {
+	if (frameTree.frame.url.includes(urlPattern)) {
+		return frameTree.frame;
+	}
+	for (const child of frameTree.childFrames ?? []) {
+		const frame = findFrame(child, urlPattern);
+		if (frame) {
+			return frame;
+		}
+	}
+	return undefined;
+}
+
+function findDOMFrameId(node: Protocol.DOM.Node, urlPattern: string): Protocol.Page.FrameId | undefined {
+	const attributes = node.attributes ?? [];
+	for (let index = 0; index < attributes.length; index += 2) {
+		if (attributes[index] === 'src' && attributes[index + 1]?.includes(urlPattern) && node.frameId) {
+			return node.frameId;
+		}
+	}
+	for (const child of [
+		...(node.children ?? []),
+		...(node.shadowRoots ?? []),
+		...(node.pseudoElements ?? []),
+		...(node.contentDocument ? [node.contentDocument] : [])
+	]) {
+		const frameId = findDOMFrameId(child, urlPattern);
+		if (frameId) {
+			return frameId;
+		}
+	}
+	return undefined;
 }
 
 export type { AxeResults };

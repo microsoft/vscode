@@ -10,9 +10,8 @@ import type { AgentHostStateManager } from '../agentHostStateManager.js';
 
 /**
  * Result of a server tool, passed to {@link IServerToolGroup.getDisplay} so the
- * owning group can tailor its past-tense message to what the tool returned
- * (for example a count parsed from the textual result). Absent while the tool
- * is still running.
+ * owning group can tailor its past-tense message to what the tool returned.
+ * Absent while the tool is still running.
  */
 export interface IServerToolDisplayResult {
 	/** The textual tool result (the string the group's `execute` returned). */
@@ -31,9 +30,9 @@ export interface IServerToolDisplayResult {
 export interface IServerToolDisplay {
 	/** Human-readable tool name (e.g. "List Comments"). */
 	readonly displayName?: string;
-	/** Present-tense message shown while the tool runs (e.g. "Checking comments"). */
+	/** Message shown while the tool runs (e.g. "List comments"). */
 	readonly invocationMessage?: StringOrMarkdown;
-	/** Past-tense message shown once the tool completes (e.g. "Checked 3 comments"). */
+	/** Past-tense message shown once the tool completes. When omitted, the provider reuses `invocationMessage`. */
 	readonly pastTenseMessage?: StringOrMarkdown;
 }
 
@@ -54,14 +53,24 @@ export interface IServerToolDisplay {
 export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
 	readonly definitions: readonly ToolDefinition[];
+	/** Whether a contributed tool is currently enabled for advertisement and execution. */
+	isEnabled(toolName: string): boolean;
 	/**
-	 * Whether {@link toolName} (one of this group's {@link definitions}) must be
-	 * confirmed by the user before it runs. Providers exclude such tools from
-	 * their server-tool auto-approve lists so the call surfaces a confirmation.
-	 * Absent or `false` means the tool is auto-approved like every other server
-	 * tool.
+	 * Whether {@link toolName} (one of this group's {@link definitions}) can
+	 * ever prompt for confirmation. Providers exclude such tools from their
+	 * server-tool auto-approve lists so the call routes through a confirmation
+	 * path. Absent or `false` means the tool is auto-approved like every other
+	 * server tool.
 	 */
-	requiresConfirmation?(toolName: string): boolean;
+	canRequireConfirmation?(toolName: string): boolean;
+	/**
+	 * Whether {@link toolName} needs to prompt for the invocation currently
+	 * being made against {@link sessionUri}. Implement this for
+	 * state-dependent confirmation (e.g. nothing to confirm yet) while keeping
+	 * {@link canRequireConfirmation} stable for provider allow-lists. Absent
+	 * falls back to {@link canRequireConfirmation}.
+	 */
+	requiresConfirmation?(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string): boolean;
 	/**
 	 * Executes {@link toolName} (one of this group's {@link definitions})
 	 * against the session's state, dispatching any resulting actions through
@@ -104,14 +113,11 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 
 	private readonly _groupByToolName = new Map<string, IServerToolGroup>();
 
-	readonly definitions: readonly ToolDefinition[];
-	readonly toolNames: readonly string[];
-
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		groups: readonly IServerToolGroup[],
+		private readonly _groups: readonly IServerToolGroup[],
 	) {
-		for (const group of groups) {
+		for (const group of this._groups) {
 			for (const def of group.definitions) {
 				if (this._groupByToolName.has(def.name)) {
 					throw new Error(`Duplicate server tool registered: ${def.name}`);
@@ -119,19 +125,40 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 				this._groupByToolName.set(def.name, group);
 			}
 		}
-		this.definitions = groups.flatMap(group => group.definitions);
-		this.toolNames = this.definitions.map(def => def.name);
+	}
+
+	get definitions(): readonly ToolDefinition[] {
+		return this._groups.flatMap(group => group.definitions.filter(definition => group.isEnabled(definition.name)));
+	}
+
+	get toolNames(): readonly string[] {
+		return this.definitions.map(definition => definition.name);
 	}
 
 	advertise(sessionUri: URI): void {
+		// Provider materialization can precede restore; AgentService advertises again once the session is registered.
+		if (!this._stateManager.getSessionState(sessionUri)) {
+			return;
+		}
 		this._stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionServerToolsChanged,
 			tools: [...this.definitions],
 		});
 	}
 
-	requiresConfirmation(toolName: string): boolean {
-		return this._groupByToolName.get(toolName)?.requiresConfirmation?.(toolName) ?? false;
+	canRequireConfirmation(toolName: string): boolean {
+		const group = this._groupByToolName.get(toolName);
+		return group?.isEnabled(toolName) === true && (group.canRequireConfirmation?.(toolName) ?? false);
+	}
+
+	requiresConfirmation(sessionUri: URI, toolName: string): boolean {
+		const group = this._groupByToolName.get(toolName);
+		if (group && !this._isEnabledForSession(group, sessionUri, toolName)) {
+			return false;
+		}
+		return group?.requiresConfirmation?.(this._stateManager, sessionUri, toolName)
+			?? group?.canRequireConfirmation?.(toolName)
+			?? false;
 	}
 
 	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
@@ -139,6 +166,16 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
 		}
+		if (!this._isEnabledForSession(group, sessionUri, toolName)) {
+			throw new Error(`Server tool "${toolName}" is disabled.`);
+		}
 		return group.execute(this._stateManager, sessionUri, toolName, rawArgs);
+	}
+
+	private _isEnabledForSession(group: IServerToolGroup, sessionUri: URI, toolName: string): boolean {
+		const advertisedTools = this._stateManager.getSessionState(sessionUri)?.serverTools;
+		return advertisedTools
+			? advertisedTools.some(tool => tool.name === toolName)
+			: group.isEnabled(toolName);
 	}
 }

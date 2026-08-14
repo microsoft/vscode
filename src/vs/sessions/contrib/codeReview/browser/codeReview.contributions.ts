@@ -10,8 +10,8 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { IsPhoneLayoutContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -21,6 +21,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 
@@ -28,26 +29,27 @@ const CODE_REVIEW_QUERY = '/code-review';
 
 const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
 
-// Code review is shown in the single-pane Changes editor header (to the right),
-// so it is only contributed to the classic changes button bar when single-pane is off.
+// Code review is shown next to the diff-stats action in the single-pane Changes
+// editor header, so it is only contributed to the classic changes button bar
+// when single-pane is off.
 const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	SessionWorkspaceIsVirtualContext.toNegated(),
 	IsPhoneLayoutContext.negate(),
+	SessionIsCreatedContext,
 	ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 	singlePaneDetailPanel.negate(),
 );
 
-// Code review in the single-pane Changes editor header: always on the right
-// (SessionsEditorHeaderSecondary) in its own separated group, whether the editor
-// area is visible or collapsed.
-const codeReviewEditorHeaderWhen = ContextKeyExpr.and(
+const singlePaneCodeReviewWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
 	singlePaneDetailPanel,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext,
 	SessionWorkspaceIsVirtualContext.toNegated(),
+	SessionIsCreatedContext,
+	SessionHasChangesContext,
 );
 
 class RunSessionCodeReviewAction extends Action2 {
@@ -71,9 +73,15 @@ class RunSessionCodeReviewAction extends Action2 {
 				},
 				{
 					id: Menus.SessionsEditorHeaderSecondary,
-					group: 'navigation',
+					group: '0_codeReview',
 					order: 10,
-					when: codeReviewEditorHeaderWhen,
+					when: ContextKeyExpr.and(singlePaneCodeReviewWhen, MainEditorAreaVisibleContext),
+				},
+				{
+					id: Menus.SessionsEditorHeaderSecondary,
+					group: 'secondary/1_codeReview',
+					order: 10,
+					when: ContextKeyExpr.and(singlePaneCodeReviewWhen, MainEditorAreaVisibleContext.toNegated()),
 				},
 			],
 		});
@@ -83,10 +91,14 @@ class RunSessionCodeReviewAction extends Action2 {
 		const sessionManagementService = accessor.get(ISessionsManagementService);
 		const sessionsService = accessor.get(ISessionsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const sessionChangesService = accessor.get(ISessionChangesService);
 
-		const resource = URI.isUri(sessionResource)
+		const candidateResource = URI.isUri(sessionResource)
 			? sessionResource
 			: sessionsService.activeSession.get()?.resource;
+		const resource = candidateResource
+			? sessionChangesService.getSessionResource(candidateResource) ?? candidateResource
+			: undefined;
 		if (!resource) {
 			return;
 		}

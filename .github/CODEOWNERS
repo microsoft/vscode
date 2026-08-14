@@ -1,7 +1,5 @@
 # GitHub actions required reviewers
 .github/workflows/monaco-editor.yml @hediet @alexdima @lszomoru
-.github/workflows/no-package-lock-changes.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
-.github/workflows/no-yarn-lock-changes.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
 .github/workflows/pr-darwin-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
 .github/workflows/pr-linux-cli-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
 .github/workflows/pr-linux-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
@@ -13,10 +11,10 @@
 # VS Code API
 # Ensure the API team is aware of changes to the vscode-dts file
 # this is only about the final API, not about proposed API changes
-src/vscode-dts/vscode.d.ts @mjbvz @alexr00
-src/vs/workbench/services/extensions/common/extensionPoints.json @mjbvz @alexr00
+src/vscode-dts/vscode.d.ts @TylerLeonhardt @alexr00
+src/vs/workbench/services/extensions/common/extensionPoints.json @TylerLeonhardt @alexr00
 
 # Allowlist for the `local/code-no-new-javascript-files` lint rule.
 # Adding entries here lets a new .js/.cjs/.mjs file land in the repo;
 # review is required to make sure TypeScript is not a better choice.
-.eslint-allowed-javascript-files @alexr00 @alexdima @sbatten
+.eslint-allowed-javascript-files @alexr00 @alexdima @sbatten @TylerLeonhardt

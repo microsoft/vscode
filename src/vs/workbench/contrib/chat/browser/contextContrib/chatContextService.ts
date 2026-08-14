@@ -163,7 +163,7 @@ export class ChatContextService extends Disposable {
 		const contextValue: StringChatContextValue = {
 			value: undefined,
 			name: derivedLabel,
-			icon: context.icon,
+			iconPath: context.iconPath,
 			uri: uri,
 			resourceUri: context.resourceUri,
 			modelDescription: context.modelDescription,
@@ -225,9 +225,14 @@ export class ChatContextService extends Disposable {
 					return items.map(item => {
 						// Derive label from resourceUri if label is not set
 						const derivedLabel = item.label ?? (item.resourceUri ? basename(item.resourceUri) : 'Unknown');
+						const iconPath = item.iconPath;
+						const isThemeIcon = ThemeIcon.isThemeIcon(iconPath);
 						return {
 							label: derivedLabel,
-							iconClass: item.icon ? ThemeIcon.asClassName(item.icon) : undefined,
+							iconClass: isThemeIcon ? ThemeIcon.asClassName(iconPath) : undefined,
+							iconPath: (!isThemeIcon && iconPath)
+								? (URI.isUri(iconPath) ? { dark: iconPath, light: iconPath } : { dark: iconPath.dark, light: iconPath.light })
+								: undefined,
 							asAttachment: async (): Promise<IGenericChatRequestVariableEntry> => {
 								let contextValue = item;
 								if ((contextValue.value === undefined) && providerEntry?.explicitProvider) {
@@ -239,8 +244,9 @@ export class ChatContextService extends Disposable {
 									kind: 'generic',
 									id: resolvedLabel,
 									name: resolvedLabel,
-									icon: contextValue.icon,
+									iconPath: contextValue.iconPath ?? item.iconPath,
 									value: contextValue.value,
+									tooltip: contextValue.tooltip ?? item.tooltip,
 								};
 							}
 						};

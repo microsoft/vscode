@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { FEEDBACK_ANNOTATION_META_KEY } from '../../common/meta/agentFeedbackAnnotations.js';
+import { FEEDBACK_ANNOTATION_META_KEY, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatUri } from '../../common/state/sessionState.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -144,7 +144,7 @@ suite('AgentFeedbackServerTools', () => {
 		);
 	});
 
-	test('viewUnreviewedComments returns the comments flagged for reveal and clears the flag', () => {
+	test('viewUnreviewedComments delivers a pending explicit selection before newer unreviewed comments', () => {
 		const state = stateWith(
 			annotation('pr1', 'created', false, 'still hidden', 'prReview'),
 			annotation('pr2', 'accepted', false, 'revealed pr', 'prReview', true),
@@ -165,6 +165,38 @@ suite('AgentFeedbackServerTools', () => {
 			returnedIds: ['pr2', 'cr1'],
 			clearedIds: ['pr2', 'cr1'],
 			flagsCleared: true,
+		});
+	});
+
+	test('viewUnreviewedComments submits and returns every unreviewed review comment when there is no explicit selection', () => {
+		const state = stateWith(
+			annotation('pr1', 'created', false, 'new pr', 'prReview'),
+			annotation('cr1', 'created', false, 'new code review', 'codeReview'),
+			annotation('pr2', 'accepted', false, 'already accepted', 'prReview'),
+			annotation('u1', 'created', false, 'user comment', 'user'),
+		);
+		const outcome = applyFeedbackTool(state, sessionResource, viewUnreviewedCommentsToolName, {});
+		const submitted = outcome.actions.map(action => {
+			const annotation = (action as Extract<typeof action, { type: ActionType.AnnotationsSet }>).annotation;
+			const meta = annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined;
+			return {
+				id: annotation.id,
+				kind: meta?.kind,
+				state: meta?.state,
+				sessionResource: meta?.sessionResource,
+				pendingAgentReveal: meta?.pendingAgentReveal,
+			};
+		});
+
+		assert.deepStrictEqual({
+			returnedIds: JSON.parse(outcome.result).comments.map((comment: { id: string }) => comment.id),
+			submitted,
+		}, {
+			returnedIds: ['pr1', 'cr1'],
+			submitted: [
+				{ id: 'pr1', kind: 'prReview', state: 'submitted', sessionResource, pendingAgentReveal: undefined },
+				{ id: 'cr1', kind: 'codeReview', state: 'submitted', sessionResource, pendingAgentReveal: undefined },
+			],
 		});
 	});
 
@@ -282,6 +314,26 @@ suite('AgentFeedbackServerTools', () => {
 			});
 		});
 
+		test('executeTool submits every unreviewed comment when there is no explicit selection', async () => {
+			const annotationsUri = buildAnnotationsUri(sessionResource);
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('auto-submit', 'created', false, 'submit me', 'prReview'),
+			});
+
+			const result = await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {});
+			const state = manager.getSnapshot(annotationsUri)!.state as AnnotationsState;
+			const meta = state.annotations[0]._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta;
+
+			assert.deepStrictEqual({
+				returnedIds: JSON.parse(result).comments.map((comment: { id: string }) => comment.id),
+				state: meta.state,
+			}, {
+				returnedIds: ['auto-submit'],
+				state: 'submitted',
+			});
+		});
+
 		test('advertise publishes the server tools as server tools', () => {
 			manager.createSession(makeSummary());
 			host.advertise(sessionResource);
@@ -289,15 +341,68 @@ suite('AgentFeedbackServerTools', () => {
 			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions);
 		});
 
-		test('requiresConfirmation reflects the owning group', () => {
+		test('advertise does not dispatch before the session is registered', () => {
+			const actionTypes: string[] = [];
+			disposables.add(manager.onDidEmitEnvelope(envelope => actionTypes.push(envelope.action.type)));
+
+			host.advertise(sessionResource);
+
+			assert.deepStrictEqual(actionTypes, []);
+		});
+
+		test('canRequireConfirmation reflects the owning group', () => {
 			assert.deepStrictEqual({
-				view: host.requiresConfirmation(viewUnreviewedCommentsToolName),
-				list: host.requiresConfirmation(listCommentsToolName),
-				unknown: host.requiresConfirmation('nope'),
+				view: host.canRequireConfirmation(viewUnreviewedCommentsToolName),
+				list: host.canRequireConfirmation(listCommentsToolName),
+				unknown: host.canRequireConfirmation('nope'),
 			}, {
 				view: true,
 				list: false,
 				unknown: false,
+			});
+		});
+
+		test('requiresConfirmation only prompts when comments can be revealed', async () => {
+			const annotationsUri = buildAnnotationsUri(sessionResource);
+			const chatUri = buildChatUri(sessionResource, 'peer-chat-1');
+			const empty = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('accepted', 'accepted', false, 'already accepted', 'prReview'),
+			});
+			const acceptedOnly = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('created', 'created', false, 'new comment', 'codeReview'),
+			});
+			const created = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			const peerChat = host.requiresConfirmation(chatUri, viewUnreviewedCommentsToolName);
+
+			await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {});
+			const delivered = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('pending', 'accepted', false, 'selected comment', 'prReview', true),
+			});
+			const pendingSelection = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+
+			assert.deepStrictEqual({
+				empty,
+				acceptedOnly,
+				created,
+				peerChat,
+				delivered,
+				pendingSelection,
+			}, {
+				empty: false,
+				acceptedOnly: false,
+				created: true,
+				peerChat: true,
+				delivered: false,
+				pendingSelection: true,
 			});
 		});
 	});

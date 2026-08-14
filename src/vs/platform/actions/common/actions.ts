@@ -51,6 +51,11 @@ export interface ISubmenuItem {
 		 * on the action that was last run.
 		 */
 		togglePrimaryAction: true;
+		/**
+		 * Restricts which submenu commands can become the primary action.
+		 * Running an eligible command outside the submenu also updates the primary action.
+		 */
+		primaryActionIds?: readonly string[];
 	};
 }
 
@@ -175,6 +180,7 @@ export class MenuId {
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBar = new MenuId('TitleBar');
 	static readonly TitleBarAdjacentCenter = new MenuId('TitleBarAdjacentCenter');
+	static readonly TitleBarUpdate = new MenuId('TitleBarUpdate');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');
 	static readonly TunnelContext = new MenuId('TunnelContext');

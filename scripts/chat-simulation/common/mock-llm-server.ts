@@ -192,9 +192,9 @@ const DEFAULT_SCENARIO = 'text-only';
 function getDefaultScenarioChunks(): StreamChunk[] {
 	const scenario = SCENARIOS[DEFAULT_SCENARIO];
 	if (isMultiTurnScenario(scenario)) {
-		throw new Error(`Default scenario '${DEFAULT_SCENARIO}' must be content-only`);
+		return [{ content: 'Mock response', delayMs: 0 }];
 	}
-	return scenario;
+	return scenario ?? [{ content: 'Mock response', delayMs: 0 }];
 }
 
 // -- SSE chunk builder -------------------------------------------------------
@@ -1851,6 +1851,12 @@ interface CapturedRequest {
 interface StartServerOptions {
 	logger?: (msg: string) => void;
 	verbose?: boolean;
+	/** Reject requests that do not carry this exact header. */
+	requiredRequestHeader?: {
+		name: string;
+		value: string;
+	};
+	trustedRequestHost?: string;
 	/**
 	 * When `true`, the server retains the parsed body of every `/chat/completions`
 	 * and `/responses` POST so tests can assert what the client forwarded (see
@@ -1904,6 +1910,14 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 		}
 
 		const server = http.createServer((req, res) => {
+			const requiredRequestHeader = options?.requiredRequestHeader;
+			const requestHost = req.headers.host?.replace(/:\d+$/, '').toLowerCase();
+			const isTrustedProxy = options?.trustedRequestHost && requestHost === options.trustedRequestHost;
+			if (requiredRequestHeader && req.headers[requiredRequestHeader.name.toLowerCase()] !== requiredRequestHeader.value && !isTrustedProxy) {
+				res.writeHead(403);
+				res.end('Request must use the configured test proxy');
+				return;
+			}
 			reqCount++;
 			requestWaiters = requestWaiters.filter(fn => !fn());
 			handleRequest(req, res);

@@ -9,7 +9,7 @@ import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetDropdownOptions, withActionWidgetDropdownMotion } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -26,23 +26,14 @@ export interface IChatInputPickerOptions {
 	readonly actionContext?: IChatExecuteActionContext;
 
 	readonly compact: IObservable<boolean>;
-}
 
-export const CHAT_INPUT_PICKER_DROPDOWN_CLASS = 'chat-input-picker-dropdown';
-export const CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS = 'chat-input-picker-dropdown-closing';
-export const CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION = 150;
-export const CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES = ['style-override', 'monaco-enable-motion'];
+	readonly listOptions?: IActionListOptions;
+}
 
 export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
 	return {
-		...listOptions,
-		className: [listOptions?.className, CHAT_INPUT_PICKER_DROPDOWN_CLASS].filter(Boolean).join(' '),
 		anchorPosition: AnchorPosition.ABOVE,
-		closeAnimation: listOptions?.closeAnimation ?? {
-			className: CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS,
-			duration: CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION,
-			requiredAncestorClasses: CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES,
-		},
+		...withActionWidgetDropdownMotion(listOptions),
 	};
 }
 
@@ -61,11 +52,16 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		// Inject the anchor getter into the options
+		const listOptionsProvider = actionWidgetOptions.listOptions === undefined ? actionWidgetOptions.listOptionsProvider : undefined;
 		const optionsWithAnchor: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			...actionWidgetOptions,
 			getAnchor: () => this.getAnchorElement(),
-			listOptions: withChatInputPickerMotion(actionWidgetOptions.listOptions),
+			listOptions: listOptionsProvider
+				? undefined
+				: withChatInputPickerMotion(actionWidgetOptions.listOptions),
+			listOptionsProvider: listOptionsProvider
+				? { getListOptions: () => withChatInputPickerMotion(listOptionsProvider.getListOptions()) }
+				: undefined,
 		};
 
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);

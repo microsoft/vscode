@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
+import { IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -23,6 +23,7 @@ import { INativeHostMainService } from '../../native/electron-main/nativeHostMai
 import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
 import { BrowserViewInspectElementId } from './browserViewInspector.js';
 import { equals } from '../../../base/common/objects.js';
+import { URI } from '../../../base/common/uri.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -69,11 +70,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		super();
 	}
 
-	async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState> {
+	async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo> {
+		const associatedResource = URI.revive(options.associatedResource);
 		if (this.browserViews.has(id)) {
-			// Note: options will be ignored if the view already exists.
 			const view = this.browserViews.get(id)!;
-			return view.getState();
+			return this._getViewInfo(view);
 		}
 
 		const ownerWindow = this.windowsMainService.getWindowById(options.owner.mainWindowId);
@@ -89,15 +90,18 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			ownerWindow.openedWorkspace?.id
 		);
 
-		const view = this.createBrowserView(id, options.owner, browserSession);
+		const view = this.createBrowserView(id, options.owner, browserSession, associatedResource);
 
 		if (options.initialState?.url) {
 			void view.loadURL(options.initialState.url);
 		}
 
 		return {
-			...view.getState(),
-			...options.initialState
+			...this._getViewInfo(view),
+			state: {
+				...view.getState(),
+				...options.initialState
+			}
 		};
 	}
 
@@ -131,6 +135,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return {
 			id: view.id,
 			owner: view.owner,
+			associatedResource: view.associatedResource,
 			state: view.getState()
 		};
 	}
@@ -190,8 +195,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).inspector.onDidSelectElement;
 	}
 
-	onDynamicDidChangeElementSelectionActive(id: string) {
-		return this._getBrowserView(id).inspector.onDidChangeElementSelectionActive;
+	onDynamicDidRemoveElementComment(id: string) {
+		return this._getBrowserView(id).inspector.onDidRemoveElementComment;
+	}
+
+	onDynamicDidChangeElementSelectionState(id: string) {
+		return this._getBrowserView(id).inspector.onDidChangeElementSelectionState;
 	}
 
 	onDynamicDidPickArea(id: string) {
@@ -338,8 +347,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).getConsoleLogs();
 	}
 
-	async toggleElementSelection(id: string, enabled?: boolean): Promise<void> {
-		return this._getBrowserView(id).inspector.toggleElementSelection(enabled);
+	async toggleElementSelection(id: string, enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void> {
+		return this._getBrowserView(id).inspector.toggleElementSelection(enabled, options);
+	}
+
+	async setElementComments(id: string, update: IBrowserElementCommentsUpdate): Promise<void> {
+		this._getBrowserView(id).inspector.setElementComments(update);
 	}
 
 	async toggleAreaSelection(id: string, enabled?: boolean): Promise<void> {
@@ -403,7 +416,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	/**
 	 * Create a browser view backed by the given {@link BrowserSession}.
 	 */
-	private createBrowserView(id: string, owner: IBrowserViewOwner, browserSession: BrowserSession, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
+	private createBrowserView(id: string, owner: IBrowserViewOwner, browserSession: BrowserSession, associatedResource?: URI, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
 		if (this.browserViews.has(id)) {
 			throw new Error(`Browser view with id ${id} already exists`);
 		}
@@ -421,10 +434,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			BrowserView,
 			id,
 			owner,
+			associatedResource,
 			browserSession,
 			// Recursive factory for nested windows (child views share the same session and owner).
 			(url, electronOptions, openOptions) => {
-				const child = this.createBrowserView(generateUuid(), owner, browserSession, electronOptions);
+				const child = this.createBrowserView(generateUuid(), owner, browserSession, undefined, electronOptions);
 
 				if (url) {
 					void child.loadURL(url).catch(() => { });
@@ -589,15 +603,21 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			}));
 		}
 
-		menu.append(new MenuItem({ type: 'separator' }));
 		if (inspectTarget) {
+			menu.append(new MenuItem({ type: 'separator' }));
 			menu.append(new MenuItem({
 				label: localize('browser.contextMenu.addElementToChat', 'Add Element to Chat'),
 				click: () => inspectTarget.addToChat()
 			}));
+			menu.append(new MenuItem({
+				label: localize('browser.contextMenu.addComment', 'Add Comment...'),
+				click: () => inspectTarget.addComment()
+			}));
 			void inspectTarget.highlight().catch(() => { });
 			menu.on('menu-will-close', () => inspectTarget.dispose());
 		}
+
+		menu.append(new MenuItem({ type: 'separator' }));
 		menu.append(new MenuItem({
 			label: localize('browser.contextMenu.inspect', 'Inspect'),
 			click: () => webContents.inspectElement(params.x, params.y)
