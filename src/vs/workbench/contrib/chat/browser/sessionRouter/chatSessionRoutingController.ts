@@ -1280,8 +1280,8 @@ export class ChatSessionRoutingController extends Disposable {
 		message.textContent = label && reason
 			? localize('chatSessionRouting.sendFailedToWithReason', "Could not send to {0}: {1} Your draft was preserved.", label, reason)
 			: label
-			? localize('chatSessionRouting.sendFailedTo', "Could not send to {0}. Your draft was preserved.", label)
-			: localize('chatSessionRouting.sendFailed', "Could not send the request. Your draft was preserved.");
+				? localize('chatSessionRouting.sendFailedTo', "Could not send to {0}. Your draft was preserved.", label)
+				: localize('chatSessionRouting.sendFailed', "Could not send the request. Your draft was preserved.");
 		this.host.placeBadge(badge);
 		if (!badge.parentElement) {
 			return;

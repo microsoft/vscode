@@ -6821,7 +6821,7 @@ suite('VoiceSessionController', () => {
 		}]);
 		assert.strictEqual(
 			contextBeforeNarration?.type === 'session_context'
-				&& contextBeforeNarration.context.sessions.some(session => session.id === backendResource.toString()),
+			&& contextBeforeNarration.context.sessions.some(session => session.id === backendResource.toString()),
 			true,
 		);
 
