@@ -63,17 +63,19 @@ suite('ChatConfiguration defaults', () => {
 		return resolveDefaultNewChatSessionType(accessor, options);
 	}
 
-	test('default permission configuration maps Allow All to the Agent Host value', () => {
+	test('default permission configuration maps setting values to Agent Host values', () => {
 		assert.deepStrictEqual({
-			default: getChatPermissionLevelFromDefaultConfiguration('default'),
+			manual: getChatPermissionLevelFromDefaultConfiguration('manual'),
 			assisted: getChatPermissionLevelFromDefaultConfiguration('assisted'),
 			allowAll: getChatPermissionLevelFromDefaultConfiguration('allowAll'),
+			legacyDefault: getChatPermissionLevelFromDefaultConfiguration('default'),
 			legacyAutoApprove: getChatPermissionLevelFromDefaultConfiguration('autoApprove'),
 			invalid: getChatPermissionLevelFromDefaultConfiguration('invalid'),
 		}, {
-			default: ChatPermissionLevel.Default,
+			manual: ChatPermissionLevel.Default,
 			assisted: ChatPermissionLevel.Assisted,
 			allowAll: ChatPermissionLevel.AutoApprove,
+			legacyDefault: ChatPermissionLevel.Default,
 			legacyAutoApprove: ChatPermissionLevel.AutoApprove,
 			invalid: undefined,
 		});
@@ -255,7 +257,7 @@ suite('ChatConfiguration defaults', () => {
 		const storageService = disposables.add(new TestStorageService());
 
 		assert.deepStrictEqual({
-			withoutRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false, { currentSessionType: SessionType.AgentHostCopilot }),
+			withoutRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostCopilot }),
 		}, {
 			withoutRemembered: SessionType.AgentHostCopilot,
 		});
@@ -263,7 +265,7 @@ suite('ChatConfiguration defaults', () => {
 		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude, false);
 
 		assert.deepStrictEqual({
-			withRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false, { currentSessionType: SessionType.AgentHostCopilot }),
+			withRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostCopilot }),
 		}, {
 			withRemembered: SessionType.AgentHostClaude,
 		});
@@ -492,6 +494,23 @@ suite('ChatConfiguration defaults', () => {
 			agentHost: true,
 			agentHostCurrent: { sessionType: SessionType.AgentHostClaude },
 			extensionContributed: false,
+		});
+	});
+
+	test('disabled Agent Host is not inherited from remembered or current session types', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService();
+		const storageService = disposables.add(new TestStorageService());
+		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude, true);
+
+		assert.deepStrictEqual({
+			usable: isNewChatSessionTypeUsable(SessionType.AgentHostClaude, configurationService, chatSessionsService, localWorkspace, false),
+			remembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false),
+			current: resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false, { currentSessionType: SessionType.AgentHostClaude }),
+		}, {
+			usable: false,
+			remembered: localChatSessionType,
+			current: { sessionType: localChatSessionType },
 		});
 	});
 

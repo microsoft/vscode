@@ -129,6 +129,7 @@ export interface IChatRequestViewModel {
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
 	readonly systemInitiatedLabel?: string;
+	readonly origin?: IChatRequestModel['origin'];
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -216,6 +217,7 @@ export interface IChatTurnPillsPart {
 	readonly kind: 'turnPills';
 	readonly requestId: string;
 	readonly sessionResource: URI;
+	readonly isLastTurn: boolean;
 }
 
 /**
@@ -539,6 +541,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get requestTimestamp() {
 		return this._model.requestTimestamp;
+	}
+
+	get origin() {
+		return this._model.origin;
 	}
 
 	get pendingKind() {

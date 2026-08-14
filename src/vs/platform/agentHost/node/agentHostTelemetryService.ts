@@ -197,6 +197,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	setCommonProperty(name: string, value: string | boolean): void {
 		this._delegate.setCommonProperty(name, value);
+		this._restricted?.setCommonProperty(name, value);
 	}
 
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void {

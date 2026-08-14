@@ -13,6 +13,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { buildMicrophoneOptions, DictationOnboardingBanner, DictationOnboardingService, indexOfMicrophone } from '../../browser/speechToText/dictationOnboarding.js';
+import { isChatInputStackSlotShowing } from '../../browser/widget/input/chatInputStack.js';
 
 /** Minimal stand-in for the browser's device descriptor. */
 function device(kind: MediaDeviceKind, deviceId: string, label: string): MediaDeviceInfo {
@@ -111,7 +112,7 @@ suite('Dictation onboarding', () => {
 		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		const shownFirstTime = service.showIfNeeded();
-		const shown = host.container.classList.contains('has-dictation-onboarding');
+		const shown = isChatInputStackSlotShowing(host.container);
 
 		const closeIcon = host.container.querySelector('.dictation-onboarding-close')?.className;
 		const hasMicrophoneControls = host.container.querySelector('.dictation-onboarding-device') !== null;
@@ -124,7 +125,7 @@ suite('Dictation onboarding', () => {
 				shownFirstTime, shown, closeIcon,
 				hasMicrophoneControls,
 				hasWaveform,
-				visibleAfterClose: host.container.classList.contains('has-dictation-onboarding'),
+				visibleAfterClose: isChatInputStackSlotShowing(host.container),
 				shownAgain,
 				telemetryEvents,
 			},
@@ -250,7 +251,7 @@ suite('Dictation onboarding', () => {
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-banner')!
 			.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 
-		assert.strictEqual(host.container.classList.contains('has-dictation-onboarding'), false);
+		assert.strictEqual(isChatInputStackSlotShowing(host.container), false);
 	});
 
 	test('dictates straight away when there is no chat input to dock to', () => {
@@ -270,7 +271,7 @@ suite('Dictation onboarding', () => {
 		const microphonePicker = host.container.querySelector<HTMLElement>('.dictation-onboarding-picker');
 		assert.deepStrictEqual(
 			{
-				visible: host.container.classList.contains('has-dictation-onboarding'),
+				visible: isChatInputStackSlotShowing(host.container),
 				cards: host.container.querySelectorAll('.dictation-onboarding-banner').length,
 				hasMicrophoneControls: host.container.querySelector('.dictation-onboarding-device') !== null,
 				hasWaveform: host.container.querySelector('.dictation-onboarding-waveform') !== null,
@@ -307,8 +308,8 @@ suite('Dictation onboarding', () => {
 
 		assert.deepStrictEqual(
 			{
-				first: first.container.classList.contains('has-dictation-onboarding'),
-				second: second.container.classList.contains('has-dictation-onboarding'),
+				first: isChatInputStackSlotShowing(first.container),
+				second: isChatInputStackSlotShowing(second.container),
 			},
 			{ first: false, second: true });
 	});
@@ -354,7 +355,7 @@ suite('Dictation onboarding', () => {
 
 		assert.deepStrictEqual(
 			{
-				visible: host.container.classList.contains('has-dictation-onboarding'),
+				visible: isChatInputStackSlotShowing(host.container),
 				cards: host.container.querySelectorAll('.dictation-onboarding-banner').length,
 			},
 			{ visible: false, cards: 0 });
