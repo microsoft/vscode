@@ -6,12 +6,15 @@
 import assert from 'assert';
 import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { Event } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -26,12 +29,40 @@ import { buildNewSessionPrompt } from '../../browser/agentFeedbackAttachmentEntr
 import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 class TestHoverService extends mock<IHoverService>() {
+	hoverOptions: (() => IDelayedHoverOptions) | IDelayedHoverOptions | undefined;
+
+	override hideHover(): void { }
+
 	override setupDelayedHover(
 		_target: HTMLElement,
-		_hoverOptions: (() => IDelayedHoverOptions) | IDelayedHoverOptions,
+		hoverOptions: (() => IDelayedHoverOptions) | IDelayedHoverOptions,
 		_lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable {
+		this.hoverOptions = hoverOptions;
 		return Disposable.None;
+	}
+}
+
+class TestContextViewService extends mock<IContextViewService>() {
+	showCount = 0;
+	closeCount = 0;
+	delegate: IContextViewDelegate | undefined;
+
+	override showContextView(delegate: IContextViewDelegate): IOpenContextView {
+		this.showCount++;
+		this.delegate = delegate;
+		let closed = false;
+		return {
+			close: () => {
+				if (closed) {
+					return;
+				}
+				closed = true;
+				this.closeCount++;
+				delegate.onHide?.();
+				this.delegate = undefined;
+			}
+		};
 	}
 }
 
@@ -116,22 +147,73 @@ suite('AgentFeedbackAttachmentContribution', () => {
 		});
 	});
 
-	test('reveals the first attachment comment and shows all resolved comments', () => {
+	test('single comment uses a preview label and reveals directly', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const sessionResource = URI.parse('agent-host-copilot:/session-1');
-		const shownFeedbackIds: string[][] = [];
 		const revealedFeedbackIds: string[] = [];
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
-			override showFeedbackInEditor(_sessionResource: URI, feedbackIds: readonly string[]): void {
-				shownFeedbackIds.push([...feedbackIds]);
-			}
 			override async revealFeedback(_sessionResource: URI, feedbackId: string): Promise<void> {
 				revealedFeedbackIds.push(feedbackId);
 			}
 		};
+		const hoverService = new TestHoverService();
+		const contextViewService = new TestContextViewService();
+		instantiationService.stub(IAgentFeedbackService, feedbackService);
+		instantiationService.stub(IHoverService, hoverService);
+		instantiationService.stub(IContextViewService, contextViewService);
+		instantiationService.stub(ILanguageService, new class extends mock<ILanguageService>() { });
+		instantiationService.stub(IThemeService, new class extends mock<IThemeService>() { });
+
+		const attachment: IAgentFeedbackVariableEntry = {
+			kind: 'agentFeedback',
+			id: 'attachment-1',
+			name: '1 comment',
+			value: '1 comment',
+			sessionResource,
+			feedbackItems: [
+				{ id: 'comment-1', text: 'abcdefghijklmnopqrstuvwxyz', resourceUri: URI.file('/workspace/a.ts'), range: new Range(1, 1, 1, 1) },
+			],
+		};
+		const container = document.createElement('div');
+		const widget = store.add(instantiationService.createInstance(
+			AgentFeedbackAttachmentWidget,
+			attachment,
+			{ shouldFocusClearButton: false, supportsDeletion: false },
+			container,
+		));
+
+		widget.element.click();
+		widget.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+
+		const hoverOptions = typeof hoverService.hoverOptions === 'function' ? hoverService.hoverOptions() : hoverService.hoverOptions;
+		assert.deepStrictEqual({
+			label: widget.element.textContent,
+			hoverContent: hoverOptions?.content,
+			contextViewShowCount: contextViewService.showCount,
+			revealedFeedbackIds,
+		}, {
+			label: 'abcdefghijklmnopqrstuvwxy…',
+			hoverContent: 'View comments',
+			contextViewShowCount: 0,
+			revealedFeedbackIds: ['comment-1', 'comment-1'],
+		});
+	});
+
+	test('multiple comments toggle a context view without revealing a comment', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const sessionResource = URI.parse('agent-host-copilot:/session-1');
+		const revealedFeedbackIds: string[] = [];
+		const feedbackService = new class extends mock<IAgentFeedbackService>() {
+			override async revealFeedback(_sessionResource: URI, feedbackId: string): Promise<void> {
+				revealedFeedbackIds.push(feedbackId);
+			}
+		};
+		const contextViewService = new TestContextViewService();
 		instantiationService.stub(IAgentFeedbackService, feedbackService);
 		instantiationService.stub(IHoverService, new TestHoverService());
+		instantiationService.stub(IContextViewService, contextViewService);
 		instantiationService.stub(ILanguageService, new class extends mock<ILanguageService>() { });
+		instantiationService.stub(IThemeService, new class extends mock<IThemeService>() { });
 
 		const attachment: IAgentFeedbackVariableEntry = {
 			kind: 'agentFeedback',
@@ -153,17 +235,41 @@ suite('AgentFeedbackAttachmentContribution', () => {
 		));
 
 		widget.element.click();
-		widget.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+		const expandedAfterOpen = widget.element.ariaExpanded;
+		let escapePrevented = false;
+		let escapePropagationStopped = false;
+		contextViewService.delegate?.onDOMEvent?.({
+			browserEvent: { type: 'keydown' },
+			keyCode: KeyCode.Escape,
+			preventDefault: () => { escapePrevented = true; },
+			stopPropagation: () => { escapePropagationStopped = true; },
+		}, widget.element);
+		const expandedAfterEscape = widget.element.ariaExpanded;
+		widget.element.click();
+		widget.element.click();
 
 		assert.deepStrictEqual({
-			shownFeedbackIds,
+			label: widget.element.textContent,
+			ariaHasPopup: widget.element.ariaHasPopup,
+			expandedAfterOpen,
+			expandedAfterEscape,
+			expandedAfterClose: widget.element.ariaExpanded,
+			escapePrevented,
+			escapePropagationStopped,
+			contextViewShowCount: contextViewService.showCount,
+			contextViewCloseCount: contextViewService.closeCount,
 			revealedFeedbackIds,
 		}, {
-			shownFeedbackIds: [
-				['comment-1', 'comment-2'],
-				['comment-1', 'comment-2'],
-			],
-			revealedFeedbackIds: ['comment-1', 'comment-1'],
+			label: '2 comments',
+			ariaHasPopup: 'tree',
+			expandedAfterOpen: 'true',
+			expandedAfterEscape: 'false',
+			expandedAfterClose: 'false',
+			escapePrevented: true,
+			escapePropagationStopped: true,
+			contextViewShowCount: 2,
+			contextViewCloseCount: 2,
+			revealedFeedbackIds: [],
 		});
 	});
 });
