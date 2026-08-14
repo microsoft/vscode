@@ -148,6 +148,8 @@ export interface IGitHubPullRequestReview {
  * Additional live status used to refine the icon of an open pull request.
  */
 export interface IPullRequestIconStatus {
+	/** Whether the pull request has merge conflicts. */
+	readonly hasMergeConflicts?: boolean;
 	/** Whether the pull request has at least one failing CI check. */
 	readonly hasFailingChecks?: boolean;
 	/** Whether the pull request has at least one unresolved review comment thread. */
@@ -172,7 +174,7 @@ export function computePullRequestIcon(state: GitHubPullRequestState | 'draft', 
 		case 'draft':
 			return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
 		case GitHubPullRequestState.Open:
-			if (status?.hasFailingChecks) {
+			if (status?.hasMergeConflicts || status?.hasFailingChecks) {
 				return { ...Codicon.gitPullRequestError, color: themeColorFromId('charts.orange') };
 			}
 			if (status?.hasUnresolvedComments) {

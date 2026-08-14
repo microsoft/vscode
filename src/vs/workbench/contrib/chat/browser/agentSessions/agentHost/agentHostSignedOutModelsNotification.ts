@@ -15,6 +15,7 @@ import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { hasVisibleByokModelsTargetingSessionType } from '../sessionTypeAvailability.js';
+import { ChatSetupDialogVisibleContext } from '../../chatSetup/chatSetup.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
@@ -24,7 +25,10 @@ import { ILanguageModelsConfigurationService } from '../../../common/languageMod
 const SIGNED_OUT_MODELS_NOTIFICATION_ID = 'agentHost.signedOutModels.copilot';
 const SIGN_IN_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 const COPILOT_AGENT_HOST_PROVIDER_ID = 'copilotcli';
-const CLIENT_BYOK_CONTEXT_KEYS = new Set([ChatEntitlementContextKeys.clientByokEnabled.key]);
+const NOTIFICATION_CONTEXT_KEYS = new Set([
+	ChatEntitlementContextKeys.clientByokEnabled.key,
+	ChatSetupDialogVisibleContext.key,
+]);
 /**
  * Upper bound on waiting for local model readiness. Extension registration and
  * config loading always settle, but a vendor named in the user's BYOK config may
@@ -46,8 +50,9 @@ export function getSignedOutModelsNotificationState(options: {
 	readonly hasModels: boolean;
 	readonly localModelsLoaded: boolean;
 	readonly gracePeriodElapsed: boolean;
+	readonly setupDialogVisible: boolean;
 }): SignedOutModelsNotificationState {
-	if (!options.allowSignedOutWhenUsable || !options.accountResolved || options.signedIn || !options.hasCopilotHarness || options.hasModels) {
+	if (options.setupDialogVisible || !options.allowSignedOutWhenUsable || !options.accountResolved || options.signedIn || !options.hasCopilotHarness || options.hasModels) {
 		return SignedOutModelsNotificationState.Hidden;
 	}
 	// Readiness is the fast path; the grace period bounds it because a vendor named
@@ -85,7 +90,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
@@ -105,7 +110,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
 			this._languageModelsConfigurationService.onDidChangeLanguageModelGroups,
-			Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS)),
+			Event.filter(this._contextKeyService.onDidChangeContext, event => event.affectsSome(NOTIFICATION_CONTEXT_KEYS)),
 		)(() => this._update()));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AgentHostAllowSignedOutWhenUsableSettingId)) {
@@ -164,6 +169,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			hasModels,
 			localModelsLoaded,
 			gracePeriodElapsed: this._gracePeriodElapsed,
+			setupDialogVisible: this._contextKeyService.getContextKeyValue<boolean>(ChatSetupDialogVisibleContext.key) === true,
 		});
 		this._updateGracePeriod(state);
 		this._setNotification(state === SignedOutModelsNotificationState.Visible);

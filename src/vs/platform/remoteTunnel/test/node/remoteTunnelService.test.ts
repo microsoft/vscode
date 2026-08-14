@@ -155,6 +155,44 @@ suite('Remote tunnel', () => {
 		}
 	});
 
+	test('reaches connected from service-mode machine status', async () => {
+		const coordinator = new TestTunnelProcessCoordinator();
+		const loggerService = new NullLoggerService();
+		const storageService = new InMemoryStorageService();
+		const service = new RemoteTunnelService(
+			NullTelemetryService,
+			{ tunnelApplicationName: 'code-tunnel' } as IProductService,
+			{ appRoot: 'installation', isBuilt: true, logsHome: URI.file('logs'), userDataPath: 'custom-user-data' } as INativeEnvironmentService,
+			loggerService,
+			{ _serviceBrand: undefined, onWillShutdown: Event.None } as ISharedProcessLifecycleService,
+			new TestConfigurationService(),
+			storageService,
+			coordinator,
+		);
+		try {
+			await service.initialize({
+				active: true,
+				asService: true,
+				session: { providerId: 'github', sessionId: 'session', accountLabel: 'account' },
+			});
+
+			// The session process that attaches to the installed service reports
+			// under `service`; dropping those events left the UI on "connecting".
+			coordinator.fireMachineStatus('service', { type: 'connected', tunnelName: 'test_host', isAttached: true });
+
+			assert.deepStrictEqual(await service.getTunnelStatus(), {
+				type: 'connected',
+				info: { tunnelName: 'test_host', isAttached: true },
+				serviceInstallFailed: false,
+			});
+		} finally {
+			service.dispose();
+			coordinator.dispose();
+			loggerService.dispose();
+			storageService.dispose();
+		}
+	});
+
 	test('reports the intended tunnel name while access is inactive', async () => {
 		const coordinator = new TestTunnelProcessCoordinator();
 		const loggerService = new NullLoggerService();

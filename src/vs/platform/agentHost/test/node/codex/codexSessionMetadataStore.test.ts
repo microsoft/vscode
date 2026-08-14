@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { CodexSessionMetadataStore } from '../../../node/codex/codexSessionMetadataStore.js';
-import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
+import { createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 
 suite('CodexSessionMetadataStore', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -71,6 +71,19 @@ suite('CodexSessionMetadataStore', () => {
 			cwd: undefined,
 			workingDirectories: undefined,
 		});
+	});
+
+	test('known-session detection ignores absent and empty sidecars', async () => {
+		const session = URI.parse('codex:/known-session');
+		const emptyDatabase = new TestSessionDatabase();
+		const absent = new CodexSessionMetadataStore(createNullSessionDataService(), new NullLogService());
+		const present = new CodexSessionMetadataStore(createSessionDataService(emptyDatabase), new NullLogService());
+
+		const absentResult = await absent.hasKnownSession(session);
+		const emptyResult = await present.hasKnownSession(session);
+		await emptyDatabase.setMetadata('codex.threadId', 'thread');
+
+		assert.deepStrictEqual([absentResult, emptyResult, await present.hasKnownSession(session)], [false, false, true]);
 	});
 
 	test('round trips and clears an explicit managed working directory, independent of cwd', async () => {

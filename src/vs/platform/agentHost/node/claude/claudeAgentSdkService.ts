@@ -42,12 +42,12 @@ export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('c
 /**
  * Pure per-method passthrough shim over `@anthropic-ai/claude-agent-sdk`.
  *
- * Every method on this interface corresponds 1:1 to a single SDK export.
- * The shim owns lazy module loading and the first-failure log-once
- * convention; it does NOT compose, wrap, or add behavior on top of the
- * SDK's surface. Higher-level orchestration (e.g. building the in-process
- * client-tool MCP server) lives in dedicated modules that depend on this
- * interface for the raw bindings.
+ * SDK operations correspond 1:1 to a single SDK export. The optional
+ * availability method is limited to scheduling the downloader for native-chat
+ * discovery without importing the SDK. The shim owns lazy module loading and
+ * the first-failure log-once convention; higher-level orchestration (e.g.
+ * building the in-process client-tool MCP server) lives in dedicated modules
+ * that depend on this interface for the raw bindings.
  */
 export interface IClaudeAgentSdkService {
 	readonly _serviceBrand: undefined;
@@ -74,6 +74,11 @@ export interface IClaudeAgentSdkService {
 	 * cold download before the user has started a session.
 	 */
 	canLoadWithoutDownload(): Promise<boolean>;
+	/**
+	 * Ensures the SDK is available for native chat discovery without loading
+	 * the module.
+	 */
+	ensureAvailableForDiscovery(): Promise<void>;
 
 	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
 	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
@@ -171,6 +176,12 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 			return true;
 		}
 		return this._downloader.isSdkResolvableWithoutDownload(ClaudeSdkPackage);
+	}
+
+	async ensureAvailableForDiscovery(): Promise<void> {
+		if (!(await this.canLoadWithoutDownload())) {
+			await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
+		}
 	}
 
 	async getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined> {

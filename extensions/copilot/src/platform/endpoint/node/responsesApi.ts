@@ -96,7 +96,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 				...tool.function,
 				type: 'function',
 				strict: false,
-				parameters: (tool.function.parameters || {}) as Record<string, unknown>,
+				parameters: (tool.function.parameters || { type: 'object', properties: {} }) as Record<string, unknown>,
 			});
 		}
 	}

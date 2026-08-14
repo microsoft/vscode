@@ -11,12 +11,7 @@ import { IChatTipService } from '../../chatTipService.js';
 import { ChatContentMarkdownRenderer } from '../chatContentMarkdownRenderer.js';
 import { ChatTipContentPart } from '../chatContentParts/chatTipContentPart.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
-
-/**
- * Marks the tip container while a tip is rendered into it, so surfaces can style
- * the seam with the input without a descendant-dependent `:has()` selector.
- */
-const SHOWING_TIP_CLASS = 'showing-chat-tip';
+import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
 
 export interface IChatInputTipPresenterOptions {
 	/** The element the tip is rendered into. Hidden while no tip is showing. */
@@ -114,7 +109,7 @@ export class ChatInputTipPresenter extends Disposable {
 
 		// An eligible tip is already rendered; keep it rather than rotating.
 		if (this._part.value) {
-			dom.setVisibility(true, this._options.container);
+			setChatInputStackSlot(this._options.container, ChatInputStackSlot.Docked);
 			return;
 		}
 
@@ -133,8 +128,7 @@ export class ChatInputTipPresenter extends Disposable {
 		this._partRef = tipPart;
 		dom.clearNode(this._options.container);
 		this._options.container.appendChild(tipPart.domNode);
-		this._options.container.classList.add(SHOWING_TIP_CLASS);
-		dom.setVisibility(true, this._options.container);
+		setChatInputStackSlot(this._options.container, ChatInputStackSlot.Docked);
 	}
 
 	/** Take the tip off screen and give up the lane. */
@@ -148,7 +142,6 @@ export class ChatInputTipPresenter extends Disposable {
 		this._partRef = undefined;
 		this._part.clear();
 		dom.clearNode(this._options.container);
-		this._options.container.classList.remove(SHOWING_TIP_CLASS);
-		dom.setVisibility(false, this._options.container);
+		setChatInputStackSlot(this._options.container, ChatInputStackSlot.Empty);
 	}
 }

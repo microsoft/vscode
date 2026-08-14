@@ -20,6 +20,7 @@ import { encodeStatefulMarker } from '../../../platform/endpoint/common/stateful
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService, type IAutoModeRoutingRequest } from '../../../platform/endpoint/node/automodeService';
 import { CopilotChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
+import type { ExtensionLanguageModelRequestOptions } from '../../../platform/endpoint/vscode-node/extChatEndpoint';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
@@ -27,7 +28,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { FinishedCallback, OpenAiFunctionTool, OptionalChatRequestParams } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint, IEndpoint } from '../../../platform/networking/common/networking';
 import { APIUsage } from '../../../platform/networking/common/openai';
-import { IOTelService, type OTelModelOptions } from '../../../platform/otel/common/otelService';
+import { IOTelService } from '../../../platform/otel/common/otelService';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -46,12 +47,6 @@ import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
 import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
-
-/**
- * Markers in the autoModelHint experiment variable that indicate the auto model
- * is routing to an experimental or evaluation model.
- */
-const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
 
 /**
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
@@ -354,12 +349,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				modelTooltip = endpoint.degradationReason;
 			} else if (endpoint instanceof AutoChatEndpoint) {
 				modelTooltip = getAutoModelDescription(endpoint.discountRange);
-				const isOrgManaged = !!this._authenticationService.copilotToken?.isManagedPlan;
-				const autoModeHint = this._expService.getTreatmentVariable<string>('copilotchat.autoModelHint');
-				const showExperimentalHint = !isOrgManaged && !!autoModeHint && experimentalAutoModelHintMarkers.some(marker => autoModeHint.includes(marker));
-				if (showExperimentalHint) {
-					modelTooltip = `${modelTooltip} ${vscode.l10n.t('This model may be experimental or in evaluation.')}`;
-				}
 			} else {
 				modelTooltip = getModelCapabilitiesDescription(endpoint);
 			}
@@ -542,8 +531,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (!allEndpoints.length) {
 				return undefined;
 			}
-			// Without routing context (no user text) auto mode falls back to
-			// prompt-free model selection.
+			// The `vscode.lm` API has no slash commands, so a request whose last
+			// user message carries no text cannot be routed and the rejection
+			// surfaces to the calling extension.
 			return await this._automodeService.resolveAutoModeEndpoint(autoRoutingContext, allEndpoints);
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
@@ -784,6 +774,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		});
 
 
+		const internalModelOptions = (_options as { modelOptions?: ExtensionLanguageModelRequestOptions }).modelOptions;
 		const options: OptionalChatRequestParams = LanguageModelOptions.Default.convert(_options.modelOptions ?? {});
 		const telemetryProperties = { messageSource: `api.${extensionId}` };
 
@@ -808,12 +799,12 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		// Restore CapturingToken context if correlation ID was passed through modelOptions.
 		// This handles BYOK providers where the original AsyncLocalStorage context was lost
 		// when crossing the VS Code IPC boundary.
-		const correlationId = (_options as { modelOptions?: OTelModelOptions }).modelOptions?._capturingTokenCorrelationId;
+		const correlationId = internalModelOptions?._capturingTokenCorrelationId;
 		const capturingToken = correlationId ? retrieveCapturingTokenByCorrelation(correlationId) : undefined;
 
 		// Restore OTel trace context if passed through modelOptions.
 		// This links the wrapper's chat span back to the original invoke_agent trace.
-		const parentTraceContext = (_options as { modelOptions?: OTelModelOptions }).modelOptions?._otelTraceContext ?? undefined;
+		const parentTraceContext = internalModelOptions?._otelTraceContext ?? undefined;
 
 		const makeRequest = () => endpoint.makeChatRequest2({
 			debugName: 'copilotLanguageModelWrapper',
@@ -825,6 +816,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			userInitiatedRequest: !!extensionId,
 			telemetryProperties,
 			modelCapabilities: {
+				enableThinking: internalModelOptions?._enableThinking,
 				reasoningEffort: typeof _options.modelConfiguration?.reasoningEffort === 'string' ? _options.modelConfiguration.reasoningEffort : undefined,
 			},
 		}, token);

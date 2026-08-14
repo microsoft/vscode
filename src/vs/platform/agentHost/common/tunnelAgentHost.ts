@@ -506,8 +506,20 @@ export const TUNNEL_HOST_LOG_ID = 'tunnelHostService';
 /** Information about an actively hosted tunnel. */
 export interface ITunnelHostInfo {
 	readonly tunnelName: string;
+	/** Stable dev tunnel identity, which can be absent when an older CLI reports the hosted tunnel. */
+	readonly tunnelId?: string;
 	/** Set when remote session access is being provided by full Remote Tunnel Access rather than a dedicated agent host tunnel. */
 	readonly viaRemoteTunnelAccess?: boolean;
+}
+
+/** Whether a discovered tunnel is the hosted tunnel, preferring its stable identity over its display name. */
+export function isTunnelHosted(sharingInfo: ITunnelHostInfo | undefined, tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
+	if (!sharingInfo) {
+		return false;
+	}
+	return sharingInfo.tunnelId !== undefined
+		? sharingInfo.tunnelId === tunnel.tunnelId
+		: sharingInfo.tunnelName === tunnel.name;
 }
 
 /** Status of the tunnel host. */

@@ -152,7 +152,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
 		// Window Controls Container (must be before left toolbar for correct ordering)
-		let rightWindowControlsContainer: HTMLElement | undefined;
 		if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 			let primaryWindowControlsLocation = isMacintosh ? 'left' : 'right';
 			if (isMacintosh && isNative) {
@@ -185,15 +184,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
 				// controls explicitly disabled
 			} else {
-				const primaryWindowControlsContainer = this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
-				if (primaryWindowControlsLocation === 'right') {
-					rightWindowControlsContainer = primaryWindowControlsContainer;
-				}
+				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
 				if (isWeb) {
-					const secondaryWindowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
-					if (primaryWindowControlsLocation === 'left') {
-						rightWindowControlsContainer = secondaryWindowControlsContainer;
-					}
+					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
 				}
 
 				if (isWCOEnabled()) {
@@ -266,9 +259,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Update toolbar (rightmost, immediately before native window controls)
-		const updateToolBarElement = $('div.titlebar-actions-container.titlebar-update-container');
-		this.rightContent.insertBefore(updateToolBarElement, rightWindowControlsContainer ?? null);
+		// Update toolbar (leftmost in the right-side controls)
+		const updateToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-update-container'));
 		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,

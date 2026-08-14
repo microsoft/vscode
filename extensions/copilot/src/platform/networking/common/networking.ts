@@ -300,7 +300,7 @@ export interface ITokenPriceTier {
 	readonly cacheWriteTokenPrice: number | undefined;
 	/**
 	 * The largest prompt size (in tokens) billed at this tier's rates.
-	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
+	 * Derived from CAPI `billing.token_prices.<tier>.max_prompt_tokens`.
 	 * Present only when CAPI provides a `long_context` tier.
 	 */
 	readonly contextMax?: number;

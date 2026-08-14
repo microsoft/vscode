@@ -374,6 +374,41 @@ suite('AgentHostAuthenticationRecovery', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('cancels recovery when its enablement generation becomes stale', async () => {
+		const sessions = new DeferredPromise<readonly { scopes: string[]; accessToken: string }[]>();
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: () => sessions.p,
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery();
+		const authenticateCalls: string[] = [];
+		let current = true;
+		const recoveryPromise = instantiationService.invokeFunction(accessor => recovery.recover(accessor, {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		}, {
+			logPrefix: '[AgentHost]',
+			isCurrent: () => current,
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		}));
+
+		current = false;
+		recovery.clear();
+		sessions.complete([{ scopes: ['read'], accessToken: 'tok-1' }]);
+
+		await assert.rejects(recoveryPromise, /Canceled/);
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 0,
+			authenticateCalls: [],
+		});
+	});
+
 	test('force-forwards the post-sign-in token when session-change handling repopulates the cache', async () => {
 		const token = { value: 'tok-1' };
 		const authService = createMockAuthService({

@@ -28,7 +28,7 @@ import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/
 // eslint-disable-next-line local/code-import-patterns
 import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
+import { BlockedSessionsCIFixModel, IBlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -115,10 +115,18 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		?? Array.from({ length: state.blockedCount ?? 0 }, (): IBlockedSpec => ({ reason: BlockedSessionReason.NeedsInput }));
 	const { blocked, approvalModel } = buildBlocked(specs);
 
+	// A no-op CI-fix model seam: the fixture never clicks "Fix CI", so it only
+	// needs to report no sessions hidden. Supplying it avoids the real model,
+	// which would depend on services not registered in this fixture.
+	const ciFixModel = new class extends mock<BlockedSessionsCIFixModel>() {
+		override readonly hiddenSessions: IObservable<ReadonlySet<string>> = constObservable<ReadonlySet<string>>(new Set());
+	}();
+
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IBlockedSessionsCIFixModel, ciFixModel);
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(state.activeSession);
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
@@ -166,13 +174,6 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 	const blockedSessionsModel = new class extends mock<BlockedSessions>() {
 		override readonly blockedSessions: IObservable<readonly ISession[]> = constObservable(blocked.map(entry => entry.session));
 		override readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]> = constObservable(blocked);
-	}();
-
-	// A no-op CI-fix model seam: the fixture never clicks "Fix CI", so it only
-	// needs to report no sessions hidden. Supplying it avoids the real model,
-	// which would depend on services not registered in this fixture.
-	const ciFixModel = new class extends mock<BlockedSessionsCIFixModel>() {
-		override readonly hiddenSessions: IObservable<ReadonlySet<string>> = constObservable<ReadonlySet<string>>(new Set());
 	}();
 
 	const widget = disposableStore.add(instantiationService.createInstance(SessionsTitleBarWidget, action, undefined, sessionActionFeedback, approvalModel, blockedSessionsModel, ciFixModel));

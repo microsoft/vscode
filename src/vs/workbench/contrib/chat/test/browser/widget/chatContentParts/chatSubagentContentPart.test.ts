@@ -577,6 +577,28 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		test('should sanitize agent-provided markdown in active tool labels', () => {
+			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const viewItem = store.add(instantiationService.createInstance(
+				OpenSubagentChatActionViewItem,
+				{
+					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+					parentSessionResource: 'agent-host-copilotcli:/session',
+					isActive: true,
+					activeToolCallId: 'tool-1',
+					activeToolLabel: '![remote](https://example.com/image.png)',
+					activeToolIcon: Codicon.search,
+				},
+				action,
+				{},
+				false,
+			));
+			const container = mainWindow.document.createElement('div');
+			viewItem.render(container);
+
+			assert.strictEqual(container.querySelectorAll('.chat-subagent-pill-active-tool-label img').length, 0);
+		});
+
 		test('should transition between generic and tool activity semantics', () => {
 			const baseContext = {
 				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',

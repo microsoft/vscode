@@ -410,6 +410,12 @@
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container {
 	margin-left: auto;
+	margin-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container:not(.has-no-actions):not(.overflowing) + .update-toolbar-container,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container:not(.has-no-actions):not(.overflowing) + .action-toolbar-container {
+	margin-left: 0;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.has-no-actions,
@@ -438,10 +444,6 @@
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	margin-left: auto;
-}
-
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container:not(.has-no-actions) + .update-toolbar-container:not(.has-no-actions):not(.overflowing) {
-	margin-left: 4px;
 }
 
 .monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container,

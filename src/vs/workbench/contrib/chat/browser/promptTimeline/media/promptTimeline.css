@@ -108,7 +108,6 @@
 .prompt-timeline-sticky-band {
 	display: flex;
 	align-items: center;
-	gap: 6px;
 	flex: 1 1 auto;
 	min-width: 0;
 	height: 30px;
@@ -199,13 +198,6 @@
 	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
 	font-variant-numeric: tabular-nums;
-}
-
-/* Hosts the Previous/Next toolbar; the toolbar supplies its own theming and spacing. */
-.prompt-timeline-sticky-nav {
-	display: flex;
-	align-items: center;
-	flex: 0 0 auto;
 }
 
 .prompt-timeline-sticky-label-button:focus-visible {

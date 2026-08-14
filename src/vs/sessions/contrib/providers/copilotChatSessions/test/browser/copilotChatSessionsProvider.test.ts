@@ -423,22 +423,26 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
-	test('Agent Host availability is observed after the provider is created', () => {
+	test('Agent Host availability is observed in both directions after the provider is created', () => {
 		const { provider, agentHostEnabled } = createProviderWithConfig(disposables, model, { agentHostEnabled: false });
 		let changeCount = 0;
 		disposables.add(provider.onDidChangeSessionTypes(() => changeCount++));
 		const visibleBeforeAvailability = provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id);
 
 		agentHostEnabled.set(true, undefined);
+		const visibleWhileAvailable = provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id);
+		agentHostEnabled.set(false, undefined);
 
 		assert.deepStrictEqual({
 			visibleBeforeAvailability,
-			visibleAfterAvailability: provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id),
+			visibleWhileAvailable,
+			visibleAfterDisablement: provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id),
 			changeCount,
 		}, {
 			visibleBeforeAvailability: true,
-			visibleAfterAvailability: false,
-			changeCount: 1,
+			visibleWhileAvailable: false,
+			visibleAfterDisablement: true,
+			changeCount: 2,
 		});
 	});
 

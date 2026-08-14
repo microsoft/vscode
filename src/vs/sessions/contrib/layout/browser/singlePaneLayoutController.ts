@@ -66,6 +66,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 				get togglingSidePane() { return that._togglingSidePane; },
 				get multipleSessionsVisibleObs() { return that.multipleSessionsVisibleObs; },
 				get activeSessionResourceObs() { return that.activeSessionResourceObs; },
+				hasSavedWorkingSet: sessionResource => that._workingSets.has(sessionResource),
 			};
 		}
 		return this._context;
@@ -79,7 +80,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 
 		this._existingSession = this._register(this._instantiationService.createInstance(SinglePaneExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
 		this._register(this._instantiationService.createInstance(SinglePaneNewSessionStrategy, this._ctx, detailPanel));
-		this._register(this._instantiationService.createInstance(SinglePaneQuickChatStrategy, this._ctx, detailPanel));
+		this._register(this._instantiationService.createInstance(SinglePaneQuickChatStrategy, this._ctx, detailPanel, visibilityStore));
 	}
 
 	// --- Managed tabs + editor-area collapse (deferred to Restored so they reconcile on top of the restored group) ---

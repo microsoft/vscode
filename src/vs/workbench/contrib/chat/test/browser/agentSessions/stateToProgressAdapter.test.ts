@@ -11,11 +11,13 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -334,6 +336,73 @@ suite('stateToProgressAdapter', () => {
 				variableData: undefined,
 				isHidden: true,
 			});
+		});
+
+		test('delegated turn retains a source session link without exposing provider metadata', () => {
+			const turn = createTurn({
+				message: {
+					text: 'Review this',
+					origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({ sourceThreadId: 'source-thread' }),
+				},
+			});
+
+			const history = turnsToHistory(URI.parse('codex:/child-thread'), [turn], 'agent-host-codex');
+
+			assert.deepStrictEqual(history[0], {
+				id: turn.id,
+				type: 'request',
+				prompt: 'Review this',
+				participant: 'agent-host-codex',
+				modelId: undefined,
+				variableData: undefined,
+				origin: {
+					kind: ChatRequestOriginKind.Delegation,
+					sourceSessionResource: URI.parse('agent-host-codex:/source-thread'),
+				},
+			});
+		});
+
+		test('thread coordination tools restore deterministic target-session chips', () => {
+			const createLink = 'agent-host-session://codex/created-thread';
+			const sendLink = 'agent-host-session://codex/target-thread';
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolCallId: 'create',
+						toolName: 'create_session',
+						toolInput: JSON.stringify({ prompt: 'Remember this word: capybara' }),
+						content: [{ type: ToolResultContentType.Text, text: createLink }],
+					}),
+				}, {
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolCallId: 'send',
+						toolName: 'send_message',
+						toolInput: JSON.stringify({ prompt: 'foo' }),
+						content: [{ type: ToolResultContentType.Text, text: sendLink }],
+					}),
+				}],
+			});
+
+			const history = turnsToHistory(URI.parse('codex:/source-thread'), [turn], 'agent-host-codex');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') {
+				return;
+			}
+			assert.deepStrictEqual(response.parts.map(part => part.kind === 'toolInvocationSerialized' ? part.toolSpecificData : undefined), [{
+				kind: 'sessionCreated',
+				openLink: createLink,
+				label: 'Remember this word: capybara',
+				isChat: false,
+			}, {
+				kind: 'sessionCreated',
+				openLink: sendLink,
+				label: 'foo',
+				isChat: false,
+			}]);
 		});
 
 		test('system notification response part restores as system notification', () => {

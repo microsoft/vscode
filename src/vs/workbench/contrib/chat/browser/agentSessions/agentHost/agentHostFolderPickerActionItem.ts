@@ -20,12 +20,15 @@ import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActi
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ISCMService } from '../../../../scm/common/scm.js';
 import type { IChatWidget } from '../../chat.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { createFolderPickerTip } from './agentHostFolderPickerTip.js';
 
 /**
  * Folder picker for agent-host sessions in multi-root windows. An agent-host
@@ -51,8 +54,10 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
 		@ISCMService private readonly _scmService: ISCMService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IStorageService storageService: IStorageService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -87,6 +92,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			actionBarActionProvider,
 			showItemKeybindings: false,
 			reporter: { id: 'AgentHostFolderPicker', name: 'AgentHostFolderPicker', includeOptions: false },
+			listOptionsProvider: createFolderPickerTip(storageService),
 		};
 
 		super(action, folderPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -102,6 +108,12 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			}
 		}));
 		this._register(this._widget.onDidChangeViewModel(() => {
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
+		}));
+		// Re-render when asynchronous session state reveals the session's working directory.
+		this._register(this._customizationService.onDidChangeCustomizations(() => {
 			if (this.element) {
 				this.renderLabel(this.element);
 			}
@@ -123,6 +135,14 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			// The stored folder is no longer part of the workspace (folders
 			// changed); drop the stale selection and fall back below.
 			this._newSessionFolderService.clear(sessionResource!);
+		}
+		// A started session's working directory is fixed at creation time and may
+		// differ from the current workspace's first folder (e.g. a single-folder
+		// session opened inside a multi-root workspace), so show its own folder
+		// rather than the workspace default.
+		const sessionWorkingDirectory = sessionResource ? this._customizationService.getWorkingDirectory(sessionResource) : undefined;
+		if (sessionWorkingDirectory) {
+			return URI.parse(sessionWorkingDirectory);
 		}
 		// No explicit choice for this session yet: default to the folder the
 		// user last picked in this window (if still valid) so a new chat keeps

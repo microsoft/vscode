@@ -39,6 +39,7 @@ import { IChatRendererContent, isResponseVM } from '../../../common/model/chatVi
 import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
+import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import './media/chatPlanReview.css';
 
 const MARKDOWN_EDITOR_ID = 'vscode.markdown.editor';
@@ -317,7 +318,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._messageContentDisposables.value = store;
 		const rendered = store.add(this._markdownRendererService.render(
 			new MarkdownString(this.review.content, { supportThemeIcons: true, isTrusted: false }),
-			{ asyncRenderCallback: () => this._messageScrollable.scanDomNode() }
+			getChatMarkdownRenderOptions({ asyncRenderCallback: () => this._messageScrollable.scanDomNode() })
 		));
 		this._messageEl.append(rendered.element);
 		this._messageScrollable.scanDomNode();

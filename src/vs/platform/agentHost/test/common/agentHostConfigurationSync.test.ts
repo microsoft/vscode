@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
-import { getAgentHostConfigurationSyncEntries, getExplicitGlobalConfigurationValue, getGlobalConfigurationValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
+import { getAgentHostConfigurationSyncEntries, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_ONLY_SETTING = 'test.agentHostSync.localOnly';
@@ -106,10 +106,14 @@ suite('AgentHostConfigurationSync', () => {
 		});
 
 		assert.deepStrictEqual([
-			getExplicitGlobalConfigurationValue(policyWins, ALL_HOSTS_SETTING),
-			getExplicitGlobalConfigurationValue(malformedUserFallsBack, ALL_HOSTS_SETTING),
-			getExplicitGlobalConfigurationValue(defaultOnly, ALL_HOSTS_SETTING),
-		], [false, false, undefined]);
+			inspectValue(policyWins, ALL_HOSTS_SETTING),
+			inspectValue(malformedUserFallsBack, ALL_HOSTS_SETTING),
+			inspectValue(defaultOnly, ALL_HOSTS_SETTING),
+		], [
+			[false, 'policyValue'],
+			[false, 'applicationValue'],
+			undefined,
+		]);
 	});
 
 	test('builds a patch applying transforms, including for hidden settings', () => {

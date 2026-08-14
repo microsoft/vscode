@@ -89,6 +89,8 @@ export namespace ChatContextKeys {
 	 * Widget-scoped: logical Agent Host provider ID for this chat widget, e.g. `copilotcli`, `claude`, or `codex`.
 	 */
 	export const chatAgentHostProviderId = new RawContextKey<string>('chatAgentHostProviderId', '', { type: 'string', description: localize('chatAgentHostProviderId', "The Agent Host provider ID when the chat widget is locked to an Agent Host session.") });
+	/** Widget-scoped: whether the locked Agent Host provider pins an immutable primary working directory. */
+	export const chatAgentHostHasImmutablePrimaryWorkingDirectory = new RawContextKey<boolean>('chatAgentHostHasImmutablePrimaryWorkingDirectory', false, { type: 'boolean', description: localize('chatAgentHostHasImmutablePrimaryWorkingDirectory', "True when the locked Agent Host provider pins an immutable primary working directory.") });
 	/**
 	 * True when the chat session has a customAgentTarget defined in its contribution,
 	 * which means the mode picker should be shown with filtered custom agents.

@@ -11,16 +11,15 @@ import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Registry } from '../../registry/common/platform.js';
 
-/** Context key set by {@link IAgentHostEnablementService}. Use in `when` clauses to gate UI on whether the agent host is enabled. */
-export const AGENT_HOST_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostEnabled', false, { type: 'boolean', description: nls.localize('agentHostEnabled', "Whether the local agent host process is enabled.") });
+/** Context key set by {@link IAgentHostEnablementService}. Use in `when` clauses to gate Agent Host UI. */
+export const AGENT_HOST_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostEnabled', false, { type: 'boolean', description: nls.localize('agentHostEnabled', "Whether Agent Host features are available and AI features are enabled in this window.") });
 
 export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementService>('agentHostEnablementService');
 
 export interface IAgentHostEnablementService {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Whether Agent Host features are enabled in this runtime.
-	 * This can transition from `false` to `true` when AI features are explicitly enabled.
+	 * Whether Agent Host features are available and AI features are enabled in this window.
 	 */
 	readonly enabled: IObservable<boolean>;
 }

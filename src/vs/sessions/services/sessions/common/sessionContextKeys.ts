@@ -13,6 +13,7 @@ import {
 	SessionHasWorkspaceContext,
 	IsQuickChatSessionContext,
 	SessionIsArchivedContext,
+	SessionIsActiveContext,
 	SessionIsCreatedContext,
 	SessionIsReadContext,
 	SessionIsStickyContext,
@@ -33,7 +34,7 @@ import {
 	SessionActiveChatHasSubagentsContext,
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
 
 /**
@@ -44,6 +45,7 @@ interface ISessionContextKeys {
 	readonly providerId: IContextKey<string>;
 	readonly type: IContextKey<string>;
 	readonly isArchived: IContextKey<boolean>;
+	readonly isActive: IContextKey<boolean>;
 	readonly isRead: IContextKey<boolean>;
 	readonly supportsMultipleChats: IContextKey<boolean>;
 	readonly supportsFork: IContextKey<boolean>;
@@ -85,6 +87,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			providerId: SessionProviderIdContext.bindTo(contextKeyService),
 			type: SessionTypeContext.bindTo(contextKeyService),
 			isArchived: SessionIsArchivedContext.bindTo(contextKeyService),
+			isActive: SessionIsActiveContext.bindTo(contextKeyService),
 			isRead: SessionIsReadContext.bindTo(contextKeyService),
 			supportsMultipleChats: SessionSupportsMultipleChatsContext.bindTo(contextKeyService),
 			supportsFork: SessionSupportsForkContext.bindTo(contextKeyService),
@@ -132,6 +135,7 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.providerId.set(session?.providerId ?? '');
 	keys.type.set(session?.sessionType ?? '');
 	keys.isArchived.set(session?.isArchived.read(reader) ?? false);
+	keys.isActive.set(session ? isActiveSessionStatus(session.status.read(reader)) : false);
 	keys.isRead.set(session?.isRead.read(reader) ?? true);
 	const capabilities = session?.capabilities.read(reader);
 	keys.supportsMultipleChats.set(capabilities?.supportsMultipleChats ?? false);

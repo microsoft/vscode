@@ -335,7 +335,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		openChangesEditorCalls: [],
 		sessionChangesService: new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
-		}),
+		}, new class extends mock<IChangesViewService>() { }),
 		contextKeyService,
 	};
 

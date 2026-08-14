@@ -86,11 +86,12 @@ suite('AgentHostEnablementService', () => {
 		});
 	});
 
-	test('can enable when AI features are re-enabled', () => {
-		const { service, configurationService, contextKeyService } = createService(true);
+	test('tracks AI feature disablement in both directions', () => {
+		const { service, configurationService, contextKeyService } = createService();
 		const changes: boolean[] = [];
 		disposables.add(autorun(reader => changes.push(service.enabled.read(reader))));
 
+		configurationService.setValue(ChatAIDisabledSettingId, true, ConfigurationTarget.USER);
 		configurationService.setValue(ChatAIDisabledSettingId, false, ConfigurationTarget.USER);
 
 		assert.deepStrictEqual({
@@ -100,7 +101,7 @@ suite('AgentHostEnablementService', () => {
 		}, {
 			enabled: true,
 			contextKey: true,
-			changes: [false, true],
+			changes: [true, false, true],
 		});
 	});
 

@@ -231,7 +231,7 @@ export class ToolsListWidget extends Disposable {
 		DOM.append(DOM.append(this._header, $('.section-title-row')), $('h2.section-title')).textContent = localize('toolsListTitle', "Tools");
 
 		const description = DOM.append(this._header, $('p.section-title-description'));
-		DOM.append(description, $('span.section-title-description-text')).textContent = localize('toolsListSubtitle', "Enable or disable the tools available to chat. Disabled tools are not advertised to the agent. Tools other than Copilot CLI run on the client and require it to be connected.");
+		DOM.append(description, $('span.section-title-description-text')).textContent = localize('toolsListSubtitle', "Enable or disable the tools available to chat. Disabled tools are not advertised to the agent. Tools other than Copilot's built-in tools run on the client and require it to be connected.");
 		// Whitespace node so the gap collapses when the link wraps.
 		description.appendChild(document.createTextNode(' '));
 
@@ -328,7 +328,7 @@ export class ToolsListWidget extends Disposable {
 			icon: Codicon.copilot,
 			source: ToolDataSource.Internal,
 			description: localize('clientToolSet.copilotCli.description', "Copilot"),
-			detail: localize('clientToolSet.copilotCli.detail', "Built-in tools the Copilot CLI agent runs inside its own runtime."),
+			detail: localize('clientToolSet.copilotCli.detail', "Built-in tools the Copilot agent runs inside its own runtime."),
 			getTools: () => tools,
 		};
 		return [copilotCliSet];

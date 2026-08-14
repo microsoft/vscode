@@ -28,7 +28,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -898,7 +898,7 @@ async function promptToConnectViaTunnel(
 		iconClass: ThemeIcon.asClassName(Codicon.trash),
 		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
 	};
-	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => tunnelHostService?.sharingInfo?.tunnelName === tunnel.name;
+	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(tunnelHostService?.sharingInfo, tunnel);
 	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => tunnelInfos
 		.filter(tunnel => !isHostedTunnel(tunnel))
 		.map(tunnel => ({

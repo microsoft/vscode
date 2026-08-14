@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
-import { getExplicitGlobalConfigurationValue, getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
+import { getGlobalConfigurationValue, inspectValue } from './agentHostConfigurationSync.js';
 import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from './agentHostSchema.js';
 
 export interface IAgentHostManagedSettingsPermissions {
@@ -20,19 +20,19 @@ interface IManagedPermissionsSettingMapping {
 	contribute(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions | undefined;
 }
 
-function managedPermissionsSetting<T>(settingId: string, transform: (value: T) => IAgentHostManagedSettingsPermissions | undefined): IManagedPermissionsSettingMapping {
+function managedPermissionsSetting<T>(settingId: string, transform: (value: T, source: 'policyValue' | 'userValue' | 'applicationValue') => IAgentHostManagedSettingsPermissions | undefined): IManagedPermissionsSettingMapping {
 	return {
 		settingId,
 		contribute: configurationService => {
-			const value = getExplicitGlobalConfigurationValue<T>(configurationService, settingId);
-			return value === undefined ? undefined : transform(value);
+			const configuration = inspectValue<T>(configurationService, settingId);
+			return configuration === undefined ? undefined : transform(...configuration);
 		},
 	};
 }
 
 /** Compatibility mappings for legacy settings only; new controls belong directly in the SDK. */
 const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] = [
-	managedPermissionsSetting<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID, value => value === false ? { disableBypassPermissionsMode: 'disable' } : undefined),
+	managedPermissionsSetting<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID, (value, source) => source === 'policyValue' && value === false ? { disableBypassPermissionsMode: 'disable' } : undefined),
 	managedPermissionsSetting<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, value => value === false ? { ask: ['Shell'] } : undefined),
 ];
 

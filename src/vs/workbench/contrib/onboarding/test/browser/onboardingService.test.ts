@@ -41,9 +41,11 @@ function notShownResult(): IOnboardingRunResult {
 /** Captures the names of `publicLog2` telemetry events. */
 class CapturingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: string[] = [];
-	override publicLog2(eventName?: string): void {
+	readonly eventData: { readonly name: string; readonly data: unknown }[] = [];
+	override publicLog2(eventName?: string, data?: unknown): void {
 		if (eventName) {
 			this.events.push(eventName);
+			this.eventData.push({ name: eventName, data });
 		}
 	}
 }
@@ -53,6 +55,16 @@ class FixedResultPresentation implements IOnboardingPresentation {
 	constructor(readonly kind: string, private readonly result: IOnboardingRunResult) { }
 	async run(_scenario: IOnboardingScenario, _context: IOnboardingRunContext): Promise<IOnboardingRunResult> {
 		return this.result;
+	}
+}
+
+/** A presentation that reports its first rendered element before completing. */
+class ShownPresentation implements IOnboardingPresentation {
+	constructor(readonly kind: string) { }
+	async run(_scenario: IOnboardingScenario, context: IOnboardingRunContext): Promise<IOnboardingRunResult> {
+		context.onDidShow?.();
+		context.onDidShow?.();
+		return completedResult();
 	}
 }
 
@@ -369,6 +381,43 @@ suite('OnboardingScenarioService', () => {
 
 		// One event for the shown tour; none for the degenerate run that rendered nothing.
 		assert.deepStrictEqual(telemetry.events, ['onboarding.scenarioOutcome']);
+	});
+
+	test('emits one shown event only after a presentation renders with its experiment assignment', async () => {
+		const presentation = new ShownPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'sessions.onboarding.newSessionViewV2',
+			experiment: { behaviorFlag: 'onb.newSessionViewV2.show', assignmentContextIdFlag: 'onb.newSessionViewV2.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+		const telemetry = new CapturingTelemetryService();
+		const { service } = createService(
+			{},
+			new FakeAssignmentService({
+				'onb.newSessionViewV2.show': true,
+				'onb.newSessionViewV2.id': 'onb-new-btn-treat2',
+			}),
+			undefined,
+			telemetry as unknown as ITelemetryService,
+		);
+
+		service.start();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetry.eventData.filter(event => event.name === 'onboarding.scenarioShown'), [
+			{
+				name: 'onboarding.scenarioShown',
+				data: {
+					scenarioId: 'sessions.onboarding.newSessionViewV2',
+					experimentActive: true,
+					experimentAssignmentContextId: 'onb-new-btn-treat2',
+				},
+			},
+		]);
+		assert.deepStrictEqual(telemetry.events, ['onboarding.scenarioShown', 'onboarding.scenarioOutcome']);
 	});
 
 	test('experiment-driven scenario does not run unless both treatment flags are set', async () => {

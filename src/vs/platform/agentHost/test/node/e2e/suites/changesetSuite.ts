@@ -79,6 +79,8 @@ interface IOperationStatusChangedAction {
 	readonly status: string;
 }
 
+const CHANGESET_OPERATION_TIMEOUT_MS = 60_000;
+
 export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 
@@ -295,7 +297,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			processed.add(n);
 			reduce(n);
 			return isReady();
-		}, 60_000);
+		}, CHANGESET_OPERATION_TIMEOUT_MS);
 	}
 
 	async function createModifiedUncommittedChangeset(prefix: string): Promise<{
@@ -324,12 +326,13 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			&& getActionEnvelope(n).channel === changeset
 			&& (getActionEnvelope(n).action as { operationId: string; status: string }).operationId === 'discard-changes'
 			&& (getActionEnvelope(n).action as { operationId: string; status: string }).status === 'idle',
+			CHANGESET_OPERATION_TIMEOUT_MS,
 		);
 		await context.client.call('invokeChangesetOperation', {
 			channel: changeset,
 			operationId: 'discard-changes',
 			target: { kind: ChangesetOperationTargetKind.Resource, resource },
-		});
+		}, CHANGESET_OPERATION_TIMEOUT_MS);
 		await completed;
 		return context.client.receivedNotifications(n =>
 			isActionNotification(n, 'changeset/operationStatusChanged')

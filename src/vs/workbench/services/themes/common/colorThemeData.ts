@@ -392,6 +392,11 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return customColor === undefined /* !== DEFAULT_COLOR_CONFIG_VALUE */ && this.colorMap.hasOwnProperty(colorId);
 	}
 
+	public getColorCustomization(colorId: ColorIdentifier): Color | undefined {
+		const customColor = this.customColorMap[colorId];
+		return customColor instanceof Color ? customColor : undefined;
+	}
+
 	public setCustomizations(settings: ThemeConfiguration) {
 		this.setCustomColors(settings.colorCustomizations);
 		this.setCustomTokenColors(settings.tokenColorCustomizations);

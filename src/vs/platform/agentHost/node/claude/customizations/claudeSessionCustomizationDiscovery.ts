@@ -82,7 +82,6 @@ function makePlugin(plugin: IResolvedNativePlugin): PluginCustomization {
 		id: customizationId(uri),
 		uri,
 		name: plugin.id,
-		enabled: true,
 		load: { kind: CustomizationLoadStatus.Loaded },
 		children,
 	};

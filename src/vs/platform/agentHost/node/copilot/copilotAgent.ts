@@ -39,11 +39,11 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -54,18 +54,22 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
-import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_READ_DB_KEY, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId } from '../../common/agentHostByokLm.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
+import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
@@ -112,15 +116,41 @@ export async function getCopilotManagedSettingsDiagnostics(
 	host: string,
 	signal: AbortSignal,
 	timeoutMs = COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
+	proxy: string | undefined = undefined,
 ): Promise<{ account?: string; resolved: ManagedSettingsResolvedData }> {
-	const result = await raceTimeout(runtimeSdk.getManagedSettings({
+	const request = invokeWithProxyEnvironment(proxy, () => runtimeSdk.getManagedSettings({
 		...(token ? { authInfo: { type: 'token', host, token } as const, token } : {}),
 		signal,
-	}), timeoutMs);
+	}));
+	const result = await raceTimeout(request, timeoutMs);
 	if (!result) {
 		throw new Error(`Copilot runtime managed-settings query exceeded ${timeoutMs / 1000} seconds while waiting for native MDM or GitHub policy resolution.`);
 	}
 	return result;
+}
+
+function invokeWithProxyEnvironment<T>(proxy: string | undefined, invoke: () => Promise<T>): Promise<T> {
+	if (!proxy) {
+		return invoke();
+	}
+	const previousValues = COPILOT_PROXY_SET_ENV_KEYS.map(key => process.env[key]);
+	for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
+		process.env[key] = proxy;
+	}
+	try {
+		// The SDK snapshots process.env while constructing the native request.
+		return invoke();
+	} finally {
+		for (let index = 0; index < COPILOT_PROXY_SET_ENV_KEYS.length; index++) {
+			const key = COPILOT_PROXY_SET_ENV_KEYS[index];
+			const value = previousValues[index];
+			if (value === undefined) {
+				delete process.env[key];
+			} else {
+				process.env[key] = value;
+			}
+		}
+	}
 }
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
@@ -191,7 +221,11 @@ async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 	throw new Error(`Unable to resolve @github/copilot CLI path. Tried: ${tried.join(', ')}`);
 }
 
-export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
+export type ICopilotPluginInfo = IParsedPlugin & {
+	readonly pluginDir?: URI;
+	readonly sourceUri?: URI;
+	readonly disabledMcpServers?: readonly string[];
+};
 
 /**
  * In-memory chat reservation created by {@link IAgentChats.createChat} and
@@ -539,13 +573,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _onDidMaterializeChat = this._register(new Emitter<IAgentMaterializeChatEvent>());
 	readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
 	/**
-	 * Fires when the set of adoptable-legacy sessions the host should surface may
-	 * have changed — today only when the renderer's migrate-legacy flag flips on
-	 * (which can arrive after the first `listLegacyChats`). The {@link AgentService}
-	 * responds by re-listing and announcing any newly adoptable sessions.
+	 * Fires when the native chat catalog may have changed. The {@link AgentService}
+	 * responds with an additive discovery pass.
 	 */
-	private readonly _onDidChangeChatList = this._register(new Emitter<void>());
-	readonly onDidChangeChatList = this._onDidChangeChatList.event;
+	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
+		onDidAddFirstListener: () => { void this._emitExtHostChats(); },
+	}));
+	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 	/**
 	 * Per-session MCP notifications, fanned in from every active
 	 * {@link CopilotAgentSession}. Each session contributes a single
@@ -719,6 +753,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentHostReviewService private readonly _reviewService: IAgentHostReviewService,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -776,19 +811,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			);
 		}));
 
-		// The migrate-legacy flag is pushed from the renderer after connect, which
-		// can land AFTER the first `listLegacyChats` (so it surfaced nothing). When it
-		// flips on, re-list so adoptable legacy sessions surface without a reload.
-		this._register(this._configurationService.onDidRootConfigChange(() => {
-			const enabled = this._isMigrateLegacyCopilotCliEnabled();
-			if (enabled !== this._lastMigrateLegacyEnabled) {
-				this._lastMigrateLegacyEnabled = enabled;
-				if (enabled) {
-					this._onDidChangeChatList.fire();
-				}
-			}
-		}));
-
 		// Surface renderer BYOK models in the picker: republish them whenever the
 		// set of connected renderer bridges, or any renderer's models, change.
 		// The registry is only populated when `chat.agentHost.byokModels.enabled`
@@ -833,7 +855,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _lastEnterpriseHost: string | undefined = this._getEnterpriseHost();
 	private _lastSystemProxyEnabled: boolean = this._isSystemProxyEnabled();
 	private _lastManagedSettingsPermissions: IAgentHostManagedSettingsPermissions;
-	private _lastMigrateLegacyEnabled: boolean = this._isMigrateLegacyCopilotCliEnabled();
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
@@ -861,10 +882,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _isSystemProxyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSystemProxyEnabledConfigKey) !== false;
-	}
-
-	private _isMigrateLegacyCopilotCliEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 	}
 
 	/**
@@ -1040,7 +1057,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const failedTurnIds = new Set<string>();
 		const error: ErrorInfo = {
 			errorType: 'providerConnectionClosed',
-			message: localize('copilotAgent.connectionClosed', "The Copilot CLI stopped unexpectedly. Retry your request."),
+			message: localize('copilotAgent.connectionClosed', "Copilot stopped unexpectedly. Retry your request."),
 		};
 		for (const chat of this._allLiveSessions()) {
 			const failedTurnId = chat.failActiveTurn(error);
@@ -1157,12 +1174,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new Error('Copilot runtime SDK does not expose getManagedSettings()');
 			}
 
+			stage = 'resolving the proxy';
+			const proxy = await this._resolveProxyForSdk();
 			stage = 'querying native MDM and GitHub managed settings';
 			return getCopilotManagedSettingsDiagnostics(
 				runtimeSdk,
 				this._githubToken,
 				this._gitHubEndpointService.getEnterpriseUri() ?? 'https://github.com',
 				AbortSignal.timeout(COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS),
+				COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
+				proxy,
 			);
 		})();
 		const result = await raceTimeout(diagnostics, COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS);
@@ -1215,7 +1236,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 		}
 		const fromPlugins = await activeClient.pluginController.getCustomizationsSettled();
-		const topLevelMcp = this._findSessionChat(session)?.topLevelMcpCustomizations() ?? [];
+		const sessionChat = this._findSessionChat(session);
+		const topLevelMcp = activeClient.pluginController.resolveTopLevelMcpCustomizations(
+			sessionChat?.topLevelMcpCustomizations() ?? [],
+			sessionChat?.mcpServerOwners?.(),
+		);
 		const customizations = [...fromPlugins, ...topLevelMcp];
 		return applyMcpServerEnablement(customizations, this._retainedHostCustomizations(session));
 	}
@@ -1226,6 +1251,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error(`Method not found: no active session ${AgentSession.id(session)}`);
 		}
 		return entry.handleMcpRequest(serverName, method, params);
+	}
+
+	getMcpServerOwners(session: URI): ReadonlyMap<string, string> | undefined {
+		return this._findSessionChat(session)?.mcpServerOwners();
 	}
 
 	async startMcpServer(session: URI, id: string): Promise<void> {
@@ -1997,68 +2026,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
-	/**
-	 * Migration-only enumeration of provider-native chats for the host's legacy registry backfill.
-	 *
-	 * Returns `undefined` when the CLI client is transiently unavailable — not
-	 * yet started, mid-(re)start, shutting down, or the subprocess failed to
-	 * start/connect (see {@link classifyCopilotClientFailure}) — since that is
-	 * "can't enumerate yet", not an authoritative "no legacy chats" answer; the
-	 * orchestrator retries on the next legacy discovery pass. Once the client
-	 * answers, an empty (or filtered) result is authoritative: `[]` correctly
-	 * means "no legacy chats" (including when migration of un-adopted
-	 * extension-host sessions is disabled via
-	 * {@link _isMigrateLegacyCopilotCliEnabled}). A failure from `listSessions`
-	 * itself that isn't a recognized client-unavailability signal is a genuine
-	 * bug and is rethrown so retry/logging upstream can see it.
-	 */
-	async listLegacyChats(): Promise<IAgentChatMetadata[] | undefined> {
-		this._logService.info('[Copilot] Listing sessions...');
-		let sessions: Awaited<ReturnType<CopilotClient['listSessions']>>;
-		try {
-			sessions = await this._retryAfterClosedConnection('listSessions', async () => {
-				const client = await this._ensureClient();
-				return client.listSessions();
-			});
-		} catch (err) {
-			if (err instanceof CancellationError || classifyCopilotClientFailure(err) !== undefined) {
-				this._logService.info(`[Copilot] Client unavailable while listing sessions; deferring legacy chat list: ${err instanceof Error ? err.message : String(err)}`);
-				return undefined;
-			}
-			throw err;
+	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
+		const sessions = await this._listSdkSessions('chats to migrate');
+		if (!sessions) {
+			return undefined;
 		}
-		const migrateLegacy = this._isMigrateLegacyCopilotCliEnabled();
 		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
+		const metadataLimiter = new Limiter<IAgentChatMetadata | undefined>(4);
 		const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
-		const mapped = await Promise.all(sessions.map(async s => {
+		const mapped = await Promise.all(sessions.map(s => metadataLimiter.queue(async () => {
 			const session = AgentSession.uri(this.id, s.sessionId);
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const metadata = await this._readStoredSessionMetadata(session);
-			// Only list sessions the agent host actually owns: a genuine native /
-			// already-migrated session has a persisted working directory.
-			if (!metadata?.workingDirectory) {
-				// No stored working directory. When migration is enabled, surface a
-				// genuinely un-adopted extension-host Copilot CLI session as adoptable
-				// so the agent host owns the list without the extension host; opening
-				// it adopts in place. `metadata === undefined` means there is no
-				// session database at all (i.e. not agent-host-owned), which excludes
-				// ghost DBs created empty by checkpoint / changeset / git services; the
-				// `vscode.metadata.json` marker excludes standalone CLI and provisional
-				// agent-host sessions. When disabled, nothing here is surfaced.
-				if (migrateLegacy
-					&& metadata === undefined
-					&& typeof s.context?.workingDirectory === 'string'
-					&& await this._isExtensionHostCliSession(s.sessionId)) {
-					return {
-						chat,
-						startTime: s.startTime.getTime(),
-						modifiedTime: s.modifiedTime.getTime(),
-						project: await this._resolveSessionProject(s.context, projectLimiter, projectByContext),
-						summary: s.summary,
-						workingDirectories: [URI.file(s.context.workingDirectory)],
-						_meta: withSessionEhcliAdoptable(undefined),
-					} satisfies IAgentChatMetadata;
-				}
+			if (!metadata) {
 				return undefined;
 			}
 			let { project, resolved } = metadata;
@@ -2076,10 +2056,67 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectories,
 			};
 			return result;
-		}));
+		})));
 		const result = mapped.filter((s): s is IAgentChatMetadata => s !== undefined);
-		this._logService.info(`[Copilot] Found ${result.length} sessions`);
+		this._logService.info(`[Copilot] Found ${result.length} legacy sessions`);
 		return result;
+	}
+
+	private async _emitExtHostChats(): Promise<void> {
+		try {
+			const chats = await this._discoverExtHostChats();
+			if (chats) {
+				this._onDidDiscoverChats.fire(chats);
+			}
+		} catch (err) {
+			this._logService.warn('[Copilot] Failed to emit extension-host chats', err);
+		}
+	}
+
+	private async _discoverExtHostChats(): Promise<IAgentDiscoveredChat[] | undefined> {
+		const sessions = await this._listSdkSessions('extension-host chats');
+		if (!sessions) {
+			return undefined;
+		}
+		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
+		const metadataLimiter = new Limiter<IAgentChatMetadata | undefined>(4);
+		const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
+		const mapped = await Promise.all(sessions.map(s => metadataLimiter.queue(async () => {
+			if (typeof s.context?.workingDirectory !== 'string' || !await this._isExtensionHostCliSession(s.sessionId)) {
+				return undefined;
+			}
+			const session = AgentSession.uri(this.id, s.sessionId);
+			if (await this._readStoredSessionMetadata(session)) {
+				return undefined;
+			}
+			return {
+				chat: URI.parse(buildDefaultChatUri(session)),
+				startTime: s.startTime.getTime(),
+				modifiedTime: s.modifiedTime.getTime(),
+				project: await this._resolveSessionProject(s.context, projectLimiter, projectByContext),
+				summary: s.summary,
+				workingDirectories: [URI.file(s.context.workingDirectory)],
+				_meta: withSessionEhcliAdoptable(undefined),
+				external: false,
+			} satisfies IAgentDiscoveredChat;
+		})));
+		return mapped.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
+	}
+
+	private async _listSdkSessions(reason: string): Promise<Awaited<ReturnType<CopilotClient['listSessions']>> | undefined> {
+		this._logService.info(`[Copilot] Listing ${reason}...`);
+		try {
+			return await this._retryAfterClosedConnection('listSessions', async () => {
+				const client = await this._ensureClient();
+				return client.listSessions();
+			});
+		} catch (err) {
+			if (err instanceof CancellationError || classifyCopilotClientFailure(err) !== undefined) {
+				this._logService.info(`[Copilot] Client unavailable while listing ${reason}: ${err instanceof Error ? err.message : String(err)}`);
+				return undefined;
+			}
+			throw err;
+		}
 	}
 
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
@@ -2089,9 +2126,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		const storedMetadata = await this._readStoredSessionMetadata(session);
-		if (!storedMetadata) {
-			return undefined;
-		}
 
 		const sessionMetadata = await this._retryAfterClosedConnection('getSessionMetadata', async () => {
 			const client = await this._ensureClient();
@@ -2102,13 +2136,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		let project = storedMetadata?.project;
-		if (storedMetadata && !storedMetadata.resolved) {
+		if (!storedMetadata?.resolved) {
 			const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(1);
 			project = await this._resolveSessionProject(sessionMetadata?.context, projectLimiter, new Map<string, Promise<IAgentSessionProjectInfo | undefined>>());
-			void this._storeSessionProjectResolution(session, project);
+			if (storedMetadata) {
+				void this._storeSessionProjectResolution(session, project);
+			}
 		}
 
 		const workingDirectories = storedMetadata?.workingDirectories ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? [URI.file(sessionMetadata.context.workingDirectory)] : undefined);
+		const adoptable = !storedMetadata && await this._isExtensionHostCliSession(sessionId);
 		return {
 			chat,
 			startTime: sessionMetadata?.startTime.getTime() ?? Date.now(),
@@ -2116,6 +2153,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			project,
 			summary: sessionMetadata?.summary,
 			workingDirectories,
+			_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
 		};
 	}
 
@@ -2722,6 +2760,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
 				resolvedAgentName: resolvedAgent?.name,
 				snapshot,
+				disabledRootMcpServers: this._disabledRootMcpServers(sessionUri, sdkSessionId, snapshot),
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
 				githubToken: this._githubToken,
@@ -3219,6 +3258,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
+					disabledRootMcpServers: this._disabledRootMcpServers(session, sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -3247,6 +3287,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
+					disabledRootMcpServers: this._disabledRootMcpServers(session, sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -3261,6 +3302,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
+					disabledRootMcpServers: this._disabledRootMcpServers(session, chatSdkId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -3522,13 +3564,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * send. Best-effort — a corrupt/unknown blob is logged and dropped rather
 	 * than thrown.
 	 */
-	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
+	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 		this._noteHostCustomizations(context);
 		const resolved = resolveAgentChatContext(context, chat);
 		this._rememberChatScope(chat, resolved.configurationResource, resolved.resource);
 		const chatKey = chat.toString();
 		if (providerData === undefined) {
-			return;
+			if (!isDefaultChatUri(chat)) {
+				return;
+			}
+			const backing = { sdkSessionId: AgentSession.id(resolved.configurationResource) };
+			this._chatBackings.set(chatKey, backing);
+			return { providerData: encodeProviderData(backing) };
 		}
 		const backing = decodeProviderData(providerData);
 		if (!backing) {
@@ -3635,6 +3682,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					additionalDirectories: workingDirectories?.slice(1),
 					resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
 					snapshot,
+					disabledRootMcpServers: this._disabledRootMcpServers(configurationResource, info.sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -3897,7 +3945,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let client = this._activeClients.get(session);
 		if (!client) {
 			// Read the retained host snapshot lazily so projected enablement stays current.
-			const pluginController = this._plugins.createSessionController(directory, () => this._retainedHostCustomizations(session));
+			const pluginController = this._plugins.createSessionController(session, directory, () => this._retainedHostCustomizations(session));
 			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidChatProgress);
 			this._activeClients.set(session, client);
 		} else if (directory) {
@@ -3928,7 +3976,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClientToolSet: launchPlan.activeClientToolSet,
 				// Evaluate membership against the session's current chat channel; `bindChatChannel` can move it later.
 				clientReachesChat: (clientId, chat) => activeClient.contributesTo(clientId, chat.toString()),
-				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
 				// MCP reconcile has no host call of its own, so read the retained host snapshot lazily.
 				hostCustomizations: () => this._retainedHostCustomizations(sessionUri),
 				serverToolHost: this._serverToolHost,
@@ -3937,6 +3984,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 			},
 		);
 		return agentSession;
+	}
+
+	/** Resolves root-configured MCP servers that must be disabled when the SDK session starts. */
+	private _disabledRootMcpServers(session: URI, sessionId: string, snapshot: IActiveClientSnapshot): readonly string[] {
+		const rootServers: McpServerCustomization[] = Object.keys(snapshot.mcpServers).map(name => {
+			const id = buildMcpTopLevelCustomizationId(this.id, sessionId, name);
+			return {
+				type: CustomizationType.McpServer,
+				id,
+				uri: id,
+				name,
+				state: { kind: McpServerStatus.Stopped },
+			};
+		});
+		const enablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(
+			this._customizationEnablementService,
+			session,
+			rootServers,
+		));
+		return rootServers.filter(server => enablement.get(server.id) !== true).map(server => server.name);
 	}
 
 	private _createChatEntry(session: CopilotAgentSession, activeClient: ActiveClient): CopilotChatEntry {
@@ -4066,6 +4133,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			additionalDirectories: this._additionalCustomizationDirectories(launchWorkingDirectories),
 			resolvedAgentName,
 			snapshot,
+			disabledRootMcpServers: this._disabledRootMcpServers(sessionUri, sessionId, snapshot),
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
 			githubToken: this._githubToken,
@@ -4260,6 +4328,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_DISPLAY_NAME),
 				ref.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
 			]);
+			if ([model, agent, cwd, cwds, customizationDirectory, resolved, uri, displayName, workspaceless].every(value => value === undefined)) {
+				return undefined;
+			}
 			const workingDirectory = cwd ? URI.parse(cwd) : undefined;
 			const project = uri && displayName ? { uri: URI.parse(uri), displayName } : undefined;
 			return {
@@ -4735,8 +4806,8 @@ class PluginController extends Disposable {
 	}
 
 	/** Creates a per-session controller that reads host-customization state lazily. */
-	public createSessionController(directory: URI | undefined, hostCustomizations: () => readonly Customization[]): SessionPluginController {
-		return this._instantiationService.createInstance(SessionPluginController, this, directory, hostCustomizations);
+	public createSessionController(session: URI, directory: URI | undefined, hostCustomizations: () => readonly Customization[]): SessionPluginController {
+		return this._instantiationService.createInstance(SessionPluginController, this, session, directory, hostCustomizations);
 	}
 
 	/**
@@ -4854,6 +4925,8 @@ class SessionPluginController extends Disposable {
 	private readonly _onDidPublish = this._register(new Emitter<SessionAction>());
 	/** Per-session action stream (reset + per-item updates). */
 	readonly onDidPublish = this._onDidPublish.event;
+	private readonly _enablementReady: Promise<void>;
+	private _isEnablementReady = false;
 
 	private readonly _previousDirectories: URI[] = [];
 	private _indexedDesiredCustomizations: readonly Customization[] | undefined;
@@ -4870,13 +4943,18 @@ class SessionPluginController extends Disposable {
 
 	constructor(
 		private readonly _parent: PluginController,
+		private readonly _session: URI,
 		private _directory: URI | undefined,
 		/** Reads the retained host snapshot used to project per-customization enablement. */
 		private readonly _hostCustomizations: () => readonly Customization[],
 		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 	) {
 		super();
+		this._enablementReady = this._customizationEnablementService.initializeSession(this._session.toString()).then(() => {
+			this._isEnablementReady = true;
+		});
 	}
 
 	public get directory(): URI | undefined {
@@ -4934,6 +5012,14 @@ class SessionPluginController extends Disposable {
 	}
 
 	public getCustomizations(): readonly Customization[] {
+		return this._resolveCustomizationEnablement().customizations;
+	}
+
+	public resolveTopLevelMcpCustomizations(customizations: readonly Customization[], mcpServerOwners?: ReadonlyMap<string, string>): readonly Customization[] {
+		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, customizations, this._clientChildEnablement(), undefined, mcpServerOwners).customizations;
+	}
+
+	private _resolveCustomizationEnablement() {
 		const result: Customization[] = [
 			...this._parent.hostCustomizations().map(item => this._projectForPublish(item.customization)),
 			...this._flattenClientCustomizations().map(item => this._projectForPublish(item.customization)),
@@ -4943,7 +5029,7 @@ class SessionPluginController extends Disposable {
 		for (const customization of discovered) {
 			result.push(this._projectForPublish(customization));
 		}
-		return result;
+		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, result, this._clientChildEnablement(), this._clientPlugins());
 	}
 
 	/**
@@ -4976,6 +5062,7 @@ class SessionPluginController extends Disposable {
 	 * kicks off its `_refresh()` without anyone awaiting it.
 	 */
 	public async getCustomizationsSettled(): Promise<readonly Customization[]> {
+		await this._enablementReady;
 		const entry = this._discoveredEntry();
 		await Promise.all([
 			this._parent.hostSync().catch(err => this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err)),
@@ -4987,6 +5074,7 @@ class SessionPluginController extends Disposable {
 
 	/** Returns the parsed plugins currently enabled for this session, awaiting any pending sync. */
 	public async getAppliedPlugins(): Promise<readonly ICopilotPluginInfo[]> {
+		await this._customizationEnablementService.initializeSession(this._session.toString());
 		const entry = this._discoveredEntry();
 		const [host] = await Promise.all([
 			this._parent.hostSync().catch(err => {
@@ -5000,15 +5088,29 @@ class SessionPluginController extends Disposable {
 			entry?.whenSettled(),
 		]);
 
+		const resolved = this._resolveCustomizationEnablement();
+		const desiredByUri = new Map(resolved.customizations.map(customization => [customization.uri, customization]));
+		const mcpEnablement = getSdkMcpServerEnablement(resolved);
+		const isEnabledForSdk = (customization: Customization) => {
+			const desired = desiredByUri.get(customization.uri) ?? customization;
+			return isCustomizationSdkEligible(resolved, desired) && (desired.type === CustomizationType.Directory ? desired.enabled : isCustomizationEnabled(desired));
+		};
+		const disabledChildren = (customization: Customization): readonly string[] | undefined => {
+			const desired = desiredByUri.get(customization.uri);
+			const children = desired && desired.type !== CustomizationType.McpServer
+				? desired.children?.filter(child => child.type === CustomizationType.McpServer && !mcpEnablement.get(child.id)).map(child => child.name)
+				: undefined;
+			return children?.length ? children : undefined;
+		};
 		const discovered = entry?.currentCustomizations() ?? [];
-		const sessionPlugin = discovered.some(customization => this._isEnabled(customization)) ? mapToParsedPlugin(discovered) : undefined;
+		const sessionPlugin = discovered.some(isEnabledForSdk) ? mapToParsedPlugin(discovered) : undefined;
 		const sessionPlugins: IParsedPlugin[] = sessionPlugin ? [sessionPlugin] : [];
 
 		return [
-			...host.filter(item => !!item.plugin && this._isEnabled(item.customization))
-				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
-			...this._flattenClientCustomizations().filter(item => !!item.plugin && this._isEnabled(item.customization))
-				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
+			...host.filter(item => !!item.plugin && isEnabledForSdk(item.customization))
+				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
+			...this._flattenClientCustomizations().filter(item => !!item.plugin && isEnabledForSdk(item.customization))
+				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 			...sessionPlugins,
 		];
 	}
@@ -5024,7 +5126,10 @@ class SessionPluginController extends Disposable {
 	 *   session listener yet; the session-state snapshot picks up the
 	 *   final view directly when the session materializes.
 	 */
-	public sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }) {
+	public async sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }) {
+		if (!this._isEnablementReady) {
+			await this._enablementReady;
+		}
 		const quiet = options?.quiet === true;
 		let client = this._clients.get(clientId);
 		if (!client) {
@@ -5038,7 +5143,7 @@ class SessionPluginController extends Disposable {
 			// from disk on every navigation). Genuine changes still publish, and
 			// `_projectForPublish` keeps live MCP state intact across those.
 			return client.sync.then(results => results.map(item => ({
-				customization: this._projectForPublish(item.customization),
+				customization: this._resolveCustomizationForPublish(item.customization),
 				...(item.pluginDir ? { pluginDir: item.pluginDir } : {}),
 			})));
 		}
@@ -5053,27 +5158,27 @@ class SessionPluginController extends Disposable {
 			input: customization,
 		}));
 		if (!quiet) {
-			this._onDidPublish.fire({
+			this._publish(() => ({
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: [...this.getCustomizations()],
-			});
+			}));
 		}
 		const published = new Map<string, Customization>();
 		for (const customization of client.customizations) {
-			const enabled = this._projectForPublish(customization.customization);
+			const enabled = this._resolveCustomizationForPublish(customization.customization);
 			published.set(enabled.uri, enabled);
 		}
 		const publishUpdate = (item: IResolvedCustomization) => {
-			const customization = this._projectForPublish(item.customization);
+			const customization = this._resolveCustomizationForPublish(item.customization);
 			if (equals(published.get(customization.uri), customization)) {
 				return;
 			}
 			published.set(customization.uri, customization);
 			if (!quiet) {
-				this._onDidPublish.fire({
+				this._publish(() => ({
 					type: ActionType.SessionCustomizationUpdated,
 					customization,
-				});
+				}));
 			}
 		};
 
@@ -5103,7 +5208,7 @@ class SessionPluginController extends Disposable {
 		});
 
 		return promise.then(results => results.map(item => ({
-			customization: this._overlayMcpState(this._applyEnablement(item.customization)),
+			customization: this._resolveCustomizationForPublish(item.customization),
 			...(item.pluginDir ? { pluginDir: item.pluginDir } : {}),
 		})));
 	}
@@ -5124,10 +5229,10 @@ class SessionPluginController extends Disposable {
 		// customizations.
 		client.revision++;
 		this._clients.delete(clientId);
-		this._onDidPublish.fire({
+		this._publish(() => ({
 			type: ActionType.SessionCustomizationsChanged,
 			customizations: [...this.getCustomizations()],
-		});
+		}));
 	}
 
 	/** The raw input customizations last synced for `clientId` (empty when absent). */
@@ -5164,31 +5269,91 @@ class SessionPluginController extends Disposable {
 		if (!this._directory) {
 			return undefined;
 		}
+
 		if (!this._sessionDiscovered.value) {
 			this._sessionDiscovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry,
 				[this._directory, ...this._additionalDirectories],
 				this._parent.getUserHome(),
 				() => this._parent.getClient(),
-				() => this._onDidPublish.fire({
+				() => this._publish(() => ({
 					type: ActionType.SessionCustomizationsChanged,
 					customizations: [...this.getCustomizations()],
-				})
+				}))
 			);
 		}
 		return this._sessionDiscovered.value;
 	}
 
+	private _publish(action: () => SessionAction): void {
+		const publish = () => {
+			if (!this._store.isDisposed) {
+				this._onDidPublish.fire(action());
+			}
+		};
+		if (this._isEnablementReady) {
+			publish();
+		} else {
+			void this._enablementReady.then(publish).catch(error => this._logService.error('[Copilot:SessionPluginController] Failed to initialize customization enablement', error));
+		}
+	}
+
+	private _clientChildEnablement(): ReadonlyMap<string, Readonly<Record<string, readonly CustomizationEnablement[]>>> {
+		const result = new Map<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>();
+		for (const client of this._clients.values()) {
+			for (const customization of client.inputs) {
+				if (customization.childEnablement !== undefined) {
+					result.set(customization.uri, customization.childEnablement);
+				}
+			}
+		}
+		return result;
+	}
+
+	private _clientPlugins(): ReadonlyMap<string, ClientPluginCustomization> {
+		const result = new Map<string, ClientPluginCustomization>();
+		for (const client of this._clients.values()) {
+			for (const customization of client.inputs) {
+				result.set(customization.uri, customization);
+			}
+		}
+		return result;
+	}
+
 	private _isEnabled(customization: Customization): boolean {
-		return this._desiredEnabled(customization) ?? customization.enabled !== false;
+		return this._desiredEnabled(customization) ?? (customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization));
 	}
 
 	private _applyEnablement<T extends Customization>(customization: T): T {
-		const enabled = this._isEnabled(customization);
 		if (customization.type === CustomizationType.McpServer) {
-			return customization.enabled === enabled ? customization : { ...customization, enabled };
+			return this._applyExplicitEnablement(customization, this._getDesiredCustomization(customization.id));
 		}
+		if (customization.type === CustomizationType.Plugin) {
+			const plugin = customization as PluginCustomization;
+			const next = this._applyExplicitEnablement(plugin, this._getDesiredCustomization(plugin.id));
+			let changed = next !== customization;
+			const children = next.children?.map(child => {
+				if (child.type === CustomizationType.McpServer) {
+					const updated = this._applyExplicitEnablement(child, this._getDesiredCustomization(child.id));
+					changed ||= updated !== child;
+					return updated;
+				}
+				const desiredEnabled = this._desiredEnabled(child);
+				if (desiredEnabled === undefined || desiredEnabled === child.enabled) {
+					return child;
+				}
+				changed = true;
+				return { ...child, enabled: desiredEnabled };
+			});
+			return (changed ? { ...next, children } : next) as T;
+		}
+		const enabled = this._isEnabled(customization);
 		let changed = customization.enabled !== enabled;
 		const children = customization.children?.map(child => {
+			if (child.type === CustomizationType.McpServer) {
+				const next = this._applyExplicitEnablement(child, this._getDesiredCustomization(child.id));
+				changed ||= next !== child;
+				return next;
+			}
 			const desiredEnabled = this._desiredEnabled(child);
 			if (desiredEnabled === undefined || desiredEnabled === child.enabled) {
 				return child;
@@ -5199,10 +5364,22 @@ class SessionPluginController extends Disposable {
 		return changed ? { ...customization, enabled, children } : customization;
 	}
 
+	private _resolveCustomizationForPublish<T extends Customization>(customization: T): T {
+		return resolveCustomizationEnablement(
+			this._customizationEnablementService,
+			this._session,
+			[this._projectForPublish(customization)],
+			this._clientChildEnablement(),
+			this._clientPlugins(),
+		).customizations[0] as T;
+	}
+
 	private _desiredEnabled(customization: Customization | ChildCustomization): boolean | undefined {
 		const exact = this._getDesiredCustomization(customization.id);
 		if (exact) {
-			return exact.enabled;
+			return exact.type === CustomizationType.Plugin || exact.type === CustomizationType.McpServer
+				? isCustomizationEnabled(exact)
+				: exact.enabled;
 		}
 		if (!this._directory) {
 			return undefined;
@@ -5215,10 +5392,25 @@ class SessionPluginController extends Disposable {
 			const previousId = customizationId(previousUri.toString(), customization.range);
 			const previous = this._getDesiredCustomization(previousId);
 			if (previous) {
-				return previous.enabled;
+				return previous.type === CustomizationType.Plugin || previous.type === CustomizationType.McpServer
+					? isCustomizationEnabled(previous)
+					: previous.enabled;
 			}
 		}
 		return undefined;
+	}
+
+	private _applyExplicitEnablement<T extends Customization | ChildCustomization>(customization: T, desired: (Customization | ChildCustomization) | undefined): T {
+		if (!desired || (desired.type !== CustomizationType.Plugin && desired.type !== CustomizationType.McpServer)) {
+			return customization;
+		}
+		if (desired.enablement?.length) {
+			const next: T & { enablement?: readonly CustomizationEnablement[] } = { ...customization, enablement: [...desired.enablement] };
+			return next;
+		}
+		const next: T & { enablement?: readonly CustomizationEnablement[] } = { ...customization };
+		delete next.enablement;
+		return next;
 	}
 
 	private _getDesiredCustomization(id: string): Customization | ChildCustomization | undefined {

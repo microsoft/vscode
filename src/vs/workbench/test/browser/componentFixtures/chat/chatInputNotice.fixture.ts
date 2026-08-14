@@ -7,6 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../contrib/chat/browser/widget/input/chatInputStack.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 /**
@@ -25,12 +26,17 @@ function renderNotices(context: ComponentFixtureContext): void {
 	container.style.background = 'var(--vscode-editor-background)';
 
 	const addNotice = (variant: ChatInputNoticeVariant, className: string, severity?: string) => {
-		// Each notice is followed by a stand-in for the chat input it sits against.
-		// Notices leave their bottom edge open because the input covers it, so shown
-		// on their own they would read as unfinished boxes.
-		const stack = dom.append(container, dom.$('div'));
+		// Each notice sits in a real stack above a stand-in for the chat input, and
+		// the notice is wrapped in a slot that reports its state. The squared top
+		// corner on the input below is therefore produced by the stack rather than
+		// hardcoded here, so this breaks if the mechanism does.
+		const stack = dom.append(container, dom.$(`.${chatInputStackClass}`));
+		stack.style.display = 'flex';
+		stack.style.flexDirection = 'column';
+
+		const slot = dom.append(stack, dom.$(`.${chatInputStackSlotClass}`));
 		const notice = disposableStore.add(new ChatInputNoticeWidget({
-			container: stack,
+			container: slot,
 			variant,
 			className,
 			ariaLabel: className,
@@ -38,12 +44,21 @@ function renderNotices(context: ComponentFixtureContext): void {
 		if (severity) {
 			notice.domNode.classList.add(severity);
 		}
+		setChatInputStackSlot(slot, variant === ChatInputNoticeVariant.Onboarding
+			? ChatInputStackSlot.Standalone
+			: ChatInputStackSlot.Docked);
+
 		const input = dom.append(stack, dom.$('div'));
 		input.textContent = 'Chat input';
+		// Reads the stack's radius the way a real input does: rounded on its own,
+		// squared on top while something is docked above it.
 		input.style.cssText = 'padding:10px;color:var(--vscode-descriptionForeground);'
 			+ 'background:var(--vscode-agentsChatInput-background, var(--vscode-input-background));'
 			+ 'border:var(--vscode-strokeThickness) solid var(--vscode-input-border);'
-			+ 'border-radius:0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);';
+			+ 'border-radius:'
+			+ 'var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))'
+			+ ' var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))'
+			+ ' var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);';
 		return notice;
 	};
 

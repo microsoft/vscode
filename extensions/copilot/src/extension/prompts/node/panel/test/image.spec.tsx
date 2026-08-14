@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestType, type RequestMetadata } from '@vscode/copilot-api';
-import { OutputMode, Raw } from '@vscode/prompt-tsx';
+import { OutputMode, PromptElement, PromptSizing, Raw, UserMessage } from '@vscode/prompt-tsx';
 import { describe, expect, test } from 'vitest';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../../../platform/authentication/common/copilotToken';
@@ -15,7 +15,17 @@ import { ITokenizer, TokenizerType } from '../../../../../util/common/tokenizer'
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { PromptRenderer } from '../../base/promptRenderer';
-import { Image } from '../image';
+import { HistoricalImage, HistoricalImageProps, Image } from '../image';
+
+class HistoricalImageTestPrompt extends PromptElement<HistoricalImageProps> {
+	override render(_state: void, _sizing: PromptSizing) {
+		return (
+			<UserMessage>
+				<HistoricalImage {...this.props} />
+			</UserMessage>
+		);
+	}
+}
 
 function createMockEndpoint(overrides: { supportsVision?: boolean; model?: string; modelProvider?: string; urlOrRequestMetadata?: string | RequestMetadata; isExtensionContributed?: boolean } = {}): IChatEndpoint {
 	return {
@@ -64,6 +74,20 @@ async function renderImage(testingServiceCollection: TestingServiceCollection, e
 	return messages;
 }
 
+async function renderHistoricalImage(testingServiceCollection: TestingServiceCollection, endpoint: IChatEndpoint): Promise<Raw.ChatMessage[]> {
+	const accessor = testingServiceCollection.createTestingAccessor();
+	const renderer = PromptRenderer.create(
+		accessor.get(IInstantiationService),
+		endpoint,
+		HistoricalImageTestPrompt,
+		{
+			src: 'data:image/png;base64,AQIDBA==',
+			mimeType: 'image/png',
+		});
+	const { messages } = await renderer.render();
+	return messages;
+}
+
 describe('Image', () => {
 	test('sends image to a vision-capable model when signed out (no Copilot token)', async () => {
 		// Signed-out repro: the default test token store has no Copilot token.
@@ -89,10 +113,9 @@ describe('Image', () => {
 		expect(hasImageContentPart(messages)).toBe(true);
 	});
 
-	test('omits image from a Copilot model when organization policy disables editor preview features', async () => {
+	test('sends image to a vision-capable Copilot model regardless of editor preview policy', async () => {
 		const testingServiceCollection = createExtensionUnitTestingServices();
 		const accessor = testingServiceCollection.createTestingAccessor();
-		// editor_preview_features=0 => org policy explicitly disabled preview features.
 		setCopilotToken(accessor.get(IAuthenticationService), new CopilotToken(createTestExtendedTokenInfo({ token: 'editor_preview_features=0' })));
 
 		const renderer = PromptRenderer.create(
@@ -102,7 +125,7 @@ describe('Image', () => {
 			{ variableName: 'image', variableValue: new Uint8Array([1, 2, 3, 4]) });
 		const { messages } = await renderer.render();
 
-		expect(hasImageContentPart(messages)).toBe(false);
+		expect(hasImageContentPart(messages)).toBe(true);
 	});
 
 	test.each([
@@ -126,6 +149,40 @@ describe('Image', () => {
 	test('omits image when the model does not support vision', async () => {
 		const testingServiceCollection = createExtensionUnitTestingServices();
 		const messages = await renderImage(testingServiceCollection, createMockEndpoint({ supportsVision: false }));
+
+		expect(hasImageContentPart(messages)).toBe(false);
+	});
+});
+
+describe('HistoricalImage', () => {
+	test('sends image to a vision-capable model when signed out (no Copilot token)', async () => {
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const messages = await renderHistoricalImage(testingServiceCollection, createMockEndpoint({ supportsVision: true }));
+
+		expect(hasImageContentPart(messages)).toBe(true);
+	});
+
+	test('sends image to a vision-capable Copilot model regardless of editor preview policy', async () => {
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const accessor = testingServiceCollection.createTestingAccessor();
+		setCopilotToken(accessor.get(IAuthenticationService), new CopilotToken(createTestExtendedTokenInfo({ token: 'editor_preview_features=0' })));
+
+		const renderer = PromptRenderer.create(
+			accessor.get(IInstantiationService),
+			createMockEndpoint({ supportsVision: true }),
+			HistoricalImageTestPrompt,
+			{
+				src: 'data:image/png;base64,AQIDBA==',
+				mimeType: 'image/png',
+			});
+		const { messages } = await renderer.render();
+
+		expect(hasImageContentPart(messages)).toBe(true);
+	});
+
+	test('omits image when the model does not support vision', async () => {
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const messages = await renderHistoricalImage(testingServiceCollection, createMockEndpoint({ supportsVision: false }));
 
 		expect(hasImageContentPart(messages)).toBe(false);
 	});

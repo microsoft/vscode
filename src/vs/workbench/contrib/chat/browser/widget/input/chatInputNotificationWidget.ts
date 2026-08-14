@@ -22,6 +22,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from './chatInputNoticeWidget.js';
+import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
@@ -67,6 +68,7 @@ const severityToIcon: Record<ChatInputNotificationSeverity, ThemeIcon> = {
 export interface IChatInputNotificationDelegate {
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
 	readonly sessionResource?: IObservable<URI | undefined>;
+	readonly deferredNotificationsEnabled?: IObservable<boolean>;
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
@@ -99,7 +101,9 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _lastShownTelemetryData: ChatInputNotificationTelemetryEvent | undefined;
 	private _modelTargetChatSessionType: string | undefined;
 	private _sessionResource: URI | undefined;
+	private _deferredNotificationsEnabled = true;
 	private _visible = false;
+	private _slot: HTMLElement | undefined;
 
 	constructor(
 		private readonly _delegate: IChatInputNotificationDelegate | undefined,
@@ -125,6 +129,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		this._register(autorun(reader => {
 			this._modelTargetChatSessionType = this._delegate?.modelTargetChatSessionType?.read(reader);
 			this._sessionResource = this._delegate?.sessionResource?.read(reader);
+			this._deferredNotificationsEnabled = this._delegate?.deferredNotificationsEnabled?.read(reader) ?? true;
 			this._render();
 		}));
 	}
@@ -144,7 +149,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		// notifications are only spoken in a matching session (de-duped by the service).
 		this._notificationService.announceRendered(notification);
 		if (!notification) {
-			this.domNode.parentElement?.classList.remove('has-notification');
+			setChatInputStackSlot(this._slot, ChatInputStackSlot.Empty);
 			this._lastShownTelemetryData = undefined;
 			if (hadFocus) {
 				this._delegate?.focusInput?.();
@@ -152,7 +157,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			return;
 		}
 
-		this.domNode.parentElement?.classList.add('has-notification');
+		setChatInputStackSlot(this._slot, ChatInputStackSlot.Docked);
 		this._renderNotification(notification);
 		this._logShownTelemetry(notification);
 		if (hadFocus) {
@@ -175,12 +180,26 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		return this._notice.hasFocus();
 	}
 
+	/**
+	 * Add the notification to its slot and report what the slot is showing.
+	 *
+	 * The widget is built detached and renders in its constructor, so an already
+	 * active notification has no slot to report to at that point. Owners add it
+	 * through here so the slot cannot end up marked empty while it has content.
+	 */
+	attachTo(slot: HTMLElement): void {
+		this._slot = slot;
+		slot.appendChild(this.domNode);
+		setChatInputStackSlot(slot, this._visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+	}
+
 	focus(): void {
 		this._notice.focus();
 	}
 
 	private _matchesSession(notification: IChatInputNotification): boolean {
-		return isChatInputNotificationApplicableToSession(notification, this._modelTargetChatSessionType, this._sessionResource);
+		return (!notification.deferForNewUsers || this._deferredNotificationsEnabled)
+			&& isChatInputNotificationApplicableToSession(notification, this._modelTargetChatSessionType, this._sessionResource);
 	}
 
 	private _renderNotification(notification: IChatInputNotification): void {

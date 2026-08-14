@@ -62,6 +62,14 @@ export const ContextTierConfigKey = 'contextTier';
 const ReasoningEfforts = reasoningEffortLevels;
 type AgentHostReasoningEffort = ReasoningEffortLevel;
 
+function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[], disabledRootMcpServers: readonly string[] | undefined): Partial<SessionConfig> {
+	const disabledMcpServers = [...new Set([
+		...plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
+		...(disabledRootMcpServers ?? []),
+	])];
+	return disabledMcpServers.length > 0 ? { disabledMcpServers } : {};
+}
+
 /**
  * Narrows a reasoning-effort value to the SDK's declared union. The SDK type is
  * a strict subset of the tiers the runtime accepts, so newer tiers are forwarded
@@ -203,6 +211,8 @@ interface ICopilotSessionLaunchBase {
 	readonly additionalDirectories?: readonly URI[];
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
+	/** Root-configured MCP servers disabled by the owning session's resolved customization state. */
+	readonly disabledRootMcpServers?: readonly string[];
 	/**
 	 * Live, long-lived registry of every active client's tool contributions.
 	 * Read at tool-call stamp time so a window reload (new `clientId`,
@@ -703,6 +713,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
+		const mcpServers = pluginsWithoutDirs.flatMap(plugin => plugin.mcpServers.filter(server => !plugin.disabledMcpServers?.includes(server.name)));
 		const customAgents = await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
@@ -763,6 +774,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		return {
 			...byok,
+			...disabledMcpServersSessionOption(plugins, plan.disabledRootMcpServers),
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless
@@ -783,7 +795,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
 			}),
-			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)) },
+			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(mcpServers) },
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			customAgents,

@@ -1413,11 +1413,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
 
-		this._register(runOnChange(this.agentHostEnablementService.enabled, enabled => {
-			if (enabled) {
-				this._onDidChangeSessionTypes.fire();
-				this._refreshSessionCache();
-			}
+		this._register(runOnChange(this.agentHostEnablementService.enabled, () => {
+			this._onDidChangeSessionTypes.fire();
+			this._refreshSessionCache();
 		}));
 
 		this.browseActions = [

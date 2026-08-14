@@ -154,7 +154,7 @@ export class CodeTunnelCli {
 						onOutput(`${logLabel} error(${tunnelProcess.pid}): + ${e} `, true);
 						tunnelProcess = undefined;
 						resolveExit?.();
-						reject();
+						reject(e);
 					}
 				});
 			});

@@ -92,7 +92,11 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	getPermissionLevelMeta(level: ChatPermissionLevel, meta: IPermissionLevelMeta): IPermissionLevelMeta {
 		switch (level) {
 			case ChatPermissionLevel.Default:
-				return { ...meta, detail: localize('agentHostPermissionPicker.askWhenNeeded.detail', "Asks when approval settings don't apply") };
+				return {
+					...meta,
+					label: localize('agentHostPermissionPicker.manual.label', "Manual permissions"),
+					detail: localize('agentHostPermissionPicker.askWhenNeeded.detail', "Asks when approval settings don't apply"),
+				};
 			case ChatPermissionLevel.Assisted:
 				return { ...meta, detail: localize('agentHostPermissionPicker.approveWhenSafe.detail', "Evaluates risk before running tools") };
 			case ChatPermissionLevel.AutoApprove:

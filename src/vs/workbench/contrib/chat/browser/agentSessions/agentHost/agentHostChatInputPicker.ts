@@ -558,7 +558,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			&& value === ChatPermissionLevel.Default
 			&& this._isSandboxToggleSettingEnabled()
 			&& this._isSandboxingEnabled()) {
-			return localize('agentHostChatInputPicker.defaultSandboxedLabel', "Default permissions (sandboxed)");
+			return localize('agentHostChatInputPicker.manualSandboxedLabel', "Manual permissions (sandboxed)");
 		}
 		if (schema.type === 'boolean') {
 			return value === true

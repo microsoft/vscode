@@ -306,6 +306,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			originalURI,
 			modifiedURI,
 			modifiedSnapshotURI,
+			isDeleted: normalized.kind === FileEditKind.Delete,
 			added: file.edit.diff?.added ?? 0,
 			removed: file.edit.diff?.removed ?? 0,
 			quitEarly: false,

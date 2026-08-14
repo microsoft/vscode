@@ -67,6 +67,8 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		this._register(autorun(reader => {
 			if (this._agentHostEnablementService.enabled.read(reader)) {
 				this._forwarder.start();
+			} else {
+				this._forwarder.stop();
 			}
 		}));
 	}

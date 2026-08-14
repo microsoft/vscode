@@ -77,6 +77,7 @@ suite('Agent Host - session type auth requirement', () => {
 			hasModels: false,
 			localModelsLoaded: true,
 			gracePeriodElapsed: false,
+			setupDialogVisible: false,
 		};
 		assert.deepStrictEqual({
 			featureDisabled: getSignedOutModelsNotificationState({ ...ready, allowSignedOutWhenUsable: false }),
@@ -87,6 +88,7 @@ suite('Agent Host - session type auth requirement', () => {
 			visible: getSignedOutModelsNotificationState(ready),
 			modelsAvailable: getSignedOutModelsNotificationState({ ...ready, hasModels: true }),
 			signedIn: getSignedOutModelsNotificationState({ ...ready, signedIn: true }),
+			setupDialogVisible: getSignedOutModelsNotificationState({ ...ready, setupDialogVisible: true }),
 		}, {
 			featureDisabled: SignedOutModelsNotificationState.Hidden,
 			loading: SignedOutModelsNotificationState.Waiting,
@@ -96,6 +98,7 @@ suite('Agent Host - session type auth requirement', () => {
 			visible: SignedOutModelsNotificationState.Visible,
 			modelsAvailable: SignedOutModelsNotificationState.Hidden,
 			signedIn: SignedOutModelsNotificationState.Hidden,
+			setupDialogVisible: SignedOutModelsNotificationState.Hidden,
 		});
 	});
 

@@ -84,34 +84,31 @@ suite('Chat Accessibility Help', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
 		} as unknown as IKeybindingService;
-		const describesStickyHeader = (shown: boolean) =>
-			getAccessibilityHelpText('agentView', keybindingService, true, false, shown).includes('pinned to the top of the transcript');
+		const shownHelp = getAccessibilityHelpText('agentView', keybindingService, true, false, true);
+		const hiddenHelp = getAccessibilityHelpText('agentView', keybindingService, true, false, false);
 
 		assert.deepStrictEqual({
-			shown: describesStickyHeader(true),
-			notShown: describesStickyHeader(false),
+			shown: shownHelp.includes('pinned to the top of the transcript'),
+			notShown: hiddenHelp.includes('pinned to the top of the transcript'),
 			byDefault: getAccessibilityHelpText('agentView', keybindingService, true).includes('pinned to the top of the transcript'),
+			navigationButtons: shownHelp.includes('Go to Previous Prompt') || shownHelp.includes('Go to Next Prompt'),
 		}, {
 			shown: true,
 			notShown: false,
 			byDefault: false,
+			navigationButtons: false,
 		});
 	});
 
-	test('only describes the floating input window when enabled in panel chat', () => {
+	test('does not describe the Agents-only floating input window in panel chat', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
 		} as unknown as IKeybindingService;
-		const describesInputWindow = (enabled: boolean) =>
-			getAccessibilityHelpText('panelChat', keybindingService, true, false, false, enabled).includes('floating chat input window');
 
-		assert.deepStrictEqual({
-			enabled: describesInputWindow(true),
-			disabled: describesInputWindow(false),
-		}, {
-			enabled: true,
-			disabled: false,
-		});
+		assert.strictEqual(
+			getAccessibilityHelpText('panelChat', keybindingService, true).includes('floating chat input window'),
+			false,
+		);
 	});
 
 	test('only describes spoken agent progress in agent mode', () => {

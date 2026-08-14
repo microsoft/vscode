@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatSendResult, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ISession } from '../../../services/sessions/common/session.js';
@@ -15,6 +16,13 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubCheckStatus } from '../../github/common/types.js';
 import { ISessionCIFixModel, ISessionCIFixState } from './views/sessionsList.js';
+
+export interface IBlockedSessionsCIFixModel extends ISessionCIFixModel {
+	readonly _serviceBrand: undefined;
+	readonly hiddenSessions: IObservable<ReadonlySet<string>>;
+}
+
+export const IBlockedSessionsCIFixModel = createDecorator<IBlockedSessionsCIFixModel>('blockedSessionsCIFixModel');
 
 /**
  * Backs the per-session "Fix CI" row shown in the blocked-sessions dropdown for
@@ -28,7 +36,9 @@ import { ISessionCIFixModel, ISessionCIFixState } from './views/sessionsList.js'
  * by the time the submit resolves the session is in progress and so is no longer
  * blocked, keeping it out of the list without a flicker.
  */
-export class BlockedSessionsCIFixModel extends Disposable implements ISessionCIFixModel {
+export class BlockedSessionsCIFixModel extends Disposable implements IBlockedSessionsCIFixModel {
+
+	declare readonly _serviceBrand: undefined;
 
 	/** Cached CI-state observables, keyed by session, to keep references stable and GC-friendly. */
 	private readonly _states = new WeakMap<ISession, IObservable<ISessionCIFixState | undefined>>();

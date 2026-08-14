@@ -118,6 +118,7 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.ok(notification, 'Expected a notification to be shown');
 		assert.ok(notification.message.toString().includes('20% off'));
 		assert.ok(notification.description?.toString().includes('2026'), 'Expected the end date to be rendered');
+		assert.strictEqual(notification.deferForNewUsers, true);
 		assert.deepStrictEqual(notification.actions, [{
 			label: 'Try GPT-5.5',
 			kind: ChatInputNotificationActionKind.SwitchToModel,

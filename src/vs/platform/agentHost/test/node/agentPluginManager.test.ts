@@ -65,7 +65,6 @@ suite('AgentPluginManager', () => {
 			id: customizationId(uri),
 			uri,
 			name: `Plugin ${name}`,
-			enabled: true,
 			...(nonce !== undefined ? { nonce } : {}),
 		};
 	}

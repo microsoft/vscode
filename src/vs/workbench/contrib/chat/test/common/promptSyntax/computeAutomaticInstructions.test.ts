@@ -200,7 +200,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 		instaService.stub(IAgentPluginService, {
 			plugins: observableValue('testPlugins', []),
-			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { }, remove: () => { } },
+			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, readProfileEnabled: () => true, setEnabled: () => { }, remove: () => { } },
 		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));

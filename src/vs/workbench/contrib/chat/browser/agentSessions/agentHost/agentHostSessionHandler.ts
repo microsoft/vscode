@@ -28,6 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
@@ -104,7 +105,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -251,7 +252,7 @@ function getMcpAuthenticationRequiredServers(sessionResource: URI, state: ISessi
 			: undefined)
 		.filter(id => id !== undefined));
 	return servers
-		.filter(server => server.enabled && server.state.kind === McpServerStatus.AuthRequired && !toolAuthServerIds.has(server.id))
+		.filter(server => isCustomizationEnabled(server) && server.state.kind === McpServerStatus.AuthRequired && !toolAuthServerIds.has(server.id))
 		.map((server): IChatMcpAuthenticationRequiredServer => {
 			const state = server.state as McpServerAuthRequiredState;
 			return {
@@ -272,6 +273,7 @@ interface IStartServerRequestOptions {
 	readonly isHidden?: boolean;
 	readonly timestamp?: number;
 	readonly isTerminalRequest?: boolean;
+	readonly origin?: IChatSessionServerRequest['origin'];
 }
 
 function parseTimestamp(value: string): number | undefined {
@@ -708,6 +710,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			isHidden: options?.isHidden,
 			timestamp: options?.timestamp,
 			isTerminalRequest: options?.isTerminalRequest,
+			origin: options?.origin,
 		});
 	}
 }
@@ -1262,7 +1265,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// session closing while we await our subscriptions does not tear down
 		// the shared session subscription (which would strand us forever).
 		const hydrationKey = resolvedSession.toString();
-		this._ensureActiveClientEntry(sessionResource);
+		// Existing sessions need hydrated state before their customization scope can be resolved.
+		if (isNewSession) {
+			this._ensureActiveClientEntry(sessionResource);
+		}
 		this._hydratingChatSessions.set(hydrationKey, (this._hydratingChatSessions.get(hydrationKey) ?? 0) + 1);
 		try {
 			if (!isNewSession) {
@@ -1341,6 +1347,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								timestamp: parseTimestamp(sessionState.activeTurn.startedAt),
 								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
 								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
+								origin: messageToRequestOrigin(resolvedSession, sessionState.activeTurn.message, this._config.agentId),
 							});
 							history.push({
 								type: 'response',
@@ -2148,6 +2155,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					isHidden: isMessageHiddenFromTranscript(activeTurn.message),
 					timestamp: parseTimestamp(activeTurn.startedAt),
 					isTerminalRequest: isTerminalCommandPrompt(activeTurn.message.text, this._config.connection.initializeResult.get()?.terminalCommandPrefix),
+					origin: messageToRequestOrigin(backendSession, activeTurn.message, this._config.agentId),
 				},
 			);
 
@@ -2771,8 +2779,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
-		this._customizationService.prepareMcpServersForTurn(request.sessionResource);
-
 		// Dispatch session/turnStarted — the server will call sendMessage on
 		// the provider as a side effect.
 		const turnAction: ChatTurnStartedAction = {
@@ -2957,7 +2963,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				? [c]
 				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
 			return servers
-				.filter(server => server.enabled && server.state.kind === McpServerStatus.Starting)
+				.filter(server => isCustomizationEnabled(server) && server.state.kind === McpServerStatus.Starting)
 				.map((server): IChatMcpStartingServer => ({
 					id: opts.sessionResource.authority + '/' + server.id,
 					name: server.name,
@@ -5419,9 +5425,44 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * Scope roots always describe a concrete customization lookup. This differs
 	 * from `_resolveRequestedWorkingDirectories`: its `undefined` is protocol
 	 * meaningful and lets the host choose working directories for createSession.
+	 *
+	 * An existing session's roots are fixed at creation and persisted in its
+	 * state, so they are read from there rather than recomputed from the current
+	 * workspace — otherwise a single-folder session opened inside a multi-root
+	 * workspace would pick up the other workspace folders. New sessions have no
+	 * state yet, so they fall back to the workspace-derived set they will be
+	 * created with.
 	 */
 	private _resolveCustomizationScopeRoots(sessionResource: URI): readonly URI[] {
+		if (!this._isNewSessionResource(sessionResource)) {
+			const own = this._existingSessionWorkingDirectories(sessionResource);
+			// An empty set is meaningful (a workspace-less session), so only a
+			// missing (`undefined`) result falls back to the workspace-derived set.
+			if (own !== undefined) {
+				return own;
+			}
+		}
 		return this._resolveRequestedWorkingDirectories(sessionResource) ?? [];
+	}
+
+	/**
+	 * The working directories an already-created session was started with, read
+	 * from its authoritative (hydrated) state.
+	 *
+	 * Returns `undefined` when the session's working directories are absent — no
+	 * hydrated state yet, or a session that inherits its directories — so callers
+	 * fall back to the workspace-derived set. An explicit empty set is
+	 * authoritative and returned as `[]`: a workspace-less session must not
+	 * inherit the current workspace's roots. This mirrors the host-side
+	 * `undefined` (inherit) vs `[]` (explicitly none) distinction.
+	 */
+	private _existingSessionWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const dirs = this._getRawSessionState(backendSession.toString())?.workingDirectories;
+		if (dirs === undefined) {
+			return undefined;
+		}
+		return dirs.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
 	}
 
 	/**

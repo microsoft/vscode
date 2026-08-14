@@ -130,6 +130,18 @@ suite('CodeTunnelCli', () => {
 		});
 	});
 
+	test('rejects with the underlying spawn error', async () => {
+		const { cli, spawnCalls } = createTestCli(true);
+		const run = cli.run('serve', ['tunnel', '--name', 'host'], () => { });
+		const spawnError = new Error('spawn code-tunnel ENOENT');
+
+		spawnCalls[0].process.child.emit('error', spawnError);
+
+		// An undefined rejection loses the actionable cause, such as a missing
+		// or non-executable tunnel binary.
+		await assert.rejects(run.result, (error: unknown) => error === spawnError);
+	});
+
 	test('kills the CLI process when cancelled', async () => {
 		const logs: string[] = [];
 		const spawnCalls: SpawnCall[] = [];

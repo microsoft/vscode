@@ -106,40 +106,41 @@ jobs:
             @echo off
             setlocal enabledelayedexpansion
 
-            set "NODE_VERSION=v22.22.0"
-            set "EXPECTED_HASH=5b44fd410df7b4cd0a1891a05a7b606f8fb7d8786a94997b996a372e82478d7a"
-            set "NODE_ROOT=$(Agent.TempDirectory)\nodejs"
-            set "NODE_EXE=!NODE_ROOT!\node.exe"
+            set "PACKAGE_VERSION=10.0.26100.1"
+            set "SDK_VERSION=10.0.26100.0"
+            set "EXPECTED_HASH=7e37f35384a7b146730fa67dde243d46b97ce5ca73aaeb1c3141cd812b286395"
+            set "SDK_ROOT=$(Agent.TempDirectory)\windows-sdk-build-tools"
+            set "SIGNTOOL_ROOT=!SDK_ROOT!\bin\!SDK_VERSION!\arm64"
+            set "SIGNTOOL_EXE=!SIGNTOOL_ROOT!\signtool.exe"
 
-            if not exist "!NODE_EXE!" (
-              if exist "!NODE_ROOT!" rmdir /s /q "!NODE_ROOT!"
+            if not exist "!SIGNTOOL_EXE!" (
+              if exist "!SDK_ROOT!" rmdir /s /q "!SDK_ROOT!"
 
-              set "NODE_ZIP=$(Agent.TempDirectory)\node.zip"
-              curl.exe -fsSL "https://nodejs.org/dist/!NODE_VERSION!/node-!NODE_VERSION!-win-arm64.zip" -o "!NODE_ZIP!"
+              set "SDK_PACKAGE=$(Agent.TempDirectory)\windows-sdk-build-tools.nupkg"
+              curl.exe -fsSL --retry 5 --retry-delay 2 --retry-all-errors "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/!PACKAGE_VERSION!/microsoft.windows.sdk.buildtools.!PACKAGE_VERSION!.nupkg" -o "!SDK_PACKAGE!"
 
               set "ACTUAL_HASH="
-              for /f "skip=1" %%A in ('certutil -hashfile "!NODE_ZIP!" SHA256') do if not defined ACTUAL_HASH set "ACTUAL_HASH=%%A"
+              for /f "skip=1" %%A in ('certutil -hashfile "!SDK_PACKAGE!" SHA256') do if not defined ACTUAL_HASH set "ACTUAL_HASH=%%A"
               if /I not "!ACTUAL_HASH!"=="!EXPECTED_HASH!" (
-                echo Hash mismatch for node.zip
+                echo Hash mismatch for windows-sdk-build-tools.nupkg
                 echo   expected: !EXPECTED_HASH!
                 echo   actual:   !ACTUAL_HASH!
-                del "!NODE_ZIP!"
+                del "!SDK_PACKAGE!"
                 exit /b 1
               )
 
-              tar -xf "!NODE_ZIP!" -C "$(Agent.TempDirectory)"
-              ren "$(Agent.TempDirectory)\node-!NODE_VERSION!-win-arm64" nodejs
-              del "!NODE_ZIP!"
+              mkdir "!SDK_ROOT!"
+              tar -xf "!SDK_PACKAGE!" -C "!SDK_ROOT!"
+              del "!SDK_PACKAGE!"
             )
 
-            echo ##vso[task.prependpath]%NODE_ROOT%
-          displayName: Install Node.js (Windows ARM64)
+            echo ##vso[task.prependpath]!SIGNTOOL_ROOT!
+          displayName: Install SignTool (Windows ARM64)
 
-      - ${{ else }}:
-        - task: UseNode@1
-          inputs:
-            version: '22.22.0'
-          displayName: Install Node.js
+      - task: UseNode@1
+        inputs:
+          version: '22.22.0'
+        displayName: Install Node.js
 
       - task: Cache@2
         inputs:

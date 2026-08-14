@@ -45,7 +45,7 @@ export function observePromptTimelineHostWidth(
 
 /**
  * Whether the sticky prompt header is mounted for a widget. Shared with the accessibility help so it
- * only describes the header (and its navigation buttons) on widgets that actually get one.
+ * only describes the header on widgets that actually get one.
  */
 export function isStickyPromptHeaderShown(widget: IChatWidget, configurationService: IConfigurationService): boolean {
 	return supportsPromptTimeline(widget)
@@ -185,13 +185,11 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	/**
 	 * Mounts the flat sticky header that pins the current prompt to the top of the transcript. It shows
 	 * only once that prompt's row has scrolled above the viewport (via {@link PromptTimelineModel.activePinned}).
-	 * Its previous/next toolbar actions step through prompts; activating the label jumps straight to the
-	 * prompt it names (scrolling it to the top of the transcript).
+	 * Activating the label jumps straight to the prompt it names (scrolling it to the top of the transcript).
 	 */
 	private _createStickyHeader(model: PromptTimelineModel): void {
 		const sticky = this._enablement.add(this.instantiationService.createInstance(PromptTimelineStickyHeader, this.widget.domNode));
 		this._enablement.add(sticky.onDidActivate(() => model.revealActivePrompt()));
-		this._enablement.add(sticky.onDidNavigate(delta => model.navigate(delta)));
 		this._enablement.add(autorun(reader => {
 			// Drive the header from the unbucketed active prompt so the label and N/M position match
 			// the real prompt list (the rail's ticks are bucketed/capped and would misreport long chats).

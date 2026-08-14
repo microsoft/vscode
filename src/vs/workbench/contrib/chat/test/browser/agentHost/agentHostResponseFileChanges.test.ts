@@ -104,6 +104,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			files: [
 				{ id: '1', edit: { before: { uri: URI.file('/repo/a.ts').toString(), content: { uri: 'git-blob://a-before' } }, after: { uri: URI.file('/repo/a.ts').toString(), content: { uri: 'git-blob://a-after' } }, diff: { added: 3, removed: 1 } } },
 				{ id: '2', edit: { after: { uri: URI.file('/repo/b.ts').toString(), content: { uri: 'git-blob://b-after' } }, diff: { added: 5, removed: 0 } } },
+				{ id: '3', edit: { before: { uri: URI.file('/repo/c.ts').toString(), content: { uri: 'git-blob://c-before' } }, diff: { added: 0, removed: 4 } } },
 			],
 		} satisfies ChangesetState);
 
@@ -114,9 +115,11 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			modified: d.modifiedURI.path,
 			// The RHS diff content is the frozen after-turn snapshot, not the live file.
 			after: d.modifiedSnapshotURI && fromAgentHostUri(d.modifiedSnapshotURI).authority,
+			isDeleted: d.isDeleted,
 		})), [
-			{ added: 3, removed: 1, modified: '/repo/a.ts', after: 'a-after' },
-			{ added: 5, removed: 0, modified: '/repo/b.ts', after: 'b-after' },
+			{ added: 3, removed: 1, modified: '/repo/a.ts', after: 'a-after', isDeleted: false },
+			{ added: 5, removed: 0, modified: '/repo/b.ts', after: 'b-after', isDeleted: false },
+			{ added: 0, removed: 4, modified: '/repo/c.ts', after: undefined, isDeleted: true },
 		]);
 	});
 

@@ -8,6 +8,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -86,7 +87,7 @@ function createContribution(store: Pick<DisposableStore, 'add'>, storageService 
 suite('AgentHostDiscoveredConfigNotification', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('nudges the signed-out user, with dismissal as the only off switch', async () => {
+	(isWeb ? test.skip : test)('nudges the signed-out user, with dismissal as the only off switch', async () => {
 		const { notificationService } = createContribution(store);
 
 		// The account resolves asynchronously; the nudge waits for it.
@@ -108,7 +109,7 @@ suite('AgentHostDiscoveredConfigNotification', () => {
 		}]);
 	});
 
-	test('dismissing it silences the nudge on this machine for good', async () => {
+	(isWeb ? test.skip : test)('dismissing it silences the nudge on this machine for good', async () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const first = createContribution(store, storageService);
 		await timeout(0);
@@ -127,5 +128,13 @@ suite('AgentHostDiscoveredConfigNotification', () => {
 			afterDismissal: 0,
 			nextWindow: 0,
 		});
+	});
+
+	(isWeb ? test : test.skip)('does not nudge on web when signed-out operation is configured', async () => {
+		const { notificationService } = createContribution(store);
+
+		await timeout(0);
+
+		assert.strictEqual(notificationService.notifications.size, 0);
 	});
 });

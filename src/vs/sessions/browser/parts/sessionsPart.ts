@@ -389,12 +389,24 @@ export class SessionsPart extends Part {
 		// session) has nothing to activate.
 		const fireFocus = () => {
 			if (slot.boundSessionId !== undefined) {
+				this._restoreSessionOnActivation(view);
 				this._onDidFocusSession.fire(slot.boundSessionId);
 			}
 		};
 		disposables.add(addDisposableListener(view.element, EventType.FOCUS_IN, fireFocus, true));
 		disposables.add(addDisposableGenericMouseDownListener(view.element, fireFocus, true));
 		return slot;
+	}
+
+	private _restoreSessionOnActivation(view: SessionView): void {
+		if (!this._gridWidget) {
+			return;
+		}
+
+		const viewSize = this._gridWidget.getViewSize(view);
+		if (viewSize.width === view.minimumWidth) {
+			this._gridWidget.expandView(view);
+		}
 	}
 
 	private get _gridSeparatorBorder(): Color {

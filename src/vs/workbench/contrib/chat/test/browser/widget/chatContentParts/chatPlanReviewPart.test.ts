@@ -154,6 +154,12 @@ suite('ChatPlanReviewPart', () => {
 			assert.strictEqual(label?.textContent, 'My Plan Title');
 		});
 
+		test('disallows remote images in agent plan markdown', () => {
+			createWidget(createMockReview({ content: 'Plan ![remote](https://example.com/image.png)' }));
+
+			assert.strictEqual(widget.domNode.querySelectorAll('.chat-plan-review-body img').length, 0);
+		});
+
 		test('displays the outdated pill only for outdated summaries', () => {
 			createWidget(createMockReviewWithPlan({ isOutdated: true }));
 

@@ -166,15 +166,23 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
-	test('Back button is hidden when canGoBack is false and Next becomes Done on the last step', () => {
+	test('only Done is shown on a last step without Back', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
 		const target = createTarget(container, 0, 0, 50, 50);
 
 		overlay.show(target, content({ canGoBack: false, isLastStep: true }));
 
-		const [, back, next] = getButtons(container);
-		assert.deepStrictEqual({ backHidden: back.style.display === 'none', nextLabel: next.textContent }, { backHidden: true, nextLabel: 'Done' });
+		const [skip, back, next] = getButtons(container);
+		assert.deepStrictEqual({
+			skipHidden: skip.style.display === 'none',
+			backHidden: back.style.display === 'none',
+			nextLabel: next.textContent,
+		}, {
+			skipHidden: true,
+			backHidden: true,
+			nextLabel: 'Done',
+		});
 	});
 
 	test('allowTargetInteraction arranges click blockers around the target', () => {

@@ -20,22 +20,6 @@
  *    4px  between a title and its sentence
  */
 
-/* The host is a peer directly above the chat input, and stays out of the layout
- * entirely until the card is attached. The frame comes from `.chat-input-notice`;
- * the overlap with the input below is per-surface and is set here. */
-.dictation-onboarding-container {
-	display: none;
-}
-
-.dictation-onboarding-container.has-dictation-onboarding {
-	display: block;
-	/* Pull the input up over the card's squared bottom edge so the two read
-	 * as one stack with no visible seam. Kept next to the rule it overrides:
-	 * split across files these two tie on specificity. */
-	margin-bottom: calc(-1 * var(--vscode-spacing-size100));
-	padding-bottom: var(--vscode-spacing-size100);
-}
-
 /* This card carries four tiers rather than the card default's two, so it takes
  * the next step up the spacing ramp for both its padding and its gaps. */
 .chat-input-notice.dictation-onboarding-banner {

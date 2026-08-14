@@ -32,6 +32,7 @@ interface ICapturedAction {
 class TestActionWidgetService extends mock<IActionWidgetService>() {
 	override readonly isVisible = false;
 	capturedActions: ICapturedAction[] = [];
+	capturedListOptions: IActionListOptions | undefined;
 	initialFocusItemId: string | undefined;
 
 	override hide(): void { }
@@ -47,6 +48,7 @@ class TestActionWidgetService extends mock<IActionWidgetService>() {
 		accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>,
 		listOptions?: IActionListOptions,
 	): void {
+		this.capturedListOptions = listOptions;
 		this.initialFocusItemId = listOptions?.initialFocusItemId;
 		this.capturedActions = items.flatMap(item => {
 			const action = item.item as (IActionWidgetDropdownAction | undefined);
@@ -124,5 +126,34 @@ suite('ActionWidgetDropdown', () => {
 			],
 			initialFocusItemId: 'navigation',
 		});
+	});
+
+	test('re-evaluates the list options provider on each open', () => {
+		const actionWidgetService = new TestActionWidgetService();
+		const action1 = toAction({ id: 'a', label: 'A', run: () => { } });
+		let headerText = 'Initial';
+		const dropdown = disposables.add(new ActionWidgetDropdown(
+			mainWindow.document.createElement('div'),
+			{
+				label: 'Test',
+				actions: [action1],
+				listOptionsProvider: { getListOptions: () => ({ headerText }) },
+			},
+			actionWidgetService,
+			new MockKeybindingService(),
+			NullTelemetryService,
+		));
+
+		dropdown.show();
+		const firstHeaderText = actionWidgetService.capturedListOptions?.headerText;
+
+		headerText = 'Updated';
+		dropdown.show();
+		const secondHeaderText = actionWidgetService.capturedListOptions?.headerText;
+
+		assert.deepStrictEqual(
+			{ first: firstHeaderText, second: secondHeaderText },
+			{ first: 'Initial', second: 'Updated' }
+		);
 	});
 });

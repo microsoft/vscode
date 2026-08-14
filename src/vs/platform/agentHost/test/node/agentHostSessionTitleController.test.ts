@@ -173,10 +173,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
-		assert.ok(instruction?.includes('During this first request, gather enough context to understand the actual work scope, then call the `rename_session` tool exactly once'));
-		assert.ok(instruction?.includes('before your final response'));
-		assert.ok(instruction?.includes('Do not rename prematurely when inspecting referenced issues, pull requests, files, or other context would produce a better title.'));
-		assert.ok(instruction?.includes('If the user explicitly asks to rename the session, call the tool immediately.'));
+		assert.strictEqual(instruction, 'This session currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_session` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.');
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
 	});
 
@@ -240,9 +237,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
 
 		const instruction = await controller.prepareInstructionForAgent(session.toString(), chat);
-		assert.ok(instruction?.includes('During this first request, gather enough context to understand the actual work scope, then call the `rename_chat` tool exactly once'));
-		assert.ok(instruction?.includes('If the user explicitly asks to rename the chat, call the tool immediately.'));
-		assert.ok(!instruction?.includes('`rename_session`'));
+		assert.strictEqual(instruction, 'This chat currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.');
 
 		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked: Session title', 'Session title');
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);

@@ -103,7 +103,7 @@ import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatC
 import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
-import { ChatSideChatOriginPart } from './chatContentParts/chatSideChatOriginPart.js';
+import { ChatRequestOriginPart } from './chatContentParts/chatRequestOriginPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatSystemNotificationContentPart } from './chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
@@ -1927,7 +1927,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!this.shouldShowPillsSummary(element)) {
 			return undefined;
 		}
-		return { kind: 'turnPills', requestId: element.requestId, sessionResource: element.sessionResource };
+		return {
+			kind: 'turnPills',
+			requestId: element.requestId,
+			sessionResource: element.sessionResource,
+			isLastTurn: element.session.model.lastRequest?.id === element.requestId,
+		};
 	}
 
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
@@ -1997,10 +2002,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		dom.clearNode(templateData.value);
-		if (this.environmentService.isSessionsWindow && this.viewModel?.model.getRequests()[0]?.id === element.id) {
-			const sideChatOriginPart = this.instantiationService.createInstance(ChatSideChatOriginPart, element.sessionResource);
-			templateData.value.appendChild(sideChatOriginPart.domNode);
-			templateData.elementDisposables.add(sideChatOriginPart);
+		const isFirstRequest = this.viewModel?.model.getRequests()[0]?.id === element.id;
+		if (element.origin || (this.environmentService.isSessionsWindow && isFirstRequest)) {
+			const requestOriginPart = this.instantiationService.createInstance(ChatRequestOriginPart, element.sessionResource, element.origin);
+			templateData.value.appendChild(requestOriginPart.domNode);
+			templateData.elementDisposables.add(requestOriginPart);
 		}
 		const parts: IChatContentPart[] = [];
 		const explicitImageAttachmentsPart = explicitImageVariables.length ? this.renderAttachments(explicitImageVariables, element.contentReferences, element.modelId, templateData, element.resolvedModelId) : undefined;

@@ -37,6 +37,7 @@ import './media/shadows.css';
 import './media/statusBar.css';
 import './media/tabs.css';
 import './media/titlebar.css';
+import '../../../services/themes/browser/modernTabColorCustomizations.js';
 
 interface IStyleOverrideModule {
 	readonly id: string;

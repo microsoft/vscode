@@ -7,11 +7,11 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatMessageRole, getTextResponseFromStream, IChatMessage, ILanguageModelsService } from '../../common/languageModels.js';
-import { buildCommandIntentMessages, buildRouterMessages, ICommandIntentRequest, ICommandIntentResult, ISessionRouteRequest, ISessionRouteResult, ISessionRouter, parseCommandIntentResponse, parseRouterResponse } from '../../common/sessionRouter.js';
+import { buildRouterMessages, ISessionRouteRequest, ISessionRouteResult, ISessionRouter, parseRouterResponse } from '../../common/sessionRouter.js';
 
 /**
- * Default {@link ISessionRouter}. Detects command intent and scores candidate
- * sessions with a renderer language model (Copilot/CAPI under the hood).
+ * Default {@link ISessionRouter}. Scores candidate sessions with a renderer
+ * language model (Copilot/CAPI under the hood).
  *
  * The prompt/parse logic lives in `../../common/sessionRouter.ts` so the scoring
  * backend can later be swapped for the agent-host CAPI utility completion or a
@@ -25,18 +25,6 @@ export class SessionRouterService implements ISessionRouter {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
 	) { }
-
-	async detectIntent(request: ICommandIntentRequest, token: CancellationToken): Promise<ICommandIntentResult> {
-		if (!request.commands.length) {
-			return { kind: 'chat' };
-		}
-		const result = await this.requestModel(
-			buildCommandIntentMessages(request),
-			token,
-			text => parseCommandIntentResponse(text, request.commands),
-		);
-		return result ?? { kind: 'chat' };
-	}
 
 	async route(request: ISessionRouteRequest, token: CancellationToken): Promise<ISessionRouteResult[]> {
 		if (!request.sessions.length) {

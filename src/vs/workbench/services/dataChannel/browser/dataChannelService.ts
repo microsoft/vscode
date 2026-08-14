@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IDataChannelService, CoreDataChannel, IDataChannelEvent } from '../../../../platform/dataChannel/common/dataChannel.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CoreDataChannel, DataWatcherKind, IDataChannelEvent, IDataChannelService, IDataWatcher, IDataWatcherParams, IDataWatcherProvider, IDataWatcherService } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 export class DataChannelService extends Disposable implements IDataChannelService {
@@ -37,4 +37,28 @@ class CoreDataChannelImpl<T> implements CoreDataChannel<T> {
 	}
 }
 
+export class DataWatcherService implements IDataWatcherService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _providers = new Map<DataWatcherKind, IDataWatcherProvider>();
+
+	registerDataWatcherProvider(kind: DataWatcherKind, provider: IDataWatcherProvider): IDisposable {
+		if (this._providers.has(kind)) {
+			throw new Error(`Data watcher provider already registered for ${kind}`);
+		}
+
+		this._providers.set(kind, provider);
+		return toDisposable(() => {
+			if (this._providers.get(kind) === provider) {
+				this._providers.delete(kind);
+			}
+		});
+	}
+
+	createDataWatcher(params: IDataWatcherParams): IDataWatcher | undefined {
+		return this._providers.get(params.kind)?.createDataWatcher(params);
+	}
+}
+
 registerSingleton(IDataChannelService, DataChannelService, InstantiationType.Delayed);
+registerSingleton(IDataWatcherService, DataWatcherService, InstantiationType.Delayed);

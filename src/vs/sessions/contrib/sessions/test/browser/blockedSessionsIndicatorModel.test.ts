@@ -42,6 +42,7 @@ suite('BlockedSessionsIndicatorModel', () => {
 			sessionsService as unknown as ISessionsService,
 			instantiationService,
 			productService,
+			ciFixModel as unknown as BlockedSessionsCIFixModel,
 		));
 		// Keep the derived live so it recomputes on visibility/dismissal changes.
 		store.add(autorun(reader => { model.blockedSessions.read(reader); }));

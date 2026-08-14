@@ -16,7 +16,7 @@ import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEnt
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
-import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentConfigurationService, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 suite('AgentConfigurationService', () => {
@@ -146,7 +146,7 @@ suite('AgentConfigurationService', () => {
 		test('returns session working directory when set', () => {
 			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
 			manager.createSession(makeSummary(uri, 'file:///work'));
-			assert.strictEqual(service.getEffectiveWorkingDirectory(uri), 'file:///work');
+			assert.strictEqual(getEffectiveWorkingDirectory(manager, uri), 'file:///work');
 		});
 
 		test('falls back to parent session working directory for subagents', () => {
@@ -155,13 +155,13 @@ suite('AgentConfigurationService', () => {
 
 			const child = buildSubagentSessionUri(parent, 'tc-3');
 			manager.createSession(makeSummary(child));
-			assert.strictEqual(service.getEffectiveWorkingDirectory(child), 'file:///work/parent');
+			assert.strictEqual(getEffectiveWorkingDirectory(manager, child), 'file:///work/parent');
 		});
 
 		test('returns undefined when neither layer has a working directory', () => {
 			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
 			manager.createSession(makeSummary(uri));
-			assert.strictEqual(service.getEffectiveWorkingDirectory(uri), undefined);
+			assert.strictEqual(getEffectiveWorkingDirectory(manager, uri), undefined);
 		});
 	});
 
@@ -172,7 +172,7 @@ suite('AgentConfigurationService', () => {
 		test('returns the full ordered session set when set', () => {
 			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
 			manager.createSession(makeSummary(uri, 'file:///work', 'file:///work-2'));
-			assert.deepStrictEqual(service.getEffectiveWorkingDirectories(uri), ['file:///work', 'file:///work-2']);
+			assert.deepStrictEqual(getEffectiveWorkingDirectories(manager, uri), ['file:///work', 'file:///work-2']);
 		});
 
 		test('falls back to the parent session set for subagents', () => {
@@ -181,13 +181,13 @@ suite('AgentConfigurationService', () => {
 
 			const child = buildSubagentSessionUri(parent, 'tc-3');
 			manager.createSession(makeSummary(child));
-			assert.deepStrictEqual(service.getEffectiveWorkingDirectories(child), ['file:///work/parent', 'file:///work/parent-2']);
+			assert.deepStrictEqual(getEffectiveWorkingDirectories(manager, child), ['file:///work/parent', 'file:///work/parent-2']);
 		});
 
 		test('returns undefined when neither layer has a working directory', () => {
 			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
 			manager.createSession(makeSummary(uri));
-			assert.strictEqual(service.getEffectiveWorkingDirectories(uri), undefined);
+			assert.strictEqual(getEffectiveWorkingDirectories(manager, uri), undefined);
 		});
 	});
 

@@ -86,6 +86,7 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 		kind: 'turnPills',
 		requestId: 'request-1',
 		sessionResource: URI.parse('vscode-chat-session://agent-host/session-1'),
+		isLastTurn: true,
 	};
 	const partContext = upcastPartial<IChatContentPartRenderContext>({ container });
 

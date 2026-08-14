@@ -361,8 +361,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async computeListPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
 		const allowStandalone = !this.areStandalonePromptFilesBlocked(type);
 		const prompts = await Promise.all([
-			allowStandalone ? this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))) : [],
-			allowStandalone ? this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))) : [],
+			allowStandalone ? this.fileLocator.listFilesWithSource(type, PromptsStorage.user, token).then(files => files.map(file => ({ ...file, storage: PromptsStorage.user, type } satisfies IUserPromptPath))) : [],
+			allowStandalone ? this.fileLocator.listFilesWithSource(type, PromptsStorage.local, token).then(files => files.map(file => ({ ...file, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))) : [],
 			this.getExtensionPromptFiles(type, token),
 			this._pluginPromptFilesByType.get(type) ?? [],
 			this.getBuiltinPromptFiles(type, token),
@@ -406,10 +406,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 				promptPaths = await this.getExtensionPromptFiles(type, token);
 				break;
 			case PromptsStorage.local:
-				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFiles(type, PromptsStorage.local, token, root).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
+				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFilesWithSource(type, PromptsStorage.local, token, root).then(files => files.map(file => ({ ...file, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
 				break;
 			case PromptsStorage.user:
-				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
+				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFilesWithSource(type, PromptsStorage.user, token).then(files => files.map(file => ({ ...file, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
 				break;
 			case PromptsStorage.plugin:
 				promptPaths = this._pluginPromptFilesByType.get(type) ?? [];

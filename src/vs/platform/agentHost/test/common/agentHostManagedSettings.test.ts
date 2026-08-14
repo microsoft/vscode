@@ -22,7 +22,7 @@ suite('AgentHostManagedSettings', () => {
 	test('combines restrictive contributions from explicitly configured global values', () => {
 		const configurationService = createConfigurationService({
 			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
-			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, applicationValue: false },
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, policyValue: false },
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, userValue: false },
 		});
 
@@ -40,6 +40,22 @@ suite('AgentHostManagedSettings', () => {
 		});
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('does not promote user or application preferences to managed bypass restrictions', () => {
+		const userConfigurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, userValue: false },
+		});
+		const applicationConfigurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, applicationValue: false },
+		});
+
+		assert.deepStrictEqual([
+			resolveManagedSettingsPermissions(userConfigurationService),
+			resolveManagedSettingsPermissions(applicationConfigurationService),
+		], [{}, {}]);
 	});
 
 	test('does not map legacy settings while the compatibility bridge is disabled', () => {

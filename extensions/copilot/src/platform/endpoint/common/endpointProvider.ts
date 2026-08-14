@@ -87,12 +87,17 @@ export enum ModelSupportedEndpoint {
 export interface IModelTokenPriceTier {
 	input_price: number;
 	output_price: number;
-	cache_price: number;
+	cache_read_price?: number;
+	/** Earlier spelling of {@link cache_read_price}. */
+	cache_price?: number;
+	cache_write_price?: number;
 	/**
 	 * The maximum context window size (in tokens) for this pricing tier.
 	 * Present on the `default` tier only when a `long_context` tier also
 	 * exists; always present on the `long_context` tier itself.
 	 */
+	max_prompt_tokens?: number;
+	/** Earlier spelling of {@link max_prompt_tokens}. */
 	context_max?: number;
 }
 

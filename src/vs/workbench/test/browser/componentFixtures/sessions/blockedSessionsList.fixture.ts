@@ -131,6 +131,7 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(options.workspace);
 		override readonly isArchived: IObservable<boolean> = constObservable<boolean>(false);
 		override readonly isRead: IObservable<boolean> = constObservable<boolean>(true);
+		override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsDelete: true });
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable<readonly ISessionFileChange[]>([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable<ISessionChangesSummary | undefined>(options.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable<IMarkdownString | undefined>(description);

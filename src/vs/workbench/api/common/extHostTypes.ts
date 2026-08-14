@@ -49,6 +49,18 @@ export { SymbolInformation, SymbolKind, SymbolTag } from './extHostTypes/symbolI
 export { EndOfLine, TextEdit } from './extHostTypes/textEdit.js';
 export { FileEditType, WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
 
+export enum DataWatcherKind {
+	AgentSession,
+}
+
+export enum AgentSessionStatus {
+	Untitled,
+	InProgress,
+	NeedsInput,
+	Completed,
+	Error,
+}
+
 export enum TerminalOutputAnchor {
 	Top = 0,
 	Bottom = 1
