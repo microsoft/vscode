@@ -162,6 +162,10 @@ interface IMcpServerItemTemplateData {
 	readonly actions: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 	readonly actionDisposables: DisposableStore;
+	/** Which row the actions currently belong to, so a recycled template cannot reuse another row's. */
+	renderedRowKey?: string;
+	/** What the actions currently show, so an unchanged status does not rebuild them. */
+	renderedStatusSignature?: string;
 }
 
 /**
@@ -206,8 +210,18 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 	}
 
 	renderElement(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
+		// Tearing down the actions is what makes a click land on a node that is about to be
+		// replaced, so only do it when this template starts showing a different row. Whether the
+		// same row's actions need rebuilding is decided by `updateStatus` from its own signature.
+		const rowKey = getMcpRowKey(element);
+		if (templateData.renderedRowKey !== rowKey) {
+			templateData.renderedRowKey = rowKey;
+			templateData.renderedStatusSignature = undefined;
+			templateData.actionDisposables.clear();
+			DOM.clearNode(templateData.actions);
+		}
+		// Always re-created: these capture `element`, which is a fresh object on every refresh.
 		templateData.elementDisposables.clear();
-		templateData.actionDisposables.clear();
 
 		if (element.type === 'builtin-item') {
 			templateData.container.classList.add('builtin');
@@ -314,17 +328,40 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 	}
 
 	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, state: McpStatusKind | undefined, disabledReason?: CustomizationDisabledReason): void {
+		const presentation = getMcpStatusPresentation(state, disabledReason);
+		const activeSessionServer = getActiveSessionServer(element);
+		const label = getMcpEntryLabel(element);
+		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
+		const localServer = element.type === 'session-server-item' ? undefined : element.localServer;
+
+		// This runs from an autorun over the server's connection state, and an erroring server
+		// re-runs it about twice a second with byte-identical content. Rebuilding regardless meant
+		// a node replaced between mousedown and mouseup never saw the click, so `Show Output` did
+		// nothing on precisely the rows that needed it.
+		const signature = getMcpStatusRenderSignature({
+			rowKey: getMcpRowKey(element),
+			label,
+			state,
+			statusLabel: presentation?.label,
+			statusClassName: presentation?.className,
+			statusIconId: presentation?.icon?.id,
+			activeSessionServerId: activeSessionServer?.id,
+			logOutputChannelId: activeSessionServer?.logOutputChannelId,
+			localServerId: localServer?.definition.id,
+			activeSessionResource: activeSessionResource.toString(),
+		});
+		if (templateData.renderedStatusSignature === signature) {
+			return;
+		}
+		templateData.renderedStatusSignature = signature;
+
 		templateData.actionDisposables.clear();
 		DOM.clearNode(templateData.actions);
 
-		const presentation = getMcpStatusPresentation(state, disabledReason);
 		if (!presentation) {
 			return;
 		}
 
-		const activeSessionServer = getActiveSessionServer(element);
-		const label = getMcpEntryLabel(element);
-		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const showActiveSessionOutput = activeSessionServer !== undefined
 			? (beforeShow?: () => Promise<void>) => this.agentHostCustomizationService.showMcpServerLog(activeSessionResource, activeSessionServer.id, beforeShow)
 			: undefined;
@@ -354,7 +391,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		}
 
 		const showOutput = state === McpServerStatus.Error || state === McpConnectionState.Kind.Error
-			? getMcpServerOutputHandler(this.outputService, element.type === 'session-server-item' ? undefined : element.localServer, activeSessionServer, this._afterShowOutput, showActiveSessionOutput)
+			? getMcpServerOutputHandler(this.outputService, localServer, activeSessionServer, this._afterShowOutput, showActiveSessionOutput)
 			: undefined;
 		if (showOutput) {
 			const showOutputLabel = localize('showMcpServerOutput', "Show output for {0}", label);
@@ -449,6 +486,69 @@ export function getMcpStatusPresentation(state: McpStatusKind | undefined, disab
 
 function getActiveSessionServer(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): AgentHostMcpServer | undefined {
 	return entry.type === 'session-server-item' ? entry.server : entry.activeSessionServer;
+}
+
+/**
+ * Which row a template is currently showing. List entries are recreated on every refresh, so
+ * object identity says nothing about whether this is still the same server in the same place.
+ */
+function getMcpRowKey(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string {
+	switch (entry.type) {
+		case 'server-item':
+			return `server:${entry.server.id}:${entry.marketplace ? 1 : 0}`;
+		case 'session-server-item':
+			return `session:${entry.server.id}`;
+		case 'builtin-item':
+			return `builtin:${entry.id}`;
+	}
+}
+
+/** Everything the status actions of a row are built from: what they show, and what they act on. */
+export interface IMcpStatusRenderInput {
+	/** Identifies the row, so a recycled template never mistakes one server's actions for another's. */
+	readonly rowKey: string;
+	/** The server's name, which appears in the button titles and aria labels. */
+	readonly label: string;
+	/** Decides which actions exist at all: sign-in when auth is required, output on error. */
+	readonly state: McpStatusKind | undefined;
+	readonly statusLabel: string | undefined;
+	readonly statusClassName: string | undefined;
+	readonly statusIconId: string | undefined;
+	/** The active-session twin the sign-in and output actions are bound to. */
+	readonly activeSessionServerId: string | undefined;
+	readonly logOutputChannelId: string | undefined;
+	/** The local server the output action falls back to. */
+	readonly localServerId: string | undefined;
+	/** Captured when the output action is built, so switching sessions has to rebuild it. */
+	readonly activeSessionResource: string | undefined;
+}
+
+/**
+ * Reduces a row's status actions to a comparable value, so they are only rebuilt when something
+ * about them actually changed.
+ *
+ * The status update runs from an autorun over the server's connection state, which for an erroring
+ * server fires about twice a second while producing byte-identical content. Tearing the actions
+ * down and rebuilding them anyway meant a node could be replaced between mousedown and mouseup,
+ * and a node replaced mid-click never receives the click -- so the inline `Show Output` button did
+ * nothing on precisely the rows that needed it.
+ *
+ * The signature therefore has to cover every value the actions are built from, both what they
+ * render and what they act on, or an update that matters would be dropped.
+ */
+export function getMcpStatusRenderSignature(input: IMcpStatusRenderInput): string {
+	return JSON.stringify([
+		input.rowKey,
+		input.label,
+		input.state ?? null,
+		input.statusLabel ?? null,
+		input.statusClassName ?? null,
+		input.statusIconId ?? null,
+		input.activeSessionServerId ?? null,
+		input.logOutputChannelId ?? null,
+		input.localServerId ?? null,
+		input.activeSessionResource ?? null,
+	]);
 }
 
 function getMcpEntryLabel(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string {

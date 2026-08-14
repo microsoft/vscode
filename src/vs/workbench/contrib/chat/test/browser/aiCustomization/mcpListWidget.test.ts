@@ -29,8 +29,10 @@ import {
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
 	getMcpStatusPresentation,
+	getMcpStatusRenderSignature,
 	getServerItemContextMenuActions,
 	registerMcpInlineButtonAction,
+	type IMcpStatusRenderInput,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
@@ -505,6 +507,60 @@ suite('mcpListWidget', () => {
 				'(separator)',
 				'Server Options',
 			]);
+		});
+	});
+
+	suite('getMcpStatusRenderSignature', () => {
+		const base: IMcpStatusRenderInput = {
+			rowKey: 'server:mcp.config.workspace/notion:0',
+			label: 'notion',
+			state: McpServerStatus.Error,
+			statusLabel: 'Error',
+			statusClassName: 'error',
+			statusIconId: 'error',
+			activeSessionServerId: 'session-1/notion',
+			logOutputChannelId: 'mcp.session-1.notion',
+			localServerId: 'mcp.config.workspace/notion',
+			activeSessionResource: 'vscode-agent-session:///session-1',
+		};
+
+		// A different, and differently-typed-where-possible, value for every field. The mapped type
+		// is what makes this a barrier: a field added to the input fails to compile until it is
+		// given a value here, and the test below then proves the signature actually covers it.
+		const changed: { [K in keyof IMcpStatusRenderInput]-?: IMcpStatusRenderInput[K] } = {
+			rowKey: 'server:mcp.config.user/notion:0',
+			label: 'Notion',
+			state: McpServerStatus.Ready,
+			statusLabel: 'Running',
+			statusClassName: 'running',
+			statusIconId: 'check',
+			activeSessionServerId: 'session-1/other',
+			logOutputChannelId: 'mcp.session-1.other',
+			localServerId: 'mcp.config.user/notion',
+			activeSessionResource: 'vscode-agent-session:///session-2',
+		};
+
+		const fields = Object.keys(base) as (keyof IMcpStatusRenderInput)[];
+
+		test('the same row state produces the same signature', () => {
+			assert.strictEqual(getMcpStatusRenderSignature({ ...base }), getMcpStatusRenderSignature({ ...base }));
+		});
+
+		test('changing any covered value changes the signature', () => {
+			const baseline = getMcpStatusRenderSignature(base);
+			const missed = fields.filter(field => getMcpStatusRenderSignature({ ...base, [field]: changed[field] }) === baseline);
+
+			assert.deepStrictEqual(missed, []);
+		});
+
+		test('clearing any optional value changes the signature', () => {
+			const baseline = getMcpStatusRenderSignature(base);
+			// `rowKey` and `label` are always present; everything else can legitimately go away,
+			// e.g. when a server loses its active-session twin.
+			const clearable = fields.filter(field => field !== 'rowKey' && field !== 'label');
+			const missed = clearable.filter(field => getMcpStatusRenderSignature({ ...base, [field]: undefined }) === baseline);
+
+			assert.deepStrictEqual(missed, []);
 		});
 	});
 
