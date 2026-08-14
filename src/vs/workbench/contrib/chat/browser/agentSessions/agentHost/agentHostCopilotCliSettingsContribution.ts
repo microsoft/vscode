@@ -6,9 +6,9 @@
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
@@ -52,6 +52,11 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				key: CopilotCliConfigKey.ToolSearchDeferThreshold,
 				computeValue: () => normalizeToolSearchDeferThreshold(this._configurationService.getValue<number>(AgentHostToolSearchDeferThresholdSettingId)),
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostToolSearchDeferThresholdSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.ReasoningSummary,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostReasoningSummaryEnabledSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostReasoningSummaryEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.ModelCapabilityOverrides,
