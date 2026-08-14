@@ -1035,6 +1035,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			resources: resources.map(resource => ({
 				original: { resource: resource.originalURI },
 				modified: { resource: resource.modifiedURI },
+				goToFileResource: resource.resource,
 			})),
 		});
 	}

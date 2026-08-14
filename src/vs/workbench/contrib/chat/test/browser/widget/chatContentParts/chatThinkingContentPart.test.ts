@@ -2386,15 +2386,18 @@ suite('ChatThinkingContentPart', () => {
 				resources: opened.resources?.map(resource => ({
 					original: resource.original.resource?.toString(),
 					modified: resource.modified.resource?.toString(),
+					goToFileResource: resource.goToFileResource?.toString(),
 				})),
 			}, {
 				label: 'Section File Changes',
 				resources: [{
 					original: 'file:///snapshots/first/before/app.ts',
 					modified: 'file:///snapshots/last/after/app.ts',
+					goToFileResource: 'file:///workspace/app.ts',
 				}, {
 					original: 'file:///snapshots/only/before/util.ts',
 					modified: 'file:///snapshots/only/after/util.ts',
+					goToFileResource: 'file:///workspace/util.ts',
 				}],
 			});
 		});
