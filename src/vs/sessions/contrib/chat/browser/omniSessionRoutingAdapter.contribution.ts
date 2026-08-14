@@ -231,7 +231,7 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 	}
 
 	resolveSessionResource(sessionId: string): URI | undefined {
-		return this._resolveTarget(sessionId)?.session.resource;
+		return this._resolveTarget(sessionId)?.chat.resource;
 	}
 
 	async dispatchToSession(sessionId: string, message: string, options: IChatSendRequestOptions, token: CancellationToken): Promise<IChatSessionRoutingDispatchResult> {

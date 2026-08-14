@@ -2194,11 +2194,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._sendContext();
 				};
 				sendPromise.then(resource => {
+					if (resource === false) {
+						this._clearAwaitingReply();
+						this._suppressOmniDispatchAcknowledgement = false;
+						this.voiceClientService.sendToolResult(e.callId, { ok: false, reason: 'no_session' });
+						settle();
+						return;
+					}
 					const backendResource = resource ? (toAgentHostBackendSessionUri(resource) ?? resource).toString() : undefined;
 					this.voiceClientService.sendToolResult(e.callId, 'ok', backendResource);
 					settle();
 				}, error => {
 					this.logService.error('[voice] send_to_chat failed', error);
+					this._clearAwaitingReply();
+					this._suppressOmniDispatchAcknowledgement = false;
 					this.voiceClientService.sendToolResult(e.callId, { ok: false, reason: 'no_session' });
 					settle();
 				});
@@ -3948,7 +3957,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/**
 	 * Send transcription text to the target session or active chat.
 	 */
-	private async _sendTranscriptionToChat(text: string): Promise<URI | undefined> {
+	private async _sendTranscriptionToChat(text: string): Promise<URI | false | undefined> {
 		// A focus-change submit pins routing to the session the user was
 		// dictating into, so it takes priority over whichever surface has focus
 		// by the time the backend finalizes the turn.
@@ -3956,6 +3965,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const acceptedByOmni = !pinnedTarget && await this.commandService.executeCommand<URI | boolean>(CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID, text).catch(() => false);
 		if (acceptedByOmni) {
 			return URI.isUri(acceptedByOmni) ? acceptedByOmni : this._targetSession.get();
+		}
+		// A focused Omni request that was cancelled, rejected, or timed out must
+		// not fall through and send the same transcription to the panel session.
+		if (!pinnedTarget && this._omniInputActive.get()) {
+			return false;
 		}
 
 		const target = pinnedTarget ?? this._targetSession.get();

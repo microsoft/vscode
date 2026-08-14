@@ -60,6 +60,7 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 		widget.setConnected(connected);
 		widget.setConnecting(connecting);
 		widget.setReconnecting(reconnecting);
+		widget.setVoiceControlsSuppressed(omniInputOpen);
 		widget.setVoiceState(omniInputOpen ? 'idle' : state);
 		widget.setPendingToolConfirmations(toolConfirmations);
 		// Respect showTranscript setting — hide transcript when disabled
@@ -146,7 +147,7 @@ function _updateSessionData(widget: AgentsVoiceWidget, services: IWidgetBindingS
 	// Show all non-archived sessions so the user can target any for transcription.
 	const sessions = agentSessionsService.model.sessions.filter(s => !s.isArchived());
 	const toolConfirmations = voiceSessionController.pendingToolConfirmations.get();
-	const speakingSession = voicePlaybackService.speakingSession.get();
+	const speakingSession = voiceSessionController.omniInputOpen.get() ? undefined : voicePlaybackService.speakingSession.get();
 
 	// Sort: NeedsInput first, then InProgress, then Completed; most recent first within
 	const statusOrder = (s: typeof sessions[0]) =>

@@ -6690,7 +6690,7 @@ suite('VoiceSessionController', () => {
 
 	test('omni waits for the routed response before returning to listening', async () => {
 		const voiceClientService = new TestVoiceClientService();
-		const commandService = new TestCommandService();
+		const commandService = new TestCommandService(true);
 		const mic = new RecordingMicCaptureService();
 		const controller = createController(
 			voiceClientService,
@@ -6792,6 +6792,24 @@ suite('VoiceSessionController', () => {
 			panelInputs: commandService.acceptedInputs,
 		}, {
 			omniInputs: ['run the focused omni request'],
+			panelInputs: [],
+		});
+	});
+
+	test('rejected omni routing does not fall back to the panel session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService(false);
+		const controller = createController(voiceClientService, undefined, commandService);
+		controller.setOmniInputActive(true);
+
+		const sendTranscriptionToChat = Reflect.get(controller, '_sendTranscriptionToChat') as (text: string) => Promise<URI | false | undefined>;
+		const result = await sendTranscriptionToChat.call(controller, 'do not reroute this request');
+
+		assert.deepStrictEqual({
+			result,
+			panelInputs: commandService.acceptedInputs,
+		}, {
+			result: false,
 			panelInputs: [],
 		});
 	});

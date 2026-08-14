@@ -1325,6 +1325,9 @@ export class ChatSessionRoutingController extends Disposable {
 		try {
 			target = URI.parse(sessionId);
 		} catch (err) {
+			if (notifyRoute) {
+				this.host.onDidRejectRoute?.(undefined, requestOptions.isVoiceModeInput);
+			}
 			this.logService.warn('[chatSessionRouting] invalid session id for routing:', sessionId, err);
 			return { status: 'rejected' };
 		}
@@ -1333,9 +1336,15 @@ export class ChatSessionRoutingController extends Disposable {
 			const ref = await this.chatService.acquireOrLoadSession(target, ChatAgentLocation.Chat, token, `${this.debugOwner}-route`);
 			if (token.isCancellationRequested) {
 				ref?.dispose();
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(target, requestOptions.isVoiceModeInput);
+				}
 				return { status: 'rejected' };
 			}
 			if (!ref) {
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(target, requestOptions.isVoiceModeInput);
+				}
 				this.logService.warn('[chatSessionRouting] could not load routed session:', sessionId);
 				return { status: 'rejected' };
 			}
@@ -1446,12 +1455,18 @@ export class ChatSessionRoutingController extends Disposable {
 					`${this.debugOwner}-new`,
 				);
 			if (!ref) {
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(undefined, requestOptions.isVoiceModeInput);
+				}
 				this.logService.warn(`[chatSessionRouting] unable to create a new ${sessionTarget} session`);
 				return { status: 'rejected' };
 			}
 			routeResource = ref.object.sessionResource;
 			if (token.isCancellationRequested) {
 				ref.dispose();
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(routeResource, requestOptions.isVoiceModeInput);
+				}
 				return { status: 'rejected' };
 			}
 			folder ??= this._resolveNewSessionTarget(utterance, requestOptions.attachedContext, [], []).folder;

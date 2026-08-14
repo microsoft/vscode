@@ -130,6 +130,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _modelRef: IChatModelReference | undefined;
 	private _widget: ChatWidget | undefined;
 	private _pendingVoiceRoute: DeferredPromise<URI | false> | undefined;
+	private readonly _pendingResolvedInteractionCheck = this._register(new MutableDisposable());
 	private _pendingPromptIndex = 0;
 	private _activePendingSessionResource: URI | undefined;
 	private readonly _dismissedPendingRequests = observableValue<ReadonlySet<string>>(this, new Set());
@@ -365,7 +366,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			tabindex: '0',
 			'aria-label': localize('chatInputWindow.close.label', "Close"),
 		}));
-		close.appendChild(renderIcon(Codicon.close));
+		close.appendChild(renderIcon(Codicon.closeSmall));
 		this._windowDisposables.add(dom.addDisposableListener(close, dom.EventType.CLICK, () => this.closeWindow()));
 		this._windowDisposables.add(dom.addStandardDisposableListener(close, dom.EventType.KEY_DOWN, event => {
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -434,16 +435,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._completePendingVoiceRoute(false);
 		const pendingRoute = new DeferredPromise<URI | false>();
 		this._pendingVoiceRoute = pendingRoute;
+		const routeTimeout = disposableTimeout(() => pendingRoute.complete(false), 30_000);
 		try {
 			await widget.acceptInput(combineVoiceInput(widget.getInput(), text), {
 				preserveFocus: true,
 				isVoiceModeInput: true,
 			});
-			return await Promise.race([
-				pendingRoute.p,
-				timeout(30_000).then(() => false as const),
-			]);
+			return await pendingRoute.p;
 		} finally {
+			routeTimeout.dispose();
 			if (this._pendingVoiceRoute === pendingRoute) {
 				this._completePendingVoiceRoute(false);
 			}
@@ -1130,7 +1130,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', scheduleLayout));
 		this._loadPendingSessionModels();
 		this._windowDisposables.add(autorun(reader => {
-			this.voiceSessionController.omniInputActive.read(reader);
+			this.voiceSessionController.omniInputOpen.read(reader);
 			const dismissedPendingRequests = this._dismissedPendingRequests.read(reader);
 			const displayedResource = this._activePendingSessionResource;
 			if (displayedResource && displayedPendingOccurrence) {
@@ -1189,7 +1189,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		if (!occurrence) {
 			return;
 		}
-		setTimeout(() => {
+		this._pendingResolvedInteractionCheck.value = disposableTimeout(() => {
 			const currentModel = this.chatService.getSession(resource);
 			const currentOccurrence = currentModel
 				? this._getPendingToolApproval(currentModel)?.occurrence ?? this._getPendingQuestionOccurrence(currentModel)
@@ -1555,6 +1555,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private _disposeWidget(): void {
 		this._completePendingVoiceRoute(false);
+		this._pendingResolvedInteractionCheck.clear();
 		this.voiceSessionController.setOmniInputOpen(false);
 		this.voiceSessionController.setOmniInputActive(false);
 		this._routingController = undefined;

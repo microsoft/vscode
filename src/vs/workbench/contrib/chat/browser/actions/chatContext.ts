@@ -13,6 +13,7 @@ import { IRemoteAgentHostService } from '../../../../../platform/agentHost/commo
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
@@ -354,6 +355,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 		@IPathService private readonly _pathService: IPathService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IChatSessionRoutingProviderService private readonly _routingProviderService: IChatSessionRoutingProviderService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	isEnabled(widget: IChatWidget): boolean {
@@ -371,13 +373,23 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 				let currentWorkspace: SessionWorkspaceIdentity | undefined;
 				const routingProvider = this._routingProviderService.getProvider();
 				if (routingProvider) {
-					const currentSession = currentSessionResource
-						? await routingProvider.getSessionSnapshot?.(currentSessionResource, CancellationToken.None)
-						: undefined;
+					let currentSession: IRoutableSession | undefined;
+					try {
+						currentSession = currentSessionResource
+							? await routingProvider.getSessionSnapshot?.(currentSessionResource, CancellationToken.None)
+							: undefined;
+					} catch (error) {
+						this._logService.warn('[chatContext] Failed to resolve the current routed session:', error);
+					}
 					if (currentSession) {
 						currentWorkspace = { cwd: currentSession.cwd, repo: currentSession.repo };
 					}
-					const candidates = await routingProvider.getCandidateSessions(CancellationToken.None);
+					let candidates: readonly IRoutableSession[] = [];
+					try {
+						candidates = await routingProvider.getCandidateSessions(CancellationToken.None);
+					} catch (error) {
+						this._logService.warn('[chatContext] Failed to resolve routed session attachments:', error);
+					}
 					for (const candidate of candidates) {
 						const sessionResource = routingProvider.resolveSessionResource(candidate.sessionId);
 						if (!sessionResource) {

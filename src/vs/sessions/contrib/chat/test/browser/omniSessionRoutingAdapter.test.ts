@@ -113,6 +113,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		managementService.sessions = [session];
 		managementService.fireSessionsChanged({ added: [session], removed: [], changed: [] });
 		assert.deepStrictEqual(adapter.getCandidateSessions(CancellationToken.None).map(candidate => candidate.sessionId), ['provider:session']);
+		assert.strictEqual(adapter.resolveSessionResource(session.sessionId)?.toString(), session.mainChat.get().resource.toString());
 
 		managementService.sessions = [];
 		managementService.fireSessionsChanged({ added: [], removed: [session], changed: [] });
@@ -319,7 +320,7 @@ suite('OmniSessionRoutingAdapter', () => {
 
 		assert.deepStrictEqual(result, {
 			status: 'rejected',
-			resource: session.resource,
+			resource: session.mainChat.get().resource,
 			reason: `Sessions provider 'provider' not found`,
 		});
 	});
