@@ -424,27 +424,30 @@ suite('StyleOverridesContribution', () => {
 		});
 	});
 
-	test('hides collapsed primary side bar grips without hiding the auxiliary sash grip', () => {
+	test('hides collapsed primary side bar grips without hiding constrained auxiliary sash grips', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench style-override nosidebar nopanel';
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
-		const leftPrimarySideBarSash = appendElement(root, 'monaco-sash vertical minimum');
-		const rightPrimarySideBarSash = appendElement(root, 'monaco-sash vertical maximum');
-		const auxiliaryBarSash = appendElement(root, 'monaco-sash vertical');
+		const leftPrimarySideBarSash = appendElement(root, 'monaco-sash vertical minimum primary-sidebar-sash');
+		const rightPrimarySideBarSash = appendElement(root, 'monaco-sash vertical maximum primary-sidebar-sash');
+		const minimumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical minimum');
+		const maximumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical maximum');
 		const panelSash = appendElement(root, 'monaco-sash horizontal maximum');
 		const targetWindow = getWindow(root);
 
 		assert.deepStrictEqual({
 			leftPrimarySideBarGrip: targetWindow.getComputedStyle(leftPrimarySideBarSash, '::after').content,
 			rightPrimarySideBarGrip: targetWindow.getComputedStyle(rightPrimarySideBarSash, '::after').content,
-			auxiliaryBarGrip: targetWindow.getComputedStyle(auxiliaryBarSash, '::after').content,
+			minimumAuxiliaryBarGrip: targetWindow.getComputedStyle(minimumAuxiliaryBarSash, '::after').content,
+			maximumAuxiliaryBarGrip: targetWindow.getComputedStyle(maximumAuxiliaryBarSash, '::after').content,
 			panelGrip: targetWindow.getComputedStyle(panelSash, '::after').content,
 		}, {
 			leftPrimarySideBarGrip: 'none',
 			rightPrimarySideBarGrip: 'none',
-			auxiliaryBarGrip: '\"\"',
+			minimumAuxiliaryBarGrip: '\"\"',
+			maximumAuxiliaryBarGrip: '\"\"',
 			panelGrip: 'none',
 		});
 	});

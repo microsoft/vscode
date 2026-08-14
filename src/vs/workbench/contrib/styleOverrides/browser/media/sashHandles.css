@@ -78,7 +78,7 @@
 /* Hide grips for collapsed parts. Their reveal sashes remain enabled at an
  * extent, and the panel grip can also be clipped by the status bar. */
 .style-override.nopanel .monaco-sash.horizontal::after,
-.style-override.nosidebar .monaco-sash.vertical:is(.minimum, .maximum)::after {
+.style-override.nosidebar .monaco-sash.vertical.primary-sidebar-sash::after {
 	content: none;
 }
 
