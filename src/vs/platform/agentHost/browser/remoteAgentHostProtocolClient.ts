@@ -836,7 +836,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				if (envelope.origin?.clientId === this._clientId
 					&& envelope.origin.clientSeq !== undefined
 					&& !envelope.rejectionReason) {
-					this._subscriptionManager.dropPendingSessionAction(envelope.channel, envelope.origin.clientSeq);
+					this._subscriptionManager.dropPendingAction(envelope.channel, envelope.origin.clientSeq);
 				}
 				if (envelope.serverSeq > maxSeq) {
 					maxSeq = envelope.serverSeq;
@@ -865,7 +865,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 *
 	 * 1. Resend pending optimistic session actions that the server did NOT
 	 *    echo back in the replay buffer (i.e. anything still on
-	 *    {@link AgentSubscriptionManager.getPendingSessionActions}).
+	 *    {@link AgentSubscriptionManager.getPendingActions}).
 	 * 2. Flush every message that {@link _sendNotification} queued onto the
 	 *    outbox while the gate was engaged.
 	 *
@@ -886,7 +886,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 
 		const replays: ProtocolMessage[] = [];
-		for (const entry of this._subscriptionManager.getPendingSessionActions()) {
+		for (const entry of this._subscriptionManager.getPendingActions()) {
 			if (queuedSeqs.has(entry.clientSeq)) {
 				continue;
 			}

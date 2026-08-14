@@ -15,6 +15,7 @@ import { type SessionSummaryChangedParams } from '../../common/state/protocol/no
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
+import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -271,6 +272,25 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.getSnapshot(sessionUri), undefined);
 		assert.strictEqual(notifications.length, 1);
 		assert.strictEqual(notifications[0].type, NotificationType.SessionRemoved);
+	});
+
+	test('deleteSession clears parent and subagent annotations', () => {
+		const subagent = buildSubagentSessionUri(sessionUri, 'tool-call');
+		const parentAnnotations = buildAnnotationsUri(sessionUri);
+		const subagentAnnotations = buildAnnotationsUri(subagent);
+		manager.createSession(makeSessionSummary());
+		manager.restoreAnnotations(sessionUri, { annotations: [] });
+		manager.restoreAnnotations(subagent, { annotations: [] });
+
+		manager.deleteSession(sessionUri);
+
+		assert.deepStrictEqual({
+			parent: manager.getAnnotationsState(parentAnnotations),
+			subagent: manager.getAnnotationsState(subagentAnnotations),
+		}, {
+			parent: undefined,
+			subagent: undefined,
+		});
 	});
 
 	test('createSession emits sessionAdded notification', () => {
