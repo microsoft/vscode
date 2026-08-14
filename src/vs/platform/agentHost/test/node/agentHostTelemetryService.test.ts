@@ -186,6 +186,34 @@ suite('AgentHostTelemetryService', () => {
 		});
 	});
 
+	test('adds and clears Copilot SKU on all standard telemetry events', () => {
+		const delegate = new TestTelemetryService();
+		const service = disposables.add(new AgentHostTelemetryService(delegate));
+
+		service.setCopilotSku('copilot_for_business_seat');
+		service.publicLog('usage', { provider: 'codex' });
+		service.publicLogError('error', { provider: 'claude' });
+		service.publicLog2('usage2');
+		service.publicLogError2('error2');
+		service.setCopilotSku(undefined);
+		service.publicLog('signedOut');
+
+		assert.deepStrictEqual({
+			events: delegate.events,
+			errorEvents: delegate.errorEvents,
+		}, {
+			events: [
+				{ eventName: 'usage', data: { provider: 'codex', copilotSku: 'copilot_for_business_seat' } },
+				{ eventName: 'usage2', data: { copilotSku: 'copilot_for_business_seat' } },
+				{ eventName: 'signedOut', data: undefined },
+			],
+			errorEvents: [
+				{ eventName: 'error', data: { provider: 'claude', copilotSku: 'copilot_for_business_seat' } },
+				{ eventName: 'error2', data: { copilotSku: 'copilot_for_business_seat' } },
+			],
+		});
+	});
+
 	test('uses most restrictive client telemetry level', () => {
 		const service = disposables.add(new AgentHostTelemetryService(new TestTelemetryService()));
 

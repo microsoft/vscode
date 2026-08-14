@@ -269,7 +269,7 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.internalEvents[1].eventName, 'toolCallDetailsInternal');
 	});
 
-	test('turn telemetry includes Copilot SKU only for the Copilot provider', () => {
+	test('turn telemetry includes Copilot SKU for every provider', () => {
 		const service = new TestRestrictedTelemetryService();
 		const telemetryService = store.add(new AgentHostTelemetryService(service, service));
 		telemetryService.setCopilotSku('copilot_for_business_seat');
@@ -303,8 +303,8 @@ suite('AgentHostTelemetryReporter', () => {
 		})), [
 			{ eventName: 'agentHost.turnCompleted', provider: 'copilotcli', copilotSku: 'copilot_for_business_seat' },
 			{ eventName: 'agentHost.turnFailed', provider: 'copilotcli', copilotSku: 'copilot_for_business_seat' },
-			{ eventName: 'agentHost.turnCompleted', provider: 'claude', copilotSku: undefined },
-			{ eventName: 'agentHost.turnFailed', provider: 'claude', copilotSku: undefined },
+			{ eventName: 'agentHost.turnCompleted', provider: 'claude', copilotSku: 'copilot_for_business_seat' },
+			{ eventName: 'agentHost.turnFailed', provider: 'claude', copilotSku: 'copilot_for_business_seat' },
 		]);
 	});
 

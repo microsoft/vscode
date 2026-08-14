@@ -49,6 +49,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	declare readonly _serviceBrand: undefined;
 
 	private _telemetryLevel = TelemetryLevel.USAGE;
+	// __GDPR__COMMON__ "copilotSku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU for the authenticated Agent Host user, when account discovery returned one." }
 	private _copilotSku: string | undefined;
 
 	/**
@@ -119,63 +120,71 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		if (this.telemetryLevel < TelemetryLevel.USAGE) {
 			return;
 		}
-		this._delegate.publicLog(eventName, data);
+		this._delegate.publicLog(eventName, this._withCopilotSku(data));
 	}
 
 	publicLogError(eventName: string, data?: ITelemetryData): void {
 		if (this.telemetryLevel < TelemetryLevel.ERROR) {
 			return;
 		}
-		this._delegate.publicLogError(eventName, data);
+		this._delegate.publicLogError(eventName, this._withCopilotSku(data));
 	}
 
 	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE) {
 			return;
 		}
-		this._delegate.publicLog2(eventName, data);
+		this._delegate.publicLog2(eventName, this._withCopilotSku(data));
 	}
 
 	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
 		if (this.telemetryLevel < TelemetryLevel.ERROR) {
 			return;
 		}
-		this._delegate.publicLogError2(eventName, data);
+		this._delegate.publicLogError2(eventName, this._withCopilotSku(data));
+	}
+
+	private _withCopilotSku(data: ITelemetryData | undefined): ITelemetryData | undefined {
+		return this._copilotSku ? { ...data, copilotSku: this._copilotSku } : data;
 	}
 
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE) {
 			return;
 		}
-		this._restricted?.sendGHTelemetryEvent(eventName, properties, measurements);
+		this._restricted?.sendGHTelemetryEvent(eventName, this._withCopilotSkuProperties(properties), measurements);
 	}
 
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE || !this._restrictedTelemetryEnabled) {
 			return;
 		}
-		this._restricted?.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
+		this._restricted?.sendEnhancedGHTelemetryEvent(eventName, this._withCopilotSkuProperties(properties), measurements);
 	}
 
 	sendEnhancedGHTelemetryEventForContext(context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE || !context.restrictedTelemetryEnabled) {
 			return;
 		}
-		this._restricted?.sendEnhancedGHTelemetryEventForContext(context, eventName, properties, measurements);
+		this._restricted?.sendEnhancedGHTelemetryEventForContext(context, eventName, this._withCopilotSkuProperties(properties), measurements);
 	}
 
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE || !this._internalTelemetryEnabled) {
 			return;
 		}
-		this._restricted?.sendInternalMSFTTelemetryEvent(eventName, properties, measurements);
+		this._restricted?.sendInternalMSFTTelemetryEvent(eventName, this._withCopilotSkuProperties(properties), measurements);
 	}
 
 	sendInternalMSFTTelemetryEventForContext(context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE || !context.isInternal) {
 			return;
 		}
-		this._restricted?.sendInternalMSFTTelemetryEventForContext(context, eventName, properties, measurements);
+		this._restricted?.sendInternalMSFTTelemetryEventForContext(context, eventName, this._withCopilotSkuProperties(properties), measurements);
+	}
+
+	private _withCopilotSkuProperties(properties: TelemetryProps | undefined): TelemetryProps | undefined {
+		return this._copilotSku ? { ...properties, copilotSku: this._copilotSku } : properties;
 	}
 
 	setCopilotTrackingId(trackingId: string | undefined): void {
