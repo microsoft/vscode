@@ -167,6 +167,8 @@ suite('AgentHostTelemetryService', () => {
 
 		service.publicLog('beforeClientLevel', { count: 1 });
 		service.updateTelemetryLevel(TelemetryLevel.USAGE);
+		service.publicLog('afterSeededConfig', { count: 2 });
+		service.updateClientTelemetryLevel(TelemetryLevel.USAGE);
 		service.publicLog('afterClientLevel', { count: 2 });
 		service.updateTelemetryLevel(TelemetryLevel.NONE);
 		service.updateTelemetryLevel(TelemetryLevel.USAGE);
