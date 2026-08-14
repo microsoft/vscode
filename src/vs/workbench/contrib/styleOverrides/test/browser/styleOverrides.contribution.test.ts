@@ -592,14 +592,18 @@ suite('StyleOverridesContribution', () => {
 		const dirtyTab = appendElement(compactTabs, 'tab dirty');
 		const dirtyCloseOffTab = appendElement(compactTabs, 'tab dirty close-action-off');
 		const dirtyBorderTopTab = appendElement(compactTabs, 'tab dirty dirty-border-top close-action-off');
+		const dirtyBorderTopCloseableTab = appendElement(compactTabs, 'tab dirty dirty-border-top');
 		const stickyTab = appendElement(compactTabs, 'tab sticky');
 		const stickyActionOffTab = appendElement(compactTabs, 'tab sticky pinned-action-off close-action-off');
 		const dirtyLeftTab = appendElement(compactTabs, 'tab dirty tab-actions-left');
 		const dirtyBorderTopLeftTab = appendElement(compactTabs, 'tab dirty dirty-border-top close-action-off tab-actions-left');
+		const dirtyBorderTopCloseableLeftTab = appendElement(compactTabs, 'tab dirty dirty-border-top tab-actions-left');
 		const reservedTitle = appendElement(editor, 'title tabs tab-actions-reserve-space');
 		const reservedTabs = appendElement(reservedTitle, 'tabs-container');
 		const reservedTab = appendElement(reservedTabs, 'tab');
 		const reservedLeftTab = appendElement(reservedTabs, 'tab tab-actions-left');
+		const reservedDirtyBorderTopTab = appendElement(reservedTabs, 'tab dirty dirty-border-top');
+		const reservedDirtyBorderTopLeftTab = appendElement(reservedTabs, 'tab dirty dirty-border-top tab-actions-left');
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
@@ -607,23 +611,31 @@ suite('StyleOverridesContribution', () => {
 			dirty: [targetWindow.getComputedStyle(dirtyTab).paddingLeft, targetWindow.getComputedStyle(dirtyTab).paddingRight],
 			dirtyCloseOff: [targetWindow.getComputedStyle(dirtyCloseOffTab).paddingLeft, targetWindow.getComputedStyle(dirtyCloseOffTab).paddingRight],
 			dirtyBorderTop: [targetWindow.getComputedStyle(dirtyBorderTopTab).paddingLeft, targetWindow.getComputedStyle(dirtyBorderTopTab).paddingRight],
+			dirtyBorderTopCloseable: [targetWindow.getComputedStyle(dirtyBorderTopCloseableTab).paddingLeft, targetWindow.getComputedStyle(dirtyBorderTopCloseableTab).paddingRight],
 			sticky: [targetWindow.getComputedStyle(stickyTab).paddingLeft, targetWindow.getComputedStyle(stickyTab).paddingRight],
 			stickyActionOff: [targetWindow.getComputedStyle(stickyActionOffTab).paddingLeft, targetWindow.getComputedStyle(stickyActionOffTab).paddingRight],
 			dirtyLeft: [targetWindow.getComputedStyle(dirtyLeftTab).paddingLeft, targetWindow.getComputedStyle(dirtyLeftTab).paddingRight],
 			dirtyBorderTopLeft: [targetWindow.getComputedStyle(dirtyBorderTopLeftTab).paddingLeft, targetWindow.getComputedStyle(dirtyBorderTopLeftTab).paddingRight],
+			dirtyBorderTopCloseableLeft: [targetWindow.getComputedStyle(dirtyBorderTopCloseableLeftTab).paddingLeft, targetWindow.getComputedStyle(dirtyBorderTopCloseableLeftTab).paddingRight],
 			reserved: [targetWindow.getComputedStyle(reservedTab).paddingLeft, targetWindow.getComputedStyle(reservedTab).paddingRight],
 			reservedLeft: [targetWindow.getComputedStyle(reservedLeftTab).paddingLeft, targetWindow.getComputedStyle(reservedLeftTab).paddingRight],
+			reservedDirtyBorderTop: [targetWindow.getComputedStyle(reservedDirtyBorderTopTab).paddingLeft, targetWindow.getComputedStyle(reservedDirtyBorderTopTab).paddingRight],
+			reservedDirtyBorderTopLeft: [targetWindow.getComputedStyle(reservedDirtyBorderTopLeftTab).paddingLeft, targetWindow.getComputedStyle(reservedDirtyBorderTopLeftTab).paddingRight],
 		}, {
 			compact: ['6px', '8px'],
 			dirty: ['6px', '28px'],
 			dirtyCloseOff: ['6px', '28px'],
 			dirtyBorderTop: ['6px', '8px'],
+			dirtyBorderTopCloseable: ['6px', '8px'],
 			sticky: ['6px', '28px'],
 			stickyActionOff: ['6px', '8px'],
 			dirtyLeft: ['28px', '8px'],
 			dirtyBorderTopLeft: ['6px', '8px'],
+			dirtyBorderTopCloseableLeft: ['6px', '8px'],
 			reserved: ['6px', '28px'],
 			reservedLeft: ['28px', '8px'],
+			reservedDirtyBorderTop: ['6px', '28px'],
+			reservedDirtyBorderTopLeft: ['28px', '8px'],
 		});
 	});
 
