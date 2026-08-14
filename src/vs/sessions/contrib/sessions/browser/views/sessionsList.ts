@@ -896,7 +896,6 @@ function renderSessionHeaderToolbar<T>(template: ISessionHeaderTemplate, element
 interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
-	readonly statusIndicator: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly chevron: HTMLElement;
@@ -963,8 +962,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const icon = DOM.append(container, $('span.session-section-icon'));
 		icon.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
-		const statusIndicator = DOM.append(container, $('span.session-section-status-indicator'));
-		statusIndicator.setAttribute('aria-hidden', 'true');
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 		const chevron = DOM.append(container, $('span.session-section-chevron'));
@@ -976,7 +973,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, icon, statusIndicator, label, count, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, label, count, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -996,6 +993,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 		// Leading icon for the "Pinned" and "Chats" (quick chats) section headers.
 		// Templates are reused across rows, so recompute the icon every render.
+		DOM.clearNode(template.icon);
 		const sectionIcon = element.id === QUICK_CHATS_SECTION_ID ? Codicon.commentDiscussion
 			: element.id === 'pinned' ? Codicon.pinned
 				: element.id === AUTOMATIONS_SECTION_ID ? Codicon.watch
@@ -1008,26 +1006,23 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
 				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID);
 			}));
-			DOM.clearNode(template.statusIndicator);
-			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.statusIndicator));
+			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.icon));
 			template.elementDisposables.add(autorun(reader => {
 				const automationStatus = this.automationStatus.read(reader);
 				if (automationStatus === SessionStatus.NeedsInput) {
-					template.statusIndicator.style.display = '';
+					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.NeedsInput, true, false);
 				} else if (automationStatus === SessionStatus.InProgress) {
-					template.statusIndicator.style.display = '';
+					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.InProgress, true, false);
 				} else if (automationStatus === SessionStatus.Completed) {
-					template.statusIndicator.style.display = '';
+					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.Completed, false, false);
 				} else {
-					template.statusIndicator.style.display = 'none';
+					statusIcon.reset();
+					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.watch)}`;
 				}
 			}));
-		} else {
-			template.statusIndicator.style.display = 'none';
-			DOM.clearNode(template.statusIndicator);
 		}
 
 		template.label.textContent = element.label;
