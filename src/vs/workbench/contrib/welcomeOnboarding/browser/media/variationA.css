@@ -270,30 +270,6 @@
 	flex: 1;
 }
 
-.onboarding-a-signin-brand {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 170px;
-	align-self: center;
-}
-
-.onboarding-a-signin-brand-icon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 56px;
-	height: 56px;
-	border-radius: 0;
-	border: none;
-	background: transparent;
-	box-shadow: none;
-	background-image: url('../../../../browser/media/code-icon.svg');
-	background-repeat: no-repeat;
-	background-position: center center;
-	background-size: 52px;
-}
-
 .onboarding-a-signin-content {
 	display: flex;
 	flex-direction: column;
@@ -1247,22 +1223,6 @@
 		gap: 20px;
 		min-height: 0;
 		width: 100%;
-	}
-
-	.onboarding-a-signin-brand {
-		flex-basis: auto;
-		width: 100%;
-		justify-content: flex-start;
-	}
-
-	.onboarding-a-signin-brand-icon {
-		width: 124px;
-		height: 124px;
-		border-radius: 24px;
-	}
-
-	.onboarding-a-signin-brand-icon {
-		background-size: 78px;
 	}
 
 	.onboarding-a-signin-content {
