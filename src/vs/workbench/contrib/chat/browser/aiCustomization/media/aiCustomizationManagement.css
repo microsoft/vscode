@@ -479,9 +479,12 @@
 	min-width: 0;
 }
 
+/* No text-transform: these labels are localized strings that are already cased correctly, and
+capitalize re-cased them wrongly -- "Included Based on Context" became "Based On" (against this
+repo's own rule that short prepositions stay lowercase) and "Built-in" became "Built-In". Per-word
+casing is also not a transform that survives translation. */
 .ai-customization-group-header .group-label {
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	text-transform: capitalize;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
 	text-overflow: ellipsis;
