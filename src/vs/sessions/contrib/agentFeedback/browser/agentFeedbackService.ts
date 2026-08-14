@@ -562,9 +562,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return false;
 		}
 
-		// Files that are part of the session's changes are always in scope,
-		// regardless of where they live on disk.
+		// Files that are part of the session's changes or external changes are
+		// always in scope, regardless of where they live on disk.
 		if (session.changes.get().some(change => changeMatchesResource(change, resourceUri))) {
+			return true;
+		}
+		if (session.externalChanges?.get().some(file => isEqual(file.uri, resourceUri))) {
 			return true;
 		}
 

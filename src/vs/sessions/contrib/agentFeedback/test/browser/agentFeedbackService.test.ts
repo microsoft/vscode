@@ -23,7 +23,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, SessionFileOperation, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -310,17 +310,19 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		return { input };
 	}
 
-	function makeSession(resource: URI, status: SessionStatus = SessionStatus.InProgress, options?: { folders?: URI[]; changes?: URI[] }): ISession {
+	function makeSession(resource: URI, status: SessionStatus = SessionStatus.InProgress, options?: { folders?: URI[]; changes?: URI[]; externalChanges?: URI[] }): ISession {
 		const workspace = options?.folders
 			? { folders: options.folders.map(root => ({ root, workingDirectory: root })) }
 			: undefined;
 		const changes = (options?.changes ?? []).map(uri => ({ modifiedUri: uri, originalUri: uri }));
+		const externalChanges = (options?.externalChanges ?? []).map(uri => ({ uri, operation: SessionFileOperation.Modified }));
 		return {
 			resource,
 			status: observableValue<SessionStatus>('status', status),
 			isCreated: observableValue('isCreated', status !== SessionStatus.Untitled),
 			workspace: observableValue('workspace', workspace),
 			changes: observableValue('changes', changes),
+			externalChanges: observableValue('externalChanges', externalChanges),
 		} as unknown as ISession;
 	}
 
@@ -566,6 +568,15 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		setActiveSession(wsSession);
 
 		assert.strictEqual(service.getSessionForFile(changed)?.resource.toString(), sessionS1.toString());
+	});
+
+	test('returns a session for files that are part of external changes even outside the workspace', () => {
+		const external = URI.file('/home/user/.config/settings.json');
+		const wsSession = makeSession(sessionS1, SessionStatus.InProgress, { folders: [URI.file('/workspace')], externalChanges: [external] });
+		sessions.set(sessionS1.toString(), wsSession);
+		setActiveSession(wsSession);
+
+		assert.strictEqual(service.getSessionForFile(external)?.resource.toString(), sessionS1.toString());
 	});
 
 	test('does not return a session for output view resources', () => {
