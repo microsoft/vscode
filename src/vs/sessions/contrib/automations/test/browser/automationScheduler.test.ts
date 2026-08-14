@@ -42,6 +42,14 @@ class FakeLeaderElection implements IAutomationLeaderElection {
 	dispose(): void { /* no-op */ }
 }
 
+class RecordingLogService extends NullLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push([message, ...args].join(' '));
+	}
+}
+
 class RecordingRecoveryAutomationService extends AutomationService {
 	readonly recoveryLifecycle: string[] = [];
 
@@ -407,7 +415,7 @@ suite('AutomationSchedulerCore', () => {
 
 	test('runOneWithTimeout: a hung run is cancelled, marked failed, and the next due automation still fires', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
-		const log = new NullLogService();
+		const log = new RecordingLogService();
 		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 
 		let now = T0;
@@ -483,6 +491,9 @@ suite('AutomationSchedulerCore', () => {
 		const hungRun = service.runs.get().find(r => r.automationId === hungAutomationId);
 		assert.strictEqual(hungRun?.status, 'failed');
 		assert.ok(hungRun?.errorMessage?.startsWith(RUN_TIMEOUT_REASON_PREFIX), `expected timeout marker, got: ${hungRun?.errorMessage}`);
+		assert.deepStrictEqual(log.warnings, [
+			`[AutomationScheduler] automation ${hungAutomationId} timed out after 50ms; marked run ${hungRun?.id} failed (previousStatus=pending, session=(none)).`,
+		]);
 		// The non-hung automation's row should NOT have been touched
 		// by the timeout path.
 		const otherRun = service.runs.get().find(r => r.automationId === otherId);

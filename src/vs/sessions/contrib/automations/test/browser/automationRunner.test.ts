@@ -105,6 +105,19 @@ class RecordingNotificationService extends TestNotificationService {
 	}
 }
 
+class RecordingLogService extends NullLogService {
+	readonly infos: string[] = [];
+	readonly warnings: string[] = [];
+
+	override info(message: string, ...args: unknown[]): void {
+		this.infos.push([message, ...args].join(' '));
+	}
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push([message, ...args].join(' '));
+	}
+}
+
 function fakeSession(id: string, status = observableValue(`status-${id}`, SessionStatus.Completed), chatStatus = status): ISession {
 	return upcastPartial<ISession>({
 		sessionId: id,
@@ -120,12 +133,12 @@ suite('AutomationRunner', () => {
 
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
-		const log = new NullLogService();
+		const log = new RecordingLogService();
 		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		const sessionsMgmt = new FakeSessionsManagementService();
 		const notifications = new RecordingNotificationService();
 		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, notifications);
-		return { service, sessionsMgmt, runner, notifications };
+		return { service, sessionsMgmt, runner, notifications, log };
 	}
 
 	test('creates a session for the automation prompt and marks the run completed', async () => {
@@ -454,16 +467,28 @@ suite('AutomationRunner', () => {
 		cts.dispose();
 	});
 
-	test('completes the run even when the service returns undefined', async () => {
-		const { service, runner } = setup();
+	test('logs when session creation returns undefined', async () => {
+		const { service, runner, log } = setup();
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 		await runner.runOnce(a, 'schedule', 1, CancellationToken.None).whenCompleted;
 
 		const runs = service.runs.get();
-		assert.strictEqual(runs.length, 1);
-		assert.strictEqual(runs[0].status, 'completed');
-		assert.strictEqual(runs[0].sessionResource, undefined);
+		assert.deepStrictEqual({
+			run: {
+				status: runs[0].status,
+				sessionResource: runs[0].sessionResource,
+			},
+			warnings: log.warnings,
+		}, {
+			run: {
+				status: 'completed',
+				sessionResource: undefined,
+			},
+			warnings: [
+				`[AutomationRunner] session creation returned no session for run ${runs[0].id} (automation ${a.id}): cancelled=false.`,
+			],
+		});
 	});
 
 	test('passes the captured providerId and sessionTypeId through to createAndSendNewChatRequest', async () => {
