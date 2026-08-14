@@ -637,7 +637,9 @@ export class ChatListWidget extends Disposable {
 		this._register(dom.addDisposableListener(this._container, 'copy', e => this.handleCopy(e)));
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
+				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
+				|| e.affectsConfiguration(ChatConfiguration.RichLinks)) {
 				this._settingChangeCounter++;
 				this.refresh();
 			}

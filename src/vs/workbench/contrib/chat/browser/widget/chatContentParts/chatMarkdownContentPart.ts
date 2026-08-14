@@ -189,6 +189,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 
 		const renderStore = this._register(new MutableDisposable<DisposableStore>());
+		const markdownDecorationsRenderer = this._register(instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
 
 		const doRenderMarkdown = () => {
 			if (this._store.isDisposed) {
@@ -388,7 +389,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}));
 			}
 
-			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
 
 			const layoutParticipants = new Lazy(() => {
