@@ -236,9 +236,11 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 	// the per-run `userDataDir` means the smoke-test cleanup (which removes
 	// the whole `testDataPath`) also wipes the Copilot state, so repeated
 	// local runs don't accumulate sessions that slow down `listSessions`
-	// and other startup paths.
+	// and other startup paths. Codex uses its own `CODEX_HOME`, so isolate it
+	// under the same per-run state root.
 	let xdgStateHome: string | undefined;
 	let copilotHome: string | undefined;
+	let codexHome: string | undefined;
 	if (opts?.userDataDir) {
 		xdgStateHome = `${opts.userDataDir}-copilot-state`;
 		// Anchor the Copilot runtime's home (`COPILOT_HOME`) at the same
@@ -249,12 +251,12 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 		// as `${COPILOT_HOME}/logs` and is NOT influenced by `XDG_STATE_HOME`,
 		// so without this the logs would go to the agent's real `~/.copilot`.
 		copilotHome = join(xdgStateHome, '.copilot');
+		codexHome = join(xdgStateHome, '.codex');
 		try {
 			fs.mkdirSync(copilotHome, { recursive: true });
+			fs.mkdirSync(codexHome, { recursive: true });
 		} catch {
-			// best effort — the dir will be created by the extension on first
-			// write if mkdir fails here (e.g. due to a race with a sibling
-			// suite). The env vars are still honoured.
+			// Best effort: the runtimes create their home directories on first write.
 		}
 	}
 
@@ -272,6 +274,7 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 		VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(getMockLlmServerUrl(mockServer)) : undefined,
 		XDG_STATE_HOME: xdgStateHome,
 		COPILOT_HOME: copilotHome,
+		CODEX_HOME: codexHome,
 	};
 }
 
