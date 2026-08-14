@@ -51,9 +51,9 @@ export class AutoV2Error extends Error {
 }
 
 /**
- * Fetches a model selection from `POST /auto`, which collapses the legacy
- * two-call flow (`/models/session` then `/models/session/intent`) into one
- * request and embeds the chosen model's metadata.
+ * Fetches a model selection from `POST /auto`, which picks the model for a
+ * prompt, mints the session token the chat request bills against, and embeds
+ * the chosen model's metadata — all in a single request.
  */
 export class AutoV2Fetcher {
 	private static readonly TIMEOUT_MS = 5000;

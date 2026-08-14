@@ -2741,8 +2741,9 @@ suite('AgentService (node dispatcher)', () => {
 		test('concurrent listSessions calls share one registry discovery pass', async () => {
 			const gate = new DeferredPromise<void>();
 			class GatedListAgent extends MockAgent {
+				override readonly onDidDiscoverChats = Event.None;
 				listCalls = 0;
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
 					this.listCalls++;
 					await gate.p;
 					return super.listExternalChats();
@@ -5116,6 +5117,19 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(mdPart);
 			assert.strictEqual(mdPart.content, 'Hi there!');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
+		});
+
+		test('advertises server tools after restoring the session state', async () => {
+			service.registerProvider(copilotAgent);
+			await createAgentSession(copilotAgent);
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+
+			await service.restoreSession(sessionResource);
+
+			assert.strictEqual(
+				service.stateManager.getSessionState(sessionResource.toString())?.serverTools?.some(tool => tool.name === SessionServerToolName.ListSessions),
+				true,
+			);
 		});
 
 		test('re-attaches persisted turn usage on restore', async () => {

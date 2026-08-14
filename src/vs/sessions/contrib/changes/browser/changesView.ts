@@ -45,7 +45,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionIsActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -156,6 +156,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		});
 
 		const runningLabelObs = observableValue<string | IMarkdownString | undefined>(this, undefined);
+		const sessionIsActiveObs = observableFromEvent(contextKeyService.onDidChangeContext, () => SessionIsActiveContext.getValue(contextKeyService) ?? false);
 
 		// Clear the running label override
 		this._register(autorun(reader => {
@@ -166,6 +167,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 
 		this._register(autorun(reader => {
 			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
+			sessionIsActiveObs.read(reader);
 			const sessionResource = changesViewService.activeSessionResourceObs.read(reader);
 			const outgoingChanges = outgoingChangesObs.read(reader) ?? 0;
 
@@ -285,7 +287,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 	) {
 		super();
 
-		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService));
+		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		const buttonBar = this._buttonBar = this._register(instantiationService.createInstance(
 			WorkbenchButtonBar,
