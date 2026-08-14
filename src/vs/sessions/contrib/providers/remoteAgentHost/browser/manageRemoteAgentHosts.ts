@@ -62,7 +62,12 @@ registerAction2(class extends Action2 {
 		const buildItems = (): (ManageHostsPickItem | IQuickPickSeparator)[] => {
 			const remoteProviders: IAgentHostSessionsProvider[] = sessionsProvidersService.getProviders()
 				.filter(isAgentHostProvider)
-				.filter((p: IAgentHostSessionsProvider) => !!p.remoteAddress);
+				.filter((p: IAgentHostSessionsProvider) => !!p.remoteAddress)
+				// Members of a host group are not hosts the user added, so they
+				// are not hosts the user can manage or remove: a cloud sandbox
+				// exists because a Mission Control task does, and removing its
+				// entry here would just have discovery recreate it.
+				.filter((p: IAgentHostSessionsProvider) => !p.hostGroup);
 
 			const remoteItems: IRemoteHostQuickPickItem[] = remoteProviders.map((p: IAgentHostSessionsProvider) => {
 				const isTunnel = p.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);

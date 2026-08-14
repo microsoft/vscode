@@ -7,6 +7,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -24,6 +26,21 @@ function mapStatus(s: RemoteAgentHostConnectionStatus): AgentHostFilterConnectio
 		case 'incompatible':
 		default: return AgentHostFilterConnectionStatus.Disconnected;
 	}
+}
+
+/**
+ * Status of a grouped entry: the most "alive" state among its members, so a
+ * group with one connected sandbox reads as connected rather than averaging
+ * out to disconnected.
+ */
+function rollupStatus(statuses: readonly AgentHostFilterConnectionStatus[]): AgentHostFilterConnectionStatus {
+	if (statuses.includes(AgentHostFilterConnectionStatus.Connected)) {
+		return AgentHostFilterConnectionStatus.Connected;
+	}
+	if (statuses.includes(AgentHostFilterConnectionStatus.Connecting)) {
+		return AgentHostFilterConnectionStatus.Connecting;
+	}
+	return AgentHostFilterConnectionStatus.Disconnected;
 }
 
 /**
@@ -49,7 +66,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	private readonly _onDidChangeDiscovering = this._register(new Emitter<void>());
 	readonly onDidChangeDiscovering: Event<void> = this._onDidChangeDiscovering.event;
 
-	private _selectedProviderId: string | undefined;
+	private _selectedHostId: string | undefined;
 	private _hosts: readonly IAgentHostFilterEntry[] = [];
 
 	/**
@@ -79,14 +96,21 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	) {
 		super();
 
-		this._selectedProviderId = this._storageService.get(STORAGE_KEY, StorageScope.PROFILE, undefined);
+		this._selectedHostId = this._storageService.get(STORAGE_KEY, StorageScope.PROFILE, undefined);
 
 		this._rewatchProviders();
 		this._register(this._sessionsProvidersService.onDidChangeProviders(() => this._rewatchProviders()));
 	}
 
-	get selectedProviderId(): string | undefined {
-		return this._selectedProviderId;
+	get selectedHostId(): string | undefined {
+		return this._selectedHostId;
+	}
+
+	get selectedHost(): IAgentHostFilterEntry | undefined {
+		if (this._selectedHostId === undefined) {
+			return undefined;
+		}
+		return this._hosts.find(h => h.id === this._selectedHostId);
 	}
 
 	get hosts(): readonly IAgentHostFilterEntry[] {
@@ -122,50 +146,73 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		return toDisposable(() => this._discoveryHandlers.delete(handler));
 	}
 
-	setSelectedProviderId(providerId: string): void {
-		if (!this._hosts.some(h => h.providerId === providerId)) {
+	setSelectedHostId(hostId: string): void {
+		if (!this._hosts.some(h => h.id === hostId)) {
 			return;
 		}
-		if (providerId === this._selectedProviderId) {
+		if (hostId === this._selectedHostId) {
 			return;
 		}
-		this._selectedProviderId = providerId;
+		this._selectedHostId = hostId;
 		this._persist();
 		this._onDidChange.fire();
 	}
 
-	reconnect(providerId: string): void {
-		const provider = this._sessionsProvidersService.getProvider(providerId);
-		if (provider && isAgentHostProvider(provider) && provider.connect) {
-			provider.connect().catch(() => { /* errors are surfaced by the provider */ });
-			return;
-		}
-		const host = this._hosts.find(h => h.providerId === providerId);
+	reconnect(hostId: string): void {
+		const host = this._hosts.find(h => h.id === hostId);
 		if (!host) {
 			return;
 		}
-		this._remoteAgentHostService.reconnect(host.address);
-	}
-
-	disconnect(providerId: string): void {
-		const provider = this._sessionsProvidersService.getProvider(providerId);
-		if (provider && isAgentHostProvider(provider) && provider.disconnect) {
-			provider.disconnect().catch(() => { /* errors are surfaced by the provider */ });
+		for (const providerId of host.providerIds) {
+			const provider = this._sessionsProvidersService.getProvider(providerId);
+			if (provider && isAgentHostProvider(provider) && provider.connect) {
+				provider.connect().catch(() => { /* errors are surfaced by the provider */ });
+				continue;
+			}
+			// Members always carry an address; only the collapsed entry lacks one.
+			const address = provider && isAgentHostProvider(provider) ? provider.remoteAddress : host.address;
+			if (address) {
+				this._remoteAgentHostService.reconnect(address);
+			}
 		}
 	}
 
-	private _validate(providerId: string | undefined): string | undefined {
-		if (providerId !== undefined && this._hosts.some(h => h.providerId === providerId)) {
-			return providerId;
+	disconnect(hostId: string): void {
+		const host = this._hosts.find(h => h.id === hostId);
+		if (!host) {
+			return;
 		}
-		return this._hosts.length > 0 ? this._hosts[0].providerId : undefined;
+		for (const providerId of host.providerIds) {
+			const provider = this._sessionsProvidersService.getProvider(providerId);
+			if (provider && isAgentHostProvider(provider) && provider.disconnect) {
+				provider.disconnect().catch(() => { /* errors are surfaced by the provider */ });
+			}
+		}
+	}
+
+	/**
+	 * Resolve a stored (or current) selection against the live entry list,
+	 * falling back to the first entry the user can actually connect to. That
+	 * fallback matters because grouped entries like cloud sandboxes come and
+	 * go with the user's task list: without it, a fresh profile could open
+	 * scoped to somebody's ephemeral sandbox instead of their own machine.
+	 */
+	private _validate(hostId: string | undefined): string | undefined {
+		if (hostId !== undefined && this._hosts.some(h => h.id === hostId)) {
+			return hostId;
+		}
+		if (this._hosts.length === 0) {
+			return undefined;
+		}
+		return (this._hosts.find(h => h.connectable) ?? this._hosts[0]).id;
 	}
 
 	/**
 	 * Subscribe to the current set of remote providers so that host list
 	 * updates (registration/unregistration and status changes) are surfaced
 	 * via {@link onDidChange}. One `autorun` reads every provider's
-	 * `connectionStatus` observable and recomputes the host list.
+	 * `connectionStatus` observable and recomputes the entry list, folding
+	 * providers that declare an {@link IAgentHostGroup} into a single entry.
 	 */
 	private _rewatchProviders(): void {
 		this._providerWatchers.clear();
@@ -173,30 +220,77 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		const providers = this._sessionsProvidersService.getProviders().filter(isRemoteAgentHostProvider);
 
 		this._providerWatchers.add(autorun(reader => {
-			const hosts: IAgentHostFilterEntry[] = providers.map(provider => ({
-				providerId: provider.id,
-				label: provider.label,
-				address: provider.remoteAddress,
-				status: mapStatus(provider.connectionStatus!.read(reader)),
-			})).sort((a, b) => a.label.localeCompare(b.label));
+			interface IMutableEntry {
+				id: string;
+				providerIds: string[];
+				label: string;
+				address: string | undefined;
+				icon: ThemeIcon;
+				status: AgentHostFilterConnectionStatus;
+				connectable: boolean;
+				order: number;
+			}
 
-			this._applyHosts(hosts);
+			const grouped = new Map<string, IMutableEntry>();
+			const entries: IMutableEntry[] = [];
+
+			for (const provider of providers) {
+				const status = mapStatus(provider.connectionStatus!.read(reader));
+				const group = provider.hostGroup;
+				if (!group) {
+					entries.push({
+						id: provider.id,
+						providerIds: [provider.id],
+						label: provider.label,
+						address: provider.remoteAddress,
+						icon: provider.icon,
+						status,
+						connectable: true,
+						order: 0,
+					});
+					continue;
+				}
+				const existing = grouped.get(group.id);
+				if (existing) {
+					existing.providerIds.push(provider.id);
+					existing.status = rollupStatus([existing.status, status]);
+					continue;
+				}
+				const entry: IMutableEntry = {
+					id: group.id,
+					providerIds: [provider.id],
+					label: group.label,
+					address: undefined,
+					icon: group.icon ?? Codicon.remote,
+					status,
+					connectable: group.connectable !== false,
+					order: group.order ?? 0,
+				};
+				grouped.set(group.id, entry);
+				entries.push(entry);
+			}
+
+			entries.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
+
+			this._applyHosts(entries.map(({ order, ...entry }) => entry));
 		}));
 	}
 
 	private _applyHosts(hosts: readonly IAgentHostFilterEntry[]): void {
 		const changed = hosts.length !== this._hosts.length
-			|| hosts.some((h, i) => h.providerId !== this._hosts[i].providerId
+			|| hosts.some((h, i) => h.id !== this._hosts[i].id
 				|| h.label !== this._hosts[i].label
 				|| h.address !== this._hosts[i].address
-				|| h.status !== this._hosts[i].status);
+				|| h.status !== this._hosts[i].status
+				|| h.providerIds.length !== this._hosts[i].providerIds.length
+				|| h.providerIds.some((p, j) => p !== this._hosts[i].providerIds[j]));
 
 		this._hosts = hosts;
 
-		const validated = isWeb ? this._validate(this._selectedProviderId) : undefined;
-		const selectionChanged = validated !== this._selectedProviderId;
+		const validated = isWeb ? this._validate(this._selectedHostId) : undefined;
+		const selectionChanged = validated !== this._selectedHostId;
 		if (selectionChanged) {
-			this._selectedProviderId = validated;
+			this._selectedHostId = validated;
 			this._persist();
 		}
 
@@ -206,10 +300,10 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	}
 
 	private _persist(): void {
-		if (this._selectedProviderId === undefined) {
+		if (this._selectedHostId === undefined) {
 			this._storageService.remove(STORAGE_KEY, StorageScope.PROFILE);
 		} else {
-			this._storageService.store(STORAGE_KEY, this._selectedProviderId, StorageScope.PROFILE, StorageTarget.USER);
+			this._storageService.store(STORAGE_KEY, this._selectedHostId, StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 }

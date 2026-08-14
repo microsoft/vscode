@@ -65,7 +65,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		super(
 			{
 				...options,
-				sessionWorkspaceProviderFilter: providerId => providerId === _agentHostFilterService.selectedProviderId,
+				sessionWorkspaceProviderFilter: providerId => _agentHostFilterService.selectedHost?.providerIds.includes(providerId) === true,
 			},
 			actionWidgetService,
 			uriIdentityService,
@@ -117,9 +117,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	}
 
 	private _onScopedHostChanged(): void {
-		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
+		const scoped = this._agentHostFilterService.selectedHost;
 		const currentResolved = this.selectedResolved;
-		if (currentResolved && scopedProviderId !== undefined && currentResolved.providerId === scopedProviderId) {
+		if (currentResolved && scoped?.providerIds.includes(currentResolved.providerId)) {
 			this._onDidChangeSelection.fire();
 			return;
 		}
@@ -130,17 +130,18 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
-		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
-		if (scopedProviderId === undefined) {
+		const scoped = this._agentHostFilterService.selectedHost;
+		if (!scoped) {
 			return [];
 		}
-		const provider = this.sessionsProvidersService.getProvider(scopedProviderId);
-		if (!provider) {
+		const scopedProviderIds = new Set(scoped.providerIds);
+		if (!scoped.providerIds.some(id => this.sessionsProvidersService.getProvider(id))) {
 			return items;
 		}
 
-		// 1. Recent workspaces for the scoped provider
-		const recents = this._getRecentWorkspaces().filter(w => w.providerId === scopedProviderId);
+		// 1. Recent workspaces for the scoped host — for a grouped entry that
+		// spans every member (e.g. all of the user's sandbox environments).
+		const recents = this._getRecentWorkspaces().filter(w => scopedProviderIds.has(w.providerId));
 		for (const { workspace, providerId } of recents) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
@@ -157,10 +158,16 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			});
 		}
 
-		// 2. "Select Folder..." — dispatches the scoped provider's first browse action
+		// 2. "Select Folder..." — dispatches the scoped host's first browse
+		// action. Offered only for a real host: a grouped entry has no single
+		// machine to browse, and its members (cloud sandboxes) are created by
+		// the service rather than by picking a folder here.
+		if (!scoped.connectable) {
+			return items;
+		}
 		const allBrowseActions = this._getAllBrowseActions();
-		const browseIndex = allBrowseActions.findIndex(a => a.providerId === scopedProviderId);
-		if (browseIndex >= 0 && !this._isProviderUnavailable(scopedProviderId)) {
+		const browseIndex = allBrowseActions.findIndex(a => scopedProviderIds.has(a.providerId));
+		if (browseIndex >= 0 && !this._isProviderUnavailable(allBrowseActions[browseIndex].providerId)) {
 			if (items.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
