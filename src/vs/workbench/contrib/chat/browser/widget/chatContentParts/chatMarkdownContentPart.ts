@@ -240,7 +240,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}),
 				fillInIncompleteTokens,
 				codeBlockRendererSync: (languageId, text, raw) => {
-					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
+					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingFence(raw);
 					const hasChatOutputRenderer = !!languageId
 						&& this.chatOutputRendererService.hasCodeBlockRenderer(languageId);
 					if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n')))
@@ -701,9 +701,9 @@ function equalsSymbolTags(a: readonly SymbolTag[] | undefined, b: readonly Symbo
 	return a.every((tag, index) => tag === b[index]);
 }
 
-export function codeblockHasClosingBackticks(str: string): boolean {
+export function codeblockHasClosingFence(str: string): boolean {
 	str = str.trim();
-	return !!str.match(/\n```+$/);
+	return !!str.match(/\n(?:```+|~~~+)$/);
 }
 
 class ChatOutputCodeBlockPart extends Disposable {

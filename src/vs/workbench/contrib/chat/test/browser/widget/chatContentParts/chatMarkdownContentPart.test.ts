@@ -298,6 +298,18 @@ suite('ChatMarkdownContentPart', () => {
 		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
 	});
 
+	test('renders complete tilde-fenced code block with contributed chat output renderer', () => {
+		const part = createMarkdownPart('~~~mermaid\ngraph TD\n~~~', createRenderContext(false));
+
+		assert.deepStrictEqual({
+			renderedOutputs: renderedCodeBlockOutputs,
+			codeBlockCount: part.codeblocks.length,
+		}, {
+			renderedOutputs: [{ identifier: 'mermaid', text: 'graph TD' }],
+			codeBlockCount: 1,
+		});
+	});
+
 	test('reuses rendered code block webview across incremental rerenders when content is unchanged', async () => {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
@@ -340,6 +352,21 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(part.codeblocks[0].languageId, 'mermaid');
 		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
 		assert.ok(part.domNode.textContent?.includes('Rendering code block'));
+	});
+
+	test('keeps chat output renderer pending when incomplete tokens are filled in', () => {
+		const ctx = createRenderContext(false);
+		const part = createMarkdownPart('```mermaid\ngraph TD', ctx, true);
+
+		assert.deepStrictEqual({
+			renderedOutputs: renderedCodeBlockOutputs,
+			codeBlockCount: part.codeblocks.length,
+			isPending: part.domNode.textContent?.includes('Rendering code block'),
+		}, {
+			renderedOutputs: [],
+			codeBlockCount: 1,
+			isPending: true,
+		});
 	});
 
 	test('renders multiple code blocks with correct indices', () => {

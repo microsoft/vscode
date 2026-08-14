@@ -536,7 +536,7 @@ function massageHref(markdown: IMarkdownString, href: string, isDomUri: boolean)
 	return uri.toString();
 }
 
-function postProcessCodeBlockLanguageId(lang: string | undefined): string {
+export function postProcessCodeBlockLanguageId(lang: string | undefined): string {
 	if (!lang) {
 		return '';
 	}
