@@ -1392,21 +1392,31 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private async _openActionWidgetWindow(auxiliaryWindow: IAuxiliaryWindow, surface: HTMLElement, anchor: HTMLElement | undefined, generation: number, placement: ChatInputActionWidgetPlacement): Promise<void> {
 		const sourceWindow = auxiliaryWindow.window;
-		const sourceSurfaceBounds = surface.getBoundingClientRect();
-		const sourceTop = sourceWindow.screenY + sourceSurfaceBounds.top;
-		const sourceRight = sourceWindow.screenX + sourceSurfaceBounds.right;
-		const sourceAnchorBounds = anchor?.getBoundingClientRect();
-		const screen = sourceWindow.screen;
-		const display = (await this.hostService.getCursorScreenPoint())?.display ?? {
+		const [cursorScreenPoint, nativeSourceBounds] = await Promise.all([
+			this.hostService.getCursorScreenPoint(),
+			sourceWindow.document.hasFocus() ? this.hostService.getActiveWindowPosition() : undefined,
+		]);
+		const sourceBounds = nativeSourceBounds ?? {
 			x: sourceWindow.screenX,
 			y: sourceWindow.screenY,
+			width: sourceWindow.outerWidth,
+			height: sourceWindow.outerHeight,
+		};
+		const sourceSurfaceBounds = surface.getBoundingClientRect();
+		const sourceTop = sourceBounds.y + sourceSurfaceBounds.top;
+		const sourceRight = sourceBounds.x + sourceSurfaceBounds.right;
+		const sourceAnchorBounds = anchor?.getBoundingClientRect();
+		const screen = sourceWindow.screen;
+		const display = cursorScreenPoint?.display ?? {
+			x: sourceBounds.x,
+			y: sourceBounds.y,
 			width: screen.availWidth,
 			height: screen.availHeight,
 		};
 		const displayBottom = display.y + display.height;
 		const displayRight = display.x + display.width;
 		const width = Math.min(
-			placement === 'right' ? CHAT_INPUT_WINDOW_ACTION_WIDGET_WIDTH : sourceWindow.outerWidth,
+			placement === 'right' ? CHAT_INPUT_WINDOW_ACTION_WIDGET_WIDTH : sourceBounds.width,
 			display.width
 		);
 		const availableAbove = Math.max(1, sourceTop - display.y - CHAT_INPUT_WINDOW_ACTION_WIDGET_MARGIN);
@@ -1416,9 +1426,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		);
 		const preferredX = placement === 'right'
 			? sourceRight + CHAT_INPUT_WINDOW_ACTION_WIDGET_MARGIN
-			: sourceWindow.screenX;
+			: sourceBounds.x;
 		const preferredY = placement === 'right'
-			? sourceWindow.screenY + (sourceAnchorBounds?.top ?? sourceSurfaceBounds.top)
+			? sourceBounds.y + (sourceAnchorBounds?.top ?? sourceSurfaceBounds.top)
 			: sourceTop - height - CHAT_INPUT_WINDOW_ACTION_WIDGET_MARGIN;
 		const x = Math.min(Math.max(display.x, preferredX), displayRight - width);
 		const y = Math.min(Math.max(display.y, preferredY), displayBottom - height);
