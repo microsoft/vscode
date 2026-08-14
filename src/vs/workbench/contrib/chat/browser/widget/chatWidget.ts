@@ -2983,8 +2983,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const editedModelRequestOptions = isInlineEdit ? this.getSelectedModelRequestOptions() : undefined;
 		const editedModeKind = isInlineEdit ? this.input.currentModeKind : undefined;
 		const editedModeInfo = isInlineEdit ? this.input.currentModeInfo : undefined;
-		// Tools belong to the mode, so they come from the same editor at the same moment.
+		// Tools and instruction routing belong to the mode, so they come from the same editor at the
+		// same moment.
 		const editedModeRequestOptions = isInlineEdit ? this.getModeRequestOptions() : undefined;
+		const editedInstructionRouting = isInlineEdit ? this._getInstructionRouting() : undefined;
 		let cancelledCurrentRequest = false;
 		if (isEditing) {
 			// Clear the carousel since the existing request is being replaced
@@ -3129,8 +3131,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				queue: options?.queue,
 				instructionContext: autoAttachEnabled ? {
 					modeKind,
-					enabledTools: modeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
-					enabledSubAgents: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined
+					...resolveEditedRequestSelection(editedInstructionRouting, this._getInstructionRouting()),
 				} : undefined,
 			});
 		} catch (error) {
@@ -3363,6 +3364,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return {
 			userSelectedModelId: modelId,
 			userSelectedModelConfiguration: modelId ? this.input.getModelConfiguration(modelId) : undefined,
+		};
+	}
+
+	/** The tool and subagent routing of whichever input this is called on, for its current mode. */
+	private _getInstructionRouting(): Pick<NonNullable<IChatSendRequestOptions['instructionContext']>, 'enabledTools' | 'enabledSubAgents'> {
+		const isAgent = this.input.currentModeKind === ChatModeKind.Agent;
+		return {
+			enabledTools: isAgent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
+			enabledSubAgents: isAgent ? this.input.currentModeObs.get().agents?.get() : undefined,
 		};
 	}
 

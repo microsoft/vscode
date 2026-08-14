@@ -65,7 +65,7 @@ interface IRuntimeState {
 	 * Keyed by conversation so the production guarantee — one record per conversation, reachable
 	 * only while that conversation is bound — is reproduced rather than assumed.
 	 */
-	readonly intents?: Map<string, IIntendedModelSelection | undefined>;
+	readonly intents?: Map<string | undefined, IIntendedModelSelection | undefined>;
 }
 
 function createRuntime(
@@ -1643,6 +1643,33 @@ suite('ChatInputModelSelectionController', () => {
 		}, {
 			whileMissing: first.identifier,
 			current: second.identifier,
+		});
+	});
+
+	test('a conversation waiting for its own model is not reset by a pool rebind', () => {
+		// `loadRemoteSession` seeds the conversation's model from request history as a bare id when
+		// the catalog has not published it yet. Re-initializing from the profile preference (which
+		// happens on every pool rebind) must not erase what the conversation is waiting for.
+		const modelChanges = disposables.add(new Emitter<string>());
+		const profilePreference = model('test/profile');
+		const conversationModel = model('test/conversation');
+		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
+		intents.set('chat:one', { modelId: conversationModel.identifier, reason: ModelSelectionReason.SessionRestore });
+		const state: IRuntimeState = { models: [profilePreference], sessionType: 'test', isEmpty: false, intents };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		controller.initialize(profilePreference.identifier);
+		const whileUnpublished = controller.currentModel.get()?.identifier;
+
+		state.models = [profilePreference, conversationModel];
+		modelChanges.fire('published');
+
+		assert.deepStrictEqual({
+			whileUnpublished,
+			current: controller.currentModel.get()?.identifier,
+		}, {
+			whileUnpublished: profilePreference.identifier,
+			current: conversationModel.identifier,
 		});
 	});
 });

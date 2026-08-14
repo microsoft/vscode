@@ -167,9 +167,14 @@ export class ChatInputModelSelectionController extends Disposable {
 
 	initialize(rememberedModelId: string | undefined): void {
 		this._clearIntent();
-		// Storage records only explicit picks, but it is not an in-conversation choice: a new
-		// conversation still lets `chat.defaultModel` take precedence over it.
-		this._remember(rememberedModelId ? { modelId: rememberedModelId, reason: ModelSelectionReason.Remembered } : undefined);
+		// The profile preference belongs to no conversation, so it seeds one that has not chosen a
+		// model but never displaces one that has — the conversation's own model outranks it, and
+		// re-initializing on a pool rebind must not erase what it is waiting for.
+		if (!this._intendedModel) {
+			// Storage records only explicit picks, but it is not an in-conversation choice: a new
+			// conversation still lets `chat.defaultModel` take precedence over it.
+			this._remember(rememberedModelId ? { modelId: rememberedModelId, reason: ModelSelectionReason.Remembered } : undefined);
+		}
 		const resolveSelection = (): InitialModelSelectionResult => {
 			const configuredModelValue = this._runtime.getConfiguredModelValue();
 			const models = this._pool();
