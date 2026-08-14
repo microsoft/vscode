@@ -1764,7 +1764,20 @@ for its own name and badge, is not dragged into this sizing. */
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+/* The buttons live in their own box so clearing them cannot take the switch with them: the switch
+is built once per template, and rebuilding it would remove the element a keyboard user is standing
+on the moment they toggle it. */
+.mcp-server-item .mcp-server-actions-transient {
+	display: flex;
+	align-items: center;
 	gap: var(--vscode-spacing-size40);
+}
+
+.mcp-server-item .mcp-server-actions-transient:empty {
+	display: none;
 }
 
 .mcp-server-item .mcp-server-sign-in.monaco-button {

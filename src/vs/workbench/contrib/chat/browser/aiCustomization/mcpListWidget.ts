@@ -22,7 +22,7 @@ import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServe
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { ContributionEnablementState, isContributionDisabled, isWorkspaceScopedEnablement } from '../../common/enablement.js';
+import { ContributionEnablementState, IEnablementModel, isContributionDisabled, isContributionEnabled, isWorkspaceScopedEnablement, withContributionEnabled } from '../../common/enablement.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, observableSignalFromEvent, type IObservable, type IReader } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -48,8 +48,9 @@ import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agent
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
-import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
+import { getCustomizationEnablementDecision, getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
+import { EnablementSwitch } from './enablementSwitch.js';
 
 const $ = DOM.$;
 
@@ -204,7 +205,14 @@ interface IMcpServerItemTemplateData {
 	/** Status word and dot, next to the name so state reads as part of the server's identity. */
 	readonly status: HTMLElement;
 	readonly description: HTMLElement;
+	/** Holds everything in the trailing slot that is rebuilt on every status change. */
 	readonly actions: HTMLElement;
+	/**
+	 * Built once and reused for the life of the template. Rebuilding it per status change would
+	 * remove the element a keyboard user is standing on: toggling notifies synchronously, which
+	 * re-runs the status autorun, which would tear the focused button out of the document.
+	 */
+	readonly enablementSwitch: EnablementSwitch;
 	readonly elementDisposables: DisposableStore;
 	readonly actionDisposables: DisposableStore;
 	/** Which row the actions currently belong to, so a recycled template cannot reuse another row's. */
@@ -228,6 +236,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@IOutputService private readonly outputService: IOutputService,
+		@IMcpService private readonly mcpService: IMcpService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IMcpServerItemTemplateData {
@@ -245,7 +254,9 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 
 		const description = DOM.append(details, $('.mcp-server-description'));
 
-		const actions = DOM.append(container, $('.mcp-server-actions'));
+		const actionsSlot = DOM.append(container, $('.mcp-server-actions'));
+		const actions = DOM.append(actionsSlot, $('.mcp-server-actions-transient'));
+		const enablementSwitch = new EnablementSwitch(actionsSlot);
 
 		return {
 			container,
@@ -254,6 +265,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			status,
 			description,
 			actions,
+			enablementSwitch,
 			elementDisposables: new DisposableStore(),
 			actionDisposables: new DisposableStore(),
 		};
@@ -342,7 +354,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 	 */
 	private bindRowState(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): void {
 		templateData.elementDisposables.add(autorun(reader => {
-			const rowState = resolveMcpRowState(element, this._activeSessionReader, this.workspaceService.isSessionsWindow, reader);
+			const rowState = resolveMcpRowState(element, this._activeSessionReader, this.mcpService.enablementModel, this.workspaceService.isSessionsWindow, reader);
 			templateData.container.classList.toggle('disabled', rowState.status === 'disabled');
 			this.updateStatus(templateData, element, rowState);
 		}));
@@ -358,6 +370,15 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const localServer = element.type === 'session-server-item' ? undefined : element.localServer;
 
+		const enablementTarget = getEnablementTarget(
+			element,
+			rowState,
+			this.mcpService,
+			this.agentHostCustomizationService,
+			activeSessionResource,
+			snapshot => this._activeSessionReader.read(snapshot, undefined));
+		const switchChecked = enablementTarget?.isEnabled();
+
 		// This runs from an autorun over the server's connection state, and an erroring server
 		// re-runs it about twice a second with byte-identical content. Rebuilding regardless meant
 		// a node replaced between mousedown and mouseup never saw the click, so `Show Output` did
@@ -372,6 +393,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			logOutputChannelId: activeSessionServer?.logOutputChannelId,
 			localServerId: localServer?.definition.id,
 			activeSessionResource: activeSessionResource.toString(),
+			switchChecked,
 		});
 		if (templateData.renderedStatusSignature === signature) {
 			return;
@@ -383,10 +405,12 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		DOM.clearNode(templateData.status);
 		templateData.status.className = 'mcp-server-status';
 
+		this.renderEnablementSwitch(templateData, enablementTarget, switchChecked, label);
+
 		// Status reads as a word beside the name, including the states that used to resolve to an
 		// icon-less presentation and therefore drew nothing at all -- which was every idle server,
 		// the most common row in the list.
-		if (presentation && isNoteworthyMcpStatus(state)) {
+		if (presentation && shouldShowStatusOnRow(state, rowState.disabledReason, switchChecked !== undefined)) {
 			templateData.status.classList.add(presentation.className);
 			// A dot as well as the word: colour alone is not a distinction everyone can make.
 			DOM.append(templateData.status, $('.mcp-server-status-dot'));
@@ -442,9 +466,35 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		}
 	}
 
+	/**
+	 * Renders the on/off switch at the trailing edge of an installed row.
+	 *
+	 * It is the last thing in the row on purpose: every row that has one has it in the same place,
+	 * so turning a server off is a single predictable target rather than a right-click someone has
+	 * to guess at.
+	 */
+	private renderEnablementSwitch(templateData: IMcpServerItemTemplateData, target: IMcpEnablementTarget | undefined, checked: boolean | undefined, label: string): void {
+		const toggle = templateData.enablementSwitch;
+		toggle.setVisible(target !== undefined);
+		if (!target || checked === undefined) {
+			return;
+		}
+		// The accessible name is the server, not the act: `role="switch"` announces its own state
+		// from aria-checked, so an action phrase would read "Disable Redis, switch, on" -- a label
+		// arguing with the state beside it. The hover still names the act, because a pointer user
+		// has no announced state to go on.
+		toggle.update(checked, label);
+		templateData.actionDisposables.add(toggle.onDidToggle(() => target.setEnabled(!target.isEnabled())));
+		templateData.actionDisposables.add(this.hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			toggle.element,
+			getEnablementSwitchTooltip(label, checked)));
+	}
+
 	disposeTemplate(templateData: IMcpServerItemTemplateData): void {
 		templateData.elementDisposables.dispose();
 		templateData.actionDisposables.dispose();
+		templateData.enablementSwitch.dispose();
 	}
 }
 
@@ -577,6 +627,8 @@ export interface IMcpStatusRenderInput {
 	readonly localServerId: string | undefined;
 	/** Captured when the output action is built, so switching sessions has to rebuild it. */
 	readonly activeSessionResource: string | undefined;
+	/** The switch's rendered state: `undefined` when the row has no switch at all. */
+	readonly switchChecked: boolean | undefined;
 }
 
 /**
@@ -603,6 +655,7 @@ export function getMcpStatusRenderSignature(input: IMcpStatusRenderInput): strin
 		input.logOutputChannelId ?? null,
 		input.localServerId ?? null,
 		input.activeSessionResource ?? null,
+		input.switchChecked ?? null,
 	]);
 }
 
@@ -612,6 +665,157 @@ function getMcpEntryLabel(element: IMcpServerItemEntry | IMcpSessionServerItemEn
 		: element.type === 'builtin-item'
 			? element.label
 			: element.server.label;
+}
+
+/** How a row's switch reads and writes its server's enablement. */
+export interface IMcpEnablementTarget {
+	isEnabled(): boolean;
+	setEnabled(enabled: boolean): void;
+}
+
+/**
+ * The scope an agent-host switch writes.
+ *
+ * The decisive decision is `enablement[0]`, so replacing that same kind is what actually moves the
+ * effective state -- and it answers a deliberate workspace or session choice where it was made
+ * rather than silently promoting it to something broader.
+ *
+ * With nothing deciding yet, an unqualified switch means the whole durable answer: off everywhere.
+ * Narrower scopes stay an explicit act, available from the context menu. Note this is deliberately
+ * *not* `IAgentHostMcpServer.setEnabled`, which only ever writes the session layer.
+ */
+function getAgentHostSwitchScope(server: AgentHostMcpServer, agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI): CustomizationEnablementKind {
+	const decision = getCustomizationEnablementDecision(server);
+	if (decision === undefined) {
+		return CustomizationEnablementKind.Global;
+	}
+	// A workspace write is dropped when the session has no working directory, so fall back to the
+	// layer that can still be written rather than issuing one that silently vanishes.
+	if (decision.kind === CustomizationEnablementKind.Workspace && agentHostCustomizations.getWorkingDirectories(sessionResource).length === 0) {
+		return CustomizationEnablementKind.Global;
+	}
+	return decision.kind;
+}
+
+/**
+ * Resolves how a row's switch reads and writes enablement, or `undefined` when the row has none to
+ * offer.
+ *
+ * Two kinds of row have none. A gallery result has nothing installed to turn on yet. And a server
+ * held off by the plugin that owns it cannot be turned on by writing its own enablement at all --
+ * the honest thing is to show no switch, let the status say `Disabled (Plugin)`, and leave the
+ * context menu's "Enable {plugin}" as the way back.
+ *
+ * Both sides read and write *live* rather than through values captured when the row was rendered.
+ * The render guard cannot cover every decision in an enablement array, and writing back a stale
+ * one would resurrect a scope the user had since changed.
+ */
+export function getEnablementTarget(
+	element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry,
+	rowState: IMcpRowState,
+	mcpService: IMcpService,
+	agentHostCustomizations: IAgentHostCustomizationService,
+	sessionResource: URI,
+	readActiveSessionServer: (snapshot: AgentHostMcpServer | undefined) => AgentHostMcpServer | undefined,
+): IMcpEnablementTarget | undefined {
+	if (rowState.disabledReason?.source === 'plugin') {
+		return undefined;
+	}
+
+	const sessionSnapshot = getActiveSessionServer(element);
+	const setAgentHostEnabled = (enabled: boolean): void => {
+		const live = readActiveSessionServer(sessionSnapshot);
+		if (!live) {
+			return;
+		}
+		agentHostCustomizations.setCustomizationEnablement(sessionResource, live.id, live.enablement, getAgentHostSwitchScope(live, agentHostCustomizations, sessionResource), enabled);
+	};
+
+	if (element.type === 'session-server-item') {
+		return {
+			isEnabled: () => readActiveSessionServer(sessionSnapshot)?.enabled !== false,
+			setEnabled: setAgentHostEnabled,
+		};
+	}
+
+	const enablementKey = getMcpEnablementKey(element);
+	if (enablementKey === undefined) {
+		return sessionSnapshot
+			? { isEnabled: () => readActiveSessionServer(sessionSnapshot)?.enabled !== false, setEnabled: setAgentHostEnabled }
+			: undefined;
+	}
+
+	return {
+		// A row can be held off by the durable choice, the session choice, or both, so the switch
+		// reflects the union.
+		isEnabled: () => isContributionEnabled(mcpService.enablementModel.readEnabled(enablementKey)) && readActiveSessionServer(sessionSnapshot)?.enabled !== false,
+		setEnabled: enabled => {
+			// Writes the layer that already decided this row rather than always writing the
+			// profile: EnablementModel.setEnabledWithWorkspaceKey deletes the workspace entry when
+			// the profile is written, so a deliberate workspace choice would be destroyed by a
+			// control that only ever displays the scope while the row is off.
+			mcpService.enablementModel.setEnabled(enablementKey, withContributionEnabled(mcpService.enablementModel.readEnabled(enablementKey), enabled));
+			// Dispatched unconditionally rather than only when the layers disagree: the durable
+			// write above notifies synchronously and can rebuild the list underneath this closure,
+			// so re-reading to decide would be racing it. Re-asserting a value the session already
+			// holds is harmless; a switch that leaves a server visibly off is not.
+			if (sessionSnapshot) {
+				setAgentHostEnabled(enabled);
+			}
+		},
+	};
+}
+
+/** Names the act, for a pointer user who has no announced state to go on. */
+function getEnablementSwitchTooltip(name: string, checked: boolean): string {
+	return checked
+		? localize('mcpSwitchOff', "Disable {0}", name)
+		: localize('mcpSwitchOn', "Enable {0}", name);
+}
+
+/**
+ * Whether a disabled reason says something a switch cannot: which layer holds the server off, or
+ * which plugin does.
+ */
+function isQualifiedDisabledReason(reason: CustomizationDisabledReason | undefined): boolean {
+	return reason !== undefined && (reason.source === 'plugin' || reason.scope !== CustomizationEnablementKind.Global);
+}
+
+/**
+ * Whether a *row* should print the status word.
+ *
+ * Stricter than {@link isNoteworthyMcpStatus} by one case: a row carrying a switch already shows
+ * off-ness better than a word can, so "Disabled" beside an off switch is the same fact twice. A
+ * qualified reason is different -- it says *where* the choice lives, which the switch cannot
+ * express.
+ */
+function shouldShowStatusOnRow(state: McpStatusKind | undefined, disabledReason: CustomizationDisabledReason | undefined, hasSwitch: boolean): boolean {
+	if (state === 'disabled') {
+		return !hasSwitch || isQualifiedDisabledReason(disabledReason);
+	}
+	return isNoteworthyMcpStatus(state);
+}
+
+/**
+ * The key a row's durable enablement is stored under.
+ *
+ * For an installed server this is the workbench server's own id -- the same key
+ * `EnableMcpServerGloballyAction` reads and writes, so the switch and the context menu act on one
+ * entry rather than two. Deliberately *not* the matched runtime server's definition id: that match
+ * is conservative and declines whenever two servers answer to one name, and a row must not lose
+ * its enablement because of an ambiguity in a lookup it never needed. Built-in rows have no
+ * workbench server, so they use the runtime definition id their own context menu uses.
+ */
+function getMcpEnablementKey(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string | undefined {
+	switch (entry.type) {
+		case 'session-server-item':
+			return undefined;
+		case 'server-item':
+			// A gallery result is not installed, so it has no enablement to store.
+			return entry.server.local ? entry.server.id : undefined;
+		case 'builtin-item':
+			return entry.localServer?.definition.id;
+	}
 }
 
 /**
@@ -625,6 +829,7 @@ function getMcpEntryLabel(element: IMcpServerItemEntry | IMcpSessionServerItemEn
 function resolveMcpRowState(
 	entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry,
 	activeSessionReader: ActiveSessionMcpServerReader,
+	enablementModel: IEnablementModel,
 	isSessionsWindow: boolean,
 	reader: IReader | undefined,
 ): IMcpRowState {
@@ -642,8 +847,13 @@ function resolveMcpRowState(
 		return { status: undefined };
 	}
 
-	if (entry.localServer) {
-		const enablement = entry.localServer.enablement.read(reader);
+	const enablementKey = getMcpEnablementKey(entry);
+	if (enablementKey !== undefined) {
+		// Read through the model rather than the matched runtime server's observable: they are the
+		// same value (IMcpServer.enablement is a derived over exactly this read), but the model
+		// answers for rows the conservative runtime match declined, which would otherwise report
+		// a disabled server as fine.
+		const enablement = enablementModel.readEnabled(enablementKey, reader);
 		if (isContributionDisabled(enablement)) {
 			// Described as a scope reason so the wording comes from the same helper the agent-host
 			// rows use. A workspace choice is worth naming; "off everywhere" is just off.
@@ -673,16 +883,16 @@ function resolveMcpRowState(
  * change signal, and nothing re-renders the row around it. A plain string would be computed once
  * and then quietly describe the past.
  */
-function observeMcpEntryAriaLabel(element: IMcpListEntry, activeSessionReader: ActiveSessionMcpServerReader, isSessionsWindow: boolean): IObservable<string> {
-	return derived(reader => getMcpEntryAriaLabel(element, activeSessionReader, isSessionsWindow, reader));
+function observeMcpEntryAriaLabel(element: IMcpListEntry, activeSessionReader: ActiveSessionMcpServerReader, enablementModel: IEnablementModel, isSessionsWindow: boolean): IObservable<string> {
+	return derived(reader => getMcpEntryAriaLabel(element, activeSessionReader, enablementModel, isSessionsWindow, reader));
 }
 
-function getMcpEntryAriaLabel(element: IMcpListEntry, activeSessionReader: ActiveSessionMcpServerReader, isSessionsWindow: boolean, reader: IReader | undefined): string {
+function getMcpEntryAriaLabel(element: IMcpListEntry, activeSessionReader: ActiveSessionMcpServerReader, enablementModel: IEnablementModel, isSessionsWindow: boolean, reader: IReader | undefined): string {
 	if (element.type === 'group-header') {
 		return localize('mcpGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 	}
 	const label = getMcpEntryLabel(element);
-	const rowState = resolveMcpRowState(element, activeSessionReader, isSessionsWindow, reader);
+	const rowState = resolveMcpRowState(element, activeSessionReader, enablementModel, isSessionsWindow, reader);
 	// Deliberately looser than the row: a screen reader reads the row label on its own, so a
 	// status the row can leave to a neighbouring control is still new information here.
 	const status = isNoteworthyMcpStatus(rowState.status) ? getMcpStatusPresentation(rowState.status, rowState.disabledReason) : undefined;
@@ -1281,7 +1491,7 @@ export class McpListWidget extends Disposable {
 				horizontalScrolling: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IMcpListEntry) => {
-						return observeMcpEntryAriaLabel(element, activeSessionReader, this.workspaceService.isSessionsWindow);
+						return observeMcpEntryAriaLabel(element, activeSessionReader, this.mcpService.enablementModel, this.workspaceService.isSessionsWindow);
 					},
 					getWidgetAriaLabel() {
 						return localize('mcpServersListAriaLabel', "MCP Servers");

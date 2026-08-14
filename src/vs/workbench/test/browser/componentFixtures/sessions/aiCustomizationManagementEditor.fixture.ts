@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { dirname as dirnameUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -59,7 +59,7 @@ import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSectio
 import { EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
-import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
+import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -396,6 +396,35 @@ function createMockHarnessService(sessionResource: URI, descriptors: readonly IH
 		}
 		override registerExternalHarness() { return { dispose() { } }; }
 	}();
+}
+
+/**
+ * A working enablement model for the fixtures.
+ *
+ * MCP rows read enablement to decide both the status word and the state of their on/off switch, so
+ * an unimplemented stub renders every server as off -- and, because the read happens inside an
+ * autorun, fails silently while doing it.
+ */
+function createFixtureEnablementModel(disabledKeys: readonly string[] = []): IEnablementModel {
+	const state = observableValue<ReadonlyMap<string, ContributionEnablementState>>(
+		'fixtureEnablement',
+		new Map(disabledKeys.map(key => [key, ContributionEnablementState.DisabledProfile])));
+	const read = (key: string, reader?: IReader) => state.read(reader).get(key) ?? ContributionEnablementState.EnabledProfile;
+	const write = (key: string, next: ContributionEnablementState | undefined) => {
+		const map = new Map(state.get());
+		if (next === undefined) {
+			map.delete(key);
+		} else {
+			map.set(key, next);
+		}
+		state.set(map, undefined);
+	};
+	return {
+		readEnabled: read,
+		readProfileEnabled: (key, reader) => isContributionEnabled(read(key, reader)),
+		setEnabled: (key, next) => write(key, next),
+		remove: key => write(key, undefined),
+	};
 }
 
 function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScope, description?: string, config?: IWorkbenchMcpServer['config']): IWorkbenchMcpServer {
@@ -897,6 +926,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable(mcpRuntimeServers as never[]);
+				override readonly enablementModel = createFixtureEnablementModel(['mcp-web-search']);
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
 				override readonly collections = constObservable([]);
@@ -1030,6 +1060,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([] as never[]);
+				override readonly enablementModel = createFixtureEnablementModel();
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
 				override readonly collections = constObservable([]);
@@ -1253,6 +1284,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([] as never[]);
+				override readonly enablementModel = createFixtureEnablementModel();
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
 				override readonly collections = constObservable([]);

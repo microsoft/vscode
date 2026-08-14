@@ -29,6 +29,7 @@ import {
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
 	getMcpStatusPresentation,
+	getEnablementTarget,
 	getMcpStatusRenderSignature,
 	isNoteworthyMcpStatus,
 	getServerItemContextMenuActions,
@@ -548,6 +549,144 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	suite('getEnablementTarget', () => {
+
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+
+		type Element = Parameters<typeof getEnablementTarget>[0];
+		type RowState = Parameters<typeof getEnablementTarget>[1];
+
+		/** An enablement model that actually remembers, so a round trip can be asserted. */
+		function createMutableMcpService(initial: ContributionEnablementState): { service: IMcpService; read(): ContributionEnablementState } {
+			let state = initial;
+			const service = {
+				enablementModel: {
+					readEnabled: () => state,
+					setEnabled: (_key: string, next: ContributionEnablementState) => { state = next; },
+				},
+			} as unknown as IMcpService;
+			return { service, read: () => state };
+		}
+
+		function targetFor(element: Element, rowState: RowState, mcpService: IMcpService, agentHost: IAgentHostCustomizationService, live?: AgentHostMcpServer) {
+			return getEnablementTarget(element, rowState, mcpService, agentHost, sessionResource, snapshot => live ?? snapshot);
+		}
+
+		test('a gallery row has no switch, because nothing is installed to turn on yet', () => {
+			const element = { type: 'server-item', server: {} } as unknown as Element;
+			assert.strictEqual(
+				targetFor(element, { status: undefined }, createMcpService(ContributionEnablementState.EnabledProfile).service, createAgentHostCustomizations().service),
+				undefined);
+		});
+
+		test('a row held off by its plugin has no switch, because its own enablement cannot free it', () => {
+			const server = createAgentHostServer({ enabled: false });
+			const element = { type: 'session-server-item', server } as unknown as Element;
+			const rowState = {
+				status: 'disabled',
+				disabledReason: { source: 'plugin', plugin: { id: 'p', name: 'Plugin One', uri: 'file:///p' } },
+				activeSessionServer: server,
+			} as unknown as RowState;
+			assert.strictEqual(
+				targetFor(element, rowState, createMcpService(ContributionEnablementState.EnabledProfile).service, createAgentHostCustomizations().service),
+				undefined);
+		});
+
+		test('a workspace-scoped local choice is answered where it was made, not promoted', () => {
+			const mcp = createMutableMcpService(ContributionEnablementState.EnabledWorkspace);
+			const element = { type: 'server-item', server: { id: 'mcp-redis', local: {} } } as unknown as Element;
+			const target = targetFor(element, { status: undefined } as RowState, mcp.service, createAgentHostCustomizations().service);
+
+			target?.setEnabled(false);
+			const afterOff = mcp.read();
+			target?.setEnabled(true);
+
+			assert.deepStrictEqual([afterOff, mcp.read()], [
+				ContributionEnablementState.DisabledWorkspace,
+				ContributionEnablementState.EnabledWorkspace,
+			]);
+		});
+
+		test('turning on a row held off by both layers settles both, so it cannot stay visibly off', () => {
+			const mcp = createMutableMcpService(ContributionEnablementState.DisabledProfile);
+			const { service: agentHost, calls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({ enabled: false, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] as readonly CustomizationEnablement[] });
+			const element = { type: 'server-item', server: { id: 'mcp-redis', local: {} }, activeSessionServer: server } as unknown as Element;
+			const target = targetFor(element, { status: 'disabled', activeSessionServer: server } as RowState, mcp.service, agentHost, server);
+
+			assert.strictEqual(target?.isEnabled(), false);
+			target?.setEnabled(true);
+
+			assert.deepStrictEqual([mcp.read(), calls.map(call => [call[1], call[3], call[4]])], [
+				ContributionEnablementState.EnabledProfile,
+				// The deciding layer, so the effective state actually moves.
+				[['server-1', CustomizationEnablementKind.Session, true]],
+			]);
+		});
+
+		test('an agent-host row nothing decides yet is turned off everywhere, not just for the session', () => {
+			const { service: agentHost, calls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({ enabled: true });
+			const element = { type: 'session-server-item', server } as unknown as Element;
+			const target = targetFor(element, { status: McpServerStatus.Ready, activeSessionServer: server } as RowState, createMcpService(ContributionEnablementState.EnabledProfile).service, agentHost, server);
+
+			target?.setEnabled(false);
+
+			assert.deepStrictEqual(calls.map(call => [call[1], call[3], call[4]]), [
+				['server-1', CustomizationEnablementKind.Global, false],
+			]);
+		});
+
+		test('an agent-host row answers the layer that already decided it', () => {
+			const { service: agentHost, calls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }] as readonly CustomizationEnablement[],
+			});
+			const element = { type: 'session-server-item', server } as unknown as Element;
+			const target = targetFor(element, { status: 'disabled', activeSessionServer: server } as RowState, createMcpService(ContributionEnablementState.EnabledProfile).service, agentHost, server);
+
+			target?.setEnabled(true);
+
+			assert.deepStrictEqual(calls.map(call => [call[1], call[3], call[4]]), [
+				['server-1', CustomizationEnablementKind.Workspace, true],
+			]);
+		});
+
+		test('a workspace decision falls back to global when the session has no working directory', () => {
+			const { service: agentHost, calls } = createAgentHostCustomizations(false);
+			const server = createAgentHostServer({
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///gone', enabled: false }] as readonly CustomizationEnablement[],
+			});
+			const element = { type: 'session-server-item', server } as unknown as Element;
+			const target = targetFor(element, { status: 'disabled', activeSessionServer: server } as RowState, createMcpService(ContributionEnablementState.EnabledProfile).service, agentHost, server);
+
+			target?.setEnabled(true);
+
+			assert.deepStrictEqual(calls.map(call => [call[1], call[3], call[4]]), [
+				['server-1', CustomizationEnablementKind.Global, true],
+			]);
+		});
+
+		test('the write reads the server live, so a decision changed since render is not resurrected', () => {
+			const { service: agentHost, calls } = createAgentHostCustomizations();
+			const stale = createAgentHostServer({ enabled: true, enablement: [] as readonly CustomizationEnablement[] });
+			const live = createAgentHostServer({
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] as readonly CustomizationEnablement[],
+			});
+			const element = { type: 'session-server-item', server: stale } as unknown as Element;
+			const target = targetFor(element, { status: McpServerStatus.Ready, activeSessionServer: stale } as RowState, createMcpService(ContributionEnablementState.EnabledProfile).service, agentHost, live);
+
+			target?.setEnabled(true);
+
+			assert.deepStrictEqual(calls.map(call => [call[2], call[3]]), [
+				[live.enablement, CustomizationEnablementKind.Session],
+			]);
+		});
+	});
+
 	suite('getMcpStatusRenderSignature', () => {
 		const base: IMcpStatusRenderInput = {
 			rowKey: 'server:mcp.config.workspace/notion:0',
@@ -559,6 +698,7 @@ suite('mcpListWidget', () => {
 			logOutputChannelId: 'mcp.session-1.notion',
 			localServerId: 'mcp.config.workspace/notion',
 			activeSessionResource: 'vscode-agent-session:///session-1',
+			switchChecked: true,
 		};
 
 		// A different, and differently-typed-where-possible, value for every field. The mapped type
@@ -574,6 +714,7 @@ suite('mcpListWidget', () => {
 			logOutputChannelId: 'mcp.session-1.other',
 			localServerId: 'mcp.config.user/notion',
 			activeSessionResource: 'vscode-agent-session:///session-2',
+			switchChecked: false,
 		};
 
 		const fields = Object.keys(base) as (keyof IMcpStatusRenderInput)[];
