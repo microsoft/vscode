@@ -777,10 +777,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
 			: undefined;
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
-		// Session titles are host-owned; just mirror the filtered signal into telemetry.
-		this._register(sessionTitleSignal.onDidChangeSessionTitle(({ provider, session, conversationId, title }) => {
+		// Mirror host-owned titles under the SDK conversation id used by the agent's turn spans.
+		this._register(sessionTitleSignal.onDidChangeSessionTitle(({ provider, session, title }) => {
 			if (provider === this.id) {
-				this._otelService.emitSessionTitleChanged(conversationId, session.toString(), title);
+				this._otelService.emitSessionTitleChanged(this._sdkConversationId(session), session.toString(), title);
 			}
 		}));
 		// Mirror the sub-agent fan-out signals onto the first-class spawned-
@@ -2321,13 +2321,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
+	/** Resolves the Copilot SDK conversation id backing a session URI, falling back to the AH session id. */
+	private _sdkConversationId(session: URI): string {
+		const sessionId = AgentSession.id(session);
+		return this._findSessionChat(session)?.sessionId
+			?? this._provisionalSessions.get(sessionId)?.sdkSessionId
+			?? this._chatBackings.get(buildDefaultChatUri(session))?.sdkSessionId
+			?? sessionId;
+	}
+
 	/** Returns the chat URI bound to the session-backed chat, if any. */
 	private _findSessionChatUri(session: URI): URI | undefined {
-		const sessionId = AgentSession.id(session);
-		const sdkSessionId = this._findSessionChat(session)?.sessionId
-			?? this._provisionalSessions.get(sessionId)?.sdkSessionId
-			?? sessionId;
-		return this._findBoundSessionChatUri(sdkSessionId);
+		return this._findBoundSessionChatUri(this._sdkConversationId(session));
 	}
 
 	/** Normalizes an addressed chat operation and refreshes any host snapshot carried in its context. */
