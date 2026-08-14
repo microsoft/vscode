@@ -341,6 +341,15 @@ suite('AgentFeedbackServerTools', () => {
 			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions);
 		});
 
+		test('advertise does not dispatch before the session is registered', () => {
+			const actionTypes: string[] = [];
+			disposables.add(manager.onDidEmitEnvelope(envelope => actionTypes.push(envelope.action.type)));
+
+			host.advertise(sessionResource);
+
+			assert.deepStrictEqual(actionTypes, []);
+		});
+
 		test('canRequireConfirmation reflects the owning group', () => {
 			assert.deepStrictEqual({
 				view: host.canRequireConfirmation(viewUnreviewedCommentsToolName),

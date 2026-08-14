@@ -81,6 +81,7 @@ export interface IBuildOptionsInput {
 	readonly agent?: string;
 	readonly telemetry?: IAgentHostNativeOTelConfig;
 	readonly traceContext?: IAgentHostTraceContext;
+	readonly getUserPromptAdditionalContext?: () => string | undefined;
 }
 
 /**
@@ -163,6 +164,18 @@ export async function buildOptions(
 		settingSources: ['user', 'project', 'local'],
 		settings: { env: settingsEnv },
 		systemPrompt: { type: 'preset', preset: 'claude_code' },
+		...(input.getUserPromptAdditionalContext ? {
+			hooks: {
+				UserPromptSubmit: [{
+					hooks: [async () => ({
+						hookSpecificOutput: {
+							hookEventName: 'UserPromptSubmit' as const,
+							additionalContext: input.getUserPromptAdditionalContext?.(),
+						},
+					})],
+				}],
+			},
+		} : {}),
 		stderr: logStderr,
 	};
 }

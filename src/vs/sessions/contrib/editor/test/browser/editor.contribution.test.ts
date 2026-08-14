@@ -15,12 +15,18 @@ import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { TAB_ACTIVE_BACKGROUND } from '../../../../../workbench/common/theme.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { generateColorThemeCSS } from '../../../../../workbench/services/themes/browser/colorThemeCss.js';
+import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -30,14 +36,24 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
-import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
+import { TestEnvironmentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IsQuickChatSessionContext, SessionIsCreatedContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('registers legacy Modern UI tab color customizations', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#000000' });
+		theme.setCustomColors({ [TAB_ACTIVE_BACKGROUND]: '#123456' });
+		const themingRegistry = Registry.as<IThemingRegistry>(ThemeServiceExtensions.ThemingContribution);
+		const css = generateColorThemeCSS(theme, '.sessions-tab-customization-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+
+		assert.strictEqual(css.includes('--modern-ui-editor-tab-active-background: #123456;'), true);
+	});
 
 	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number): void {
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
@@ -107,8 +123,8 @@ suite('Sessions - Editor Contribution', () => {
 		})), [{ isEmptyFileEditor: true, resource: workspaceFolder.toString(), pinned: true, index: 7 }]);
 	});
 
-	test('single-title Add Tab menu keeps supported managed editors visible', () => {
-		const getWhen = (action: NewFileTabAction | NewChangesTabAction): ContextKeyExpression => {
+	test('Add Tab menu stays available in dock-only mode', () => {
+		const getWhen = (action: NewFileTabAction | NewChangesTabAction | NewSearchTabAction): ContextKeyExpression => {
 			const menu = action.desc.menu;
 			const item = Array.isArray(menu) ? menu[0] : menu;
 			assert.ok(item?.when);
@@ -121,7 +137,7 @@ suite('Sessions - Editor Contribution', () => {
 			[IsSessionsWindowContext.key]: true,
 			[IsAuxiliaryWindowContext.key]: false,
 			[IsTopRightEditorGroupContext.key]: true,
-			[MainEditorAreaVisibleContext.key]: true,
+			[SessionIsCreatedContext.key]: true,
 		};
 		const scenarios = (availableKey: string, missingKey: string) => {
 			const when = availableKey === SinglePaneFilesTabAvailableContext.key
@@ -131,6 +147,7 @@ suite('Sessions - Editor Contribution', () => {
 				singleTabAlreadyOpen: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: false, [availableKey]: true, [missingKey]: false }),
 				multipleTabsAlreadyOpen: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: true, [availableKey]: true, [missingKey]: false }),
 				multipleTabsMissing: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: true, [availableKey]: true, [missingKey]: true }),
+				dockOnlyMissing: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: true, [availableKey]: true, [missingKey]: true }),
 				unsupported: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: false, [availableKey]: false, [missingKey]: true }),
 			};
 		};
@@ -138,9 +155,59 @@ suite('Sessions - Editor Contribution', () => {
 		assert.deepStrictEqual({
 			files: scenarios(SinglePaneFilesTabAvailableContext.key, SinglePaneFilesTabMissingContext.key),
 			changes: scenarios(SinglePaneChangesTabAvailableContext.key, SinglePaneChangesTabMissingContext.key),
+			searchInDockOnly: evaluate(getWhen(new NewSearchTabAction()), baseContext),
+			searchInQuickChat: evaluate(getWhen(new NewSearchTabAction()), { ...baseContext, [IsQuickChatSessionContext.key]: true }),
 		}, {
-			files: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, unsupported: false },
-			changes: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, unsupported: false },
+			files: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, dockOnlyMissing: true, unsupported: false },
+			changes: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, dockOnlyMissing: true, unsupported: false },
+			searchInDockOnly: true,
+			searchInQuickChat: false,
+		});
+	});
+
+	test('new changes tab action requires a created session with Changes available', () => {
+		const action = new NewChangesTabAction();
+		const precondition = action.desc.precondition?.serialize() ?? '';
+		const keybinding = Array.isArray(action.desc.keybinding) ? action.desc.keybinding[0] : action.desc.keybinding;
+		const when = keybinding?.when?.serialize() ?? '';
+
+		assert.deepStrictEqual({
+			preconditionHasCreated: precondition.includes(SessionIsCreatedContext.key),
+			preconditionHasAvailability: precondition.includes(SinglePaneChangesTabAvailableContext.key),
+			keybindingHasCreated: when.includes(SessionIsCreatedContext.key),
+			keybindingHasAvailability: when.includes(SinglePaneChangesTabAvailableContext.key),
+		}, {
+			preconditionHasCreated: true,
+			preconditionHasAvailability: true,
+			keybindingHasCreated: true,
+			keybindingHasAvailability: true,
+		});
+	});
+
+	test('new search tab action is unavailable for Quick Chats', () => {
+		const action = new NewSearchTabAction();
+		const keybinding = Array.isArray(action.desc.keybinding) ? action.desc.keybinding[0] : action.desc.keybinding;
+		const evaluate = (expression: ContextKeyExpression | null | undefined, isQuickChat: boolean): boolean => {
+			const values: Record<string, ContextKeyValue> = {
+				[IsSessionsWindowContext.key]: true,
+				[IsAuxiliaryWindowContext.key]: false,
+				[IsQuickChatSessionContext.key]: isQuickChat,
+			};
+			return expression?.evaluate({
+				getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined
+			} satisfies IContext) ?? false;
+		};
+
+		assert.deepStrictEqual({
+			preconditionInQuickChat: evaluate(action.desc.precondition, true),
+			keybindingInQuickChat: evaluate(keybinding?.when, true),
+			preconditionInWorkspaceSession: evaluate(action.desc.precondition, false),
+			keybindingInWorkspaceSession: evaluate(keybinding?.when, false),
+		}, {
+			preconditionInQuickChat: false,
+			keybindingInQuickChat: false,
+			preconditionInWorkspaceSession: true,
+			keybindingInWorkspaceSession: true,
 		});
 	});
 
@@ -259,7 +326,7 @@ suite('Sessions - Editor Contribution', () => {
 		const resource = URI.parse('session:1');
 		stubEditorGroupCount(instantiationService, 5);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({ resource } as IActiveSession);
+			override readonly activeSession = constObservable({ resource, isCreated: constObservable(true) } as IActiveSession);
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
@@ -272,6 +339,25 @@ suite('Sessions - Editor Contribution', () => {
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened, [{ resource, index: 5 }]);
+	});
+
+	test('new changes tab action is a no-op for an uncreated session', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		stubEditorGroupCount(instantiationService, 0);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable({ resource: URI.parse('session:new'), isCreated: constObservable(false) } as IActiveSession);
+		});
+		let opened = false;
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override async openChangesEditor(): Promise<undefined> {
+				opened = true;
+				return undefined;
+			}
+		});
+
+		await new NewChangesTabAction().run(instantiationService);
+
+		assert.strictEqual(opened, false);
 	});
 
 	test('new changes tab action is a no-op when there is no active session', async () => {

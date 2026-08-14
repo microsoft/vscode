@@ -286,6 +286,11 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadata(key: string, value: string): Promise<void>;
 
 	/**
+	 * Atomically store multiple metadata key-value pairs.
+	 */
+	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
+
+	/**
 	 * Store or clear the draft for a chat in this session.
 	 */
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void>;
