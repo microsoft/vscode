@@ -469,6 +469,11 @@ suite('SyncedCustomizationBundler', () => {
 		assert.deepStrictEqual(result.ref.childEnablement, {
 			'my-server': [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 		});
+		assert.deepStrictEqual([
+			bundler.isBundledMcpServer(result.ref.uri, 'my-server'),
+			bundler.isBundledMcpServer(result.ref.uri, 'other-server'),
+			bundler.isBundledMcpServer('vscode-synced-customization:///other-plugin', 'my-server'),
+		], [true, false, false]);
 	});
 
 	test('MCP server bundle nonce is stable and order-independent', async () => {

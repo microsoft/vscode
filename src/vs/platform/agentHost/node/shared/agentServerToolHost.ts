@@ -136,6 +136,10 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 	}
 
 	advertise(sessionUri: URI): void {
+		// Provider materialization can precede restore; AgentService advertises again once the session is registered.
+		if (!this._stateManager.getSessionState(sessionUri)) {
+			return;
+		}
 		this._stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionServerToolsChanged,
 			tools: [...this.definitions],

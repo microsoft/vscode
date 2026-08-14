@@ -18,16 +18,35 @@ import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type Config
 import type { AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
 import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
+/** Error returned when the Agent Host process cannot be started. */
+export class AgentHostStartError extends Error {
+	constructor(message: string, readonly fatal = false) {
+		super(message);
+	}
+}
+
 export interface IAgentHostConnection {
 	readonly client: IChannelClient;
 	readonly store: DisposableStore;
 	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
+	/** Gracefully shuts down Agent Host providers before the process is disposed. */
+	shutdown(): Promise<void>;
+}
+
+/** Allows a connection request to join the shared process startup. */
+export interface IAgentHostStartRequest {
+	waitUntil(promise: Promise<void>): void;
+}
+
+/** Allows the Agent Host process to join application shutdown. */
+export interface IAgentHostShutdownRequest {
+	join(promise: Promise<void>): void;
 }
 
 export interface IAgentHostStarter extends IDisposable {
-	readonly onRequestConnection?: Event<void>;
+	readonly onRequestConnection?: Event<IAgentHostStartRequest>;
 	readonly onRequestRestart?: Event<void>;
-	readonly onWillShutdown?: Event<void>;
+	readonly onWillShutdown?: Event<IAgentHostShutdownRequest>;
 
 	start(): Promise<IAgentHostConnection>;
 }
@@ -404,11 +423,13 @@ export interface IAgentChatContext {
 	readonly hostInstructions?: readonly string[];
 }
 
+export type AgentChatOperationContext = URI | IAgentChatContext;
+
 /**
  * Normalize a legacy session-only chat context into the explicit
  * {@link IAgentChatContext} shape by attaching the host-supplied `resource`.
  */
-export function resolveAgentChatContext(configurationResourceOrContext: URI | IAgentChatContext, resource: URI): IAgentChatContext {
+export function resolveAgentChatContext(configurationResourceOrContext: AgentChatOperationContext, resource: URI): IAgentChatContext {
 	const context = URI.isUri(configurationResourceOrContext)
 		? { configurationResource: configurationResourceOrContext, resource }
 		: configurationResourceOrContext;
@@ -663,13 +684,13 @@ export interface IAgentChats {
 	 * scopes via `context`, so the agent never has to recover either by parsing
 	 * `chat`.
 	 */
-	createChat(chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+	createChat(chat: URI, context: AgentChatOperationContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/** Dispose the addressed chat and free its backing. */
-	disposeChat(chat: URI, context?: URI | IAgentChatContext): Promise<void>;
+	disposeChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
-	releaseChat(chat: URI, context?: URI | IAgentChatContext): Promise<void>;
+	releaseChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/**
 	 * Send a user message into `chat`. On every send, the host passes the complete
@@ -682,18 +703,18 @@ export interface IAgentChats {
 	sendMessage(chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void>;
 
 	/** Abort the in-flight turn for `chat`. */
-	abort(chat: URI, context?: URI | IAgentChatContext): Promise<void>;
+	abort(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
-	changeModel(chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void>;
+	changeModel(chat: URI, model: ModelSelection, context: AgentChatOperationContext): Promise<void>;
 
 	/**
 	 * Change (or clear) the selected custom agent for `chat`. Passing
 	 * `undefined` clears the selection (provider default behavior).
 	 */
-	changeAgent(chat: URI, agent: AgentSelection | undefined, context?: URI | IAgentChatContext): Promise<void>;
+	changeAgent(chat: URI, agent: AgentSelection | undefined, context: AgentChatOperationContext): Promise<void>;
 
 	/** Reconstruct the turns for `chat` (used on restore). */
-	getMessages(chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]>;
+	getMessages(chat: URI, context: AgentChatOperationContext): Promise<readonly Turn[]>;
 }
 
 export interface IAgentResolveChatConfigParams {

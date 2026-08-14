@@ -31,7 +31,7 @@ import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswe
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -609,6 +609,8 @@ suite('AgentSideEffects', () => {
 			await waitForSendMessageCalls(1);
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.strictEqual(!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined, undefined);
 		});
 
 		test('stamps the exhaustive host chat context on the send boundary', async () => {
@@ -652,6 +654,38 @@ suite('AgentSideEffects', () => {
 				origin: { kind: ChatOriginKind.Fork, chat: defaultChatUri, turnId: 'turn-0' },
 				customizations: [hostCustomization.id],
 			}]);
+		});
+
+		test('adds rich Markdown plan guidance with the exact current chat link when enabled', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostMarkdownPlanRichLinksEnabledConfigKey]: true },
+			});
+			const peerChatUri = buildChatUri(sessionUri, 'peer-plan');
+			stateManager.addChat(sessionUri.toString(), peerChatUri, { title: 'Plan chat' });
+
+			sideEffects.handleAction(peerChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Create a plan', origin: { kind: MessageKind.User } },
+			});
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.deepStrictEqual(!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined, [[
+				'<rich_plan_markdown>',
+				'When creating or editing a Markdown plan document, use these formats when the exact target is known:',
+				'- Use canonical HTTPS links for GitHub issues and pull requests.',
+				'- Use `commit://<sha>` for commits in the current Git repository.',
+				'- Preserve exact `agent-host-session://...` links returned by session and chat tools when referring to sessions, chats, or subagents. Do not construct these links yourself.',
+				'- Link to the current chat as [Current chat](agent-host-session://mock/session-1?chat=peer-plan).',
+				'- Use `- [ ] :running: Description` for a task that is actively running, `- [ ]` for a pending task, and `- [x]` for a completed task.',
+				'- Keep link labels meaningful so the document remains readable without rich rendering.',
+				'</rich_plan_markdown>',
+			].join('\n')]);
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Create a plan');
 		});
 
 		test('passes the dispatching client id and type to sendMessage', async () => {

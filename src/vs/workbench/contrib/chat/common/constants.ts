@@ -47,6 +47,7 @@ export enum ChatConfiguration {
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
+	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -93,6 +94,7 @@ export enum ChatConfiguration {
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
+	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	AssistedPermissionsEnabled = 'chat.assistedPermissions.enabled',
@@ -174,7 +176,7 @@ export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
 
 /** Approval values exposed by the `chat.defaultConfiguration` setting. */
 export enum ChatDefaultPermissionLevel {
-	Default = 'default',
+	Manual = 'manual',
 	Assisted = 'assisted',
 	AllowAll = 'allowAll',
 }
@@ -182,14 +184,15 @@ export enum ChatDefaultPermissionLevel {
 export interface IChatDefaultConfiguration {
 	/** Starting agent mode: `interactive` / `plan` / `autopilot`. */
 	readonly mode?: AgentSessionMode;
-	/** Starting approval level: `default` / `assisted` / `allowAll`. */
+	/** Starting approval level: `manual` / `assisted` / `allowAll`. */
 	readonly approvals?: ChatDefaultPermissionLevel;
 }
 
 /** Maps a default-configuration value to the internal Agent Host permission level. */
 export function getChatPermissionLevelFromDefaultConfiguration(value: unknown): ChatPermissionLevel | undefined {
 	switch (value) {
-		case ChatDefaultPermissionLevel.Default:
+		case ChatDefaultPermissionLevel.Manual:
+		case ChatPermissionLevel.Default:
 			return ChatPermissionLevel.Default;
 		case ChatDefaultPermissionLevel.Assisted:
 			return ChatPermissionLevel.Assisted;
@@ -353,13 +356,14 @@ export function isNewChatSessionTypeUsable(
 	sessionType: string,
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	workspace: IWorkspace
+	workspace: IWorkspace,
+	agentHostEnabled = true,
 ): boolean {
 	if (sessionType === localChatSessionType) {
 		return isEditorLocalAgentEnabled(configurationService, workspace);
 	}
 	if (isAgentHostTarget(sessionType)) {
-		return true;
+		return agentHostEnabled;
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace);
 }
@@ -390,12 +394,12 @@ export function getDefaultNewChatSessionType(
 		return localChatSessionType;
 	}
 
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled);
 	if (remembered) {
 		return remembered;
 	}
 
-	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace)) {
+	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace, agentHostEnabled)) {
 		return options.currentSessionType;
 	}
 
@@ -420,7 +424,7 @@ export function resolveDefaultNewChatSessionType(
 		return { sessionType: localChatSessionType };
 	}
 
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled);
 	if (remembered && remembered !== localChatSessionType) {
 		return { sessionType: remembered };
 	}
@@ -438,10 +442,11 @@ function getUsableRememberedSessionType(
 	storageService: IStorageService,
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	workspace: IWorkspace
+	workspace: IWorkspace,
+	agentHostEnabled: boolean,
 ): string | undefined {
 	const remembered = getRememberedSessionType(storageService);
-	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace) ? remembered : undefined;
+	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace, agentHostEnabled) ? remembered : undefined;
 }
 
 export function getDefaultNewChatSessionResource(

@@ -73,6 +73,9 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key gating active-agent session and chat title generation. */
 export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
 
+/** Configuration key enabling rich-link guidance for Markdown plan documents. */
+export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
+
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
  * agent-host provider. When `true`, the Copilot provider advertises the
@@ -1136,8 +1139,7 @@ export interface IAgentConnection {
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');
 
 /**
- * The local wrapper around the agent host process (manages lifecycle, restart,
- * exposes the proxied service). Consumed by the main process and workbench.
+ * The ambient Agent Host connection used by workbench surfaces.
  */
 export interface IAgentHostService extends IAgentConnection {
 
@@ -1164,6 +1166,7 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Start connecting to the agent host if it has not already started. */
 	startAgentHost(): void;
 
+	/** Restart the agent host process, if this connection owns its lifecycle. */
 	restartAgentHost(): Promise<void>;
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;

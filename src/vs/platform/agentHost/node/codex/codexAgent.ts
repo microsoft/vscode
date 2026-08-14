@@ -41,9 +41,9 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, translateCodexMcpStartupState, type ICodexMcpServerConfigJson, type ICodexMcpServerEntry } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents } from './codexCustomizations.js';
-import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
+import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexPluginMcpServerSources, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
-import { isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
 import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
@@ -3256,7 +3256,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * never by whether `chat` happens to be "the default chat" or by an
 	 * Agent-Host-guaranteed teardown order.
 	 */
-	private async _releaseConfigScopeIfDone(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
+	private async _releaseConfigScopeIfDone(chat: URI, context: URI | IAgentChatContext): Promise<void> {
 		const configurationResource = this._configScope(chat, context);
 		if (this._untrackConfigScopeChat(configurationResource, chat)) {
 			await this._reclaimManagedWorkingDirectoryIfNotLive(configurationResource);
@@ -3301,27 +3301,28 @@ export class CodexAgent extends Disposable implements IAgent {
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
 		},
-		disposeChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => this._disposeChat(chat, context),
-		releaseChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => this._releaseChat(chat, context),
+		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._disposeChat(chat, context),
+		releaseChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._releaseChat(chat, context),
 		sendMessage: (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
 			return this._sendMessage(chat, prompt, attachments, turnId, workingDirectories, operationContext);
 		},
-		abort: (chat: URI): Promise<void> => {
-			return this._abort(chat);
+		abort: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
+			return this._abort(chat, context);
 		},
-		changeModel: (chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void> => {
+		changeModel: (chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chat, model, context);
 		},
-		changeAgent: (chat: URI, agent: AgentSelection | undefined, context?: URI | IAgentChatContext): Promise<void> => this._changeAgent(chat, agent, context),
-		getMessages: (chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> => {
+		changeAgent: (chat: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> => this._changeAgent(chat, agent, context),
+		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => {
 			return this._getChatMessages(chat, context);
 		},
 	};
 
-	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, context?: URI | IAgentChatContext): Promise<void> {
-		const sessionUri = this._resolveConversationSession(chat, context);
+	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			throw new Error(`Codex conversation is not bound: ${chat.toString()}`);
 		}
@@ -4679,8 +4680,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _abort(chat: URI): Promise<void> {
-		const sessionUri = this._resolveConversationSession(chat);
+	private async _abort(chat: URI, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			return;
 		}
@@ -4726,13 +4728,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _disposeChat(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
-		const runtimeSession = this._resolveConversationSession(chat, context);
+	private async _disposeChat(chat: URI, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const runtimeSession = this._resolveConversationSession(chat, operationContext);
 		this._removeActiveClientHandlesForChat(chat);
 		// Configuration-scope ref tracking is independent of whether a
 		// runtime is currently resolvable for `chat` — an unaddressable chat
 		// still occupied a slot in its scope's ref set when it was created.
-		await this._releaseConfigScopeIfDone(chat, context);
+		await this._releaseConfigScopeIfDone(chat, operationContext);
 		if (!runtimeSession) {
 			return;
 		}
@@ -4740,8 +4743,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessionIdByChatUri.delete(chat.toString());
 	}
 
-	private async _releaseChat(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
-		const runtimeSession = this._resolveConversationSession(chat, context);
+	private async _releaseChat(chat: URI, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const runtimeSession = this._resolveConversationSession(chat, operationContext);
 		if (!runtimeSession) {
 			return;
 		}
@@ -4873,8 +4877,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _changeModel(chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void> {
-		const sessionUri = this._resolveConversationSession(chat, context);
+	private async _changeModel(chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			return;
 		}
@@ -5018,8 +5023,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * persisted rollout. Chat-addressed only: the owning session comes from the
 	 * recorded binding or the host-supplied context, never from the URI.
 	 */
-	private async _getChatMessages(chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> {
-		const sessionUri = this._resolveConversationSession(chat, context);
+	private async _getChatMessages(chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			return [];
 		}
@@ -5306,7 +5312,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		if (!(await this._isSdkResolvableWithoutDownload())) {
+		try {
+			await this._resolveSdkRoot();
+		} catch (err) {
+			this._logService.warn(`[Codex] SDK unavailable while listing chats to migrate: ${err instanceof Error ? err.message : String(err)}`);
 			return undefined;
 		}
 		const chats = await this._listCodexChats();
@@ -5789,6 +5798,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				sessionUri: session.sessionUri,
 				emit: action => this._fire(session.sessionUri, action),
 				capabilities: CODEX_MCP_APP_CAPABILITIES,
+				pluginMcpServerSources: () => codexPluginMcpServerSources(session.clientCustomizations.plugins()),
+				resolveEnablement: (server, owningPluginUri) => {
+					const resolution = this._customizationEnablementService.resolve(session.sessionUri.toString(), targetForMcpServer(server, owningPluginUri, false));
+					return resolution.kind === 'resolved' ? resolution.enablement : undefined;
+				},
 			});
 		}
 		return session.mcpController;

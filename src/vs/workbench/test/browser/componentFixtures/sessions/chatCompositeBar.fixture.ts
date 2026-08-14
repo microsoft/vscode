@@ -5,19 +5,15 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { IObservable, observableValue, derived } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsPartService } from '../../../../../sessions/services/sessions/browser/sessionsPartService.js';
-// eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChatCompositeBar } from '../../../../../sessions/browser/parts/chatCompositeBar.js';
+import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../../sessions/browser/parts/chatCompositeBar.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
@@ -47,13 +43,13 @@ function createMockChat(options: IMockChatOptions): IChat {
 
 function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTitle = 'Session'): IActiveSession {
 	return new class extends mock<IActiveSession>() {
+		override readonly sessionId = 'mock:session';
 		override readonly title: IObservable<string> = observableValue('title', sessionTitle);
-		override readonly chats: IObservable<readonly IChat[]> = observableValue('chats', chats);
 		override readonly openChats: IObservable<readonly IChat[]> = observableValue('openChats', chats);
 		override readonly closedChats: IObservable<readonly IChat[]> = observableValue('closedChats', []);
 		override readonly visibleChatTabs: IObservable<readonly IChat[]> = observableValue('visibleChatTabs', chats);
 		override readonly shouldShowChatTabs: IObservable<boolean> = derived(reader => {
-			const tabChats = this.chats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool);
+			const tabChats = this.visibleChatTabs.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool);
 			return tabChats.length > 1 || (tabChats.length === 1 && tabChats[0].title.read(reader) !== this.title.read(reader));
 		});
 		override readonly mainChat: IObservable<IChat> = observableValue('mainChat', chats[0]);
@@ -62,6 +58,18 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 		override readonly isCreated: IObservable<boolean> = observableValue('isCreated', true);
 		override readonly isArchived: IObservable<boolean> = observableValue('isArchived', false);
 	}();
+}
+
+function createMockDelegate(session: IActiveSession, chats: readonly IChat[], activeChat: IChat): IChatCompositeBarDelegate {
+	return {
+		session,
+		chats: observableValue('chats', chats),
+		activeChatResource: observableValue('activeChatResource', activeChat.resource.toString()),
+		mainChatResource: observableValue('mainChatResource', chats[0].resource.toString()),
+		visible: session.shouldShowChatTabs,
+		openChat: () => { },
+		newChat: () => { },
+	};
 }
 
 // ============================================================================
@@ -79,14 +87,6 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 				override async renameChat() { }
 				override async deleteChat() { }
 			}());
-			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override async openChat() { }
-				override async openNewChatInSession() { }
-				override async closeChat() { }
-			}());
-			reg.defineInstance(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-				override focusSession() { }
-			}());
 			// Tabs are drag sources that ask the owning provider for the referenced
 			// chat's backend resource. These fixtures mock a provider-less session,
 			// so no provider resolves and the drag offers no chat reference.
@@ -99,8 +99,9 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	container.style.width = '360px';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
+	const session = createMockSession(chats, activeChat, sessionTitle);
 	const bar = disposableStore.add(instantiationService.createInstance(ChatCompositeBar));
-	bar.setSession(createMockSession(chats, activeChat, sessionTitle));
+	bar.setGroup(createMockDelegate(session, chats, activeChat));
 	container.appendChild(bar.element);
 
 	if (startEditing) {
