@@ -19,7 +19,7 @@ import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactor
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
 class TestChatView extends AbstractChatView {
@@ -51,10 +51,11 @@ class TestChatViewFactory extends mock<IChatViewFactory>() {
 	}
 }
 
-function createChat(id: string, status: SessionStatus = SessionStatus.Completed): IChat {
+function createChat(id: string, status: SessionStatus = SessionStatus.Completed, parentChat?: URI): IChat {
 	const resource = URI.parse(`test-chat://${id}`);
 	return new class extends mock<IChat>() {
 		override readonly resource = resource;
+		override readonly origin = parentChat ? { kind: ChatOriginKind.Tool, parentChat } : undefined;
 		override readonly title: IObservable<string> = constObservable(id);
 		override readonly status: IObservable<SessionStatus> = constObservable(status);
 		override readonly isRead: IObservable<boolean> = constObservable(true);
@@ -218,6 +219,52 @@ suite('Sessions - ChatGroupsView', () => {
 			groupCount: 2,
 			groupTabs: [[main.resource.toString()], [hidden.resource.toString()]],
 			groupLabels: ['Chat Group 1 of 2', 'Chat Group 2 of 2'],
+		});
+	});
+
+	test('opening a subagent through the sessions service uses the group adjacent to its parent', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const subagent = createChat('subagent', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, secondary, subagent], [main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+
+		await sessionsService.openChat(session, subagent.resource);
+
+		const groups = Array.from(view.element.querySelectorAll('.chat-group-view'));
+		assert.deepStrictEqual({
+			groupCount: view.groupCount.get(),
+			groupTabs: groups.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeChat: session.activeChat.get().resource.toString(),
+		}, {
+			groupCount: 2,
+			groupTabs: [[main.resource.toString()], [secondary.resource.toString(), subagent.resource.toString()]],
+			activeChat: subagent.resource.toString(),
+		});
+	});
+
+	test('removing the focused group transfers focus to the remaining group', () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view.focusAdjacentGroup('next');
+
+		session.visibleChatTabs.set([main], undefined);
+
+		const remainingGroup = view.element.querySelector<HTMLElement>('.chat-group-view');
+		assert.deepStrictEqual({
+			groupCount: view.groupCount.get(),
+			focusInRemainingGroup: remainingGroup?.contains(mainWindow.document.activeElement),
+			activeChat: session.activeChat.get().resource.toString(),
+		}, {
+			groupCount: 1,
+			focusInRemainingGroup: true,
+			activeChat: main.resource.toString(),
 		});
 	});
 

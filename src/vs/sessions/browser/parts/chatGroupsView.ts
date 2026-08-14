@@ -7,7 +7,7 @@ import './media/chatGroupsView.css';
 import { $, size } from '../../../base/browser/dom.js';
 import { Color } from '../../../base/common/color.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, ISettableObservable, ITransaction, observableValue, transaction } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { Direction, ISerializedGrid, IViewDeserializer, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
@@ -74,6 +74,7 @@ export class ChatGroupsView extends Themable {
 	readonly element: HTMLElement = $('.chat-groups-view');
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _groupDisposables = this._register(new DisposableMap<number, DisposableStore>());
 	private _currentSessionStore: DisposableStore | undefined;
 
 	private _grid: SerializableGrid<ChatGroupView> | undefined;
@@ -125,6 +126,7 @@ export class ChatGroupsView extends Themable {
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
+		this._groupDisposables.clearAndDisposeAll();
 		this._currentSessionStore = store;
 		this._grid = undefined;
 		this._groups = [];
@@ -162,7 +164,7 @@ export class ChatGroupsView extends Themable {
 	}
 
 	private _createSingleGroupGrid(session: IActiveSession, store: DisposableStore): SerializableGrid<ChatGroupView> {
-		const firstGroup = this._createGroupEntry(session, store);
+		const firstGroup = this._createGroupEntry(session);
 		this._groups = [firstGroup];
 		this._activeGroup = firstGroup;
 		firstGroup.view.setGroupActive(true);
@@ -186,7 +188,7 @@ export class ChatGroupsView extends Themable {
 		const deserializer: IViewDeserializer<ChatGroupView> = {
 			fromJSON: (json: { index?: number } | null) => {
 				const index = typeof json?.index === 'number' ? json.index : indexToEntry.size;
-				const entry = this._createGroupEntry(session, store);
+				const entry = this._createGroupEntry(session);
 				indexToEntry.set(index, entry);
 				return entry.view;
 			}
@@ -242,8 +244,10 @@ export class ChatGroupsView extends Themable {
 		return grid;
 	}
 
-	private _createGroupEntry(session: IActiveSession, store: DisposableStore): IGroupEntry {
+	private _createGroupEntry(session: IActiveSession): IGroupEntry {
 		const id = this._nextGroupId++;
+		const store = new DisposableStore();
+		this._groupDisposables.set(id, store);
 		const resourceIds = observableValue<string[]>(`chatGroup.${id}.resourceIds`, []);
 		const activeResourceId = observableValue<string>(`chatGroup.${id}.activeResourceId`, '');
 
@@ -352,7 +356,19 @@ export class ChatGroupsView extends Themable {
 
 			const activeId = activeChat?.resource.toString();
 			if (activeId && activeId !== this._lastSessionActiveChatId) {
-				const owner = this._groups.find(g => g.resourceIds.get().includes(activeId));
+				let owner = this._groups.find(g => g.resourceIds.get().includes(activeId));
+				const parentResource = activeChat.origin?.parentChat;
+				const parentGroup = parentResource
+					? this._groups.find(group => group.resourceIds.get().includes(parentResource.toString()))
+					: undefined;
+				const adjacentGroup = parentGroup && this._findAdjacentGroup(parentGroup);
+				if (owner && adjacentGroup && owner !== adjacentGroup) {
+					this._detachChatFromGroup(owner, activeId, tx);
+					if (!adjacentGroup.resourceIds.get().includes(activeId)) {
+						adjacentGroup.resourceIds.set([...adjacentGroup.resourceIds.get(), activeId], tx);
+					}
+					owner = adjacentGroup;
+				}
 				if (owner) {
 					owner.activeResourceId.set(activeId, tx);
 					this._setActiveGroup(owner);
@@ -452,7 +468,7 @@ export class ChatGroupsView extends Themable {
 			return;
 		}
 		const id = resource.toString();
-		const newGroup = this._createGroupEntry(this._session, this._currentSessionStore);
+		const newGroup = this._createGroupEntry(this._session);
 		this._grid.addView(newGroup.view, Sizing.Distribute, reference.view, this._zoneToDirection(zone));
 		this._groups.push(newGroup);
 		this._setGroupCount(this._groups.length);
@@ -512,7 +528,7 @@ export class ChatGroupsView extends Themable {
 			return;
 		}
 
-		const newGroup = this._createGroupEntry(session, this._currentSessionStore);
+		const newGroup = this._createGroupEntry(session);
 		this._grid.addView(newGroup.view, Sizing.Distribute, reference.view, Direction.Right);
 		this._groups.push(newGroup);
 		this._setGroupCount(this._groups.length);
@@ -530,6 +546,21 @@ export class ChatGroupsView extends Themable {
 		this._removeEmptyGroups();
 		this._applyLayout();
 		this._persistLayout();
+	}
+
+	private _findAdjacentGroup(reference: IGroupEntry): IGroupEntry | undefined {
+		if (this._grid && this._lastLayout) {
+			for (const direction of [Direction.Right, Direction.Left, Direction.Down, Direction.Up]) {
+				const neighbor = this._grid.getNeighborViews(reference.view, direction)[0];
+				const group = neighbor && this._groups.find(candidate => candidate.view === neighbor);
+				if (group) {
+					return group;
+				}
+			}
+		}
+
+		const referenceIndex = this._groups.indexOf(reference);
+		return this._groups[referenceIndex + 1] ?? this._groups[referenceIndex - 1];
 	}
 
 	/**
@@ -571,13 +602,17 @@ export class ChatGroupsView extends Themable {
 			if (this._groups.length <= 1) {
 				break;
 			}
+			const hadFocus = group.view.element.contains(group.view.element.ownerDocument.activeElement);
 			this._grid.removeView(group.view, Sizing.Distribute);
 			this._groups = this._groups.filter(g => g !== group);
 			if (this._activeGroup === group) {
 				this._activeGroup = this._groups[0];
 				this._activeGroup?.view.setGroupActive(true);
 			}
-			group.view.dispose();
+			this._groupDisposables.deleteAndDispose(group.id);
+			if (hadFocus) {
+				this._activeGroup?.view.focus();
+			}
 		}
 		this._setGroupCount(this._groups.length);
 	}

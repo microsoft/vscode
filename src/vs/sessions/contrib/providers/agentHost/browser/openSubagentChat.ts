@@ -76,10 +76,8 @@ class OpenSubagentChatActionViewItemContribution extends Disposable implements I
 				const resource = context.chatResource;
 				const match = findSubagentChat(sessionsService, resource);
 				if (match) {
-					// Alt-click ("open to the side") shows the subagent in a new group
-					// beside the active one instead of replacing the active chat.
-					const view = context.toSide ? sessionsPartService.getSessionView(match.session.sessionId) : undefined;
-					if (view) {
+					const view = sessionsPartService.getSessionView(match.session.sessionId);
+					if (context.toSide && view) {
 						await view.openChatToSide(match.chat.resource);
 					} else {
 						await sessionsService.openChat(match.session, match.chat.resource);
