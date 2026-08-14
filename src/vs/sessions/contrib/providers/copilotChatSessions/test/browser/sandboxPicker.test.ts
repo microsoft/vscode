@@ -59,10 +59,10 @@ suite('Copilot SandboxPicker', () => {
 			override getOptionGroupsForSessionType() { return undefined; }
 		}());
 
-		// A cloud workspace is a GitHub repo URI (`github-remote-file:/owner/repo`); the
-		// repo-less case is a URI with no `owner/name` to derive.
+		// A browsed GitHub workspace root carries a ref (`/<owner>/<repo>/HEAD`); the repo-less
+		// case is a URI with no `owner/repo` to derive.
 		const root = (options.hasRepository ?? true)
-			? URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}:/osortega/simple-server`)
+			? URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}:/osortega/simple-server/HEAD`)
 			: URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}:/`);
 		const workspace = upcastPartial<ISessionWorkspace>({
 			uri: root,

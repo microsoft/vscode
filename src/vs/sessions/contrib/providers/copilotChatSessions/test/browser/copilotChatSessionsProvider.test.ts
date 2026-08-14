@@ -1827,7 +1827,9 @@ suite('CopilotChatSessionsProvider', () => {
 		);
 	});
 	suite('cloud sandbox send path', () => {
-		const repoWorkspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/osortega/simple-server' });
+		// A browsed GitHub workspace root carries a ref (`/<owner>/<repo>/HEAD`), which is what
+		// `repoNwo` has to strip back down to `owner/repo`.
+		const repoWorkspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/osortega/simple-server/HEAD' });
 
 		function createSandboxProvider(opts: { enabled?: boolean; provision?: () => Promise<ICloudSandboxProvisionedSession> } = {}) {
 			const configurationService = new TestConfigurationService();

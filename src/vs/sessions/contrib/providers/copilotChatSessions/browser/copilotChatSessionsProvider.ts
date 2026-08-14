@@ -657,12 +657,12 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	get selectedModelId(): string | undefined { return this._modelId; }
 
 	/**
-	 * The repository this session targets, as `owner/name`. Derived from the workspace root the
-	 * same way the `repositories` option is seeded in the constructor.
+	 * The repository this session targets, as `owner/repo`. A GitHub workspace root carries a ref
+	 * (`/<owner>/<repo>/HEAD`, see {@link CopilotChatSessionsProvider._browseForRepo}), so this
+	 * takes only the first two path segments rather than the whole path.
 	 */
 	get repoNwo(): string | undefined {
-		const nwo = this._repoUri?.path.replace(/^\//, '');
-		return nwo && nwo.includes('/') ? nwo : undefined;
+		return this._repoUri ? githubRemoteRepoLabel(this._repoUri) : undefined;
 	}
 
 	get chatMode(): IChatMode | undefined { return undefined; }
