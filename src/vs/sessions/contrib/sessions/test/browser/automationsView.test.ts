@@ -22,7 +22,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -43,6 +42,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
+import { AutomationsCardsWidget, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -58,17 +58,6 @@ const SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-1');
 const SECOND_SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-2');
 const FOLDER = URI.parse('file:///workspace');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
-
-type AutomationsCardsWidget = import('../../browser/views/automationsView.js').AutomationsCardsWidget;
-let AutomationsCardsWidget: typeof import('../../browser/views/automationsView.js').AutomationsCardsWidget;
-let AutomationsCustomViewContribution: typeof import('../../browser/views/automationsView.js').AutomationsCustomViewContribution;
-let automationsViewLoadedBySessionsContribution = false;
-
-async function setupAutomationsView(): Promise<void> {
-	await import('../../browser/sessions.contribution.js');
-	automationsViewLoadedBySessionsContribution = Boolean(CommandsRegistry.getCommand('sessionsView.newAutomation'));
-	({ AutomationsCardsWidget, AutomationsCustomViewContribution } = await import('../../browser/views/automationsView.js'));
-}
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -207,6 +196,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 
 class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 	result: IAutomationDialogResult | undefined;
+	error: Error | undefined;
 	beforeReturn: (() => void) | undefined;
 	showCalls = 0;
 	lastOptions: IShowAutomationDialogOptions | undefined;
@@ -214,8 +204,19 @@ class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 	override async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		this.showCalls++;
 		this.lastOptions = options;
+		if (this.error) {
+			throw this.error;
+		}
 		this.beforeReturn?.();
 		return this.result;
+	}
+}
+
+class TestLogService extends NullLogService {
+	readonly errors: { message: string | Error; args: readonly unknown[] }[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push({ message, args });
 	}
 }
 
@@ -454,12 +455,6 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 suite('AutomationsCardsWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	suiteSetup(setupAutomationsView);
-
-	test('is loaded by the Sessions contribution', () => {
-		assert.strictEqual(automationsViewLoadedBySessionsContribution, true);
-	});
-
 	function getSessionAction(widget: AutomationsCardsWidget, label: string): HTMLElement | undefined {
 		return [...widget.element.querySelectorAll<HTMLElement>('.automations-run-session-list .action-label')]
 			.find(element => element.getAttribute('aria-label') === label || element.title === label);
@@ -478,6 +473,7 @@ suite('AutomationsCardsWidget', () => {
 		const sessionsManagementService = disposables.add(new FakeSessionsManagementService());
 		const sessionsService = new FakeSessionsService(() => sessionsManagementService.markRead(sessionsManagementService.session));
 		const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true } } });
+		const logService = new TestLogService();
 		const store = disposables.add(new DisposableStore());
 		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -494,7 +490,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
 		instantiationService.stub(IHoverService, NullHoverService);
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 			override readonly onDidChange = Event.None;
 			override isSessionPinned(): boolean { return false; }
@@ -525,7 +521,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { automationService, automationDialogService, configurationService, dialogService, instantiationService, runner, sessionsManagementService, sessionsService, widget };
+		return { automationService, automationDialogService, configurationService, dialogService, instantiationService, logService, runner, sessionsManagementService, sessionsService, widget };
 	}
 
 	test('renders localized schedules and shared session rows', () => {
@@ -1174,6 +1170,31 @@ suite('AutomationsCardsWidget', () => {
 		}]);
 	});
 
+	test('edit dialog failures are logged and reported to the user', async () => {
+		const { automationDialogService, automationService, dialogService, logService, widget } = setup();
+		const item = automation();
+		automationService.setAutomations([item]);
+		const error = new Error('dialog failed');
+		automationDialogService.error = error;
+
+		widget.element.querySelector<HTMLButtonElement>('.automations-card-main')?.click();
+		await dialogService.errorCalled.p;
+
+		assert.deepStrictEqual({
+			loggedErrors: logService.errors,
+			dialogErrors: dialogService.errors,
+		}, {
+			loggedErrors: [{
+				message: '[AutomationsCards] Failed to update automation',
+				args: [error],
+			}],
+			dialogErrors: [{
+				message: 'Failed to update automation.',
+				detail: 'dialog failed',
+			}],
+		});
+	});
+
 	test('run failures are reported to the user', async () => {
 		const { automationService, dialogService, runner, widget } = setup();
 		automationService.setAutomations([automation()]);
@@ -1252,8 +1273,6 @@ suite('AutomationsCardsWidget', () => {
 
 suite('AutomationsCustomViewContribution — context key', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	suiteSetup(setupAutomationsView);
 
 	function setup(automationsEnabled = true) {
 		const automationService = new FakeAutomationService();
