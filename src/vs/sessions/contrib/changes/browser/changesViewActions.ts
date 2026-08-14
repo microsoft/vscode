@@ -23,7 +23,7 @@ import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorI
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
@@ -189,6 +189,7 @@ class ChangesHeaderActionsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					IsAuxiliaryWindowContext.toNegated(),
+					CustomViewVisibleContext.negate(),
 					SinglePaneLayoutEnabledContext,
 					SessionIsCreatedContext,
 					SessionHasChangesContext
