@@ -70,7 +70,6 @@ export class OpenFilesViewAction extends Action2 {
 		}
 
 		if (layoutService.isSinglePaneLayoutEnabled) {
-			layoutService.revealEditorPartExplicitly();
 			await commandService.executeCommand(NEW_FILE_TAB_COMMAND_ID);
 		}
 

@@ -37,10 +37,6 @@ suite('Sessions - Workspace Folder Actions', () => {
 		});
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly isSinglePaneLayoutEnabled = true;
-
-			override revealEditorPartExplicitly(): void {
-				calls.push('revealEditor');
-			}
 		});
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override async executeCommand<T = unknown>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
@@ -67,7 +63,7 @@ suite('Sessions - Workspace Folder Actions', () => {
 			})),
 			viewCalls
 		}, {
-			calls: ['revealEditor', 'openFilesEditor', 'openFilesView'],
+			calls: ['openFilesEditor', 'openFilesView'],
 			commandCalls: [{
 				commandId: NEW_FILE_TAB_COMMAND_ID,
 				args: []
