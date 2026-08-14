@@ -18,16 +18,35 @@ import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type Config
 import type { AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
 import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
+/** Error returned when the Agent Host process cannot be started. */
+export class AgentHostStartError extends Error {
+	constructor(message: string, readonly fatal = false) {
+		super(message);
+	}
+}
+
 export interface IAgentHostConnection {
 	readonly client: IChannelClient;
 	readonly store: DisposableStore;
 	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
+	/** Gracefully shuts down Agent Host providers before the process is disposed. */
+	shutdown(): Promise<void>;
+}
+
+/** Allows a connection request to join the shared process startup. */
+export interface IAgentHostStartRequest {
+	waitUntil(promise: Promise<void>): void;
+}
+
+/** Allows the Agent Host process to join application shutdown. */
+export interface IAgentHostShutdownRequest {
+	join(promise: Promise<void>): void;
 }
 
 export interface IAgentHostStarter extends IDisposable {
-	readonly onRequestConnection?: Event<void>;
+	readonly onRequestConnection?: Event<IAgentHostStartRequest>;
 	readonly onRequestRestart?: Event<void>;
-	readonly onWillShutdown?: Event<void>;
+	readonly onWillShutdown?: Event<IAgentHostShutdownRequest>;
 
 	start(): Promise<IAgentHostConnection>;
 }
@@ -68,6 +87,8 @@ export interface IAgentChatMetadata {
 	readonly modifiedTime: number;
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
+	/** Provider model that should be selected when this chat is restored. */
+	readonly model?: ModelSelection;
 	/** Activity bits plus the session-scoped {@link SessionStatus.IsRead} / {@link SessionStatus.IsArchived} flags. */
 	readonly status?: SessionStatus;
 	/** Human-readable description of what the session is currently doing. */
@@ -100,6 +121,11 @@ export interface IAgentChatMetadata {
 	 * slots.
 	 */
 	readonly _meta?: SessionMeta;
+}
+
+/** A provider chat ready to be registered as an Agent Host session. */
+export interface IAgentDiscoveredChat extends IAgentChatMetadata {
+	readonly external: boolean;
 }
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
@@ -545,7 +571,7 @@ export interface IAgentChatDataChange {
 	readonly providerData: string;
 }
 
-/** A legacy concrete chat enumerated by {@link IAgent.listLegacyChats} for one-time migration. */
+/** A legacy concrete chat backing enumerated by {@link IAgent.listLegacyChatBackings} for migration. */
 export interface IAgentLegacyChat {
 	/** The concrete chat's channel URI (see {@link buildChatUri}). */
 	readonly uri: URI;
@@ -1047,10 +1073,15 @@ export interface IAgent {
 	/** Return the effective customization projection for an exact chat. */
 	getChatCustomizations(chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]>;
 
-	// ---- Legacy migration and metadata -------------------------------------
+	/** Returns host-internal plugin owners for MCP servers temporarily published top-level. */
+	getMcpServerOwners?(session: URI): ReadonlyMap<string, string> | undefined;
 
-	/** Optional migration signal for providers that can observe out-of-band native chat creation. */
-	readonly onDidChangeChatList?: Event<void>;
+	// ---- External chat discovery -------------------------------------------
+
+	/** Provides chats that are ready to be registered as Agent Host sessions. */
+	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]>;
+
+	// ---- Legacy migration ---------------------------------------------------
 
 	/** Optional adoption hook for providers with a predecessor-owned on-disk format. */
 	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
@@ -1061,17 +1092,15 @@ export interface IAgent {
 	/**
 	 * Enumerate provider-native chats for one-time registry migration.
 	 *
-	 * Returns `undefined` when the provider cannot enumerate yet (for example
-	 * its SDK/binary/runtime or client is not yet available/started) so callers
-	 * must not treat this as an authoritative "no legacy chats" result and should
-	 * retry later. Returns an empty array only when the provider has authoritatively
-	 * determined there are no legacy chats to migrate (e.g. legacy support is
-	 * disabled or the provider has no legacy data format).
+	 * Returns `undefined` when the provider cannot enumerate yet; `[]` is an
+	 * authoritative result indicating there are no legacy chats to migrate.
 	 */
-	listLegacyChats(): Promise<readonly IAgentChatMetadata[] | undefined>;
+	listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
 	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
+
+	// ---- Metadata -----------------------------------------------------------
 
 	/** Retrieve metadata for an exact registered chat. */
 	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined>;

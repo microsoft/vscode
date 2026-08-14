@@ -11,6 +11,7 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"created_at": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Timestamp when the SDK created the event." },
 		"model_call_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "SDK identifier for the model call." },
 		"exp_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Experiment assignment context from the Copilot CLI runtime." },
+		"secondary_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Secondary experiment assignment context assigned by CAPI during model calls." },
 		"session_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the Copilot CLI session." },
 		"sdk_session_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the SDK session that forwarded the event." },
 		"copilot_tracking_id": { "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "Pseudonymous Copilot user identifier supplied by the runtime." },
@@ -155,6 +156,37 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"done_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items in the done state when task completion was recorded.", "isMeasurement": true },
 		"open_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items not yet done, comprising pending, in-progress, and blocked items, when task completion was recorded.", "isMeasurement": true },
 		"total_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of todo items when task completion was recorded.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/tool_call_executed": {
+		"owner": "amunger",
+		"comment": "Reports the outcome and response size of a tool invocation forwarded by the Copilot SDK. Contains only the telemetry-safe tool name and arguments (unsafe values are hashed by the runtime), bounded outcome values, opaque correlation identifiers, and numeric measurements; it does not contain raw tool arguments or tool output.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"event_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the tool execution session event." },
+		"tool_name": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Telemetry-safe tool name; unsafe names are hashed by the runtime." },
+		"arguments": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Telemetry-safe tool arguments; unsafe values are hashed by the runtime." },
+		"result_type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Coarse tool result outcome, either SUCCESS or FAILURE." },
+		"invoke_outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Fine-grained invocation outcome: success, error, cancelled, or disabledByUser." },
+		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model that requested the tool call." },
+		"tool_call_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for this tool call, stable across correlated events." },
+		"turn_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the agent loop turn the tool was invoked in." },
+		"api_call_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call that requested the tool." },
+		"completion_with_tools_call_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier correlating the tool call with its completion-with-tools request." },
+		"agent_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Sub-agent instance identifier, absent for the root agent." },
+		"is_mcp_tool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the tool is provided by an MCP server." },
+		"is_mcp_app_tool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the tool surfaced MCP Apps UI metadata." },
+		"mcp_ui_visibility": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "MCP Apps UI visibility enum values for the tool result." },
+		"is_custom_agent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the tool call was a custom-agent invocation." },
+		"has_copilot_annotations": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the tool result carried Copilot annotations." },
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
+		"duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Wall-clock duration of the tool execution in milliseconds.", "isMeasurement": true },
+		"result_token_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Token count of the model-facing tool result, measured with the model tokenizer. Present only for successful results.", "isMeasurement": true },
+		"binary_result_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of binary result parts returned by the tool.", "isMeasurement": true },
+		"binary_result_total_bytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total byte size of binary result parts returned by the tool.", "isMeasurement": true }
 	}
 */
 

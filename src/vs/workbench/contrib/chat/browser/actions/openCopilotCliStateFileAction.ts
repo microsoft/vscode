@@ -20,14 +20,14 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { resolveEventsUri } from '../copilotCliEventsUri.js';
 
 /**
- * Shared implementation of "Open Copilot CLI State File". Resolves the
+ * Shared implementation of "Open Copilot State File". Resolves the
  * `events.jsonl` URI for the given chat session resource and opens it in
  * an editor, or shows a notification explaining why it could not be
  * opened.
  *
  * Both the workbench-side action (uses `IChatWidgetService`) and the
  * sessions-app-side action (uses `ISessionsManagementService`) call into
- * this helper after resolving the active Copilot CLI session resource.
+ * this helper after resolving the active Copilot session resource.
  */
 export async function openCopilotCliStateFile(
 	accessor: ServicesAccessor,
@@ -51,10 +51,10 @@ export async function openCopilotCliStateFile(
 			await editorService.openEditor({ resource: result.resource });
 			return;
 		case 'no-session':
-			notificationService.info(localize('openSessionEventsFile.noSession', "No Copilot CLI session is active."));
+			notificationService.info(localize('openSessionEventsFile.noSession', "No Copilot session is active."));
 			return;
 		case 'unsupported-scheme':
-			notificationService.info(localize('openSessionEventsFile.unsupported', "The active chat session is not a Copilot CLI session."));
+			notificationService.info(localize('openSessionEventsFile.unsupported', "The active chat session is not a Copilot session."));
 			return;
 		case 'remote-not-connected':
 			notificationService.warn(localize('openSessionEventsFile.notConnected', "No active connection found for remote agent host '{0}'.", result.authority));
@@ -67,7 +67,7 @@ export async function openCopilotCliStateFile(
 
 /**
  * Workbench-side action. Uses the last-focused chat widget's view model to
- * find the active Copilot CLI chat session. Suitable for vscode where the
+ * find the active Copilot chat session. Suitable for vscode where the
  * agents-window-specific `ISessionsManagementService` is not present.
  */
 export class OpenCopilotCliStateFileAction extends Action2 {
@@ -77,7 +77,7 @@ export class OpenCopilotCliStateFileAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenCopilotCliStateFileAction.ID,
-			title: localize2('openSessionEventsFile', "Open Copilot CLI State File"),
+			title: localize2('openSessionEventsFile', "Open Copilot State File"),
 			f1: true,
 			category: Categories.Developer,
 			precondition: ContextKeyExpr.and(

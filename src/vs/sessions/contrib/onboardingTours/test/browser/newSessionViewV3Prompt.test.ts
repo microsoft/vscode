@@ -64,20 +64,23 @@ type TestGitHubRequest =
 suite('NewSessionViewV3Prompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('selects the newest candidate in priority order', () => {
+	test('selects the newest actionable pull request and prioritizes conflicts on the same pull request', () => {
 		const reviewPullRequest = pullRequest('Review', '2026-08-07T12:00:00Z', undefined, '2026-08-07T09:00:00Z', '2026-08-07T10:00:00Z');
 		const recentFailure = pullRequest('Recent failure', '2026-08-07T11:00:00Z', 'FAILURE');
 		const olderFailure = pullRequest('Older failure', '2026-08-07T10:00:00Z', 'ERROR');
+		const conflictedFailure = pullRequest('Conflicted failure', '2026-08-07T13:00:00Z', 'FAILURE', undefined, undefined, 2, true);
 		const recentIssue = issue('Recent issue', '2026-08-07T13:00:00Z');
 		const olderIssue = issue('Older issue', '2026-08-07T08:00:00Z');
 
 		assert.deepStrictEqual({
-			ci: selectNewSessionViewV3GitHubCandidate({ pullRequests: [olderFailure, reviewPullRequest, recentFailure], issues: [recentIssue] }),
+			conflict: selectNewSessionViewV3GitHubCandidate({ pullRequests: [recentFailure, conflictedFailure], issues: [] }),
+			reviewOverCi: selectNewSessionViewV3GitHubCandidate({ pullRequests: [olderFailure, reviewPullRequest, recentFailure], issues: [recentIssue] }),
 			review: selectNewSessionViewV3GitHubCandidate({ pullRequests: [reviewPullRequest], issues: [recentIssue] }),
 			issue: selectNewSessionViewV3GitHubCandidate({ pullRequests: [], issues: [olderIssue, recentIssue] }),
 			none: selectNewSessionViewV3GitHubCandidate({ pullRequests: [pullRequest('Addressed', '2026-08-07T14:00:00Z', undefined, '2026-08-07T11:00:00Z', '2026-08-07T10:00:00Z')], issues: [] }),
 		}, {
-			ci: { number: 1, title: 'Recent failure', url: 'https://github.com/o/r/pull/Recent%20failure', strategy: 'githubCiFailure' },
+			conflict: { number: 2, title: 'Conflicted failure', url: 'https://github.com/o/r/pull/Conflicted%20failure', strategy: 'githubMergeConflict' },
+			reviewOverCi: { number: 1, title: 'Review', url: 'https://github.com/o/r/pull/Review', strategy: 'githubReviewComments' },
 			review: { number: 1, title: 'Review', url: 'https://github.com/o/r/pull/Review', strategy: 'githubReviewComments' },
 			issue: { number: 1, title: 'Recent issue', url: 'https://github.com/o/r/issues/Recent%20issue', strategy: 'githubIssue' },
 			none: undefined,
@@ -197,6 +200,39 @@ suite('NewSessionViewV3Prompt', () => {
 		});
 	});
 
+	test('developer override classifies a conflicted PR separately from failing CI', async () => {
+		const result = await runPrompt({
+			'onb.newSessionViewV3.variation': 'prompt',
+		}, {
+			[ONBOARDING_DEVELOPER_MODE_CONFIG]: { [NEW_SESSION_VIEW_V3_TOUR_ID]: true },
+			[ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG]: { [NEW_SESSION_VIEW_V3_TOUR_ID]: 'githubPrompt' },
+		}, {
+			pullRequests: [pullRequest('Resolve me', '2026-08-07T12:00:00Z', 'FAILURE', undefined, undefined, 42, true)],
+			issues: [],
+		});
+
+		assert.deepStrictEqual({
+			animation: result.animation,
+			telemetry: result.telemetry,
+		}, {
+			animation: {
+				prompt: 'The following pull request has merge conflicts: "Resolve me" (https://github.com/o/r/pull/Resolve%20me). Resolve the conflicts and update the pull request.',
+				durationMs: 2_500,
+				placeholder: '',
+			},
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					configuredVariation: 'githubPrompt',
+					effectiveStrategy: 'githubMergeConflict',
+					fallbackReason: 'none',
+					shown: true,
+				},
+			}],
+		});
+	});
+
 	test('falls back to the prompt variation when silent GitHub authentication is unavailable', async () => {
 		const result = await runPrompt({
 			'onb.newSessionViewV3.variation': 'githubPrompt',
@@ -235,6 +271,7 @@ suite('NewSessionViewV3Prompt', () => {
 					issue('Third assigned issue', '2026-08-07T10:00:00Z', 10),
 				],
 				pullRequests: [
+					pullRequest('Conflicted PR', '2026-08-07T14:30:00Z', 'FAILURE', undefined, undefined, 20, true),
 					pullRequest('CI is failing', '2026-08-07T13:00:00Z', 'FAILURE', undefined, undefined, 21),
 					pullRequest('Review feedback', '2026-08-07T12:00:00Z', undefined, '2026-08-07T09:00:00Z', '2026-08-07T10:00:00Z', 22),
 				],
@@ -254,7 +291,7 @@ suite('NewSessionViewV3Prompt', () => {
 					options: [
 						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
 						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
-						{ title: 'Fix CI #21', description: 'CI is failing', icon: { id: 'git-pull-request-error', color: 'charts.orange' } },
+						{ title: 'Resolve conflicts #20', description: 'Conflicted PR', icon: { id: 'git-pull-request-error', color: 'charts.orange' } },
 					],
 				},
 			],
@@ -775,12 +812,13 @@ async function runPrompt(
 	return { animation, promptOptionStates, telemetry: telemetryService.events, gitHubRequests: gitHubService.requests };
 }
 
-function pullRequest(title: string, updatedAt: string, statusCheckRollupState?: string, latestCommitAt?: string, latestCommentAt?: string, number = 1) {
+function pullRequest(title: string, updatedAt: string, statusCheckRollupState?: string, latestCommitAt?: string, latestCommentAt?: string, number = 1, hasMergeConflicts = false) {
 	return {
 		number,
 		title,
 		url: `https://github.com/o/r/pull/${encodeURIComponent(title)}`,
 		updatedAt,
+		hasMergeConflicts,
 		statusCheckRollupState,
 		latestCommitAt,
 		reviewThreads: latestCommentAt ? [{ isResolved: false, latestCommentAt }] : [],

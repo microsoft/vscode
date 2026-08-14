@@ -321,7 +321,6 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			uri: customization.uri as ProtocolURI,
 			name: customization.displayName,
 			nonce: '1',
-			enabled: true,
 		}));
 		client.dispatch({
 			channel: sessionUri,
@@ -336,13 +335,17 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			},
 		});
 		await client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet) && getActionEnvelope(n).channel === sessionUri, NOTIFICATION_TIMEOUT_MS);
+		const customizationsSettled = client.waitForNotification(n => isSettledCustomizationsNotification(n, sessionUri), NOTIFICATION_TIMEOUT_MS);
 		client.clearReceived();
 		dispatchTurn(client, sessionUri, turnId, 'hello', 2);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), NOTIFICATION_TIMEOUT_MS);
-		await client.waitForNotification(
-			n => isActionNotification(n, ActionType.SessionReady) && getActionEnvelope(n).channel === sessionUri,
-			NOTIFICATION_TIMEOUT_MS,
-		);
+		await Promise.all([
+			client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), NOTIFICATION_TIMEOUT_MS),
+			client.waitForNotification(
+				n => isActionNotification(n, ActionType.SessionReady) && getActionEnvelope(n).channel === sessionUri,
+				NOTIFICATION_TIMEOUT_MS,
+			),
+			customizationsSettled,
+		]);
 
 		return await fetchSessionWithChat(client, sessionUri);
 	}

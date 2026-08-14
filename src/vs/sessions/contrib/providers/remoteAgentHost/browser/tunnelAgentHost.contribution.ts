@@ -8,7 +8,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import * as nls from '../../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -209,8 +209,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		return this._tunnelService.getCachedTunnels().filter(tunnel => !this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId));
 	}
 
-	private _isHostedTunnel(tunnel: { readonly name: string }): boolean {
-		return this._tunnelHostService.sharingInfo?.tunnelName === tunnel.name;
+	private _isHostedTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
+		return isTunnelHosted(this._tunnelHostService.sharingInfo, tunnel);
 	}
 
 	private _resetHostedTunnelReconnectState(): void {
