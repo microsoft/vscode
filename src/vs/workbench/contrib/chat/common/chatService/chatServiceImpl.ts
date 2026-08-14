@@ -53,6 +53,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImag
 import { IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
+import { ModelSelectionReason } from '../modelSelection.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
@@ -781,6 +782,12 @@ export class ChatService extends Disposable implements IChatService {
 			inputState,
 			isReadOnly: providedSession.isReadOnly,
 		}, debugOwner ?? 'ChatService#loadRemoteSession');
+
+		// The id is known but no metadata was found for it. Record it anyway so the input reclaims
+		// the model once it publishes, rather than settling on the default.
+		if (modelId && !historySelectedModel) {
+			modelRef.object.inputModel.setIntendedModel({ modelId, reason: ModelSelectionReason.SessionRestore });
+		}
 
 		logChangesToStateModel(modelRef.object.inputModel, `loadRemoteSession inputState source: session=${sessionResource.toString()}, chatSessionType=${chatSessionType}, historyModelId=${modelId}, agentUri=${agentUri?.toString()}, historySelectedModel=${historySelectedModel}, transferredSelectedModel=${providedSession.transferredState?.inputState?.selectedModel?.identifier}, storedSelectedModel=${storedInputState?.selectedModel?.identifier}, finalSelectedModel=${modelRef.object.inputModel.state.get()?.selectedModel?.identifier}, hasTransferredInputState=${!!providedSession.transferredState?.inputState}, hasStoredInputState=${!!storedInputState}, hasInitialData=${!!initialData}`, modelRef.object.inputModel.state.get(), undefined, this.logService);
 

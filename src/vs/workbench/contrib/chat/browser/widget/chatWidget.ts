@@ -2983,6 +2983,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const editedModelRequestOptions = isInlineEdit ? this.getSelectedModelRequestOptions() : undefined;
 		const editedModeKind = isInlineEdit ? this.input.currentModeKind : undefined;
 		const editedModeInfo = isInlineEdit ? this.input.currentModeInfo : undefined;
+		// Tools belong to the mode, so they come from the same editor at the same moment.
+		const editedModeRequestOptions = isInlineEdit ? this.getModeRequestOptions() : undefined;
 		let cancelledCurrentRequest = false;
 		if (isEditing) {
 			// Clear the carousel since the existing request is being replaced
@@ -3047,7 +3049,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
-		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
+		if (this.viewOptions.enableWorkingSet !== undefined && resolveEditedRequestSelection(editedModeKind, this.input.currentModeKind) === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 			const editingSessionAttachedContext: ChatRequestVariableSet = requestInputs.attachedContext;
 
@@ -3121,7 +3123,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				resolvedVariables: resolvedImageVariables,
 				noCommandDetection: options?.noCommandDetection,
 				isVoiceModeInput: options?.isVoiceModeInput,
-				...this.getModeRequestOptions(),
+				...resolveEditedRequestSelection(editedModeRequestOptions, this.getModeRequestOptions()),
 				modeInfo,
 				agentIdSilent: this._lockedAgent?.id,
 				queue: options?.queue,
