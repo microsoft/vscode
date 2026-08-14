@@ -22,6 +22,8 @@ import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEdito
 import { EditorResolution, IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
 import { ICodeEditorViewState, IDiffEditorViewState } from '../../../../../editor/common/editorCommon.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
 
 suite('Workbench editor utils', () => {
 
@@ -395,6 +397,34 @@ suite('Workbench editor utils', () => {
 		};
 
 		assert.strictEqual(isTextEditorViewState(diffEditorViewState), true);
+	});
+
+	test('editor tab action space reservation is compact by default and can be configured or enforced', async () => {
+		assert.strictEqual(DEFAULT_EDITOR_PART_OPTIONS.tabActionReserveSpace, false);
+
+		const configuredInstantiationService = workbenchInstantiationService({
+			configurationService: () => {
+				const configurationService = new TestConfigurationService({
+					workbench: { editor: { tabActionReserveSpace: true } }
+				});
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				return configurationService;
+			}
+		}, disposables);
+		const part = await createEditorPart(configuredInstantiationService, disposables);
+
+		const configured = part.partOptions.tabActionReserveSpace;
+		const compactOverride = part.enforcePartOptions({ tabActionReserveSpace: false });
+		assert.deepStrictEqual({
+			configured,
+			enforced: part.partOptions.tabActionReserveSpace,
+		}, {
+			configured: true,
+			enforced: false,
+		});
+
+		compactOverride.dispose();
+		assert.strictEqual(part.partOptions.tabActionReserveSpace, true);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

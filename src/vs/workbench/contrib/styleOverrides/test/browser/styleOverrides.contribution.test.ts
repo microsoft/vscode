@@ -576,6 +576,57 @@ suite('StyleOverridesContribution', () => {
 		});
 	});
 
+	test('keeps clean editor tabs compact while reserving persistent indicators', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui-tabs';
+		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
+		root.style.setProperty('--vscode-spacing-size280', '28px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const compactTitle = appendElement(editor, 'title tabs');
+		const compactTabs = appendElement(compactTitle, 'tabs-container');
+		const compactTab = appendElement(compactTabs, 'tab');
+		const dirtyTab = appendElement(compactTabs, 'tab dirty');
+		const dirtyCloseOffTab = appendElement(compactTabs, 'tab dirty close-action-off');
+		const dirtyBorderTopTab = appendElement(compactTabs, 'tab dirty dirty-border-top close-action-off');
+		const stickyTab = appendElement(compactTabs, 'tab sticky');
+		const stickyActionOffTab = appendElement(compactTabs, 'tab sticky pinned-action-off close-action-off');
+		const dirtyLeftTab = appendElement(compactTabs, 'tab dirty tab-actions-left');
+		const dirtyBorderTopLeftTab = appendElement(compactTabs, 'tab dirty dirty-border-top close-action-off tab-actions-left');
+		const reservedTitle = appendElement(editor, 'title tabs tab-actions-reserve-space');
+		const reservedTabs = appendElement(reservedTitle, 'tabs-container');
+		const reservedTab = appendElement(reservedTabs, 'tab');
+		const reservedLeftTab = appendElement(reservedTabs, 'tab tab-actions-left');
+
+		const targetWindow = getWindow(root);
+		assert.deepStrictEqual({
+			compact: [targetWindow.getComputedStyle(compactTab).paddingLeft, targetWindow.getComputedStyle(compactTab).paddingRight],
+			dirty: [targetWindow.getComputedStyle(dirtyTab).paddingLeft, targetWindow.getComputedStyle(dirtyTab).paddingRight],
+			dirtyCloseOff: [targetWindow.getComputedStyle(dirtyCloseOffTab).paddingLeft, targetWindow.getComputedStyle(dirtyCloseOffTab).paddingRight],
+			dirtyBorderTop: [targetWindow.getComputedStyle(dirtyBorderTopTab).paddingLeft, targetWindow.getComputedStyle(dirtyBorderTopTab).paddingRight],
+			sticky: [targetWindow.getComputedStyle(stickyTab).paddingLeft, targetWindow.getComputedStyle(stickyTab).paddingRight],
+			stickyActionOff: [targetWindow.getComputedStyle(stickyActionOffTab).paddingLeft, targetWindow.getComputedStyle(stickyActionOffTab).paddingRight],
+			dirtyLeft: [targetWindow.getComputedStyle(dirtyLeftTab).paddingLeft, targetWindow.getComputedStyle(dirtyLeftTab).paddingRight],
+			dirtyBorderTopLeft: [targetWindow.getComputedStyle(dirtyBorderTopLeftTab).paddingLeft, targetWindow.getComputedStyle(dirtyBorderTopLeftTab).paddingRight],
+			reserved: [targetWindow.getComputedStyle(reservedTab).paddingLeft, targetWindow.getComputedStyle(reservedTab).paddingRight],
+			reservedLeft: [targetWindow.getComputedStyle(reservedLeftTab).paddingLeft, targetWindow.getComputedStyle(reservedLeftTab).paddingRight],
+		}, {
+			compact: ['6px', '8px'],
+			dirty: ['6px', '28px'],
+			dirtyCloseOff: ['6px', '28px'],
+			dirtyBorderTop: ['6px', '8px'],
+			sticky: ['6px', '28px'],
+			stickyActionOff: ['6px', '8px'],
+			dirtyLeft: ['28px', '8px'],
+			dirtyBorderTopLeft: ['6px', '8px'],
+			reserved: ['6px', '28px'],
+			reservedLeft: ['28px', '8px'],
+		});
+	});
+
 	test('uses legacy color customizations for Modern UI editor tabs only', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark', {
 			[editorBackground]: '#000000',
