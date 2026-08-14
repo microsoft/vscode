@@ -783,6 +783,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private readonly _pendingSolicitedNarrations = new Map<string, IPendingSolicitedNarration>();
 	private static readonly _SOLICITED_NARRATION_AUDIO_START_TIMEOUT_MS = 30_000;
+	private static readonly _OMNI_RESPONSE_AUDIO_START_TIMEOUT_MS = 1_000;
 	private static readonly _VOICE_PROGRESS_INITIAL_DELAY_MS = 5_000;
 	private static readonly _VOICE_PROGRESS_INTERVAL_MS = 10_000;
 	private static readonly _MAX_VOICE_PROGRESS_PER_REQUEST = 5;
@@ -4684,7 +4685,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// timeout on the remainder.
 		const audioStartTimer = setTimeout(() => {
 			this._handleSolicitedNarrationAudioStartTimeout(narrationId);
-		}, VoiceSessionController._SOLICITED_NARRATION_AUDIO_START_TIMEOUT_MS);
+		}, kind === 'response' && this._isOmniVoiceInboxSession(sessionId)
+			? VoiceSessionController._OMNI_RESPONSE_AUDIO_START_TIMEOUT_MS
+			: VoiceSessionController._SOLICITED_NARRATION_AUDIO_START_TIMEOUT_MS);
 		this._pendingSolicitedNarrations.set(narrationId, {
 			sessionId,
 			kind,
@@ -4826,6 +4829,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _handleSolicitedNarrationAudioStartTimeout(narrationId: string): void {
 		const pending = this._pendingSolicitedNarrations.get(narrationId);
 		if (!pending || pending.hasReceivedAudio) {
+			return;
+		}
+		if (pending.kind === 'response'
+			&& this._isOmniVoiceInboxSession(pending.sessionId)
+			&& this.configurationService.getValue<boolean>('agents.voice.speakResponses') !== false) {
+			if (this._cancelledPendingNarrationIds.size >= 64) {
+				const oldest = this._cancelledPendingNarrationIds.values().next().value;
+				if (oldest !== undefined) {
+					this._cancelledPendingNarrationIds.delete(oldest);
+				}
+			}
+			this._cancelledPendingNarrationIds.add(narrationId);
+			this._speakTranscriptOnlyResponse(pending.sessionId, narrationId, pending).catch(error => {
+				this.logService.error('[voice] missing response audio fallback failed', error);
+			});
 			return;
 		}
 		this._pendingSolicitedNarrations.delete(narrationId);

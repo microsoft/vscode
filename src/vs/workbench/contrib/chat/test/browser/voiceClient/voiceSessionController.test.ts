@@ -4571,6 +4571,41 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('open omni synthesizes a completed response when narration sends no frames', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const synthesized: string[] = [];
+		Reflect.set(controller, 'speechService', new class extends mock<ISpeechService>() {
+			override async createTextToSpeechSession() {
+				return {
+					onDidChange: Event.None,
+					synthesize: async (text: string) => { synthesized.push(text); },
+				};
+			}
+		}());
+		const sessionId = URI.parse('vscode-chat://missing-response-audio').toString();
+		showSessionsInAgentsList(controller, sessionId);
+		await connectWithOmniOpen(controller, voiceClientService);
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+		) => void;
+
+		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The response completed without audio.', undefined);
+		await clock.tickAsync(1_000);
+
+		assert.deepStrictEqual({
+			narrations: voiceClientService.requests.map(request => request.text),
+			synthesized,
+		}, {
+			narrations: ['The response completed without audio.'],
+			synthesized: ['The response completed without audio.'],
+		});
+	});
+
 	test('open omni does not claim audio from a session missing from the Agents list', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
