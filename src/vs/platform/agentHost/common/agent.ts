@@ -9,6 +9,7 @@ import { IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
+import type { JsonValue } from '@github/copilot-sdk';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
@@ -76,7 +77,7 @@ export interface IAgentHostManagedSettingsSnapshot {
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;
 	readonly managedKeys: readonly string[];
-	readonly settings?: Readonly<Record<string, unknown>>;
+	readonly settings?: JsonValue;
 }
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
