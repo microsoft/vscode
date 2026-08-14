@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -26,10 +27,14 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID } from '../../../../workbench/contrib/chat/common/chatInputWindow.js';
 import { OmniChatEnabledSettingId } from '../../../../workbench/contrib/chat/common/sessionRouter.js';
 import { Menus } from '../../../browser/menus.js';
+import { OmniCIFailureContribution } from './omniCIFailureContribution.js';
+import { BlockedSessionsCIFixModel, IBlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
 const SessionsContainerId = 'agentic.workbench.view.sessionsContainer';
+
+registerSingleton(IBlockedSessionsCIFixModel, BlockedSessionsCIFixModel, InstantiationType.Delayed);
 
 const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: SessionsContainerId,
@@ -90,6 +95,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(OmniCIFailureContribution.ID, OmniCIFailureContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionConversationsActionViewItemContribution.ID, SessionConversationsActionViewItemContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsMouseNavigationContribution.ID, SessionsMouseNavigationContribution, WorkbenchPhase.BlockRestore);

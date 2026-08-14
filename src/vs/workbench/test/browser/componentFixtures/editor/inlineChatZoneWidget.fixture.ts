@@ -54,6 +54,8 @@ import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widge
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -274,7 +276,16 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 					override readonly onDidChangeSessions = Event.None;
 				}();
 			}());
-			reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() { }());
+			reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly rootState: IAgentSubscription<RootState> = {
+					value: undefined,
+					verifiedValue: undefined,
+					onDidChange: Event.None,
+					onWillApplyAction: Event.None,
+					onDidApplyAction: Event.None,
+				};
+			}());
 			reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 				override readonly onDidChange = Event.None;
 				override get() { return undefined; }

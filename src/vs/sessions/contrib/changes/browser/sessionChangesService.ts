@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
+import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -118,6 +121,7 @@ export class SessionChangesService implements ISessionChangesService {
 		if (this.layoutService.isSinglePaneLayoutEnabled) {
 			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);
 			const pane = await this.editorService.openEditor(input, { ...editorOptions, pinned: true }, group);
+			await this.expandRevealTarget(pane?.input, editorOptions);
 			return pane?.group;
 		}
 
@@ -126,6 +130,21 @@ export class SessionChangesService implements ISessionChangesService {
 			label: localize('sessions.changes.title', 'Session Changes'),
 			options: editorOptions,
 		}, group);
+		await this.expandRevealTarget(pane?.input, editorOptions);
 		return pane?.group;
+	}
+
+	private async expandRevealTarget(input: EditorInput | undefined, options: IMultiDiffEditorOptions | undefined): Promise<void> {
+		const resource = options?.viewState?.revealData?.resource;
+		if (!resource || !(input instanceof SessionChangesEditorInput || input instanceof MultiDiffEditorInput)) {
+			return;
+		}
+
+		const viewModel = await input.getViewModel();
+		const item = viewModel.items.get().find(item =>
+			isEqual(item.originalUri, resource.original) && isEqual(item.modifiedUri, resource.modified));
+		if (item) {
+			viewModel.expand(item);
+		}
 	}
 }
