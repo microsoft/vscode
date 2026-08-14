@@ -312,6 +312,7 @@ export class ChatGroupsView extends Themable {
 		const activeChat = session.activeChat.read(reader);
 		const orderedIds = chats.map(c => c.resource.toString());
 		const validIds = new Set(orderedIds);
+		const activeId = activeChat?.resource.toString();
 
 		transaction(tx => {
 			// Prune stale assignments.
@@ -336,7 +337,14 @@ export class ChatGroupsView extends Themable {
 					continue;
 				}
 				const savedGroupId = this._restoreAssignment?.get(id);
-				const target = (savedGroupId !== undefined ? this._groups.find(g => g.id === savedGroupId) : undefined) ?? this._activeGroup;
+				let target = savedGroupId !== undefined ? this._groups.find(g => g.id === savedGroupId) : undefined;
+				const chat = chats.find(chat => chat.resource.toString() === id);
+				const parentResource = id === activeId ? chat?.origin?.parentChat : undefined;
+				const parentGroup = parentResource
+					? this._groups.find(group => group.resourceIds.get().includes(parentResource.toString()))
+					: undefined;
+				target ??= parentGroup ? this._findAdjacentGroup(parentGroup) : undefined;
+				target ??= this._activeGroup;
 				if (target) {
 					target.resourceIds.set([...target.resourceIds.get(), id], tx);
 				}
@@ -354,21 +362,8 @@ export class ChatGroupsView extends Themable {
 				}
 			}
 
-			const activeId = activeChat?.resource.toString();
 			if (activeId && activeId !== this._lastSessionActiveChatId) {
-				let owner = this._groups.find(g => g.resourceIds.get().includes(activeId));
-				const parentResource = activeChat.origin?.parentChat;
-				const parentGroup = parentResource
-					? this._groups.find(group => group.resourceIds.get().includes(parentResource.toString()))
-					: undefined;
-				const adjacentGroup = parentGroup && this._findAdjacentGroup(parentGroup);
-				if (owner && adjacentGroup && owner !== adjacentGroup) {
-					this._detachChatFromGroup(owner, activeId, tx);
-					if (!adjacentGroup.resourceIds.get().includes(activeId)) {
-						adjacentGroup.resourceIds.set([...adjacentGroup.resourceIds.get(), activeId], tx);
-					}
-					owner = adjacentGroup;
-				}
+				const owner = this._groups.find(g => g.resourceIds.get().includes(activeId));
 				if (owner) {
 					owner.activeResourceId.set(activeId, tx);
 					this._setActiveGroup(owner);
@@ -463,14 +458,14 @@ export class ChatGroupsView extends Themable {
 		this._persistLayout();
 	}
 
-	private _splitChatIntoNewGroup(resource: URI, source: IGroupEntry, reference: IGroupEntry, zone: ChatDropZone): void {
+	private _splitChatIntoNewGroup(resource: URI, source: IGroupEntry, reference: IGroupEntry, zone: Exclude<ChatDropZone, 'center'>): void {
 		if (!this._grid || !this._currentSessionStore || !this._session) {
 			return;
 		}
 		const id = resource.toString();
 		const newGroup = this._createGroupEntry(this._session);
 		this._grid.addView(newGroup.view, Sizing.Distribute, reference.view, this._zoneToDirection(zone));
-		this._groups.push(newGroup);
+		this._insertGroup(newGroup, reference, zone);
 		this._setGroupCount(this._groups.length);
 
 		transaction(tx => {
@@ -530,7 +525,7 @@ export class ChatGroupsView extends Themable {
 
 		const newGroup = this._createGroupEntry(session);
 		this._grid.addView(newGroup.view, Sizing.Distribute, reference.view, Direction.Right);
-		this._groups.push(newGroup);
+		this._insertGroup(newGroup, reference, 'right');
 		this._setGroupCount(this._groups.length);
 
 		transaction(tx => {
@@ -561,6 +556,12 @@ export class ChatGroupsView extends Themable {
 
 		const referenceIndex = this._groups.indexOf(reference);
 		return this._groups[referenceIndex + 1] ?? this._groups[referenceIndex - 1];
+	}
+
+	private _insertGroup(group: IGroupEntry, reference: IGroupEntry, zone: Exclude<ChatDropZone, 'center'>): void {
+		const referenceIndex = this._groups.indexOf(reference);
+		const insertBefore = zone === 'left' || zone === 'top';
+		this._groups.splice(referenceIndex + (insertBefore ? 0 : 1), 0, group);
 	}
 
 	/**
@@ -689,8 +690,27 @@ export class ChatGroupsView extends Themable {
 		this._setActiveGroup(entry);
 		const session = this._session;
 		if (session && !session.isArchived.get()) {
+			const existingIds = new Set(session.visibleChatTabs.get().map(chat => chat.resource.toString()));
 			await this._sessionsService.openNewChatInSession(session);
-			if (this._session === session) {
+			if (this._session === session && this._groups.includes(entry)) {
+				const createdChat = session.activeChat.get();
+				const createdId = createdChat.resource.toString();
+				if (!existingIds.has(createdId) && session.visibleChatTabs.get().includes(createdChat)) {
+					transaction(tx => {
+						for (const group of this._groups) {
+							if (group !== entry && group.resourceIds.get().includes(createdId)) {
+								this._detachChatFromGroup(group, createdId, tx);
+							}
+						}
+						if (!entry.resourceIds.get().includes(createdId)) {
+							entry.resourceIds.set([...entry.resourceIds.get(), createdId], tx);
+						}
+						entry.activeResourceId.set(createdId, tx);
+					});
+					this._setActiveGroup(entry);
+					this._removeEmptyGroups();
+					this._persistLayout();
+				}
 				entry.view.focus();
 			}
 		}

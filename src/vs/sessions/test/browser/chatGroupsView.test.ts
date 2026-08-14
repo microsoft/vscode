@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../base/browser/window.js';
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
@@ -102,6 +103,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 
 class TestSessionsService extends mock<ISessionsService>() {
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
+	newChatGate: Promise<void> | undefined;
 
 	override async openChat(session: ISession, chatUri: URI): Promise<void> {
 		if (!(session instanceof TestActiveSession)) {
@@ -122,6 +124,7 @@ class TestSessionsService extends mock<ISessionsService>() {
 		if (!(session instanceof TestActiveSession)) {
 			return;
 		}
+		await this.newChatGate;
 		const chat = createChat(`new-${session.allChats.get().length}`, SessionStatus.Untitled);
 		session.allChats.set([...session.allChats.get(), chat], undefined);
 		session.visibleChatTabs.set([...session.visibleChatTabs.get(), chat], undefined);
@@ -245,6 +248,47 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('reopening a manually moved subagent preserves its group', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const subagent = createChat('subagent', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, secondary, subagent], [main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		await sessionsService.openChat(session, subagent.resource);
+		view.moveActiveChatToAdjacentGroup('previous');
+
+		await sessionsService.openChat(session, secondary.resource);
+		await sessionsService.openChat(session, subagent.resource);
+
+		const groups = Array.from(view.element.querySelectorAll('.chat-group-view'));
+		assert.deepStrictEqual(groups.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)), [
+			[main.resource.toString(), subagent.resource.toString()],
+			[secondary.resource.toString()],
+		]);
+	});
+
+	test('left split updates logical and accessible group order', () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+
+		view['_onChatDrop'](view['_groups'][0].id, 'left', { sessionId: session.sessionId, resource: secondary.resource.toString() });
+
+		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		const labelByChat = Object.fromEntries(groups.map(group => [
+			group.querySelector<HTMLElement>('.chat-composite-bar-tab')?.dataset.chatResource,
+			group.getAttribute('aria-label'),
+		]));
+		assert.deepStrictEqual(labelByChat, {
+			[secondary.resource.toString()]: 'Chat Group 1 of 2',
+			[main.resource.toString()]: 'Chat Group 2 of 2',
+		});
+	});
+
 	test('removing the focused group transfers focus to the remaining group', () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');
@@ -277,7 +321,40 @@ suite('Sessions - ChatGroupsView', () => {
 
 		group.querySelector<HTMLElement>('.chat-composite-bar-new-chat .action-label')!.click();
 		await Promise.resolve();
+		await Promise.resolve();
 
 		assert.strictEqual(group.contains(mainWindow.document.activeElement), true);
+	});
+
+	test('new chat remains assigned to the group where creation started', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view.focusAdjacentGroup('previous');
+		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		const mainGroup = groups.find(group => group.querySelector<HTMLElement>('.chat-composite-bar-tab')?.dataset.chatResource === main.resource.toString())!;
+		const gate = new DeferredPromise<void>();
+		sessionsService.newChatGate = gate.p;
+
+		mainGroup.querySelector<HTMLElement>('.chat-composite-bar-new-chat .action-label')!.click();
+		view.focusAdjacentGroup('next');
+		gate.complete();
+		await gate.p;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const newChat = session.activeChat.get();
+		assert.deepStrictEqual({
+			mainGroupTabs: Array.from(mainGroup.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
+			secondaryGroupTabs: Array.from(groups.find(group => group !== mainGroup)!.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
+			focusInMainGroup: mainGroup.contains(mainWindow.document.activeElement),
+		}, {
+			mainGroupTabs: [main.resource.toString(), newChat.resource.toString()],
+			secondaryGroupTabs: [secondary.resource.toString()],
+			focusInMainGroup: true,
+		});
 	});
 });
