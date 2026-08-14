@@ -86,41 +86,38 @@
 .chat-provider-setup-list {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 1px;
 }
 
+/*
+ * A row is a line of text you can click, not a card. Dropping the border,
+ * the fill and the button leaves only the three things that carry meaning --
+ * mark, name, description -- and the hover does the work the box was doing.
+ */
 .chat-provider-setup-row {
 	display: flex;
 	align-items: center;
 	gap: 10px;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 9px 11px;
-	/*
-	 * `contrastBorder` is only set by high-contrast themes, where the
-	 * tinted border below is too faint to define the row.
-	 */
-	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent));
-	border-radius: 8px;
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
-	transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+	padding: 8px 10px;
+	border: none;
+	border-radius: 6px;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	transition: background 100ms ease;
 }
 
 .chat-provider-setup-row:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 6%, transparent);
-	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 14%, transparent);
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
 }
 
-/* Copilot is the shortest path to a working setup, so it carries more weight. */
-.chat-provider-setup-row.primary {
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 42%, transparent);
-	background: color-mix(in srgb, var(--vscode-focusBorder) 9%, transparent);
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
-}
-
-.chat-provider-setup-row.primary:hover {
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 60%, transparent);
-	background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
+.chat-provider-setup-row:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .chat-provider-setup-mark {
@@ -128,14 +125,10 @@
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 auto;
-	width: 20px;
-	height: 20px;
-	color: var(--vscode-editor-foreground);
-	opacity: 0.85;
-}
-
-.chat-provider-setup-row.primary .chat-provider-setup-mark {
-	opacity: 1;
+	width: 18px;
+	height: 18px;
+	color: var(--vscode-foreground);
+	opacity: 0.9;
 }
 
 .chat-provider-setup-mark .codicon {
@@ -166,11 +159,6 @@
 	min-width: 0;
 }
 
-/*
- * The name stays on one line so the column scans; the description wraps
- * instead of truncating, because a description cut to "Use your OpenAI
- * account…" spends a line to say nothing.
- */
 .chat-provider-setup-name {
 	font-size: 12px;
 	font-weight: 600;
@@ -187,68 +175,44 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.chat-provider-setup-action {
+/* Points where the row goes; appears on approach rather than shouting. */
+.chat-provider-setup-go {
+	display: flex;
+	align-items: center;
 	flex: 0 0 auto;
-	padding: 4px 11px;
-	border: 1px solid var(--vscode-button-border, transparent);
-	border-radius: 5px;
-	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	font-size: 11px;
-	font-weight: 500;
-	cursor: pointer;
-	transition: background 120ms ease;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0;
+	transition: opacity 100ms ease;
 }
 
-.chat-provider-setup-action:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
+.chat-provider-setup-row:hover .chat-provider-setup-go,
+.chat-provider-setup-row:focus-visible .chat-provider-setup-go {
+	opacity: 1;
 }
 
-.chat-provider-setup-action.primary {
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	font-weight: 600;
-}
-
-.chat-provider-setup-action.primary:hover {
-	background: var(--vscode-button-hoverBackground);
-}
-
-.chat-provider-setup-action:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
+.chat-provider-setup-go .codicon {
+	font-size: 14px;
 }
 
 /*
- * Wide surfaces (the Agents composer, or a sidebar dragged out) get the rows
- * side by side. Each becomes a small card: the mark and copy stack above a
- * full-width action, so the three options read as siblings rather than as a
- * list that happened to be stretched.
+ * Wide surfaces (the Agents composer) lay the rows out side by side. They
+ * stay plain lines there too -- only the direction changes.
  */
 @container (min-width: 620px) {
 	.chat-provider-setup-list {
 		flex-direction: row;
 		align-items: stretch;
-		gap: 10px;
+		gap: 4px;
 	}
 
 	.chat-provider-setup-row {
 		flex: 1 1 0;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 6px;
-		padding: 12px;
 		min-width: 0;
 	}
 
-	.chat-provider-setup-copy {
-		flex: 1 1 auto;
-		gap: 2px;
-	}
-
-	.chat-provider-setup-action {
-		width: 100%;
-		padding: 5px 11px;
-		text-align: center;
+	.chat-provider-setup-description {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 }

@@ -44,7 +44,8 @@ export namespace ChatEntitlementContextKeys {
 		untrusted: new RawContextKey<boolean>('chatSetupUntrusted', false, true),  	// True when the chat extension is disabled due to workspace trust.
 		later: new RawContextKey<boolean>('chatSetupLater', false, true),  			// True when the user wants to finish setup later.
 		registered: new RawContextKey<boolean>('chatSetupRegistered', false, true), // True when the user has registered as Free or Pro user.
-		completed: new RawContextKey<boolean>('chatSetupCompleted', false, true)	// True when the user has completed the setup flow, regardless of the outcome.
+		completed: new RawContextKey<boolean>('chatSetupCompleted', false, true),	// True when the user has completed the setup flow, regardless of the outcome.
+		providerListVisible: new RawContextKey<boolean>('chatProviderListVisible', false, true)	// True while a chat surface is offering the signed-out provider list, which supersedes other sign-in prompts.
 	};
 
 	export const Entitlement = {

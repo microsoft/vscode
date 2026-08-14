@@ -8,10 +8,12 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
@@ -69,8 +71,15 @@ export class ChatProviderSetupPart extends Disposable {
 		private readonly options: IChatProviderSetupOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		// While this list is up it is the sign-in affordance, so other prompts
+		// for the same thing (the title-bar indicator) stand down.
+		const visible = ChatEntitlementContextKeys.Setup.providerListVisible.bindTo(contextKeyService);
+		visible.set(true);
+		this._register(toDisposable(() => visible.reset()));
 
 		this.element = $('.chat-provider-setup');
 		this.render();
@@ -136,8 +145,13 @@ export class ChatProviderSetupPart extends Disposable {
 	}
 
 	private renderRow(list: HTMLElement, descriptor: IChatProviderRow): void {
-		const row = dom.append(list, $('.chat-provider-setup-row'));
+		// The whole row is the control. A row that only exists to hold a button
+		// is a box drawn around a button, so the box and the button collapse
+		// into one thing you can click.
+		const row = dom.append(list, $<HTMLButtonElement>('button.chat-provider-setup-row'));
+		row.type = 'button';
 		row.classList.toggle('primary', !!descriptor.primary);
+		row.setAttribute('aria-label', localize('chat.providerSetup.action.aria', "{0} — {1}", descriptor.name, descriptor.actionLabel));
 
 		const mark = dom.append(row, $('span.chat-provider-setup-mark'));
 		if (descriptor.markClass) {
@@ -153,13 +167,11 @@ export class ChatProviderSetupPart extends Disposable {
 		const description = dom.append(copy, $('span.chat-provider-setup-description'));
 		description.textContent = descriptor.description;
 
-		const action = dom.append(row, $<HTMLButtonElement>('button.chat-provider-setup-action'));
-		action.type = 'button';
-		action.classList.toggle('primary', !!descriptor.primary);
-		action.textContent = descriptor.actionLabel;
-		action.setAttribute('aria-label', localize('chat.providerSetup.action.aria', "{0} — {1}", descriptor.name, descriptor.actionLabel));
+		const chevron = dom.append(row, $('span.chat-provider-setup-go'));
+		chevron.appendChild(renderIcon(Codicon.chevronRight));
+		chevron.setAttribute('aria-hidden', 'true');
 
-		this._register(dom.addDisposableListener(action, dom.EventType.CLICK, () => {
+		this._register(dom.addDisposableListener(row, dom.EventType.CLICK, () => {
 			this.telemetryService.publicLog2<ChatProviderSetupEvent, ChatProviderSetupClassification>('chat.providerSetup.selected', { provider: descriptor.id });
 			this.commandService.executeCommand(descriptor.commandId);
 		}));

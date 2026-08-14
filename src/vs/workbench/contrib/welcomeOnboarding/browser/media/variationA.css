@@ -323,7 +323,7 @@
 .onboarding-a-provider-list {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 2px;
 	width: 100%;
 }
 
@@ -334,21 +334,17 @@
 	gap: 12px;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 13px 16px;
-	/*
-	 * `contrastBorder` is only set by high-contrast themes, where the
-	 * tinted border below is too faint to define the row.
-	 */
-	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent));
-	border-radius: 10px;
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
+	padding: 11px 12px;
+	/* Only high-contrast themes need a drawn edge; elsewhere the row is a line. */
+	border: 1px solid var(--vscode-contrastBorder, transparent);
+	border-radius: 8px;
+	background: none;
 	cursor: pointer;
 	transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .onboarding-a-provider-row:hover {
-	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 14%, transparent);
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 6%, transparent);
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
 }
 
 /*
@@ -356,14 +352,11 @@
  * glance without the list turning into a field of competing colour.
  */
 .onboarding-a-provider-row.selected {
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 42%, transparent);
-	background: color-mix(in srgb, var(--vscode-focusBorder) 9%, transparent);
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16), 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 14%, transparent);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent);
 }
 
 .onboarding-a-provider-row.selected:hover {
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 60%, transparent);
-	background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 14%, transparent);
 }
 
 /* Copilot leads, so its row is taller — weight without a louder colour. */
