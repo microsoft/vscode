@@ -1819,6 +1819,75 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('defers a proxy-change restart until credential updates finish', async () => {
+		const client = new TestCopilotClient([]);
+		const proxyResolver = new TestProxyResolver();
+		const proxyResolutionGate = new DeferredPromise<void>();
+		const credentialUpdateStarted = new DeferredPromise<void>();
+		const credentialUpdateGate = new DeferredPromise<void>();
+		const agent = createTestAgent(disposables, { copilotClient: client, proxyResolver });
+		const session = {
+			hasActiveTurn: false,
+			disposed: false,
+			disposedBeforeUpdateCompleted: false,
+			async updateGitHubCredentials() {
+				credentialUpdateStarted.complete();
+				await credentialUpdateGate.p;
+				this.disposedBeforeUpdateCompleted = this.disposed;
+				return { success: true };
+			},
+			dispose() { this.disposed = true; },
+		} satisfies ICredentialUpdateSession & { disposed: boolean; disposedBeforeUpdateCompleted: boolean };
+		const pendingRestartCount = () => (agent as unknown as { _pendingClientRestartReasons: Set<string> })._pendingClientRestartReasons.size;
+		try {
+			await agent.listChatsToMigrate();
+			setDefaultSessionStub(agent, 'proxy-change-during-credentials', session);
+			proxyResolver.resolvedProxy = 'http://new-proxy:8080';
+			proxyResolver.resolveProxyGate = proxyResolutionGate.p;
+
+			const authentication = agent.authenticate('https://api.github.com', 'fresh-token');
+			await credentialUpdateStarted.p;
+			proxyResolutionGate.complete();
+			for (let i = 0; i < 20 && pendingRestartCount() === 0 && client.stopCallCount === 0; i++) {
+				await timeout(0);
+			}
+			const duringUpdate = {
+				stops: client.stopCallCount,
+				disposed: session.disposed,
+				pendingRestarts: pendingRestartCount(),
+			};
+
+			credentialUpdateGate.complete();
+			await authentication;
+
+			assert.deepStrictEqual({
+				duringUpdate,
+				disposedBeforeUpdateCompleted: session.disposedBeforeUpdateCompleted,
+				afterUpdate: {
+					stops: client.stopCallCount,
+					disposed: session.disposed,
+					pendingRestarts: pendingRestartCount(),
+				},
+			}, {
+				duringUpdate: {
+					stops: 0,
+					disposed: false,
+					pendingRestarts: 1,
+				},
+				disposedBeforeUpdateCompleted: false,
+				afterUpdate: {
+					stops: 1,
+					disposed: true,
+					pendingRestarts: 0,
+				},
+			});
+		} finally {
+			proxyResolutionGate.complete();
+			credentialUpdateGate.complete();
+			await disposeAgent(agent);
+		}
+	});
+
 	test('defers a proxy-change restart until an active turn ends', async () => {
 		const client = new TestCopilotClient([]);
 		const proxyResolver = new TestProxyResolver();
