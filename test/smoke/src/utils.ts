@@ -152,14 +152,15 @@ export function installAppAfterHandler(appFn?: () => Application | undefined, jo
 }
 
 export function createApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions): Application {
+	if (options.userDataDir) {
+		options = { ...options, userDataDir: getRandomUserDataDir(options.userDataDir) };
+	}
+
 	if (optionsTransform) {
 		options = optionsTransform({ ...options });
 	}
 
-	const config = options.userDataDir
-		? { ...options, userDataDir: getRandomUserDataDir(options.userDataDir) }
-		: options;
-	const app = new Application(config);
+	const app = new Application(options);
 
 	return app;
 }
@@ -281,10 +282,8 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
  * The runtime writes its process logs to `${COPILOT_HOME}/logs`, and
  * `getCopilotSmokeTestEnv` pins `COPILOT_HOME` for the run. Diagnostics resolve
  * the directory from the *exact* `COPILOT_HOME` the app launched with (read back
- * via `app.extraEnv`) rather than reconstructing it from the randomized
- * `userDataDir`: `createApp` appends a random suffix to `userDataDir` *after*
- * the env is computed, so a path derived from `app.userDataPath` would not match
- * where the runtime actually wrote. There is deliberately no fall back to the
+ * via `app.extraEnv`) rather than reconstructing it from `app.userDataPath`.
+ * There is deliberately no fall back to the
  * ambient `~/.copilot/logs` — on a reused CI agent that could surface an
  * unrelated session's trace log (session/model/auth diagnostics), which we must
  * never copy into an uploaded artifact.
