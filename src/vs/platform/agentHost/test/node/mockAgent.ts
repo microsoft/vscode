@@ -10,11 +10,11 @@ import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/c
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
@@ -47,6 +47,8 @@ interface IMockSendMessageCall {
  * for assertion and exposes {@link fireProgress} to inject progress events.
  */
 export class MockAgent implements IAgent {
+	private readonly _discoveredChatsEmitter = new Emitter<readonly IAgentDiscoveredChat[]>();
+	readonly onDidDiscoverChats = this._discoveredChatsEmitter.event;
 	private readonly _onDidChatProgress = new Emitter<AgentSignal>();
 	readonly onDidChatProgress = this._onDidChatProgress.event;
 	readonly onDidMaterializeChat = Event.None;
@@ -56,6 +58,8 @@ export class MockAgent implements IAgent {
 	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
+	private readonly _authenticationRequired = observableValue<Omit<AuthRequiredParams, 'channel'> | undefined>(this, undefined);
+	readonly authenticationRequired = this._authenticationRequired;
 
 	private readonly _sessions = new Map<string, URI>();
 	private readonly _initialChats = new Set<string>();
@@ -112,7 +116,19 @@ export class MockAgent implements IAgent {
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
 
-	constructor(readonly id: AgentProvider = 'mock') { }
+	constructor(readonly id: AgentProvider = 'mock') {
+		queueMicrotask(() => {
+			void this.listExternalChats().then(chats => {
+				if (chats) {
+					this.fireDiscoveredChats(chats.map(metadata => ({ ...metadata, external: true })));
+				}
+			}, () => { });
+		});
+	}
+
+	setAuthenticationRequired(requirement: Omit<AuthRequiredParams, 'channel'> | undefined): void {
+		this._authenticationRequired.set(requirement, undefined);
+	}
 
 	getDescriptor(): IAgentDescriptor {
 		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, capabilities: { multipleChats: { fork: true } } };
@@ -129,8 +145,16 @@ export class MockAgent implements IAgent {
 		this._models.set(models, undefined);
 	}
 
-	async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+	async listExternalChats(): Promise<IAgentChatMetadata[]> {
 		return [...this._sessions.values()].map(session => ({ chat: URI.parse(buildDefaultChatUri(session)), startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }));
+	}
+
+	fireDiscoveredChats(chats: readonly IAgentDiscoveredChat[]): void {
+		this._discoveredChatsEmitter.fire(chats);
+	}
+
+	async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+		return [];
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
@@ -433,6 +457,7 @@ export class MockAgent implements IAgent {
 	}
 
 	dispose(): void {
+		this._discoveredChatsEmitter.dispose();
 		this._onDidChatProgress.dispose();
 		this._onDidSendMessage.dispose();
 		this._onDidCustomizationsChange.dispose();
@@ -449,6 +474,8 @@ export class MockAgent implements IAgent {
 export const PRE_EXISTING_SESSION_URI = AgentSession.uri('mock', 'pre-existing-session');
 
 export class ScriptedMockAgent implements IAgent {
+	private readonly _discoveredChatsEmitter = new Emitter<readonly IAgentDiscoveredChat[]>();
+	readonly onDidDiscoverChats = this._discoveredChatsEmitter.event;
 	readonly id: AgentProvider = 'mock';
 
 	private readonly _onDidChatProgress = new Emitter<AgentSignal>();
@@ -482,6 +509,13 @@ export class ScriptedMockAgent implements IAgent {
 	constructor() {
 		// Seed the pre-existing session so it appears in listSessions()
 		this._sessions.set(AgentSession.id(PRE_EXISTING_SESSION_URI), PRE_EXISTING_SESSION_URI);
+		queueMicrotask(() => {
+			void this.listExternalChats().then(chats => {
+				if (chats) {
+					this.fireDiscoveredChats(chats.map(metadata => ({ ...metadata, external: true })));
+				}
+			}, () => { });
+		});
 
 		// Allow integration tests to seed additional pre-existing sessions across
 		// server restarts via env var. The value is a comma-separated list of
@@ -507,7 +541,7 @@ export class ScriptedMockAgent implements IAgent {
 		return [];
 	}
 
-	async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+	async listExternalChats(): Promise<IAgentChatMetadata[]> {
 		return [...this._sessions.values()].map(session => ({
 			chat: URI.parse(buildDefaultChatUri(session)),
 			startTime: Date.now(),
@@ -515,6 +549,14 @@ export class ScriptedMockAgent implements IAgent {
 			project: mockProject(this.id),
 			summary: session.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined,
 		}));
+	}
+
+	fireDiscoveredChats(chats: readonly IAgentDiscoveredChat[]): void {
+		this._discoveredChatsEmitter.fire(chats);
+	}
+
+	async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+		return [];
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
@@ -1097,6 +1139,7 @@ export class ScriptedMockAgent implements IAgent {
 	async shutdown(): Promise<void> { }
 
 	dispose(): void {
+		this._discoveredChatsEmitter.dispose();
 		this._onDidChatProgress.dispose();
 	}
 

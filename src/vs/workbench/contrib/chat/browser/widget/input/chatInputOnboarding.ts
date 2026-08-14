@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { setVisibility } from '../../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IChatInputNoticeClaimOptions, IChatInputNoticeFocusTarget, IChatInputSurface, pickActiveChatInput, trackChatInputRecency } from './chatInputNoticeHost.js';
+import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
 
 /**
  * The space above one chat input, as offered to an introduction. Claiming it is
@@ -39,7 +39,6 @@ type ChatInputOnboardingFactory = (context: IChatInputOnboardingContext) => ICha
 
 export interface IChatInputOnboardingOptions {
 	readonly storageKey: string;
-	readonly hostClass: string;
 }
 
 export interface IChatInputOnboardingContext {
@@ -210,7 +209,7 @@ export class ChatInputOnboarding extends Disposable {
 		this.activeBanner?.setVisible?.(false);
 		// Focus is handed back to the input by whatever took the space, so the card
 		// only has to take itself off screen.
-		setVisibility(false, host.container);
+		setChatInputStackSlot(host.container, ChatInputStackSlot.Empty);
 	}
 
 	private build(): void {
@@ -223,14 +222,12 @@ export class ChatInputOnboarding extends Disposable {
 		// Already built and merely standing down: show it again rather than
 		// rebuilding, so in-flight state survives and it is not announced twice.
 		if (this.currentOnboarding.value) {
-			setVisibility(true, host.container);
+			setChatInputStackSlot(host.container, ChatInputStackSlot.Standalone);
 			this.activeBanner?.setVisible?.(true);
 			return;
 		}
 
 		const onboardingStore = new DisposableStore();
-		host.container.classList.add(this.options.hostClass);
-		onboardingStore.add(toDisposable(() => host.container.classList.remove(this.options.hostClass)));
 
 		let banner: IChatInputOnboardingBanner;
 		try {
@@ -258,7 +255,7 @@ export class ChatInputOnboarding extends Disposable {
 
 		this.currentOnboarding.value = onboardingStore;
 		this.activeBanner = banner;
-		setVisibility(true, host.container);
+		setChatInputStackSlot(host.container, ChatInputStackSlot.Standalone);
 		// Recorded when the card is actually put in front of the user, so being
 		// deferred or put away never counts as having been seen.
 		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
@@ -288,7 +285,7 @@ export class ChatInputOnboarding extends Disposable {
 		this.leading = false;
 		this.currentOnboarding.clear();
 		if (host) {
-			setVisibility(true, host.container);
+			setChatInputStackSlot(host.container, ChatInputStackSlot.Empty);
 		}
 		if (wasVisible && restoreFocus) {
 			host?.focus?.();

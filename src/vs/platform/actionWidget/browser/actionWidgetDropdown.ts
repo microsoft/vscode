@@ -86,6 +86,10 @@ export interface IActionWidgetDropdownActionProvider {
 	getActions(): IActionWidgetDropdownAction[];
 }
 
+export interface IActionWidgetDropdownListOptionsProvider {
+	getListOptions(): IActionListOptions;
+}
+
 export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 	// These are the actions that are shown in the action widget split up by category
 	readonly actions?: IActionWidgetDropdownAction[];
@@ -110,6 +114,11 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 	 * Options for the underlying ActionList (filter, collapsible sections).
 	 */
 	readonly listOptions?: IActionListOptions;
+	/**
+	 * Provides the ActionList options each time the dropdown opens. Evaluated fresh on every open
+	 * (like {@link actionProvider}); used only when {@link listOptions} is not set.
+	 */
+	readonly listOptionsProvider?: IActionWidgetDropdownListOptionsProvider;
 	/** Returns the action id to focus each time the dropdown opens. */
 	readonly getInitialFocusActionId?: () => string | undefined;
 }
@@ -298,7 +307,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		super.show();
 
-		const listOptions = withActionWidgetDropdownMotion(this._options.listOptions);
+		const listOptions = withActionWidgetDropdownMotion(this._options.listOptions ?? this._options.listOptionsProvider?.getListOptions());
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',
 			false,

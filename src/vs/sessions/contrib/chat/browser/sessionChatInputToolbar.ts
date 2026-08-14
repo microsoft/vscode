@@ -11,14 +11,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { getTurnChangesEditorLabel, LastTurnChangesMultiDiffSourceResolver } from './lastTurnChangesMultiDiffSourceResolver.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
@@ -124,7 +123,7 @@ export class SessionChatInputToolbar extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@IEditorService private readonly _editorService: IEditorService,
+		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -216,17 +215,13 @@ export class SessionChatInputToolbar extends Disposable {
 		return active?.chats.read(reader).some(c => isEqual(c.resource, chatResource)) ? active : undefined;
 	}
 
-	private async _openChanges(): Promise<void> {
+	private _openChanges(): void {
 		const chat = this._chat.get();
 		if (!chat) {
 			return;
 		}
-		// The resolver live-updates the resources and title as the turn progresses.
-		const multiDiffSource = LastTurnChangesMultiDiffSourceResolver.getMultiDiffSourceUri(chat.resource);
-		await this._editorService.openEditor({
-			multiDiffSource,
-			label: getTurnChangesEditorLabel(isActiveSessionStatus(chat.status.get())),
-		});
+
+		this._chatResponseFileChangesService.openChangesForRequest(chat.resource, undefined, { isLastTurn: true });
 	}
 
 }
