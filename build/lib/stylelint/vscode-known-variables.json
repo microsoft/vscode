@@ -994,6 +994,7 @@
 		"--prompt-timeline-gutter-dot-gap",
 		"--prompt-timeline-gutter-more-height",
 		"--chat-input-notice-severity",
+		"--chat-input-notification-line-height",
 		"--chat-editing-last-edit-shift",
 		"--chat-voice-icon-glow-color",
 		"--sessions-voice-icon-glow-color",
