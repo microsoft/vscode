@@ -692,6 +692,8 @@
 		"--vscode-agentsPanel-background",
 		"--vscode-agentsPanel-border",
 		"--vscode-agentsPanel-foreground",
+		"--vscode-agentsCard-border",
+		"--vscode-agentsBottomPanel-border",
 		"--vscode-agentsBadge-background",
 		"--vscode-agentsBadge-foreground",
 		"--vscode-agentsGradient-tintColor",
