@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
 import { FetchFunction } from '../../common/githubTransport.js';
 
-export const nodeFetch: FetchFunction = (input, init) => {
+export const nodeFetch: FetchFunction = async (input, init) => {
+	const http = await import('http');
 	const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
 	const body = init?.body;
 	if (body !== undefined && body !== null && typeof body !== 'string') {

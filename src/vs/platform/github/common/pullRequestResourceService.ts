@@ -417,23 +417,26 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		const entryGeneration = entry.generation;
 		const headAtStart = isHeadFragment(fragment) ? entry.snapshot.get().core.value?.headSha : undefined;
 		this._setLoading(entry, fragment);
-		let operation: IFragmentOperation;
-		const promise = this._runFragmentFetch(
-			entry,
-			fragment,
-			interest,
-			entryGeneration,
-			fragmentGeneration,
-			headAtStart,
+		const operation: IFragmentOperation = {
 			controller,
-		).finally(() => {
-			if (entry.operations.get(fragment) === operation) {
-				entry.operations.delete(fragment);
-			}
-		});
-		operation = { controller, generation: fragmentGeneration, interest, promise };
+			generation: fragmentGeneration,
+			interest,
+			promise: this._runFragmentFetch(
+				entry,
+				fragment,
+				interest,
+				entryGeneration,
+				fragmentGeneration,
+				headAtStart,
+				controller,
+			).finally(() => {
+				if (entry.operations.get(fragment) === operation) {
+					entry.operations.delete(fragment);
+				}
+			}),
+		};
 		entry.operations.set(fragment, operation);
-		await raceCancellationError(promise, token);
+		await raceCancellationError(operation.promise, token);
 	}
 
 	private async _runFragmentFetch(

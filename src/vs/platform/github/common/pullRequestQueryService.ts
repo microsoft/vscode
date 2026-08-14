@@ -19,11 +19,10 @@ import {
 	PullRequestReviewThread,
 	PullRequestSubscriptionOptions,
 } from './githubPullRequestService.js';
-import { GitHubHostCapabilities } from './githubTypes.js';
+import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential } from './githubCredentialService.js';
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
-import { IGitHubEndpointProvider } from './githubTypes.js';
 import { PullRequestRequestPlanner } from './pullRequestRequestPlanner.js';
 
 export type PullRequestFragmentResult =
@@ -227,7 +226,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 					complete: plan.completeWhenSuccessful,
 					headSha: core.headSha,
 				};
-			case 'mergeability':
+			case 'mergeability': {
 				if (!core) {
 					throw new GitHubRequestError('Pull request core is required before mergeability', 'malformedResponse');
 				}
@@ -246,6 +245,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 					complete: mergeability.mergeable !== 'UNKNOWN' && mergeability.queueRequirementKnown,
 					headSha: mergeability.headSha,
 				};
+			}
 			case 'participants':
 				return {
 					fragment,

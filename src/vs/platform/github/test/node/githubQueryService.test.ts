@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -131,7 +132,7 @@ suite('GitHubQueryService', () => {
 		const clock = new FakeGitHubScheduler({ now: 0 });
 		const credentials = disposables.add(new TestCredentialService(account));
 		const transport = disposables.add(new GitHubTransport(nodeFetch));
-		const capabilityService = 'getCapabilities' in capabilities ? capabilities : new TestCapabilitiesService(capabilities);
+		const capabilityService = hasKey(capabilities, { getCapabilities: true }) ? capabilities : new TestCapabilitiesService(capabilities);
 		const service = disposables.add(new GitHubQueryService(
 			clock,
 			policy,

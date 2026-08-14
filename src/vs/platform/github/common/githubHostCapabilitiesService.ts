@@ -73,24 +73,27 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 		if (!cached) {
 			this._logService?.debug(`[GitHubHostCapabilitiesService] Probing capabilities for ${credential.account.host}${enterpriseVersion ? ` (${enterpriseVersion})` : ''}`);
 			const controller = new AbortController();
-			let entry: ICachedCapabilities;
-			const promise = this._probe(credential, controller.signal)
-				.then(result => {
-					if (!result.cache && this._cache.get(key) === entry) {
-						this._cache.delete(key);
-					}
-					this._logService?.debug(`[GitHubHostCapabilitiesService] Capabilities for ${credential.account.host}: ${formatCapabilities(result.capabilities)} (cached: ${result.cache})`);
-					return result.capabilities;
-				})
-				.catch(error => {
-					if (this._cache.get(key) === entry) {
-						this._cache.delete(key);
-					}
-					this._logService?.debug(`[GitHubHostCapabilitiesService] Capability probe failed for ${credential.account.host} (${capabilityErrorKind(error)})`);
-					throw error;
-				})
-				.finally(() => entry.settled = true);
-			entry = { controller, promise, waiters: 0, settled: false };
+			const entry: ICachedCapabilities = {
+				controller,
+				promise: this._probe(credential, controller.signal)
+					.then(result => {
+						if (!result.cache && this._cache.get(key) === entry) {
+							this._cache.delete(key);
+						}
+						this._logService?.debug(`[GitHubHostCapabilitiesService] Capabilities for ${credential.account.host}: ${formatCapabilities(result.capabilities)} (cached: ${result.cache})`);
+						return result.capabilities;
+					})
+					.catch(error => {
+						if (this._cache.get(key) === entry) {
+							this._cache.delete(key);
+						}
+						this._logService?.debug(`[GitHubHostCapabilitiesService] Capability probe failed for ${credential.account.host} (${capabilityErrorKind(error)})`);
+						throw error;
+					})
+					.finally(() => entry.settled = true),
+				waiters: 0,
+				settled: false,
+			};
 			cached = entry;
 			this._cache.set(key, cached);
 		} else {

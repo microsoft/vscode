@@ -5,6 +5,7 @@
 
 import { LRUCache } from '../../../base/common/map.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
 import { GitHubAccountHandle, GitHubFetch, GitHubRequestErrorKind, GitHubRequestPriority } from './githubTypes.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
@@ -702,10 +703,10 @@ function formatErrorBody(body: string): string | undefined {
 }
 
 function readGraphQLRateLimit(data: unknown): { limit?: number; remaining?: number; used?: number; resetAt?: string } | undefined {
-	if (!data || typeof data !== 'object' || !('rateLimit' in data)) {
+	if (!data || typeof data !== 'object' || !hasKey(data, { rateLimit: true })) {
 		return undefined;
 	}
-	const rateLimit = data.rateLimit;
+	const rateLimit = Reflect.get(data, 'rateLimit');
 	if (!rateLimit || typeof rateLimit !== 'object') {
 		return undefined;
 	}

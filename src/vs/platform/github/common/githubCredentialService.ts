@@ -112,31 +112,29 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 			const apiBaseUri = this._endpointProvider.getApiBaseUri();
 			const host = new URL(apiBaseUri).host.toLowerCase();
 			this._logService?.debug(`[GitHubCredentialService] Resolving account identity for ${host} (generation ${generation})`);
-			let current: ICredentialGeneration;
-			const promise = this._resolveIdentity(token, generation, host, apiBaseUri, controller.signal)
-				.then(credential => {
-					current.credential = credential;
-					if (previousCredential && !sameAccount(previousCredential.account, credential.account)) {
-						this._logService?.debug(`[GitHubCredentialService] Account changed on ${host} at generation ${generation}`);
-						this._onDidInvalidate.fire({ credential: previousCredential, reason: 'account' });
-					}
-					this._lastCredential = credential;
-					this._logService?.debug(`[GitHubCredentialService] Resolved account identity for ${host} (generation ${generation})`);
-					return credential;
-				})
-				.catch(error => {
-					if (this._current === current) {
-						this._current = undefined;
-					}
-					this._logService?.debug(`[GitHubCredentialService] Account identity resolution failed for ${host} (generation ${generation}, ${credentialErrorKind(error)})`);
-					throw error;
-				});
-			current = {
+			const current: ICredentialGeneration = {
 				token,
 				generation,
 				host,
 				controller,
-				promise,
+				promise: this._resolveIdentity(token, generation, host, apiBaseUri, controller.signal)
+					.then(credential => {
+						current.credential = credential;
+						if (previousCredential && !sameAccount(previousCredential.account, credential.account)) {
+							this._logService?.debug(`[GitHubCredentialService] Account changed on ${host} at generation ${generation}`);
+							this._onDidInvalidate.fire({ credential: previousCredential, reason: 'account' });
+						}
+						this._lastCredential = credential;
+						this._logService?.debug(`[GitHubCredentialService] Resolved account identity for ${host} (generation ${generation})`);
+						return credential;
+					})
+					.catch(error => {
+						if (this._current === current) {
+							this._current = undefined;
+						}
+						this._logService?.debug(`[GitHubCredentialService] Account identity resolution failed for ${host} (generation ${generation}, ${credentialErrorKind(error)})`);
+						throw error;
+					}),
 			};
 			this._current = current;
 		}

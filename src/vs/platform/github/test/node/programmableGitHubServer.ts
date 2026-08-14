@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
-import * as net from 'net';
+import type * as http from 'http';
+import type * as net from 'net';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -203,14 +203,13 @@ export function gitHubGraphQLResponse<T>(
 export class ProgrammableGitHubServer extends Disposable {
 
 	static async start(): Promise<ProgrammableGitHubServer> {
-		const server = new ProgrammableGitHubServer();
+		const http = await import('http');
+		const server = new ProgrammableGitHubServer(http.createServer);
 		await server._start();
 		return server;
 	}
 
-	private readonly _server = http.createServer((request, response) => {
-		void this._handle(request, response);
-	});
+	private readonly _server: http.Server;
 	private readonly _closeComplete = new DeferredPromise<void>();
 	private readonly _disposeRequested = new DeferredPromise<void>();
 	private readonly _sockets = new Set<net.Socket>();
@@ -220,9 +219,12 @@ export class ProgrammableGitHubServer extends Disposable {
 	private _origin = '';
 	private _disposed = false;
 
-	private constructor() {
+	private constructor(createServer: typeof http.createServer) {
 		super();
 
+		this._server = createServer((request, response) => {
+			void this._handle(request, response);
+		});
 		this._server.on('clientError', (_error, socket) => socket.destroy());
 		this._server.on('connection', socket => {
 			this._sockets.add(socket);

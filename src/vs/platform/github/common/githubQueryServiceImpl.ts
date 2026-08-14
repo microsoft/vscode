@@ -7,6 +7,7 @@ import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	GitHubChangedFile,
@@ -513,15 +514,16 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			return;
 		}
 		const controller = new AbortController();
-		let operation: IEntityOperation;
-		const promise = this._runEntityFetch(entry, controller).finally(() => {
-			if (entry.operation === operation) {
-				entry.operation = undefined;
-			}
-		});
-		operation = { controller, promise };
+		const operation: IEntityOperation = {
+			controller,
+			promise: this._runEntityFetch(entry, controller).finally(() => {
+				if (entry.operation === operation) {
+					entry.operation = undefined;
+				}
+			}),
+		};
 		entry.operation = operation;
-		await raceCancellationError(promise, token);
+		await raceCancellationError(operation.promise, token);
 	}
 
 	removeEntitySubscription(subscription: EntitySubscription<EntityRef, EntityValue>): void {
@@ -911,7 +913,7 @@ function entityKey(kind: EntityKind, ref: EntityRef): string {
 		ref.accountId,
 		ref.owner.toLowerCase(),
 		ref.repo.toLowerCase(),
-		'number' in ref ? ref.number : '',
+		hasKey(ref, { number: true }) ? ref.number : '',
 	].join('\x00');
 }
 
@@ -1233,7 +1235,7 @@ function toFragmentError(error: unknown): { readonly message: string; readonly k
 }
 
 function formatEntityRef(ref: EntityRef): string {
-	return `${ref.host}/${ref.owner}/${ref.repo}${'number' in ref ? `#${ref.number}` : ''}`;
+	return `${ref.host}/${ref.owner}/${ref.repo}${hasKey(ref, { number: true }) ? `#${ref.number}` : ''}`;
 }
 
 function queryErrorKind(error: unknown): string {

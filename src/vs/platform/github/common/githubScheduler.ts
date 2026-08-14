@@ -25,23 +25,23 @@ export function schedulerDelay(scheduler: IGitHubScheduler, delay: number, signa
 		return Promise.reject(signal.reason);
 	}
 	return new Promise<void>((resolve, reject) => {
-		let scheduled: IDisposable | undefined;
+		const scheduled: { value?: IDisposable } = {};
 		let completedSynchronously = false;
 		const onAbort = () => {
-			scheduled?.dispose();
+			scheduled.value?.dispose();
 			abortListener.dispose();
 			reject(signal.reason);
 		};
 		const abortListener = toDisposable(() => signal.removeEventListener('abort', onAbort));
 		signal.addEventListener('abort', onAbort, { once: true });
-		scheduled = scheduler.schedule(() => {
+		scheduled.value = scheduler.schedule(() => {
 			completedSynchronously = true;
-			scheduled?.dispose();
+			scheduled.value?.dispose();
 			abortListener.dispose();
 			resolve();
 		}, Math.max(0, delay));
 		if (completedSynchronously) {
-			scheduled.dispose();
+			scheduled.value.dispose();
 		}
 	});
 }
