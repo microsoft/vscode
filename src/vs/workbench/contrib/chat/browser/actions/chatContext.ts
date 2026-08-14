@@ -462,6 +462,9 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 
 				const sameWorkspace = entries.filter(entry => isSameSessionWorkspace(currentWorkspace, entry.workspace));
 				const otherWorkspaces = entries.filter(entry => !isSameSessionWorkspace(currentWorkspace, entry.workspace));
+				if (otherWorkspaces.length === 0) {
+					return sameWorkspace.map(entry => entry.pick);
+				}
 				const groupedPicks: (IChatContextPickerPickItem | IQuickPickSeparator)[] = [];
 				if (sameWorkspace.length > 0) {
 					groupedPicks.push({ type: 'separator', label: getSessionWorkspaceName(currentWorkspace) });
