@@ -21,6 +21,7 @@ import {
 	feedbackServerToolGroup,
 	feedbackToolRequiresConfirmation,
 	listCommentsToolName,
+	replyToCommentToolName,
 	resolveCommentsToolName,
 	viewUnreviewedCommentsToolName,
 } from '../../node/shared/agentFeedbackServerTools.js';
@@ -100,6 +101,43 @@ suite('AgentFeedbackServerTools', () => {
 		assert.throws(
 			() => applyFeedbackTool(stateWith(), sessionResource, listCommentsToolName, { includeResolved: 'true' }),
 			/includeResolved must be a boolean/,
+		);
+	});
+
+	test('replyToComment appends a reply to an existing comment', () => {
+		const state = stateWith(annotation('a', 'accepted', false, 'original'));
+		const outcome = applyFeedbackTool(state, sessionResource, replyToCommentToolName, { commentId: 'a', text: 'agent reply' });
+		const action = outcome.actions[0] as Extract<typeof outcome.actions[0], { type: ActionType.AnnotationsEntrySet }>;
+		assert.deepStrictEqual({
+			actionType: action.type,
+			annotationId: action.annotationId,
+			entryText: action.entry.text,
+			comment: JSON.parse(outcome.result).comment,
+		}, {
+			actionType: ActionType.AnnotationsEntrySet,
+			annotationId: 'a',
+			entryText: 'agent reply',
+			comment: {
+				id: 'a',
+				resourceUri: fileUri,
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 },
+				text: 'original',
+				kind: 'codeReview',
+				resolved: false,
+				replies: ['agent reply'],
+			},
+		});
+	});
+
+	test('replyToComment rejects invalid arguments and hidden comments', () => {
+		const state = stateWith(annotation('hidden', 'created'));
+		assert.throws(
+			() => applyFeedbackTool(state, sessionResource, replyToCommentToolName, { commentId: 'hidden', text: 'reply' }),
+			/Comment not found: hidden/,
+		);
+		assert.throws(
+			() => applyFeedbackTool(state, sessionResource, replyToCommentToolName, { commentId: 'hidden', text: '' }),
+			/text must be a non-empty string/,
 		);
 	});
 
@@ -225,12 +263,14 @@ suite('AgentFeedbackServerTools', () => {
 			view: feedbackToolRequiresConfirmation(viewUnreviewedCommentsToolName),
 			list: feedbackToolRequiresConfirmation(listCommentsToolName),
 			add: feedbackToolRequiresConfirmation(addCommentToolName),
+			reply: feedbackToolRequiresConfirmation(replyToCommentToolName),
 			del: feedbackToolRequiresConfirmation(deleteCommentsToolName),
 			resolve: feedbackToolRequiresConfirmation(resolveCommentsToolName),
 		}, {
 			view: true,
 			list: false,
 			add: false,
+			reply: false,
 			del: false,
 			resolve: false,
 		});
@@ -260,6 +300,10 @@ suite('AgentFeedbackServerTools', () => {
 		const deleted = applyFeedbackTool(state, sessionResource, deleteCommentsToolName, { commentIds: ['foreign'] });
 		const resolved = applyFeedbackTool(state, sessionResource, resolveCommentsToolName, { commentIds: ['foreign'] });
 
+		assert.throws(
+			() => applyFeedbackTool(state, sessionResource, replyToCommentToolName, { commentId: 'foreign', text: 'reply' }),
+			/Comment not found: foreign/,
+		);
 		assert.deepStrictEqual({
 			listedIds: JSON.parse(listed.result).comments.map((c: { id: string }) => c.id),
 			deleteActions: deleted.actions,
@@ -310,6 +354,22 @@ suite('AgentFeedbackServerTools', () => {
 			const state = snapshot!.state as AnnotationsState;
 			assert.strictEqual(state.annotations.length, 1);
 			assert.strictEqual(state.annotations[0].entries[0].text, 'hello');
+		});
+
+		test('executeTool appends a reply to an existing comment', async () => {
+			const annotationsUri = buildAnnotationsUri(sessionResource);
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('reply-target', 'accepted', false, 'original'),
+			});
+
+			await host.executeTool(sessionResource, replyToCommentToolName, {
+				commentId: 'reply-target',
+				text: 'agent reply',
+			});
+
+			const state = manager.getSnapshot(annotationsUri)!.state as AnnotationsState;
+			assert.deepStrictEqual(state.annotations[0].entries.map(entry => entry.text), ['original', 'agent reply']);
 		});
 
 		test('executeTool stores comments on the main session when invoked from a chat URI', () => {

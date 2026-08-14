@@ -1211,7 +1211,8 @@ suite('CopilotAgentSession', () => {
 		const expectedText =
 			'The user attached specific feedback comments to act on (comment ids):\n' +
 			'- feedback-1\n\n' +
-			'Use the `listComments` tool to read their content and focus on these comments.';
+			'Use the `listComments` tool to read their content and focus on these comments. ' +
+			'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.';
 		assert.deepStrictEqual(mockSession.sendRequests, [{
 			prompt: '/act-on-feedback',
 			attachments: [{

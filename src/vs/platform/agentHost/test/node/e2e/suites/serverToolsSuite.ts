@@ -53,7 +53,7 @@ interface ISeedFeedbackOptions {
 	readonly replies?: readonly string[];
 }
 
-const feedbackToolNames = ['addComment', 'listComments', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
+const feedbackToolNames = ['addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
 const feedbackResourceUri = 'untitled://server-tools/reviewed.ts';
 const sessionToolNames = [
 	SessionServerToolName.ListSessions,

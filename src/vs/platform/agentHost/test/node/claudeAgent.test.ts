@@ -4700,10 +4700,12 @@ suite('ClaudeAgent', () => {
 				text:
 					'The user attached specific feedback comments to act on (comment ids):\n' +
 					'- feedback-1\n\n' +
-					'Use the `listComments` tool to read their content and focus on these comments.\n\n' +
+					'Use the `listComments` tool to read their content and focus on these comments. ' +
+					'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.\n\n' +
 					'The user attached specific feedback comments to act on (comment ids):\n' +
 					'- feedback-2\n\n' +
-					'Use the `listComments` tool to read their content and focus on these comments.',
+					'Use the `listComments` tool to read their content and focus on these comments. ' +
+					'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.',
 			},
 		]);
 	});

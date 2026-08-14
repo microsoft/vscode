@@ -30,6 +30,7 @@ import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } f
 
 export const addCommentToolName = ADD_COMMENT_TOOL_NAME;
 export const listCommentsToolName = 'listComments';
+export const replyToCommentToolName = 'replyToComment';
 export const deleteCommentsToolName = 'deleteComments';
 export const resolveCommentsToolName = 'resolveComments';
 export const viewUnreviewedCommentsToolName = VIEW_UNREVIEWED_COMMENTS_TOOL_NAME;
@@ -94,6 +95,15 @@ const deleteCommentsInputSchema: ToolDefinition['inputSchema'] = {
 	required: ['commentIds'],
 };
 
+const replyToCommentInputSchema: ToolDefinition['inputSchema'] = {
+	type: 'object',
+	properties: {
+		commentId: { type: 'string', description: 'ID of the comment to reply to.' },
+		text: { type: 'string', description: 'Reply text to add.' },
+	},
+	required: ['commentId', 'text'],
+};
+
 const resolveCommentsInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
@@ -122,6 +132,13 @@ export const feedbackServerToolDefinitions: ToolDefinition[] = [
 		description: 'List comments for this session. Resolved comments are omitted by default.',
 		inputSchema: listCommentsInputSchema,
 		annotations: { readOnlyHint: true },
+	},
+	{
+		name: replyToCommentToolName,
+		title: 'Reply to Comment (Agent Feedback)',
+		description: 'Reply to an existing comment for this session.',
+		inputSchema: replyToCommentInputSchema,
+		annotations: { readOnlyHint: false },
 	},
 	{
 		name: deleteCommentsToolName,
@@ -167,6 +184,11 @@ interface IDeleteCommentsArgs {
 
 interface IListCommentsArgs {
 	readonly includeResolved?: unknown;
+}
+
+interface IReplyToCommentArgs {
+	readonly commentId?: unknown;
+	readonly text?: unknown;
 }
 
 interface IResolveCommentsArgs {
@@ -456,6 +478,21 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			}
 			return { actions: [], result: JSON.stringify(payload, undefined, 2) };
 		}
+		case replyToCommentToolName: {
+			const args = (rawArgs ?? {}) as IReplyToCommentArgs;
+			const commentId = getRequiredString(args.commentId, 'commentId', replyToCommentToolName);
+			const text = getRequiredString(args.text, 'text', replyToCommentToolName);
+			const annotation = listableAnnotations(state).find(annotation => annotation.id === commentId);
+			if (!annotation) {
+				throw new Error(`Comment not found: ${commentId}`);
+			}
+			const entry = { id: generateUuid(), text };
+			const updatedAnnotation: Annotation = { ...annotation, entries: [...annotation.entries, entry] };
+			return {
+				actions: [{ type: ActionType.AnnotationsEntrySet, annotationId: commentId, entry }],
+				result: JSON.stringify({ comment: serializeComment(updatedAnnotation) }, undefined, 2),
+			};
+		}
 		case viewUnreviewedCommentsToolName: {
 			const pending = pendingRevealAnnotations(state);
 			if (!pending.length) {
@@ -564,6 +601,11 @@ function getFeedbackToolDisplay(toolName: string, _args: unknown, _result?: ISer
 			return {
 				displayName: localize('toolName.listComments', "List Comments"),
 				invocationMessage: localize('toolInvoke.listComments', "List comments"),
+			};
+		case replyToCommentToolName:
+			return {
+				displayName: localize('toolName.replyToComment', "Reply to Comment"),
+				invocationMessage: localize('toolInvoke.replyToComment', "Reply to comment"),
 			};
 		case deleteCommentsToolName:
 			return {
