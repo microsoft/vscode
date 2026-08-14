@@ -19,6 +19,18 @@ export const RENAME_SESSION_COMMAND_ID = 'sessionsViewPane.renameSession';
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
 
+export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';
+
+export const FOCUS_NEXT_CHAT_GROUP_COMMAND_ID = 'sessions.focusNextChatGroup';
+
+export const SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID = 'sessions.splitChatGroupRight';
+
+export const SPLIT_CHAT_GROUP_DOWN_COMMAND_ID = 'sessions.splitChatGroupDown';
+
+export const MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID = 'sessions.moveChatToPreviousGroup';
+
+export const MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID = 'sessions.moveChatToNextGroup';
+
 /** Opens or focuses a regular editor window. Registered in `vscodeActions.ts`. */
 export const OPEN_VSCODE_WINDOW_COMMAND_ID = 'agents.openVSCodeWindow';
 

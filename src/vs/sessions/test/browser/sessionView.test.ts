@@ -17,7 +17,8 @@ suite('Sessions - Session View', () => {
 			_isPartVisible: true,
 			_isLeafVisible: true,
 			_lastLayout: undefined,
-			_currentView: { value: { setVisible: (visible: boolean) => forwarded.push(visible) } },
+			_groupsView: { setSessionVisible: (visible: boolean) => forwarded.push(visible) },
+			_standaloneView: { value: undefined },
 		});
 
 		// A sibling session is maximized, hiding this leaf.
