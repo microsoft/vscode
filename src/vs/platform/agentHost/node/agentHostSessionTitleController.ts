@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionServerToolName } from '../common/serverToolNames.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import type { GitHubIssueOrPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
@@ -417,7 +417,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void {
-		for (const key of [session, ...chatChannels]) {
+		for (const key of [session, buildDefaultChatUri(session), ...chatChannels]) {
 			this._cancelTitleGeneration(key);
 			this._lastAppliedTitle.delete(key);
 			this._provisionalTitles.delete(key);

@@ -271,22 +271,23 @@ suite('AgentHostSessionTitleController', () => {
 
 	test('clearSession releases session and peer-chat rename state', async () => {
 		const { controller, stateManager, session, db } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		const defaultChat = buildDefaultChatUri(session);
 		const chat = buildChatUri(session.toString(), 'peer-clear');
 		stateManager.addChat(session.toString(), chat, {});
-		controller.markTitleAuto(session.toString(), undefined, 'Session fallback');
+		controller.markTitleAuto(session.toString(), defaultChat, 'Default fallback');
 		controller.markTitleAuto(session.toString(), chat, 'Chat fallback');
 		await waitForCondition(async () =>
-			await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO
+			await db.getMetadata(customChatTitleSourceMetadataKey(defaultChat)) === AGENT_HOST_TITLE_SOURCE_AUTO
 			&& await db.getMetadata(customChatTitleSourceMetadataKey(chat)) === AGENT_HOST_TITLE_SOURCE_AUTO,
 			'auto provenance should be persisted');
-		controller.markTitleRenamed(session.toString());
+		controller.markTitleRenamed(session.toString(), defaultChat);
 		controller.markTitleRenamed(session.toString(), chat);
-		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)), undefined);
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), defaultChat), undefined);
 		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), chat), undefined);
 
 		controller.clearSession(session.toString(), [chat]);
 
-		assert.ok((await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)))?.includes('`rename_chat`'));
+		assert.ok((await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('`rename_chat`'));
 		assert.ok((await controller.prepareInstructionForAgent(session.toString(), chat))?.includes('`rename_chat`'));
 	});
 
