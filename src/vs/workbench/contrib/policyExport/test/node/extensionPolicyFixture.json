@@ -22,6 +22,51 @@
 			"policyReference": {
 				"name": "Claude3PIntegration"
 			}
+		},
+		"github.copilot.chat.otel.enabled": {
+			"policyReference": {
+				"name": "CopilotOtelEnabled"
+			}
+		},
+		"github.copilot.chat.otel.exporterType": {
+			"policyReference": {
+				"name": "CopilotOtelProtocol"
+			}
+		},
+		"github.copilot.chat.otel.protocol": {
+			"policyReference": {
+				"name": "CopilotOtelOtlpProtocol"
+			}
+		},
+		"github.copilot.chat.otel.otlpEndpoint": {
+			"policyReference": {
+				"name": "CopilotOtelEndpoint"
+			}
+		},
+		"github.copilot.chat.otel.captureContent": {
+			"policyReference": {
+				"name": "CopilotOtelCaptureContent"
+			}
+		},
+		"github.copilot.chat.otel.serviceName": {
+			"policyReference": {
+				"name": "CopilotOtelServiceName"
+			}
+		},
+		"github.copilot.chat.otel.resourceAttributes": {
+			"policyReference": {
+				"name": "CopilotOtelResourceAttributes"
+			}
+		},
+		"github.copilot.chat.otel.headers": {
+			"policyReference": {
+				"name": "CopilotOtelHeaders"
+			}
+		},
+		"github.copilot.chat.otel.outfile": {
+			"policyReference": {
+				"name": "CopilotOtelOutfile"
+			}
 		}
 	}
 }

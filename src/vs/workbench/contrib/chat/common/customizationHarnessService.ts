@@ -21,6 +21,8 @@ import { CustomAgent } from './promptSyntax/service/promptsServiceImpl.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
 import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
+import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -92,8 +94,7 @@ export interface IHarnessDescriptor {
 	/**
 	 * Per-section overrides for the create button behavior.
 	 *
-	 * A `commandId` entry replaces the button entirely with a command
-	 * invocation (e.g. Claude hooks → `copilot.claude.hooks`).
+	 * A `commandId` entry replaces the button entirely with a command invocation.
 	 *
 	 * A `rootFile` entry makes the primary button create a specific file
 	 * at the workspace root (e.g. Claude instructions → `CLAUDE.md`).
@@ -158,6 +159,8 @@ export interface ICustomizationItem {
 	readonly statusMessage?: string;
 	/** Whether this customization is currently enabled. */
 	readonly enabled?: boolean;
+	/** Host-published reason for a disabled customization. */
+	readonly disabledReason?: CustomizationDisabledReason;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
@@ -185,6 +188,21 @@ export interface ICustomizationAgentRef {
 
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
+}
+
+export function getCustomizationDisabledLabel(reason: CustomizationDisabledReason | undefined): string {
+	if (reason?.source === 'plugin') {
+		return localize('customizationDisabledPlugin', "Disabled (Plugin)");
+	}
+	switch (reason?.scope) {
+		case CustomizationEnablementKind.Workspace:
+			return localize('customizationDisabledWorkspace', "Disabled (Workspace)");
+		case CustomizationEnablementKind.Session:
+			return localize('customizationDisabledSession', "Disabled (Session)");
+		case CustomizationEnablementKind.Global:
+		case undefined:
+			return localize('customizationDisabled', "Disabled");
+	}
 }
 
 /**

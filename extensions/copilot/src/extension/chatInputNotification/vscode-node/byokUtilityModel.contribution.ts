@@ -13,7 +13,9 @@ const NOTIFICATION_ID = 'copilot.byokUtilityModelHint';
 const UTILITY_MODEL_SETTING = 'chat.utilityModel';
 const UTILITY_SMALL_MODEL_SETTING = 'chat.utilitySmallModel';
 const BYOK_UTILITY_MODEL_DEFAULT_SETTING = 'chat.byokUtilityModelDefault';
+const ALLOW_SIGNED_OUT_WHEN_USABLE_SETTING = 'chat.agentHost.allowSignedOutWhenUsable';
 const MAIN_AGENT_BYOK_UTILITY_MODEL_DEFAULT = 'mainAgent';
+const LOCAL_CHAT_SESSION_TYPE = 'local';
 
 /**
  * Shows a chat input notification in air-gapped BYOK scenarios (no GitHub
@@ -21,8 +23,8 @@ const MAIN_AGENT_BYOK_UTILITY_MODEL_DEFAULT = 'mainAgent';
  * settings are still defaults. Some utility flows are unavailable until the
  * user points them at a BYOK model or selects the main agent model as the BYOK utility default.
  *
- * The notification hides automatically once the user signs in, BYOK models
- * disappear, both utility settings are configured, or the main agent model is the BYOK utility default.
+ * The notification is not shown in the Agents window. Elsewhere, it hides automatically once the user
+ * signs in, BYOK models disappear, both utility settings are configured, or the main agent model is the BYOK utility default.
  */
 export class ByokUtilityModelNotificationContribution extends Disposable {
 
@@ -37,6 +39,10 @@ export class ByokUtilityModelNotificationContribution extends Disposable {
 	) {
 		super();
 
+		if (vscode.workspace.isAgentSessionsWorkspace) {
+			return;
+		}
+
 		this._register(this._authService.onDidAuthenticationChange(() => this._update()));
 		this._register(vscode.lm.onDidChangeChatModels(() => this._update()));
 		this._register(this._configService.onDidChangeConfiguration(e => {
@@ -44,6 +50,7 @@ export class ByokUtilityModelNotificationContribution extends Disposable {
 				e.affectsConfiguration(UTILITY_MODEL_SETTING)
 				|| e.affectsConfiguration(UTILITY_SMALL_MODEL_SETTING)
 				|| e.affectsConfiguration(BYOK_UTILITY_MODEL_DEFAULT_SETTING)
+				|| e.affectsConfiguration(ALLOW_SIGNED_OUT_WHEN_USABLE_SETTING)
 			) {
 				this._update();
 			}
@@ -93,6 +100,9 @@ export class ByokUtilityModelNotificationContribution extends Disposable {
 		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = false;
+		notification.sessionTypes = this._configService.getNonExtensionConfig<boolean>(ALLOW_SIGNED_OUT_WHEN_USABLE_SETTING)
+			? [LOCAL_CHAT_SESSION_TYPE]
+			: undefined;
 
 		if (utilityUnset && utilitySmallUnset) {
 			notification.message = vscode.l10n.t('Set BYOK utility models');

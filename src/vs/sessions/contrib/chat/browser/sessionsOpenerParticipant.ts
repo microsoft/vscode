@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
@@ -11,24 +12,22 @@ import { ISessionOpenerParticipant, ISessionOpenOptions, sessionOpenerRegistry }
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 
-/**
- * Routes session open requests in the Agents window through the
- * {@link ISessionsManagementService} so that the active session/chat state is
- * properly updated. Without this, the default opener tries to load the chat
- * directly into the `ChatViewId` view, which is hidden behind a `when` clause
- * tied to the new-chat context keys and may simply do nothing.
- */
+/** Routes session open requests through the Agents window session services. */
 class SessionsOpenerParticipant implements ISessionOpenerParticipant {
 
 	async handleOpenSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<boolean> {
+		return this.handleOpenSessionResource(accessor, session.resource, openOptions);
+	}
+
+	async handleOpenSessionResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<boolean> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsService = accessor.get(ISessionsService);
-		const target = sessionsManagementService.getSession(session.resource);
+		const target = sessionsManagementService.getSession(resource);
 		if (!target) {
 			return false;
 		}
 
-		await sessionsService.openSession(session.resource, { preserveFocus: openOptions?.editorOptions?.preserveFocus });
+		await sessionsService.openSession(resource, { preserveFocus: openOptions?.editorOptions?.preserveFocus });
 		return true;
 	}
 }

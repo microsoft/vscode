@@ -66,7 +66,7 @@ suite('AgentHostGitHubEndpointService', () => {
 		disposables.add(service.onDidChange(() => fires++));
 
 		// An unrelated root-config change must NOT fire.
-		configService.updateRootConfig({ [AgentHostConfigKey.ClaudeUseCopilotProxy]: false });
+		configService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
 		assert.strictEqual(fires, 0);
 
 		// Setting the enterprise URI fires once and repoints the endpoints.

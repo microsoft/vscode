@@ -32,7 +32,7 @@
 	height: 2px;
 	border-radius: 50%;
 	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-	opacity: 0.5;
+	opacity: 0.75;
 }
 
 .monaco-enable-motion .style-override .monaco-sash:not(.disabled)::after {
@@ -57,6 +57,12 @@
 	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 }
 
+:is(.hc-black, .hc-light).style-override .monaco-sash:not(.disabled)::after {
+	background: var(--vscode-foreground);
+	color: var(--vscode-foreground);
+	opacity: 1;
+}
+
 /* While hovering/dragging, defer to the base full-length highlight. */
 .style-override .monaco-sash.hover:not(.disabled)::after,
 .style-override .monaco-sash.active:not(.disabled)::after {
@@ -69,12 +75,10 @@
 	content: none;
 }
 
-/* Hide grips for collapsed parts so a flush boundary isn't marked (and the
- * panel grip can't be clipped by the status bar). The workbench container
- * carries `nopanel`/`nosidebar` when those parts are hidden: the panel sash is
- * horizontal, the primary side bar sash is vertical. */
+/* Hide grips for collapsed parts. Their reveal sashes remain enabled at an
+ * extent, and the panel grip can also be clipped by the status bar. */
 .style-override.nopanel .monaco-sash.horizontal::after,
-.style-override.nosidebar .monaco-sash.vertical::after {
+.style-override.nosidebar .monaco-sash.vertical.primary-sidebar-sash::after {
 	content: none;
 }
 

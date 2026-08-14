@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { adaptManagedSettings, IManagedSettingsResponse } from '../../browser/managedSettings.js';
+import { adaptManagedSettings, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from '../../browser/managedSettings.js';
 
 suite('adaptManagedSettings', () => {
 
@@ -25,6 +25,23 @@ suite('adaptManagedSettings', () => {
 				'permissions.disableBypassPermissionsMode': 'disable',
 			},
 		});
+	});
+
+	test('parses the stable compatibility error and optional versions', () => {
+		assert.deepStrictEqual(parseManagedSettingsCompatibilityError({
+			error_code: 'client_update_required',
+			client_id: 'vscode',
+			client_version: '1.132.0',
+			minimum_client_version: '1.133.0',
+		}), {
+			errorCode: 'client_update_required',
+			clientVersion: '1.132.0',
+			minimumClientVersion: '1.133.0',
+		});
+	});
+
+	test('rejects an unrecognized compatibility error shape', () => {
+		assert.strictEqual(parseManagedSettingsCompatibilityError({ error_code: 'unexpected' }), undefined);
 	});
 
 	test('carries enabledPlugins as a canonical JSON string under a single key', () => {
@@ -54,6 +71,55 @@ suite('adaptManagedSettings', () => {
 	test('carries an empty strictKnownMarketplaces array (lockdown) as a JSON string', () => {
 		assert.deepStrictEqual(adaptManagedSettings({ strictKnownMarketplaces: [] }), {
 			managedSettings: { strictKnownMarketplaces: '[]' },
+		});
+	});
+
+	test('carries allowedMcpServers as a canonical JSON string under a single key', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			allowedMcpServers: [
+				{ serverName: 'github' },
+				{ serverUrl: 'https://mcp.example.com/*' },
+				{ serverCommand: ['npx', '-y', 'server'] },
+			],
+		}), {
+			managedSettings: {
+				allowedMcpServers: '[{"serverName":"github"},{"serverUrl":"https://mcp.example.com/*"},{"serverCommand":["npx","-y","server"]}]',
+			},
+		});
+	});
+
+	test('carries an empty allowedMcpServers array as a JSON string', () => {
+		assert.deepStrictEqual(adaptManagedSettings({ allowedMcpServers: [] }), {
+			managedSettings: { allowedMcpServers: '[]' },
+		});
+	});
+
+	test('carries deniedMcpServers as a canonical JSON string under a single key', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			deniedMcpServers: [
+				{ serverName: 'blocked' },
+				{ serverUrl: 'https://*.untrusted.example.com/*' },
+			],
+		}), {
+			managedSettings: {
+				deniedMcpServers: '[{"serverName":"blocked"},{"serverUrl":"https://*.untrusted.example.com/*"}]',
+			},
+		});
+	});
+
+	test('carries customization lockdown controls', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			strictPluginOnlyCustomization: true,
+			allowManagedMcpServersOnly: true,
+			allowManagedHooksOnly: true,
+			forceRemoteSettingsRefresh: true,
+		}), {
+			managedSettings: {
+				strictPluginOnlyCustomization: true,
+				allowManagedMcpServersOnly: true,
+				allowManagedHooksOnly: true,
+				forceRemoteSettingsRefresh: true,
+			},
 		});
 	});
 

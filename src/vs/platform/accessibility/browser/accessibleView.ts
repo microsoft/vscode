@@ -25,6 +25,7 @@ export const enum AccessibleViewProviderId {
 	InlineChat = 'inlineChat',
 	AgentChat = 'agentChat',
 	QuickChat = 'quickChat',
+	ChatInputWindow = 'chatInputWindow',
 	InlineCompletions = 'inlineCompletions',
 	KeybindingsEditor = 'keybindingsEditor',
 	Notebook = 'notebook',
@@ -45,11 +46,13 @@ export const enum AccessibleViewProviderId {
 	TerminalFindHelp = 'terminalFindHelp',
 	WebviewFindHelp = 'webviewFindHelp',
 	OutputFindHelp = 'outputFindHelp',
+	ChatFindHelp = 'chatFindHelp',
 	ProblemsFilterHelp = 'problemsFilterHelp',
 	SessionsChat = 'sessionsChat',
 	SessionsChanges = 'sessionsChanges',
 	Survey = 'survey',
 	Automations = 'automations',
+	BrowserElementCommenting = 'browserElementCommenting',
 }
 
 export const enum AccessibleViewType {
@@ -71,10 +74,11 @@ export interface IAccessibleViewOptions {
 	type: AccessibleViewType;
 	/**
 	 * By default, places the cursor on the top line of the accessible view.
-	 * If set to 'initial-bottom', places the cursor on the bottom line of the accessible view and preserves it henceforth.
+	 * If set to 'initial-bottom', places the cursor on the bottom line initially and returns it to the bottom when the content changes.
+	 * If set to 'initial-bottom-preserve', places the cursor on the bottom line initially and preserves its position when the content changes.
 	 * If set to 'bottom', places the cursor on the bottom line of the accessible view.
 	 */
-	position?: 'bottom' | 'initial-bottom';
+	position?: 'bottom' | 'initial-bottom' | 'initial-bottom-preserve';
 	/**
 	 * @returns a string that will be used as the content of the help dialog
 	 * instead of the one provided by default.

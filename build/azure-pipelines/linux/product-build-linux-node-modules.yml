@@ -137,9 +137,14 @@ jobs:
           VSCODE_ARCH: $(VSCODE_ARCH)
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ONNXRUNTIME_NODE_INSTALL: skip
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Verify native optional dependency binaries
 
       - script: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { beforeEach, describe, expect, test } from 'vitest';
-import { ConfigKey } from '../../../../platform/configuration/common/configurationService';
+import { ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType } from '../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
-import { AggressivenessLevel, DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION, UserHappinessScoreConfiguration } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, AggressivenessSetting, DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION, UserHappinessScoreConfiguration } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IExperimentationService, NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
@@ -47,8 +47,21 @@ class TestUserInteractionMonitor extends UserInteractionMonitor {
  * Mock configuration service that allows setting specific config values for testing.
  */
 class MockConfigurationService extends InMemoryConfigurationService {
+	private _useAdaptiveAggressiveness = false;
+
 	constructor() {
 		super(new DefaultsOnlyConfigurationService());
+	}
+
+	useAdaptiveAggressiveness(): void {
+		this._useAdaptiveAggressiveness = true;
+	}
+
+	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T {
+		if (this._useAdaptiveAggressiveness && key === ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel) {
+			return undefined as T;
+		}
+		return super.getExperimentBasedConfig(key, experimentationService);
 	}
 }
 
@@ -197,13 +210,25 @@ describe('UserInteractionMonitor', () => {
 	});
 
 	describe('aggressiveness level calculation', () => {
-		test('returns neutral aggressiveness with no history', () => {
-			// With no data, score is 0.5, which is between low and medium thresholds for the default config
-			const level = monitor.getAggressivenessLevel().aggressivenessLevel;
-			expect(level).toBe(AggressivenessLevel.Medium);
+		test('defaults to medium aggressiveness without using adaptive scoring', () => {
+			expect(monitor.getAggressivenessLevel()).toEqual({
+				aggressivenessLevel: AggressivenessLevel.Medium,
+				userHappinessScore: undefined,
+			});
+		});
+
+		test('explicit user eagerness takes priority over configured aggressiveness', () => {
+			configurationService.setConfig(ConfigKey.Advanced.InlineEditsAggressiveness, AggressivenessSetting.High);
+			configurationService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, AggressivenessLevel.Low);
+
+			expect(monitor.getAggressivenessLevel()).toEqual({
+				aggressivenessLevel: AggressivenessLevel.High,
+				userHappinessScore: undefined,
+			});
 		});
 
 		test('returns high aggressiveness after many acceptances', () => {
+			configurationService.useAdaptiveAggressiveness();
 			// Fill with 10 acceptances
 			for (let i = 0; i < 10; i++) {
 				monitor.handleAcceptance();
@@ -214,6 +239,7 @@ describe('UserInteractionMonitor', () => {
 		});
 
 		test('returns low aggressiveness after many rejections', () => {
+			configurationService.useAdaptiveAggressiveness();
 			// Fill with 10 rejections
 			for (let i = 0; i < 10; i++) {
 				monitor.handleRejection();
@@ -239,6 +265,7 @@ describe('UserInteractionMonitor', () => {
 		});
 
 		test('recent actions have more weight than older ones', () => {
+			configurationService.useAdaptiveAggressiveness();
 			// Start with acceptances, end with rejections
 			for (let i = 0; i < 5; i++) {
 				monitor.handleAcceptance();
@@ -270,6 +297,7 @@ describe('UserInteractionMonitor', () => {
 
 	describe('ignored action limiting', () => {
 		test('ignored actions are included in aggressiveness calculation', () => {
+			configurationService.useAdaptiveAggressiveness();
 			// With custom config that includes ignored actions
 			const customConfig: UserHappinessScoreConfiguration = {
 				...DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION,
@@ -294,6 +322,7 @@ describe('UserInteractionMonitor', () => {
 		});
 
 		test('total ignored limit is respected', () => {
+			configurationService.useAdaptiveAggressiveness();
 			const customConfig: UserHappinessScoreConfiguration = {
 				...DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION,
 				includeIgnored: true,
@@ -325,6 +354,7 @@ describe('UserInteractionMonitor', () => {
 		let mockTelemetryService: MockTelemetryService;
 
 		beforeEach(() => {
+			configurationService.useAdaptiveAggressiveness();
 			mockTelemetryService = new MockTelemetryService();
 			monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, mockTelemetryService);
 		});

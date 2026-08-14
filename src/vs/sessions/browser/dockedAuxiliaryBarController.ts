@@ -6,6 +6,7 @@
 import { Disposable } from '../../base/common/lifecycle.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState, Orientation as SashOrientation } from '../../base/browser/ui/sash/sash.js';
 import { Part } from '../../workbench/browser/part.js';
+import { SESSIONS_LIST_MINIMUM_WIDTH } from './parts/sidebarPart.js';
 
 /** Accessors the controller uses to read/write the docked panel width and query visibility. */
 export interface IDockedAuxiliaryBarHost {
@@ -19,11 +20,7 @@ export interface IDockedAuxiliaryBarHost {
 	isAuxiliaryBarVisible(): boolean;
 	/** Hide the docked auxiliary bar via the workbench part-visibility API. */
 	hideAuxiliaryBar(): void;
-	/**
-	 * Reserves an inset (px) on the right of the editor content while the editor
-	 * tab bar keeps the full width, so the docked panel can sit beside it. `0`
-	 * restores full-width content.
-	 */
+	/** Reserves space on the right of the breadcrumbs and editor pane while tabs remain full-width. */
 	setEditorContentRightInset(px: number): void;
 	/** Extra top offset (px) below the tab bar, e.g. reserved by the full-width header. */
 	getHeaderHeight(): number;
@@ -45,10 +42,12 @@ export class DockedAuxiliaryBarController extends Disposable {
 	static readonly EDITOR_MIN_WIDTH = 300;
 	static readonly DEFAULT_WIDTH = 300;
 	static readonly COLLAPSE_WIDTH = 4;
+	static readonly NO_EDITOR_MIN_WIDTH = SESSIONS_LIST_MINIMUM_WIDTH;
 
 	private _docked = false;
 	private _sash: Sash | undefined;
 	private _sashStartWidth = 0;
+	private _sashCollapsed = false;
 
 	constructor(
 		private readonly editorPartContainer: HTMLElement,
@@ -101,15 +100,10 @@ export class DockedAuxiliaryBarController extends Disposable {
 		this.host.setEditorContentRightInset(auxWidth);
 		this.auxiliaryBarPart.layout(auxWidth, height, top, editorRect.width - auxWidth);
 
-		if (editorContentHidden) {
-			if (this._sash) {
-				this._sash.state = SashState.Disabled;
-			}
-		} else {
-			this._ensureSash();
-			this._sash!.state = SashState.Enabled;
-			this._sash!.layout();
-		}
+		this._ensureSash();
+		// The real grid sash owns resizing/collapsing when editor content is hidden.
+		this._sash!.state = editorContentHidden ? SashState.Disabled : SashState.Enabled;
+		this._sash!.layout();
 	}
 
 	private _auxiliaryBarWidth(hostWidth: number, editorWidth: number): number {
@@ -131,7 +125,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 		const layoutProvider: IVerticalSashLayoutProvider = {
 			getVerticalSashLeft: () => {
 				const width = editorPartContainer.clientWidth;
-				const auxWidth = this._auxiliaryBarWidth(this.host.getWidth(), width);
+				const auxWidth = this.host.isEditorVisible() ? this._auxiliaryBarWidth(this.host.getWidth(), width) : width;
 				return Math.max(0, width - auxWidth);
 			},
 			getVerticalSashTop: () => DockedAuxiliaryBarController.TOP + DockedAuxiliaryBarController.DIVIDER + this.host.getHeaderHeight(),
@@ -143,13 +137,18 @@ export class DockedAuxiliaryBarController extends Disposable {
 
 		this._register(sash.onDidStart(() => {
 			this._sashStartWidth = this.host.getWidth();
+			this._sashCollapsed = false;
 		}));
 		this._register(sash.onDidChange((e: ISashEvent) => {
+			if (this._sashCollapsed) {
+				return;
+			}
 			// Dragging left (currentX < startX) widens the detail panel.
 			const delta = e.startX - e.currentX;
 			const width = editorPartContainer.clientWidth;
 			const requestedWidth = this._sashStartWidth + delta;
-			if (requestedWidth <= DockedAuxiliaryBarController.COLLAPSE_WIDTH) {
+			if (requestedWidth < DockedAuxiliaryBarController.COLLAPSE_WIDTH) {
+				this._sashCollapsed = true;
 				this.host.hideAuxiliaryBar();
 				return;
 			}
