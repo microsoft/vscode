@@ -153,7 +153,7 @@ export class RunnableResult {
 	private cache: protocol.CacheInfo | undefined;
 
 	public readonly priority: number;
-	public readonly items: protocol.ContextItem[];
+	public readonly items: Map<string, protocol.ContextItem>;
 	public debugPath: string | undefined;
 
 	constructor(id: protocol.ContextRunnableResultId, priority: number, runnableResultContext: RunnableResultContext, primaryBudget: CharacterBudget, secondaryBudget: CharacterBudget, speculativeKind: protocol.SpeculativeKind, cache?: protocol.CacheInfo) {
@@ -165,7 +165,7 @@ export class RunnableResult {
 		this.state = protocol.ContextRunnableState.Created;
 		this.speculativeKind = speculativeKind;
 		this.cache = cache;
-		this.items = [];
+		this.items = new Map<string, protocol.ContextItem>();
 	}
 
 	public isPrimaryBudgetExhausted(): boolean {
@@ -196,14 +196,14 @@ export class RunnableResult {
 		if (reference === undefined) {
 			return false;
 		}
-		this.items.push(reference);
+		this.items.set(key, reference);
 		return true;
 	}
 
-	public addTrait(traitKind: protocol.TraitKind, name: string, value: string): void {
+	public addTrait(traitKind: protocol.TraitKind, name: string, value: string, key: string): void {
 		this.state = protocol.ContextRunnableState.InProgress;
 		const trait = protocol.Trait.create(traitKind, name, value);
-		this.items.push(this.runnableResultContext.manageContextItem(trait));
+		this.items.set(key ?? crypto.randomUUID(), this.runnableResultContext.manageContextItem(trait));
 		this.primaryBudget.spent(protocol.Trait.sizeInChars(trait));
 	}
 
@@ -224,7 +224,7 @@ export class RunnableResult {
 		}
 		this.state = protocol.ContextRunnableState.InProgress;
 		budget.spent(size);
-		this.items.push(this.runnableResultContext.manageContextItem(snippet));
+		this.items.set(key ?? crypto.randomUUID(), this.runnableResultContext.manageContextItem(snippet));
 		return true;
 	}
 
@@ -234,7 +234,7 @@ export class RunnableResult {
 			id: this.id,
 			state: this.state,
 			priority: this.priority,
-			items: this.items,
+			items: Array.from(this.items.values()),
 			cache: this.cache,
 			speculativeKind: this.speculativeKind,
 			debugPath: this.debugPath,
@@ -510,9 +510,13 @@ export abstract class AbstractContextRunnable implements ContextRunnable {
 				if (await this.skipNode(item.node)) {
 					continue;
 				}
+				const key = await this.symbols.createKey(item.node);
+				if (key !== undefined && this.result.addFromKnownItems(key)) {
+					continue;
+				}
 				const builder = new CodeSnippetBuilder(this.context, this.symbols, this.getActiveSourceFile());
 				await builder.addDeclaration(item.node);
-				if (!builder.isEmpty() && !this.result.addSnippet(builder, this.location, undefined, ifRoom)) {
+				if (!builder.isEmpty() && !this.result.addSnippet(builder, this.location, key, ifRoom)) {
 					return false;
 				}
 			} else {

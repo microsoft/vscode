@@ -5,7 +5,7 @@
 
 import { createHash } from 'node:crypto';
 
-import { SymbolFlags, type NodeHandle, type Program, type Project, type Symbol as NativeSymbol, type Type } from '@typescript/native/unstable/async';
+import { Symbol as NativeSymbol, SymbolFlags, type NodeHandle, type Program, type Project, type Type } from '@typescript/native/unstable/async';
 import {
 	findPrecedingToken,
 	getTokenAtPosition,
@@ -20,6 +20,7 @@ import {
 	type Node,
 	type SourceFile,
 	type TypeNode,
+	type DeclarationBase
 } from '@typescript/native/unstable/ast';
 import type * as vscode from 'vscode';
 
@@ -315,23 +316,40 @@ export class Symbols {
 		return result;
 	}
 
-	public async createKey(symbol: NativeSymbol): Promise<string | undefined> {
-		const declarations = await this.getDeclarations(symbol);
-		if (declarations.length === 0) {
-			return undefined;
+	public async createKey(symbol: NativeSymbol): Promise<string | undefined>;
+	public async createKey(declaration: DeclarationBase): Promise<string | undefined>;
+	public async createKey(arg: NativeSymbol | DeclarationBase): Promise<string | undefined>
+	{
+		if (arg instanceof NativeSymbol) {
+			const symbol = arg;
+			const declarations = await this.getDeclarations(symbol);
+			if (declarations.length === 0) {
+				return undefined;
+			}
+			const fragments = declarations.map(declaration => ({
+				f: declaration.getSourceFile().path,
+				s: declaration.getStart(),
+				e: declaration.getEnd(),
+				k: declaration.kind,
+			})).sort((first, second) => first.f.localeCompare(second.f) || first.s - second.s || first.e - second.e || first.k - second.k);
+			const hash = createHash('md5'); // CodeQL [SM04514] Used only as a compact cache key, not for security.
+			if ((symbol.flags & SymbolFlags.Transient) !== 0) {
+				hash.update(JSON.stringify({ trans: true }));
+			}
+			hash.update(JSON.stringify(fragments));
+			return hash.digest('base64');
+		} else {
+			const declaration = arg;
+			const fragment = {
+				f: declaration.getSourceFile().path,
+				s: declaration.getStart(),
+				e: declaration.getEnd(),
+				k: declaration.kind,
+			};
+			const hash = createHash('md5'); // CodeQL [SM04514] Used only as a compact cache key, not for security.
+			hash.update(JSON.stringify(fragment));
+			return hash.digest('base64');
 		}
-		const fragments = declarations.map(declaration => ({
-			f: declaration.getSourceFile().path,
-			s: declaration.getStart(),
-			e: declaration.getEnd(),
-			k: declaration.kind,
-		})).sort((first, second) => first.f.localeCompare(second.f) || first.s - second.s || first.e - second.e || first.k - second.k);
-		const hash = createHash('md5'); // CodeQL [SM04514] Used only as a compact cache key, not for security.
-		if ((symbol.flags & SymbolFlags.Transient) !== 0) {
-			hash.update(JSON.stringify({ trans: true }));
-		}
-		hash.update(JSON.stringify(fragments));
-		return hash.digest('base64');
 	}
 
 	public async getDeclaration<T extends Node>(symbol: NativeSymbol, kind: SyntaxKind): Promise<T | undefined> {

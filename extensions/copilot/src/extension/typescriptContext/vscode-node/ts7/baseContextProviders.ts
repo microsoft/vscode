@@ -52,8 +52,6 @@ import {
 import tss, { type CancellationTokenWithTimer, Symbols } from './typescripts';
 
 export class CompilerOptionsRunnable extends AbstractContextRunnable {
-	public static VersionTraitKey: string = protocol.Trait.createContextItemKey(protocol.TraitKind.Version);
-
 	private readonly sourceFile: SourceFile;
 
 	constructor(session: ComputeContextSession, project: Project, context: RequestContext, sourceFile: SourceFile) {
@@ -72,9 +70,7 @@ export class CompilerOptionsRunnable extends AbstractContextRunnable {
 
 	protected override async run(result: RunnableResult): Promise<void> {
 		const compilerOptions = this.getProject().program.getCompilerOptions();
-		if (!result.addFromKnownItems(CompilerOptionsRunnable.VersionTraitKey)) {
-			result.addTrait(protocol.TraitKind.Version, 'The TypeScript version used in this project is ', version);
-		}
+		this.addTrait(result, protocol.TraitKind.Version, 'The TypeScript version used in this project is ', version);
 		this.addTrait(result, protocol.TraitKind.Module, 'The TypeScript module system used in this project is ', compilerOptions.module === undefined ? undefined : ModuleKind[compilerOptions.module]);
 		this.addTrait(result, protocol.TraitKind.ModuleResolution, 'The TypeScript module resolution strategy used in this project is ', compilerOptions.moduleResolution === undefined ? undefined : this.moduleResolutionName(compilerOptions.moduleResolution));
 		this.addTrait(result, protocol.TraitKind.Target, 'The target version of JavaScript for this project is ', compilerOptions.target === undefined ? undefined : ScriptTarget[compilerOptions.target]);
@@ -87,7 +83,7 @@ export class CompilerOptionsRunnable extends AbstractContextRunnable {
 		}
 		const key = protocol.Trait.createContextItemKey(kind);
 		if (!result.addFromKnownItems(key)) {
-			result.addTrait(kind, name, value);
+			result.addTrait(kind, name, value, key);
 		}
 	}
 
