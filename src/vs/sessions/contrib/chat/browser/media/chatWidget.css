@@ -499,3 +499,13 @@
 .new-chat-widget-container .new-session-workspace-picker-container.hidden {
 	display: none;
 }
+
+/*
+ * With no model configured there is nothing the composer can send, so the
+ * provider list takes its place rather than sitting above an input that
+ * cannot work. The input returns as soon as a provider exists or the list
+ * is dismissed.
+ */
+.new-chat-widget-content.provider-setup-active .new-chat-input-container {
+	display: none;
+}

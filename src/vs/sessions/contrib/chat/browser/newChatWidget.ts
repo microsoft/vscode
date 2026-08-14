@@ -902,6 +902,9 @@ export class NewChatWidget extends Disposable {
 			dom.clearNode(host);
 			host.classList.toggle('hidden', !needsProvider);
 			workspacePicker.classList.toggle('hidden', needsProvider);
+			// An input you cannot send from is a lie: with no model configured
+			// the composer takes the list's place rather than sitting under it.
+			container.classList.toggle('provider-setup-active', needsProvider);
 			if (!needsProvider) {
 				return;
 			}
@@ -914,6 +917,7 @@ export class NewChatWidget extends Disposable {
 				dom.clearNode(host);
 				host.classList.add('hidden');
 				workspacePicker.classList.remove('hidden');
+				container.classList.remove('provider-setup-active');
 				part.clear();
 			}));
 			dom.append(host, setup.element);

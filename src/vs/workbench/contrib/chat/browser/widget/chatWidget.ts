@@ -1223,12 +1223,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// Before any provider exists, the panel's job is to help the user
 				// get models — not to introduce chat they cannot use yet.
 				if (this.shouldShowProviderSetup()) {
+					// An input you cannot send from is a lie: with no model
+					// configured, the list is the only useful thing here, so it
+					// takes the input's place rather than sitting above it.
+					this.setInputVisible(false);
 					if (!this.providerSetupPart.value) {
 						dom.clearNode(this.welcomeMessageContainer);
 						this.welcomePart.clear();
 						const part = this.providerSetupPart.value = this.instantiationService.createInstance(ChatProviderSetupPart, { showDismiss: true });
 						this._register(part.onDidDismiss(() => {
 							this.providerSetupDismissed = true;
+							this.setInputVisible(true);
 							this.renderWelcomeViewContentIfNeeded();
 						}));
 						dom.append(this.welcomeMessageContainer, part.element);
@@ -1240,6 +1245,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (this.providerSetupPart.value) {
 					this.providerSetupPart.clear();
 					dom.clearNode(this.welcomeMessageContainer);
+					this.setInputVisible(true);
 				}
 
 				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
