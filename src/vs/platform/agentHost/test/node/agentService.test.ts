@@ -2665,6 +2665,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
+			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await svc.listSessions();
 
 			const session = AgentSession.uri('copilot', 'provider-announced');
@@ -3105,6 +3106,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 			agent.sessionMetadataOverrides = { _meta: withSessionEhcliAdoptable(undefined) };
 			svc.registerProvider(agent);
+			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await svc.listSessions();
 
 			const surfaced = svc.stateManager.getSurfacedSessionSummary(legacy.toString());
@@ -5576,8 +5578,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('adopts a surfaced legacy session on open only when the migrate setting is on', async () => {
-			// Open-adoption is strictly gated on the live migrate setting: while it
-			// is off, opening a surfaced legacy session must not migrate.
+			// Open-adoption is strictly gated on the live migrate setting.
 			class AdoptOnOpenAgent extends MockAgent {
 				adoptCalls = 0;
 				private _adopted = false;
@@ -5611,8 +5612,7 @@ suite('AgentService (node dispatcher)', () => {
 				_meta: withSessionEhcliAdoptable(undefined),
 			});
 
-			// Migrate setting off: opening must not adopt (and dead-ends on the
-			// missing backend metadata rather than migrating).
+			// Migrate setting off: opening must not adopt (dead-ends on missing backend metadata).
 			await assert.rejects(() => localService.restoreSession(session));
 			assert.strictEqual(agent.adoptCalls, 0);
 
@@ -5626,52 +5626,50 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
-		test('a passive read-state action does not adopt a surfaced legacy session (listing must not migrate)', async () => {
-			// Regression for #330383: refreshing the sessions list runs the legacy
-			// read-state migration, which dispatches `session/isReadChanged`. That
-			// passive action must not restore/adopt an un-opened legacy session,
-			// otherwise merely listing / scrolling would write a migration database.
-			class AdoptOnOpenAgent extends MockAgent {
-				adoptCalls = 0;
-				private _adopted = false;
-				constructor() { super('copilot'); }
-				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
-					this.adoptCalls++;
-					this._adopted = true;
-					return { adopted: true, eligible: true };
+		test('a passive read/archive action does not adopt a surfaced legacy session (listing must not migrate)', async () => {
+			// Regression for #330383: a passive read/archive toggle from the sessions list must not restore/adopt an un-opened legacy session.
+			for (const action of [{ type: ActionType.SessionIsReadChanged, isRead: true } as const, { type: ActionType.SessionIsArchivedChanged, isArchived: true } as const]) {
+				class AdoptOnOpenAgent extends MockAgent {
+					adoptCalls = 0;
+					private _adopted = false;
+					constructor() { super('copilot'); }
+					async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+						this.adoptCalls++;
+						this._adopted = true;
+						return { adopted: true, eligible: true };
+					}
+					override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+						return this._adopted ? { chat, startTime: Date.now(), modifiedTime: Date.now() } : undefined;
+					}
 				}
-				override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-					return this._adopted ? { chat, startTime: Date.now(), modifiedTime: Date.now() } : undefined;
-				}
+
+				const db = new TestSessionDatabase();
+				const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new AdoptOnOpenAgent());
+				localService.registerProvider(agent);
+				agent.sessionMessages = [];
+
+				const session = AgentSession.uri('copilot', `surfaced-legacy-${action.type}`);
+				const sessionStr = session.toString();
+				localService.stateManager.announceSurfacedSession({
+					resource: sessionStr,
+					provider: 'copilot',
+					title: 'Legacy',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					_meta: withSessionEhcliAdoptable(undefined),
+				});
+
+				localService.dispatchAction(sessionStr, action, 'test-client', 1, AgentHostClientType.EditorWindow);
+				await timeout(0);
+				await timeout(0);
+
+				assert.deepStrictEqual(
+					{ action: action.type, adoptCalls: agent.adoptCalls, restored: !!localService.stateManager.getSessionState(sessionStr) },
+					{ action: action.type, adoptCalls: 0, restored: false },
+				);
 			}
-
-			const db = new TestSessionDatabase();
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = disposables.add(new AdoptOnOpenAgent());
-			localService.registerProvider(agent);
-			agent.sessionMessages = [];
-
-			const session = AgentSession.uri('copilot', 'surfaced-legacy-read');
-			const sessionStr = session.toString();
-			localService.stateManager.announceSurfacedSession({
-				resource: sessionStr,
-				provider: 'copilot',
-				title: 'Legacy',
-				status: SessionStatus.Idle,
-				createdAt: new Date().toISOString(),
-				modifiedAt: new Date().toISOString(),
-				_meta: withSessionEhcliAdoptable(undefined),
-			});
-
-			// A passive read toggle for the un-opened session.
-			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsReadChanged, isRead: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await timeout(0);
-			await timeout(0);
-
-			assert.deepStrictEqual(
-				{ adoptCalls: agent.adoptCalls, restored: !!localService.stateManager.getSessionState(sessionStr) },
-				{ adoptCalls: 0, restored: false },
-			);
 		});
 
 		test('turning the migrate setting off un-surfaces adoptable legacy sessions that were never opened', async () => {
@@ -5715,6 +5713,24 @@ suite('AgentService (node dispatcher)', () => {
 				{ surfaced: localService.stateManager.getSurfacedSessionSummary(sessionStr), removed },
 				{ surfaced: undefined, removed: sessionStr },
 			);
+		});
+
+		test('excludes adoptable-legacy sessions from the list while the migrate setting is off', async () => {
+			// Guards against a refresh re-surfacing a registry entry that can no longer be opened while migration is off.
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const adoptable: IAgentSessionMetadata = {
+				session: AgentSession.uri('copilot', 'adoptable-list-gate'),
+				startTime: Date.now(),
+				modifiedTime: Date.now(),
+				_meta: withSessionEhcliAdoptable(undefined),
+			};
+			const shouldInclude = (localService as unknown as { _shouldIncludeSession(s: IAgentSessionMetadata): boolean })._shouldIncludeSession.bind(localService);
+
+			const includedWhileOff = shouldInclude(adoptable);
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const includedWhileOn = shouldInclude(adoptable);
+
+			assert.deepStrictEqual({ includedWhileOff, includedWhileOn }, { includedWhileOff: false, includedWhileOn: true });
 		});
 
 		test('restores known session without listing all provider sessions', async () => {

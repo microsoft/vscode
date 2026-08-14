@@ -1609,6 +1609,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _shouldIncludeSession(session: IAgentSessionMetadata, mode = this._getExternalSessionsMode()): boolean {
+		// While migration is off, un-adopted adoptable-legacy sessions belong to the extension-host provider — exclude so a refresh cannot re-surface an unopenable row.
+		if (readSessionEhcliAdoptable(session._meta) && !this._isMigrateLegacyEnabled()) {
+			return false;
+		}
 		if (!readSessionExternal(session._meta) || readSessionEhcliAdoptable(session._meta) || this._stateManager.getSessionState(session.session.toString())) {
 			return true;
 		}
@@ -1658,13 +1662,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 	}
 
-	/**
-	 * On the migrate-legacy setting turning off, drop every surfaced (but never
-	 * opened) adoptable-legacy entry so a later open falls back to the
-	 * extension-host path instead of migrating. `retractSurfacedSession` only
-	 * clears the surfaced summary — it deletes no data — and already-adopted
-	 * sessions (which have live state) are left untouched.
-	 */
+	/** Retracts un-opened adoptable-legacy entries when migration is turned off (deletes no data). */
 	private _onMigrateLegacySettingChanged(): void {
 		const enabled = this._isMigrateLegacyEnabled();
 		if (enabled === this._lastMigrateLegacyEnabled) {
@@ -1737,6 +1735,11 @@ export class AgentService extends Disposable implements IAgentService {
 		this._announcedSurfacedKeys.add(key);
 		try {
 			if (await this._sessionRegistry.isTombstoned(meta.session)) {
+				this._announcedSurfacedKeys.delete(key);
+				return;
+			}
+			// The migrate setting may have flipped off during the await above; re-check so an adoptable-legacy session is never surfaced while migration is off.
+			if (!this._shouldIncludeSession(meta)) {
 				this._announcedSurfacedKeys.delete(key);
 				return;
 			}
@@ -3417,12 +3420,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
-	/**
-	 * A passive session-metadata toggle (read / archived state) carries no user
-	 * intent to open the session. Such actions must not trigger legacy Copilot
-	 * CLI adoption when they land on an un-loaded, surfaced-adoptable session —
-	 * otherwise merely listing or scrolling the sessions view would migrate it.
-	 */
+	/** A read/archive toggle carries no intent to open, so it must not trigger legacy adoption on an un-loaded session. */
 	private _isPassiveMetadataAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): boolean {
 		return action.type === ActionType.SessionIsReadChanged || action.type === ActionType.SessionIsArchivedChanged;
 	}
@@ -3458,13 +3456,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (subagent) {
 					await this._restoreSubagentSession(sessionChannel, subagent.parentSession);
 				} else if (this._isPassiveMetadataAction(action) && readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionChannel)?._meta)) {
-					// A passive read/archive toggle must never migrate a legacy
-					// Copilot CLI session: restoring an un-adopted, surfaced-adoptable
-					// session here would call `ensureChatAdopted` and write the
-					// migration database, so merely listing / scrolling would adopt.
-					// Only an explicit open (a channel subscribe) adopts. Drop the
-					// action — the client already applied it optimistically and the
-					// read/archive state stays view-level until the session is opened.
+					// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open (subscribe) adopts.
 					return;
 				} else {
 					await this.restoreSession(sessionUri);
@@ -3828,13 +3820,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
 		const external = registeredSession?.external ?? false;
 
-		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session: seed its
-		// VS Code-layer metadata in place (reusing the on-disk event log) so the
-		// restore below can hydrate it. A no-op for native / already-adopted sessions.
-		// Adoption is strictly gated on the live migrate setting: turning it off
-		// un-surfaces adoptable entries (see the `onDidRootConfigChange` handler),
-		// so opening one afterwards falls back to the extension-host path rather
-		// than migrating.
+		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session, strictly gated on the live migrate setting (a no-op for native / already-adopted sessions).
 		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 		const migrationStartTime = Date.now();
 		let adoption: IAgentChatAdoptionResult = { adopted: false, eligible: false };
