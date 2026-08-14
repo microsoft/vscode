@@ -258,7 +258,7 @@ export class Sash extends Disposable {
 	private hoverDelayer = this._register(new Delayer(this.hoverDelay));
 
 	private _state: SashState = SashState.Enabled;
-	private readonly classNameCounts = new Map<string, number>();
+	private readonly classNameLeases = new Map<string, { count: number; removeOnRelease: boolean }>();
 	private readonly onDidEnablementChange = this._register(new Emitter<SashState>());
 	private readonly _onDidStart = this._register(new Emitter<ISashEvent>());
 	private readonly _onDidChange = this._register(new Emitter<ISashEvent>());
@@ -312,16 +312,23 @@ export class Sash extends Disposable {
 
 	/** Adds a CSS class for the lifetime of the returned disposable. */
 	addClass(className: string): IDisposable {
-		this.classNameCounts.set(className, (this.classNameCounts.get(className) ?? 0) + 1);
-		this.el.classList.add(className);
+		const existingLease = this.classNameLeases.get(className);
+		if (existingLease) {
+			existingLease.count++;
+		} else {
+			this.classNameLeases.set(className, { count: 1, removeOnRelease: !this.el.classList.contains(className) });
+			this.el.classList.add(className);
+		}
 
 		return toDisposable(() => {
-			const count = this.classNameCounts.get(className);
-			if (count === 1) {
-				this.classNameCounts.delete(className);
-				this.el.classList.remove(className);
-			} else if (count !== undefined) {
-				this.classNameCounts.set(className, count - 1);
+			const lease = this.classNameLeases.get(className);
+			if (lease?.count === 1) {
+				this.classNameLeases.delete(className);
+				if (lease.removeOnRelease) {
+					this.el.classList.remove(className);
+				}
+			} else if (lease) {
+				lease.count--;
 			}
 		});
 	}

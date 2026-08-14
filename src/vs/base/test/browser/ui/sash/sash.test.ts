@@ -11,20 +11,29 @@ suite('Sash', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('keeps a class until all leases are disposed', () => {
+	test('keeps leased and pre-existing classes until their owners release them', () => {
 		const container = document.createElement('div');
 		const sash = store.add(new Sash(container, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL }));
 		const firstLease = store.add(sash.addClass('leased'));
 		const secondLease = store.add(sash.addClass('leased'));
+		const preExistingClassLease = store.add(sash.addClass('vertical'));
 		const sashElement = container.querySelector('.monaco-sash');
-		const states = [sashElement?.classList.contains('leased')];
+		const leasedClassStates = [sashElement?.classList.contains('leased')];
 
 		firstLease.dispose();
-		states.push(sashElement?.classList.contains('leased'));
+		leasedClassStates.push(sashElement?.classList.contains('leased'));
 
 		secondLease.dispose();
-		states.push(sashElement?.classList.contains('leased'));
+		leasedClassStates.push(sashElement?.classList.contains('leased'));
 
-		assert.deepStrictEqual(states, [true, true, false]);
+		preExistingClassLease.dispose();
+
+		assert.deepStrictEqual({
+			leasedClassStates,
+			preExistingClassAfterRelease: sashElement?.classList.contains('vertical'),
+		}, {
+			leasedClassStates: [true, true, false],
+			preExistingClassAfterRelease: true,
+		});
 	});
 });
