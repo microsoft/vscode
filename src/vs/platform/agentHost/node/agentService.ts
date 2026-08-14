@@ -92,6 +92,7 @@ import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostEditTelemetryEna
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
@@ -570,6 +571,20 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, fetchFn);
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
+		const gitHubService = this._register(instantiationService.createInstance(GitHubService, {
+			endpoint: this._gitHubEndpointService,
+			tokenProvider: {
+				getToken: () => {
+					const resource = this._gitHubEndpointService.getRepoResource();
+					return this._authService.getAuthToken({
+						resource: resource.resource,
+						scopes: resource.scopes_supported,
+					});
+				},
+			},
+			fetch: fetchFn,
+		}));
+		services.set(IGitHubService, gitHubService);
 		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);
 		services.set(ICopilotApiService, effectiveCopilotApiService);
 		this._customizationEnablementService = this._register(instantiationService.createInstance(AgentHostCustomizationEnablementService));
