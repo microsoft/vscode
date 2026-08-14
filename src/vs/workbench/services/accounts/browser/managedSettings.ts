@@ -14,7 +14,7 @@ import { normalizeManagedSettings } from '../../../../platform/policy/common/cop
  * managed settings implementation, which is distinct from the `copilot-runtime` implementation
  * VS Code relays a subset of these settings into.
  */
-export const MANAGED_SETTINGS_CLIENT_ID = 'vscode';
+const MANAGED_SETTINGS_CLIENT_ID = 'vscode';
 
 /**
  * A single MCP server matcher entry in the `allowedMcpServers` / `deniedMcpServers` managed
@@ -82,15 +82,13 @@ export interface IManagedSettingsResponse {
 /**
  * Append the client identity to a `managed_settings` request URL, naming the implementations that
  * parse and enforce the response so the service can fail closed when they are too old to honor a
- * setting it would otherwise deliver.
+ * setting it would otherwise deliver. `copilot_runtime_version` is present only when a runtime is
+ * bundled.
  *
- * The identity travels in the query string rather than in headers because neither available
- * channel survives the trip: `User-Agent` is a forbidden header that `fetch` refuses to set (see
- * `getRequestHeaders` in `base/parts/request/common/requestImpl.ts`), and custom headers are
- * dropped before reaching the service unless they are explicitly allow-listed. The query string is
- * subject to neither restriction and behaves identically on desktop and web.
- *
- * Returns the URL unchanged when it cannot be parsed, leaving the request itself intact.
+ * Existing query parameters are preserved, and the URL is returned unchanged when it cannot be
+ * parsed so a malformed `managedSettingsUrl` cannot turn into a thrown request. The identity
+ * travels in the query string because neither header channel reaches the service; see the PR and
+ * ADR for that rationale.
  */
 export function appendManagedSettingsClientIdentity(url: string, product: Pick<IProductConfiguration, 'version' | 'copilotVersions'>): string {
 	let parsed: URL;
@@ -105,6 +103,9 @@ export function appendManagedSettingsClientIdentity(url: string, product: Pick<I
 	const runtimeVersion = product.copilotVersions?.runtime;
 	if (runtimeVersion) {
 		parsed.searchParams.set('copilot_runtime_version', runtimeVersion);
+	} else {
+		// Never let a value configured on the endpoint URL stand in for a runtime we did not bundle.
+		parsed.searchParams.delete('copilot_runtime_version');
 	}
 	return parsed.toString();
 }
