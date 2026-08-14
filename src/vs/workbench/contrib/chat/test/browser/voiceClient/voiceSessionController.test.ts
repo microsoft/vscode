@@ -4606,6 +4606,20 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('open omni claims a coalesced completed session exactly once', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const sessionId = URI.parse('vscode-chat://coalesced-completion').toString();
+		showSessionsInAgentsList(controller, sessionId);
+		await connectWithOmniOpen(controller, voiceClientService);
+		const claim = Reflect.get(controller, '_claimFreshOmniCompletion') as (sessionId: string, endedAt: number) => boolean;
+
+		assert.deepStrictEqual([
+			claim.call(controller, sessionId, 1),
+			claim.call(controller, sessionId, 1),
+		], [true, false]);
+	});
+
 	test('open omni does not claim audio from a session missing from the Agents list', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();

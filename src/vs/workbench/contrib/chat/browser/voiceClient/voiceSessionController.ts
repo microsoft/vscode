@@ -405,6 +405,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	readonly omniInputActive: IObservable<boolean> = this._omniInputActive;
 	private readonly _omniInputOpen = observableValue<boolean>(this, false);
 	readonly omniInputOpen: IObservable<boolean> = this._omniInputOpen;
+	private _omniOpenedAt = 0;
+	private readonly _omniCompletionEndedAtBySession = new Map<string, number>();
 
 	// --- Internal state ---
 	private _pttHeld = false;
@@ -1618,13 +1620,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							// and let the autorun re-fire with the summary once it resolves
 							// (do not record the idle state yet so the transition is still
 							// detected after the model loads).
-							if (isStateTransition && currentState === 'idle') {
+							const completedWhileOmniVisible = currentState === 'idle'
+								&& this._claimFreshOmniCompletion(sessionId, s.timing.lastRequestEnded);
+							if ((isStateTransition || completedWhileOmniVisible) && currentState === 'idle') {
 								const cachedSummary = this._lastResponseSummaryById.get(sessionId);
 								if (!cachedSummary) {
 									this._deferIdleNarrationUntilModelLoaded(s.resource);
 									continue;
 								}
 								this._sessionsAwaitingResponseSummary.delete(sessionId);
+								this._pendingResponseSummaries.set(this._sessionKey(sessionId), cachedSummary);
 								if (!this._userCancelledSessions.has(sessionId)) {
 									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', lastResponseSummary: cachedSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromConfirmationType: prev?.confirmationType, fromResponseSummary: prev?.lastResponseSummary ?? '', pendingId: '', fromPendingId: prev?.pendingId ?? '' });
 								}
@@ -3338,6 +3343,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._omniInputOpen.set(open, undefined);
 		this.logService.trace(`[voice] omni inbox ${open ? 'opened' : 'closed'}`);
 		if (open) {
+			this._omniOpenedAt = Date.now();
 			// Omni is the visible owner while connected. Hide any voice-only list
 			// indicators; their underlying state remains available in omni itself.
 			for (const key of this._pendingVoiceIndicatorKeys()) {
@@ -3358,6 +3364,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// playback is stopped, but refocusing a session can narrate it.
 			this._releaseOmniInboxToPanel();
 		}
+	}
+
+	private _claimFreshOmniCompletion(sessionId: string, endedAt: number | undefined): boolean {
+		if (!endedAt
+			|| endedAt < this._omniOpenedAt
+			|| !this._isOmniVoiceInboxSession(sessionId)
+			|| endedAt <= (this._omniCompletionEndedAtBySession.get(sessionId) ?? 0)) {
+			return false;
+		}
+		this._omniCompletionEndedAtBySession.set(sessionId, endedAt);
+		return true;
 	}
 
 	releaseOmniInputOnBlur(): void {
@@ -6993,13 +7010,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// Summary-less idle transitions for remote/Copilot sessions: narrate
 			// from the cached summary if we have one, otherwise defer until the
 			// model loads (see _deferIdleNarrationUntilModelLoaded).
-			if (!model && currentState === 'idle' && isStateChange) {
+			const completedWhileOmniVisible = !model
+				&& currentState === 'idle'
+				&& this._claimFreshOmniCompletion(sessionId, s.timing.lastRequestEnded);
+			if (!model && currentState === 'idle' && (isStateChange || completedWhileOmniVisible)) {
 				const cachedSummary = this._lastResponseSummaryById.get(sessionId);
 				if (!cachedSummary) {
 					this._deferIdleNarrationUntilModelLoaded(s.resource);
 					continue;
 				}
 				lastResponseSummary = cachedSummary;
+				this._pendingResponseSummaries.set(this._sessionKey(sessionId), cachedSummary);
 			}
 
 			// A completed reply's summary can land after the idle transition (or
