@@ -115,6 +115,7 @@ export interface IAgentFeedbackService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeFeedback: Event<IAgentFeedbackChangeEvent>;
+	readonly onDidChangeFeedbackVisibility: Event<URI>;
 	readonly onDidChangeNavigation: Event<URI>;
 	readonly onDidRevealSessionComment: Event<IAgentFeedbackCommentRevealEvent>;
 	/** Fired when {@link getFeedbackSessionResource} may resolve differently. */
@@ -186,6 +187,15 @@ export interface IAgentFeedbackService {
 	 * Get all feedback items for a session.
 	 */
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
+
+	/** Show resolved feedback items in editor comment surfaces for this window. */
+	showFeedbackInEditor(sessionResource: URI, feedbackIds: readonly string[]): void;
+
+	/** Hide a resolved feedback item that was explicitly shown in editor comment surfaces. */
+	hideFeedbackInEditor(sessionResource: URI, feedbackId: string): void;
+
+	/** Get resolved feedback item ids that were explicitly shown in editor comment surfaces. */
+	getVisibleResolvedFeedbackIds(sessionResource: URI): ReadonlySet<string>;
 
 	/**
 	 * Whether {@link getFeedback} reflects the authoritative item set for the
@@ -285,6 +295,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	private readonly _onDidChangeFeedback = this._store.add(new Emitter<IAgentFeedbackChangeEvent>());
 	readonly onDidChangeFeedback = this._onDidChangeFeedback.event;
+	private readonly _onDidChangeFeedbackVisibility = this._store.add(new Emitter<URI>());
+	readonly onDidChangeFeedbackVisibility = this._onDidChangeFeedbackVisibility.event;
 	private readonly _onDidChangeNavigation = this._store.add(new Emitter<URI>());
 	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
 	private readonly _onDidRevealSessionComment = this._store.add(new Emitter<IAgentFeedbackCommentRevealEvent>());
@@ -306,6 +318,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	private readonly _sessionUpdatedOrder = new Map<string, number>();
 	private _sessionUpdatedSequence = 0;
 	private readonly _navigationAnchorBySession = new Map<string, string>();
+	private readonly _visibleResolvedFeedbackIds = new ResourceMap<Set<string>>();
 
 	/** fileResource → sessionResource active when the editor for that file was first seen */
 	private readonly _fileToSession = new ResourceMap<URI>();
@@ -422,6 +435,18 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	private _handleBackendChange(sessionResource: URI): void {
 		const key = sessionResource.toString();
 		const feedbackItems = this._backendForSession(sessionResource).getItems(sessionResource);
+		const visibleResolvedFeedbackIds = this._visibleResolvedFeedbackIds.get(sessionResource);
+		if (visibleResolvedFeedbackIds) {
+			const resolvedFeedbackIds = new Set(feedbackItems.filter(item => item.state === AgentFeedbackState.Resolved).map(item => item.id));
+			for (const feedbackId of visibleResolvedFeedbackIds) {
+				if (!resolvedFeedbackIds.has(feedbackId)) {
+					visibleResolvedFeedbackIds.delete(feedbackId);
+				}
+			}
+			if (visibleResolvedFeedbackIds.size === 0) {
+				this._visibleResolvedFeedbackIds.delete(sessionResource);
+			}
+		}
 		if (feedbackItems.length) {
 			this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
 		} else {
@@ -637,6 +662,40 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return this._backendForSession(sessionResource).getItems(sessionResource);
 	}
 
+	showFeedbackInEditor(sessionResource: URI, feedbackIds: readonly string[]): void {
+		const resolvedFeedbackIds = new Set(
+			this.getFeedback(sessionResource)
+				.filter(item => item.state === AgentFeedbackState.Resolved)
+				.map(item => item.id)
+		);
+		const visibleFeedbackIds = this._visibleResolvedFeedbackIds.get(sessionResource) ?? new Set<string>();
+		const previousSize = visibleFeedbackIds.size;
+		for (const feedbackId of feedbackIds) {
+			if (resolvedFeedbackIds.has(feedbackId)) {
+				visibleFeedbackIds.add(feedbackId);
+			}
+		}
+		if (visibleFeedbackIds.size !== previousSize) {
+			this._visibleResolvedFeedbackIds.set(sessionResource, visibleFeedbackIds);
+			this._onDidChangeFeedbackVisibility.fire(sessionResource);
+		}
+	}
+
+	hideFeedbackInEditor(sessionResource: URI, feedbackId: string): void {
+		const visibleFeedbackIds = this._visibleResolvedFeedbackIds.get(sessionResource);
+		if (!visibleFeedbackIds?.delete(feedbackId)) {
+			return;
+		}
+		if (visibleFeedbackIds.size === 0) {
+			this._visibleResolvedFeedbackIds.delete(sessionResource);
+		}
+		this._onDidChangeFeedbackVisibility.fire(sessionResource);
+	}
+
+	getVisibleResolvedFeedbackIds(sessionResource: URI): ReadonlySet<string> {
+		return this._visibleResolvedFeedbackIds.get(sessionResource) ?? new Set();
+	}
+
 	hasLoadedFeedback(sessionResource: URI): boolean {
 		return this._backendForSession(sessionResource).hasLoaded(sessionResource);
 	}
@@ -700,6 +759,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!feedback) {
 			return;
 		}
+		this.showFeedbackInEditor(sessionResource, [feedbackId]);
 		// Anchor using the session-editor-comment id (not the raw feedback id) so the editor widget contribution matches the active item and expands its widget.
 		await this.revealSessionComment(sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedbackId), feedback.resourceUri, feedback.range);
 	}
@@ -819,6 +879,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		const key = sessionResource.toString();
 		this._sessionUpdatedOrder.delete(key);
 		this._navigationAnchorBySession.delete(key);
+		this._visibleResolvedFeedbackIds.delete(sessionResource);
 		this._backendForSession(sessionResource).clear(sessionResource);
 	}
 

@@ -39,7 +39,7 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		@IAgentEditorCommentsBridge bridge: IAgentEditorCommentsBridge,
 	) {
 		super();
-		const onDidChangeComments = Event.any(this._agentFeedbackService.onDidChangeFeedback, this._agentFeedbackService.onDidChangeFeedbackScope);
+		const onDidChangeComments = Event.any(this._agentFeedbackService.onDidChangeFeedback, this._agentFeedbackService.onDidChangeFeedbackVisibility, this._agentFeedbackService.onDidChangeFeedbackScope);
 		this.onDidChangeComments = Event.signal(onDidChangeComments);
 		this._register(bridge.registerProvider(this));
 		this._register(this._agentFeedbackService.onDidRevealSessionComment(event => {
@@ -66,7 +66,12 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 			return [];
 		}
 		const comments: IAgentEditorComment[] = [];
-		const sessionComments = getSessionEditorComments(sessionResource, this._agentFeedbackService.getFeedback(sessionResource));
+		const sessionComments = getSessionEditorComments(
+			sessionResource,
+			this._agentFeedbackService.getFeedback(sessionResource),
+			undefined,
+			this._agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
+		);
 		for (const comment of sessionComments) {
 			if ((includeRelated && comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted)
 				|| (!includeRelated && isEqual(comment.resourceUri, resource))) {
@@ -81,7 +86,12 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		if (!sessionResource) {
 			return [];
 		}
-		return getSessionEditorComments(sessionResource, this._agentFeedbackService.getFeedback(sessionResource))
+		return getSessionEditorComments(
+			sessionResource,
+			this._agentFeedbackService.getFeedback(sessionResource),
+			undefined,
+			this._agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
+		)
 			.filter(comment => includeRelated || isEqual(comment.resourceUri, resource))
 			.map(comment => comment.id);
 	}
@@ -105,7 +115,12 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		if (parsed?.source !== SessionEditorCommentSource.AgentFeedback) {
 			return;
 		}
-		this._agentFeedbackService.removeFeedback(sessionResource, parsed.sourceId);
+		const feedback = this._agentFeedbackService.getFeedback(sessionResource).find(item => item.id === parsed.sourceId);
+		if (feedback?.state === AgentFeedbackState.Resolved) {
+			this._agentFeedbackService.hideFeedbackInEditor(sessionResource, parsed.sourceId);
+		} else {
+			this._agentFeedbackService.removeFeedback(sessionResource, parsed.sourceId);
+		}
 	}
 
 	private _revealPendingComment(): void {

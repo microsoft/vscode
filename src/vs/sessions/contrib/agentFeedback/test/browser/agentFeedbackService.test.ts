@@ -211,7 +211,7 @@ suite('AgentFeedbackService - Ordering', () => {
 		// feedback id) for that match to succeed.
 		await service.revealFeedback(session, f2.id);
 
-		const comments = getSessionEditorComments(session, service.getFeedback(session));
+		const comments = getSessionEditorComments(session, service.getFeedback(session), undefined, service.getVisibleResolvedFeedbackIds(session));
 		const bearing = service.getNavigationBearing(session, comments);
 		assert.strictEqual(comments[bearing.activeIdx]?.sourceId, f2.id);
 
@@ -222,6 +222,56 @@ suite('AgentFeedbackService - Ordering', () => {
 			{ session: session.toString(), commentId: comments[1].id, resource: fileA.toString() },
 			{ session: session.toString(), commentId: comments[0].id, resource: fileA.toString() },
 		]);
+	});
+
+	test('resolved feedback is visible only after an explicit reveal', async () => {
+		const feedback = service.addFeedback(
+			session,
+			fileA,
+			r(5),
+			'Resolved feedback',
+			undefined,
+			undefined,
+			undefined,
+			AgentFeedbackKind.UserReview,
+			AgentFeedbackState.Resolved,
+		);
+		const visibleComments = () => getSessionEditorComments(
+			session,
+			service.getFeedback(session),
+			undefined,
+			service.getVisibleResolvedFeedbackIds(session),
+		).map(comment => comment.sourceId);
+
+		const beforeReveal = visibleComments();
+		await service.revealFeedback(session, feedback.id);
+		const afterReveal = visibleComments();
+
+		service.setFeedbackResolved(session, feedback.id, false);
+		const afterUnresolve = visibleComments();
+		service.setFeedbackResolved(session, feedback.id, true);
+		const afterReresolve = visibleComments();
+
+		service.showFeedbackInEditor(session, [feedback.id]);
+		const afterShow = visibleComments();
+		service.hideFeedbackInEditor(session, feedback.id);
+		const afterHide = visibleComments();
+
+		assert.deepStrictEqual({
+			beforeReveal,
+			afterReveal,
+			afterUnresolve,
+			afterReresolve,
+			afterShow,
+			afterHide,
+		}, {
+			beforeReveal: [],
+			afterReveal: [feedback.id],
+			afterUnresolve: [feedback.id],
+			afterReresolve: [],
+			afterShow: [feedback.id],
+			afterHide: [],
+		});
 	});
 
 	test('removing feedback preserves ordering', () => {

@@ -45,6 +45,7 @@ export function getSessionEditorComments(
 	sessionResource: URI,
 	agentFeedbackItems: readonly IAgentFeedback[],
 	prReviewState?: IPRReviewState,
+	visibleResolvedFeedbackIds?: ReadonlySet<string>,
 ): readonly ISessionEditorComment[] {
 	const comments: ISessionEditorComment[] = [];
 
@@ -63,7 +64,7 @@ export function getSessionEditorComments(
 
 	for (const item of agentFeedbackItems) {
 		// Resolved feedback is hidden from the editor UI.
-		if (item.state === AgentFeedbackState.Resolved) {
+		if (item.state === AgentFeedbackState.Resolved && !visibleResolvedFeedbackIds?.has(item.id)) {
 			continue;
 		}
 		// Hide the still-unaccepted PR review mirror; the raw PR comment is

@@ -13,6 +13,7 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { AgentFeedbackHover } from './agentFeedbackHover.js';
+import { IAgentFeedbackService } from './agentFeedbackService.js';
 
 /**
  * Attachment widget that renders "N comments" with a comment icon
@@ -33,6 +34,7 @@ export class AgentFeedbackAttachmentWidget extends Disposable {
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 	) {
 		super();
 
@@ -72,7 +74,30 @@ export class AgentFeedbackAttachmentWidget extends Disposable {
 		// Aria label
 		this.element.ariaLabel = localize('chat.agentFeedback', "Attached agent feedback, {0}", this._attachment.name);
 
+		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._revealAttachment();
+		}));
+		this._store.add(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				e.stopPropagation();
+				this._revealAttachment();
+			}
+		}));
+
 		// Custom interactive hover
 		this._store.add(this._instantiationService.createInstance(AgentFeedbackHover, this.element, this._attachment, options.supportsDeletion));
+	}
+
+	private _revealAttachment(): void {
+		const feedbackIds = this._attachment.feedbackItems.map(item => item.id);
+		const firstFeedbackId = feedbackIds[0];
+		if (!firstFeedbackId) {
+			return;
+		}
+		this._agentFeedbackService.showFeedbackInEditor(this._attachment.sessionResource, feedbackIds);
+		void this._agentFeedbackService.revealFeedback(this._attachment.sessionResource, firstFeedbackId);
 	}
 }

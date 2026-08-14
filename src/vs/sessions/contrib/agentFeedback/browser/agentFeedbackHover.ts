@@ -147,7 +147,8 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 	readonly templateId = FeedbackCommentRenderer.TEMPLATE_ID;
 
 	constructor(
-		private readonly _agentFeedbackService: IAgentFeedbackService | undefined,
+		private readonly _agentFeedbackService: IAgentFeedbackService,
+		private readonly _canDelete: boolean,
 		private readonly _sessionResource: URI,
 		private readonly _hoverService: IHoverService,
 		private readonly _languageService: ILanguageService,
@@ -167,18 +168,16 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 
 		const templateData: IFeedbackCommentTemplate = { textElement, row, actionBar, templateDisposables, hoverDisposable, element: undefined };
 
-		if (this._agentFeedbackService) {
-			const service = this._agentFeedbackService;
-			const sessionResource = this._sessionResource;
-			templateDisposables.add(dom.addDisposableListener(row, dom.EventType.CLICK, (e) => {
-				const data = templateData.element;
-				if (data) {
-					e.preventDefault();
-					e.stopPropagation();
-					service.revealFeedback(sessionResource, data.id);
-				}
-			}));
-		}
+		const service = this._agentFeedbackService;
+		const sessionResource = this._sessionResource;
+		templateDisposables.add(dom.addDisposableListener(row, dom.EventType.CLICK, e => {
+			const data = templateData.element;
+			if (data) {
+				e.preventDefault();
+				e.stopPropagation();
+				void service.revealFeedback(sessionResource, data.id);
+			}
+		}));
 
 		return templateData;
 	}
@@ -190,7 +189,7 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 		templateData.element = element;
 
 		// In read-only mode, set up a rich markdown hover with comment + code snippet
-		if (!this._agentFeedbackService) {
+		if (!this._canDelete) {
 			templateData.hoverDisposable.value = this._hoverService.setupDelayedHover(
 				templateData.row,
 				() => this._buildCommentHover(element),
@@ -199,7 +198,7 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 		}
 
 		templateData.actionBar.clear();
-		if (this._agentFeedbackService) {
+		if (this._canDelete) {
 			const service = this._agentFeedbackService;
 			const sessionResource = this._sessionResource;
 			templateData.actionBar.push(new Action(
@@ -270,21 +269,6 @@ export class AgentFeedbackHover extends Disposable {
 			{ groupId: 'chat-attachments' }
 		));
 
-		// Show immediately on click
-		this._store.add(dom.addDisposableListener(this._element, dom.EventType.CLICK, (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this._showHoverNow();
-		}));
-	}
-
-	private _showHoverNow(): void {
-		const opts = this._buildHoverContent();
-		this._register(opts);
-		this._hoverService.showInstantHover({
-			...opts,
-			target: this._element,
-		});
 	}
 
 	private _buildHoverContent(): IDelayedHoverOptions & IDisposable {
@@ -308,7 +292,7 @@ export class AgentFeedbackHover extends Disposable {
 			new FeedbackTreeDelegate(),
 			[
 				new FeedbackFileRenderer(resourceLabels, this._canDelete ? this._agentFeedbackService : undefined, this._attachment.sessionResource),
-				new FeedbackCommentRenderer(this._canDelete ? this._agentFeedbackService : undefined, this._attachment.sessionResource, this._hoverService, this._languageService),
+				new FeedbackCommentRenderer(this._agentFeedbackService, this._canDelete, this._attachment.sessionResource, this._hoverService, this._languageService),
 			],
 			{
 				defaultIndent: 0,
