@@ -9045,7 +9045,7 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('rename server tools', () => {
-		test('rename session and chat replace live and persisted titles', async () => {
+		test('rename_chat replaces live and persisted default and peer chat titles', async () => {
 			class ServerToolAgent extends MockAgent {
 				serverToolHost: IAgentServerToolHost | undefined;
 
@@ -9064,14 +9064,22 @@ suite('AgentService (node dispatcher)', () => {
 			const defaultChat = buildDefaultChatUri(session);
 			const peerChat = buildChatUri(sessionUri, 'peer-rename');
 			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Previous user title' });
-			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Previous peer title' });
 			await db.setMetadata('customTitle', 'Previous user title');
+			await db.setMetadata('customTitleSource', 'user');
+
+			const singleChatResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
+				title: 'Single-chat title',
+			});
+
+			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Previous peer title' });
+			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Multi-chat session title' });
+			await db.setMetadata('customTitle', 'Multi-chat session title');
 			await db.setMetadata('customTitleSource', 'user');
 			await db.setMetadata(`customChatTitle:${peerChat}`, 'Previous peer title');
 			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
 
-			const sessionResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameSession, {
-				title: 'Complete replacement session title',
+			const multiChatDefaultResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
+				title: 'Complete replacement default chat title',
 			});
 			const chatResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
 				chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-rename`,
@@ -9079,21 +9087,29 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			assert.deepStrictEqual({
-				sessionResult,
+				singleChatResult,
+				multiChatDefaultResult,
 				chatResult,
 				liveSessionTitle: localService.stateManager.getSessionState(sessionUri)?.title,
+				liveDefaultChatTitle: localService.stateManager.getChatState(defaultChat)?.title,
 				liveChatTitle: localService.stateManager.getChatState(peerChat)?.title,
 				persistedSessionTitle: await db.getMetadata('customTitle'),
 				persistedSessionSource: await db.getMetadata('customTitleSource'),
+				persistedDefaultChatTitle: await db.getMetadata(`customChatTitle:${defaultChat}`),
+				persistedDefaultChatSource: await db.getMetadata(`customChatTitleSource:${defaultChat}`),
 				persistedChatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
 				persistedChatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
 			}, {
-				sessionResult: 'Renamed session to "Complete replacement session title".',
+				singleChatResult: 'Renamed chat to "Single-chat title".',
+				multiChatDefaultResult: 'Renamed chat to "Complete replacement default chat title".',
 				chatResult: 'Renamed chat to "Complete replacement peer chat title".',
-				liveSessionTitle: 'Complete replacement session title',
+				liveSessionTitle: 'Multi-chat session title',
+				liveDefaultChatTitle: 'Complete replacement default chat title',
 				liveChatTitle: 'Complete replacement peer chat title',
-				persistedSessionTitle: 'Complete replacement session title',
-				persistedSessionSource: 'agent',
+				persistedSessionTitle: 'Multi-chat session title',
+				persistedSessionSource: 'user',
+				persistedDefaultChatTitle: 'Complete replacement default chat title',
+				persistedDefaultChatSource: 'agent',
 				persistedChatTitle: 'Complete replacement peer chat title',
 				persistedChatSource: 'agent',
 			});
@@ -9123,16 +9139,25 @@ suite('AgentService (node dispatcher)', () => {
 			localService.registerProvider(agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
 			const peerChat = buildChatUri(sessionUri, 'peer-failure');
 			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Original session' });
-			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Original chat' });
 			await db.setMetadata('customTitle', 'Original session');
 			await db.setMetadata('customTitleSource', 'user');
+
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Session-backed title will fail' }),
+				/title persistence failed/,
+			);
+
+			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Original chat' });
+			await db.setMetadata(`customChatTitle:${defaultChat}`, 'Original session');
+			await db.setMetadata(`customChatTitleSource:${defaultChat}`, 'user');
 			await db.setMetadata(`customChatTitle:${peerChat}`, 'Original chat');
 			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
 
 			await assert.rejects(
-				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameSession, { title: 'Will fail' }),
+				async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Chat-backed title will fail' }),
 				/title persistence failed/,
 			);
 			await assert.rejects(
@@ -9146,6 +9171,9 @@ suite('AgentService (node dispatcher)', () => {
 				liveSession: localService.stateManager.getSessionState(sessionUri)?.title,
 				sessionTitle: await db.getMetadata('customTitle'),
 				sessionSource: await db.getMetadata('customTitleSource'),
+				liveDefaultChat: localService.stateManager.getChatState(defaultChat)?.title,
+				defaultChatTitle: await db.getMetadata(`customChatTitle:${defaultChat}`),
+				defaultChatSource: await db.getMetadata(`customChatTitleSource:${defaultChat}`),
 				liveChat: localService.stateManager.getChatState(peerChat)?.title,
 				chatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
 				chatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
@@ -9153,6 +9181,9 @@ suite('AgentService (node dispatcher)', () => {
 				liveSession: 'Original session',
 				sessionTitle: 'Original session',
 				sessionSource: 'user',
+				liveDefaultChat: 'Original session',
+				defaultChatTitle: 'Original session',
+				defaultChatSource: 'user',
 				liveChat: 'Original chat',
 				chatTitle: 'Original chat',
 				chatSource: 'user',

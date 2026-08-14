@@ -31,7 +31,6 @@ const MIN_LATIN_LETTER_RATIO = 0.8;
 const HAN_CHARACTER = /\p{sc=Han}/u;
 const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
 const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
-const SESSION_RENAME_REMINDER = 'This session currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_session` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.';
 const CHAT_RENAME_REMINDER = 'This chat currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.';
 
 /**
@@ -458,7 +457,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			return undefined;
 		}
 
-		return additionalChat ? CHAT_RENAME_REMINDER : SESSION_RENAME_REMINDER;
+		return CHAT_RENAME_REMINDER;
 	}
 
 	private _generateTitleSoon(
@@ -783,7 +782,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	private _isActiveAgentTitleGenerationEnabled(channel: ProtocolURI): boolean {
 		const serverTools = this._stateManager.getSessionState(channel)?.serverTools;
 		return serverTools
-			? serverTools.some(tool => tool.name === SessionServerToolName.RenameSession)
+			? serverTools.some(tool => tool.name === SessionServerToolName.RenameChat)
 			: this._options.isActiveAgentTitleGenerationEnabled?.() === true;
 	}
 

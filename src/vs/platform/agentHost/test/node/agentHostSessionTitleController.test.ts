@@ -173,7 +173,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
-		assert.strictEqual(instruction, 'This session currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_session` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.');
+		assert.strictEqual(instruction, 'This chat currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.');
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
 	});
 
@@ -224,7 +224,7 @@ suite('AgentHostSessionTitleController', () => {
 		});
 		disabled.controller.seedTitleFromFirstMessage(disabled.session.toString(), 'Do not use missing rename tool');
 
-		assert.ok((await enabled.controller.prepareInstructionForAgent(enabled.session.toString(), buildDefaultChatUri(enabled.session)))?.includes('`rename_session`'));
+		assert.ok((await enabled.controller.prepareInstructionForAgent(enabled.session.toString(), buildDefaultChatUri(enabled.session)))?.includes('`rename_chat`'));
 		assert.strictEqual(await disabled.controller.prepareInstructionForAgent(disabled.session.toString(), buildDefaultChatUri(disabled.session)), undefined);
 		assert.strictEqual(disabled.copilotApiService.utilityCalls.length, 1);
 	});
@@ -262,7 +262,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		controller.clearSession(session.toString(), [chat]);
 
-		assert.ok((await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)))?.includes('`rename_session`'));
+		assert.ok((await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)))?.includes('`rename_chat`'));
 		assert.ok((await controller.prepareInstructionForAgent(session.toString(), chat))?.includes('`rename_chat`'));
 	});
 
