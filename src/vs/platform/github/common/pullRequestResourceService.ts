@@ -40,6 +40,17 @@ export interface IPullRequestResources {
 	clear(): void;
 }
 
+function formatPullRequestRef(ref: PullRequestRef): string {
+	return `${ref.host}/${ref.owner}/${ref.repo}#${ref.number}`;
+}
+
+function resourceErrorKind(error: unknown): string {
+	if (error instanceof GitHubRequestError) {
+		return `${error.kind}${error.statusCode === undefined ? '' : `:${error.statusCode}`}`;
+	}
+	return error instanceof Error ? error.name : typeof error;
+}
+
 function dataInterestExpanded(left: EffectivePullRequestFragmentInterest, right: EffectivePullRequestFragmentInterest): boolean {
 	return !left.includeBodies && right.includeBodies === true
 		|| !left.requiredChecks && right.requiredChecks === true
@@ -232,13 +243,16 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			entry.keys.add(initialKey);
 			this._entriesByKey.set(initialKey, entry);
 			this._entries.add(entry);
+			this._logService.debug(`[PullRequestResourceService] Created resource ${formatPullRequestRef(normalized)} (entry ${entry.id})`);
 		} else if (entry.dormantAt !== undefined) {
 			entry.dormantAt = undefined;
 			this._dormant.delete(entry.id);
 			this._scheduler.cancel(this._dormantTaskKey(entry));
+			this._logService.trace(`[PullRequestResourceService] Resumed resource ${formatPullRequestRef(entry.ref)} (entry ${entry.id})`);
 		}
 		const subscription = new PullRequestSubscriptionImpl(entry.resource, entry, this, options);
 		entry.subscriptions.add(subscription);
+		this._logService.trace(`[PullRequestResourceService] Added subscription for ${formatPullRequestRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
 		this._updateEffectiveInterests(entry);
 		return subscription;
 	}
@@ -305,6 +319,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		}
 		entry.effective = new Map();
 		entry.dormantAt = this._clock.now();
+		this._logService.trace(`[PullRequestResourceService] Resource ${formatPullRequestRef(entry.ref)} became dormant (entry ${entry.id})`);
 		this._cancelEntryWork(entry);
 		this._dormant.set(entry.id, entry);
 		this._scheduler.schedule(this._dormantTaskKey(entry), this._clock.now() + this._policy.dormantGrace, () => {
@@ -431,6 +446,8 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		controller: AbortController,
 	): Promise<void> {
 		let credential: GitHubCredential | undefined;
+		const startedAt = this._clock.now();
+		this._logService.trace(`[PullRequestResourceService] Refreshing ${fragment} for ${formatPullRequestRef(entry.ref)} (entry ${entry.id}, generation ${entryGeneration})`);
 		try {
 			credential = await this._credentials.getCredential(controller.signal);
 			if (!sameAccount(credential.account, entry.ref)) {
@@ -451,6 +468,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				return;
 			}
 			const committedEntry = this._commitResult(entry, result);
+			this._logService.trace(`[PullRequestResourceService] Refreshed ${fragment} for ${formatPullRequestRef(committedEntry.ref)} in ${this._clock.now() - startedAt}ms (entry ${committedEntry.id}, generation ${committedEntry.generation})`);
 			committedEntry.failureCounts.delete(fragment);
 			this._scheduleNext(committedEntry, fragment, committedEntry.effective.get(fragment) ?? interest);
 		} catch (error) {
@@ -461,6 +479,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			if (canCommit) {
 				this._setError(entry, fragment, error);
 			}
+			this._logService.debug(`[PullRequestResourceService] Refresh ${fragment} for ${formatPullRequestRef(entry.ref)} ${controller.signal.aborted ? 'cancelled' : 'failed'} after ${this._clock.now() - startedAt}ms (${resourceErrorKind(error)})`);
 			if (canCommit && !controller.signal.aborted && this._isFragmentActive(entry, fragment)) {
 				this._scheduleAfterFailure(entry, fragment, interest, error);
 			} else if (credential?.signal.aborted && !controller.signal.aborted && this._isFragmentActive(entry, fragment)) {
@@ -757,9 +776,11 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			}
 		}
 		if (merged) {
+			this._logService.debug(`[PullRequestResourceService] Converged canonical resource ${formatPullRequestRef(canonicalRef)} onto entry ${entry.id}`);
 			this._updateEffectiveInterests(entry);
 		}
 		if (refChanged || aliasAdded || merged) {
+			this._logService.debug(`[PullRequestResourceService] Canonicalized ${formatPullRequestRef(entry.ref)} (entry ${entry.id}, aliases: ${entry.keys.size})`);
 			entry.generation++;
 			for (const fragment of entry.effective.keys()) {
 				if (fragment !== 'core') {
@@ -819,6 +840,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 	}
 
 	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
+		this._logService.debug(`[PullRequestResourceService] Handling credential invalidation (${event.reason}) for ${this._entries.size} resource(s)`);
 		for (const entry of [...this._entries]) {
 			if (!event.credential || sameAccount(event.credential.account, entry.ref)) {
 				if (event.reason === 'replacement' || event.reason === 'authentication') {
@@ -846,6 +868,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			return;
 		}
 		entry.disposed = true;
+		this._logService.trace(`[PullRequestResourceService] Disposing resource ${formatPullRequestRef(entry.ref)} (entry ${entry.id})`);
 		entry.generation++;
 		this._cancelEntryWork(entry);
 		for (const subscription of [...entry.subscriptions]) {

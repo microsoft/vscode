@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { ILogService } from '../../log/common/log.js';
 import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential } from './githubCredentialService.js';
 import { GitHubGraphQLError, IGitHubTransport } from './githubTransport.js';
@@ -57,6 +58,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 	constructor(
 		private readonly _transport: IGitHubTransport,
 		private readonly _endpointService: IGitHubEndpointProvider,
+		private readonly _logService?: ILogService,
 	) {
 		super();
 		this._register(this._endpointService.onDidChange(() => this.clear()));
@@ -69,6 +71,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 		const key = `${credential.account.host.toLowerCase()}\x00${enterpriseVersion ?? ''}`;
 		let cached = this._cache.get(key);
 		if (!cached) {
+			this._logService?.debug(`[GitHubHostCapabilitiesService] Probing capabilities for ${credential.account.host}${enterpriseVersion ? ` (${enterpriseVersion})` : ''}`);
 			const controller = new AbortController();
 			let entry: ICachedCapabilities;
 			const promise = this._probe(credential, controller.signal)
@@ -76,18 +79,22 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 					if (!result.cache && this._cache.get(key) === entry) {
 						this._cache.delete(key);
 					}
+					this._logService?.debug(`[GitHubHostCapabilitiesService] Capabilities for ${credential.account.host}: ${formatCapabilities(result.capabilities)} (cached: ${result.cache})`);
 					return result.capabilities;
 				})
 				.catch(error => {
 					if (this._cache.get(key) === entry) {
 						this._cache.delete(key);
 					}
+					this._logService?.debug(`[GitHubHostCapabilitiesService] Capability probe failed for ${credential.account.host} (${capabilityErrorKind(error)})`);
 					throw error;
 				})
 				.finally(() => entry.settled = true);
 			entry = { controller, promise, waiters: 0, settled: false };
 			cached = entry;
 			this._cache.set(key, cached);
+		} else {
+			this._logService?.trace(`[GitHubHostCapabilitiesService] Reusing capability probe for ${credential.account.host}${enterpriseVersion ? ` (${enterpriseVersion})` : ''}`);
 		}
 		cached.waiters++;
 		return waitForCapabilities(cached.promise, signal).finally(() => {
@@ -100,6 +107,9 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 	}
 
 	clear(): void {
+		if (this._cache.size > 0) {
+			this._logService?.debug(`[GitHubHostCapabilitiesService] Clearing ${this._cache.size} cached capability probe(s)`);
+		}
 		for (const entry of this._cache.values()) {
 			entry.controller.abort(new Error('GitHub capability cache was cleared'));
 		}
@@ -144,6 +154,19 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			cache: true,
 		};
 	}
+}
+
+function formatCapabilities(capabilities: GitHubHostCapabilities): string {
+	return [
+		`graphql=${capabilities.graphql}`,
+		`mergeQueue=${capabilities.mergeQueue}`,
+		`reviewThreads=${capabilities.reviewThreads}`,
+		`checkContextRequiredness=${capabilities.checkContextRequiredness}`,
+	].join(', ');
+}
+
+function capabilityErrorKind(error: unknown): string {
+	return error instanceof Error ? error.name : typeof error;
 }
 
 function waitForCapabilities(promise: Promise<GitHubHostCapabilities>, signal: AbortSignal): Promise<GitHubHostCapabilities> {

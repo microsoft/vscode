@@ -247,6 +247,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		const entry = this._getOrCreateEntity<GitHubRepositoryRef, GitHubRepository>('repository', normalized);
 		const subscription = new EntitySubscription(entry.resource as GitHubRepositoryResource, entry, this, options);
 		entry.subscriptions.add(subscription);
+		this._logService.trace(`[GitHubQueryService] Added repository subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
 		this._activateEntity(entry);
 		return subscription;
 	}
@@ -256,6 +257,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		const entry = this._getOrCreateEntity<GitHubIssueRef, GitHubIssue>('issue', normalized);
 		const subscription = new EntitySubscription(entry.resource as GitHubIssueResource, entry, this, options);
 		entry.subscriptions.add(subscription);
+		this._logService.trace(`[GitHubQueryService] Added issue subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
 		this._activateEntity(entry);
 		return subscription;
 	}
@@ -532,6 +534,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			return;
 		}
 		entry.dormantAt = this._clock.now();
+		this._logService.trace(`[GitHubQueryService] ${entry.kind} ${formatEntityRef(entry.ref)} became dormant (entry ${entry.id})`);
 		this._scheduler.cancel(this._entityTaskKey(entry));
 		entry.operation?.controller.abort(new Error('GitHub resource became dormant'));
 		entry.operation = undefined;
@@ -567,6 +570,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		entry.keys.add(key);
 		this._entriesByKey.set(key, entry as EntityEntry<EntityRef, EntityValue>);
 		this._entries.add(entry as EntityEntry<EntityRef, EntityValue>);
+		this._logService.debug(`[GitHubQueryService] Created ${kind} resource ${formatEntityRef(ref)} (entry ${entry.id})`);
 		return entry;
 	}
 
@@ -599,6 +603,8 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			error: undefined,
 		}, undefined);
 		let credential: GitHubCredential | undefined;
+		const startedAt = this._clock.now();
+		this._logService.trace(`[GitHubQueryService] Refreshing ${entry.kind} ${formatEntityRef(entry.ref)} (entry ${entry.id})`);
 		try {
 			credential = await this._credentials.getCredential(controller.signal);
 			if (!sameAccount(entry.ref, credential)) {
@@ -628,6 +634,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			if (entry.kind === 'repository') {
 				this._canonicalizeRepository(entry as EntityEntry<GitHubRepositoryRef, GitHubRepository>, value as GitHubRepository);
 			}
+			this._logService.trace(`[GitHubQueryService] Refreshed ${entry.kind} ${formatEntityRef(entry.ref)} in ${this._clock.now() - startedAt}ms (entry ${entry.id})`);
 			if (this._shouldPollEntity(entry)) {
 				this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry) + this._clock.jitter(this._policy.jitter));
 			}
@@ -651,6 +658,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 					this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry) + this._clock.jitter(this._policy.jitter));
 				}
 			}
+			this._logService.debug(`[GitHubQueryService] Refresh ${entry.kind} ${formatEntityRef(entry.ref)} ${controller.signal.aborted ? 'cancelled' : 'failed'} after ${this._clock.now() - startedAt}ms (${queryErrorKind(error)})`);
 			throw error;
 		}
 	}
@@ -772,10 +780,12 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		if (!this._entriesByKey.has(alias)) {
 			this._entriesByKey.set(alias, entry as EntityEntry<EntityRef, EntityValue>);
 			entry.keys.add(alias);
+			this._logService.debug(`[GitHubQueryService] Canonicalized repository ${formatEntityRef(entry.ref)} (entry ${entry.id}, aliases: ${entry.keys.size})`);
 		}
 	}
 
 	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
+		this._logService.debug(`[GitHubQueryService] Handling credential invalidation (${event.reason}) for ${this._entries.size} resource(s)`);
 		for (const entry of [...this._entries]) {
 			if (!event.credential || sameAccount(entry.ref, event.credential)) {
 				if (event.reason === 'replacement' || event.reason === 'authentication') {
@@ -801,6 +811,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			return;
 		}
 		entry.disposed = true;
+		this._logService.trace(`[GitHubQueryService] Disposing ${entry.kind} ${formatEntityRef(entry.ref)} (entry ${entry.id})`);
 		entry.operation?.controller.abort(new Error('GitHub resource was disposed'));
 		this._scheduler.cancel(this._entityTaskKey(entry));
 		this._scheduler.cancel(this._dormantTaskKey(entry));
@@ -1219,4 +1230,15 @@ function toFragmentError(error: unknown): { readonly message: string; readonly k
 		return { message: error.message, kind: error.kind, statusCode: error.statusCode };
 	}
 	return { message: error instanceof Error ? error.message : String(error), kind: 'unknown' };
+}
+
+function formatEntityRef(ref: EntityRef): string {
+	return `${ref.host}/${ref.owner}/${ref.repo}${'number' in ref ? `#${ref.number}` : ''}`;
+}
+
+function queryErrorKind(error: unknown): string {
+	if (error instanceof GitHubRequestError) {
+		return `${error.kind}${error.statusCode === undefined ? '' : `:${error.statusCode}`}`;
+	}
+	return error instanceof Error ? error.name : typeof error;
 }

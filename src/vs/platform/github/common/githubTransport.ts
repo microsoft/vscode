@@ -5,6 +5,7 @@
 
 import { LRUCache } from '../../../base/common/map.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { ILogService } from '../../log/common/log.js';
 import { GitHubAccountHandle, GitHubFetch, GitHubRequestErrorKind, GitHubRequestPriority } from './githubTypes.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { GitHubRequestQueue } from './githubRequestQueue.js';
@@ -127,6 +128,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		fetchFn: FetchFunction | undefined,
 		private readonly _scheduler: IGitHubScheduler = systemGitHubScheduler,
 		private readonly _allowInsecureLoopbackDownloads = false,
+		private readonly _logService?: ILogService,
 	) {
 		super();
 		this._fetch = fetchFn ?? ((input, init) => globalThis.fetch(input, init));
@@ -157,6 +159,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				() => this._deleteRestRequest(coalescingKey, created),
 				() => this._deleteRestRequest(coalescingKey, created),
 			);
+		} else {
+			this._logService?.trace(`[GitHubTransport] Reusing REST ${formatRequestUrl(finalUrl)} (waiters: ${shared.waiters + 1})`);
 		}
 		shared.waiters++;
 		try {
@@ -165,6 +169,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			shared.waiters--;
 			if (shared.waiters === 0 && this._inFlight.get(coalescingKey) === shared) {
 				this._inFlight.delete(coalescingKey);
+				this._logService?.trace(`[GitHubTransport] Cancelling REST ${formatRequestUrl(finalUrl)} because all waiters detached`);
 				shared.controller.abort(new Error('All GitHub request waiters cancelled'));
 			}
 		}
@@ -191,7 +196,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		request: GitHubDownloadRequest,
 		signal: AbortSignal,
 	): Promise<GitHubDownloadResponse> {
-		return this._enqueueWithRateLimit(account, 'core', request.priority ?? 'interactive', signal, async () => {
+		const priority = request.priority ?? 'interactive';
+		return this._logRequest('download', formatDownloadUrl(request.url), account, priority, signal, () => this._enqueueWithRateLimit(account, 'core', priority, signal, async () => {
 			const controller = new AbortController();
 			const timeout = this._scheduler.schedule(
 				() => controller.abort(new GitHubRequestError('GitHub download timed out', 'network')),
@@ -226,6 +232,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						}
 						throw new GitHubRequestError(`GitHub download network request failed: ${String(error)}`, 'network');
 					}
+					this._logService?.trace(`[GitHubTransport] Download request returned HTTP ${response.status}`);
 					if (authenticated) {
 						this._rateLimits.updateFromResponse(account, response);
 					}
@@ -237,6 +244,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						const redirected = new URL(location, url);
 						validateDownloadUrl(redirected, this._allowInsecureLoopbackDownloads);
 						authenticated = redirected.origin === initialOrigin;
+						this._logService?.trace(`[GitHubTransport] Following download redirect to ${formatDownloadUrl(redirected.href)} (authenticated: ${authenticated})`);
 						url = redirected.href;
 						continue;
 					}
@@ -245,6 +253,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						throw this._httpError('GitHub download failed', response, body);
 					}
 					const body = await readBoundedResponse(response, request.maximumBytes, combinedSignal);
+					this._logService?.trace(`[GitHubTransport] Downloaded ${body.bytes.byteLength} byte(s) (truncated: ${body.truncated})`);
 					return {
 						text: new TextDecoder().decode(body.bytes),
 						truncated: body.truncated,
@@ -256,7 +265,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			} finally {
 				timeout.dispose();
 			}
-		});
+		}));
 	}
 	private async _graphqlRead<T>(
 		account: GitHubAccountHandle,
@@ -279,6 +288,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				() => this._deleteGraphQLRequest(key, created),
 				() => this._deleteGraphQLRequest(key, created),
 			);
+		} else {
+			this._logService?.trace(`[GitHubTransport] Reusing GraphQL ${graphQLOperationName(query)} (waiters: ${shared.waiters + 1})`);
 		}
 		shared.waiters++;
 		try {
@@ -287,6 +298,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			shared.waiters--;
 			if (shared.waiters === 0 && this._graphQlInFlight.get(key) === shared) {
 				this._graphQlInFlight.delete(key);
+				this._logService?.trace(`[GitHubTransport] Cancelling GraphQL ${graphQLOperationName(query)} because all waiters detached`);
 				shared.controller.abort(new Error('All GitHub GraphQL request waiters cancelled'));
 			}
 		}
@@ -301,7 +313,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		signal: AbortSignal,
 		priority: GitHubRequestPriority,
 	): Promise<GitHubGraphQLResponse<T>> {
-		return this._enqueueWithRateLimit(account, 'graphql', priority, signal, async () => {
+		const operation = graphQLOperationName(query);
+		return this._logRequest('GraphQL', operation, account, priority, signal, () => this._enqueueWithRateLimit(account, 'graphql', priority, signal, async () => {
 			const response = await this._fetchWithRetry(url, {
 				method: 'POST',
 				cache: 'no-store',
@@ -316,6 +329,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				signal,
 				redirect: 'manual',
 			}, !/^\s*mutation\b/i.test(query));
+			this._logService?.trace(`[GitHubTransport] GraphQL ${operation} returned HTTP ${response.status}`);
 			const body = response.status === 204 ? '' : await response.text();
 			this._rateLimits.updateFromResponse(account, response, body);
 			if (!response.ok) {
@@ -328,12 +342,17 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			if (errors.some(error => error.type === 'RATE_LIMITED')) {
 				this._rateLimits.markGraphQLRateLimited(account);
 			}
+			this._logRateLimit(account, 'graphql');
+			this._logService?.trace(`[GitHubTransport] GraphQL ${operation} returned ${errors.length} error(s)`);
 			return { data: json.data, errors, observedAt: this._scheduler.now() };
-		});
+		}));
 	}
 
 	invalidateAccount(account: GitHubAccountHandle, reason?: unknown): void {
 		const accountKey = GitHubRequestQueue.accountKey(account);
+		const restRequests = [...this._inFlight.keys()].filter(key => key.startsWith(`${accountKey}\x00`)).length;
+		const graphQlRequests = [...this._graphQlInFlight.keys()].filter(key => key.startsWith(`${accountKey}\x00`)).length;
+		this._logService?.debug(`[GitHubTransport] Invalidating state for ${account.host} (REST requests: ${restRequests}, GraphQL requests: ${graphQlRequests})`);
 		this._queue.cancelAccount(account, reason);
 		this._rateLimits.clearAccount(account);
 		const cacheKeys: string[] = [];
@@ -360,6 +379,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	}
 
 	clear(): void {
+		this._logService?.debug(`[GitHubTransport] Clearing transport state (cache: ${this._restCache.size}, REST requests: ${this._inFlight.size}, GraphQL requests: ${this._graphQlInFlight.size})`);
 		this._restCache.clear();
 		this._redirects.clear();
 		for (const request of this._inFlight.values()) {
@@ -384,8 +404,13 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		signal: AbortSignal,
 		cacheKey: string,
 	): Promise<GitHubRestResponse<T>> {
-		return this._enqueueWithRateLimit(account, 'core', request.priority ?? (request.method === 'GET' ? 'interactive' : 'mutation'), signal, async () => {
+		const priority = request.priority ?? (request.method === 'GET' ? 'interactive' : 'mutation');
+		const operation = `${request.method} ${formatRequestUrl(request.url)}`;
+		return this._logRequest('REST', operation, account, priority, signal, () => this._enqueueWithRateLimit(account, 'core', priority, signal, async () => {
 			const cached = request.etag !== false && !request.unconditional ? this._restCache.get(cacheKey) : undefined;
+			if (cached) {
+				this._logService?.trace(`[GitHubTransport] Using cached ETag for ${operation}`);
+			}
 			const headers: Record<string, string> = {
 				'Accept': request.accept ?? 'application/vnd.github+json',
 				'Authorization': `Bearer ${token}`,
@@ -406,13 +431,16 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				signal,
 				redirect: 'manual',
 			}, request.method === 'GET');
+			this._logService?.trace(`[GitHubTransport] REST ${operation} returned HTTP ${response.status}`);
 			const finalUrl = response.url || this._redirects.get(request.url) || request.url;
 			const body = response.status === 204 || response.status === 304 ? '' : await response.text();
 			this._rateLimits.updateFromResponse(account, response, body);
+			this._logRateLimit(account, response.headers.get('x-ratelimit-resource') ?? 'core');
 			if (response.status === 304) {
 				if (!cached || response.headers.get('etag') !== null && response.headers.get('etag') !== cached.etag) {
 					throw new GitHubRequestError('GitHub returned 304 without the exact cached representation', 'malformedResponse', 304);
 				}
+				this._logService?.trace(`[GitHubTransport] Reused cached representation for ${operation}`);
 				return {
 					data: this._parseJson<T>(cached.body, 'Cached GitHub response was not valid JSON'),
 					statusCode: 304,
@@ -442,6 +470,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						representationVersion,
 					};
 					this._restCache.set(finalCacheKey, entry);
+					this._logService?.trace(`[GitHubTransport] Cached ETag for ${operation}`);
 					if (finalCacheKey !== cacheKey) {
 						this._restCache.delete(cacheKey);
 						this._redirects.set(request.url, finalUrl);
@@ -459,7 +488,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				link: response.headers.get('link') ?? undefined,
 				observedAt: this._scheduler.now(),
 			};
-		});
+		}));
 	}
 
 	private async _enqueueWithRateLimit<T>(
@@ -470,9 +499,14 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		task: () => Promise<T>,
 	): Promise<T> {
 		while (true) {
-			await this._rateLimits.wait(account, resource, signal);
+			const delay = this._rateLimits.getDelay(account, resource);
+			if (delay > 0) {
+				this._logService?.debug(`[GitHubTransport] Waiting ${delay}ms for ${resource} rate limit on ${account.host}`);
+				await this._rateLimits.wait(account, resource, signal);
+			}
 			const result = await this._queue.enqueue<RateLimitQueueResult<T>>(account, priority, signal, async () => {
 				if (this._rateLimits.getDelay(account, resource) > 0) {
+					this._logService?.trace(`[GitHubTransport] Requeueing ${resource} request because its rate limit changed`);
 					return { blocked: true };
 				}
 				return { blocked: false, value: await task() };
@@ -502,6 +536,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			if (new URL(url).origin !== initialOrigin) {
 				throw new GitHubRequestError('GitHub redirect changed origin', 'authorization', response.status);
 			}
+			this._logService?.trace(`[GitHubTransport] Following REST redirect to ${formatRequestUrl(url)}`);
 		}
 		throw new GitHubRequestError('GitHub API request exceeded the redirect limit', 'unknown');
 	}
@@ -512,6 +547,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			try {
 				const response = await this._fetch(url, init);
 				if (retry && attempt === 0 && response.status >= 500) {
+					this._logService?.debug(`[GitHubTransport] Retrying ${formatRequestUrl(url)} after HTTP ${response.status}`);
 					await schedulerDelay(this._scheduler, 100 + this._scheduler.jitter(200), init.signal as AbortSignal);
 					continue;
 				}
@@ -522,6 +558,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				}
 				failure = error;
 				if (attempt === 0 && retry) {
+					this._logService?.debug(`[GitHubTransport] Retrying ${formatRequestUrl(url)} after a network failure`);
 					await schedulerDelay(this._scheduler, 100 + this._scheduler.jitter(200), init.signal as AbortSignal);
 				}
 			}
@@ -571,6 +608,34 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			return JSON.parse(body);
 		} catch {
 			throw new GitHubRequestError(message, 'malformedResponse');
+		}
+	}
+
+	private async _logRequest<T>(
+		kind: string,
+		operation: string,
+		account: GitHubAccountHandle,
+		priority: GitHubRequestPriority,
+		signal: AbortSignal,
+		task: () => Promise<T>,
+	): Promise<T> {
+		const startedAt = this._scheduler.now();
+		this._logService?.trace(`[GitHubTransport] ${kind} ${operation} started on ${account.host} (priority: ${priority})`);
+		try {
+			const result = await task();
+			this._logService?.trace(`[GitHubTransport] ${kind} ${operation} completed in ${this._scheduler.now() - startedAt}ms`);
+			return result;
+		} catch (error) {
+			const outcome = signal.aborted ? 'cancelled' : 'failed';
+			this._logService?.debug(`[GitHubTransport] ${kind} ${operation} ${outcome} after ${this._scheduler.now() - startedAt}ms (${transportErrorKind(error)})`);
+			throw error;
+		}
+	}
+
+	private _logRateLimit(account: GitHubAccountHandle, resource: string): void {
+		const state = this._rateLimits.getState(account, resource);
+		if (state) {
+			this._logService?.trace(`[GitHubTransport] Rate limit ${resource} on ${account.host}: remaining=${state.remaining ?? 'unknown'}, limit=${state.limit ?? 'unknown'}, resetAt=${state.resetAt ?? 'unknown'}, blockedUntil=${state.blockedUntil ?? 'none'}`);
 		}
 	}
 
@@ -670,6 +735,34 @@ function canonicalJson(value: unknown): string {
 		return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(Reflect.get(value, key))}`).join(',')}}`;
 	}
 	return JSON.stringify(value) ?? 'undefined';
+}
+
+function formatRequestUrl(value: string): string {
+	try {
+		const url = new URL(value);
+		return `${url.host}${url.pathname}`;
+	} catch {
+		return '<invalid-url>';
+	}
+}
+
+function formatDownloadUrl(value: string): string {
+	try {
+		return new URL(value).host;
+	} catch {
+		return '<invalid-url>';
+	}
+}
+
+function graphQLOperationName(query: string): string {
+	return /\b(?:query|mutation)\s+(?<name>[_A-Za-z][_0-9A-Za-z]*)/.exec(query)?.groups?.name ?? '<anonymous>';
+}
+
+function transportErrorKind(error: unknown): string {
+	if (error instanceof GitHubRequestError) {
+		return `${error.kind}${error.statusCode === undefined ? '' : `:${error.statusCode}`}`;
+	}
+	return error instanceof Error ? error.name : typeof error;
 }
 
 function validateDownloadUrl(url: URL, allowInsecureLoopback: boolean): void {

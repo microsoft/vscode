@@ -17,6 +17,19 @@ import { PullRequestResourceService } from '../../common/pullRequestResourceServ
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
+class TestLogService extends NullLogService {
+
+	readonly messages: string[] = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.messages.push([message, ...args].join(' '));
+	}
+
+	override debug(message: string, ...args: unknown[]): void {
+		this.messages.push([message, ...args].join(' '));
+	}
+}
+
 suite('GitHubService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -60,6 +73,51 @@ suite('GitHubService', () => {
 			query: true,
 			pullRequests: true,
 			mutations: true,
+		});
+	});
+
+	test('logs service, credential, transport, and resource lifecycle without sensitive payloads', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubRestStep({ method: 'GET', path: '/user', response: gitHubJsonResponse({ id: 101, private: 'response-secret' }) }),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/pulls/7', response: gitHubJsonResponse(pullRequestResponse('private-title')) }),
+			);
+			const logService = new TestLogService();
+			const service = new GitHubService({
+				endpoint: server.createEndpointService(),
+				tokenProvider: { getToken: () => 'token-secret' },
+				fetch: nodeFetch,
+			}, logService);
+			try {
+				const subscription = service.pullRequests.subscribePullRequest({
+					host: new URL(server.apiBaseUrl).host,
+					accountId: '101',
+					owner: 'o',
+					repo: 'r',
+					number: 7,
+				}, { priority: 'interactive' });
+				await subscription.refresh('core');
+				subscription.dispose();
+
+				assert.deepStrictEqual({
+					initialized: logService.messages.some(message => message.includes('[GitHubService] Reusable GitHub service initialized')),
+					credential: logService.messages.some(message => message.includes('[GitHubCredentialService] Resolved account identity')),
+					transport: logService.messages.some(message => message.includes('[GitHubTransport] REST GET') && message.includes('/repos/o/r/pulls/7')),
+					resource: logService.messages.some(message => message.includes('[PullRequestResourceService] Refreshed core')),
+					containsToken: logService.messages.some(message => message.includes('token-secret')),
+					containsResponse: logService.messages.some(message => message.includes('response-secret') || message.includes('private-title')),
+				}, {
+					initialized: true,
+					credential: true,
+					transport: true,
+					resource: true,
+					containsToken: false,
+					containsResponse: false,
+				});
+				server.assertSatisfied();
+			} finally {
+				service.dispose();
+			}
 		});
 	});
 

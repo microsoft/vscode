@@ -42,14 +42,15 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	constructor(
 		options: GitHubServiceOptions,
-		@ILogService logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
+		this._logService.debug('[GitHubService] Initializing reusable GitHub service');
 		this.endpoint = options.endpoint;
-		this.transport = this._register(new GitHubTransport(options.fetch));
-		this.credentials = this._register(new GitHubCredentialService(this.transport, options.tokenProvider, options.endpoint));
-		this.capabilities = this._register(new GitHubHostCapabilitiesService(this.transport, options.endpoint));
+		this.transport = this._register(new GitHubTransport(options.fetch, undefined, false, this._logService));
+		this.credentials = this._register(new GitHubCredentialService(this.transport, options.tokenProvider, options.endpoint, this._logService));
+		this.capabilities = this._register(new GitHubHostCapabilitiesService(this.transport, options.endpoint, this._logService));
 
 		const pullRequestQuery = new PullRequestQueryService(this.transport, this.capabilities, options.endpoint);
 		this.pullRequests = this._register(new PullRequestResourceService(
@@ -57,7 +58,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 			undefined,
 			this.credentials,
 			pullRequestQuery,
-			logService,
+			this._logService,
 		));
 		this.mutations = this._register(new PullRequestMutationService(
 			undefined,
@@ -65,6 +66,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 			this.transport,
 			this.pullRequests,
 			options.endpoint,
+			this._logService,
 		));
 		this.query = this._register(new GitHubQueryService(
 			undefined,
@@ -73,7 +75,13 @@ export class GitHubService extends Disposable implements IGitHubService {
 			this.transport,
 			options.endpoint,
 			this.capabilities,
-			logService,
+			this._logService,
 		));
+		this._logService.debug('[GitHubService] Reusable GitHub service initialized');
+	}
+
+	override dispose(): void {
+		this._logService.debug('[GitHubService] Disposing reusable GitHub service');
+		super.dispose();
 	}
 }

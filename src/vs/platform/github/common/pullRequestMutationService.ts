@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { ILogService } from '../../log/common/log.js';
 import {
 	CreatedPullRequest,
 	CreatePullRequestOptions,
@@ -107,6 +108,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		private readonly _transport: IGitHubTransport,
 		private readonly _resources: IPullRequestResources,
 		private readonly _endpoint: IGitHubEndpointProvider,
+		private readonly _logService?: ILogService,
 	) {
 		super();
 		this._clock = scheduler ?? systemGitHubScheduler;
@@ -121,7 +123,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		options: CreatePullRequestOptions,
 		signal: AbortSignal,
 	): Promise<CreatedPullRequest> {
-		return this._serializeRepository(ref, async () => {
+		return this._serializeRepository(ref, 'createPullRequest', async () => {
 			const created = await this._withCredential(ref, signal, async (credential, combinedSignal) => {
 				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 					method: 'POST',
@@ -153,7 +155,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		options: EnablePullRequestAutoMergeOptions,
 		signal: AbortSignal,
 	): Promise<void> {
-		return this._serializeRepository(ref, async () => {
+		return this._serializeRepository(ref, 'enableAutoMerge', async () => {
 			await this._withCredential(ref, signal, async (credential, combinedSignal) => {
 				const response = await this._transport.graphql(
 					credential.account,
@@ -174,7 +176,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		options: PullRequestCommentOptions,
 		signal: AbortSignal,
 	): Promise<PullRequestMutationResult<PullRequestComment>> {
-		return this._serialize(ref, () => this._addComment(ref, options, signal));
+		return this._serialize(ref, 'addComment', () => this._addComment(ref, options, signal));
 	}
 
 	replyToThread(
@@ -182,11 +184,11 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		options: PullRequestReplyOptions,
 		signal: AbortSignal,
 	): Promise<PullRequestMutationResult<PullRequestInlineComment>> {
-		return this._serialize(ref, () => this._replyToThread(ref, options, signal));
+		return this._serialize(ref, 'replyToThread', () => this._replyToThread(ref, options, signal));
 	}
 
 	resolveThread(ref: PullRequestRef, threadId: string, signal: AbortSignal): Promise<void> {
-		return this._serialize(ref, async () => {
+		return this._serialize(ref, 'resolveThread', async () => {
 			await this._resolveThread(ref, threadId, signal);
 			this._resources.invalidatePullRequest(ref, ['reviewThreads']);
 		});
@@ -197,7 +199,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		options: PullRequestReplyAndResolveOptions,
 		signal: AbortSignal,
 	): Promise<PullRequestReplyAndResolveResult> {
-		return this._serialize(ref, async () => {
+		return this._serialize(ref, 'replyAndResolveThread', async () => {
 			const reply = await this._replyToThread(ref, options, signal);
 			if (reply.outcome === 'indeterminate' || !options.resolve) {
 				return { reply, resolved: false };
@@ -270,7 +272,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		options: GitHubWorkflowRerunOptions,
 		signal: AbortSignal,
 	): Promise<PullRequestMutationResult<GitHubWorkflowRun>> {
-		return this._serialize(ref, async () => {
+		return this._serialize(ref, 'rerunWorkflow', async () => {
 			validateOperationId(options.operationId);
 			const rerunKey = `${pullRequestMutationKey(ref)}\x00${options.runId}`;
 			const unconfirmed = this._unconfirmedReruns.get(rerunKey);
@@ -320,7 +322,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	}
 
 	updateBranch(ref: PullRequestRef, options: PullRequestBranchUpdateOptions, signal: AbortSignal): Promise<void> {
-		return this._serialize(ref, async () => {
+		return this._serialize(ref, 'updateBranch', async () => {
 			if (!options.expectedHeadSha) {
 				throw new Error('A branch update requires the expected head SHA');
 			}
@@ -337,7 +339,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	}
 
 	prepareMerge(ref: PullRequestRef, expectedHeadSha: string, signal: AbortSignal): Promise<PullRequestMergePreparation> {
-		return this._serialize(ref, async () => {
+		return this._serialize(ref, 'prepareMerge', async () => {
 			if (!expectedHeadSha) {
 				throw new Error('Merge preparation requires an expected head SHA');
 			}
@@ -396,7 +398,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		options: PullRequestMergeOptions,
 		signal: AbortSignal,
 	): Promise<PullRequestMergeResult> {
-		return this._serialize(preparation.ref, async () => {
+		return this._serialize(preparation.ref, 'merge', async () => {
 			const state = this._takePreparation(preparation);
 			try {
 				validateAuthorization(options.authorization);
@@ -450,7 +452,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		authorization: PullRequestMergeAuthorization,
 		signal: AbortSignal,
 	): Promise<PullRequestEnqueueResult> {
-		return this._serialize(preparation.ref, async () => {
+		return this._serialize(preparation.ref, 'enqueue', async () => {
 			const state = this._takePreparation(preparation);
 			try {
 				validateAuthorization(authorization);
@@ -773,10 +775,11 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		return state;
 	}
 
-	private _serialize<T>(ref: PullRequestRef, task: () => Promise<T>): Promise<T> {
+	private _serialize<T>(ref: PullRequestRef, operation: string, task: () => Promise<T>): Promise<T> {
 		const key = pullRequestMutationKey(ref);
 		const previous = this._mutationTails.get(key) ?? Promise.resolve();
-		const result = previous.then(task, task);
+		const run = () => this._runMutation(operation, `${ref.owner}/${ref.repo}#${ref.number}`, task);
+		const result = previous.then(run, run);
 		const tail = result.then(() => undefined, () => undefined);
 		this._mutationTails.set(key, tail);
 		void tail.then(() => {
@@ -787,7 +790,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		return result;
 	}
 
-	private _serializeRepository<T>(ref: GitHubRepositoryRef, task: () => Promise<T>): Promise<T> {
+	private _serializeRepository<T>(ref: GitHubRepositoryRef, operation: string, task: () => Promise<T>): Promise<T> {
 		const key = [
 			ref.host.toLowerCase(),
 			ref.accountId,
@@ -795,7 +798,8 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			ref.repo.toLowerCase(),
 		].join('\x00');
 		const previous = this._mutationTails.get(key) ?? Promise.resolve();
-		const result = previous.then(task, task);
+		const run = () => this._runMutation(operation, `${ref.owner}/${ref.repo}`, task);
+		const result = previous.then(run, run);
 		const tail = result.then(() => undefined, () => undefined);
 		this._mutationTails.set(key, tail);
 		void tail.then(() => {
@@ -806,7 +810,23 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		return result;
 	}
 
+	private async _runMutation<T>(operation: string, target: string, task: () => Promise<T>): Promise<T> {
+		const startedAt = this._clock.now();
+		this._logService?.debug(`[PullRequestMutationService] ${operation} started for ${target}`);
+		try {
+			const result = await task();
+			this._logService?.debug(`[PullRequestMutationService] ${operation} completed for ${target} in ${this._clock.now() - startedAt}ms`);
+			return result;
+		} catch (error) {
+			this._logService?.debug(`[PullRequestMutationService] ${operation} failed for ${target} after ${this._clock.now() - startedAt}ms (${mutationErrorKind(error)})`);
+			throw error;
+		}
+	}
+
 	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
+		if (this._preparations.size > 0 || this._unconfirmedReruns.size > 0) {
+			this._logService?.debug(`[PullRequestMutationService] Clearing mutation reconciliation state after credential invalidation (${event.reason})`);
+		}
 		for (const [token, preparation] of this._preparations) {
 			if (!event.credential || sameAccount(preparation.value.ref, event.credential)) {
 				preparation.subscription.dispose();
@@ -828,6 +848,13 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	private _restUrl(ref: GitHubRepositoryRef, route: string): string {
 		return `${this._endpoint.getApiBaseUri()}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/${route}`;
 	}
+}
+
+function mutationErrorKind(error: unknown): string {
+	if (error instanceof GitHubRequestError) {
+		return `${error.kind}${error.statusCode === undefined ? '' : `:${error.statusCode}`}`;
+	}
+	return error instanceof Error ? error.name : typeof error;
 }
 
 function withOperationMarker(body: string, operationId: string): string {
