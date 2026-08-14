@@ -114,14 +114,17 @@ export class ChatProviderSetupPart extends Disposable {
 				markClass: 'openai',
 				name: localize('chat.providerSetup.chatgpt.name', "ChatGPT"),
 				description: localize('chat.providerSetup.chatgpt.description', "Use your OpenAI account or key."),
-				actionLabel: localize('chat.providerSetup.chatgpt.action', "Sign in"),
+				// Not "Sign in": there is no OpenAI OAuth here, this opens the
+				// model manager where an account or key is added. The label
+				// should name what actually happens.
+				actionLabel: localize('chat.providerSetup.chatgpt.action', "Set up"),
 				commandId: MANAGE_CHAT_COMMAND_ID,
 			},
 			{
 				id: 'byok',
 				icon: Codicon.key,
 				name: localize('chat.providerSetup.byok.name', "Your own key"),
-				description: localize('chat.providerSetup.byok.description', "Anthropic, Azure, OpenRouter and more."),
+				description: localize('chat.providerSetup.byok.description', "Anthropic, Azure, OpenRouter."),
 				actionLabel: localize('chat.providerSetup.byok.action', "Configure"),
 				commandId: MANAGE_CHAT_COMMAND_ID,
 			},

@@ -100,7 +100,13 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	) {
 		super();
 
-		this.tryShowOnboarding().then(undefined, onUnexpectedError);
+		// Read before any await: application-scope storage is shared between
+		// windows, so once the Agents window initializes it this no longer
+		// reports a first run. Capturing it here keeps the answer to "is this
+		// a new user" tied to when this window started, not to who won a race.
+		const isNewUser = this.storageService.isNew(StorageScope.APPLICATION);
+
+		this.tryShowOnboarding(isNewUser).then(undefined, onUnexpectedError);
 		this.run().then(undefined, onUnexpectedError);
 		this._register(this.editorService.onDidCloseEditor((e) => {
 			if (e.editor instanceof GettingStartedInput) {
@@ -233,7 +239,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		return true; // do not steal focus
 	}
 
-	private async tryShowOnboarding(): Promise<void> {
+	private async tryShowOnboarding(isNewUser: boolean): Promise<void> {
 		if (this.environmentService.skipWelcome) {
 			return; // skip welcome flag is set
 		}
@@ -256,7 +262,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return; // AI features are hidden, do not show AI-focused onboarding
 		}
 
-		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
+		if (!isNewUser) {
 			return; // only show onboarding for new users who have never used the product before
 		}
 
