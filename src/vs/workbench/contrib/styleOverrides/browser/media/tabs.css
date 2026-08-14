@@ -159,11 +159,13 @@
 
 /* Reserve the overlay column so close/pin/dirty never covers the filename (https://github.com/microsoft/vscode/issues/329605) */
 .modern-ui-tabs .part.editor .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off),
+.modern-ui-tabs .part.editor .tabs-container > .tab.dirty:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off.dirty-border-top),
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky:not(.sticky-compact):not(.pinned-action-off):not(.tab-actions-left) {
 	padding-right: var(--vscode-spacing-size280) !important;
 }
 
 .modern-ui-tabs .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact):not(.close-action-off),
+.modern-ui-tabs .part.editor .tabs-container > .tab.dirty.tab-actions-left:not(.sticky-compact),
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky.tab-actions-left:not(.sticky-compact):not(.pinned-action-off) {
 	padding-left: var(--vscode-spacing-size280) !important;
 	padding-right: var(--vscode-spacing-size80) !important;
