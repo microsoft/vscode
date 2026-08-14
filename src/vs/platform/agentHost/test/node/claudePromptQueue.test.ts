@@ -18,21 +18,18 @@ import { ClaudePromptQueue, IPendingSdkMessage } from '../../node/claude/claudeP
 interface IQueueHarness {
 	readonly queue: ClaudePromptQueue;
 	readonly controller: AbortController;
-	readonly steeringYielded: string[];
 }
 
 function createQueue(disposables: Pick<DisposableStore, 'add'>): IQueueHarness {
 	const controller = new AbortController();
-	const steeringYielded: string[] = [];
 	const services = new ServiceCollection([ILogService, new NullLogService()]);
 	const instantiationService = disposables.add(new InstantiationService(services));
 	const queue = disposables.add(instantiationService.createInstance(
 		ClaudePromptQueue,
 		'sess-1',
 		() => controller.signal,
-		(id: string) => steeringYielded.push(id),
 	));
-	return { queue, controller, steeringYielded };
+	return { queue, controller };
 }
 
 function makeEntry(id: string, opts?: { steeringPendingId?: string; turnId?: string }): IPendingSdkMessage {
@@ -176,22 +173,29 @@ suite('ClaudePromptQueue', () => {
 		assert.strictEqual(queue.peekParent(), undefined);
 	});
 
-	test('steering callback fires when an entry with steeringPendingId is YIELDED, not when it is pushed', async () => {
-		const { queue, steeringYielded } = createQueue(disposables);
+	test('retargetTurn moves queued, in-flight and popped entries to the steering turn', async () => {
+		const { queue } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
-		const e = makeEntry('s1', { steeringPendingId: 'pending-42' });
-		void queue.push(e);
-		assert.deepStrictEqual(steeringYielded, [], 'no fire on push');
+		const popped = makeEntry('a');
+		const inFlight = makeEntry('b', { steeringPendingId: 'pending-42' });
+		const queued = makeEntry('c');
+		void queue.push(popped);
+		void queue.push(inFlight);
+		void queue.push(queued);
 		await drainOne(iter);
-		assert.deepStrictEqual(steeringYielded, ['pending-42'], 'fires on yield');
-	});
-
-	test('non-steering entries do not fire the steering callback', async () => {
-		const { queue, steeringYielded } = createQueue(disposables);
-		const iter = queue.iterable[Symbol.asyncIterator]();
-		void queue.push(makeEntry('plain'));
 		await drainOne(iter);
-		assert.deepStrictEqual(steeringYielded, []);
+		// Leaves `popped` held (the queue is not empty), `inFlight` yielded, `queued` waiting.
+		queue.settleHead();
+		const stopWatch = StopWatch.create(false);
+		queue.retargetTurn('turn-steer', stopWatch);
+		assert.deepStrictEqual(
+			[popped, inFlight, queued].map(e => ({ uuid: e.sdkUuid, turnId: e.turnId, stopWatch: e.stopWatch })),
+			[
+				{ uuid: 'a', turnId: 'turn-steer', stopWatch },
+				{ uuid: 'b', turnId: 'turn-steer', stopWatch },
+				{ uuid: 'c', turnId: 'turn-steer', stopWatch },
+			],
+		);
 	});
 
 	test('settleHead on an empty yielded list returns undefined and is a no-op', () => {
@@ -206,7 +210,7 @@ suite('ClaudePromptQueue', () => {
 		const services = new ServiceCollection([ILogService, new NullLogService()]);
 		const inst = disposables.add(new InstantiationService(services));
 		const q = disposables.add(inst.createInstance(
-			ClaudePromptQueue, 'sess-reset', () => liveController.signal, () => { /* no steering */ },
+			ClaudePromptQueue, 'sess-reset', () => liveController.signal,
 		));
 
 		// Park next() on the original deferred.

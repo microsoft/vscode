@@ -15,6 +15,7 @@ import { ClaudeRuntimeEffortLevel } from '../../common/claudeModelConfig.js';
 import { AgentSignal } from '../../common/agent.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { PendingMessage } from '../../common/state/protocol/state.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
@@ -237,8 +238,10 @@ export class ClaudeSdkPipeline extends Disposable {
 	 *   • `ChatTurnComplete` action, fired when the LAST entry in the
 	 *     queue drains via `result` (intermediate results during steering
 	 *     preempt do NOT fire — CONTEXT.md M10).
-	 *   • `steering_consumed` signal, fired the moment the iterable yields
-	 *     a steering entry to the SDK.
+	 *   • `ChatTurnStarted`/`ChatTurnComplete` pair, fired when a steering
+	 *     message preempts a turn and is promoted to its own.
+	 *   • `steering_consumed` signal, fired for a steering message the SDK
+	 *     accepted but never ran (abort or dispose).
 	 */
 	readonly onDidProduceSignal: Event<AgentSignal> = this._onDidProduceSignal.event;
 
@@ -264,11 +267,6 @@ export class ClaudeSdkPipeline extends Disposable {
 			ClaudePromptQueue,
 			sessionId,
 			() => this._abortController.signal,
-			(pendingId: string) => this._onDidProduceSignal.fire({
-				kind: 'steering_consumed',
-				chat: this.chatChannelUri,
-				id: pendingId,
-			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
 			ClaudeSdkMessageRouter, chatChannelUri, resource, dbRef, subagents, clientToolOwner,
@@ -276,6 +274,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
 		// `_abortController` so a swap aborts the live subprocess.
+		this._register(toDisposable(() => this._drainPendingSteeringFlips()));
 		this._register(toDisposable(() => this._abortController.abort()));
 		this._register(toDisposable(() => {
 			void Promise.resolve(this._warm[Symbol.asyncDispose]()).catch((err: unknown) =>
@@ -446,18 +445,80 @@ export class ClaudeSdkPipeline extends Disposable {
 		return this._queue.push(entry);
 	}
 
+	/** Steering messages the SDK has accepted but not yet run, keyed by pending-message id. */
+	private readonly _pendingSteeringFlips = new Map<string, PendingMessage>();
+
 	/**
-	 * Push a `priority: 'now'` steering message into the iterable. The
-	 * caller pre-builds the {@link SDKUserMessage} (the pipeline is SDK
-	 * messaging-shaped, not protocol-shaped). `pendingMessageId` is the
-	 * protocol `PendingMessage.id` that {@link onSteeringConsumed} will
-	 * carry when the SDK accepts the message.
-	 *
-	 * No-op if the pipeline is aborted or no in-flight / queued request
-	 * exists to inherit a `turnId` from (CONTEXT.md M10: steering folds
-	 * into the in-progress protocol Turn).
+	 * Promotes a steer to its own turn, completing the one it interrupted.
+	 * Mirrors the Copilot agent host so both harnesses surface steering the same way.
 	 */
-	injectSteering(prompt: SDKUserMessage, pendingMessageId: string): void {
+	private _beginSteeringTurn(steering: PendingMessage, interrupted: IPendingSdkMessage): void {
+		// Complete before starting: the still-pending steer is what stops the host draining a queued message in between.
+		this._onDidProduceSignal.fire({
+			kind: 'action',
+			resource: this.chatChannelUri,
+			action: {
+				type: ActionType.ChatTurnComplete,
+				turnId: interrupted.turnId,
+				duration: Math.max(0, interrupted.stopWatch.elapsed()),
+			},
+		});
+		const turnId = steering.id;
+		this._onDidProduceSignal.fire({
+			kind: 'action',
+			resource: this.chatChannelUri,
+			action: {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: new Date().toISOString(),
+				message: steering.message,
+				queuedMessageId: steering.id,
+			},
+		});
+		this._queue.retargetTurn(turnId, StopWatch.create(false));
+		this._logService.info(`[Claude:${this.sessionId}] steering promoted to turn ${turnId} (pendingId=${steering.id})`);
+	}
+
+	/**
+	 * Promotes the steer the SDK is about to run, if the entry it just finished was
+	 * preempted by one. The SDK does not echo steering, so this result is the
+	 * earliest point at which the message is known to have reached the model.
+	 */
+	private _promoteSteeringAtHead(completed: IPendingSdkMessage): void {
+		const pendingId = this._queue.peekParent()?.steeringPendingId;
+		const steering = pendingId ? this._pendingSteeringFlips.get(pendingId) : undefined;
+		if (!steering) {
+			return;
+		}
+		this._pendingSteeringFlips.delete(steering.id);
+		this._beginSteeringTurn(steering, completed);
+	}
+
+	/** Clears steers the SDK accepted but never ran, so no pending bubble is left behind. */
+	private _drainPendingSteeringFlips(): void {
+		if (this._pendingSteeringFlips.size === 0) {
+			return;
+		}
+		const ids = [...this._pendingSteeringFlips.keys()];
+		this._pendingSteeringFlips.clear();
+		for (const id of ids) {
+			this._onDidProduceSignal.fire({ kind: 'steering_consumed', chat: this.chatChannelUri, id });
+		}
+	}
+
+	/** Fails every queued entry and clears the steering messages that went with them. */
+	private _failQueue(error: Error): void {
+		this._queue.failAll(error);
+		this._drainPendingSteeringFlips();
+	}
+
+	/**
+	 * Pushes a `priority: 'now'` steering message into the iterable, then holds it
+	 * until the SDK preempts the running turn for it. No-op if the pipeline is
+	 * aborted or nothing is in flight to steer.
+	 */
+	injectSteering(prompt: SDKUserMessage, steeringMessage: PendingMessage): void {
+		const pendingMessageId = steeringMessage.id;
 		if (this._abortController.signal.aborted) {
 			this._logService.warn(`[Claude:${this.sessionId}] injectSteering: dropped (controller aborted) id=${pendingMessageId}`);
 			return;
@@ -480,6 +541,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			deferred: new DeferredPromise<void>(),
 			steeringPendingId: pendingMessageId,
 		}).catch(() => { /* expected on abort/crash */ });
+		this._pendingSteeringFlips.set(pendingMessageId, steeringMessage);
 		this._logService.info(`[Claude:${this.sessionId}] injectSteering: enqueued id=${pendingMessageId} sdkUuid=${sdkUuid}`);
 	}
 
@@ -499,7 +561,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			return;
 		}
 		this._abortController.abort();
-		this._queue.failAll(new CancellationError());
+		this._failQueue(new CancellationError());
 		// Mark unhealthy but keep the `_query` handle: the next `send` rebinds,
 		// and `shutdownAndWait` still needs it to await the subprocess exit.
 		this._needsRebind = true;
@@ -619,7 +681,7 @@ export class ClaudeSdkPipeline extends Disposable {
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] rebind-aborted: warm dispose failed: ${err}`));
 			void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during aborted rebind: ${err}`));
-			this._queue.failAll(new CancellationError());
+			this._failQueue(new CancellationError());
 			this._needsRebind = true;
 			throw new CancellationError();
 		}
@@ -690,6 +752,7 @@ export class ClaudeSdkPipeline extends Disposable {
 					// Intermediate result (still pending entries from a
 					// steering preempt) does NOT fire ChatTurnComplete.
 					if (completed && this._queue.isEmpty) {
+						this._drainPendingSteeringFlips();
 						this._onDidProduceSignal.fire({
 							kind: 'action',
 							resource: this.chatChannelUri,
@@ -699,6 +762,8 @@ export class ClaudeSdkPipeline extends Disposable {
 								duration: Math.max(0, completed.stopWatch.elapsed()),
 							},
 						});
+					} else if (completed) {
+						this._promoteSteeringAtHead(completed);
 					}
 				}
 			}
@@ -722,7 +787,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			// not clobber the fresh one. Mark unhealthy (keep the handle for
 			// teardown); the next `send` rebinds.
 			if (this._query === query) {
-				this._queue.failAll(fatal);
+				this._failQueue(fatal);
 				this._needsRebind = true;
 			}
 			if (!isCancellationError(fatal)) {

@@ -22,8 +22,10 @@ import { ILogService } from '../../../log/common/log.js';
 export interface IPendingSdkMessage {
 	readonly sdkMessage: SDKUserMessage;
 	readonly sdkUuid: string;
-	readonly turnId: string;
-	readonly stopWatch: StopWatch;
+	/** Protocol turn these events belong to; reassigned by {@link ClaudePromptQueue.retargetTurn}. */
+	turnId: string;
+	/** Times the protocol turn; replaced along with {@link turnId}. */
+	stopWatch: StopWatch;
 	readonly deferred: DeferredPromise<void>;
 	readonly steeringPendingId?: string;
 }
@@ -70,9 +72,6 @@ export class ClaudePromptQueue extends Disposable {
 						const entry = this._toYield.shift()!;
 						this._yielded.push(entry);
 						this._logService.info(`[Claude:${this._sessionId}] queue yielded sdkUuid=${entry.sdkUuid} turnId=${entry.turnId}${entry.steeringPendingId ? ` steeringPendingId=${entry.steeringPendingId}` : ''}`);
-						if (entry.steeringPendingId) {
-							this._onSteeringYielded(entry.steeringPendingId);
-						}
 						return { done: false, value: entry.sdkMessage };
 					}
 					await this._pendingPromptDeferred.p;
@@ -85,7 +84,6 @@ export class ClaudePromptQueue extends Disposable {
 	constructor(
 		private readonly _sessionId: string,
 		private readonly _getAbortSignal: () => AbortSignal,
-		private readonly _onSteeringYielded: (pendingId: string) => void,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -106,10 +104,8 @@ export class ClaudePromptQueue extends Disposable {
 	}
 
 	/**
-	 * Most-recent in-flight or queued entry, used by steering to inherit
-	 * its parent's `turnId`. Prefers the in-flight head over the latest
-	 * queued entry (matches CONTEXT.md M10: steering folds into the
-	 * in-progress protocol Turn).
+	 * Most-recent in-flight or queued entry, whose `turnId` a steer inherits
+	 * until it preempts that turn and is promoted to its own.
 	 */
 	peekParent(): IPendingSdkMessage | undefined {
 		return this._yielded[0] ?? this._toYield[this._toYield.length - 1];
@@ -140,6 +136,16 @@ export class ClaudePromptQueue extends Disposable {
 			this._popped.push(completed);
 		}
 		return completed;
+	}
+
+	/** Moves every entry to a new protocol turn, so later events and the final completion follow a promoted steer. */
+	retargetTurn(turnId: string, stopWatch: StopWatch): void {
+		for (const list of [this._toYield, this._yielded, this._popped]) {
+			for (const entry of list) {
+				entry.turnId = turnId;
+				entry.stopWatch = stopWatch;
+			}
+		}
 	}
 
 	/** Reject every pending deferred with `err` and clear all lists. */
