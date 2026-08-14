@@ -29,6 +29,7 @@ import { IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, 
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { localize } from '../../../../nls.js';
 
 /** Storage key for the last session type used to create a quick chat. */
 const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUsedSessionType';
@@ -1049,7 +1050,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// A restored, unloaded session has no pending request tracked in this window, so load its model first to re-establish cancellation tracking.
 		const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'sessionsManagement:cancel');
 		if (!modelRef) {
-			throw new Error('Failed to load chat session for cancellation.');
+			throw new Error(localize('sessions.cancelCurrentRequest.loadFailed', "Failed to load chat session for cancellation."));
 		}
 		try {
 			await this.chatService.cancelCurrentRequestForSession(resource, 'sessionsManagement');

@@ -624,6 +624,9 @@ class AutomationHistorySection extends Disposable {
 			const currentElement = this.groupsContainer.children.item(index);
 			if (currentElement !== entry.element) {
 				this.groupsContainer.insertBefore(entry.element, currentElement);
+				if (entry.list) {
+					this.layoutSessionList(entry.listContainer, entry.list);
+				}
 			}
 			index++;
 

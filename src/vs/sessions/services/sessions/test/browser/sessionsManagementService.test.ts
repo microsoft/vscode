@@ -120,9 +120,13 @@ class TestChatService extends mock<IChatService>() {
 	readonly loadedResources: URI[] = [];
 	disposedModelRefs = 0;
 	cancelError: Error | undefined;
+	modelRefAvailable = true;
 
-	override async acquireOrLoadSession(sessionResource: URI): Promise<IChatModelReference> {
+	override async acquireOrLoadSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
 		this.loadedResources.push(sessionResource);
+		if (!this.modelRefAvailable) {
+			return undefined;
+		}
 		return { object: {} as IChatModel, dispose: () => { this.disposedModelRefs++; } } as IChatModelReference;
 	}
 
@@ -307,6 +311,24 @@ suite('SessionsManagementService', () => {
 			loaded: [stubChat.resource],
 			cancelled: [stubChat.resource],
 			disposedModelRefs: 1,
+		});
+	});
+
+	test('cancelCurrentRequest rejects when the chat model cannot be loaded', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const { service, chatService } = createSessionsManagementService(session, disposables);
+		chatService.modelRefAvailable = false;
+
+		await assert.rejects(() => service.cancelCurrentRequest(session), /Failed to load chat session for cancellation/);
+
+		assert.deepStrictEqual({
+			loaded: chatService.loadedResources,
+			cancelled: chatService.cancelledResources,
+			disposedModelRefs: chatService.disposedModelRefs,
+		}, {
+			loaded: [stubChat.resource],
+			cancelled: [],
+			disposedModelRefs: 0,
 		});
 	});
 
