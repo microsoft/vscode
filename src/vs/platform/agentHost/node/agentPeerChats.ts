@@ -153,32 +153,26 @@ export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersiste
 }
 
 /**
- * Resolves the first turn owned by a side chat. The persisted count is a
- * fork-time hint and fallback for an unseeded chat, while the seed marker is
- * the authoritative boundary once present so a drifted count cannot hide turns.
+ * Resolves the index of the first turn owned by a side chat.
+ *
+ * The transcript holds the inherited turns and then the own turns, and the
+ * first own turn carries the seed marker. The marker is therefore the
+ * boundary, and the last marker wins, because a side chat that forks another
+ * side chat inherits the markers of its ancestors and they all precede its
+ * own. The persisted count is only a fallback for a chat that did not send a
+ * message yet: the count is a copy of a value that changes with time and it
+ * can drift, while the marker stays correct.
  */
 export function resolveSideChatBoundary(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): number {
 	if (!sideChat) {
 		return 0;
 	}
-
-	const recorded = Math.min(Math.max(sideChat.inheritedTurnCount ?? 0, 0), turns.length);
-	const seeds: number[] = [];
-	for (let i = 0; i < turns.length; i++) {
+	for (let i = turns.length - 1; i >= 0; i--) {
 		if (parseSideChatSeed(turns[i].message.text) !== undefined) {
-			seeds.push(i);
+			return i;
 		}
 	}
-
-	if (seeds.includes(recorded)) {
-		return recorded;
-	}
-	const seedBeforeRecorded = seeds.find(seed => seed < recorded);
-	if (seedBeforeRecorded !== undefined) {
-		return seedBeforeRecorded;
-	}
-	const seedAfterRecorded = seeds.find(seed => seed > recorded);
-	return seedAfterRecorded ?? recorded;
+	return Math.min(Math.max(sideChat.inheritedTurnCount ?? 0, 0), turns.length);
 }
 
 /**

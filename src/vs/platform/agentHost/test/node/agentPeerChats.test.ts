@@ -310,6 +310,41 @@ suite('agentPeerChats', () => {
 		});
 	});
 
+	test('uses the nested child seed even when the recorded boundary drifted past it', () => {
+		const parentSeed: Turn = {
+			...sourceTurn,
+			id: 'parent-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Parent prompt') },
+		};
+		const parentOwnTurn: Turn = {
+			...sourceTurn,
+			id: 'parent-own',
+			message: { ...sourceTurn.message, text: 'Parent follow up' },
+		};
+		const childPrompt = 'Child prompt';
+		const childSeed: Turn = {
+			...sourceTurn,
+			id: 'child-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext(childPrompt) },
+		};
+		const childOwnTurns: Turn[] = Array.from({ length: 2 }, (_, index) => ({
+			...sourceTurn,
+			id: `child-own-${index}`,
+			message: { ...sourceTurn.message, text: `Child follow up ${index}` },
+		}));
+		const turns = [sourceTurn, parentSeed, parentOwnTurn, childSeed, ...childOwnTurns];
+		const childSideChat = { ...sideChat, inheritedTurnCount: 5 };
+		const visible = sliceSideChatTurns(turns, childSideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, childSideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+		}, {
+			boundary: 3,
+			visibleTurnIds: ['child-seed', 'child-own-0', 'child-own-1'],
+		});
+	});
+
 	test('falls back to the recorded boundary when a new side chat has no seed yet', () => {
 		const visible = sliceSideChatTurns([sourceTurn], sideChat);
 
