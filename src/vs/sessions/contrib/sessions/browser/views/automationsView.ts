@@ -454,14 +454,14 @@ class AutomationCardsSection extends Disposable {
 		if (!await this.ensureEnabled()) {
 			return;
 		}
-		const result = await this.automationDialogService.showAutomationDialog({ existing: automation });
-		if (!result || result.kind !== 'update') {
-			return;
-		}
-		if (!await this.ensureEnabled()) {
-			return;
-		}
 		try {
+			const result = await this.automationDialogService.showAutomationDialog({ existing: automation });
+			if (!result || result.kind !== 'update') {
+				return;
+			}
+			if (!await this.ensureEnabled()) {
+				return;
+			}
 			const updateResult = await this.automationService.updateAutomationIfUnchanged(result.id, result.value, automation, () => this.throwIfDisabled());
 			if (updateResult.kind === 'conflict') {
 				throw new Error(updateResult.current
