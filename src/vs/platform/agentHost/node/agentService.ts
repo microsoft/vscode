@@ -984,7 +984,6 @@ export class AgentService extends Disposable implements IAgentService {
 			createChat: (session, chat, options) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined)
 				? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: options.model } : {}) }
 				: undefined),
-			renameSession: (session, title) => this._renameSessionFromTool(session, title),
 			renameChat: (session, chat, title) => this._renameChatFromTool(session, chat, title),
 			deleteSession: session => this.disposeSession(session),
 			getChatContext: (session, chatId) => this._getChatContext(session, chatId),
@@ -1053,26 +1052,21 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	private async _renameSessionFromTool(session: URI, title: string): Promise<IRenameTitleResult> {
-		validateRenameTitle(title, SessionServerToolName.RenameSession);
-		await persistSessionMetadataValues(this._sessionDataService, session.toString(), {
-			[SESSION_CUSTOM_TITLE_KEY]: title,
-			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
-		});
-		if (this._stateManager.getSessionState(session.toString())?.title !== title) {
-			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title });
-		}
-		this._sideEffects.markTitleRenamed(session.toString());
-		return { title };
-	}
-
 	private async _renameChatFromTool(session: URI, chat: URI, title: string): Promise<IRenameTitleResult> {
 		validateRenameTitle(title, SessionServerToolName.RenameChat);
-		if (isDefaultChatUri(chat.toString())) {
-			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must target a non-default chat.`);
+		const isDefaultChat = isDefaultChatUri(chat.toString());
+		if (isDefaultChat && await this._isOnlySessionChat(session)) {
+			await persistSessionMetadataValues(this._sessionDataService, session.toString(), {
+				[SESSION_CUSTOM_TITLE_KEY]: title,
+				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
+			});
+			if (this._stateManager.getSessionState(session.toString())?.title !== title) {
+				this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title });
+			}
+			this._sideEffects.markTitleRenamed(session.toString());
+			return { title };
 		}
-		const exists = await this._peerChatExists(session, chat);
-		if (!exists) {
+		if (!isDefaultChat && !await this._peerChatExists(session, chat)) {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must match a known non-default chat.`);
 		}
 
@@ -1085,6 +1079,15 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._sideEffects.markTitleRenamed(session.toString(), chat.toString());
 		return { title };
+	}
+
+	private async _isOnlySessionChat(session: URI): Promise<boolean> {
+		const state = this._stateManager.getSessionState(session.toString());
+		if (state) {
+			return state.chats.length === 1;
+		}
+		const persisted = await this._readPersistedPeerChatCatalog(session);
+		return persisted?.length === 0;
 	}
 
 	private async _peerChatExists(session: URI, chat: URI): Promise<boolean> {

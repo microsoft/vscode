@@ -171,6 +171,12 @@ suite('Agent Host Edit ARC Reporter', () => {
 		});
 		await timeout(10);
 		const firstEditId = telemetry.events[0].data.uniqueEditId;
+		const finalSampleEmitted = new DeferredPromise<void>();
+		telemetry.onEvent = event => {
+			if (event.data.uniqueEditId === firstEditId && event.data.timeDelayMs === 60) {
+				finalSampleEmitted.complete();
+			}
+		};
 
 		await fileService.writeFile(resource, VSBuffer.fromString('Abase'));
 		await service.reportEdit({
@@ -183,15 +189,21 @@ suite('Agent Host Edit ARC Reporter', () => {
 			initialEdit: { replacements: [{ start: 1, endExclusive: 2, text: '' }] },
 			completionTime: Date.now(),
 		});
-		await timeout(70);
+		const samplingCompleted = await raceTimeout(Promise.all([finalSampleEmitted.p]), 5_000);
 
-		assert.deepStrictEqual(telemetry.events
-			.filter(event => event.data.uniqueEditId === firstEditId)
-			.map(event => ({ timeDelayMs: event.data.timeDelayMs, arc: event.data.arc })), [
-			{ timeDelayMs: 0, arc: 2 },
-			{ timeDelayMs: 30, arc: 1 },
-			{ timeDelayMs: 60, arc: 1 },
-		]);
+		assert.deepStrictEqual({
+			samplingCompleted: samplingCompleted !== undefined,
+			events: telemetry.events
+				.filter(event => event.data.uniqueEditId === firstEditId)
+				.map(event => ({ timeDelayMs: event.data.timeDelayMs, arc: event.data.arc })),
+		}, {
+			samplingCompleted: true,
+			events: [
+				{ timeDelayMs: 0, arc: 2 },
+				{ timeDelayMs: 30, arc: 1 },
+				{ timeDelayMs: 60, arc: 1 },
+			],
+		});
 		assert.deepStrictEqual(telemetry.githubEvents, []);
 	});
 
