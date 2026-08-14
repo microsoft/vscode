@@ -15,7 +15,7 @@ import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IMcpService, McpConnectionState } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpServer, IMcpService, IWorkbenchMcpServer, McpConnectionState } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import {
 	AgentHostMcpServer,
@@ -29,6 +29,8 @@ import {
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
 	getMcpStatusPresentation,
+	countSessionOnlyMcpServers,
+	getAgentOriginLabel,
 	getEnablementTarget,
 	getMcpStatusRenderSignature,
 	isNoteworthyMcpStatus,
@@ -687,6 +689,45 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	suite('countSessionOnlyMcpServers', () => {
+
+		const installed = [{ id: 'notion', name: 'notion', label: 'Notion' }] as unknown as readonly IWorkbenchMcpServer[];
+		const runtime = [{ definition: { id: 'github-mcp', label: 'GitHub' } }] as unknown as readonly IMcpServer[];
+
+		test('a session server the user also installed is not counted twice', () => {
+			const servers = [createAgentHostServer({ id: 'session/notion', name: 'notion' })];
+			assert.strictEqual(countSessionOnlyMcpServers(servers, installed, runtime), 0);
+		});
+
+		test('a server only the session knows about is counted', () => {
+			const servers = [createAgentHostServer({ id: 'session/node_repl', name: 'node_repl' })];
+			assert.strictEqual(countSessionOnlyMcpServers(servers, installed, runtime), 1);
+		});
+
+		test('the count does not depend on what a search would have hidden', () => {
+			const servers = [
+				createAgentHostServer({ id: 'session/notion', name: 'notion' }),
+				createAgentHostServer({ id: 'session/node_repl', name: 'node_repl' }),
+			];
+			// The same answer whether or not a query would have hidden the installed row that
+			// claims one of them. Deriving this from the filtered lists made the badge grow while
+			// the user typed, which reads as servers appearing from nowhere.
+			assert.deepStrictEqual([
+				countSessionOnlyMcpServers(servers, installed, runtime),
+				countSessionOnlyMcpServers(servers, [], runtime),
+			], [1, 2]);
+		});
+	});
+
+	suite('getAgentOriginLabel', () => {
+
+		test('uses the agent name, and describes the machinery only when there is none', () => {
+			assert.deepStrictEqual(
+				[getAgentOriginLabel('Copilot'), getAgentOriginLabel(undefined)],
+				['Copilot', 'Agent host']);
+		});
+	});
+
 	suite('getMcpStatusRenderSignature', () => {
 		const base: IMcpStatusRenderInput = {
 			rowKey: 'server:mcp.config.workspace/notion:0',
@@ -704,6 +745,8 @@ suite('mcpListWidget', () => {
 			toolsFromCache: true,
 			transport: 'Local',
 			description: 'Issue tracking',
+			origin: 'Workspace',
+			impliedOrigin: 'Built-in',
 		};
 
 		// A different, and differently-typed-where-possible, value for every field. The mapped type
@@ -725,6 +768,8 @@ suite('mcpListWidget', () => {
 			toolsFromCache: false,
 			transport: 'HTTP',
 			description: 'Issue tracking and boards',
+			origin: 'User',
+			impliedOrigin: 'User',
 		};
 
 		const fields = Object.keys(base) as (keyof IMcpStatusRenderInput)[];

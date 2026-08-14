@@ -36,7 +36,7 @@ import { ConfigureModelAccessAction, DisableMcpServerForWorkspaceAction, Disable
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon, pluginIcon, extensionIcon } from './aiCustomizationIcons.js';
+import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon, extensionIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -74,8 +74,61 @@ function getPluginUriFromCollectionId(collectionId: string | undefined): string 
 /**
  * Represents a collapsible group header in the MCP server list.
  */
+/**
+ * Sections answer one question -- *where is this server defined?* -- ordered from the user's own
+ * choices outwards to the product's.
+ *
+ * Extension and Plugin were previously two sections, but they are one thing to a user: software
+ * they installed. The distinction still matters when acting on a row, so it survives on the row,
+ * where the header cannot say it.
+ *
+ * Grouping by origin also lets the rows stop repeating it: "Workspace" belongs once in a header,
+ * not on every row underneath it.
+ */
+type McpGroupId = 'user' | 'workspace' | 'installed' | 'builtin';
+
 interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
-	readonly scope: LocalMcpServerScope | 'builtin' | 'plugin' | 'extension';
+	readonly scope: McpGroupId;
+}
+
+/**
+ * Where a server came from, phrased for line two of a row. Extension provenance cannot be read off
+ * the collection id -- extension collections are keyed `<extensionId>/<collectionId>` -- so the
+ * caller resolves it from the registry and passes it in.
+ */
+function getCollectionOriginLabel(collectionId: string | undefined, source: unknown): string {
+	if (collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX)) {
+		return localize('originPlugin', "Plugin");
+	}
+	// Copilot ships MCP servers through an extension, but users experience them as part of the
+	// product, so they read as built-in rather than as something they installed.
+	if (source instanceof ExtensionIdentifier && !isCopilotExtension(source)) {
+		return localize('originExtension', "Extension");
+	}
+	return localize('originBuiltin', "Built-in");
+}
+
+function getScopeOriginLabel(scope: LocalMcpServerScope | undefined): string | undefined {
+	switch (scope) {
+		case LocalMcpServerScope.Workspace:
+			return localize('originWorkspace', "Workspace");
+		case LocalMcpServerScope.User:
+		case LocalMcpServerScope.RemoteUser:
+			// A remote-user server is still the user's own choice; where the profile lives is not
+			// a distinction this row is trying to draw, and dropping it left line two blank.
+			return localize('originUser', "User");
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * What to call the agent a server came with, for rows that sit in Built-in beside VS Code's own
+ * servers. Harnesses that do not name their agent fall back to describing the machinery, which is
+ * the only honest thing left to say.
+ */
+export function getAgentOriginLabel(agentName: string | undefined): string {
+	return agentName ?? localize('originAgentHost', "Agent host");
 }
 
 /**
@@ -84,6 +137,10 @@ interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
 interface IMcpServerItemEntry {
 	readonly type: 'server-item';
 	readonly server: IWorkbenchMcpServer;
+	/** Shown on the row only when the section header does not already say it. */
+	readonly origin?: string;
+	/** The origin the header implies; rendered only if line two would otherwise be empty. */
+	readonly impliedOrigin?: string;
 	readonly activeSessionServer?: AgentHostMcpServer;
 	readonly localServer?: IMcpServer;
 	/**
@@ -108,6 +165,10 @@ interface IMcpBuiltinItemEntry {
 	readonly label: string;
 	readonly description: string;
 	readonly collectionId?: string;
+	/** Shown on the row only when the section header does not already say it. */
+	readonly origin?: string;
+	/** The origin the header implies; rendered only if line two would otherwise be empty. */
+	readonly impliedOrigin?: string;
 	readonly activeSessionServer?: AgentHostMcpServer;
 	readonly localServer?: IMcpServer;
 }
@@ -226,6 +287,10 @@ interface IMcpRowState {
 
 /** The parts of a row that do not change while the row is bound, but that line two draws from. */
 interface IMcpRowContext {
+	/** Where the server came from, when the section header does not already answer it. */
+	readonly origin?: string;
+	/** The origin the header implies; a fallback so line two is never blank. */
+	readonly impliedOrigin?: string;
 	readonly description?: string;
 }
 
@@ -358,7 +423,11 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			templateData.container.classList.add('builtin');
 			templateData.container.classList.toggle('has-detail', false);
 			templateData.name.textContent = formatDisplayName(element.label);
-			templateData.context = { description: element.description ? truncateToFirstLine(element.description) : undefined };
+			templateData.context = {
+				origin: element.origin,
+				impliedOrigin: element.impliedOrigin,
+				description: element.description ? truncateToFirstLine(element.description) : undefined,
+			};
 			this.bindRowState(templateData, element);
 
 			// Add hover with plugin provenance for plugin-sourced builtin items
@@ -382,7 +451,12 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			templateData.container.classList.remove('builtin');
 			templateData.container.classList.toggle('has-detail', false);
 			templateData.name.textContent = formatDisplayName(element.server.name);
-			templateData.context = {};
+			// Named on the row rather than left to the header: these sit in Built-in beside
+			// VS Code's own servers, so the row is the only place that can say which product this
+			// one came with. It is the leading origin rather than the fallback, because a failing
+			// server fills line two with its error and would otherwise never say where it came
+			// from -- exactly the row you most need to place.
+			templateData.context = { origin: getAgentOriginLabel(this.customizationHarnessService.getActiveDescriptor().agentName) };
 			this.bindRowState(templateData, element);
 			return;
 		}
@@ -396,7 +470,11 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		const isGallery = !element.server.local;
 		const hasDetail = !!description || isGallery;
 		templateData.container.classList.toggle('has-detail', hasDetail);
-		templateData.context = { description: description ? truncateToFirstLine(description) : undefined };
+		templateData.context = {
+			origin: element.origin,
+			impliedOrigin: isGallery ? undefined : getScopeOriginLabel(element.server.local?.scope),
+			description: description ? truncateToFirstLine(description) : undefined,
+		};
 
 		this.bindRowState(templateData, element);
 	}
@@ -455,6 +533,8 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			toolsFromCache: rowState.toolsFromCache,
 			transport: rowState.transport,
 			description: templateData.context.description,
+			origin: templateData.context.origin,
+			impliedOrigin: templateData.context.impliedOrigin,
 		});
 		if (templateData.renderedStatusSignature === signature) {
 			return;
@@ -564,6 +644,9 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		templateData.description.classList.toggle('is-error', !!rowState.errorMessage);
 
 		const parts: { text: string; isError?: boolean; isContext?: boolean }[] = [];
+		if (templateData.context.origin) {
+			parts.push({ text: templateData.context.origin, isContext: true });
+		}
 		if (rowState.transport && !rowState.errorMessage) {
 			parts.push({ text: rowState.transport, isContext: true });
 		}
@@ -574,8 +657,14 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		}
 
 		if (!parts.length) {
-			templateData.description.style.display = 'none';
-			return;
+			// Origin normally lives in the section header rather than on the row. A row with no
+			// transport and no description would otherwise leave line two blank, so it comes back
+			// here -- repetition is better than a gap under the name.
+			if (!templateData.context.impliedOrigin) {
+				templateData.description.style.display = 'none';
+				return;
+			}
+			parts.push({ text: templateData.context.impliedOrigin, isContext: true });
 		}
 
 		templateData.description.style.display = '';
@@ -764,6 +853,8 @@ export interface IMcpStatusRenderInput {
 	readonly toolsFromCache: boolean | undefined;
 	readonly transport: string | undefined;
 	readonly description: string | undefined;
+	readonly origin: string | undefined;
+	readonly impliedOrigin: string | undefined;
 }
 
 /**
@@ -796,6 +887,8 @@ export function getMcpStatusRenderSignature(input: IMcpStatusRenderInput): strin
 		input.toolsFromCache ?? null,
 		input.transport ?? null,
 		input.description ?? null,
+		input.origin ?? null,
+		input.impliedOrigin ?? null,
 	]);
 }
 
@@ -1360,16 +1453,41 @@ export function getServerItemContextMenuActions(menuActionGroups: readonly (read
 	return actions;
 }
 
-function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostMcpServer): IMcpBuiltinItemEntry {
+function createBuiltinEntry(server: IMcpServer, origin: string | undefined, activeSessionServer: AgentHostMcpServer | undefined, impliedOrigin: string): IMcpBuiltinItemEntry {
 	return {
 		type: 'builtin-item',
 		id: `builtin-${server.definition.id}`,
 		label: server.definition.label,
 		description: '',
 		collectionId: server.collection.id,
+		origin,
+		impliedOrigin,
 		activeSessionServer,
 		localServer: server,
 	};
+}
+
+/**
+ * Counts session servers that no installed or runtime server already accounts for.
+ *
+ * This exists so the sidebar badge cannot be moved by the search box. The matcher used to build the
+ * list is consumed against whatever it was given, so reading its leftovers after a filtered pass
+ * made the badge grow while typing. Claiming against the unfiltered lists in a throwaway matcher
+ * makes the answer a property of what the user has.
+ */
+export function countSessionOnlyMcpServers(
+	sessionServers: readonly AgentHostMcpServer[],
+	localServers: readonly IWorkbenchMcpServer[],
+	runtimeServers: readonly IMcpServer[],
+): number {
+	const matcher = new ActiveSessionMcpServerMatcher(sessionServers);
+	for (const server of localServers) {
+		matcher.take(getWorkbenchServerMatchKeys(server));
+	}
+	for (const server of runtimeServers) {
+		matcher.take(getRuntimeServerMatchKeys(server));
+	}
+	return matcher.unmatched('').length;
 }
 
 const MCP_GALLERY_ITEM_TEMPLATE_ID = 'mcpGalleryItem';
@@ -1450,8 +1568,7 @@ export class McpListWidget extends Disposable {
 	private addButton!: Button;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
-	private filteredBuiltinCount = 0;
-	private filteredActiveSessionCount = 0;
+	private totalServerCount = 0;
 	private displayEntries: IMcpListEntry[] = [];
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
@@ -1850,77 +1967,86 @@ export class McpListWidget extends Disposable {
 	private filterServers(): void {
 		const query = this.searchQuery.toLowerCase().trim();
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
-		const activeSessionMatcher = new ActiveSessionMcpServerMatcher(this.agentHostCustomizationService.getMcpServers(activeSessionResource));
+		const allSessionServers = this.agentHostCustomizationService.getMcpServers(activeSessionResource);
+		const activeSessionMatcher = new ActiveSessionMcpServerMatcher(allSessionServers);
 		const localServerMatcher = new LocalMcpServerMatcher(this.mcpService.servers.get());
 
-		if (query) {
-			this.filteredServers = this.mcpWorkbenchService.local.filter(server =>
-				server.label.toLowerCase().includes(query) ||
-				(server.description?.toLowerCase().includes(query))
-			);
-		} else {
-			this.filteredServers = [...this.mcpWorkbenchService.local];
+		const matchesQuery = (label: string, description?: string): boolean =>
+			!query || label.toLowerCase().includes(query) || !!description?.toLowerCase().includes(query);
+
+		const allLocalServers = this.mcpWorkbenchService.local;
+		this.filteredServers = query
+			? allLocalServers.filter(server => matchesQuery(server.label, server.description))
+			: [...allLocalServers];
+
+		// Dedupe against the *unfiltered* local list: a local server hidden by the query must still
+		// suppress its runtime twin, otherwise searching makes duplicates appear.
+		const localIds = new Set(allLocalServers.map(server => server.id));
+		const allRuntimeServers = this.mcpService.servers.get().filter(server => !localIds.has(server.definition.id));
+		const runtimeServers = allRuntimeServers.filter(server => matchesQuery(server.definition.label));
+
+		// Claim session servers against everything the user has, not against what survived the
+		// search box. `take` is consuming, so a row hidden by a query would otherwise release its
+		// claim for some other row to pick up. Claiming first and filtering second keeps the join a
+		// property of the configuration rather than of what is on screen.
+		const claimedByLocal = new Map<string, AgentHostMcpServer | undefined>();
+		for (const server of allLocalServers) {
+			claimedByLocal.set(server.id, activeSessionMatcher.take(getWorkbenchServerMatchKeys(server)));
+		}
+		const claimedByRuntime = new Map<string, AgentHostMcpServer | undefined>();
+		for (const server of allRuntimeServers) {
+			claimedByRuntime.set(server.definition.id, activeSessionMatcher.take(getRuntimeServerMatchKeys(server)));
 		}
 
-		// Find extension-provided servers not in the local list (e.g. GitHub MCP)
-		const localIds = new Set(this.filteredServers.map(s => s.id));
-		const builtinServers = this.mcpService.servers.get()
-			.filter(s => !localIds.has(s.definition.id))
-			.filter(s => !query || s.definition.label.toLowerCase().includes(query));
-
-		const groups: { scope: LocalMcpServerScope; label: string; icon: ThemeIcon; description: string; entries: Array<IMcpServerItemEntry | IMcpSessionServerItemEntry> }[] = [
-			{ scope: LocalMcpServerScope.Workspace, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "MCP servers configured in your workspace or reported by the active session."), entries: [] },
-			{ scope: LocalMcpServerScope.User, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "MCP servers configured in your user settings. Private to you and available across all projects."), entries: [] },
-		];
+		const userEntries: IMcpListEntry[] = [];
+		const workspaceEntries: IMcpListEntry[] = [];
+		const installedEntries: IMcpListEntry[] = [];
+		const builtinEntries: IMcpListEntry[] = [];
 
 		for (const server of this.filteredServers) {
 			const entry: IMcpServerItemEntry = {
 				type: 'server-item',
 				server,
-				activeSessionServer: activeSessionMatcher.take(getWorkbenchServerMatchKeys(server)),
+				activeSessionServer: claimedByLocal.get(server.id),
 				localServer: localServerMatcher.find(getWorkbenchServerMatchKeys(server)),
 			};
-			const scope = server.local?.scope;
-			if (scope === LocalMcpServerScope.Workspace) {
-				groups[0].entries.push(entry);
+			if (server.local?.scope === LocalMcpServerScope.Workspace) {
+				workspaceEntries.push(entry);
 			} else {
-				// User, RemoteUser, or unknown → group under User
-				groups[1].entries.push(entry);
+				userEntries.push(entry);
 			}
 		}
 
-		// Add plugin-provided, extension-provided, and built-in servers.
-		// Servers from the Copilot extension (github.copilot / github.copilot-chat)
-		// are treated as built-in; servers from other extensions go under "Extensions".
-		const collectionSources = new Map(this.mcpRegistry.collections.get().map(c => [c.id, c.source]));
-		const pluginServers: Array<{ server: IMcpServer; activeSessionServer?: AgentHostMcpServer }> = [];
-		const extensionServers: Array<{ server: IMcpServer; activeSessionServer?: AgentHostMcpServer }> = [];
-		const otherBuiltinServers: Array<{ server: IMcpServer; activeSessionServer?: AgentHostMcpServer }> = [];
-		for (const server of builtinServers) {
-			const entry = { server, activeSessionServer: activeSessionMatcher.take(getRuntimeServerMatchKeys(server)) };
-			const source = collectionSources.get(server.collection.id);
-			if (server.collection.id.startsWith(PLUGIN_COLLECTION_PREFIX)) {
-				pluginServers.push(entry);
-			} else if (source instanceof ExtensionIdentifier && !isCopilotExtension(source)) {
-				extensionServers.push(entry);
+		// Extensions and plugins share a section because they are one thing to the user: software
+		// they installed. The distinction still matters when acting on a row (a plugin is
+		// uninstalled as a whole), so it survives on the row, where the header cannot say it.
+		const collectionSources = new Map(this.mcpRegistry.collections.get().map(collection => [collection.id, collection.source]));
+		const builtinOriginLabel = localize('originBuiltin', "Built-in");
+		for (const server of runtimeServers) {
+			const origin = getCollectionOriginLabel(server.collection.id, collectionSources.get(server.collection.id));
+			const sessionServer = claimedByRuntime.get(server.definition.id);
+			if (origin === builtinOriginLabel) {
+				builtinEntries.push(createBuiltinEntry(server, undefined, sessionServer, origin));
 			} else {
-				otherBuiltinServers.push(entry);
+				installedEntries.push(createBuiltinEntry(server, origin, sessionServer, origin));
 			}
 		}
+
+		// Servers only the agent knows about join Built-in rather than getting a section of their
+		// own. They arrive because you are using this agent, which is the same reason VS Code's own
+		// servers are there; the row names which product it was.
 		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);
-		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionOnlyServers);
+		builtinEntries.push(...createBuiltinActiveSessionMcpEntries(activeSessionOnlyServers));
 
 		// Show empty state only when there are no servers at all (not when filtered to empty)
-		if (this.filteredServers.length === 0 && builtinServers.length === 0 && activeSessionOnlyServers.length === 0) {
+		if (this.filteredServers.length === 0 && runtimeServers.length === 0 && activeSessionOnlyServers.length === 0) {
 			this.emptyContainer.style.display = 'flex';
 			this.listContainer.style.display = 'none';
 
 			if (this.searchQuery.trim()) {
-				// Search with no results
 				this.emptyText.textContent = localize('noMatchingServers', "No servers match '{0}'", this.searchQuery);
 				this.emptySubtext.textContent = localize('tryDifferentSearch', "Try a different search term");
 			} else {
-				// No servers configured
 				this.emptyText.textContent = localize('noMcpServers', "No MCP servers configured");
 				this.emptySubtext.textContent = localize('addMcpServer', "Add an MCP server configuration to get started");
 			}
@@ -1929,17 +2055,59 @@ export class McpListWidget extends Disposable {
 			this.listContainer.style.display = '';
 		}
 
+		// The agent's own name when this editor is backed by one, so Built-in can admit it holds
+		// that agent's servers too.
+		const agentName = this.customizationHarnessService.getActiveDescriptor().agentName;
+
+		// Ordered from the user's own choices outwards to the product's. Empty sections are skipped
+		// below, so at most four are shown.
+		const groups: { id: McpGroupId; label: string; icon: ThemeIcon; description: string; entries: IMcpListEntry[] }[] = [
+			{
+				id: 'user',
+				label: localize('userServersGroup', "User"),
+				icon: userIcon,
+				description: localize('userServersGroupDescription', "Servers in your user settings. They follow you into every workspace."),
+				entries: userEntries,
+			},
+			{
+				id: 'workspace',
+				label: localize('workspaceServersGroup', "Workspace"),
+				icon: workspaceIcon,
+				description: localize('workspaceServersGroupDescription', "Servers configured in this workspace. They are shared with anyone who opens it."),
+				entries: workspaceEntries,
+			},
+			{
+				id: 'installed',
+				label: localize('installedServersGroup', "Extensions & Plugins"),
+				icon: extensionIcon,
+				description: localize('installedServersGroupDescription', "Servers that came with software you installed. You can turn these off, but not edit them."),
+				entries: installedEntries,
+			},
+			{
+				id: 'builtin',
+				label: localize('builtinServersGroup', "Built-in"),
+				icon: builtinIcon,
+				// Covers the agent's own servers too. A server that arrives because you are using
+				// an agent came with the product just as much as one that ships in VS Code; which
+				// product it was is a distinction the row makes.
+				description: agentName
+					? localize('builtinServersGroupDescriptionNamed', "Servers that come with VS Code or with {0}. You can turn these off, but not edit them here.", agentName)
+					: localize('builtinServersGroupDescription', "Servers that come with VS Code. You can turn these off, but not edit them."),
+				entries: builtinEntries,
+			},
+		];
+
 		const entries: IMcpListEntry[] = [];
 		let isFirst = true;
 		for (const group of groups) {
 			if (group.entries.length === 0) {
 				continue;
 			}
-			const collapsed = this.collapsedGroups.has(group.scope);
+			const collapsed = this.collapsedGroups.has(group.id);
 			entries.push({
 				type: 'group-header',
-				id: `mcp-group-${group.scope}`,
-				scope: group.scope,
+				id: `mcp-group-${group.id}`,
+				scope: group.id,
 				label: group.label,
 				icon: group.icon,
 				count: group.entries.length,
@@ -1953,76 +2121,17 @@ export class McpListWidget extends Disposable {
 			isFirst = false;
 		}
 
-		if (pluginServers.length > 0) {
-			const collapsed = this.collapsedGroups.has('plugin');
-			entries.push({
-				type: 'group-header',
-				id: 'mcp-group-plugin',
-				scope: 'plugin',
-				label: localize('pluginGroup', "Plugins"),
-				icon: pluginIcon,
-				count: pluginServers.length,
-				isFirst,
-				description: localize('pluginGroupDescription', "MCP servers provided by installed plugins."),
-				collapsed,
-			});
-			if (!collapsed) {
-				for (const { server, activeSessionServer } of pluginServers) {
-					entries.push(createBuiltinEntry(server, activeSessionServer));
-				}
-			}
-			isFirst = false;
-		}
-
-		if (extensionServers.length > 0) {
-			const collapsed = this.collapsedGroups.has('extension');
-			entries.push({
-				type: 'group-header',
-				id: 'mcp-group-extension',
-				scope: 'extension',
-				label: localize('extensionGroup', "Extensions"),
-				icon: extensionIcon,
-				count: extensionServers.length,
-				isFirst,
-				description: localize('extensionGroupDescription', "MCP servers contributed by installed VS Code extensions."),
-				collapsed,
-			});
-			if (!collapsed) {
-				for (const { server, activeSessionServer } of extensionServers) {
-					entries.push(createBuiltinEntry(server, activeSessionServer));
-				}
-			}
-			isFirst = false;
-		}
-
-		if (otherBuiltinServers.length > 0 || activeSessionBuiltinEntries.length > 0) {
-			const collapsed = this.collapsedGroups.has('builtin');
-			entries.push({
-				type: 'group-header',
-				id: 'mcp-group-builtin',
-				scope: 'builtin',
-				label: localize('builtInGroup', "Built-in"),
-				icon: builtinIcon,
-				count: otherBuiltinServers.length + activeSessionBuiltinEntries.length,
-				isFirst,
-				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
-				collapsed,
-			});
-			if (!collapsed) {
-				for (const { server, activeSessionServer } of otherBuiltinServers) {
-					entries.push(createBuiltinEntry(server, activeSessionServer));
-				}
-				entries.push(...activeSessionBuiltinEntries);
-			}
-			isFirst = false;
-		}
-
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
 
-		// Compute sidebar badge directly from the data arrays (same source as group headers)
-		this.filteredBuiltinCount = builtinServers.length;
-		this.filteredActiveSessionCount = activeSessionOnlyServers.length;
+		// The sidebar badge counts what the user *has*, not what the current search matched.
+		// Deriving it from the filtered arrays made typing in the search box silently rewrite the
+		// tab's badge, which reads as servers disappearing. `activeSessionMatcher` cannot answer
+		// this either: it was consumed above, so a throwaway matcher over the unfiltered lists is
+		// what finds the servers only the session knows about.
+		this.totalServerCount = allLocalServers.length
+			+ allRuntimeServers.length
+			+ countSessionOnlyMcpServers(allSessionServers, allLocalServers, allRuntimeServers);
 		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
@@ -2031,7 +2140,7 @@ export class McpListWidget extends Disposable {
 	 * (the same source used to build group headers).
 	 */
 	get itemCount(): number {
-		return this.filteredServers.length + this.filteredBuiltinCount + this.filteredActiveSessionCount;
+		return this.totalServerCount;
 	}
 
 	/**

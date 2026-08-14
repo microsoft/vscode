@@ -1686,6 +1686,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	// The Built-in section holds the agent's own servers as well as VS Code's, and it is the only
+	// place a row names which product it came with -- so it needs a scrolled variant to be seen.
+	McpServersTabActiveSessionScrolled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			activeSessionMcpServers,
+			scrollToBottom: true,
+		}),
+	}),
+
 	PluginsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
