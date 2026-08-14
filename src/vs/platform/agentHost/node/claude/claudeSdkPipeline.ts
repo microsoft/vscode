@@ -15,6 +15,8 @@ import { ClaudeRuntimeEffortLevel } from '../../common/claudeModelConfig.js';
 import { AgentSignal } from '../../common/agent.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { AgentMarkdownOrigin, toAgentMarkdownOriginMeta } from '../../common/meta/agentMarkdownOriginMeta.js';
+import { ResponsePartKind } from '../../common/state/protocol/channels-chat/state.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
@@ -226,6 +228,9 @@ export class ClaudeSdkPipeline extends Disposable {
 	/** Set when the consumer loop ends in error (cancellation OR crash). Read by {@link send} to trigger rebind. */
 	private _needsRebind = false;
 
+	/** Text and turn of steering messages handed to the SDK but not yet echoed to the transcript. */
+	private readonly _steeringInFlight = new Map<string, { readonly text: string; readonly turnId: string }>();
+
 	/** Tracks whether the consumer loop is currently draining {@link _query}. */
 	private _consumerLoopRunning = false;
 
@@ -264,11 +269,32 @@ export class ClaudeSdkPipeline extends Disposable {
 			ClaudePromptQueue,
 			sessionId,
 			() => this._abortController.signal,
-			(pendingId: string) => this._onDidProduceSignal.fire({
-				kind: 'steering_consumed',
-				chat: this.chatChannelUri,
-				id: pendingId,
-			}),
+			(pendingId: string) => {
+				// CONTEXT.md M10 keeps the steered turn, so the message goes into it.
+				const steering = this._steeringInFlight.get(pendingId);
+				this._steeringInFlight.delete(pendingId);
+				if (steering && steering.text) {
+					this._onDidProduceSignal.fire({
+						kind: 'action',
+						resource: this.chatChannelUri,
+						action: {
+							type: ActionType.ChatResponsePart,
+							turnId: steering.turnId,
+							part: {
+								kind: ResponsePartKind.Markdown,
+								id: `${steering.turnId}#steering-${pendingId}`,
+								content: formatSteeringMarkdown(steering.text),
+								_meta: toAgentMarkdownOriginMeta(AgentMarkdownOrigin.UserSteering),
+							},
+						},
+					});
+				}
+				this._onDidProduceSignal.fire({
+					kind: 'steering_consumed',
+					chat: this.chatChannelUri,
+					id: pendingId,
+				});
+			},
 		));
 		this._router = this._register(instantiationService.createInstance(
 			ClaudeSdkMessageRouter, chatChannelUri, resource, dbRef, subagents, clientToolOwner,
@@ -457,7 +483,17 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * exists to inherit a `turnId` from (CONTEXT.md M10: steering folds
 	 * into the in-progress protocol Turn).
 	 */
-	injectSteering(prompt: SDKUserMessage, pendingMessageId: string): void {
+	/**
+	 * Fails every queued entry. Steering bookkeeping is dropped with them: a
+	 * rebind reuses this pipeline, so an entry the SDK never took would
+	 * otherwise be retained for the life of the session.
+	 */
+	private _failQueue(error: Error): void {
+		this._queue.failAll(error);
+		this._steeringInFlight.clear();
+	}
+
+	injectSteering(prompt: SDKUserMessage, pendingMessageId: string, displayText: string): void {
 		if (this._abortController.signal.aborted) {
 			this._logService.warn(`[Claude:${this.sessionId}] injectSteering: dropped (controller aborted) id=${pendingMessageId}`);
 			return;
@@ -472,6 +508,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		// promise is the original entry's deferred); attach a no-op catch
 		// so a `failAll` rejection on abort/crash doesn't surface as an
 		// unhandled rejection.
+		this._steeringInFlight.set(pendingMessageId, { text: displayText.trim(), turnId: parent.turnId });
 		this._queue.push({
 			sdkMessage: prompt,
 			sdkUuid,
@@ -499,7 +536,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			return;
 		}
 		this._abortController.abort();
-		this._queue.failAll(new CancellationError());
+		this._failQueue(new CancellationError());
 		// Mark unhealthy but keep the `_query` handle: the next `send` rebinds,
 		// and `shutdownAndWait` still needs it to await the subprocess exit.
 		this._needsRebind = true;
@@ -619,7 +656,7 @@ export class ClaudeSdkPipeline extends Disposable {
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] rebind-aborted: warm dispose failed: ${err}`));
 			void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during aborted rebind: ${err}`));
-			this._queue.failAll(new CancellationError());
+			this._failQueue(new CancellationError());
 			this._needsRebind = true;
 			throw new CancellationError();
 		}
@@ -722,7 +759,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			// not clobber the fresh one. Mark unhealthy (keep the handle for
 			// teardown); the next `send` rebinds.
 			if (this._query === query) {
-				this._queue.failAll(fatal);
+				this._failQueue(fatal);
 				this._needsRebind = true;
 			}
 			if (!isCancellationError(fatal)) {
@@ -730,4 +767,10 @@ export class ClaudeSdkPipeline extends Disposable {
 			}
 		}
 	}
+}
+
+/** Render a steering message as an attributed block so it reads as the user's, not the model's. */
+function formatSteeringMarkdown(text: string): string {
+	const quoted = text.split('\n').map(line => `> ${line}`).join('\n');
+	return `\n\n${quoted}\n\n`;
 }

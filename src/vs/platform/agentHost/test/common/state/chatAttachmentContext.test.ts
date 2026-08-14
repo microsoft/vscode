@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { boundChatTranscriptTurns, formatChatTranscript, MAX_CHAT_ATTACHMENT_EXCERPT_CHARS, resolveChatAttachment } from '../../../common/state/chatAttachmentContext.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { type MessageChatAttachment } from '../../../common/state/protocol/state.js';
+import { AgentMarkdownOrigin, toAgentMarkdownOriginMeta } from '../../../common/meta/agentMarkdownOriginMeta.js';
 
 /** Build a completed turn with a user message and a single assistant markdown reply. */
 function turn(id: string, userText: string, assistantText: string, extraAttachments?: Turn['message']['attachments']): Turn {
@@ -48,6 +49,24 @@ suite('chatAttachmentContext', () => {
 	test('formatChatTranscript renders user + assistant text only (ignores tool calls)', () => {
 		const text = formatChatTranscript([turn('t1', 'hi', 'hello'), turn('t2', 'more', 'sure')]);
 		assert.strictEqual(text, 'User: hi\n\nAssistant: hello\n\nUser: more\n\nAssistant: sure');
+	});
+
+	test('formatChatTranscript attributes a folded steering message to the user', () => {
+		const steered: Turn = {
+			id: 't1',
+			message: { text: 'start the checks', origin: { kind: MessageKind.User } },
+			responseParts: [
+				{ kind: ResponsePartKind.Markdown, id: 't1-a', content: 'running the first one' },
+				{ kind: ResponsePartKind.Markdown, id: 't1-steer', content: 'change of plan', _meta: toAgentMarkdownOriginMeta(AgentMarkdownOrigin.UserSteering) },
+				{ kind: ResponsePartKind.Markdown, id: 't1-b', content: 'stopping, then' },
+			],
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+		assert.strictEqual(
+			formatChatTranscript([steered]),
+			'User: start the checks\n\nAssistant: running the first one\n\nUser: change of plan\n\nAssistant: stopping, then',
+		);
 	});
 
 	test('resolveChatAttachment points at the referenced chat and inlines a short transcript whole', () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MessageAttachmentKind, ResponsePartKind, type MessageChatAttachment, type SimpleMessageAttachment, type Turn } from './protocol/state.js';
+import { AgentMarkdownOrigin, readAgentMarkdownOrigin } from '../meta/agentMarkdownOriginMeta.js';
 import { SessionServerToolName } from '../serverToolNames.js';
 
 /**
@@ -48,13 +49,29 @@ export function formatChatTranscript(turns: readonly Turn[]): string {
 		if (userText) {
 			blocks.push(`User: ${userText}`);
 		}
-		const assistantText = turn.responseParts
-			.map(part => (part.kind === ResponsePartKind.Markdown ? part.content : ''))
-			.join('')
-			.trim();
-		if (assistantText) {
-			blocks.push(`Assistant: ${assistantText}`);
+		// A steer folds into the turn it interrupted, so a markdown part can be
+		// the user's: flush the assistant run before it to keep both roles right.
+		let assistantText = '';
+		const flushAssistant = () => {
+			if (assistantText.trim()) {
+				blocks.push(`Assistant: ${assistantText.trim()}`);
+			}
+			assistantText = '';
+		};
+		for (const part of turn.responseParts) {
+			if (part.kind !== ResponsePartKind.Markdown) {
+				continue;
+			}
+			if (readAgentMarkdownOrigin(part) === AgentMarkdownOrigin.UserSteering) {
+				flushAssistant();
+				if (part.content.trim()) {
+					blocks.push(`User: ${part.content.trim()}`);
+				}
+				continue;
+			}
+			assistantText += part.content;
 		}
+		flushAssistant();
 	}
 	return blocks.join('\n\n');
 }

@@ -7435,6 +7435,34 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		advance.complete();
 	});
 
+	test('a consumed steering message is added to the steered turn so it stays on screen', async () => {
+		const { ctx, sessionUri, advance } = await materialize();
+		const sid = AgentSession.id(sessionUri);
+
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
+
+		const longSend = ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'long task', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
+		await tick();
+		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), { id: 'pending-10', message: { text: 'change of plan', origin: { kind: MessageKind.User } } }, []);
+		await tick();
+		await tick();
+
+		// CONTEXT.md M10: the steered turn keeps running, so the message goes into it.
+		const parts = signals
+			.filter(s => s.kind === 'action' && (s as { action: { type: string } }).action.type === ActionType.ChatResponsePart)
+			.map(s => (s as { action: { turnId: string; part: { kind: string; content: string } } }).action)
+			.filter(a => a.part.content.includes('change of plan'));
+
+		assert.deepStrictEqual(parts.map(a => ({ turnId: a.turnId, kind: a.part.kind, content: a.part.content.trim() })), [
+			{ turnId: 'turn-2', kind: ResponsePartKind.Markdown, content: '> change of plan' },
+		]);
+
+		ctx.sdk.nextQueryMessages.push(makeResultSuccess(sid));
+		advance.complete();
+		await longSend;
+	});
+
 	test('steering_consumed fires when the iterable hands the steering message to the SDK', async () => {
 		const { ctx, sessionUri, advance } = await materialize();
 		const sid = AgentSession.id(sessionUri);

@@ -879,6 +879,16 @@ export interface MarkdownResponsePart {
 	id: string;
 	/** Markdown content */
 	content: string;
+	/**
+	 * Additional provider-specific metadata for this part.
+	 *
+	 * Markdown is the assistant's voice by default. A host MAY declare a
+	 * different authoring origin here, so clients that attribute transcript
+	 * content (styling, export, transcript formatting for a model) do not
+	 * report it as the assistant's. Clients MUST render coherently from
+	 * `content` alone when `_meta` is absent or unrecognized.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
