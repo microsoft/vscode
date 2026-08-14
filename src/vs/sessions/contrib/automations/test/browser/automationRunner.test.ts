@@ -13,11 +13,13 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { createAutomationService } from './automationTestUtils.js';
+import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
 import { AutomationTarget, AutomationWorkspaceIsolation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AutomationRunner } from '../../browser/automationRunner.js';
+import { AutomationService } from '../../browser/automationService.js';
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -115,6 +117,15 @@ class RecordingLogService extends NullLogService {
 
 	override warn(message: string, ...args: unknown[]): void {
 		this.warnings.push([message, ...args].join(' '));
+	}
+}
+
+class FailingSessionLinkAutomationService extends AutomationService {
+	override async updateRun(runId: string, patch: IUpdateAutomationRunOptions) {
+		if (patch.sessionResource) {
+			throw new Error('session link storage failed');
+		}
+		return super.updateRun(runId, patch);
 	}
 }
 
@@ -318,6 +329,22 @@ suite('AutomationRunner', () => {
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'failed');
 		assert.strictEqual(runs[0].errorMessage, 'provider offline');
+	});
+
+	test('logs the session resource when persisting the session link fails', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const log = new RecordingLogService();
+		const service = teardown.add(new FailingSessionLinkAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const sessionsMgmt = new FakeSessionsManagementService();
+		sessionsMgmt.nextSession = fakeSession('unlinked');
+		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, new RecordingNotificationService());
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+
+		await runner.runOnce(automation, 'schedule', 1).whenCompleted;
+
+		assert.deepStrictEqual(log.warnings, [
+			`[AutomationRunner] session vscode-chat-session://test/unlinked was created for run ${service.runs.get()[0].id} (automation ${automation.id}), but persisting the session link failed. Error: session link storage failed`,
+		]);
 	});
 
 	test('defers a scheduled run without advancing its schedule when the target is unavailable', async () => {

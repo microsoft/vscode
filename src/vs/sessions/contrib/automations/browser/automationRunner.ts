@@ -143,7 +143,13 @@ export class AutomationRunner implements IAutomationRunner {
 
 			if (session) {
 				const sessionResource = session.resource;
-				const updatedRun = await this.automationService.updateRun(runId, { sessionResource });
+				let updatedRun: IAutomationRun | undefined;
+				try {
+					updatedRun = await this.automationService.updateRun(runId, { sessionResource });
+				} catch (err) {
+					this.logService.warn(`[AutomationRunner] session ${sessionResource.toString()} was created for run ${runId} (automation ${automation.id}), but persisting the session link failed.`, err);
+					throw err;
+				}
 				if (updatedRun) {
 					this.logService.info(`[AutomationRunner] linked run ${runId} for automation ${automation.id} to session ${sessionResource.toString()}.`);
 				} else {

@@ -184,7 +184,7 @@ export class AutomationSchedulerCore extends Disposable {
 						completedAt: this._now().toISOString(),
 					});
 					if (updated) {
-						this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms; marked run ${active.id} failed (previousStatus=${active.status}, session=${active.sessionResource?.toString() ?? '(none)'}).`);
+						this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms; marked run ${active.id} failed (previousStatus=${active.status}, session=${updated.sessionResource?.toString() ?? '(none)'}).`);
 					} else {
 						this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms, but active run ${active.id} disappeared before it could be marked failed (previousStatus=${active.status}, session=${active.sessionResource?.toString() ?? '(none)'}).`);
 					}
