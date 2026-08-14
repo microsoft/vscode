@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
-import { CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -241,6 +241,20 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
+	test('tracks the active renderer window independently from application focus', () => {
+		assert.deepStrictEqual([
+			isChatPetWindowActive(false, 1, 1),
+			isChatPetWindowActive(true, 1, 1),
+			isChatPetWindowActive(true, 2, 1),
+			isChatPetWindowActive(true, 1, 2),
+		], [
+			false,
+			true,
+			false,
+			false,
+		]);
+	});
+
 	test('blocks keyboard interaction while unavailable or already interacting', () => {
 		assert.deepStrictEqual([
 			isChatPetKeyboardInteractionEnabled(false, false, false, false, false),
@@ -439,13 +453,13 @@ suite('ChatPetWidget', () => {
 		try {
 			controller.setEnabled(true);
 			clock.tick(1_400);
-			clock.tick(400);
+			clock.tick(260);
 			controller.onAnimationComplete();
 			clock.tick(2_400);
-			clock.tick(400);
+			clock.tick(260);
 			controller.onAnimationComplete();
 			clock.tick(3_400);
-			clock.tick(400);
+			clock.tick(260);
 			controller.onAnimationComplete();
 			controller.setEnabled(false);
 
@@ -456,11 +470,11 @@ suite('ChatPetWidget', () => {
 				delays: [1_400, 2_400, 3_400],
 				changes: [
 					{ time: 1_400, blinking: true },
-					{ time: 1_800, blinking: false },
-					{ time: 4_200, blinking: true },
-					{ time: 4_600, blinking: false },
-					{ time: 8_000, blinking: true },
-					{ time: 8_400, blinking: false },
+					{ time: 1_660, blinking: false },
+					{ time: 4_060, blinking: true },
+					{ time: 4_320, blinking: false },
+					{ time: 7_720, blinking: true },
+					{ time: 7_980, blinking: false },
 				],
 			});
 		} finally {

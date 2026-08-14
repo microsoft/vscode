@@ -15,7 +15,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
-import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -445,6 +445,10 @@ export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boole
 
 export function isChatPetVisible(enabled: boolean, isLatestFocusedWidget: boolean, windowFocused = true): boolean {
 	return enabled && isLatestFocusedWidget && windowFocused;
+}
+
+export function isChatPetWindowActive(applicationFocused: boolean, activeWindowId: number, targetWindowId: number): boolean {
+	return applicationFocused && activeWindowId === targetWindowId;
 }
 
 export function isChatPetKeyboardInteractionEnabled(enabled: boolean, isDead: boolean, hasPointerInteraction: boolean, isAirborne: boolean, onTheRun: boolean): boolean {
@@ -1225,7 +1229,11 @@ export class ChatPetWidget extends Disposable {
 		}));
 
 		const motionReduced = observableFromEvent(this, this.accessibilityService.onDidChangeReducedMotion, () => this.accessibilityService.isMotionReduced());
-		const windowFocused = observableFromEvent(this, this.hostService.onDidChangeFocus, () => this.hostService.hasFocus);
+		const targetWindow = dom.getWindow(this._button.element);
+		const targetWindowId = dom.getWindowId(targetWindow);
+		const applicationFocused = observableFromEvent(this, this.hostService.onDidChangeFocus, () => this.hostService.hasFocus);
+		const activeWindowId = observableFromEvent(this, this.hostService.onDidChangeActiveWindow, windowId => windowId ?? dom.getWindowId(dom.getActiveWindow()));
+		const windowFocused = derived(this, reader => isChatPetWindowActive(applicationFocused.read(reader), activeWindowId.read(reader), targetWindowId));
 		this._register(autorun(reader => {
 			const wasMotionReduced = this._motionReduced;
 			this._motionReduced = motionReduced.read(reader);

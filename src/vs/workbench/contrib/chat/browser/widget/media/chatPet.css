@@ -328,7 +328,7 @@
 }
 
 .chat-pet-eyes.blink .chat-pet-pupil {
-	animation: chat-pet-eye-blink 400ms steps(1, end);
+	animation: chat-pet-eye-blink 260ms steps(1, end);
 }
 
 .chat-pet-button[data-state='idle'] .chat-pet-eyes.blink .chat-pet-pupil,
@@ -472,28 +472,28 @@
 
 @keyframes chat-pet-eye-blink {
 	0%,
-	24.999%,
-	75%,
+	11.537%,
+	88.462%,
 	100% {
 		clip-path: inset(0);
 	}
 
-	25%,
-	74.999% {
+	11.538%,
+	88.461% {
 		clip-path: inset(1px 0);
 	}
 }
 
 @keyframes chat-pet-tall-eye-blink {
 	0%,
-	24.999%,
-	75%,
+	11.537%,
+	88.462%,
 	100% {
 		clip-path: inset(0);
 	}
 
-	25%,
-	74.999% {
+	11.538%,
+	88.461% {
 		clip-path: inset(3px 0);
 	}
 }
