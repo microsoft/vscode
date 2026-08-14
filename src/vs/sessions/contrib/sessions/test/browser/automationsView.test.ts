@@ -36,7 +36,7 @@ import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICrea
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
@@ -264,10 +264,13 @@ class FakeSessionsService extends mock<ISessionsService>() {
 
 class FakeSessionsManagementService extends mock<ISessionsManagementService>() implements IDisposable {
 	private readonly sessionDeletedEmitter = new Emitter<ISession>();
+	private readonly sessionsChangedEmitter = new Emitter<ISessionsChangeEvent>();
 	private readonly deletedSessionResources = new Set<string>();
 	private readonly additionalSessions = new Map<string, ISession>();
 	override readonly onDidDeleteSession = this.sessionDeletedEmitter.event;
+	override readonly onDidChangeSessions = this.sessionsChangedEmitter.event;
 	sessionExists = true;
+	private firstSessionCataloged = true;
 	readonly isRead = observableValue<boolean>(this, false);
 	readonly secondIsRead = observableValue<boolean>(this, false);
 	readonly sessionStatus = observableValue<SessionStatus>(this, SessionStatus.Completed);
@@ -349,7 +352,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		if (!this.sessionExists) {
 			return [];
 		}
-		return [this.session, this.secondSession, ...this.additionalSessions.values()]
+		return [...(this.firstSessionCataloged ? [this.session] : []), this.secondSession, ...this.additionalSessions.values()]
 			.filter(session => !this.deletedSessionResources.has(session.resource.toString()));
 	}
 
@@ -421,8 +424,18 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		}));
 	}
 
+	setFirstSessionCataloged(cataloged: boolean): void {
+		this.firstSessionCataloged = cataloged;
+		this.sessionsChangedEmitter.fire({
+			added: cataloged ? [this.session] : [],
+			removed: cataloged ? [] : [this.session],
+			changed: [],
+		});
+	}
+
 	dispose(): void {
 		this.sessionDeletedEmitter.dispose();
+		this.sessionsChangedEmitter.dispose();
 	}
 }
 
@@ -542,6 +555,34 @@ suite('AutomationsCardsWidget', () => {
 			rowPreserved: true,
 			spinnerPreserved: true,
 			spinnerUsesSharedIconSlot: true,
+			temporaryRowsAfterCommit: 0,
+			sessionRowsAfterCommit: 1,
+		});
+	});
+
+	test('keeps a temporary row until a terminal run enters the committed session catalog', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		sessionsManagementService.setFirstSessionCataloged(false);
+		const pendingRun = run({ status: 'pending', sessionResource: undefined });
+		automationService.setRuns([pendingRun]);
+
+		automationService.setRuns([{ ...pendingRun, status: 'completed', sessionResource: SESSION_RESOURCE }]);
+		const beforeCatalogCommit = {
+			temporaryRows: widget.element.querySelectorAll('.automations-temporary-run').length,
+			sessionRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+		};
+		sessionsManagementService.setFirstSessionCataloged(true);
+
+		assert.deepStrictEqual({
+			beforeCatalogCommit,
+			temporaryRowsAfterCommit: widget.element.querySelectorAll('.automations-temporary-run').length,
+			sessionRowsAfterCommit: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+		}, {
+			beforeCatalogCommit: {
+				temporaryRows: 1,
+				sessionRows: 0,
+			},
 			temporaryRowsAfterCommit: 0,
 			sessionRowsAfterCommit: 1,
 		});

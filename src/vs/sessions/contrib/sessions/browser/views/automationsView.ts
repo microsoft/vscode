@@ -131,11 +131,13 @@ export class AutomationsCardsWidget extends Disposable {
 		}));
 
 		const sessionDeleted = observableSignalFromEvent(this, this.sessionsManagementService.onDidDeleteSession);
+		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		this._register(autorun(reader => {
 			if (this.isMarkingAllRead.read(reader)) {
 				return;
 			}
 			sessionDeleted.read(reader);
+			sessionsChanged.read(reader);
 			this.automationService.automations.read(reader);
 			const allRuns = this.automationService.runs.read(reader);
 			const sessionsByResource = new Map(this.sessionsManagementService.getSessions().map(session => [
@@ -535,6 +537,7 @@ class AutomationHistorySection extends Disposable {
 	private readonly groupsContainer: HTMLElement;
 	private readonly headerDisposables = this._register(new DisposableStore());
 	private readonly persistentGroups = new Map<string, IAutomationHistoryGroup>();
+	private readonly temporaryRunIds = new Set<string>();
 	private readonly runFocusTargets = new Map<string, { readonly list: SessionsFlatList; readonly session: ISession }>();
 	private renderedFocusableRunIds: string[] = [];
 	private pendingFocusRunId: string | undefined;
@@ -567,7 +570,20 @@ class AutomationHistorySection extends Disposable {
 
 	render(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): void {
 		const sessionRuns = runs.filter(run => sessions.has(run.id));
-		const visibleRuns = runs.filter(run => sessions.has(run.id) || isTemporaryAutomationRun(run));
+		const runIds = new Set(runs.map(run => run.id));
+		for (const runId of this.temporaryRunIds) {
+			if (!runIds.has(runId)) {
+				this.temporaryRunIds.delete(runId);
+			}
+		}
+		for (const run of runs) {
+			if (sessions.has(run.id) || (!isTemporaryAutomationRun(run) && !run.sessionResource)) {
+				this.temporaryRunIds.delete(run.id);
+			} else if (isTemporaryAutomationRun(run)) {
+				this.temporaryRunIds.add(run.id);
+			}
+		}
+		const visibleRuns = runs.filter(run => sessions.has(run.id) || this.temporaryRunIds.has(run.id));
 		transaction(tx => {
 			this.currentRuns.set(sessionRuns, tx);
 			this.currentSessions.set(sessions, tx);
