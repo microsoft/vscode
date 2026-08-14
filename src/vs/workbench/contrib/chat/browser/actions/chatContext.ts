@@ -346,6 +346,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
 			picks: (async () => {
 				const picks: IChatContextPickerPickItem[] = [];
+				const activityByPick = new Map<IChatContextPickerPickItem, number>();
 				const includedResources = new Set<string>();
 				const routingProvider = this._routingProviderService.getProvider();
 				if (routingProvider) {
@@ -358,7 +359,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 							continue;
 						}
 						includedResources.add(sessionResource.toString());
-						picks.push({
+						const pick: IChatContextPickerPickItem = {
 							label: candidate.label,
 							description: candidate.lastActivity ? new Date(candidate.lastActivity).toLocaleString() : undefined,
 							asAttachment: (): IChatRequestVariableEntry => ({
@@ -367,7 +368,9 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 								name: candidate.label,
 								value: { sessionReference: true, sessionResource: sessionResource.toString() },
 							}),
-						});
+						};
+						picks.push(pick);
+						activityByPick.set(pick, candidate.lastActivity ?? 0);
 					}
 				}
 				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
@@ -383,9 +386,10 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 							continue;
 						}
 						const icon = item.iconPath ?? providerIcon;
-						picks.push({
+						const lastActivity = item.timing.lastRequestEnded ?? item.timing.created;
+						const pick: IChatContextPickerPickItem = {
 							label: item.label,
-							description: new Date(item.timing.lastRequestEnded ?? item.timing.created).toLocaleString(),
+							description: new Date(lastActivity).toLocaleString(),
 							asAttachment: (): IChatRequestVariableEntry => ({
 								kind: 'sessionReference',
 								id: sessionResource.toString(),
@@ -393,10 +397,12 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 								value: sessionResource,
 								icon,
 							})
-						});
+						};
+						picks.push(pick);
+						activityByPick.set(pick, lastActivity);
 					}
 				}
-				picks.sort((a, b) => (b.description ?? '').localeCompare(a.description ?? ''));
+				picks.sort((a, b) => (activityByPick.get(b) ?? 0) - (activityByPick.get(a) ?? 0));
 				return picks;
 			})()
 		};
