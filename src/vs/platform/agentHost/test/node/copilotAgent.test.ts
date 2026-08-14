@@ -4212,16 +4212,22 @@ suite('CopilotAgent', () => {
 			await fs.writeFile(join(dir, 'vscode.metadata.json'), JSON.stringify(metadata), 'utf8');
 		}
 
-		test('signals extension-host chats when internal migration is disabled', async () => {
+		test('signals extension-host chats only after internal migration is enabled', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/migration-event-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/migration-event-cwd-`);
 			const sessionId = 'migration-event';
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
 			await writeExtensionHostMarker(userHome, sessionId);
-			const { agent } = createTestAgentContext(disposables, { copilotClient: client, userHome });
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client, userHome });
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
+				for (let i = 0; i < 10; i++) {
+					await timeout(0);
+				}
+				assert.deepStrictEqual([...discoveredChats], []);
+
+				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
 					await timeout(0);
 				}
@@ -4252,6 +4258,35 @@ suite('CopilotAgent', () => {
 					await timeout(0);
 				}
 				assert.deepStrictEqual(discoveredChats.map(chats => chats.map(chat => sessionIdOfChat(chat.chat))), [[sessionId]]);
+			} finally {
+				listener.dispose();
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not discover an extension-host chat with an empty Agent Host database', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/ghost-migration-event-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/ghost-migration-event-cwd-`);
+			const sessionId = 'ghost-migration-event';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			sessionDataService.openDatabase(AgentSession.uri('copilotcli', sessionId)).dispose();
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			await writeExtensionHostMarker(userHome, sessionId);
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				userHome,
+				rootConfig: { [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true },
+			});
+			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
+			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
+			try {
+				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
+					await timeout(0);
+				}
+				assert.deepStrictEqual(discoveredChats.flatMap(chats => chats.map(chat => sessionIdOfChat(chat.chat))), []);
 			} finally {
 				listener.dispose();
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
