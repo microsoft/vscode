@@ -28,7 +28,8 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── customizationHarnessService.ts              # Core harness service impl (agent-gated)
 ├── customizationCreatorService.ts              # AI-guided creation flow
 ├── customizationGroupHeaderRenderer.ts         # Collapsible group header renderer
-├── mcpListWidget.ts                            # MCP servers section (Extensions + Built-in groups)
+├── mcpListWidget.ts                            # MCP servers section (grouped by origin)
+├── enablementSwitch.ts                         # Reusable on/off switch for customization rows
 ├── pluginListWidget.ts                         # Agent plugins section
 ├── aiCustomizationIcons.ts                     # Icons
 └── media/
@@ -260,9 +261,23 @@ AHP Remote Server ────────────────────�
 
 ### MCP server list active-session controls
 
-The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls. Runtime states render as semantic colored icons rather than text badges: running uses a green check, while stopped has no visual icon. Authentication-required rows expose an inline **Sign In** button, and an actionable error icon opens that server's local or agent-host output.
+The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls. Authentication-required rows expose an inline **Sign In** button, and a failing row exposes an inline **Show Output** button.
+
+Status is a word beside the server's name, with a colour dot so the distinction is never carried by colour alone. It is shown only when it adds something: `Failed`, `Sign-in needed`, `Starting`, and a scope- or plugin-qualified `Disabled (…)`. `Running` and `Idle` are suppressed because MCP servers start lazily — whether one holds a process right now is an implementation detail that flickers and that nobody acts on. A bare `Disabled` is also suppressed on a row that carries a switch, since the switch already says it. The row's **accessible name deliberately keeps** the plain `Disabled`: a screen reader reads the row label without the switch beside it.
 
 For agent-host sessions, the client publishes every known plugin and VS Code-owned MCP server with an explicit global decision derived only from the VS Code profile. The host owns durable workspace and session decisions and resolves their effective enablement. Bundled MCP servers carry their decision by child name because the host discovers them from the synthetic plugin's `.mcp.json`. A session action dispatches only a session decision; the temporary non-session action dispatches a global decision until the full scoped action matrix is available.
+
+#### Row enablement switch
+
+Every row that has an enablement to write carries an on/off switch at its trailing edge, so turning a server off is one predictable target rather than a right-click the user has to guess at. `getEnablementTarget` resolves how a row reads and writes:
+
+- **Which scope is written.** The decisive decision is `enablement[0]`, so the switch replaces *that* kind — this is what actually moves the effective state, and it answers a deliberate workspace or session choice where it was made rather than silently promoting it. When nothing decides the server yet, the switch writes **Global**: an unqualified control means the whole durable answer. Narrower scopes stay explicit, in the context menu. This is deliberately **not** `IAgentHostMcpServer.setEnabled`, which only ever writes the session layer.
+- **Which key is used.** Local enablement is keyed by the *workbench* server's own id — the key `EnableMcpServerGloballyAction` already reads and writes — rather than the matched runtime server's `definition.id`. The runtime match is deliberately conservative and declines whenever two servers answer to one name; a row must not lose its switch, or misreport its status, because of an ambiguity in a lookup it never needed. Built-in rows have no workbench server and use their runtime definition id, which is what their own context menu uses.
+- **Rows held off by two layers** align both, because a switch that leaves a server visibly off after being turned on is a broken switch.
+- **Reads and writes are live.** The render guard cannot cover every decision in an enablement array, so capturing one at render time and writing it back would resurrect a scope the user had since changed.
+- **No switch** on a gallery result (nothing is installed to turn on) or on a server held off by the plugin that owns it (`disabledReason.source === 'plugin'`). The latter cannot be freed by writing its own enablement at all, so it keeps the word `Disabled (Plugin)` and the context menu's **Enable {plugin}** rather than a control that would appear to do nothing.
+
+**Known limitation.** `withCustomizationEnablement` replaces decisions for one kind at a time, so a server held off at both Global and Session cannot be turned "on everywhere" in a single gesture. Writing the deciding kind always moves the *effective* state, but a broader `false` survives and re-asserts itself later — for example in a new session. This matches the context menu's own per-scope semantics; silently deleting a broader durable choice the user made would be worse.
 
 ### Structured Detail Preview
 
@@ -332,9 +347,23 @@ Provider-supplied customization rows that include an explicit storage origin are
 
 ### MCP Active Session Status
 
-The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended to the **Workspace** group and counted with the rest of the section.
+The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`.
+
+`getMcpServers` is a plain read rather than an observable, so nothing derived from it re-runs on its own. `ActiveSessionMcpServerReader` folds it into the reactive graph through a signal over `onDidChangeCustomizations`, which is what keeps a row's rendered status — and the accessible name spoken beside it — from describing the past. The row's accessible name is an `IObservable<string>` for the same reason: a row's status changes without the list being spliced.
+
+**Claim before filtering.** `ActiveSessionMcpServerMatcher.take` is consuming, so session servers are claimed against the *unfiltered* server lists and the result is filtered afterwards. Claiming against filtered lists let a row hidden by the search box release its claim for another row to pick up. For the same reason the sidebar badge is computed by `countSessionOnlyMcpServers` over the unfiltered lists in a throwaway matcher: deriving it from the filtered arrays made typing in the search box silently rewrite the tab's badge.
 
 The MCP list uses `WorkbenchList` as its sole scroll owner. Layout uses the widget's rendered content-box dimensions rather than the padded panel's outer dimensions, and the virtual delegate height matches each rendered row variant, including the taller two-line description row. These invariants keep the final row fully reachable at the bottom of the list.
+
+#### Sections
+
+Rows are grouped by one question — *where is this server defined?* — ordered from the user's own choices outwards to the product's: **User**, **Workspace**, **Extensions & Plugins**, **Built-in**. Empty sections are skipped.
+
+Extensions and Plugins share a section because they are one thing as a user experiences them: software they installed. The distinction still matters when acting on a row (a plugin is uninstalled as a whole), so it survives on the row, where the header cannot say it.
+
+Servers only the agent knows about join **Built-in** rather than getting a section of their own: they arrive because you are using that agent, which is the same reason VS Code's own servers are there. The row names which product it was, using `IHarnessDescriptor.agentName` where the harness reports one and falling back to "Agent host" otherwise. `agentName` exists because that name cannot be derived from `label`, which is localized and carries a disambiguating suffix.
+
+Line two of a row is *origin · transport · (error **or** description)*. Origin appears only where the section header does not already answer it, so a row stops repeating what it sits under; a row with nothing else to say falls back to naming its origin anyway, because a gap under the name reads worse than repetition. A failure replaces the description and drops the transport with it.
 
 ### Sidebar Customizations Section
 
@@ -348,9 +377,17 @@ The first sidebar entry is `Overview`, which opens the AI Customization manageme
 
 ### Embedded Detail Editors
 
-The management editor opens inline detail panes for prompt files, MCP servers, and plugins. Prompt-file details use the standard text editor pane. MCP and plugin details render dedicated compact widgets — `EmbeddedMcpServerDetail` and `EmbeddedAgentPluginDetail` — purpose-built for the narrow split-pane host. They show the icon, name, scope/source, and description. Do **not** embed the full extension-editor panes inside the split-pane host: they assume a wide page-level layout and don't shrink cleanly.
+The management editor opens inline detail panes for prompt files, MCP servers, and plugins. Prompt-file details use the standard text editor pane. MCP and plugin details render dedicated compact widgets — `EmbeddedMcpServerDetail` and `EmbeddedAgentPluginDetail` — purpose-built for the narrow split-pane host. Do **not** embed the full extension-editor panes inside the split-pane host: they assume a wide page-level layout and don't shrink cleanly.
 
-The MCP detail fixture in `src/vs/workbench/test/browser/componentFixtures/sessions/aiCustomizationManagementEditor.fixture.ts` must open a real server row (not a group header) and use a local server with concrete config so the compact widget's scope/description rendering is covered by screenshots.
+`EmbeddedMcpServerDetail` answers the two questions a row has no room for: **what the server can do** (its full tool list with descriptions) and **what it actually runs** (the command or address). Configuration is rendered above the tool list even though tools matter more, because it is short and fixed-height while the tool list is unbounded — the other order pushes it below the fold for any server with more than a handful of tools.
+
+**Environment variable and HTTP header values are never rendered — only their names.** Knowing a server reads `GITHUB_TOKEN` is the useful part; printing the token into a pane that can be screen-shared is not a trade worth making. Configuration is read from the installed configuration rather than the resolved launch, so it is what the user wrote and is available whether or not the server has ever started.
+
+The pane must **not** re-derive which agent-host server a row is showing. `ActiveSessionMcpServerMatcher` is consuming and order-dependent, so matching again here starts from zero claims and can adopt a server the list already gave to a different row. The row's claim travels with the selection instead, via `IMcpServerSelection`.
+
+Unlike a row, this pane has no switch, so it does say `Disabled`. `Running` and `Idle` stay unsaid for the same reason they do on a row.
+
+The MCP detail fixture in `src/vs/workbench/test/browser/componentFixtures/sessions/aiCustomizationManagementEditor.fixture.ts` must open a real server row (not a group header) and use a local server with concrete config — including an env var or header, so the name-only rendering of secret-bearing values stays covered by screenshots.
 
 ### Debug Panel
 
