@@ -418,7 +418,6 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 	};
 
 	// Lightweight stand-ins for the production `EditorGroupView` / `EditorPart` views.
-	let groupsView: IEditorGroupsView;
 	const groupView = new class extends mock<IEditorGroupView>() {
 		relayoutFn: () => void = () => { };
 		override get id() { return model.id; }
@@ -447,7 +446,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		override focus() { }
 	};
 
-	groupsView = new class extends mock<IEditorGroupsView>() {
+	const groupsView = new class extends mock<IEditorGroupsView>() {
 		override get partOptions() { return partOptions; }
 		override get activeGroup() { return isGroupActive ? groupView : otherActiveGroup; }
 		override get groups() { return [groupView]; }
