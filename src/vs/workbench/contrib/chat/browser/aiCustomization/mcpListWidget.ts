@@ -22,7 +22,7 @@ import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServe
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { ContributionEnablementState, isContributionDisabled, isContributionEnabled, isWorkspaceScopedEnablement } from '../../common/enablement.js';
+import { ContributionEnablementState, isContributionDisabled, isContributionEnabled, isWorkspaceScopedEnablement, withContributionEnabled } from '../../common/enablement.js';
 import { EnablementSwitch } from './enablementSwitch.js';
 import { getRuntimeServerMatchKeys, getUniqueMcpMatchKeys, getWorkbenchServerMatchKeys, LocalMcpServerMatcher } from './mcpServerIdentity.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
@@ -237,9 +237,9 @@ export function createActiveSessionMcpEntries(servers: readonly AgentHostMcpServ
 		type: 'session-server-item',
 		server,
 		enablement: durable?.read(server.name),
-		setDurableEnabled: durable && (enabled => durable.write(server.name, enabled
-			? ContributionEnablementState.EnabledProfile
-			: ContributionEnablementState.DisabledProfile)),
+		setDurableEnabled: durable && (enabled => durable.write(
+			server.name,
+			withContributionEnabled(durable.read(server.name), enabled))),
 	}));
 }
 
@@ -353,7 +353,6 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 
 	constructor(
 		private readonly _afterShowOutput: () => Promise<void>,
-		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
@@ -470,27 +469,11 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			description: description ? truncateToFirstLine(description) : undefined,
 		};
 
-		if (element.activeSessionServer) {
-			this.updateKnownServerStatus(templateData, element);
-		} else if (this.workspaceService.isSessionsWindow) {
-			this.updateKnownServerStatus(templateData, element);
-		} else {
-			templateData.elementDisposables.add(autorun(reader => {
-				const enablement = element.localServer?.enablement.read(reader);
-				const disabled = enablement !== undefined ? isContributionDisabled(enablement) : false;
-				const connectionState = element.localServer?.connectionState.read(reader);
-				templateData.container.classList.toggle('disabled', disabled);
-				this.updateStatus(templateData, element, {
-					// An installed server that isn't running is idle, not stateless. Only gallery
-					// entries — which the user hasn't installed — legitimately have no status.
-					status: disabled ? 'disabled' : connectionState?.state ?? (isGallery ? undefined : McpConnectionState.Kind.Stopped),
-					statusScope: disabled && enablement !== undefined && isWorkspaceScopedEnablement(enablement) ? getStatusScopeNote(McpEnablementScope.Workspace) : undefined,
-					enablement,
-					errorMessage: connectionState?.state === McpConnectionState.Kind.Error ? connectionState.message : undefined,
-					...readServerFacts(element.localServer, reader),
-				});
-			}));
-		}
+		// One resolver for every row. There were three: two branches that called this method
+		// and an inline copy for the third case, which computed the same answer by hand. They
+		// agreed, but only by coincidence -- and this is the same file whose history says three
+		// copies of a status rule had already drifted, with two of them wrong.
+		this.updateKnownServerStatus(templateData, element);
 	}
 
 	private updateKnownServerStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpBuiltinItemEntry): void {
@@ -555,6 +538,10 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			rowState.toolCount, rowState.toolsFromCache, rowState.transport,
 			activeSessionServer?.id, activeSessionServer?.enabled, activeSessionServer?.status,
 			templateData.context.origin, templateData.context.impliedOrigin, templateData.context.description,
+			// The label is not drawn here, but it names the buttons, the switch, and the row's
+			// accessible name. A server that is renamed while keeping its id would otherwise
+			// keep announcing the old name to a screen reader for as long as nothing else moved.
+			getMcpEntryLabel(element),
 		]);
 		if (templateData.renderedSignature === signature) {
 			return;
@@ -1277,12 +1264,14 @@ export function getEnablementTarget(element: IMcpServerItemEntry | IMcpSessionSe
 		// leaves the server still visibly off after being turned on is a broken switch.
 		isEnabled: () => isContributionEnabled(enablement) && activeSessionServer?.enabled !== false,
 		setEnabled: enabled => {
-			// Writing a profile-level state also clears any workspace entry (see
-			// EnablementModel.setEnabled), which is what makes the promise on the label true:
-			// a narrower choice cannot survive and silently mask what the user just asked for.
-			mcpService.enablementModel.setEnabled(id, enabled
-				? ContributionEnablementState.EnabledProfile
-				: ContributionEnablementState.DisabledProfile);
+			// Writes the layer that already decided this row, rather than always writing the
+			// profile. Writing the profile would delete the workspace entry (see
+			// EnablementModel.setEnabledWithWorkspaceKey), so a deliberate workspace choice
+			// would be destroyed by a control that only ever displays the scope while the row
+			// is off -- the user could not see what they were losing. The deciding layer is
+			// also the one that wins when the row is read back, so writing it is what makes
+			// the switch move at all.
+			mcpService.enablementModel.setEnabled(id, withContributionEnabled(enablement, enabled));
 			// Dispatched unconditionally: `enabled` here is a snapshot taken when the list was
 			// built, and the durable write above notifies synchronously, which can rebuild the
 			// list underneath this closure. Guarding on the stale value could drop the session
@@ -1378,11 +1367,17 @@ class McpGalleryItemProvider implements IGalleryItemProvider<IMcpServerItemEntry
 /**
  * Widget that displays a list of MCP servers with marketplace browsing.
  */
+/** A row the user opened, together with the session server that row had claimed. */
+export interface IMcpServerSelection {
+	readonly server: IWorkbenchMcpServer;
+	readonly activeSessionServer: AgentHostMcpServer | undefined;
+}
+
 export class McpListWidget extends Disposable {
 
 	readonly element: HTMLElement;
 
-	private readonly _onDidSelectServer = this._register(new Emitter<IWorkbenchMcpServer>());
+	private readonly _onDidSelectServer = this._register(new Emitter<IMcpServerSelection>());
 	readonly onDidSelectServer = this._onDidSelectServer.event;
 
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
@@ -1639,7 +1634,9 @@ export class McpListWidget extends Disposable {
 			if (e.element.type === 'group-header') {
 				this.toggleGroup(e.element);
 			} else if (e.element.type === 'server-item') {
-				this._onDidSelectServer.fire(e.element.server);
+				// The row's own claim travels with it. The session match is consuming and
+				// order-dependent, so it cannot be recomputed correctly anywhere else.
+				this._onDidSelectServer.fire({ server: e.element.server, activeSessionServer: e.element.activeSessionServer });
 			}
 		}));
 
@@ -1825,11 +1822,21 @@ export class McpListWidget extends Disposable {
 		const installedEntries: IMcpListEntry[] = [];
 		const builtinEntries: IMcpListEntry[] = [];
 
+		// Claim session servers against everything the user has, not against what survived the
+		// search box. `take` is consuming, so a row hidden by a query would otherwise release
+		// its claim for some other row to pick up -- the same defect that used to move the
+		// sidebar badge while typing, which was fixed for the count and left in place here.
+		// Claiming first, filtering second, keeps the join a property of the configuration.
+		const claimedSessionServers = new Map<string, AgentHostMcpServer | undefined>();
+		for (const server of this.mcpWorkbenchService.local) {
+			claimedSessionServers.set(server.id, activeSessionMatcher.take(getWorkbenchServerMatchKeys(server)));
+		}
+
 		for (const server of this.filteredServers) {
 			const entry: IMcpServerItemEntry = {
 				type: 'server-item',
 				server,
-				activeSessionServer: activeSessionMatcher.take(getWorkbenchServerMatchKeys(server)),
+				activeSessionServer: claimedSessionServers.get(server.id),
 				localServer: localServerMatcher.find(getWorkbenchServerMatchKeys(server)),
 			};
 			if (server.local?.scope === LocalMcpServerScope.Workspace) {
@@ -1844,9 +1851,13 @@ export class McpListWidget extends Disposable {
 		// uninstalled as a whole), so it survives on the row, where the header cannot say it.
 		const collectionSources = new Map(this.mcpRegistry.collections.get().map(c => [c.id, c.source]));
 		const builtinOriginLabel = localize('originBuiltin', "Built-in");
+		const claimedRuntimeSessionServers = new Map<string, AgentHostMcpServer | undefined>();
+		for (const server of allBuiltinServers) {
+			claimedRuntimeSessionServers.set(server.definition.id, activeSessionMatcher.take(getRuntimeServerMatchKeys(server)));
+		}
 		for (const server of builtinServers) {
 			const origin = getCollectionOriginLabel(server.collection.id, collectionSources.get(server.collection.id));
-			const sessionServer = activeSessionMatcher.take(getRuntimeServerMatchKeys(server));
+			const sessionServer = claimedRuntimeSessionServers.get(server.definition.id);
 			if (origin === builtinOriginLabel) {
 				builtinEntries.push(createBuiltinEntry(server, undefined, sessionServer, origin));
 			} else {

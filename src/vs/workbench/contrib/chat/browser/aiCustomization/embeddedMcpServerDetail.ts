@@ -12,10 +12,9 @@ import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenc
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
 import { isContributionDisabled } from '../../common/enablement.js';
-import { ActiveSessionMcpServerMatcher, AgentHostMcpServer, areMcpToolsFromCache, formatMcpStatusWithScope, getMcpStatusPresentation, hasKnownMcpTools, isNoteworthyMcpStatus, resolveMcpDisabledState } from './mcpListWidget.js';
+import { AgentHostMcpServer, areMcpToolsFromCache, formatMcpStatusWithScope, getMcpStatusPresentation, hasKnownMcpTools, isNoteworthyMcpStatus, resolveMcpDisabledState } from './mcpListWidget.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { findRuntimeMcpServer, getWorkbenchServerMatchKeys } from './mcpServerIdentity.js';
+import { findRuntimeMcpServer } from './mcpServerIdentity.js';
 
 const $ = DOM.$;
 
@@ -58,13 +57,16 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private announcedToolCount: number | undefined;
 
 	private current: IWorkbenchMcpServer | undefined;
+	/** The session server the *list row* claimed, not one re-matched here. See render(). */
+	private activeSessionServer: AgentHostMcpServer | undefined;
+	/** Content identity of the last rendered tool list, so an unchanged list is left alone. */
+	private renderedToolsSignature: string | undefined;
 
 	constructor(
 		parent: HTMLElement,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
-		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 		super();
 
@@ -102,6 +104,16 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		// an enablement write -- and the service rebuilds its server objects when it fires it.
 		// Ignoring it left this pane showing configuration the user had just finished editing,
 		// which is precisely the file this pane exists to point them at.
+		// The agent host reports its own MCP status, and `getMcpServers` is a plain read rather
+		// than an observable, so nothing above would re-run when a session server starts,
+		// fails, or needs sign-in. Without this the pane that exists to explain status is the
+		// one surface that keeps showing the old one.
+		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => {
+			if (this.current) {
+				this.render();
+			}
+		}));
+
 		this._register(this.mcpWorkbenchService.onChange(server => {
 			if (!this.current) {
 				return;
@@ -137,8 +149,10 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		return this.leadingSlotEl;
 	}
 
-	setInput(server: IWorkbenchMcpServer): void {
+	setInput(server: IWorkbenchMcpServer, activeSessionServer?: AgentHostMcpServer): void {
 		this.current = server;
+		this.activeSessionServer = activeSessionServer;
+		this.renderedToolsSignature = undefined;
 		// Reset here rather than in render(): render() now also runs for unrelated global
 		// changes, and resetting there re-spoke the tool count every time any other server
 		// was toggled or mcp.json was saved.
@@ -188,12 +202,16 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 		this.liveRender.value = autorun(reader => {
 			const runtime = findRuntimeMcpServer(this.mcpService.servers.read(reader), server);
-			// The row prefers the active session's view of a server, so this pane has to as well
-			// or the two disagree about the same server -- the pane reporting Idle for something
-			// the session shows as failed, or losing the layer that turned it off.
-			const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
-			const sessionServer = new ActiveSessionMcpServerMatcher(this.agentHostCustomizationService.getMcpServers(sessionResource))
-				.take(getWorkbenchServerMatchKeys(server));
+			// The row prefers the active session's view of a server, so this pane has to as
+			// well, or the two disagree about the same server.
+			//
+			// It has to be the row's *claim*, not a fresh match. `ActiveSessionMcpServerMatcher`
+			// is consuming: it answers only while exactly one unclaimed server responds to a
+			// key, and the list drains one matcher across every row in order. Re-matching here
+			// starts from zero claims, so with two rows answering to one name this pane would
+			// happily adopt the server the list had already given to a different row -- the
+			// exact disagreement this is supposed to prevent.
+			const sessionServer = this.activeSessionServer;
 			this.renderStatus(server, runtime, sessionServer, reader);
 			this.renderTools(runtime, reader);
 		});
@@ -279,17 +297,32 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	}
 
 	private renderTools(runtime: IMcpServer | undefined, reader: IReader): void {
-		DOM.clearNode(this.toolsListEl);
-
 		const cacheState = runtime?.cacheState.read(reader);
 		const tools = runtime?.tools.read(reader) ?? [];
+		const enablement = runtime?.enablement.read(reader);
+
+		// Same guard as the list row, and for a sharper reason. This autorun re-runs on every
+		// MCP change -- about twice a second while a server retries -- and tearing the list
+		// down mid-drag cancels a selection the user is making over the tool descriptions this
+		// pane exists to let them read. Only rebuild when the rendered content actually
+		// differs, which means the signature has to name every value read below: a missing one
+		// is not a slow render, it is text that silently stops updating.
+		const signature = JSON.stringify([
+			cacheState,
+			enablement,
+			tools.map(tool => [tool.referenceName, tool.definition.description]),
+		]);
+		if (this.renderedToolsSignature === signature) {
+			return;
+		}
+		this.renderedToolsSignature = signature;
+		DOM.clearNode(this.toolsListEl);
 
 		if (!runtime || !hasKnownMcpTools(cacheState)) {
 			// Tools are only known once a server has run at least once. Saying so is more
 			// useful than an empty list, which reads as "this server offers nothing" -- but
 			// only a server that is actually off should be told to turn on, or the pane asks
 			// the user to flip a switch they can see is already flipped.
-			const enablement = runtime?.enablement.read(reader);
 			const isOff = enablement !== undefined && isContributionDisabled(enablement);
 			this.toolsHeadingEl.textContent = localize('mcpDetailTools', "Tools");
 			this.setToolsMessage(isOff

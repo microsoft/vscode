@@ -1701,9 +1701,13 @@ so they must not offer a pointer; every installed and gallery server row does. *
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	line-height: 18px;
-	/* Sized to its text, and the only thing that shrinks: status stays pinned to the name
-	instead of drifting away from short names or being pushed off by long ones. */
+	/* Sized to its text, and the first thing to shrink: status stays pinned to the name
+	instead of drifting away from short names or being pushed off by long ones. It keeps a
+	floor, though -- the name is what the row is *for*, and without one a narrow pane spent
+	its width on the qualifier: "Web S... - Disabled (Workspace)". Identity does not yield to
+	its own footnote. */
 	flex: 0 1 auto;
+	min-width: 9ch;
 	min-width: 0;
 }
 
@@ -1867,8 +1871,12 @@ prefers-reduced-motion query does not cover on its own. */
 }
 
 /* Status: a word, plus a colour dot for redundancy. Never colour alone. */
+/* Allowed to shrink only after the name has reached its floor, and to ellipsise rather than
+push the name out of the row. */
 .mcp-server-item .mcp-server-status {
-	flex: 0 0 auto;
+	min-width: 0;
+	overflow: hidden;
+	flex: 0 1 auto;
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
@@ -1877,11 +1885,19 @@ prefers-reduced-motion query does not cover on its own. */
 	white-space: nowrap;
 }
 
+.mcp-server-item .mcp-server-status-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .mcp-server-item .mcp-server-status:empty {
 	display: none;
 }
 
 .mcp-server-item .mcp-server-status-dot {
+	/* The dot is the redundancy that keeps status from being colour-only, so it is the one
+	part of the status that must never be squeezed away. */
+	flex: 0 0 auto;
 	width: var(--vscode-spacing-size40);
 	height: var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-circle);

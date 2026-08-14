@@ -41,7 +41,7 @@ import { AICustomizationManagementEditorInput } from './aiCustomizationManagemen
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
-import { McpListWidget } from './mcpListWidget.js';
+import { AgentHostMcpServer, McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -973,8 +973,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpDetailContainer = DOM.append(contentInner, $('.mcp-detail-container'));
 			this.createEmbeddedMcpDetail();
 
-			this.editorDisposables.add(this.mcpListWidget.onDidSelectServer(server => {
-				this.showEmbeddedMcpDetail(server);
+			this.editorDisposables.add(this.mcpListWidget.onDidSelectServer(selection => {
+				this.showEmbeddedMcpDetail(selection.server, selection.activeSessionServer);
 			}));
 
 			this.editorDisposables.add(this.mcpListWidget.onDidRequestShowPlugin(item => {
@@ -2938,7 +2938,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
-	private async showEmbeddedMcpDetail(server: IWorkbenchMcpServer): Promise<void> {
+	private async showEmbeddedMcpDetail(server: IWorkbenchMcpServer, activeSessionServer?: AgentHostMcpServer): Promise<void> {
 		if (!this.embeddedMcpDetail) {
 			return;
 		}
@@ -2947,7 +2947,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateContentVisibility();
 
 		this.mcpDetailDisposables.clear();
-		this.embeddedMcpDetail.setInput(server);
+		this.embeddedMcpDetail.setInput(server, activeSessionServer);
 
 		if (this.dimension) {
 			this.layout(this.dimension);

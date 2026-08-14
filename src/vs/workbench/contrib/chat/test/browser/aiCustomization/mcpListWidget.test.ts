@@ -405,11 +405,13 @@ suite('mcpListWidget', () => {
 			assert.strictEqual(getEnablementTarget(entry, createMcpService(ContributionEnablementState.EnabledProfile).service, undefined), undefined);
 		});
 
-		test('a workspace-scoped choice is answered in full, not perpetuated', () => {
-			// The switch used to rewrite whichever layer held the choice, so two identical
-			// switches could mean "off here" and "off everywhere". It now always means the
-			// whole answer; writing the profile state also clears the workspace entry, so the
-			// narrower choice cannot survive and mask what the user just asked for.
+		test('a workspace-scoped choice is answered where it was made, not promoted', () => {
+			// The switch means on/off, and only on/off. It must not also decide *where* the
+			// answer lives: writing the profile layer deletes the workspace entry, so a row the
+			// user deliberately scoped to this workspace would be silently converted to a
+			// global one by a control that shows the scope only while the row is off. The
+			// deciding layer is also the one that wins on read-back, so writing it is what
+			// makes the switch actually move.
 			const { entry } = createLocalEntry();
 			const { service, calls } = createMcpService(ContributionEnablementState.DisabledWorkspace);
 			const target = getEnablementTarget(entry, service, ContributionEnablementState.DisabledWorkspace);
@@ -418,8 +420,23 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual({ scope: target?.scope, isEnabled: target?.isEnabled(), calls }, {
 				scope: McpEnablementScope.Global,
 				isEnabled: false,
-				calls: [['mcp-redis', ContributionEnablementState.EnabledProfile]],
+				calls: [['mcp-redis', ContributionEnablementState.EnabledWorkspace]],
 			});
+		});
+
+		test('turning a workspace choice off and on again returns it to where it started', () => {
+			// The round trip has to be lossless. It was not: both profile writes delete the
+			// workspace entry, so off-then-on used to leave a workspace-scoped server global.
+			const { entry } = createLocalEntry();
+			const { service, calls } = createMcpService(ContributionEnablementState.EnabledWorkspace);
+			const target = getEnablementTarget(entry, service, ContributionEnablementState.EnabledWorkspace);
+			target?.setEnabled(false);
+			target?.setEnabled(true);
+
+			assert.deepStrictEqual(calls, [
+				['mcp-redis', ContributionEnablementState.DisabledWorkspace],
+				['mcp-redis', ContributionEnablementState.EnabledWorkspace],
+			]);
 		});
 
 		test('turning on a row held off by both layers aligns both, so it cannot stay visibly off', () => {

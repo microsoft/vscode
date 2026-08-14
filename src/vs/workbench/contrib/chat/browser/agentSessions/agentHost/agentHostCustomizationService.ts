@@ -327,6 +327,11 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			this._mcpServerWorkspaceEnablementKey(sessionResource, serverName),
 			state,
 		);
+		// This store is read, not observed: consumers snapshot it when they build their rows.
+		// Without this the write is invisible until something *else* changes -- and when the
+		// agent host already holds the value being written, nothing else does, so a switch
+		// could be left showing the state the user just turned off.
+		this._fireCustomizationsChanged();
 	}
 
 	prepareMcpServersForTurn(sessionResource: URI): void {
