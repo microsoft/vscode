@@ -5728,6 +5728,35 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('a client tool invoked inside a subagent carries its parent so the host routes it to the subagent chat', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		const session = agent.getSessionForTesting(created.session)!;
+		session.subagents.recordSpawn('toolu_parent');
+		session.subagents.noteInnerTool('tu_inner', 'toolu_parent');
+		const signals: AgentSignal[] = [];
+		disposables.add(session.onDidSessionProgress(s => signals.push(s)));
+
+		const handler = sdk.toolHandlers.find(t => t.name === 'echo')!.handler;
+		const callPromise = handler({ msg: 'hi' }, { _meta: { 'claudecode/toolUseId': 'tu_inner' } });
+		session.completeClientToolCall('tu_inner', { success: true, pastTenseMessage: 'ok', content: [] });
+		await callPromise;
+
+		assert.deepStrictEqual(
+			signals.filter(s => s.kind === 'client_tool_invoked').map(s => ({
+				toolCallId: (s as { toolCallId: string }).toolCallId,
+				parentToolCallId: (s as { parentToolCallId?: string }).parentToolCallId,
+			})),
+			[{ toolCallId: 'tu_inner', parentToolCallId: 'toolu_parent' }],
+		);
+	});
+
 	test('setClientTools after materialize triggers yield-restart on next sendMessage with the new tool set', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');

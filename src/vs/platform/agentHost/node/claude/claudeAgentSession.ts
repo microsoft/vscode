@@ -1361,12 +1361,16 @@ export class ClaudeAgentSession extends Disposable {
 	 * `tool_use`, which the stream mapper never sees).
 	 */
 	private _awaitClientToolResult(toolUseId: string, toolName: string, args: unknown): Promise<CallToolResult> {
+		// A tool called inside a subagent is routed by its parent spawn, exactly
+		// as the permission path resolves it.
+		const parentToolCallId = this.subagents.getParentSpawn(toolUseId)?.toolUseId;
 		return this._pendingClientToolCalls.registerAndFire(toolUseId, () => this._onDidSessionProgress.fire({
 			kind: 'client_tool_invoked',
 			chat: this._chatChannelUri,
 			toolCallId: toolUseId,
 			toolName,
-			toolInput: JSON.stringify(args ?? {}),
+			toolInput: JSON.stringify(args ?? {}) ?? '{}',
+			...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 		}));
 	}
 
