@@ -399,13 +399,13 @@ suite('Workbench editor utils', () => {
 		assert.strictEqual(isTextEditorViewState(diffEditorViewState), true);
 	});
 
-	test('editor tab action space reservation is compact by default and can be configured or enforced', async () => {
-		assert.strictEqual(DEFAULT_EDITOR_PART_OPTIONS.tabActionReserveSpace, false);
+	test('editor tab action space reservation reserves by default and can be configured or enforced', async () => {
+		assert.strictEqual(DEFAULT_EDITOR_PART_OPTIONS.tabActionReserveSpace, true);
 
 		const configuredInstantiationService = workbenchInstantiationService({
 			configurationService: () => {
 				const configurationService = new TestConfigurationService({
-					workbench: { editor: { tabActionReserveSpace: true } }
+					workbench: { editor: { tabActionReserveSpace: false } }
 				});
 				disposables.add(configurationService.onDidChangeConfigurationEmitter);
 				return configurationService;
@@ -414,17 +414,17 @@ suite('Workbench editor utils', () => {
 		const part = await createEditorPart(configuredInstantiationService, disposables);
 
 		const configured = part.partOptions.tabActionReserveSpace;
-		const compactOverride = part.enforcePartOptions({ tabActionReserveSpace: false });
+		const enforcedOverride = part.enforcePartOptions({ tabActionReserveSpace: true });
 		assert.deepStrictEqual({
 			configured,
 			enforced: part.partOptions.tabActionReserveSpace,
 		}, {
-			configured: true,
-			enforced: false,
+			configured: false,
+			enforced: true,
 		});
 
-		compactOverride.dispose();
-		assert.strictEqual(part.partOptions.tabActionReserveSpace, true);
+		enforcedOverride.dispose();
+		assert.strictEqual(part.partOptions.tabActionReserveSpace, false);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

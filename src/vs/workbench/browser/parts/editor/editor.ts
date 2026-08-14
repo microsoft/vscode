@@ -33,7 +33,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: 'multiple',
 	highlightModifiedTabs: false,
 	tabActionLocation: 'right',
-	tabActionReserveSpace: false,
+	tabActionReserveSpace: true,
 	tabActionCloseVisibility: true,
 	tabActionUnpinVisibility: true,
 	showTabIndex: false,

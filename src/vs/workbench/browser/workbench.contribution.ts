@@ -210,8 +210,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.tabActionReserveSpace': {
 				type: 'boolean',
-				default: false,
-				description: localize('workbench.editor.tabActionReserveSpace', "Controls whether Modern UI editor tabs always reserve space for tab action buttons. Tabs with persistent dirty or pinned indicators reserve space regardless.")
+				default: true,
+				description: localize('workbench.editor.tabActionReserveSpace', "Controls whether Modern UI editor tabs always reserve space for tab action buttons. When disabled, clean tabs stay compact; tabs with persistent dirty or pinned indicators reserve space regardless.")
 			},
 			'workbench.editor.tabActionCloseVisibility': {
 				type: 'boolean',
