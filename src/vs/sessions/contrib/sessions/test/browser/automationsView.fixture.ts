@@ -91,6 +91,7 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 
 	private readonly sessions = new Map<string, ISession>();
 	override readonly onDidDeleteSession = Event.None;
+	override readonly onDidChangeSessions = Event.None;
 
 	constructor(runs: readonly IAutomationRun[]) {
 		super();
