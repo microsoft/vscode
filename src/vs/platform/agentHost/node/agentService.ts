@@ -1087,20 +1087,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return state.chats.length === 1;
 		}
 		const persisted = await this._readPersistedPeerChatCatalog(session);
-		if (persisted !== undefined) {
-			return persisted.length === 0;
-		}
-		const agent = this._findProviderForSession(session);
-		if (!agent) {
-			throw new Error(`No agent provider for session: ${session.toString()}`);
-		}
-		const legacy = await agent.listLegacyChatBackings?.(session) ?? [];
-		const migrated = legacy.map(chat => ({
-			uri: chat.uri.toString(),
-			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
-		}));
-		await this._enqueuePeerChatCatalogWrite(session, () => [...migrated]);
-		return migrated.length === 0;
+		return persisted?.length === 0;
 	}
 
 	private async _peerChatExists(session: URI, chat: URI): Promise<boolean> {

@@ -45,7 +45,7 @@ import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
-import { AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
@@ -9045,48 +9045,6 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('rename server tools', () => {
-		test('cold legacy peer catalog is migrated before renaming the default chat', async () => {
-			class LegacyServerToolAgent extends MockAgent {
-				serverToolHost: IAgentServerToolHost | undefined;
-				legacySession: URI | undefined;
-
-				setServerToolHost(host: IAgentServerToolHost): void {
-					this.serverToolHost = host;
-				}
-
-				async listLegacyChatBackings(session: URI): Promise<readonly IAgentLegacyChat[]> {
-					return this.legacySession?.toString() === session.toString()
-						? [{ uri: URI.parse(buildChatUri(session, 'legacy-peer')) }]
-						: [];
-				}
-			}
-
-			const db = new TestSessionDatabase();
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
-			const agent = disposables.add(new LegacyServerToolAgent('copilot'));
-			localService.registerProvider(agent);
-			const caller = await localService.createSession({ provider: 'copilot' });
-			const target = await localService.createSession({ provider: 'copilot' });
-			agent.legacySession = target;
-			localService.stateManager.deleteSession(target.toString());
-
-			await agent.serverToolHost!.executeTool(buildDefaultChatUri(caller), SessionServerToolName.RenameChat, {
-				chat: `agent-host-session://copilot/${AgentSession.id(target)}`,
-				title: 'Independent default',
-			});
-
-			assert.deepStrictEqual({
-				sessionTitle: await db.getMetadata(SESSION_CUSTOM_TITLE_KEY),
-				defaultChatTitle: await db.getMetadata(customChatTitleMetadataKey(buildDefaultChatUri(target))),
-				migratedChatIds: (JSON.parse((await db.getMetadata('peerChats')) ?? '[]') as { uri: string }[]).map(entry => parseChatUri(entry.uri)?.chatId),
-			}, {
-				sessionTitle: undefined,
-				defaultChatTitle: 'Independent default',
-				migratedChatIds: ['legacy-peer'],
-			});
-		});
-
 		test('rename_chat replaces live and persisted default and peer chat titles', async () => {
 			class ServerToolAgent extends MockAgent {
 				serverToolHost: IAgentServerToolHost | undefined;
