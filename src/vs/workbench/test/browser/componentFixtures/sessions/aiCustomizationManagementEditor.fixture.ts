@@ -1373,9 +1373,9 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 // Embedded compact detail widgets — standalone (no host editor)
 // ============================================================================
 
-function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenchMcpServer | undefined): void {
+function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenchMcpServer | undefined, runtimeServers: readonly unknown[] = []): void {
 	const width = 480;
-	const height = 320;
+	const height = 420;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
 
@@ -1388,6 +1388,16 @@ function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenc
 				override readonly onReset = Event.None;
 				override readonly local: IWorkbenchMcpServer[] = server ? [server] : [];
 				override async open() { /* no-op in fixture */ }
+			}());
+			// The pane reads the running server for status and tools, and the agent host for a
+			// session's own view of it, so both have to be present for it to render at all.
+			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
+				override readonly servers = constObservable(runtimeServers as never[]);
+				override readonly enablementModel = createFixtureEnablementModel();
+			}());
+			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getMcpServers() { return []; }
 			}());
 		},
 	});
@@ -1823,13 +1833,41 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Workspace-scope server with a description.
 	EmbeddedMcpDetailWorkspace: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access for the active workspace')),
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access for the active workspace', {
+				type: McpServerType.LOCAL,
+				command: 'npx',
+				args: ['-y', '@modelcontextprotocol/server-postgres'],
+				// Present so the pane can prove it prints only the names of things that carry
+				// secrets, never their values.
+				env: { PGPASSWORD: 'hunter2', PGHOST: 'db.internal' },
+			}),
+			[{
+				definition: { id: 'mcp-postgres', label: 'PostgreSQL' },
+				collection: { id: 'workspace-mcp', label: 'Workspace MCP' },
+				enablement: constObservable(ContributionEnablementState.EnabledProfile),
+				connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }),
+				showOutput() { },
+				cacheState: constObservable(McpServerCacheState.Cached),
+				tools: constObservable([
+					{ referenceName: 'query', definition: { description: 'Run a read-only SQL query against the connected database.' } },
+					{ referenceName: 'list_tables', definition: { description: 'List the tables available in the current schema.' } },
+				]),
+				readDefinitions: () => constObservable({ server: { launch: { type: McpServerTransportType.Stdio } }, collection: undefined }),
+			}]),
 	}),
 
 	// Standalone embedded MCP detail widget — user-scope server.
 	EmbeddedMcpDetailUser: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-web-search', 'Web Search', LocalMcpServerScope.User, 'Search the web from any session')),
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('mcp-web-search', 'Web Search', LocalMcpServerScope.User, 'Search the web from any session', {
+				type: McpServerType.REMOTE,
+				url: 'https://mcp.example.com/search',
+				headers: { Authorization: 'Bearer sk-secret' },
+			})),
 	}),
 
 	// Standalone embedded MCP detail widget — empty / no input state.

@@ -1411,6 +1411,7 @@ casing is also not a transform that survives translation. */
 
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-header,
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-description,
+.ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-section,
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-tools {
 	display: none;
 }
@@ -1532,6 +1533,68 @@ casing is also not a transform that survives translation. */
 	-webkit-line-clamp: 2;
 	line-clamp: 2;
 	overflow: hidden;
+}
+
+/* MCP server detail
+-------------------------------------------------------------------------- */
+
+/* The MCP pane exists to be read: a tool's description is the thing that tells you what it does,
+so it is not clamped here the way it is in the browse list. */
+.ai-customization-management-editor .embedded-mcp-detail .embedded-detail-tool-description {
+	display: block;
+	-webkit-line-clamp: none;
+	line-clamp: none;
+	overflow: visible;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-subtitle {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-subtitle .mcp-server-status {
+	font-size: inherit;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-subtitle.has-separator .mcp-detail-scope-text::before {
+	content: '\00b7';
+	margin-inline-end: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .embedded-detail-section {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 0;
+}
+
+/* Two columns so labels form a scannable edge, collapsing to stacked rows when the pane is too
+narrow for a label column to be worth the space it takes. */
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-facts {
+	display: grid;
+	grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	margin: 0;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-fact-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body2);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-fact-value {
+	margin: 0;
+	min-width: 0;
+	font-size: var(--vscode-agents-fontSize-body2);
+	word-break: break-word;
+}
+
+/* A command is something the user may need to copy or compare against a file, so it keeps the
+monospace shape it has everywhere else. */
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-fact-value.is-code {
+	font-family: var(--monaco-monospace-font);
 }
 
 /* Models section footer */

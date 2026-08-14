@@ -1537,11 +1537,23 @@ class McpGalleryItemProvider implements IGalleryItemProvider<IMcpServerItemEntry
 /**
  * Widget that displays a list of MCP servers with marketplace browsing.
  */
+/**
+ * A row's selection, carrying the agent-host server that row claimed.
+ *
+ * The claim travels with the selection rather than being re-derived downstream: the matcher is
+ * consuming and order-dependent, so matching again from scratch can hand a server to a second
+ * consumer that the list had already given to a different row.
+ */
+export interface IMcpServerSelection {
+	readonly server: IWorkbenchMcpServer;
+	readonly activeSessionServer?: AgentHostMcpServer;
+}
+
 export class McpListWidget extends Disposable {
 
 	readonly element: HTMLElement;
 
-	private readonly _onDidSelectServer = this._register(new Emitter<IWorkbenchMcpServer>());
+	private readonly _onDidSelectServer = this._register(new Emitter<IMcpServerSelection>());
 	readonly onDidSelectServer = this._onDidSelectServer.event;
 
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
@@ -1798,7 +1810,11 @@ export class McpListWidget extends Disposable {
 					const server = e.element.server;
 					const isGallery = e.element.marketplace || !server.local;
 					if (isGallery || server.description) {
-						this._onDidSelectServer.fire(server);
+						// The row's own claim travels with the selection. The detail pane must not
+						// re-derive it: ActiveSessionMcpServerMatcher is consuming and
+						// order-dependent, so a fresh match there could adopt a server this list
+						// had already given to a different row.
+						this._onDidSelectServer.fire({ server, activeSessionServer: e.element.activeSessionServer });
 					}
 				} else if (e.element.type === 'session-server-item') {
 					this.openActiveSessionServerOptions(e.element.server);
