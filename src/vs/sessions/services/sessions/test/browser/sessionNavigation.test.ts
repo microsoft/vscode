@@ -18,6 +18,9 @@ import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
+import { CustomViewService } from '../../../customView/browser/customViewService.js';
+import { AbstractCustomView } from '../../../customView/browser/customView.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -81,6 +84,13 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 		mainChat: constObservable(sessionChats[0]),
 		capabilities: constObservable({ supportsMultipleChats: chats !== undefined && chats.length > 1 }),
 	};
+}
+
+class TestCustomView extends AbstractCustomView {
+	readonly title = constObservable('Test Custom View');
+
+	render(_container: HTMLElement): void { }
+	layout(_width: number, _height: number): void { }
 }
 
 class MockSessionStore implements ISessionsManagementService {
@@ -248,6 +258,7 @@ suite('SessionsNavigation', () => {
 	let store: MockSessionStore;
 	let nav: SessionsNavigation;
 	let contextKeyService: MockContextKeyService;
+	let customViewService: CustomViewService;
 
 	setup(() => {
 		const disposables = ds.add(new DisposableStore());
@@ -257,12 +268,18 @@ suite('SessionsNavigation', () => {
 
 		const storageService = disposables.add(new InMemoryStorageService());
 		const recency = disposables.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+		customViewService = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		disposables.add(customViewService.registerCustomView({
+			id: 'automations',
+			ctor: new SyncDescriptor(TestCustomView),
+		}));
 
 		nav = disposables.add(new SessionsNavigation(
 			store,
 			store.activeSession,
 			store,
 			recency,
+			customViewService,
 			contextKeyService,
 			new NullLogService(),
 		));
@@ -325,6 +342,129 @@ suite('SessionsNavigation', () => {
 		assert.strictEqual(store.lastOpenedResource?.toString(), s2.resource.toString());
 		assert.strictEqual(canGoBack(), true);
 		assert.strictEqual(canGoForward(), false);
+	});
+
+	test('goBack restores the custom view after opening a session from it', async () => {
+		const previousSession = stubSession('previous');
+		const automationRunSession = stubSession('automation-run');
+		store.addSession(previousSession);
+		store.addSession(automationRunSession);
+
+		store.setActiveSession(previousSession);
+		customViewService.showCustomView('automations');
+		nav.onWillOpenSession();
+		customViewService.hideCustomView();
+		await store.openSession(automationRunSession.resource);
+		nav.onDidOpenSession();
+
+		await nav.goBack();
+
+		assert.deepStrictEqual({
+			activeCustomViewId: customViewService.activeCustomView.get()?.id,
+			lastOpenedResource: store.lastOpenedResource?.toString(),
+		}, {
+			activeCustomViewId: 'automations',
+			lastOpenedResource: automationRunSession.resource.toString(),
+		});
+	});
+
+	test('navigates backward and forward across a custom view', async () => {
+		const previousSession = stubSession('previous');
+		const automationRunSession = stubSession('automation-run');
+		store.addSession(previousSession);
+		store.addSession(automationRunSession);
+
+		store.setActiveSession(previousSession);
+		customViewService.showCustomView('automations');
+		nav.onWillOpenSession();
+		customViewService.hideCustomView();
+		await store.openSession(automationRunSession.resource);
+		nav.onDidOpenSession();
+
+		await nav.goBack();
+		const afterFirstBack = {
+			customView: customViewService.activeCustomView.get()?.id,
+			resource: store.lastOpenedResource?.toString(),
+			canGoBack: canGoBack(),
+			canGoForward: canGoForward(),
+		};
+		await nav.goBack();
+		const afterSecondBack = {
+			customView: customViewService.activeCustomView.get()?.id,
+			resource: store.lastOpenedResource?.toString(),
+			canGoBack: canGoBack(),
+			canGoForward: canGoForward(),
+		};
+		await nav.goForward();
+		const afterFirstForward = {
+			customView: customViewService.activeCustomView.get()?.id,
+			resource: store.lastOpenedResource?.toString(),
+			canGoBack: canGoBack(),
+			canGoForward: canGoForward(),
+		};
+		await nav.goForward();
+
+		assert.deepStrictEqual({
+			afterFirstBack,
+			afterSecondBack,
+			afterFirstForward,
+			afterSecondForward: {
+				customView: customViewService.activeCustomView.get()?.id,
+				resource: store.lastOpenedResource?.toString(),
+				canGoBack: canGoBack(),
+				canGoForward: canGoForward(),
+			},
+		}, {
+			afterFirstBack: {
+				customView: 'automations',
+				resource: automationRunSession.resource.toString(),
+				canGoBack: true,
+				canGoForward: true,
+			},
+			afterSecondBack: {
+				customView: undefined,
+				resource: previousSession.resource.toString(),
+				canGoBack: false,
+				canGoForward: true,
+			},
+			afterFirstForward: {
+				customView: 'automations',
+				resource: previousSession.resource.toString(),
+				canGoBack: true,
+				canGoForward: true,
+			},
+			afterSecondForward: {
+				customView: undefined,
+				resource: automationRunSession.resource.toString(),
+				canGoBack: true,
+				canGoForward: false,
+			},
+		});
+	});
+
+	test('clears custom view navigation when the view is hidden independently', async () => {
+		const previousSession = stubSession('previous');
+		const automationRunSession = stubSession('automation-run');
+		store.addSession(previousSession);
+		store.addSession(automationRunSession);
+
+		store.setActiveSession(previousSession);
+		customViewService.showCustomView('automations');
+		nav.onWillOpenSession();
+		customViewService.hideCustomView();
+		await store.openSession(automationRunSession.resource);
+		nav.onDidOpenSession();
+		await nav.goBack();
+
+		customViewService.hideCustomView();
+
+		assert.deepStrictEqual({
+			canGoBack: canGoBack(),
+			canGoForward: canGoForward(),
+		}, {
+			canGoBack: true,
+			canGoForward: false,
+		});
 	});
 
 	test('opening a new session after goBack keeps older entries reachable (MRU, no truncation)', async () => {

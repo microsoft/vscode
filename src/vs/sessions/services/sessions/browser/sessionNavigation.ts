@@ -11,6 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { CanGoBackContext, CanGoForwardContext } from '../../../common/contextkeys.js';
 import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService, IActiveSession } from '../common/sessionsManagement.js';
+import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 
 function entryKey(sessionResource: URI, chatResource: URI | undefined): string {
@@ -25,6 +26,15 @@ function entryKey(sessionResource: URI, chatResource: URI | undefined): string {
 export interface ISessionOpener {
 	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
 	openChat(session: ISession, chatResource: URI): Promise<void>;
+}
+
+type CustomViewNavigationLocation = 'previous' | 'customView' | 'next';
+
+interface ICustomViewNavigation {
+	readonly viewId: string;
+	readonly previousKey: string | undefined;
+	readonly nextKey: string;
+	readonly location: CustomViewNavigationLocation;
 }
 
 /**
@@ -59,11 +69,21 @@ export class SessionsNavigation extends Disposable {
 	 */
 	private readonly _beyondHistory = observableValue<boolean>(this, false);
 
+	private readonly _customViewNavigation = observableValue<ICustomViewNavigation | undefined>(this, undefined);
+	private _pendingCustomViewOrigin: Pick<ICustomViewNavigation, 'viewId' | 'previousKey'> | undefined;
+
 	private readonly _canGoBackCtx: IContextKey<boolean>;
 	private readonly _canGoForwardCtx: IContextKey<boolean>;
 
 	private readonly _canGoBack: IObservable<boolean> = derived(this, reader => {
 		const idx = this._indexOfCurrent(reader);
+		const customViewNavigation = this._customViewNavigation.read(reader);
+		if (customViewNavigation?.location === 'next' && this._currentKey.read(reader) === customViewNavigation.nextKey) {
+			return true;
+		}
+		if (customViewNavigation?.location === 'customView') {
+			return customViewNavigation.previousKey !== undefined && this._indexOf(customViewNavigation.previousKey) >= 0;
+		}
 		const entries = this._recency.entries;
 		const beyond = this._beyondHistory.read(reader);
 		return (idx >= 0 && idx < entries.length - 1) || (beyond && entries.length > 0);
@@ -73,6 +93,14 @@ export class SessionsNavigation extends Disposable {
 		if (this._beyondHistory.read(reader)) {
 			return false;
 		}
+		const customViewNavigation = this._customViewNavigation.read(reader);
+		const currentKey = this._currentKey.read(reader);
+		if (customViewNavigation?.location === 'previous' && currentKey === customViewNavigation.previousKey) {
+			return true;
+		}
+		if (customViewNavigation?.location === 'customView') {
+			return this._indexOf(customViewNavigation.nextKey) >= 0;
+		}
 		return this._indexOfCurrent(reader) > 0;
 	});
 
@@ -81,6 +109,7 @@ export class SessionsNavigation extends Disposable {
 		private readonly _activeSession: IObservable<IActiveSession | undefined>,
 		private readonly _sessionsManagementService: ISessionsManagementService,
 		private readonly _recency: SessionsRecencyHistory,
+		private readonly _customViewService: ICustomViewService,
 		contextKeyService: IContextKeyService,
 		private readonly _logService: ILogService,
 	) {
@@ -119,7 +148,26 @@ export class SessionsNavigation extends Disposable {
 
 			this._beyondHistory.set(false, undefined);
 			this._recency.markOpened(activeSession.resource, chatResource);
-			this._currentKey.set(entryKey(activeSession.resource, chatResource), undefined);
+			const key = entryKey(activeSession.resource, chatResource);
+			this._currentKey.set(key, undefined);
+
+			const customViewNavigation = this._customViewNavigation.read(undefined);
+			if (!this._pendingCustomViewOrigin && customViewNavigation) {
+				const expectedKey = customViewNavigation.location === 'previous'
+					? customViewNavigation.previousKey
+					: customViewNavigation.nextKey;
+				if (key !== expectedKey) {
+					this._customViewNavigation.set(undefined, undefined);
+				}
+			}
+		}));
+
+		this._register(autorun(reader => {
+			const customViewNavigation = this._customViewNavigation.read(reader);
+			const activeCustomView = this._customViewService.activeCustomView.read(reader);
+			if (customViewNavigation?.location === 'customView' && activeCustomView?.id !== customViewNavigation.viewId) {
+				this._customViewNavigation.set(undefined, undefined);
+			}
 		}));
 
 		// Reconcile the cursor when entries are removed externally (e.g. a
@@ -143,15 +191,87 @@ export class SessionsNavigation extends Disposable {
 		}));
 	}
 
+	onWillOpenSession(): void {
+		if (this._navigating) {
+			return;
+		}
+
+		const customView = this._customViewService.activeCustomView.get();
+		this._customViewNavigation.set(undefined, undefined);
+		this._pendingCustomViewOrigin = customView
+			? { viewId: customView.id, previousKey: this._currentKey.get() }
+			: undefined;
+	}
+
+	onDidOpenSession(succeeded = true): void {
+		if (this._navigating || !this._pendingCustomViewOrigin) {
+			return;
+		}
+
+		const pending = this._pendingCustomViewOrigin;
+		this._pendingCustomViewOrigin = undefined;
+		if (!succeeded) {
+			return;
+		}
+
+		const activeSession = this._activeSession.get();
+		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
+			return;
+		}
+
+		const activeChat = activeSession.activeChat.get();
+		const chatResource = activeChat.status.get() === SessionStatus.Untitled ? undefined : activeChat.resource;
+		const nextKey = entryKey(activeSession.resource, chatResource);
+		if (this._indexOf(nextKey) < 0) {
+			return;
+		}
+
+		this._customViewNavigation.set({
+			...pending,
+			nextKey,
+			location: 'next',
+		}, undefined);
+	}
+
 	onDidRemoveSessions(e: ISessionsChangeEvent): void {
 		if (e.removed.length === 0) {
 			return;
 		}
 		const removedUris = new Set(e.removed.map(s => s.resource.toString()));
 		this._recency.remove(entry => removedUris.has(entry.sessionResource.toString()));
+
+		const customViewNavigation = this._customViewNavigation.get();
+		if (customViewNavigation && (
+			this._indexOf(customViewNavigation.nextKey) < 0 ||
+			(customViewNavigation.previousKey !== undefined && this._indexOf(customViewNavigation.previousKey) < 0)
+		)) {
+			this._customViewNavigation.set(undefined, undefined);
+		}
 	}
 
 	async goBack(): Promise<void> {
+		const customViewNavigation = this._customViewNavigation.get();
+		if (customViewNavigation?.location === 'next' && this._currentKey.get() === customViewNavigation.nextKey) {
+			if (this._showCustomView(customViewNavigation)) {
+				return;
+			}
+		} else if (customViewNavigation?.location === 'customView') {
+			if (customViewNavigation.previousKey === undefined) {
+				return;
+			}
+
+			const previousIdx = this._indexOf(customViewNavigation.previousKey);
+			if (previousIdx < 0) {
+				this._customViewNavigation.set(undefined, undefined);
+				return;
+			}
+
+			this._customViewNavigation.set({ ...customViewNavigation, location: 'previous' }, undefined);
+			this._customViewService.hideCustomView();
+			await this._navigateTo(previousIdx);
+			return;
+		}
+
 		if (this._beyondHistory.get()) {
 			// User is on new-session view — go back to the last real session
 			this._beyondHistory.set(false, undefined);
@@ -167,6 +287,25 @@ export class SessionsNavigation extends Disposable {
 	}
 
 	async goForward(): Promise<void> {
+		const customViewNavigation = this._customViewNavigation.get();
+		const currentKey = this._currentKey.get();
+		if (customViewNavigation?.location === 'previous' && currentKey === customViewNavigation.previousKey) {
+			if (this._showCustomView(customViewNavigation)) {
+				return;
+			}
+		} else if (customViewNavigation?.location === 'customView') {
+			const nextIdx = this._indexOf(customViewNavigation.nextKey);
+			if (nextIdx < 0) {
+				this._customViewNavigation.set(undefined, undefined);
+				return;
+			}
+
+			this._customViewNavigation.set({ ...customViewNavigation, location: 'next' }, undefined);
+			this._customViewService.hideCustomView();
+			await this._navigateTo(nextIdx);
+			return;
+		}
+
 		const idx = this._indexOfCurrent();
 		if (idx <= 0) {
 			return;
@@ -188,6 +327,17 @@ export class SessionsNavigation extends Disposable {
 
 	private _indexOf(key: string): number {
 		return this._recency.entries.findIndex(e => entryKey(e.sessionResource, e.chatResource) === key);
+	}
+
+	private _showCustomView(customViewNavigation: ICustomViewNavigation): boolean {
+		this._customViewService.showCustomView(customViewNavigation.viewId);
+		if (this._customViewService.activeCustomView.get()?.id !== customViewNavigation.viewId) {
+			this._customViewNavigation.set(undefined, undefined);
+			return false;
+		}
+
+		this._customViewNavigation.set({ ...customViewNavigation, location: 'customView' }, undefined);
+		return true;
 	}
 
 	private async _navigateTo(targetIdx: number): Promise<void> {
