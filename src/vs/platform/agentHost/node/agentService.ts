@@ -92,6 +92,7 @@ import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostEditTelemetryEna
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
@@ -570,6 +571,20 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, fetchFn);
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
+		const gitHubService = this._register(instantiationService.createInstance(GitHubService, {
+			endpoint: this._gitHubEndpointService,
+			tokenProvider: {
+				getToken: () => {
+					const resource = this._gitHubEndpointService.getRepoResource();
+					return this._authService.getAuthToken({
+						resource: resource.resource,
+						scopes: resource.scopes_supported,
+					});
+				},
+			},
+			fetch: fetchFn,
+		}));
+		services.set(IGitHubService, gitHubService);
 		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);
 		services.set(ICopilotApiService, effectiveCopilotApiService);
 		this._customizationEnablementService = this._register(instantiationService.createInstance(AgentHostCustomizationEnablementService));
@@ -884,8 +899,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._providerSubscriptions.add(provider.onDidDiscoverChats(chats => {
 			void this._registerDiscoveredChats(provider, chats).catch(err =>
 				this._logService.warn(`[AgentService] registering discovered chats for provider ${provider.id} failed`, err));
-			void this._ensureLegacyChatsMigrated(provider, true).catch(err =>
-				this._logService.warn(`[AgentService] retrying registry migration for provider ${provider.id} failed`, err));
 		}));
 		if (provider.onMcpNotification) {
 			this._providerSubscriptions.add(provider.onMcpNotification(e => this._onMcpNotification.fire(e)));
@@ -1115,11 +1128,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Awaits discovery started at provider registration. Refreshing the session
-	 * list never starts another native enumeration; providers request additive
-	 * follow-ups through their chat-list readiness signal.
+	 * Awaits legacy migration started at provider registration. Provider-owned
+	 * discovery is independent and surfaces unknown chats additively.
 	 */
-	private async _awaitInitialProviderDiscovery(): Promise<void> {
+	private async _awaitInitialProviderMigration(): Promise<void> {
 		const providers = [...this._providers.values()];
 		const results = await Promise.allSettled(providers.map(provider => this._initialProviderMigrations.get(provider.id) ?? Promise.resolve()));
 		for (let index = 0; index < results.length; index++) {
@@ -1223,35 +1235,33 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> {
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
-		const discoveryLimiter = new Limiter<{ readonly identity: IRegisteredSession; readonly metadata: IAgentSessionMetadata } | undefined>(4);
-		const identities = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
+		const discoveryLimiter = new Limiter<boolean>(4);
+		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
-			if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
-				return undefined;
-			}
-			return {
-				identity: { session, provider: provider.id, startTime: metadata.startTime, external, source: external ? 'discovery' : 'restore' },
-				metadata: { ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) },
-			};
-		})));
-		let changed = false;
-		for (const discovered of identities) {
-			if (!discovered) {
-				continue;
-			}
-			const { identity, metadata } = discovered;
-			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
-			if (registered) {
-				if (identity.external && existing.get(identity.session.toString()) !== true) {
-					await this._initializeExternalSessionReadState(identity.session);
+			try {
+				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
+					return false;
 				}
-				existing.set(identity.session.toString(), identity.external);
-				await this._announceSurfacedSession(metadata, provider.id);
+				const identity: IRegisteredSession = { session, provider: provider.id, startTime: metadata.startTime, external, source: external ? 'discovery' : 'restore' };
+				const registered = await this._retryRegistryMutation(
+					() => this._sessionRegistry.register(session, identity, { checkTombstone: true }),
+					`discovery registration for ${session.toString()}`,
+				);
+				if (registered) {
+					if (external && existing.get(session.toString()) !== true) {
+						await this._initializeExternalSessionReadState(session);
+					}
+					existing.set(session.toString(), external);
+					await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
+				}
+				return registered;
+			} catch (err) {
+				this._logService.warn(`[AgentService] Failed to register discovered chat ${session.toString()} for provider ${provider.id}`, err);
+				return false;
 			}
-			changed = registered || changed;
-		}
-		return changed;
+		})));
+		return results.some(changed => changed);
 	}
 
 	private async _migrateLegacyProviderChats(provider: IAgent, force = false): Promise<void> {
@@ -1367,8 +1377,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
-		// The first list waits for registration-time discovery if it is still in flight.
-		await this._awaitInitialProviderDiscovery();
+		// The first list waits for registration-time legacy migration if it is still in flight.
+		await this._awaitInitialProviderMigration();
 		// The registry is the source of truth for top-level sessions. Internal
 		// chat backings and subagent sessions never enter it, and a transiently
 		// missing provider snapshot no longer evicts a session.
@@ -1687,17 +1697,18 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._announcedSurfacedKeys.add(key);
-		if (await this._sessionRegistry.isTombstoned(meta.session)) {
+		try {
+			if (await this._sessionRegistry.isTombstoned(meta.session)) {
+				this._announcedSurfacedKeys.delete(key);
+				return;
+			}
+			this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(meta, provider));
+			if (readSessionExternal(meta._meta)) {
+				this._broadcastExternalSessions.add(key);
+			}
+		} catch (err) {
 			this._announcedSurfacedKeys.delete(key);
-			return;
-		}
-		if (!this._shouldIncludeSession(meta)) {
-			this._announcedSurfacedKeys.delete(key);
-			return;
-		}
-		this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(meta, provider));
-		if (readSessionExternal(meta._meta)) {
-			this._broadcastExternalSessions.add(key);
+			throw err;
 		}
 	}
 
@@ -2343,8 +2354,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * exactly that window; every other caller relies on the exhaustive origin
 	 * {@link _chatContext} stamps.
 	 */
-	private async _getChatMessages(provider: IAgent, chat: URI, session?: URI, origin?: ChatOrigin): Promise<readonly Turn[]> {
-		const context = session ? { ...this._chatContext(session, chat), ...(origin ? { origin } : {}) } : undefined;
+	private async _getChatMessages(provider: IAgent, chat: URI, session: URI, origin?: ChatOrigin): Promise<readonly Turn[]> {
+		const context = { ...this._chatContext(session, chat), ...(origin ? { origin } : {}) };
 		const turns = await this._applyPersistedTurnUsage(chat, await provider.chats.getMessages(chat, context));
 		// Host-owned worktree restore announcement: re-inject the "Created isolated
 		// worktree" message at the top of the default chat's first turn from

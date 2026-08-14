@@ -234,14 +234,14 @@ suite('CodexAgent', () => {
 		];
 		const listChatsToMigrate = (CodexAgent.prototype as unknown as {
 			listChatsToMigrate(this: {
-				_isSdkResolvableWithoutDownload(): Promise<boolean>;
+				_resolveSdkRoot(): Promise<string>;
 				_listCodexChats(): Promise<typeof chats>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 			}): Promise<typeof chats>;
 		}).listChatsToMigrate;
 
 		const result = await listChatsToMigrate.call({
-			_isSdkResolvableWithoutDownload: async () => true,
+			_resolveSdkRoot: async () => '/sdk-root',
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async chat => {
 				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));

@@ -128,14 +128,15 @@ suite('Sessions - ChatCompositeBar', () => {
 
 		assert.deepStrictEqual({
 			tabs: tabs.map(tab => ({
-				hasFill: tab.querySelector(':scope > .chat-composite-bar-tab-fill') !== null,
-				hasLabel: tab.querySelector(':scope > .chat-composite-bar-tab-label') !== null,
+				hasSharedPresentation: tab.classList.contains('modern-ui-editor-tab'),
+				hasFill: tab.querySelector(':scope > .chat-composite-bar-tab-fill.modern-ui-editor-tab-fill') !== null,
+				hasLabel: tab.querySelector(':scope > .chat-composite-bar-tab-label.modern-ui-editor-tab-label') !== null,
 				hasActions: tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null,
 			})),
 		}, {
 			tabs: [
-				{ hasFill: true, hasLabel: true, hasActions: false },
-				{ hasFill: true, hasLabel: true, hasActions: true },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true },
 			],
 		});
 	});

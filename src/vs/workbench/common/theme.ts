@@ -688,17 +688,33 @@ export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, loca
 
 export const MODERN_TAB_ACTIVE_BACKGROUND = registerColor('modernTab.activeBackground', listInactiveSelectionBackground, localize('modernTabActiveBackground', "Background color of active tabs when the modern tab style is enabled."));
 
-export const MODERN_TAB_ACTIVE_ACTION_BACKGROUND = registerColor('modernTab.activeActionBackground', opaque(MODERN_TAB_ACTIVE_BACKGROUND, editorBackground), localize('modernTabActiveActionBackground', "Opaque background color of tab actions on active tabs when the modern tab style is enabled."));
-
 export const MODERN_TAB_ACTIVE_FOREGROUND = registerColor('modernTab.activeForeground', oneOf(listInactiveSelectionForeground, foreground), localize('modernTabActiveForeground', "Foreground color of active tabs when the modern tab style is enabled."));
 
 export const MODERN_TAB_HOVER_BACKGROUND = registerColor('modernTab.hoverBackground', listHoverBackground, localize('modernTabHoverBackground', "Background color of tabs when hovering and the modern tab style is enabled."));
 
-export const MODERN_TAB_HOVER_ACTION_BACKGROUND = registerColor('modernTab.hoverActionBackground', opaque(MODERN_TAB_HOVER_BACKGROUND, editorBackground), localize('modernTabHoverActionBackground', "Opaque background color of tab actions when hovering and the modern tab style is enabled."));
-
 export const MODERN_TAB_HOVER_FOREGROUND = registerColor('modernTab.hoverForeground', oneOf(listHoverForeground, foreground), localize('modernTabHoverForeground', "Foreground color of tabs when hovering and the modern tab style is enabled."));
 
-export const MODERN_TAB_SELECTED_ACTION_BACKGROUND = registerColor('modernTab.selectedActionBackground', opaque(TAB_SELECTED_BACKGROUND, editorBackground), localize('modernTabSelectedActionBackground', "Opaque background color of tab actions on selected tabs when the modern tab style is enabled."));
+// < --- Modern Editor Tabs --- >
+
+export const MODERN_EDITOR_TAB_ACTIVE_BACKGROUND = registerColor('modernEditorTab.activeBackground', MODERN_TAB_ACTIVE_BACKGROUND, localize('modernEditorTabActiveBackground', "Background color of active editor tabs when the modern tab style is enabled."));
+
+export const MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND = registerColor('modernEditorTab.activeActionBackground', opaque(MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, editorBackground), localize('modernEditorTabActiveActionBackground', "Opaque background color of tab actions on active editor tabs when the modern tab style is enabled."));
+
+export const MODERN_EDITOR_TAB_ACTIVE_FOREGROUND = registerColor('modernEditorTab.activeForeground', MODERN_TAB_ACTIVE_FOREGROUND, localize('modernEditorTabActiveForeground', "Foreground color of active editor tabs when the modern tab style is enabled."));
+
+export const MODERN_EDITOR_TAB_INACTIVE_BACKGROUND = registerColor('modernEditorTab.inactiveBackground', Color.transparent, localize('modernEditorTabInactiveBackground', "Background color of inactive editor tabs when the modern tab style is enabled."));
+
+export const MODERN_EDITOR_TAB_HOVER_BACKGROUND = registerColor('modernEditorTab.hoverBackground', MODERN_TAB_HOVER_BACKGROUND, localize('modernEditorTabHoverBackground', "Background color of editor tabs when hovering and the modern tab style is enabled."));
+
+export const MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND = registerColor('modernEditorTab.hoverActionBackground', opaque(MODERN_EDITOR_TAB_HOVER_BACKGROUND, editorBackground), localize('modernEditorTabHoverActionBackground', "Opaque background color of tab actions on editor tabs when hovering and the modern tab style is enabled."));
+
+export const MODERN_EDITOR_TAB_HOVER_FOREGROUND = registerColor('modernEditorTab.hoverForeground', MODERN_TAB_HOVER_FOREGROUND, localize('modernEditorTabHoverForeground', "Foreground color of editor tabs when hovering and the modern tab style is enabled."));
+
+export const MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND = registerColor('modernEditorTab.activeHoverBackground', MODERN_EDITOR_TAB_HOVER_BACKGROUND, localize('modernEditorTabActiveHoverBackground', "Background color of active editor tabs when hovering and the modern tab style is enabled."));
+
+export const MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND = registerColor('modernEditorTab.activeHoverActionBackground', opaque(MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, editorBackground), localize('modernEditorTabActiveHoverActionBackground', "Opaque background color of tab actions on active editor tabs when hovering and the modern tab style is enabled."));
+
+export const MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND = registerColor('modernEditorTab.selectedActionBackground', opaque(TAB_SELECTED_BACKGROUND, editorBackground), localize('modernEditorTabSelectedActionBackground', "Opaque background color of tab actions on selected editor tabs when the modern tab style is enabled."));
 
 // < --- Modern Activity Bar --- >
 
