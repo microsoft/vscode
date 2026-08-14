@@ -1326,6 +1326,7 @@ interface IEditorPartConfiguration {
 
 export interface IEditorPartOptions extends DeepRequiredNonNullable<IEditorPartConfiguration> {
 	hasIcons: boolean;
+	showBreadcrumbs?: boolean;
 }
 
 export interface IEditorPartOptionsChangeEvent {

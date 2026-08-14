@@ -26,7 +26,7 @@ function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: 
 	};
 }
 
-function customToolPermissionRequest(toolName: string, args: Record<string, unknown>): CopilotCustomToolPermissionRequest {
+function customToolPermissionRequest(toolName: string, args: CopilotCustomToolPermissionRequest['args']): CopilotCustomToolPermissionRequest {
 	return {
 		kind: 'custom-tool',
 		toolName,

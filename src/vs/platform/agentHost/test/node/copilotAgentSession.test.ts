@@ -549,7 +549,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 } | {
 	readonly kind: 'custom-tool';
 	readonly toolName?: string;
-	readonly args?: Record<string, unknown>;
+	readonly args?: Extract<PermissionRequest, { kind: 'custom-tool' }>['args'];
 });
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
