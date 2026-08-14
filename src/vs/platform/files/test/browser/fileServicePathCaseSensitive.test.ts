@@ -103,7 +103,7 @@ suite('FileService - PathCaseSensitive Cache', () => {
 	});
 
 	// -------------------------------------------------------------------------
-	// resolvePathCaseSensitive — caches at scheme-root level (bug 4 fix)
+	// resolvePathCaseSensitive — caches at scheme-root level
 	// -------------------------------------------------------------------------
 
 	test('resolvePathCaseSensitive caches result and subsequent hasCapability calls return cached value', async () => {
@@ -162,7 +162,7 @@ suite('FileService - PathCaseSensitive Cache', () => {
 	});
 
 	// -------------------------------------------------------------------------
-	// resolvePathCaseSensitive — error path (bug 6 fix): warns, does not throw
+	// resolvePathCaseSensitive — error path: warns and falls back, does not throw
 	// -------------------------------------------------------------------------
 
 	test('resolvePathCaseSensitive does not throw when provider probe rejects; falls back to capability bits', async () => {

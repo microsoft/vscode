@@ -337,7 +337,7 @@ suite('Files - ExplorerItem getChild case sensitivity', function () {
 	});
 
 	// -----------------------------------------------------------------------
-	// Case-insensitive fallback via secondary index (bug 5 fix)
+	// Case-insensitive fallback via secondary index
 	// -----------------------------------------------------------------------
 
 	test('getChild — case-insensitive fallback on case-insensitive FS', function () {
