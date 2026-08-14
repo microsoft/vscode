@@ -848,7 +848,7 @@ export class AgentHostE2EServerLease {
 	private _testsOnCurrentServer = 0;
 	private _cleanupClientSeq = 1_000_000;
 	private _currentCapiReplay: ReturnType<typeof capiReplayFor> | undefined;
-	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
+	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
 	private readonly _target: IAgentHostTarget;
 
 	constructor(
@@ -861,6 +861,7 @@ export class AgentHostE2EServerLease {
 		this._startOptions = {
 			claudeSdkRoot: startOptions.claudeSdkRoot,
 			codexSdkRoot: startOptions.codexSdkRoot,
+			codexHomeDir: join(dataDir, '.codex'),
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
 			env: { [AgentHostSessionReleaseGraceMsEnvVar]: '0' },
