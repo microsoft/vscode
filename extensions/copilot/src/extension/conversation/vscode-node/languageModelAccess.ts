@@ -49,12 +49,6 @@ import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
 import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
 
 /**
- * Markers in the autoModelHint experiment variable that indicate the auto model
- * is routing to an experimental or evaluation model.
- */
-const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
-
-/**
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
  * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
  */
@@ -355,12 +349,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				modelTooltip = endpoint.degradationReason;
 			} else if (endpoint instanceof AutoChatEndpoint) {
 				modelTooltip = getAutoModelDescription(endpoint.discountRange);
-				const isOrgManaged = !!this._authenticationService.copilotToken?.isManagedPlan;
-				const autoModeHint = this._expService.getTreatmentVariable<string>('copilotchat.autoModelHint');
-				const showExperimentalHint = !isOrgManaged && !!autoModeHint && experimentalAutoModelHintMarkers.some(marker => autoModeHint.includes(marker));
-				if (showExperimentalHint) {
-					modelTooltip = `${modelTooltip} ${vscode.l10n.t('This model may be experimental or in evaluation.')}`;
-				}
 			} else {
 				modelTooltip = getModelCapabilitiesDescription(endpoint);
 			}
@@ -543,8 +531,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (!allEndpoints.length) {
 				return undefined;
 			}
-			// Without routing context (no user text) auto mode falls back to
-			// prompt-free model selection.
+			// The `vscode.lm` API has no slash commands, so a request whose last
+			// user message carries no text cannot be routed and the rejection
+			// surfaces to the calling extension.
 			return await this._automodeService.resolveAutoModeEndpoint(autoRoutingContext, allEndpoints);
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);

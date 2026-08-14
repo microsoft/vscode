@@ -215,7 +215,6 @@ suite('LanguageModelAccess model info', () => {
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
 			areAutoModeTiersSupported: () => false,
 			onDidChangeAutoModeTierSupport: Event.None,
-			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
 		testingServiceCollection.define(IEndpointProvider, {
