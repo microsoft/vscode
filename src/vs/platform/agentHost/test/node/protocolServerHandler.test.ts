@@ -831,6 +831,30 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.snapshot.resource.toString(), sessionUri.toString());
 	});
 
+	test('an action dispatched while subscribe is still resolving is still echoed', async () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+
+		// A client subscribes and dispatches on the same connection without
+		// waiting for the subscribe response, so the envelope is emitted while
+		// the snapshot is still resolving.
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+		transport.simulateMessage(request(1, 'subscribe', { channel: defaultChatUri }));
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: defaultChatUri,
+			clientSeq: 1,
+			action: { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hi', origin: { kind: MessageKind.User } } },
+		}));
+		agentService.subscribeBarrier.complete();
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		const echoed = transport.sent.some(m => (m as { params?: { action?: { type?: string } } }).params?.action?.type === ActionType.ChatTurnStarted);
+		assert.strictEqual(echoed, true, 'turnStarted must be echoed to the client that dispatched it');
+	});
+
 	test('client action is dispatched and echoed', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });

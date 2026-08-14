@@ -1324,15 +1324,21 @@ export class ProtocolServerHandler extends Disposable {
 					},
 				};
 			}
+			// Register before awaiting the snapshot. A client dispatches actions
+			// immediately after `subscribe` on the same connection, and any
+			// envelope emitted during the await would otherwise be routed to
+			// nobody: the client never sees its own action echoed, so a
+			// write-ahead turn is never observed and its response never renders.
+			client.subscriptions.set(classified.uri, classified);
 			try {
 				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
-				client.subscriptions.set(classified.uri, classified);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
 				// the generated wire `Snapshot` union does not list it yet. The value
 				// is JSON over the wire, so narrowing at this boundary is safe.
 				return { snapshot: snapshot as SubscribeResult['snapshot'] };
 			} catch (err) {
+				client.subscriptions.delete(classified.uri);
 				if (err instanceof ProtocolError) {
 					throw err;
 				}
