@@ -854,6 +854,10 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return 'NOT_FOUND';
 		}
 
+		if (!Array.isArray(rawGalleryExtension.versions) || rawGalleryExtension.versions.some(version => !Array.isArray(version.files))) {
+			return 'INVALID_RESPONSE';
+		}
+
 		const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
 		const rawGalleryExtensionVersion = await this.getValidRawGalleryExtensionVersionFromLatestVersions(rawGalleryExtension, rawGalleryExtension.versions, extensionInfo, options, allTargetPlatforms);
 
