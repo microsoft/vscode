@@ -375,8 +375,9 @@ suite('SessionsNavigation', () => {
 
 		await nav.goBack();
 		await nav.goBack();
-		await nav.goForward();
 		previousStatus.set(SessionStatus.Completed, undefined);
+		await nav.goForward();
+		previousStatus.set(SessionStatus.InProgress, undefined);
 		const afterStatusChange = {
 			customView: customViewService.activeCustomView.get()?.id,
 			canGoForward: canGoForward(),
@@ -388,6 +389,7 @@ suite('SessionsNavigation', () => {
 			afterForward: {
 				customView: customViewService.activeCustomView.get()?.id,
 				openedSession: store.lastOpenedResource?.toString(),
+				canGoForward: canGoForward(),
 			},
 		}, {
 			afterStatusChange: {
@@ -397,7 +399,101 @@ suite('SessionsNavigation', () => {
 			afterForward: {
 				customView: undefined,
 				openedSession: automationRunSession.resource.toString(),
+				canGoForward: false,
 			},
+		});
+	});
+
+	test('promotes an already-active session opened from a custom view', async () => {
+		const automationRunSession = stubSession('automation-run');
+		const otherSession = stubSession('other');
+		store.addSession(automationRunSession);
+		store.addSession(otherSession);
+		store.setActiveSession(automationRunSession);
+		store.setActiveSession(otherSession);
+		await nav.goBack();
+
+		customViewService.showCustomView('automations');
+		nav.onWillOpenSession();
+		customViewService.hideCustomView();
+		nav.onDidOpenSession();
+
+		await nav.goBack();
+		await nav.goForward();
+
+		assert.deepStrictEqual({
+			customView: customViewService.activeCustomView.get()?.id,
+			openedSession: store.lastOpenedResource?.toString(),
+			canGoForward: canGoForward(),
+		}, {
+			customView: undefined,
+			openedSession: automationRunSession.resource.toString(),
+			canGoForward: false,
+		});
+	});
+
+	test('synchronizes the navigation bridge when its custom view is reopened', async () => {
+		const previousSession = stubSession('previous');
+		const automationRunSession = stubSession('automation-run');
+		store.addSession(previousSession);
+		store.addSession(automationRunSession);
+		store.setActiveSession(previousSession);
+
+		customViewService.showCustomView('automations');
+		nav.onWillOpenSession();
+		customViewService.hideCustomView();
+		await store.openSession(automationRunSession.resource);
+		nav.onDidOpenSession();
+
+		customViewService.showCustomView('automations');
+		await nav.goBack();
+		const afterBack = {
+			customView: customViewService.activeCustomView.get()?.id,
+			openedSession: store.lastOpenedResource?.toString(),
+		};
+		customViewService.showCustomView('automations');
+		await nav.goForward();
+
+		assert.deepStrictEqual({
+			afterBack,
+			afterForward: {
+				customView: customViewService.activeCustomView.get()?.id,
+				openedSession: store.lastOpenedResource?.toString(),
+			},
+		}, {
+			afterBack: {
+				customView: undefined,
+				openedSession: previousSession.resource.toString(),
+			},
+			afterForward: {
+				customView: undefined,
+				openedSession: automationRunSession.resource.toString(),
+			},
+		});
+	});
+
+	test('reconciles a session activated while a custom view is visible when it is hidden', async () => {
+		const previousSession = stubSession('previous');
+		const restoredSession = stubSession('restored');
+		store.addSession(previousSession);
+		store.addSession(restoredSession);
+		store.setActiveSession(previousSession);
+
+		customViewService.showCustomView('automations');
+		store.setActiveSession(restoredSession);
+		const beforeHide = canGoBack();
+		customViewService.hideCustomView();
+		const afterHide = canGoBack();
+		await nav.goBack();
+
+		assert.deepStrictEqual({
+			beforeHide,
+			afterHide,
+			openedSession: store.lastOpenedResource?.toString(),
+		}, {
+			beforeHide: false,
+			afterHide: true,
+			openedSession: previousSession.resource.toString(),
 		});
 	});
 
