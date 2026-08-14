@@ -166,10 +166,10 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore huge model', function () {
 
 		const largeModelString = 'abc'.repeat(1024);
-		const limitInMB = (largeModelString.length / 2) / (1024 * 1024);
+		const limitInMB = Math.floor((largeModelString.length / 2) / (1024 * 1024));
 
 		// Override configuration for this test
-		configService.setUserConfiguration('editor.largeFileSizeLimit', limitInMB);
+		configService.setUserConfiguration('editor', { 'detectIndentation': false, 'largeFileSizeLimit': limitInMB });
 
 		try {
 			const model = modelService.createModel(largeModelString, null);
@@ -184,17 +184,17 @@ suite('MainThreadDocumentsAndEditors', () => {
 			assert.strictEqual(delta.addedEditors, undefined);
 			assert.strictEqual(delta.removedEditors, undefined);
 		} finally {
-			configService.setUserConfiguration('editor.largeFileSizeLimit', undefined);
+			configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		}
 	});
 
 	test('ignore huge model from editor', function () {
 
 		const largeModelString = 'abc'.repeat(1024);
-		const limitInMB = (largeModelString.length / 2) / (1024 * 1024);
+		const limitInMB = Math.floor((largeModelString.length / 2) / (1024 * 1024));
 
 		// Override configuration for this test
-		configService.setUserConfiguration('editor.largeFileSizeLimit', limitInMB);
+		configService.setUserConfiguration('editor', { 'detectIndentation': false, 'largeFileSizeLimit': limitInMB });
 
 		try {
 			const model = modelService.createModel(largeModelString, null);
@@ -207,7 +207,22 @@ suite('MainThreadDocumentsAndEditors', () => {
 			model.dispose();
 
 		} finally {
-			configService.setUserConfiguration('editor.largeFileSizeLimit', undefined);
+			configService.setUserConfiguration('editor', { 'detectIndentation': false });
+		}
+	});
+
+	test('large model with zero limit is synchronizable', function () {
+		const largeModelString = 'abc'.repeat(1024 * 1024); // Create a ~3MB model (above normal threshold)
+
+		// Set limit to 0 (no limit)
+		configService.setUserConfiguration('editor', { 'detectIndentation': false, 'largeFileSizeLimit': 0 });
+
+		try {
+			const model = modelService.createModel(largeModelString, null);
+			disposables.add(model);
+			assert.ok(!model.isTooLargeForSyncing(), 'Model should be synchronizable when limit is 0');
+		} finally {
+			configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		}
 	});
 
