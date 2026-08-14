@@ -223,6 +223,7 @@ export class ChatCompositeBar extends Disposable {
 		if (this._delegate === delegate) {
 			return;
 		}
+
 		this._delegate = delegate;
 
 		const store = new DisposableStore();
@@ -254,6 +255,10 @@ export class ChatCompositeBar extends Disposable {
 
 			this._setVisible(delegate.visible.read(reader));
 		}));
+	}
+
+	setAriaLabel(label: string): void {
+		this._tabsContainer.setAttribute('aria-label', label);
 	}
 
 	private _rebuildTabs(chats: readonly IChat[], activeChatId: string, mainChatId: string): void {

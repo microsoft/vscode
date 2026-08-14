@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../base/common/uri.js';
+import { stringHash } from '../../base/common/hash.js';
 import { DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelectionTransfer } from '../../platform/dnd/browser/dnd.js';
 
 /**
@@ -53,14 +54,22 @@ export interface IDraggedSessionChat {
 export function fillSessionChatDragData(e: DragEvent, sessionId: string, resource: URI): void {
 	const data: IDraggedSessionChat = { sessionId, resource: resource.toString() };
 	e.dataTransfer?.setData(SessionsDataTransfers.CHAT, JSON.stringify(data));
+	e.dataTransfer?.setData(getSessionChatDragType(sessionId), '');
 }
 
 /**
  * Whether the drag carries a session chat. Reads the `dataTransfer` **types**, so
  * it works during `dragover` (when values are not yet readable).
  */
-export function isSessionChatDrag(e: DragEvent): boolean {
-	return !!e.dataTransfer && e.dataTransfer.types.includes(SessionsDataTransfers.CHAT);
+export function isSessionChatDrag(e: DragEvent, sessionId?: string): boolean {
+	if (!e.dataTransfer?.types.includes(SessionsDataTransfers.CHAT)) {
+		return false;
+	}
+	return sessionId === undefined || e.dataTransfer.types.includes(getSessionChatDragType(sessionId));
+}
+
+function getSessionChatDragType(sessionId: string): string {
+	return `${SessionsDataTransfers.CHAT}.${(stringHash(sessionId, 0) >>> 0).toString(16)}`;
 }
 
 /**

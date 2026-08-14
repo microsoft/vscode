@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, size } from '../../../base/browser/dom.js';
+import { $, size, trackFocus } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -78,6 +78,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
 
+	/** Fires when keyboard focus enters this group (any of its descendants). */
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+
 	private readonly _compositeBar: ChatCompositeBar;
 	private readonly _barContainer: HTMLElement;
 	private readonly _readOnlyBanner: SessionReadOnlyBanner;
@@ -131,6 +135,22 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		this._register(this._compositeBar.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._compositeBar.onDidChangeHeight(() => this._layoutChildren()));
+
+		const focusTracker = this._register(trackFocus(this.element));
+		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+	}
+
+	setGroupPosition(index: number, count: number): void {
+		if (count <= 1) {
+			this.element.removeAttribute('role');
+			this.element.removeAttribute('aria-label');
+			this._compositeBar.setAriaLabel(localize('chatTabsAriaLabel', "Chats"));
+			return;
+		}
+
+		this.element.setAttribute('role', 'region');
+		this.element.setAttribute('aria-label', localize('chatGroupAriaLabel', "Chat Group {0} of {1}", index + 1, count));
+		this._compositeBar.setAriaLabel(localize('chatGroupTabsAriaLabel', "Chats, Group {0} of {1}", index + 1, count));
 	}
 
 	/** Sets (or clears) the group this view renders. */

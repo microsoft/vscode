@@ -8,7 +8,7 @@ import { $, size } from '../../../base/browser/dom.js';
 import { Color } from '../../../base/common/color.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, ISettableObservable, ITransaction, observableValue, transaction } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { Direction, ISerializedGrid, IViewDeserializer, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -22,7 +22,7 @@ import { ISessionsService } from '../../services/sessions/browser/sessionsServic
 import { IChatViewOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
-import { IDraggedSessionChat } from '../dnd.js';
+import { IDraggedSessionChat, isSessionChatDrag } from '../dnd.js';
 
 interface IGroupEntry {
 	readonly id: number;
@@ -98,6 +98,7 @@ export class ChatGroupsView extends Themable {
 	private _restoreInitialIds: Set<string> | undefined;
 	/** Whether a persisted layout is still being restored (saved chats may not have loaded yet). */
 	private _restorePending = false;
+	private _lastSessionActiveChatId: string | undefined;
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
@@ -132,6 +133,7 @@ export class ChatGroupsView extends Themable {
 		this._restoreOrder = undefined;
 		this._restoreInitialIds = undefined;
 		this._restorePending = false;
+		this._lastSessionActiveChatId = undefined;
 		this._setGroupCount(1);
 
 		if (!session) {
@@ -148,6 +150,7 @@ export class ChatGroupsView extends Themable {
 		store.add(toDisposable(() => grid.element.remove()));
 
 		const dropDelegate: IChatGroupDropTargetDelegate = {
+			isChatDrag: event => isSessionChatDrag(event, session.sessionId),
 			findTargetGroup: child => this._findTargetGroup(child),
 			onChatDrop: (groupId, zone, data) => this._onChatDrop(groupId, zone, data),
 		};
@@ -272,6 +275,10 @@ export class ChatGroupsView extends Themable {
 		const view = store.add(this._instantiationService.createInstance(ChatGroupView));
 		const entry: IGroupEntry = { id, view, resourceIds, activeResourceId, chats, tabsVisible };
 
+		// Focusing a group promotes it to active and, when the layout is in the
+		// collapsed (accordion) state, expands it while the others shrink to min.
+		store.add(view.onDidFocus(() => this._onGroupFocused(entry)));
+
 		const context: IChatGroupContext = {
 			session,
 			options: this._options!,
@@ -280,7 +287,7 @@ export class ChatGroupsView extends Themable {
 			mainChatResource: this._mainChatResource!,
 			tabsVisible,
 			openChat: resource => this._openChat(entry, resource),
-			newChat: () => this._newChat(entry),
+			newChat: () => this._newChat(entry).catch(onUnexpectedError),
 			onTabDragStart: () => { },
 			onTabDragEnd: () => { },
 		};
@@ -343,15 +350,15 @@ export class ChatGroupsView extends Themable {
 				}
 			}
 
-			// Reflect the session's active chat onto its owning group.
-			if (activeChat) {
-				const activeId = activeChat.resource.toString();
+			const activeId = activeChat?.resource.toString();
+			if (activeId && activeId !== this._lastSessionActiveChatId) {
 				const owner = this._groups.find(g => g.resourceIds.get().includes(activeId));
 				if (owner) {
 					owner.activeResourceId.set(activeId, tx);
 					this._setActiveGroup(owner);
 				}
 			}
+			this._lastSessionActiveChatId = activeId;
 
 			// Ensure every group shows a chat it actually owns.
 			for (const group of this._groups) {
@@ -369,7 +376,8 @@ export class ChatGroupsView extends Themable {
 		if (this._restorePending) {
 			const allSavedPresent = this._restoreAssignment ? [...this._restoreAssignment.keys()].every(id => validIds.has(id)) : true;
 			const catalogChanged = !this._restoreInitialIds || orderedIds.length !== this._restoreInitialIds.size || orderedIds.some(id => !this._restoreInitialIds!.has(id));
-			if (allSavedPresent || catalogChanged) {
+			const catalogSettled = !session.loading.read(reader);
+			if (allSavedPresent || catalogChanged || catalogSettled) {
 				this._restorePending = false;
 				this._restoreAssignment = undefined;
 				this._restoreOrder = undefined;
@@ -427,7 +435,7 @@ export class ChatGroupsView extends Themable {
 	private _moveChatToGroup(resource: URI, source: IGroupEntry, target: IGroupEntry): void {
 		const id = resource.toString();
 		transaction(tx => {
-			source.resourceIds.set(source.resourceIds.get().filter(x => x !== id), tx);
+			this._detachChatFromGroup(source, id, tx);
 			if (!target.resourceIds.get().includes(id)) {
 				target.resourceIds.set([...target.resourceIds.get(), id], tx);
 			}
@@ -450,7 +458,7 @@ export class ChatGroupsView extends Themable {
 		this._setGroupCount(this._groups.length);
 
 		transaction(tx => {
-			source.resourceIds.set(source.resourceIds.get().filter(x => x !== id), tx);
+			this._detachChatFromGroup(source, id, tx);
 			newGroup.resourceIds.set([id], tx);
 			newGroup.activeResourceId.set(id, tx);
 		});
@@ -460,6 +468,98 @@ export class ChatGroupsView extends Themable {
 		this._removeEmptyGroups();
 		this._applyLayout();
 		this._persistLayout();
+	}
+
+	/**
+	 * Removes a chat from a group. If it was the group's active chat, activates a
+	 * remaining one so the source group keeps showing a chat it still owns.
+	 */
+	private _detachChatFromGroup(group: IGroupEntry, id: string, tx: ITransaction): void {
+		const remaining = group.resourceIds.get().filter(x => x !== id);
+		group.resourceIds.set(remaining, tx);
+		if (group.activeResourceId.get() === id && remaining.length) {
+			group.activeResourceId.set(remaining[0], tx);
+		}
+	}
+
+	/**
+	 * Opens a chat in a group beside the active one ("open to the side"). If the
+	 * chat is already shown in a group, that group is focused instead of creating
+	 * a duplicate; otherwise a new group is created to the right of the active
+	 * group and the chat is shown there.
+	 */
+	async openChatInNewGroup(resource: URI): Promise<void> {
+		if (!this._session || !this._grid || !this._currentSessionStore) {
+			return;
+		}
+		const id = resource.toString();
+
+		const existing = this._groups.find(g => g.resourceIds.get().includes(id));
+		if (existing) {
+			existing.activeResourceId.set(id, undefined);
+			this._setActiveGroup(existing);
+			await this._sessionsService.openChat(this._session, resource);
+			return;
+		}
+
+		const reference = this._activeGroup ?? this._groups[0];
+		if (!reference) {
+			return;
+		}
+		const session = this._session;
+		await this._sessionsService.openChat(session, resource);
+		if (this._session !== session || !session.visibleChatTabs.get().some(chat => chat.resource.toString() === id)) {
+			return;
+		}
+
+		const newGroup = this._createGroupEntry(session, this._currentSessionStore);
+		this._grid.addView(newGroup.view, Sizing.Distribute, reference.view, Direction.Right);
+		this._groups.push(newGroup);
+		this._setGroupCount(this._groups.length);
+
+		transaction(tx => {
+			const assignedGroup = this._groups.find(group => group !== newGroup && group.resourceIds.get().includes(id));
+			if (assignedGroup) {
+				this._detachChatFromGroup(assignedGroup, id, tx);
+			}
+			newGroup.resourceIds.set([id], tx);
+			newGroup.activeResourceId.set(id, tx);
+		});
+
+		this._setActiveGroup(newGroup);
+		this._removeEmptyGroups();
+		this._applyLayout();
+		this._persistLayout();
+	}
+
+	/**
+	 * Places a freshly created chat (e.g. a side chat) beside the current one.
+	 * Unlike {@link openChatInNewGroup} — which focuses the chat in place when it
+	 * is already visible — this moves the chat out of a shared group into its own
+	 * group to the right so it sits next to the chat it was created from. Called
+	 * only at creation time; if the chat is already alone in its group (nothing to
+	 * sit beside) it is left where it is.
+	 */
+	splitChatToSide(resource: URI): void {
+		if (!this._session || !this._grid || !this._currentSessionStore) {
+			return;
+		}
+		const id = resource.toString();
+		const source = this._groups.find(g => g.resourceIds.get().includes(id));
+		if (source) {
+			// Already alone in its own group: nothing to sit beside, keep it.
+			if (source.resourceIds.get().length <= 1) {
+				this._setActiveGroup(source);
+				return;
+			}
+			this._splitChatIntoNewGroup(resource, source, source, 'right');
+			return;
+		}
+		// Not assigned yet: only open to the side when there is another chat to
+		// sit beside; otherwise let the normal reconcile assign it in place.
+		if (this._groups.some(g => g.resourceIds.get().some(x => x !== id))) {
+			this.openChatInNewGroup(resource).catch(onUnexpectedError);
+		}
 	}
 
 	private _removeEmptyGroups(): void {
@@ -493,9 +593,53 @@ export class ChatGroupsView extends Themable {
 		this._persistLayout();
 	}
 
+	/**
+	 * Handles focus entering a group: promotes it to the active group and, when
+	 * that group is currently collapsed to its minimum size in a split, expands it
+	 * so the other groups collapse to their minimum. Focusing an already-expanded
+	 * group (or a balanced/manual layout) leaves the sizes untouched.
+	 */
+	private _onGroupFocused(entry: IGroupEntry): void {
+		this._setActiveGroup(entry);
+		const session = this._session;
+		const activeResourceId = entry.activeResourceId.get();
+		if (session && activeResourceId && session.activeChat.get().resource.toString() !== activeResourceId) {
+			this._sessionsService.openChat(session, URI.parse(activeResourceId)).catch(onUnexpectedError);
+		}
+
+		if (!this._grid || this._groups.length < 2 || !this._isGroupCollapsed(entry.view)) {
+			return;
+		}
+		// Grow the focused group to the grid's full extent; the split view clamps
+		// it to the space left once the siblings reach their minimum size, so the
+		// others collapse to min along whichever axis they are split.
+		const gridSize = this._grid.getViewSize();
+		this._grid.resizeView(entry.view, { width: gridSize.width, height: gridSize.height });
+		this._persistLayout();
+	}
+
+	/**
+	 * Whether the group is squeezed to (near) its minimum along an axis where the
+	 * grid has room to be larger — i.e. the user has collapsed it in a split.
+	 */
+	private _isGroupCollapsed(view: ChatGroupView): boolean {
+		if (!this._grid) {
+			return false;
+		}
+		const COLLAPSE_THRESHOLD = 8;
+		const size = this._grid.getViewSize(view);
+		const gridSize = this._grid.getViewSize();
+		const collapsedHorizontally = size.width <= view.minimumWidth + COLLAPSE_THRESHOLD
+			&& gridSize.width > view.minimumWidth + COLLAPSE_THRESHOLD;
+		const collapsedVertically = size.height <= view.minimumHeight + COLLAPSE_THRESHOLD
+			&& gridSize.height > view.minimumHeight + COLLAPSE_THRESHOLD;
+		return collapsedHorizontally || collapsedVertically;
+	}
+
 	private _setGroupCount(count: number): void {
 		this._groupCount.set(count, undefined);
 		this.element.classList.toggle('single-group', count <= 1);
+		this._groups.forEach((group, index) => group.view.setGroupPosition(index, count));
 	}
 
 	private _openChat(entry: IGroupEntry, resource: URI): void {
@@ -506,12 +650,47 @@ export class ChatGroupsView extends Themable {
 		}
 	}
 
-	private _newChat(entry: IGroupEntry): void {
+	private async _newChat(entry: IGroupEntry): Promise<void> {
 		this._setActiveGroup(entry);
 		const session = this._session;
 		if (session && !session.isArchived.get()) {
-			this._sessionsService.openNewChatInSession(session).catch(onUnexpectedError);
+			await this._sessionsService.openNewChatInSession(session);
+			if (this._session === session) {
+				entry.view.focus();
+			}
 		}
+	}
+
+	focusAdjacentGroup(direction: 'previous' | 'next'): void {
+		const activeIndex = this._activeGroup ? this._groups.indexOf(this._activeGroup) : -1;
+		if (activeIndex < 0 || this._groups.length < 2) {
+			return;
+		}
+		const offset = direction === 'next' ? 1 : -1;
+		const target = this._groups[(activeIndex + offset + this._groups.length) % this._groups.length];
+		this._onGroupFocused(target);
+		target.view.focus();
+	}
+
+	splitActiveChat(direction: 'right' | 'bottom'): void {
+		const source = this._activeGroup;
+		const resource = source?.activeResourceId.get();
+		if (source && resource && source.resourceIds.get().length > 1) {
+			this._splitChatIntoNewGroup(URI.parse(resource), source, source, direction);
+		}
+	}
+
+	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void {
+		const source = this._activeGroup;
+		const sourceIndex = source ? this._groups.indexOf(source) : -1;
+		const resource = source?.activeResourceId.get();
+		if (!source || sourceIndex < 0 || !resource || this._groups.length < 2) {
+			return;
+		}
+		const offset = direction === 'next' ? 1 : -1;
+		const target = this._groups[(sourceIndex + offset + this._groups.length) % this._groups.length];
+		this._moveChatToGroup(URI.parse(resource), source, target);
+		target.view.focus();
 	}
 
 	private _zoneToDirection(zone: ChatDropZone): Direction {

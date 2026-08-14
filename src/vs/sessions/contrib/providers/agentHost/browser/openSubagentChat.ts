@@ -15,6 +15,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { OpenSubagentChatActionViewItem, shouldShowSubagentModel, subagentChatOpenerRegistry } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
 
@@ -66,6 +67,7 @@ class OpenSubagentChatActionViewItemContribution extends Disposable implements I
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@ISessionsService sessionsService: ISessionsService,
+		@ISessionsPartService sessionsPartService: ISessionsPartService,
 		@ILogService logService: ILogService,
 	) {
 		super();
@@ -74,7 +76,14 @@ class OpenSubagentChatActionViewItemContribution extends Disposable implements I
 				const resource = context.chatResource;
 				const match = findSubagentChat(sessionsService, resource);
 				if (match) {
-					await sessionsService.openChat(match.session, match.chat.resource);
+					// Alt-click ("open to the side") shows the subagent in a new group
+					// beside the active one instead of replacing the active chat.
+					const view = context.toSide ? sessionsPartService.getSessionView(match.session.sessionId) : undefined;
+					if (view) {
+						await view.openChatToSide(match.chat.resource);
+					} else {
+						await sessionsService.openChat(match.session, match.chat.resource);
+					}
 					return true;
 				}
 				const active = sessionsService.activeSession.get();

@@ -37,6 +37,8 @@ export interface IOpenSubagentChatContext {
 	readonly chatResource: string;
 	readonly parentSessionResource?: string;
 	readonly title?: string;
+	/** Open the subagent chat to the side (in a new group) rather than in place. */
+	readonly toSide?: boolean;
 	readonly confirmationCount?: number;
 	readonly confirmationActive?: boolean;
 	readonly startedAt?: number;
@@ -280,6 +282,16 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		if (!this._pillContentElement || !isHTMLElement(target) || !this._pillContentElement.contains(target)) {
 			EventHelper.stop(event, true);
 			return;
+		}
+		// Alt-click opens the subagent chat to the side (in a new group) rather
+		// than in place. Thread the intent through the action context.
+		if ((event as MouseEvent).altKey) {
+			const context = asOpenSubagentChatContext(this._context);
+			if (context) {
+				EventHelper.stop(event, true);
+				this.actionRunner.run(this.action, { ...context, toSide: true });
+				return;
+			}
 		}
 		super.onClick(event, preserveFocus);
 	}

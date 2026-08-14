@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { activeContrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../workbench/common/theme.js';
-import { getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag } from '../dnd.js';
+import { getSessionChatDragData, IDraggedSessionChat } from '../dnd.js';
 
 /** Zone of a target group where a dragged chat can be dropped. */
 export type ChatDropZone = 'left' | 'right' | 'top' | 'bottom' | 'center';
@@ -22,6 +22,9 @@ export type ChatDropZone = 'left' | 'right' | 'top' | 'bottom' | 'center';
  * to, and receives drop notifications.
  */
 export interface IChatGroupDropTargetDelegate {
+
+	/** Whether the drag can be accepted by this session's grid. */
+	isChatDrag(event: DragEvent): boolean;
 
 	/** Resolve a child element to its owning chat group id + root element. */
 	findTargetGroup(child: HTMLElement): { readonly id: number; readonly element: HTMLElement } | undefined;
@@ -51,6 +54,7 @@ class ChatGroupDropOverlay extends Themable {
 		readonly targetGroupId: number,
 		private readonly _targetElement: HTMLElement,
 		private readonly _onDrop: (groupId: number, zone: ChatDropZone, data: IDraggedSessionChat | undefined) => void,
+		private readonly _isChatDrag: (event: DragEvent) => boolean,
 		@IThemeService themeService: IThemeService,
 	) {
 		super(themeService);
@@ -92,7 +96,7 @@ class ChatGroupDropOverlay extends Themable {
 	private _registerListeners(container: HTMLElement): void {
 		this._register(new DragAndDropObserver(container, {
 			onDragOver: e => {
-				if (!isSessionChatDrag(e)) {
+				if (!this._isChatDrag(e)) {
 					this._hideOverlay();
 					return;
 				}
@@ -257,7 +261,7 @@ export class ChatGroupDropTarget extends Themable {
 	private _onDragEnter(event: DragEvent): void {
 		this._counter++;
 
-		if (!isSessionChatDrag(event)) {
+		if (!this._delegate.isChatDrag(event)) {
 			if (event.dataTransfer) {
 				event.dataTransfer.dropEffect = 'none';
 			}
@@ -289,6 +293,7 @@ export class ChatGroupDropTarget extends Themable {
 			targetGroup.id,
 			targetGroup.element,
 			(groupId: number, zone: ChatDropZone, data: IDraggedSessionChat | undefined) => this._delegate.onChatDrop(groupId, zone, data),
+			event => this._delegate.isChatDrag(event),
 		);
 	}
 

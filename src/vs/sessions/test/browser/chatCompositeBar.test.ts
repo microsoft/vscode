@@ -253,9 +253,13 @@ suite('Sessions - ChatCompositeBar', () => {
 		const secondaryChat = session.visibleChatTabs.get()[1];
 		assert.deepStrictEqual({
 			isChatDrag: isSessionChatDrag(dragStart),
+			isSameSessionDrag: isSessionChatDrag(dragStart, session.sessionId),
+			isOtherSessionDrag: isSessionChatDrag(dragStart, 'other-session'),
 			payload: getSessionChatDragData(dragStart),
 		}, {
 			isChatDrag: true,
+			isSameSessionDrag: true,
+			isOtherSessionDrag: false,
 			payload: { sessionId: session.sessionId, resource: secondaryChat.resource.toString() },
 		});
 	});

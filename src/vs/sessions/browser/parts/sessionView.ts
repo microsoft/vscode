@@ -226,6 +226,28 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._groupsView.selectWorkspace(folderUri, providerId);
 	}
 
+	/** Opens the given chat in a group beside the active one ("open to the side"). */
+	openChatToSide(resource: URI): Promise<void> {
+		return this._groupsView.openChatInNewGroup(resource);
+	}
+
+	/** Places a freshly created chat (e.g. a side chat) into its own group beside the current one. */
+	splitChatToSide(resource: URI): void {
+		this._groupsView.splitChatToSide(resource);
+	}
+
+	focusAdjacentChatGroup(direction: 'previous' | 'next'): void {
+		this._groupsView.focusAdjacentGroup(direction);
+	}
+
+	splitActiveChat(direction: 'right' | 'bottom'): void {
+		this._groupsView.splitActiveChat(direction);
+	}
+
+	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void {
+		this._groupsView.moveActiveChatToAdjacentGroup(direction);
+	}
+
 	prefillInput(text: string): void {
 		this._groupsView.prefillInput(text);
 	}
