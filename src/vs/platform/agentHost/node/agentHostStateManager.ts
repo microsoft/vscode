@@ -793,6 +793,19 @@ export class AgentHostStateManager extends Disposable {
 		});
 	}
 
+	/** Removes a surfaced session without affecting a live session. */
+	retractSurfacedSession(session: string): void {
+		if (this._sessionStates.has(session)) {
+			return;
+		}
+		this._summaryNotifier.remove(session);
+		this._onDidEmitNotification.fire({
+			type: 'root/sessionRemoved',
+			channel: ROOT_STATE_URI,
+			session,
+		});
+	}
+
 	/**
 	 * Restores a session from a previous server lifetime into the state manager
 	 * with pre-populated turns. The session is created in `ready` lifecycle
