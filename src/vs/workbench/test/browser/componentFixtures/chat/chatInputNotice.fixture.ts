@@ -112,16 +112,7 @@ function renderNotices(context: ComponentFixtureContext): void {
 	addOnboardingCard(context);
 }
 
-/**
- * The same notices in a denser host, which rounds its input tighter.
- *
- * A docked notice and the input read as one surface, so they have to agree on
- * how round that surface is. The host publishes that as `--chat-input-radius`
- * and the stack hands it to every member, which is the only thing keeping the
- * notice's top corners and the input's bottom corners on the same tier. Set here
- * directly, since the rule that declares it lives in the chat widget's own
- * stylesheet, which this fixture does not pull in.
- */
+/** Renders notices at the compact input radius, declared inline because this fixture does not load `chat.css`. */
 function renderNoticesInCompactInput(context: ComponentFixtureContext): void {
 	prepareContainer(context.container);
 	context.container.style.setProperty('--chat-input-radius', 'var(--vscode-cornerRadius-small)');
