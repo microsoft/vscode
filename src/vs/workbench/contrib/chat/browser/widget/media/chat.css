@@ -3884,13 +3884,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: absolute;
 	bottom: 7px;
 	right: 12px;
-	border-radius: 100%;
-	width: 27px;
-	height: 27px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size280);
 
 	.codicon {
-		margin: 0px;
+		margin: 0;
 	}
+
+	.codicon::before {
+		display: inline-block;
+		transform: translateY(1px);
+	}
+}
+
+.interactive-session .chat-scroll-down:hover,
+.interactive-session .chat-scroll-down:focus {
+	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
+	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
 .interactive-session.show-scroll-down .chat-scroll-down {
