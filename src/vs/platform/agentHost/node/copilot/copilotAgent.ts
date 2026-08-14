@@ -3166,7 +3166,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const turns = await entry.getMessages();
 		const sideChat = this._chatBackings.get(context.chatKey)?.sideChat;
-		return sliceSideChatTurns(turns, sideChat, message => this._logService.warn(`[Copilot] getMessages: chat ${context.chatKey}: ${message}`));
+		return sliceSideChatTurns(turns, sideChat);
 	}
 
 	/** Reconstructs a subagent transcript from the parent chat named by the host-supplied tool origin. */
@@ -3464,8 +3464,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (sourceTurnIndex === -1) {
 			this._logService.warn(`[Copilot] fork: turn ${turnId} not found in source session ${sourceEntry.sessionId}; inheriting all ${sourceTurns.length} turns`);
 		}
-		const inheritedTurnCount = sourceTurnIndex === -1 ? sourceTurns.length : sourceTurnIndex + 1;
-		const inheritedTurnId = sourceTurns[inheritedTurnCount - 1]?.id;
+		const inheritedTurnIndex = sourceTurnIndex === -1 ? sourceTurns.length - 1 : sourceTurnIndex;
+		const inheritedTurnId = sourceTurns[inheritedTurnIndex]?.id;
 		// toEventId is exclusive — events before it are included. If there's no
 		// next turn, omit it to include all events.
 		const toEventId = await sourceEntry.getNextTurnEventId(turnId);

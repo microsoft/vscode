@@ -1601,8 +1601,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	/**
 	 * Fork the source chat's SDK conversation at the requested turn and return
-	 * the new conversation's id (plus how many of the source's turns it
-	 * inherited, which a side chat records as its hidden prefix). Returns
+	 * the new conversation's id plus the id of its final inherited turn. Returns
 	 * `undefined` — so the caller mints a fresh conversation instead — when the
 	 * source chat has no backing or the fork anchor is absent from the SDK
 	 * transcript.
@@ -1933,7 +1932,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		const turns = await this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
 		const sideChat = this._chatBackings.get(context.chatKey)?.sideChat;
-		return sliceSideChatTurns(turns, sideChat, message => this._logService.warn(`[Claude] getMessages: chat ${context.chatKey}: ${message}`));
+		return sliceSideChatTurns(turns, sideChat);
 	}
 
 	/**
