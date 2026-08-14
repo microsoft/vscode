@@ -78,9 +78,10 @@ suite('ChatMarkdownContentPart', () => {
 		} as unknown as EditorPool;
 	}
 
-	function createRenderContext(isComplete: boolean = true): IChatContentPartRenderContext {
+	function createRenderContext(isComplete: boolean = true, isCanceled: boolean = false): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
 			isComplete,
+			isCanceled,
 			isCompleteAddedRequest: false,
 			id: 'test-response-id',
 			sessionResource: URI.parse('chat-session://test/session1'),
@@ -347,7 +348,13 @@ suite('ChatMarkdownContentPart', () => {
 		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
 	});
 
-	test('reuses rendered code block webview across incremental rerenders when content is unchanged', async () => {
+	test('renders complete standalone chat output while its response is streaming', () => {
+		createMarkdownPart('```mermaid\ngraph TD\n```', createRenderContext(false));
+
+		assert.deepStrictEqual(renderedCodeBlockOutputs, [{ identifier: 'mermaid', text: 'graph TD' }]);
+	});
+
+	test('keeps chat output pending across incremental rerenders', async () => {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
 
@@ -355,7 +362,7 @@ suite('ChatMarkdownContentPart', () => {
 		const markdown = '```mermaid\ngraph TD\n```';
 		const part = createMarkdownPart(markdown, ctx, true);
 
-		assert.strictEqual(renderedCodeBlockOutputs.length, 1);
+		assert.strictEqual(renderedCodeBlockOutputs.length, 0);
 		assert.strictEqual(part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString(`${markdown}\n\nNext paragraph`) }), true);
 
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
@@ -364,9 +371,80 @@ suite('ChatMarkdownContentPart', () => {
 			renderedOutputs: renderedCodeBlockOutputs,
 			outputBlockCount: part.domNode.querySelectorAll('.chat-output-code-block').length,
 		}, {
-			renderedOutputs: [{ identifier: 'mermaid', text: 'graph TD' }],
+			renderedOutputs: [],
 			outputBlockCount: 1,
 		});
+	});
+
+	test('renders pending chat output once when the response completes', () => {
+		const ctx = createRenderContext(false);
+		const markdown = '```mermaid\ngraph TD\n```\n\nTrailing text';
+		const content = { kind: 'markdownContent' as const, content: new MarkdownString(markdown) };
+		const streamingPart = createMarkdownPart(markdown, ctx, true);
+
+		assert.deepStrictEqual({
+			renderedOutputs: renderedCodeBlockOutputs,
+			sameWhileStreaming: streamingPart.hasSameContent(content),
+		}, {
+			renderedOutputs: [],
+			sameWhileStreaming: true,
+		});
+
+		Object.assign(ctx.element, { isComplete: true });
+		assert.strictEqual(streamingPart.hasSameContent(content), false);
+
+		const completedPart = createMarkdownPart(markdown, ctx);
+		assert.deepStrictEqual({
+			renderedOutputs: renderedCodeBlockOutputs,
+			sameAfterCompletion: completedPart.hasSameContent(content),
+		}, {
+			renderedOutputs: [{ identifier: 'mermaid', text: 'graph TD' }],
+			sameAfterCompletion: true,
+		});
+	});
+
+	test('completion bypasses incremental updates for pending chat output', () => {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+
+		const ctx = createRenderContext(false);
+		const markdown = '```mermaid\ngraph TD\n```';
+		const content = { kind: 'markdownContent' as const, content: new MarkdownString(markdown) };
+		const part = createMarkdownPart(markdown, ctx, true);
+
+		Object.assign(ctx.element, { isComplete: true });
+
+		assert.deepStrictEqual({
+			hasSameContent: part.hasSameContent(content),
+			incrementalUpdate: part.tryIncrementalUpdate(content),
+			renderedOutputs: renderedCodeBlockOutputs,
+		}, {
+			hasSameContent: false,
+			incrementalUpdate: false,
+			renderedOutputs: [],
+		});
+	});
+
+	test('renders pending chat output when the response is canceled', () => {
+		const ctx = createRenderContext(false);
+		const markdown = '```mermaid\ngraph TD\n```';
+		const content = { kind: 'markdownContent' as const, content: new MarkdownString(markdown) };
+		const streamingPart = createMarkdownPart(markdown, ctx, true);
+
+		Object.assign(ctx.element, { isCanceled: true });
+		assert.strictEqual(streamingPart.hasSameContent(content), false);
+
+		createMarkdownPart(markdown, ctx);
+		assert.deepStrictEqual(renderedCodeBlockOutputs, [{ identifier: 'mermaid', text: 'graph TD' }]);
+	});
+
+	test('renders multiple chat outputs after response completion', () => {
+		createMarkdownPart('```mermaid\ngraph TD\n```\n\n```mermaid\ngraph LR\n```');
+
+		assert.deepStrictEqual(renderedCodeBlockOutputs, [
+			{ identifier: 'mermaid', text: 'graph TD' },
+			{ identifier: 'mermaid', text: 'graph LR' },
+		]);
 	});
 
 	test('does not render initial incomplete code fence', () => {

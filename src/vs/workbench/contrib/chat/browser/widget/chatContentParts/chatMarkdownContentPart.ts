@@ -116,6 +116,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	private readonly mathLayoutParticipants = new Set<() => void>();
+	private readonly _element: IChatContentPartRenderContext['element'];
+	private readonly _responseWasTerminal: boolean;
+	private _hasPendingChatOutputCodeBlock = false;
 
 	/** Incremental rendering morpher — only created when the experiment is enabled. */
 	private _incrementalMorpher: IncrementalDOMMorpher | undefined;
@@ -140,6 +143,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		super();
 
 		const element = context.element;
+		this._element = element;
+		this._responseWasTerminal = !isResponseVM(element) || element.isComplete || element.isCanceled;
 		const inUndoStop = (findLast(context.content, e => e.kind === 'undoStop', context.contentIndex) as IChatUndoStop | undefined)?.id;
 
 		// Need to track the index of the codeblock within the response so it can have a unique ID,
@@ -244,6 +249,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
 					const hasChatOutputRenderer = !!languageId
 						&& this.chatOutputRendererService.hasCodeBlockRenderer(languageId);
+					const renderChatOutput = hasChatOutputRenderer && (this._responseWasTerminal || (!fillInIncompleteTokens && isCodeBlockComplete));
+					this._hasPendingChatOutputCodeBlock ||= hasChatOutputRenderer && !renderChatOutput;
 					if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n')))
 						&& !isCodeBlockComplete
 						&& !hasChatOutputRenderer) {
@@ -316,7 +323,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 					if (element.isCompleteAddedRequest || !codemapperUri || !isEdit) {
 						if (hasChatOutputRenderer) {
-							const ref = this.renderChatOutputCodeBlock(languageId, codeBlockText, globalIndex, context, isCodeBlockComplete, reusableOutputCodeBlockRefs);
+							const ref = this.renderChatOutputCodeBlock(languageId, codeBlockText, globalIndex, context, renderChatOutput, reusableOutputCodeBlockRefs);
 							this._codeblocks.push({
 								...baseCodeBlockInfo,
 								codemapperUri: codeBlockInfo.codemapperUri,
@@ -544,7 +551,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 
 		if (other.content.value === this.markdown.content.value && equalsInlineReferences(other.inlineReferences, this.markdown.inlineReferences)) {
-			return true;
+			return !this.shouldRenderPendingChatOutput();
 		}
 
 		// If we are streaming in code shown in an edit pill, do not re-render the entire content as long as it's coming in
@@ -580,6 +587,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			return false;
 		}
 
+		if (this.shouldRenderPendingChatOutput()) {
+			return false;
+		}
+
 		if (!equalsInlineReferences(newMarkdown.inlineReferences, this.markdown.inlineReferences)) {
 			return false;
 		}
@@ -594,6 +605,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 
 		return success;
+	}
+
+	private shouldRenderPendingChatOutput(): boolean {
+		return this._hasPendingChatOutputCodeBlock
+			&& !this._responseWasTerminal
+			&& isResponseVM(this._element)
+			&& (this._element.isComplete || this._element.isCanceled);
 	}
 
 	/**
