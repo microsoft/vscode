@@ -155,8 +155,12 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 		}));
 	}
 
+	protected override hasOpenDropdown(): boolean {
+		return this._issuePickerVisible;
+	}
+
 	protected override onDidClickButton(): void {
-		if (this._issuePickerVisible) {
+		if (this.hasOpenDropdown()) {
 			this._hoverService.hideHover(true);
 			return;
 		}

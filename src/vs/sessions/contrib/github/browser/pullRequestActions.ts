@@ -250,8 +250,12 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 		}));
 	}
 
+	protected override hasOpenDropdown(): boolean {
+		return !!this._pullRequestList;
+	}
+
 	protected override onDidClickButton(): void {
-		if (this._pullRequestList) {
+		if (this.hasOpenDropdown()) {
 			this._hoverService.hideHover(true);
 			return;
 		}
