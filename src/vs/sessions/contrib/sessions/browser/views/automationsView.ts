@@ -25,6 +25,7 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from 
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -536,8 +537,8 @@ class AutomationHistorySection extends Disposable {
 	private readonly groupsContainer: HTMLElement;
 	private readonly headerDisposables = this._register(new DisposableStore());
 	private readonly persistentGroups = new Map<string, IAutomationHistoryGroup>();
-	private readonly temporaryRunIds = new Set<string>();
 	private readonly runFocusTargets = new Map<string, { readonly list: SessionsFlatList; readonly session: ISession }>();
+	private readonly approvalModel: AgentSessionApprovalModel;
 	private renderedFocusableRunIds: string[] = [];
 	private pendingFocusRunId: string | undefined;
 	private shouldRestoreFocus = false;
@@ -565,24 +566,16 @@ class AutomationHistorySection extends Disposable {
 		super();
 		this.container = DOM.append(parent, $('.automations-history'));
 		this.groupsContainer = DOM.append(this.container, $('.automations-history-groups'));
+		this.approvalModel = this._register(this.instantiationService.createInstance(AgentSessionApprovalModel));
 	}
 
 	render(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): void {
 		const sessionRuns = runs.filter(run => sessions.has(run.id));
-		const runIds = new Set(runs.map(run => run.id));
-		for (const runId of this.temporaryRunIds) {
-			if (!runIds.has(runId)) {
-				this.temporaryRunIds.delete(runId);
-			}
-		}
-		for (const run of runs) {
-			if (sessions.has(run.id) || (!isTemporaryAutomationRun(run) && !run.sessionResource)) {
-				this.temporaryRunIds.delete(run.id);
-			} else if (isTemporaryAutomationRun(run)) {
-				this.temporaryRunIds.add(run.id);
-			}
-		}
-		const visibleRuns = runs.filter(run => sessions.has(run.id) || this.temporaryRunIds.has(run.id));
+		const visibleRuns = runs.filter(run =>
+			sessions.has(run.id)
+			|| isTemporaryAutomationRun(run)
+			|| (!!run.sessionResource && !!this.sessionsManagementService.getSession(run.sessionResource))
+		);
 		transaction(tx => {
 			this.currentRuns.set(sessionRuns, tx);
 			this.currentSessions.set(sessions, tx);
@@ -733,6 +726,7 @@ class AutomationHistorySection extends Disposable {
 			alwaysConsumeMouseWheel: false,
 			toolbarMenuId: Menus.AutomationsHistoryItem,
 			markSessionReadOnOpen: false,
+			approvalModel: this.approvalModel,
 			onSessionOpen: resource => void this.openRunSession(resource),
 			onToolbarAction: (action, session) => this.handleSessionToolbarAction(action, session, entry.runsBySession),
 		}));
