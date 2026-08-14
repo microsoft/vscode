@@ -1275,7 +1275,8 @@
             "description": "%configuration.markdown.experimental.richLinks.enabled%",
             "scope": "window",
             "tags": [
-              "experimental"
+              "experimental",
+              "onExP"
             ]
           },
           "markdown.links.openLocation": {
