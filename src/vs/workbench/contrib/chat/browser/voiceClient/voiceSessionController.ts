@@ -543,7 +543,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// transcript on every chunk, so a late chunk from the old turn would have
 	// incorrectly cleared the flag.
 	private _suppressIncomingAudio = false;
-	private _suppressOmniDispatchAcknowledgement = false;
+	private _pendingOmniDispatchAcknowledgement: { sessionKey?: string } | undefined;
 	private readonly _pendingAfterOmniDispatchAcknowledgement = new Map<string, IVoiceNarratable>();
 	/** Turn/response ids whose playback was cancelled by barge-in. */
 	private readonly _interruptedAudioIds = new Set<string>();
@@ -1746,12 +1746,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						}
 					}
 					// Release eagerly-loaded model refs for sessions no longer awaiting input
-					for (const id of [...this._eagerModelRefs.keys()]) {
-						if (!stillWaiting.has(id)) {
-							this._eagerModelRefs.get(id)!.dispose();
-							this._eagerModelRefs.delete(id);
-						}
-					}
+					this._releaseUnusedEagerModelRefs(stillWaiting);
 				});
 				// Periodic fallback: check session state changes every 5s
 				// to catch transitions missed when the chat model isn't loaded
@@ -1883,23 +1878,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				: this._matchUntaggedSolicitedNarration(e.codingSessionId, e.narrationKind);
 			const responseId = e.responseId ?? matchedSolicitedNarration?.[0];
 			const solicitedNarration = matchedSolicitedNarration?.[1];
-			if (this._suppressOmniDispatchAcknowledgement) {
-				if (solicitedNarration) {
-					this._suppressOmniDispatchAcknowledgement = false;
-				} else {
-					if (e.isFinal) {
-						this._suppressOmniDispatchAcknowledgement = false;
-						const pendingNarrations = [...this._pendingAfterOmniDispatchAcknowledgement];
-						this._pendingAfterOmniDispatchAcknowledgement.clear();
-						queueMicrotask(() => {
-							for (const [sessionId, pending] of pendingNarrations) {
-								this._retryPendingNarration(sessionId, pending);
-							}
-						});
-					}
-					this.logService.trace(`[voice] dropping Omni dispatch acknowledgement isFinal=${e.isFinal}`);
-					return;
+			const isCorrelatedSolicitedNarration = !!e.responseId || !!e.narrationKind;
+			if (!isCorrelatedSolicitedNarration && this._isPendingOmniDispatchAcknowledgement(e.codingSessionId)) {
+				if (e.isFinal) {
+					this._completeOmniDispatchAcknowledgement();
 				}
+				this.logService.trace(`[voice] dropping Omni dispatch acknowledgement isFinal=${e.isFinal}`);
+				return;
 			}
 			const echoedCheckpoint: IVoiceCheckpointNarrationMetadata | undefined = e.requestId && e.checkpointId && e.sequence !== undefined
 				? { requestId: e.requestId, checkpointId: e.checkpointId, sequence: e.sequence }
@@ -2195,7 +2180,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolArgs: e.args,
 				});
 				this._setAwaitingReply();
-				this._suppressOmniDispatchAcknowledgement = this._omniInputOpen.get() && !!text.trim();
+				this._completeOmniDispatchAcknowledgement();
+				this._pendingOmniDispatchAcknowledgement = this._omniInputOpen.get() && !!text.trim() ? {} : undefined;
 				const sendPromise = text.trim()
 					? this._sendTranscriptionToChat(text)
 					: Promise.resolve(undefined);
@@ -2207,18 +2193,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				sendPromise.then(resource => {
 					if (resource === false) {
 						this._clearAwaitingReply();
-						this._suppressOmniDispatchAcknowledgement = false;
+						this._completeOmniDispatchAcknowledgement();
 						this.voiceClientService.sendToolResult(e.callId, { ok: false, reason: 'no_session' });
 						settle();
 						return;
 					}
 					const backendResource = resource ? (toAgentHostBackendSessionUri(resource) ?? resource).toString() : undefined;
+					if (this._pendingOmniDispatchAcknowledgement && resource) {
+						this._pendingOmniDispatchAcknowledgement.sessionKey = this._sessionKey(resource.toString());
+					}
 					this.voiceClientService.sendToolResult(e.callId, 'ok', backendResource);
 					settle();
 				}, error => {
 					this.logService.error('[voice] send_to_chat failed', error);
 					this._clearAwaitingReply();
-					this._suppressOmniDispatchAcknowledgement = false;
+					this._completeOmniDispatchAcknowledgement();
 					this.voiceClientService.sendToolResult(e.callId, { ok: false, reason: 'no_session' });
 					settle();
 				});
@@ -2255,8 +2244,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._finishPtt();
 				}
 				this._suppressIncomingAudio = false;
-				this._suppressOmniDispatchAcknowledgement = false;
-				this._pendingAfterOmniDispatchAcknowledgement.clear();
+				this._completeOmniDispatchAcknowledgement();
 				this._setAwaitingReply();
 				const settle = (): void => {
 					this._voiceState.set('idle', undefined);
@@ -2940,7 +2928,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// A fresh user press starts a new turn — no longer suppress send_to_chat
 		// from a previously discarded turn, nor pin it to a prior session.
 		this._suppressSendToChatUntil = 0;
-		this._suppressOmniDispatchAcknowledgement = false;
+		this._completeOmniDispatchAcknowledgement();
 		this._setPinnedSubmitSession(undefined);
 
 		// Toggle mode: second tap finishes recording. A forced new turn (e.g.
@@ -3357,6 +3345,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const sessionKey = this._sessionKey(resource.toString());
 		this._routedRequests.delete(sessionKey);
 		this._abandonedRoutedRequests.delete(sessionKey);
+		this._releaseEagerModelRef(sessionKey);
 	}
 
 	getLastSpokenResponseSession(): URI | undefined {
@@ -3477,8 +3466,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _rememberOmniCompletedResponse(model: IChatModel): void {
 		const response = model.lastRequest?.response;
 		if (response?.isComplete && !response.isCanceled) {
-			this._omniCompletedResponseIds.add(`${this._sessionKey(model.sessionResource.toString())}\0${response.id}`);
+			this._rememberOmniCompletedResponseId(`${this._sessionKey(model.sessionResource.toString())}\0${response.id}`);
 		}
+	}
+
+	private _rememberOmniCompletedResponseId(id: string): void {
+		if (this._omniCompletedResponseIds.has(id)) {
+			return;
+		}
+		while (this._omniCompletedResponseIds.size >= 256) {
+			const oldest = this._omniCompletedResponseIds.values().next().value;
+			if (oldest === undefined) {
+				break;
+			}
+			this._omniCompletedResponseIds.delete(oldest);
+		}
+		this._omniCompletedResponseIds.add(id);
 	}
 
 	private _claimOmniCompletedResponse(model: IChatModel, state: string, summary: string): boolean {
@@ -3494,13 +3497,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (this._omniCompletedResponseIds.has(id)) {
 			return false;
 		}
-		if (this._omniCompletedResponseIds.size >= 256) {
-			const oldest = this._omniCompletedResponseIds.values().next().value;
-			if (oldest !== undefined) {
-				this._omniCompletedResponseIds.delete(oldest);
-			}
-		}
-		this._omniCompletedResponseIds.add(id);
+		this._rememberOmniCompletedResponseId(id);
 		return true;
 	}
 
@@ -4792,7 +4789,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return false;
 			}
 		}
-		if (kind !== 'response' && kind !== 'checkpoint' && this._suppressOmniDispatchAcknowledgement && this._isOmniVoiceInboxSession(sessionId)) {
+		if (kind !== 'response' && kind !== 'checkpoint' && this._pendingOmniDispatchAcknowledgement && this._isOmniVoiceInboxSession(sessionId)) {
 			this._pendingAfterOmniDispatchAcknowledgement.set(sessionKey, { kind, text, confirmationType, ...(pending ? { pending } : {}) });
 			this.logService.trace(`[voice] deferring ${kind} until Omni dispatch acknowledgement completes session=${sessionKey.slice(-32)}`);
 			return false;
@@ -5116,6 +5113,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const sessionKey = this._sessionKey(sessionId);
 		this._abandonedRoutedRequests.delete(sessionKey);
 		if (this._routedRequests.delete(sessionKey)) {
+			this._releaseEagerModelRef(sessionKey);
 			this.logService.trace(`[voice] completed routed response after playback session=${sessionKey.slice(-32)}`);
 		}
 	}
@@ -5315,6 +5313,25 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return false;
 		}
 		return this._narrate(sessionId, current.kind, current.text, undefined, undefined, current.confirmationType, current.pending);
+	}
+
+	private _isPendingOmniDispatchAcknowledgement(codingSessionId: string | undefined): boolean {
+		const pending = this._pendingOmniDispatchAcknowledgement;
+		return !!pending && (!pending.sessionKey || !codingSessionId || pending.sessionKey === this._sessionKey(codingSessionId));
+	}
+
+	private _completeOmniDispatchAcknowledgement(): void {
+		if (!this._pendingOmniDispatchAcknowledgement) {
+			return;
+		}
+		this._pendingOmniDispatchAcknowledgement = undefined;
+		const pendingNarrations = [...this._pendingAfterOmniDispatchAcknowledgement];
+		this._pendingAfterOmniDispatchAcknowledgement.clear();
+		queueMicrotask(() => {
+			for (const [sessionId, pending] of pendingNarrations) {
+				this._retryPendingNarration(sessionId, pending);
+			}
+		});
 	}
 
 	/** Drop a deferred narration. */
@@ -6153,6 +6170,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			releasedSessionKeys.add(sessionKey);
 			this._routedRequests.delete(sessionKey);
 			this._abandonedRoutedRequests.delete(sessionKey);
+			this._releaseEagerModelRef(sessionKey);
 		}
 		for (const item of this._omniNarrationQueue) {
 			const sessionKey = this._sessionKey(item.sessionId);
@@ -6804,6 +6822,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._clearPendingResponse(sessionKey);
 				this._routedRequests.delete(sessionKey);
 				this._abandonedRoutedRequests.delete(sessionKey);
+				this._releaseEagerModelRef(sessionKey);
 			}
 			this.logService.trace(`[voice] abandoning ${currentState} state for closed omni route session=${sessionKey.slice(-32)}`);
 			return;
@@ -7543,6 +7562,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			cts.dispose();
 		}, () => { this._eagerModelLoading.delete(key); this._pendingIdleNarration.delete(key); cts.dispose(); });
+	}
+
+	private _releaseUnusedEagerModelRefs(stillWaiting: ReadonlySet<string>): void {
+		for (const id of [...this._eagerModelRefs.keys()]) {
+			if (!stillWaiting.has(id) && !this._routedRequests.has(id)) {
+				this._releaseEagerModelRef(id);
+			}
+		}
+	}
+
+	private _releaseEagerModelRef(sessionKey: string): void {
+		this._eagerModelRefs.get(sessionKey)?.dispose();
+		this._eagerModelRefs.delete(sessionKey);
 	}
 
 	/**

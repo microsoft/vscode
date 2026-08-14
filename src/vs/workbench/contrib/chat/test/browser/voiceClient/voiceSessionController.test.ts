@@ -5930,6 +5930,77 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(chatService.loaded, [resource.toString()]);
 	});
 
+	test('retains an eager model reference while an omni-routed request is running', () => {
+		const chatService = new ControllableChatService();
+		const resource = URI.parse('agent-host-copilotcli:/running-omni-target');
+		const lastRequest = {
+			id: 'running-request',
+			response: {
+				onDidChange: Event.None,
+				isPendingConfirmation: observableValue('pending', undefined),
+				isIncomplete: observableValue('incomplete', true),
+				response: { value: [], getMarkdown: () => '' },
+			},
+		};
+		chatService.setModels([{
+			sessionResource: resource,
+			getRequests: () => [lastRequest],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+		} as unknown as IChatModel]);
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService);
+		let disposeCount = 0;
+		const eagerRefs = Reflect.get(controller, '_eagerModelRefs') as Map<string, IChatModelReference>;
+		const releaseUnused = Reflect.get(controller, '_releaseUnusedEagerModelRefs') as (stillWaiting: ReadonlySet<string>) => void;
+		eagerRefs.set(resource.toString(), {
+			object: {},
+			dispose: () => disposeCount++,
+		} as unknown as IChatModelReference);
+		controller.markRoutedRequestPending(resource, 'running-request');
+		controller.markRoutedRequestPending(resource, 'running-request');
+		releaseUnused.call(controller, new Set());
+
+		assert.deepStrictEqual({
+			disposeCount,
+			route: (Reflect.get(controller, '_routedRequests') as Map<string, { phase: string }>).get(resource.toString()),
+		}, {
+			disposeCount: 0,
+			route: { requestId: 'running-request', hasMatchedModelRequest: true, phase: 'running' },
+		});
+
+		controller.clearRoutedRequest(resource);
+		assert.strictEqual(disposeCount, 1);
+	});
+
+	test('opening omni keeps completed response tracking bounded', () => {
+		const chatService = new ControllableChatService();
+		const models = Array.from({ length: 300 }, (_, index) => {
+			const resource = URI.parse(`vscode-chat://completed-${index}`);
+			const response = {
+				id: `response-${index}`,
+				onDidChange: Event.None,
+				isPendingConfirmation: observableValue('pending', undefined),
+				isIncomplete: observableValue('incomplete', false),
+				isComplete: true,
+				isCanceled: false,
+				response: { value: [], getMarkdown: () => `Completed ${index}` },
+			};
+			const lastRequest = { id: `request-${index}`, response };
+			return {
+				sessionResource: resource,
+				title: `Completed ${index}`,
+				lastRequest,
+				lastRequestObs: observableValue('lastRequest', lastRequest),
+				getRequests: () => [lastRequest],
+			} as unknown as IChatModel;
+		});
+		chatService.setModels(models);
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService);
+
+		controller.setOmniInputOpen(true);
+
+		assert.strictEqual((Reflect.get(controller, '_omniCompletedResponseIds') as Set<string>).size, 256);
+	});
+
 	test('an omni response is never requested again after it has been heard', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);
@@ -6728,7 +6799,7 @@ suite('VoiceSessionController', () => {
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const commandService = new TestCommandService();
 		const controller = createController(voiceClientService, ttsPlaybackService, commandService);
-		const sessionId = URI.parse('vscode-chat://omni-dispatch-ack').toString();
+		const sessionId = URI.parse('chat-session').toString();
 		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
 			sessionId: string,
 			state: string,
@@ -6745,12 +6816,20 @@ suite('VoiceSessionController', () => {
 			args: { text: 'continue the related task' },
 		});
 		await voiceClientService.toolResultReceived;
+		assert.notStrictEqual(Reflect.get(controller, '_pendingOmniDispatchAcknowledgement'), undefined);
 		voiceClientService.fireAudioResponse({
 			audio: 'The command is done.',
 			isFirstChunk: true,
 			isFinal: true,
 			codingSessionId: sessionId,
 			transcript: 'The command is done.',
+		});
+		assert.deepStrictEqual({
+			pendingAcknowledgement: Reflect.get(controller, '_pendingOmniDispatchAcknowledgement'),
+			playedAudio: ttsPlaybackService.playedAudio,
+		}, {
+			pendingAcknowledgement: undefined,
+			playedAudio: [],
 		});
 
 		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The actual task is complete.', undefined);
@@ -6843,6 +6922,85 @@ suite('VoiceSessionController', () => {
 			{ sessionId: backendResource.toString(), kind: 'confirmation', text: 'tool approval: GitHub Copilot needs your approval to continue.' },
 			{ sessionId: backendResource.toString(), kind: 'confirmation', text: 'tool approval: GitHub Copilot needs your approval to continue.' },
 		]);
+	});
+
+	test('a solicited response before the dispatch acknowledgement does not strand a confirmation', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const commandService = new TestCommandService(true);
+		const chatService = new ControllableChatService();
+		const resource = URI.parse('vscode-chat://omni-response-before-ack');
+		const response = {
+			onDidChange: Event.None,
+			isPendingConfirmation: observableValue<{ detail?: string } | undefined>('pending', { detail: 'Needs approval' }),
+			isIncomplete: observableValue('incomplete', false),
+			response: { value: [] as readonly { kind: string }[], getMarkdown: () => '' },
+		};
+		const lastRequest = { id: 'confirmation-request', response };
+		chatService.setModels([{
+			sessionResource: resource,
+			title: 'Chat',
+			getRequests: () => [lastRequest],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+		} as unknown as IChatModel]);
+		const controller = createController(voiceClientService, ttsPlaybackService, commandService, undefined, undefined, undefined, chatService);
+		showSessionsInAgentsList(controller, resource.toString());
+		await connectWithOmniOpen(controller, voiceClientService);
+		controller.setTargetSession(resource, 'existing_session');
+
+		voiceClientService.fireToolCall({
+			callId: 'omni-response-before-ack',
+			name: 'send_to_chat',
+			args: { text: 'run the tests' },
+		});
+		await voiceClientService.toolResultReceived;
+		assert.notStrictEqual(Reflect.get(controller, '_pendingOmniDispatchAcknowledgement'), undefined);
+		controller.announceSessionInOmni(resource);
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: string, text: string) => boolean;
+		narrate.call(controller, resource.toString(), 'response', 'An earlier response.');
+		const responseNarration = voiceClientService.requests[0];
+
+		voiceClientService.fireAudioResponse({
+			audio: 'An earlier response.',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: resource.toString(),
+			responseId: responseNarration.narrationId,
+			narrationKind: 'response',
+			transcript: 'An earlier response.',
+		});
+		assert.deepStrictEqual({
+			requestCount: voiceClientService.requests.length,
+			pendingAcknowledgement: Reflect.get(controller, '_pendingOmniDispatchAcknowledgement'),
+			deferredConfirmations: [...(Reflect.get(controller, '_pendingAfterOmniDispatchAcknowledgement') as Map<string, unknown>)],
+			currentNarratable: (Reflect.get(controller, '_currentNarratable') as (resource: URI) => unknown).call(controller, resource),
+		}, {
+			requestCount: 1,
+			pendingAcknowledgement: { sessionKey: resource.toString() },
+			deferredConfirmations: [[resource.toString(), {
+				kind: 'confirmation',
+				text: 'tool approval: GitHub Copilot needs your approval to continue.',
+				confirmationType: 'generic',
+			}]],
+			currentNarratable: {
+				kind: 'confirmation',
+				text: 'tool approval: GitHub Copilot needs your approval to continue.',
+				confirmationType: 'generic',
+			},
+		});
+
+		voiceClientService.fireAudioResponse({
+			audio: 'I sent that request.',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: resource.toString(),
+			transcript: 'I sent that request.',
+		});
+		await Promise.resolve();
+		ttsPlaybackService.stopPlayback();
+		await Promise.resolve();
+
+		assert.deepStrictEqual(voiceClientService.requests.map(request => request.kind), ['response', 'confirmation']);
 	});
 
 	test('resolves a backend session id before dispatching a spoken approval', async () => {

@@ -370,7 +370,6 @@ suite('OmniSessionRoutingAdapter', () => {
 		const result = await adapter.dispatchToNewSession({ folder, providerId: 'provider' }, 'Build it', {
 			attachedContext: [attachment],
 			userSelectedModelId: 'model',
-			userSelectedModelConfiguration: { reasoningEffort: 'high', contextSize: 1_000_000 },
 			modeInfo: {
 				kind: ChatModeKind.Agent,
 				isBuiltin: true,
@@ -446,6 +445,23 @@ suite('OmniSessionRoutingAdapter', () => {
 			status: 'rejected',
 			reasonCode: 'unsupportedOptions',
 			reason: 'The selected tool configuration cannot be sent through Sessions.',
+		});
+		assert.strictEqual(managementService.existingSend, undefined);
+	});
+
+	test('rejects unsupported model configuration instead of dropping it', async () => {
+		const session = createSession('provider:session');
+		managementService.sessions = [session];
+
+		const result = await adapter.dispatchToSession(session.sessionId, 'Continue', {
+			userSelectedModelId: 'model',
+			userSelectedModelConfiguration: { reasoningEffort: 'high', contextSize: 1_000_000 },
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(result, {
+			status: 'rejected',
+			reasonCode: 'unsupportedOptions',
+			reason: 'The selected model configuration cannot be sent through Sessions.',
 		});
 		assert.strictEqual(managementService.existingSend, undefined);
 	});

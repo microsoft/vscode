@@ -5,8 +5,11 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { isElectron } from '../../../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase, IExtUri } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -15,6 +18,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
@@ -35,8 +40,6 @@ import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAc
 import { IChatSessionsService, isAgentHostTarget } from '../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
 import { IChatSessionRoutingProviderService, IRoutableSession } from '../../common/sessionRouter.js';
@@ -67,17 +70,15 @@ export function shouldShowOpenEditorsContext(widget: Pick<IChatWidget, 'viewMode
 
 type SessionWorkspaceIdentity = Pick<IRoutableSession, 'cwd' | 'repo'>;
 
-export function isSameSessionWorkspace(current: SessionWorkspaceIdentity, candidate: SessionWorkspaceIdentity): boolean {
-	const normalize = (value: string | undefined) => value?.replace(/[\\/]+$/, '').toLowerCase();
-	const currentRepo = normalize(current.repo);
-	const candidateRepo = normalize(candidate.repo);
+export function isSameSessionWorkspace(current: SessionWorkspaceIdentity, candidate: SessionWorkspaceIdentity, extUri: IExtUri = extUriBiasedIgnorePathCase): boolean {
+	const normalizeRepository = (value: string | undefined) => value?.replace(/[\\/]+$/, '').toLowerCase();
+	const currentRepo = normalizeRepository(current.repo);
+	const candidateRepo = normalizeRepository(candidate.repo);
 	if (currentRepo && candidateRepo) {
 		return currentRepo === candidateRepo;
 	}
 
-	const currentCwd = normalize(current.cwd);
-	const candidateCwd = normalize(candidate.cwd);
-	return !!currentCwd && currentCwd === candidateCwd;
+	return !!current.cwd && !!candidate.cwd && extUri.isEqual(URI.file(current.cwd), URI.file(candidate.cwd));
 }
 
 export function getSessionWorkspaceName(workspace: SessionWorkspaceIdentity): string {
@@ -356,6 +357,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IChatSessionRoutingProviderService private readonly _routingProviderService: IChatSessionRoutingProviderService,
 		@ILogService private readonly _logService: ILogService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) { }
 
 	isEnabled(widget: IChatWidget): boolean {
@@ -369,7 +371,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
 			picks: (async () => {
 				const entries: { pick: IChatContextPickerPickItem; lastActivity: number; workspace: SessionWorkspaceIdentity }[] = [];
-				const includedResources = new Set<string>();
+				const includedResources = new ResourceSet(resource => this._uriIdentityService.extUri.getComparisonKey(resource));
 				let currentWorkspace: SessionWorkspaceIdentity | undefined;
 				const routingProvider = this._routingProviderService.getProvider();
 				if (routingProvider) {
@@ -395,14 +397,14 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 						if (!sessionResource) {
 							continue;
 						}
-						if (candidate.sessionId === currentSession?.sessionId || sessionResource.toString() === currentSessionResource?.toString()) {
+						if (candidate.sessionId === currentSession?.sessionId || (currentSessionResource && this._uriIdentityService.extUri.isEqual(sessionResource, currentSessionResource))) {
 							currentWorkspace = { cwd: candidate.cwd, repo: candidate.repo };
 							continue;
 						}
 						if (onlyShowAttachableCopilotCliSessions && !this._canAttachCopilotCliSession(sessionResource)) {
 							continue;
 						}
-						includedResources.add(sessionResource.toString());
+						includedResources.add(sessionResource);
 						const pick: IChatContextPickerPickItem = {
 							label: candidate.label,
 							description: candidate.lastActivity ? new Date(candidate.lastActivity).toLocaleString() : undefined,
@@ -428,11 +430,11 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 							cwd: item.metadata?.workingDirectoryPath ?? item.metadata?.worktreePath,
 							repo: item.metadata?.repositoryPath,
 						};
-						if (currentSessionResource && item.resource.toString() === currentSessionResource.toString()) {
+						if (currentSessionResource && this._uriIdentityService.extUri.isEqual(item.resource, currentSessionResource)) {
 							currentWorkspace ??= workspace;
 							continue;
 						}
-						if (includedResources.has(item.resource.toString())) {
+						if (includedResources.has(item.resource)) {
 							continue;
 						}
 						const sessionResource = item.resource;
@@ -460,8 +462,8 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 					return entries.map(entry => entry.pick);
 				}
 
-				const sameWorkspace = entries.filter(entry => isSameSessionWorkspace(currentWorkspace, entry.workspace));
-				const otherWorkspaces = entries.filter(entry => !isSameSessionWorkspace(currentWorkspace, entry.workspace));
+				const sameWorkspace = entries.filter(entry => isSameSessionWorkspace(currentWorkspace, entry.workspace, this._uriIdentityService.extUri));
+				const otherWorkspaces = entries.filter(entry => !isSameSessionWorkspace(currentWorkspace, entry.workspace, this._uriIdentityService.extUri));
 				if (otherWorkspaces.length === 0) {
 					return sameWorkspace.map(entry => entry.pick);
 				}

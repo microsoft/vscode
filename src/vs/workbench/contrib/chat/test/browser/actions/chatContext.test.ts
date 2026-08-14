@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { getSessionWorkspaceName, isSameSessionWorkspace, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
@@ -73,11 +74,17 @@ suite('ChatContext', () => {
 				{ cwd: '/Users/megan/repo', repo: 'microsoft/vscode' },
 				{ cwd: '/Users/megan/repo', repo: 'microsoft/typescript' },
 			),
+			caseSensitiveCwd: isSameSessionWorkspace(
+				{ cwd: '/work/Foo' },
+				{ cwd: '/work/foo' },
+				extUri,
+			),
 		}, {
 			sameFolder: true,
 			sameRepositoryWorktree: true,
 			caseInsensitiveRepository: true,
 			differentRepository: false,
+			caseSensitiveCwd: false,
 		});
 	});
 
