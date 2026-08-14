@@ -120,32 +120,28 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		if (this.telemetryLevel < TelemetryLevel.USAGE) {
 			return;
 		}
-		this._delegate.publicLog(eventName, this._withCopilotSku(data));
+		this._delegate.publicLog(eventName, data);
 	}
 
 	publicLogError(eventName: string, data?: ITelemetryData): void {
 		if (this.telemetryLevel < TelemetryLevel.ERROR) {
 			return;
 		}
-		this._delegate.publicLogError(eventName, this._withCopilotSku(data));
+		this._delegate.publicLogError(eventName, data);
 	}
 
 	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE) {
 			return;
 		}
-		this._delegate.publicLog2(eventName, this._withCopilotSku(data));
+		this._delegate.publicLog2(eventName, data);
 	}
 
 	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
 		if (this.telemetryLevel < TelemetryLevel.ERROR) {
 			return;
 		}
-		this._delegate.publicLogError2(eventName, this._withCopilotSku(data));
-	}
-
-	private _withCopilotSku(data: ITelemetryData | undefined): ITelemetryData | undefined {
-		return this._copilotSku ? { ...data, copilotSku: this._copilotSku } : data;
+		this._delegate.publicLogError2(eventName, data);
 	}
 
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
@@ -217,6 +213,9 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	setCopilotSku(copilotSku: string | undefined): void {
 		this._copilotSku = copilotSku;
+		if (copilotSku) {
+			this._delegate.setCommonProperty('copilotSku', copilotSku);
+		}
 	}
 
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void {

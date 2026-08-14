@@ -40,17 +40,20 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	readonly internalEvents: IRestrictedCall[] = [];
 	readonly githubStandardEvents: IRestrictedCall[] = [];
 	readonly standardEvents: Array<{ eventName: string; data: ITelemetryData | undefined }> = [];
+	private readonly _commonProperties: Record<string, string | boolean> = {};
 
 	publicLog(): void { }
 	publicLogError(): void { }
 	publicLog2(eventName: string, data?: ITelemetryData): void {
-		this.standardEvents.push({ eventName, data });
+		this.standardEvents.push({ eventName, data: { ...data, ...this._commonProperties } });
 	}
 	publicLogError2(eventName: string, data?: ITelemetryData): void {
-		this.standardEvents.push({ eventName, data });
+		this.standardEvents.push({ eventName, data: { ...data, ...this._commonProperties } });
 	}
 	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
+	setCommonProperty(name: string, value: string | boolean): void {
+		this._commonProperties[name] = value;
+	}
 
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps): void {
 		this.githubStandardEvents.push({ eventName, properties });
