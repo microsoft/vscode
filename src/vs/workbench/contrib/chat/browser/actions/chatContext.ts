@@ -38,7 +38,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
-import { IChatSessionRoutingProviderService } from '../../common/sessionRouter.js';
+import { IChatSessionRoutingProviderService, IRoutableSession } from '../../common/sessionRouter.js';
 
 /**
  * Command ID that extensions can call to enable debug tools for the current
@@ -62,6 +62,21 @@ export function shouldShowOpenEditorsContext(widget: Pick<IChatWidget, 'viewMode
 	}
 
 	return true;
+}
+
+type SessionWorkspaceIdentity = Pick<IRoutableSession, 'cwd' | 'repo'>;
+
+export function isSameSessionWorkspace(current: SessionWorkspaceIdentity, candidate: SessionWorkspaceIdentity): boolean {
+	const normalize = (value: string | undefined) => value?.replace(/[\\/]+$/, '').toLowerCase();
+	const currentRepo = normalize(current.repo);
+	const candidateRepo = normalize(candidate.repo);
+	if (currentRepo && candidateRepo) {
+		return currentRepo === candidateRepo;
+	}
+
+	const currentCwd = normalize(current.cwd);
+	const candidateCwd = normalize(candidate.cwd);
+	return !!currentCwd && currentCwd === candidateCwd;
 }
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
@@ -345,17 +360,28 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 		return {
 			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
 			picks: (async () => {
-				const picks: IChatContextPickerPickItem[] = [];
-				const activityByPick = new Map<IChatContextPickerPickItem, number>();
+				const entries: { pick: IChatContextPickerPickItem; lastActivity: number; workspace: SessionWorkspaceIdentity }[] = [];
 				const includedResources = new Set<string>();
+				let currentWorkspace: SessionWorkspaceIdentity | undefined;
 				const routingProvider = this._routingProviderService.getProvider();
 				if (routingProvider) {
+					const currentSession = currentSessionResource
+						? await routingProvider.getSessionSnapshot?.(currentSessionResource, CancellationToken.None)
+						: undefined;
+					if (currentSession) {
+						currentWorkspace = { cwd: currentSession.cwd, repo: currentSession.repo };
+					}
 					const candidates = await routingProvider.getCandidateSessions(CancellationToken.None);
 					for (const candidate of candidates) {
 						const sessionResource = routingProvider.resolveSessionResource(candidate.sessionId);
-						if (!sessionResource
-							|| sessionResource.toString() === currentSessionResource?.toString()
-							|| (onlyShowAttachableCopilotCliSessions && !this._canAttachCopilotCliSession(sessionResource))) {
+						if (!sessionResource) {
+							continue;
+						}
+						if (candidate.sessionId === currentSession?.sessionId || sessionResource.toString() === currentSessionResource?.toString()) {
+							currentWorkspace = { cwd: candidate.cwd, repo: candidate.repo };
+							continue;
+						}
+						if (onlyShowAttachableCopilotCliSessions && !this._canAttachCopilotCliSession(sessionResource)) {
 							continue;
 						}
 						includedResources.add(sessionResource.toString());
@@ -369,16 +395,26 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 								value: { sessionReference: true, sessionResource: sessionResource.toString() },
 							}),
 						};
-						picks.push(pick);
-						activityByPick.set(pick, candidate.lastActivity ?? 0);
+						entries.push({
+							pick,
+							lastActivity: candidate.lastActivity ?? 0,
+							workspace: { cwd: candidate.cwd, repo: candidate.repo },
+						});
 					}
 				}
 				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
 				for await (const group of this._chatSessionsService.getChatSessionItems(sessionProviderFilter, CancellationToken.None)) {
 					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
 					for (const item of group.items) {
-						if ((currentSessionResource && item.resource.toString() === currentSessionResource.toString())
-							|| includedResources.has(item.resource.toString())) {
+						const workspace = {
+							cwd: item.metadata?.workingDirectoryPath ?? item.metadata?.worktreePath,
+							repo: item.metadata?.repositoryPath,
+						};
+						if (currentSessionResource && item.resource.toString() === currentSessionResource.toString()) {
+							currentWorkspace ??= workspace;
+							continue;
+						}
+						if (includedResources.has(item.resource.toString())) {
 							continue;
 						}
 						const sessionResource = item.resource;
@@ -398,12 +434,26 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 								icon,
 							})
 						};
-						picks.push(pick);
-						activityByPick.set(pick, lastActivity);
+						entries.push({ pick, lastActivity, workspace });
 					}
 				}
-				picks.sort((a, b) => (activityByPick.get(b) ?? 0) - (activityByPick.get(a) ?? 0));
-				return picks;
+				entries.sort((a, b) => b.lastActivity - a.lastActivity);
+				if (!currentSessionResource || (!currentWorkspace?.cwd && !currentWorkspace?.repo)) {
+					return entries.map(entry => entry.pick);
+				}
+
+				const sameWorkspace = entries.filter(entry => isSameSessionWorkspace(currentWorkspace, entry.workspace));
+				const otherWorkspaces = entries.filter(entry => !isSameSessionWorkspace(currentWorkspace, entry.workspace));
+				const groupedPicks: (IChatContextPickerPickItem | IQuickPickSeparator)[] = [];
+				if (sameWorkspace.length > 0) {
+					groupedPicks.push({ type: 'separator', label: localize('chatContext.sessions.thisWorkspace', "This Workspace") });
+					groupedPicks.push(...sameWorkspace.map(entry => entry.pick));
+				}
+				if (otherWorkspaces.length > 0) {
+					groupedPicks.push({ type: 'separator', label: localize('chatContext.sessions.otherWorkspaces', "Other Workspaces") });
+					groupedPicks.push(...otherWorkspaces.map(entry => entry.pick));
+				}
+				return groupedPicks;
 			})()
 		};
 	}

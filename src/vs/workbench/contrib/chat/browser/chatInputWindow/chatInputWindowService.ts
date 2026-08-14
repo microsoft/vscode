@@ -364,7 +364,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			tabindex: '0',
 			'aria-label': localize('chatInputWindow.close.label', "Close"),
 		}));
-		close.appendChild(renderIcon(Codicon.closeSmall));
+		close.appendChild(renderIcon(Codicon.close));
 		this._windowDisposables.add(dom.addDisposableListener(close, dom.EventType.CLICK, () => this.closeWindow()));
 		this._windowDisposables.add(dom.addStandardDisposableListener(close, dom.EventType.KEY_DOWN, event => {
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -1368,6 +1368,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const scopedInstantiationService = this.instantiationService.createChild(services);
 		const store = new DisposableStore();
 		store.add(scopedInstantiationService);
+		store.add(dom.addDisposableListener(actionWidgetWindow.window, dom.EventType.KEY_DOWN, event => {
+			if (event.key !== 'Escape') {
+				return;
+			}
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			this._contextPicker.clear();
+		}, true));
 		const quickInputService = store.add(scopedInstantiationService.createInstance(QuickInputService));
 		services.set(IQuickInputService, quickInputService);
 

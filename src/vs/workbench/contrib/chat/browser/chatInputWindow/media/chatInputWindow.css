@@ -25,6 +25,11 @@
 	outline: none;
 }
 
+.chat-input-window .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
+.chat-input-window .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: transparent;
+}
+
 .chat-input-window-body {
 	background: transparent !important;
 	overflow: hidden !important;
@@ -96,9 +101,9 @@
 
 .chat-input-window .chat-input-window-close .codicon[class*='codicon-'] {
 	display: inline-block;
-	flex: 0 0 var(--vscode-codiconFontSize-compact);
-	font-size: var(--vscode-codiconFontSize-compact);
-	width: var(--vscode-codiconFontSize-compact);
+	flex: 0 0 var(--vscode-codiconFontSize-compact, 12px);
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	width: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .chat-input-window .chat-side-toolbar {

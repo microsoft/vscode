@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { isSameSessionWorkspace, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
 import { IChatWidget } from '../../../browser/chat.js';
 
 function widget(overrides: Partial<Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>>): Pick<IChatWidget, 'viewModel' | 'lockedAgentId'> {
@@ -53,5 +53,31 @@ suite('ChatContext', () => {
 			shouldShowOpenEditorsContext(widgetWithSession(URI.parse('copilotcli:/session-1')), false),
 			false
 		);
+	});
+
+	test('matches session workspaces by repository before cwd', () => {
+		assert.deepStrictEqual({
+			sameFolder: isSameSessionWorkspace(
+				{ cwd: '/Users/megan/repo/', repo: 'microsoft/vscode' },
+				{ cwd: '/users/megan/repo', repo: 'microsoft/vscode' },
+			),
+			sameRepositoryWorktree: isSameSessionWorkspace(
+				{ cwd: '/Users/megan/repo', repo: 'microsoft/vscode' },
+				{ cwd: '/Users/megan/repo-worktree', repo: 'microsoft/vscode' },
+			),
+			caseInsensitiveRepository: isSameSessionWorkspace(
+				{ repo: 'Microsoft/VSCode' },
+				{ repo: 'microsoft/vscode' },
+			),
+			differentRepository: isSameSessionWorkspace(
+				{ cwd: '/Users/megan/repo', repo: 'microsoft/vscode' },
+				{ cwd: '/Users/megan/repo', repo: 'microsoft/typescript' },
+			),
+		}, {
+			sameFolder: true,
+			sameRepositoryWorktree: true,
+			caseInsensitiveRepository: true,
+			differentRepository: false,
+		});
 	});
 });
