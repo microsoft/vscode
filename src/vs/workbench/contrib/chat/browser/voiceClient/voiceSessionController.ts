@@ -452,6 +452,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private readonly _voiceAutorunDisposable = this._register(new MutableDisposable());
 	private readonly _omniBlurRelease = this._register(new MutableDisposable());
 	/**
+	 * Holds the model reference for a session created by {@link newSessionAsTarget}
+	 * until a host adopts it. `ChatService` deletes empty untitled local sessions
+	 * once their last reference is disposed, so releasing this eagerly would leave
+	 * {@link _targetSession} pointing at a session that no longer exists whenever
+	 * no chat pane picks the new session up.
+	 */
+	private readonly _newSessionRef = this._register(new MutableDisposable<IChatModelReference>());
+	/**
 	 * Watchdog that resets `isConnecting` (and surfaces feedback) if the connect
 	 * handshake never completes. Armed up front in {@link connect} so a step that
 	 * hangs (e.g. resolving the GitHub session while a chat request is in flight)
@@ -3176,6 +3184,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	setTargetSession(resource: URI | undefined, omniRoute?: 'existing_session' | 'new_session'): void {
+		this._releaseNewSessionRefUnlessTargeting(resource);
 		this._targetOmniRoute = resource ? omniRoute : undefined;
 		this._hasDraftTarget.set(false, undefined);
 		this._targetSession.set(resource, undefined);
@@ -3366,12 +3375,33 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	newSessionAsTarget(): void {
 		const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
 		const resource = ref.object.sessionResource;
-		ref.dispose();
+		// Keep the only reference alive until a host adopts the session: an empty
+		// untitled local session is deleted as soon as its last reference goes
+		// away, which would strand `_targetSession` on a dead resource.
+		this._newSessionRef.value = ref;
 		this._targetOmniRoute = undefined;
 		this._hasDraftTarget.set(false, undefined);
 		this._targetSession.set(resource, undefined);
 		// Try to switch the view to the new session (works if chat pane is open)
-		this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* pane may not exist */ });
+		this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', resource.toString()).then(switched => {
+			// Only release once a host holds its own reference. On failure the
+			// reference is deliberately retained so the next utterance can still
+			// load this target.
+			if (switched === true && this._newSessionRef.value === ref) {
+				this._newSessionRef.clear();
+			}
+		}, () => { /* pane may not exist — keep holding the reference */ });
+	}
+
+	/**
+	 * Release the session created by {@link newSessionAsTarget} once voice stops
+	 * targeting it, so it is no longer kept alive on its behalf.
+	 */
+	private _releaseNewSessionRefUnlessTargeting(resource: URI | undefined): void {
+		const held = this._newSessionRef.value;
+		if (held && held.object.sessionResource.toString() !== resource?.toString()) {
+			this._newSessionRef.clear();
+		}
 	}
 
 	private _scheduleDelayedMicStop(): void {
