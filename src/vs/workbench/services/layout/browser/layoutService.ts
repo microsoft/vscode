@@ -51,7 +51,8 @@ export const enum LayoutSettings {
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
 	SHADOWS = 'workbench.shadows',
-	MODERN_UI = 'workbench.experimental.modernUI'
+	MODERN_UI = 'workbench.experimental.modernUI',
+	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
 }
 
 /**
@@ -66,10 +67,10 @@ export const FLOATING_PANEL_MARGIN = 4;
 /**
  * The trailing card margin (in pixels) when the Modern UI Update experiment is
  * enabled. Together with the next card's leading {@link FLOATING_PANEL_MARGIN},
- * it forms the 6px inter-card gap. Keep in sync with the
- * `--vscode-spacing-size20` (2px) token used in `floatingPanels.css`.
+ * it forms the 4px inter-card gap. Keep in sync with the
+ * `--vscode-spacing-sizeNone` (0px) token used in `floatingPanels.css`.
  */
-export const FLOATING_PANEL_INNER_MARGIN = 2;
+export const FLOATING_PANEL_INNER_MARGIN = 0;
 
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
@@ -237,6 +238,22 @@ export function getFloatingOuterGutterEdges(layoutService: IWorkbenchLayoutServi
 }
 
 /**
+ * Horizontal margins (in pixels) a floating pane composite reserves, mirroring the
+ * margins in `floatingPanels.css`.
+ */
+export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbenchLayoutService, partId: Parts): { left: number; right: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { left: 0, right: 0 };
+	}
+
+	const outerGutter = getFloatingOuterGutterEdges(layoutService, partId);
+	return {
+		left: outerGutter.left ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN,
+		right: outerGutter.right ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
+	};
+}
+
+/**
  * Whether the primary sidebar and auxiliary bar are each in the same grid row as the
  * editor (sibling to the editor) for a horizontal panel. A bar that is a sibling is not
  * full-height; it sits above or below the panel row rather than spanning the full height.
@@ -268,35 +285,27 @@ export function getFloatingPaneCompositeVerticalMargins(
 		return { top: 0, bottom: 0 };
 	}
 
+	const topEdgeExposed = isFloatingTopEdgeExposed(layoutService, targetWindow);
+
 	const panelPosition = layoutService.getPanelPosition();
 	const panelVisible = layoutService.isVisible(Parts.PANEL_PART);
 	const isSideBar = partId === Parts.SIDEBAR_PART || partId === Parts.AUXILIARYBAR_PART;
 	const siblingStatus = getFloatingSidebarSiblingToEditorStatus(layoutService);
 	const isSiblingToEditor = partId === Parts.SIDEBAR_PART ? siblingStatus.sideBar : siblingStatus.auxBar;
-	const topEdgeExposed = isFloatingTopEdgeExposed(layoutService, targetWindow);
-
-	let top: number;
-	if (partId === Parts.PANEL_PART && panelPosition === Position.BOTTOM) {
-		// A visible editor sits above the panel, so the gap is between two cards. When the
-		// panel is maximized the editor is gone and the panel takes over that row instead.
-		top = layoutService.isVisible(Parts.EDITOR_PART, targetWindow) ? FLOATING_PANEL_MARGIN
-			: topEdgeExposed ? FLOATING_PANEL_MARGIN * 2 : 0;
-	} else if (panelVisible && panelPosition === Position.TOP && isSideBar && isSiblingToEditor) {
-		// Sibling bars share the editor's row, so their top faces the panel card above.
-		top = FLOATING_PANEL_MARGIN;
-	} else {
-		top = topEdgeExposed ? FLOATING_PANEL_MARGIN * 2 : 0;
-	}
-
-	// A top panel faces the editor below it, and a sibling bar faces a bottom panel card,
-	// so in neither case does the bottom reach the window edge.
+	const facesPanelAbove = panelVisible && panelPosition === Position.TOP && isSideBar && isSiblingToEditor;
+	const facesEditorAbove = partId === Parts.PANEL_PART && panelPosition === Position.BOTTOM && layoutService.isVisible(Parts.EDITOR_PART, targetWindow);
 	const facesEditorBelow = partId === Parts.PANEL_PART && panelPosition === Position.TOP;
 	const facesPanelBelow = panelVisible && panelPosition === Position.BOTTOM && isSideBar && isSiblingToEditor;
 	const atWindowBottom = !facesEditorBelow && !facesPanelBelow;
-	const bottom = !layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) && atWindowBottom
-		? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
+	const statusBarVisible = layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow);
 
-	return { top, bottom };
+	return {
+		top: facesPanelAbove || facesEditorAbove ? FLOATING_PANEL_MARGIN
+			: topEdgeExposed ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
+		bottom: atWindowBottom
+			? statusBarVisible ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
+			: FLOATING_PANEL_INNER_MARGIN
+	};
 }
 
 /**
@@ -318,9 +327,9 @@ export function getFloatingEditorVerticalMargins(
 
 	return {
 		top: panelAtTop ? FLOATING_PANEL_MARGIN
-			: isFloatingTopEdgeExposed(layoutService, targetWindow) ? FLOATING_PANEL_MARGIN * 2 : 0,
-		bottom: !layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) && !panelAtBottom
-			? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN
+			: isFloatingTopEdgeExposed(layoutService, targetWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
+		bottom: panelAtBottom ? FLOATING_PANEL_INNER_MARGIN
+			: layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
 	};
 }
 

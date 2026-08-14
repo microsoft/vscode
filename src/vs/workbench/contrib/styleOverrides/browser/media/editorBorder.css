@@ -28,6 +28,7 @@
 	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: border-box;
 	overflow: hidden;
+	background-color: var(--vscode-editor-background);
 }
 
 /*
@@ -39,9 +40,9 @@
 	box-shadow: none;
 }
 
-/* Keep the editor frame aligned with the shared floating-surface border token. */
+/* Keep the editor frame aligned with the shared floating-surface border by default. */
 .monaco-workbench.style-override.floating-panels .part.editor {
-	border-color: var(--vscode-surface-border, var(--vscode-widget-border, transparent)) !important;
+	border-color: var(--vscode-editor-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))) !important;
 }
 
 .monaco-workbench.style-override .chat-view-position-left > .voice-agent-controls-wrapper {

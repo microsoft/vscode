@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingSessionCreatedTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveSessionCreatedToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
@@ -31,7 +31,8 @@ import { ChatAgentService, IChatAgentService } from '../../../common/participant
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
-import { shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 suite('ChatListRenderer', () => {
@@ -151,7 +152,7 @@ suite('ChatListRenderer', () => {
 				});
 			});
 
-			test('moves created-session pills after the final response and before trailing adjuncts', () => {
+			test('moves durable tool outcomes after the final response and before trailing adjuncts', () => {
 				const tool: IChatToolInvocationSerialized = {
 					kind: 'toolInvocationSerialized',
 					toolCallId: 'create-session',
@@ -169,16 +170,33 @@ suite('ChatListRenderer', () => {
 						label: 'Implement issue',
 					},
 				};
+				const generatedImage: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'generated-image',
+					toolId: 'image_gen.imagegen',
+					invocationMessage: 'Generating image',
+					originMessage: undefined,
+					pastTenseMessage: 'Generated image',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: { kind: 'generatedImage' },
+					resultDetails: {
+						input: '{"prompt":"Draw a fox"}',
+						output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
+					},
+				};
 				const firstStep = { kind: 'markdownContent', content: new MarkdownString('First step') } as const;
 				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Final response') } as const;
 				const trailingAdjunct = { kind: 'references', references: [] } as const;
 
-				const content = [firstStep, tool, finalResponse, trailingAdjunct];
+				const content = [firstStep, tool, generatedImage, finalResponse, trailingAdjunct];
 				assert.deepStrictEqual({
-					content: moveSessionCreatedToolsAfterFinalResponse(content),
-					finalResponseStartIndex: getFinalResponseStartIndexAfterMovingSessionCreatedTools(content),
+					content: moveResponseOutcomeToolsAfterFinalResponse(content),
+					finalResponseStartIndex: getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content),
 				}, {
-					content: [firstStep, finalResponse, tool, trailingAdjunct],
+					content: [firstStep, finalResponse, tool, generatedImage, trailingAdjunct],
 					finalResponseStartIndex: 1,
 				});
 			});
@@ -202,7 +220,7 @@ suite('ChatListRenderer', () => {
 					},
 				};
 
-				assert.deepStrictEqual(moveSessionCreatedToolsAfterFinalResponse([tool]), [tool]);
+				assert.deepStrictEqual(moveResponseOutcomeToolsAfterFinalResponse([tool]), [tool]);
 			});
 
 			test('waits for the final response before creating the completed-work disclosure', () => {
@@ -226,6 +244,83 @@ suite('ChatListRenderer', () => {
 					true,
 					false,
 				]);
+			});
+
+			test('renders generated images as outcomes only after the response completes', () => {
+				assert.deepStrictEqual([
+					shouldRenderGeneratedImageResult('generatedImage', false),
+					shouldRenderGeneratedImageResult('generatedImage', true),
+					shouldRenderGeneratedImageResult('terminal', true),
+				], [
+					false,
+					true,
+					false,
+				]);
+			});
+
+			test('builds generated image previews from embedded image results', () => {
+				const sessionResource = URI.parse('agent-host://local/session');
+				const parts = getGeneratedImageResultParts({
+					input: '{"prompt":"Draw a fox"}',
+					output: [
+						{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' },
+						{ type: 'embed', value: 'aW1hZ2Uy', mimeType: 'image/jpeg' },
+						{ type: 'embed', value: 'details', mimeType: 'text/plain', isText: true },
+					],
+				}, sessionResource, 'image-call');
+
+				assert.deepStrictEqual(parts.map(part => ({
+					kind: part.kind,
+					base64Value: part.base64Value,
+					mimeType: part.mimeType,
+					path: part.uri.path,
+				})), [{
+					kind: 'data',
+					base64Value: 'aW1hZ2U=',
+					mimeType: 'image/png',
+					path: '/tool/image-call/0/generated-image.png',
+				}, {
+					kind: 'data',
+					base64Value: 'aW1hZ2Uy',
+					mimeType: 'image/jpeg',
+					path: '/tool/image-call/1/generated-image.jpe',
+				}]);
+			});
+
+			test('combines generated image results from multiple tool calls into one gallery', () => {
+				const sessionResource = URI.parse('agent-host://local/session');
+				const createImageTool = (toolCallId: string, value: string): IChatToolInvocationSerialized => ({
+					kind: 'toolInvocationSerialized',
+					toolCallId,
+					toolId: 'image_gen.imagegen',
+					toolSpecificData: { kind: 'generatedImage' },
+					invocationMessage: 'Generating image',
+					originMessage: undefined,
+					pastTenseMessage: 'Generated image',
+					presentation: undefined,
+					isConfirmed: true,
+					isComplete: true,
+					source: ToolDataSource.Internal,
+					resultDetails: {
+						input: '{"prompt":"Draw a fox"}',
+						output: [{ type: 'embed', value, mimeType: 'image/png' }],
+					},
+				});
+				const parts = getGeneratedImageResultPartsFromContent([
+					createImageTool('image-call-1', 'aW1hZ2Ux'),
+					createImageTool('image-call-2', 'aW1hZ2Uy'),
+				], sessionResource);
+
+				assert.deepStrictEqual(parts.map(part => ({
+					base64Value: part.base64Value,
+					path: part.uri.path,
+				})), [{
+					base64Value: 'aW1hZ2Ux',
+					path: '/tool/image-call-1/0/generated-image-1.png',
+				}, {
+					base64Value: 'aW1hZ2Uy',
+					path: '/tool/image-call-2/0/generated-image-2.png',
+				}]);
 			});
 		});
 	});
@@ -872,12 +967,29 @@ suite('ChatListRenderer', () => {
 			subAgentInvocationId: 'subagent-1',
 			toolSpecificData: undefined,
 		};
+		const secondParentSubagent: IChatToolInvocationSerialized = {
+			...parentSubagent,
+			toolCallId: 'subagent-2',
+			toolSpecificData: { kind: 'subagent', description: 'Review tests', isActive: true },
+		};
+		const secondChildTool: IChatToolInvocationSerialized = {
+			...childTool,
+			toolCallId: 'child-2',
+			subAgentInvocationId: 'subagent-2',
+		};
 		const parts: IChatRendererContent[] = [
 			{ kind: 'references', references: [] },
 			parentSubagent,
 			childTool,
 			{ kind: 'markdownContent', content: { value: '<vscode_codeblock_uri subAgentInvocationId="subagent-1">file:///test.txt</vscode_codeblock_uri>' } },
 			{ kind: 'hook', hookType: 'PreToolUse', subAgentInvocationId: 'subagent-1' },
+		];
+		const parallelSubagentParts: IChatRendererContent[] = [
+			{ kind: 'references', references: [] },
+			parentSubagent,
+			childTool,
+			secondParentSubagent,
+			secondChildTool,
 		];
 
 		assert.deepStrictEqual({
@@ -886,12 +998,21 @@ suite('ChatListRenderer', () => {
 			endsWithSubagentHook: endsWithActiveSubagentContent(parts),
 			endsWithSubagentChildTool: endsWithActiveSubagentContent(parts.slice(0, 3)),
 			endsWithParentSubagentTool: endsWithActiveSubagentContent(parts.slice(0, 2)),
+			endsWithParallelSubagents: endsWithActiveSubagentContent(parallelSubagentParts),
+			endsWithParentMarkdownBeforeNestedUpdates: endsWithActiveSubagentContent([
+				...parallelSubagentParts,
+				{ kind: 'markdownContent', content: { value: 'Waiting on the remaining reviewers.' } },
+				{ ...childTool, toolCallId: 'child-3' },
+				{ kind: 'hook', hookType: 'PostToolUse', subAgentInvocationId: 'subagent-2' },
+			]),
 		}, {
 			relevantParts: ['references'],
 			endsWithTaggedMarkdown: true,
 			endsWithSubagentHook: true,
 			endsWithSubagentChildTool: true,
 			endsWithParentSubagentTool: true,
+			endsWithParallelSubagents: true,
+			endsWithParentMarkdownBeforeNestedUpdates: false,
 		});
 
 		parentSubagent.toolSpecificData = { kind: 'subagent', description: 'Investigate', isActive: false };
@@ -989,6 +1110,116 @@ suite('ChatListRenderer', () => {
 		}, {
 			mountedWhileStreaming: true,
 			mountedAfterCompletion: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('generated image completion does not leave a compact duplicate inside thinking', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'generate an image';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+
+		const createImageTool = (toolCallId: string) => new ChatToolInvocation({
+			invocationMessage: 'Generating image',
+			pastTenseMessage: 'Generated image',
+		}, {
+			id: 'image_gen.imagegen',
+			displayName: 'Generate image',
+			modelDescription: 'Generate image',
+			source: ToolDataSource.Internal,
+		}, toolCallId, undefined, {}, {}, request.id);
+		const imageTools = [createImageTool('image-call-1'), createImageTool('image-call-2')];
+		model.acceptResponseProgress(request, { kind: 'thinking', value: 'Reviewing the image skill', id: 'thinking-1' });
+		const shellTool = new ChatToolInvocation({
+			invocationMessage: 'Reading image skill',
+			pastTenseMessage: 'Read image skill',
+		}, {
+			id: 'shell',
+			displayName: 'Run shell command',
+			modelDescription: 'Run shell command',
+			source: ToolDataSource.Internal,
+		}, 'shell-call', undefined, {}, {}, request.id);
+		model.acceptResponseProgress(request, shellTool);
+		renderer.renderElement(node, 0, template);
+		await shellTool.didExecuteTool({ content: [] });
+		renderer.renderElement(node, 0, template);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('I will create two variations.') });
+		model.acceptResponseProgress(request, { kind: 'thinking', value: 'Planning image variations', id: 'thinking-2' });
+		renderer.renderElement(node, 0, template);
+
+		for (const [index, imageTool] of imageTools.entries()) {
+			model.acceptResponseProgress(request, imageTool);
+			renderer.renderElement(node, 0, template);
+			await imageTool.didExecuteTool({
+				content: [],
+				toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: {
+					input: '{"prompt":"Draw a fox"}',
+					output: [{ type: 'embed', value: `aW1hZ2U${index}`, mimeType: 'image/png' }],
+				},
+			});
+			renderer.renderElement(node, 0, template);
+			if (index === 0) {
+				model.acceptResponseProgress(request, { kind: 'thinking', value: 'Planning the second variation', id: 'thinking-3' });
+				renderer.renderElement(node, 0, template);
+			}
+		}
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\n') });
+		renderer.renderElement(node, 0, template);
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+
+		assert.deepStrictEqual({
+			resourceGroups: template.value.querySelectorAll('.chat-collapsible-io-resource-group').length,
+			largeOutcomes: template.value.querySelectorAll('.chat-generated-image-result').length,
+			multipleImageOutcomes: template.value.querySelectorAll('.chat-generated-image-result.multiple').length,
+			generatedImageInvocations: template.value.querySelectorAll('.generated-image-tool-invocation').length,
+		}, {
+			resourceGroups: 1,
+			largeOutcomes: 1,
+			multipleImageOutcomes: 1,
+			generatedImageInvocations: 1,
 		});
 
 		disposables.dispose();

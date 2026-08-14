@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { INotification, INotificationHandle, INotificationService, NoOpNotification } from '../../../../../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -37,9 +37,9 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID } from '../../../common/chatInputWindow.js';
-import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatSendResult, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -75,6 +75,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private readonly connectionStateEmitter = new Emitter<boolean>();
 	override readonly onDidChangeConnectionState = this.connectionStateEmitter.event;
 	override readonly onFatalDisconnect = Event.None;
+	override readonly onConnectionIssue = Event.None;
 	override readonly onTurnAutoEnded = Event.None;
 	private connected = false;
 	private resuming = false;
@@ -219,9 +220,15 @@ class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 
 class VoiceTestNotificationService extends TestNotificationService {
 	readonly notifications: INotification[] = [];
+	readonly prompts: { severity: Severity; message: string; choices: readonly IPromptChoice[] }[] = [];
 
 	override notify(notification: INotification): INotificationHandle {
 		this.notifications.push(notification);
+		return new NoOpNotification();
+	}
+
+	override prompt(severity: Severity, message: string, choices: IPromptChoice[]): INotificationHandle {
+		this.prompts.push({ severity, message, choices });
 		return new NoOpNotification();
 	}
 }
@@ -376,6 +383,78 @@ class TestChatService extends mock<IChatService>() {
 }
 
 /**
+ * Chat service that records session creation and sends, so the `new_session`
+ * flag on `send_to_chat` can be checked end to end.
+ */
+class NewSessionChatService extends mock<IChatService>() {
+	override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+	readonly created: URI[] = [];
+	readonly sent: { resource: string; message: string }[] = [];
+	override getSession(): undefined { return undefined; }
+	override startNewLocalSession(): IChatModelReference {
+		const resource = URI.parse(`chat-session://new/${this.created.length + 1}`);
+		this.created.push(resource);
+		return { object: { sessionResource: resource }, dispose: () => { } } as unknown as IChatModelReference;
+	}
+	override async acquireOrLoadSession(): Promise<IChatModelReference> {
+		return { object: {}, dispose: () => { } } as unknown as IChatModelReference;
+	}
+	override async sendRequest(resource: URI, message: string): Promise<ChatSendResult> {
+		this.sent.push({ resource: resource.toString(), message });
+		return { kind: 'rejected', reason: 'test' };
+	}
+}
+
+/**
+ * Chat service with real reference-lifecycle semantics: it refcounts the model
+ * references it hands out and drops the session once the last one is disposed,
+ * mirroring how `ChatService` deletes empty untitled local sessions in
+ * `willDisposeModel`. Lets a test tell "the session is still alive" apart from
+ * "voice is targeting a session that no longer exists".
+ */
+class RefCountingChatService extends mock<IChatService>() {
+	override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+	/** Sessions that still exist, keyed by resource string. */
+	readonly live = new Set<string>();
+	private readonly _refCounts = new Map<string, number>();
+	private _createdCount = 0;
+
+	override getSession(): undefined { return undefined; }
+
+	override startNewLocalSession(): IChatModelReference {
+		const resource = URI.parse(`chat-session://new/${++this._createdCount}`);
+		this.live.add(resource.toString());
+		return this._acquire(resource);
+	}
+
+	/** Outstanding references for a session, for asserting nothing is leaked. */
+	refCount(resource: string): number {
+		return this._refCounts.get(resource) ?? 0;
+	}
+
+	private _acquire(resource: URI): IChatModelReference {
+		const key = resource.toString();
+		this._refCounts.set(key, this.refCount(key) + 1);
+		let disposed = false;
+		return {
+			object: { sessionResource: resource },
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				const remaining = this.refCount(key) - 1;
+				this._refCounts.set(key, remaining);
+				if (remaining === 0) {
+					// Last reference gone: an empty untitled local session is deleted.
+					this.live.delete(key);
+				}
+			},
+		} as unknown as IChatModelReference;
+	}
+}
+
+/**
  * Chat service whose tracked models can be driven from a test, so the
  * controller's always-on pending-confirmation tracker can be exercised.
  */
@@ -482,9 +561,11 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
 	override readonly onDidChangeWidgetVisibility = Event.None;
 	override readonly onDidAddWidget = Event.None;
+	override readonly onDidRemoveWidget: Event<IChatWidget>;
 	override lastFocusedWidget: IChatWidgetService['lastFocusedWidget'];
-	constructor(private readonly widgets: IChatWidget[] = []) {
+	constructor(private readonly widgets: IChatWidget[] = [], onDidRemoveWidget = Event.None) {
 		super();
+		this.onDidRemoveWidget = onDidRemoveWidget;
 	}
 
 	override getAllWidgets() { return this.widgets; }
@@ -539,6 +620,16 @@ class TestCommandService extends mock<ICommandService>() {
 			result = this.omniFocused;
 		}
 		return result as T;
+	}
+}
+
+/** Command service whose chat pane adopts the session on `switchToSession`. */
+class AdoptingCommandService extends TestCommandService {
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		if (commandId === '_chat.voice.switchToSession') {
+			return true as T;
+		}
+		return super.executeCommand<T>(commandId, ...args);
 	}
 }
 
@@ -624,6 +715,11 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		// An open socket is not a live session: a rejected connect is accepted
+		// before it is closed so the close frame can carry a reason, so the
+		// controller waits for the backend's ack before reporting connected.
+		// Without this the omni inbox stays inactive and nothing narrates.
+		voiceClientService.fireSessionInit();
 		controller.setOmniInputOpen(true);
 	}
 
@@ -1096,6 +1192,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 
 		assert.deepStrictEqual({
 			afterDrop,
@@ -1151,6 +1248,7 @@ suite('VoiceSessionController', () => {
 
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 
 		assert.deepStrictEqual({
 			afterDrop,
@@ -3816,6 +3914,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 
 		controller.setActiveSessionShown(voiceSession);
 		controller.setActiveSessionShown(null);
@@ -3888,6 +3987,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		controller.setActiveSessionShown(voiceSession);
 
 		voiceClientService.fireAudioResponse({
@@ -4091,6 +4191,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		controller.setActiveSessionShown(firstSession);
 		assert.strictEqual(narrate.call(controller, firstSession.toString(), 'response', 'The first task is complete.'), true);
 		const firstNarrationId = voiceClientService.requests[0].narrationId;
@@ -4133,6 +4234,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		controller.setActiveSessionShown(voiceSession);
 
 		voiceClientService.fireAudioResponse({
@@ -4488,6 +4590,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		(Reflect.get(controller, '_deferredNarrations') as Map<string, unknown>).set(staleSession, {
 			narrationId: 'stale-panel-narration',
 			kind: 'confirmation',
@@ -4842,6 +4945,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		controller.setTargetSession(focusedSession);
 
 		handleStateChange.call(controller, focusedSession.toString(), 'idle', undefined, 'Focused response.', focusedSession.toString());
@@ -4870,12 +4974,32 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		controller.setTargetSession(untitledSession);
 
 		widget.materialize(materializedSession);
 
 		assert.strictEqual(controller.isConnected.get(), true);
 		assert.strictEqual(controller.targetSession.get()?.toString(), materializedSession.toString());
+	});
+
+	test('stops tracking a removed chat widget', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const initialSession = URI.parse('agent-host-copilotcli:/initial-session');
+		const removedSession = URI.parse('agent-host-copilotcli:/removed-session');
+		const widget = store.add(new MaterializingChatWidget(initialSession));
+		const widgetRemovals = store.add(new Emitter<IChatWidget>());
+		const chatWidgetService = new TestChatWidgetService([widget], widgetRemovals.event);
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, chatWidgetService,
+		);
+
+		widgetRemovals.fire(widget);
+		Reflect.set(controller, '_lastShownSessionId', undefined);
+		widget.materialize(removedSession);
+
+		assert.strictEqual(Reflect.get(controller, '_lastShownSessionId'), undefined);
 	});
 
 	test('plays responses for an omni-routed target without a pending indicator', async () => {
@@ -6245,6 +6369,230 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('send_to_chat with new_session routes the text to the freshly created session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-send',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+		}, {
+			created: 1,
+			sent: [{ resource: 'chat-session://new/1', message: 'refactor the upload service' }],
+			acceptedInputs: [],
+		});
+	});
+
+	test('send_to_chat with new_session bypasses a focused omni input', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService(true);
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-omni-focused',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			sent: chatService.sent,
+			omniInputs: commandService.acceptedOmniInputs,
+			panelInputs: commandService.acceptedInputs,
+		}, {
+			sent: [{ resource: 'chat-session://new/1', message: 'refactor the upload service' }],
+			omniInputs: [],
+			panelInputs: [],
+		});
+	});
+
+	test('send_to_chat with new_session and no text creates and targets a session without sending', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-empty',
+			name: 'send_to_chat',
+			args: { text: '', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		const target = (Reflect.get(controller, '_targetSession') as { get(): URI | undefined }).get();
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+			target: target?.toString(),
+		}, {
+			created: 1,
+			sent: [],
+			acceptedInputs: [],
+			target: 'chat-session://new/1',
+		});
+	});
+
+	test('send_to_chat without new_session keeps the request in the current session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'same-session-send',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+		}, {
+			created: 0,
+			sent: [],
+			acceptedInputs: ['refactor the upload service'],
+		});
+	});
+
+	test('send_to_chat with new_session keeps the created session alive when no pane adopts it', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		// TestCommandService leaves `_chat.voice.switchToSession` unhandled, so
+		// this is the "no chat pane picked it up" case.
+		const commandService = new TestCommandService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-unadopted',
+			name: 'send_to_chat',
+			args: { text: '', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const target = (Reflect.get(controller, '_targetSession') as { get(): URI | undefined }).get();
+		assert.deepStrictEqual({
+			target: target?.toString(),
+			targetStillExists: target ? chatService.live.has(target.toString()) : false,
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			target: 'chat-session://new/1',
+			targetStillExists: true,
+			retainedRefs: 1,
+		});
+	});
+
+	test('newSessionAsTarget releases an unadopted session on retarget', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, chatService);
+
+		controller.newSessionAsTarget();
+		await Promise.resolve();
+		await Promise.resolve();
+		controller.setTargetSession(URI.parse('chat-session://existing/1'));
+
+		assert.deepStrictEqual({
+			targetStillExists: chatService.live.has('chat-session://new/1'),
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			targetStillExists: false,
+			retainedRefs: 0,
+		});
+	});
+
+	test('newSessionAsTarget releases an unadopted session on disconnect', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, chatService);
+
+		controller.newSessionAsTarget();
+		await Promise.resolve();
+		await Promise.resolve();
+		controller.disconnect();
+
+		assert.deepStrictEqual({
+			targetStillExists: chatService.live.has('chat-session://new/1'),
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			targetStillExists: false,
+			retainedRefs: 0,
+		});
+	});
+
+	test('send_to_chat with new_session releases the reference once a pane adopts the session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new AdoptingCommandService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-adopted',
+			name: 'send_to_chat',
+			args: { text: '', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		// The pane holds its own reference, so voice must not keep one too.
+		assert.strictEqual(chatService.refCount('chat-session://new/1'), 0);
+	});
+
+	test('send_to_chat with new_session outranks a pinned submit session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		// A focus change pinned an earlier session; an explicit "start a new
+		// session" has to win over it, or the request lands in the pinned one.
+		Reflect.set(controller, '_pinnedSubmitSession', URI.parse('chat-session://pinned/1'));
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-over-pin',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			sent: chatService.sent,
+			pinned: (Reflect.get(controller, '_pinnedSubmitSession') as URI | undefined)?.toString(),
+		}, {
+			sent: [{ resource: 'chat-session://new/1', message: 'refactor the upload service' }],
+			pinned: undefined,
+		});
+	});
+
 	test('auto-listen is skipped when window does not have focus (multi-window hands-free)', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
@@ -6523,6 +6871,121 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(mic.abortCalls, 0);
 		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
 	});
+
+	test('names the cause when the account is not permitted', () => {
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 4003, reason: 'not allowed', kind: 'fatal' });
+
+		assert.ok(controller.statusText.get().includes('access'), controller.statusText.get());
+		assert.strictEqual(controller.voiceState.get(), 'error');
+		assert.strictEqual(notificationService.prompts.length, 1);
+		assert.strictEqual(notificationService.prompts[0].choices.length, 0);
+	});
+
+	test('treats an idle timeout as expected rather than an error', () => {
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 1001, reason: 'Session idle timeout', kind: 'expected' });
+
+		assert.strictEqual(controller.voiceState.get(), 'idle');
+		assert.strictEqual(notificationService.prompts.length, 0, 'an expected end of session must not interrupt with a toast');
+	});
+
+	test('falls back to the server reason for a code this build does not know', () => {
+		const controller = createController(new TestVoiceClientService());
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 4002, reason: 'Backend says hello', kind: 'fatal' });
+
+		assert.strictEqual(controller.statusText.get(), 'Backend says hello');
+	});
+
+	test('never leaves Reconnecting displayed after a terminal close', () => {
+		const controller = createController(new TestVoiceClientService());
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 1000, reason: '', kind: 'expected' });
+
+		assert.ok(!controller.statusText.get().startsWith('Reconnecting'), controller.statusText.get());
+		assert.strictEqual(controller.isReconnecting.get(), false);
+	});
+
+	test('does not offer an action when no configurable backend URL is available', () => {
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 0, reason: '', kind: 'fatal', clientSide: true });
+
+		assert.strictEqual(notificationService.prompts.length, 1);
+		assert.strictEqual(notificationService.prompts[0].choices.length, 0);
+	});
+
+	test('an immediate fatal close after open does not activate the microphone', () => {
+		// Auto-listen goes through pttDown, so a startCapture counter would pass
+		// even if it fired.
+		const micCaptureService = new RecordingMicCaptureService();
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, micCaptureService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 4001, reason: 'Sign in', kind: 'fatal' });
+		clock.tick(2000);
+
+		assert.strictEqual(micCaptureService.pttDownCalls.length, 0, 'auto-listen must not fire after a terminal close');
+	});
+
+	test('the connect watchdog does not tear down a scheduled reconnect', () => {
+		// A reconnect sleeps between attempts, so a gap longer than the watchdog
+		// timeout must not be mistaken for a hung handshake. Before this guard the
+		// first slow retry was killed ~10s in and reported as unreachable.
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const armWatchdog = Reflect.get(controller, '_armConnectWatchdog') as () => void;
+
+		Reflect.set(controller, '_isConnecting', observableValue('isConnecting', false));
+		Reflect.set(controller, '_isReconnecting', observableValue('isReconnecting', true));
+		armWatchdog.call(controller);
+		clock.tick(11_000);
+
+		assert.strictEqual(notificationService.notifications.length, 0, 'a reconnect must not raise the unreachable toast');
+	});
+
+	test('an open socket is not reported as connected until the backend acks', () => {
+		// A rejected connect is accepted before it is closed so the close frame can
+		// carry a reason, so `onopen` fires for doomed sockets too. Committing
+		// connected on open flashed a live UI on every reconnect attempt.
+		const client = new TestVoiceClientService();
+		const controller = createController(client);
+		const commitConnected = Reflect.get(controller, '_commitConnected') as (viaFallback?: boolean) => void;
+
+		Reflect.set(client, 'connected', false);
+		commitConnected.call(controller);
+		assert.strictEqual(controller.isConnected.get(), false, 'a closed socket must never commit connected');
+
+		Reflect.set(client, 'connected', true);
+		commitConnected.call(controller);
+		assert.strictEqual(controller.isConnected.get(), true, 'the ack must promote the socket to a live session');
+	});
+
+	test('a known transient code keeps its localized message despite a backend reason', () => {
+		// Every transient close carries a reason, so resolving the raw text first
+		// meant 4029/4500/4503 never reached the strings the registry defines.
+		const controller = createController(new TestVoiceClientService());
+		const resolve = Reflect.get(controller, '_reconnectingMessage') as (code: number, reason: string) => string;
+
+		const busy = resolve.call(controller, 4029, 'Voice service is at capacity, try again shortly');
+		assert.ok(busy.includes('at capacity'), busy);
+		assert.ok(!busy.includes('try again shortly'), 'the localized clause must win over the backend reason');
+
+		const unknown = resolve.call(controller, 4321, 'a code the client has never heard of');
+		assert.ok(unknown.includes('a code the client has never heard of'), 'an unknown code still falls back to the reason');
+	});
 });
 
 suite('VoiceSessionController live transcription', () => {
@@ -6583,6 +7046,7 @@ suite('VoiceSessionController live transcription', () => {
 		instantiationService.stub(IChatWidgetService, {
 			lastFocusedWidget: undefined,
 			onDidAddWidget: Event.None,
+			onDidRemoveWidget: Event.None,
 			onDidChangeFocusedSession: Event.None,
 			onDidChangeWidgetVisibility: Event.None,
 			getAllWidgets: () => [],
@@ -6734,4 +7198,6 @@ suite('VoiceSessionController live transcription', () => {
 			persisted: ['open the file'],
 		});
 	});
+
+
 });

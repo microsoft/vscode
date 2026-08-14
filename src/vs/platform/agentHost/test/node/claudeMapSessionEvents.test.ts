@@ -8,14 +8,14 @@ import * as sinon from 'sinon';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { AgentSignal } from '../../common/agentService.js';
+import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
 import { CLAUDE_USER_DECLINED_MESSAGE } from '../../node/claude/claudeToolDenial.js';
-import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/forwardedChatError.js';
+import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/proxyChatError.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import {
 	makeAssistantMessage,
@@ -444,7 +444,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				type: ActionType.ChatToolCallReady,
 				turnId: TURN_ID,
 				toolCallId: 'tu_write',
-				invocationMessage: { markdown: 'Editing [new.ts](file:///src/new.ts)' },
+				invocationMessage: { markdown: 'Edit [new.ts](file:///src/new.ts)' },
 				toolInput: '{\n  "file_path": "/src/new.ts",\n  "content": "one\\ntwo"\n}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			}],

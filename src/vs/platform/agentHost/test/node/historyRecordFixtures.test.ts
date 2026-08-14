@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { FileEditKind, MessageKind, ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
@@ -342,7 +342,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 					toolCallId: 'synth-skill-evt-42',
 					toolName: 'skill',
 					displayName: 'Read Skill',
-					invocationMessage: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+					invocationMessage: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 				},
 				skillComplete: {
 					session,

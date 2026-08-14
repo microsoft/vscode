@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
@@ -16,12 +17,18 @@ export const SESSION_DB_FILENAME = 'session.db';
 
 /**
  * Subdirectory under a session's data directory that holds snapshotted
- * user-message attachments (e.g. pasted images, fetched file references).
+ * user-message attachments (e.g. pasted content, fetched file references).
  * The agent host writes these on dispatch so large blobs stay out of the
  * in-memory state tree, and reads of files under this directory are
  * auto-approved by the agent's permission flow.
  */
 export const SESSION_ATTACHMENTS_DIRNAME = 'attachments';
+
+export function isSessionAttachmentPath(sessionDataService: ISessionDataService, session: URI, filePath: string): boolean {
+	const attachmentsDir = normalizePath(URI.joinPath(sessionDataService.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME));
+	const fileUri = normalizePath(URI.file(filePath));
+	return extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, attachmentsDir);
+}
 
 // ---- File-edit types ----------------------------------------------------
 
@@ -279,6 +286,11 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadata(key: string, value: string): Promise<void>;
 
 	/**
+	 * Atomically store multiple metadata key-value pairs.
+	 */
+	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
+
+	/**
 	 * Store or clear the draft for a chat in this session.
 	 */
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void>;
@@ -291,8 +303,10 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Bulk-remaps turn IDs using the provided old→new mapping.
 	 * Used after copying a database file for a forked session.
+	 * When provided, `eventIds` replaces the SDK event ID for each remapped
+	 * turn, keyed by the new turn ID.
 	 */
-	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
+	remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void>;
 
 	// ---- Reviewed files --------------------------------------------------
 

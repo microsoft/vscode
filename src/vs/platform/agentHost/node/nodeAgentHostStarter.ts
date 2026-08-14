@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../base/common/event.js';
+import * as fs from 'fs';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
+import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -15,7 +16,7 @@ import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar } from '../common/agentHostTelemetry.js';
-import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
+import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService } from '../common/agentService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 /**
@@ -41,9 +42,6 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 
 	private _wsConfig: IAgentHostWebSocketConfig | undefined;
 
-	private readonly _onRequestConnection = this._register(new Emitter<void>());
-	readonly onRequestConnection = this._onRequestConnection.event;
-
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
@@ -54,14 +52,10 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 
 	/**
 	 * Configures the child process to also start a WebSocket server.
-	 * Must be called before {@link start}. Triggers eager process start
-	 * via {@link onRequestConnection}.
+	 * Must be called before {@link start}.
 	 */
 	setWebSocketConfig(config: IAgentHostWebSocketConfig): void {
 		this._wsConfig = config;
-		// Signal the process manager to start immediately rather than
-		// waiting for a renderer window to connect.
-		this._onRequestConnection.fire();
 	}
 
 	async start(): Promise<IAgentHostConnection> {
@@ -158,16 +152,42 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			}
 		}
 
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
+		await this._removeStaleSocket();
 
+		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
 		const store = new DisposableStore();
 		store.add(client);
 
 		return {
 			client,
 			store,
-			onDidProcessExit: client.onDidProcessExit
+			onDidProcessExit: client.onDidProcessExit,
+			shutdown: () => ProxyChannel.toService<IAgentHostManagementService>(client.getChannel(AgentHostIpcChannels.Management)).shutdown(),
 		};
+	}
+
+	/**
+	 * Unix domain sockets outlive the process that bound them, so an agent host
+	 * that crashed leaves its socket file behind and the replacement's `listen`
+	 * fails with `EADDRINUSE` — which would burn the whole crash-restart budget
+	 * without ever recovering. Windows named pipes are refcounted by the OS and
+	 * disappear with the process, so they need no cleanup.
+	 */
+	private async _removeStaleSocket(): Promise<void> {
+		const socketPath = this._wsConfig?.socketPath;
+		if (!socketPath || process.platform === 'win32') {
+			return;
+		}
+
+		try {
+			await fs.promises.unlink(socketPath);
+		} catch (error) {
+			// Nothing to clean up in the common case; a genuinely undeletable
+			// path surfaces as a bind failure from the child instead.
+			if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+				this._logService.warn(`AgentHostStarter could not remove stale socket at ${socketPath}`, error);
+			}
+		}
 	}
 
 	private async _resolveShellEnv(): Promise<typeof process.env> {

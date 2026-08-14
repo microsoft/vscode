@@ -7,7 +7,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -21,13 +22,14 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { localize } from '../../../../nls.js';
 
 /** Storage key for the last session type used to create a quick chat. */
 const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUsedSessionType';
@@ -82,6 +84,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
+	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
 
 	/**
 	 * Chat resources for which this service has just kicked off a
@@ -120,7 +123,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// UI. Sends originating from {@link sendRequest} and
 		// {@link sendNewChatRequest} are deduplicated via
 		// {@link _pendingSendChatResources}.
-		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource, message }) => {
+		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource, message, attachedContext }) => {
 			if (this._pendingSendChatResources.has(chatSessionResource.toString())) {
 				return;
 			}
@@ -131,7 +134,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					chat: ownedChat.chat,
 					isNewSession: false,
 					isNewChat: false,
-					options: { query: message?.text ?? '' },
+					options: { query: message?.text ?? '', attachedContext },
 				});
 			}
 		}));
@@ -247,6 +250,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSession(resource: URI): ISession | undefined {
+		const unlistedSession = this._unlistedNewSessions.get(resource);
+		if (unlistedSession) {
+			return unlistedSession;
+		}
 		return this._getMergedSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
 		);
@@ -397,6 +404,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
 		let workspace: ISessionWorkspace | undefined;
+		let sessionTypeId: string | undefined;
+		const requiresWorktreeConfiguration = options?.isolationMode === 'worktree'
+			|| options?.worktreeBranchTrack !== undefined
+			|| options?.branch !== undefined;
+		const resolveSessionTypeId = (candidate: ISessionsProvider): string | undefined => {
+			const sessionTypes = candidate.getSessionTypes(folderUri);
+			if (options?.sessionTypeId) {
+				const requested = sessionTypes.find(type => type.id === options.sessionTypeId);
+				return requested && (!requiresWorktreeConfiguration || requested.supportsWorktreeConfiguration === true)
+					? requested.id
+					: undefined;
+			}
+			return (requiresWorktreeConfiguration
+				? sessionTypes.find(type => type.supportsWorktreeConfiguration === true)
+				: sessionTypes[0])?.id;
+		};
 
 		if (options?.providerId) {
 			provider = providers.find(p => p.id === options.providerId);
@@ -407,35 +430,39 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (!workspace) {
 				throw new Error(`Sessions provider '${options.providerId}' cannot resolve folder '${folderUri.toString()}'`);
 			}
-			if (options.sessionTypeId && !provider.getSessionTypes(folderUri).some(type => type.id === options.sessionTypeId)) {
-				throw new Error(`Sessions provider '${options.providerId}' does not advertise session type '${options.sessionTypeId}'`);
+			sessionTypeId = resolveSessionTypeId(provider);
+			if (!sessionTypeId) {
+				if (requiresWorktreeConfiguration) {
+					throw new Error(`Sessions provider '${options.providerId}' does not support worktree configuration for folder '${folderUri.toString()}'`);
+				}
+				if (options.sessionTypeId) {
+					throw new Error(`Sessions provider '${options.providerId}' does not advertise session type '${options.sessionTypeId}'`);
+				}
+				throw new Error(`No session types available for provider '${provider.id}'`);
 			}
 		} else {
-			// Iterate providers and pick the first one that can resolve the folder.
-			// When a specific session type was requested, also require the provider to
-			// advertise that type for the folder.
 			for (const candidate of providers) {
 				const candidateWorkspace = candidate.resolveWorkspace(folderUri);
 				if (!candidateWorkspace) {
 					continue;
 				}
-				if (options?.sessionTypeId && !candidate.getSessionTypes(folderUri).some(t => t.id === options.sessionTypeId)) {
+				const candidateSessionTypeId = resolveSessionTypeId(candidate);
+				if (!candidateSessionTypeId) {
 					continue;
 				}
 				provider = candidate;
 				workspace = candidateWorkspace;
+				sessionTypeId = candidateSessionTypeId;
 				break;
 			}
 			if (!provider || !workspace) {
-				throw new Error(`No sessions provider can resolve folder '${folderUri.toString()}'`);
+				throw new Error(requiresWorktreeConfiguration
+					? `No sessions provider supports worktree configuration for folder '${folderUri.toString()}'`
+					: `No sessions provider can resolve folder '${folderUri.toString()}'`);
 			}
 		}
-		let sessionTypeId = options?.sessionTypeId;
 		if (!sessionTypeId) {
-			sessionTypeId = provider.getSessionTypes(folderUri)[0]?.id;
-			if (!sessionTypeId) {
-				throw new Error(`No session types available for provider '${provider.id}'`);
-			}
+			throw new Error(`No session types available for provider '${provider.id}'`);
 		}
 		return { provider, sessionTypeId, workspace };
 	}
@@ -444,7 +471,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
 
 		const previousNewSession = this._newSession.get();
-		const session = provider.createNewSession(folderUri, sessionTypeId);
+		const session = provider.createNewSession(folderUri, sessionTypeId, { metadata: options?.metadata });
 
 		// Providers no longer dispose the previous new session implicitly, so
 		// dispose the one this composer just replaced. Use its own provider
@@ -717,7 +744,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * If the send or any configuration setter fails, the stranded draft is
 	 * disposed through its provider and the error is rethrown.
 	 */
-	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
+	async createAndSendNewChatRequest(folderUri: URI, options: NewSessionRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId, workspace } = this._resolveProviderForNewSession(folderUri, createOptions);
 		if (workspace.requiresWorkspaceTrust) {
 			const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(folderUri);
@@ -725,10 +752,26 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				throw new WorkspaceNotTrustedError();
 			}
 		}
-		const session = provider.createNewSession(folderUri, sessionTypeId);
-		const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
-			.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
-		return this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token, folderUri);
+		const session = provider.createNewSession(folderUri, sessionTypeId, { metadata: createOptions?.metadata });
+		this._unlistedNewSessions.set(session.resource, session);
+		const requestActivity = new MutableDisposable();
+		try {
+			try {
+				requestActivity.value = isDeferredNewSessionRequestOptions(options)
+					? provider.startNewSessionRequest?.(session.sessionId, options.activity)
+					: provider.startNewSessionRequest?.(session.sessionId);
+				createOptions?.onSessionCreated?.(session);
+			} catch (error) {
+				provider.deleteNewSession(session.sessionId);
+				throw error;
+			}
+			const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
+				.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
+			return await this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token, folderUri, requestActivity);
+		} finally {
+			requestActivity.dispose();
+			this._unlistedNewSessions.delete(session.resource);
+		}
 	}
 
 	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
@@ -740,27 +783,65 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private async _configureAndSendNewSession(
 		provider: ISessionsProvider,
 		session: ISession,
-		options: ISendRequestOptions,
+		options: NewSessionRequestOptions,
 		createOptions: ICreateNewSessionOptions | undefined,
 		supportsWorktreeConfiguration: boolean,
 		token: CancellationToken,
 		folderUri?: URI,
+		requestActivity?: MutableDisposable<IDisposable>,
 	): Promise<ISession | undefined> {
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			if (createOptions?.modelId) {
-				const resolvedModelId = await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
-				provider.setModel(session.sessionId, resolvedModelId);
+			const requestOptionsPromise = (async () => {
+				try {
+					return isDeferredNewSessionRequestOptions(options) ? await options.resolve() : options;
+				} finally {
+					requestActivity?.clear();
+				}
+			})();
+			const configurationPromise = this._configureNewSession(provider, session, createOptions, supportsWorktreeConfiguration, token, folderUri);
+			const [resolvedOptions] = await raceCancellationError(Promise.all([requestOptionsPromise, configurationPromise]), token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
 			}
-			if (createOptions?.modeId) {
-				provider.setMode?.(session.sessionId, createOptions.modeId);
-			}
-			if (createOptions?.permissionLevel) {
-				provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
-			}
-			if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.branch)) {
+			return await raceCancellationError(this._sendNewChatRequestInBackground(provider, session, resolvedOptions, token), token);
+		} catch (e) {
+			// The send never committed, so the draft is stranded. Dispose it
+			// through its provider to release the eager backend session before
+			// rethrowing. Safe no-op if the provider already removed it.
+			provider.deleteNewSession(session.sessionId);
+			throw e;
+		}
+	}
+
+	private async _configureNewSession(
+		provider: ISessionsProvider,
+		session: ISession,
+		createOptions: ICreateNewSessionOptions | undefined,
+		supportsWorktreeConfiguration: boolean,
+		token: CancellationToken,
+		folderUri: URI | undefined,
+	): Promise<void> {
+		if (createOptions?.modelId) {
+			const resolvedModelId = await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
+			provider.setModel(session.sessionId, resolvedModelId);
+		}
+		if (createOptions?.modeId) {
+			provider.setMode?.(session.sessionId, createOptions.modeId);
+		}
+		if (createOptions?.permissionLevel) {
+			provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
+		}
+		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.branch)) {
+			if (provider.setWorktreeConfiguration) {
+				await raceCancellationError(provider.setWorktreeConfiguration(session.sessionId, {
+					isolationMode: createOptions.isolationMode,
+					worktreeBranchTrack: createOptions.worktreeBranchTrack,
+					branch: createOptions.branch,
+				}), token);
+			} else {
 				if (createOptions.isolationMode && provider.setIsolationMode) {
 					await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
 				}
@@ -771,17 +852,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);
 				}
 			}
-
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			return await raceCancellationError(this._sendNewChatRequestInBackground(provider, session, options, token), token);
-		} catch (e) {
-			// The send never committed, so the draft is stranded. Dispose it
-			// through its provider to release the eager backend session before
-			// rethrowing. Safe no-op if the provider already removed it.
-			provider.deleteNewSession(session.sessionId);
-			throw e;
 		}
 	}
 
@@ -975,6 +1045,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 	}
 
+	async cancelCurrentRequest(session: ISession): Promise<void> {
+		const resource = session.mainChat.get().resource;
+		// A restored, unloaded session has no pending request tracked in this window, so load its model first to re-establish cancellation tracking.
+		const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'sessionsManagement:cancel');
+		if (!modelRef) {
+			throw new Error(localize('sessions.cancelCurrentRequest.loadFailed', "Failed to load chat session for cancellation."));
+		}
+		try {
+			await this.chatService.cancelCurrentRequestForSession(resource, 'sessionsManagement');
+		} finally {
+			modelRef.dispose();
+		}
+	}
+
 	async archiveSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.archiveSession(session.sessionId);
 		this._onDidArchiveSession.fire(session);
@@ -1054,6 +1138,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this._getProvider(session)?.renameSession(session.sessionId, title);
 		this._onDidRenameSession.fire(session);
 	}
+}
+
+function isDeferredNewSessionRequestOptions(options: NewSessionRequestOptions): options is IDeferredNewSessionRequestOptions {
+	return (options as IDeferredNewSessionRequestOptions).kind === 'deferred';
 }
 
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Eager);

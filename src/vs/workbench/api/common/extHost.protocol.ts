@@ -34,6 +34,7 @@ import { IAccessibilityInformation } from '../../../platform/accessibility/commo
 import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope } from '../../../platform/configuration/common/configurationRegistry.js';
+import { DataWatcherKind } from '../../../platform/dataChannel/common/dataChannel.js';
 import { IEditorOptions } from '../../../platform/editor/common/editor.js';
 import { IExtensionIdWithVersion } from '../../../platform/extensionManagement/common/extensionStorage.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -224,9 +225,9 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(details: IRegisterAuthenticationProviderDetails): Promise<void>;
 	$unregisterAuthenticationProvider(id: string): Promise<void>;
 	$ensureProvider(id: string): Promise<void>;
-	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): Promise<void>;
-	$getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
-	$getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
+	$sendDidChangeSessions(providerId: string, event: Dto<AuthenticationSessionsChangeEvent>): Promise<void>;
+	$getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<Dto<AuthenticationSession> | undefined>;
+	$getAccounts(providerId: string): Promise<ReadonlyArray<Dto<AuthenticationSessionAccount>>>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 	$waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents>;
 	$showContinueNotification(message: string): Promise<boolean>;
@@ -3737,11 +3738,22 @@ export interface MainThreadMcpShape {
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {
+	$createDataWatcher(handle: number, params: IDataWatcherParamsDto): void;
+	$disposeDataWatcher(handle: number): void;
 }
 
 export interface ExtHostDataChannelsShape {
 	$onDidReceiveData(channelId: string, data: unknown): void;
+	$acceptDataWatcherData(handle: number, data: unknown): void;
 }
+
+export interface IAgentSessionDataWatcherParamsDto {
+	readonly kind: DataWatcherKind.AgentSession;
+	readonly resource: UriComponents;
+}
+
+export type IDataWatcherParamsDto =
+	| IAgentSessionDataWatcherParamsDto;
 
 export interface ExtHostLocalizationShape {
 	getMessage(extensionId: string, details: IStringDetails): string;
@@ -3858,6 +3870,7 @@ export type ChatInputNotificationDto = {
 	actions: ChatInputNotificationActionDto[];
 	dismissible: boolean;
 	autoDismissOnMessage: boolean;
+	sessionTypes: readonly string[] | undefined;
 };
 
 export interface MainThreadChatInputNotificationShape {

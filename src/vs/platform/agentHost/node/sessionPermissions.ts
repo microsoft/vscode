@@ -13,14 +13,16 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
-import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
+import { extUri, extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { ALWAYS_CHECKED_EDIT_PATTERNS, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS } from '../../chat/common/chatSettings.js';
 import { ILogService } from '../../log/common/log.js';
 import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
-import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
+import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
+import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
@@ -31,7 +33,7 @@ import {
 	ToolCallConfirmationReason,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover } from './commandAutoApprover.js';
 
@@ -60,26 +62,6 @@ const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 	SKIP_OPTION,
 ];
 const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
-
-/** Default write-path glob rules applied to auto-approved edits. */
-const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
-	'**/*': true,
-	'**/.vscode/*.json': false,
-	'**/.git/**': false,
-	'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
-	'**/{.npmrc,.yarnrc,.yarnrc.yml,.pnpmfile.js,.pnpmfile.cjs,.pnpmfile.mjs,pnpm-workspace.yaml}': false,
-	'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
-	'**/*.lock': false,
-	'**/*-lock.{yaml,json}': false,
-	// Files that can register lifecycle hooks running arbitrary shell commands.
-	// Writing them must never be auto-approved. Keep in sync with the hook and
-	// agent source locations in `promptFileLocations.ts`.
-	'**/.github/agents/**': false,
-	'**/.github/hooks/**': false,
-	'**/.claude/agents/**': false,
-	'**/.claude/settings.json': false,
-	'**/.claude/settings.local.json': false,
-};
 
 const HOME_DIR = URI.file(homedir());
 
@@ -226,6 +208,7 @@ export class SessionPermissionManager extends Disposable {
 		options: { realpath?: (fsPath: string) => Promise<string> },
 		@IAgentConfigurationService private readonly _configService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 		this._realpath = options?.realpath ?? realpath;
@@ -265,7 +248,7 @@ export class SessionPermissionManager extends Disposable {
 		// contained by *any* root. Today the set has exactly one entry (the
 		// create-time length guard), so this is behaviour-identical to the
 		// previous single-directory logic.
-		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
 		const workingDirectories = workDirs?.map(d => URI.parse(d));
 
 		// 0. Sandbox bypass: a shell command that opted out of the
@@ -292,6 +275,11 @@ export class SessionPermissionManager extends Disposable {
 
 		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
+			const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
+			if (isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath)) {
+				this._logService.trace(`[SessionPermissionManager] Auto-approving session attachment read of ${e.permissionPath}`);
+				return ToolCallConfirmationReason.NotNeeded;
+			}
 			if (await this._isReadAutoApproved(URI.file(e.permissionPath), workingDirectories)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
@@ -345,7 +333,7 @@ export class SessionPermissionManager extends Disposable {
 		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 			return false;
 		}
-		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
 		const workingDirectories = workDirs?.map(d => URI.parse(d));
 		return this._commandAutoApprover.evaluate(e.toolInput, {
 			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
@@ -584,7 +572,7 @@ export class SessionPermissionManager extends Disposable {
 		}
 		try {
 			const resolved = await resolveRealPathForNonexistent(resource, this._realpath);
-			if (!extUriBiasedIgnorePathCase.isEqual(resolved, resource)) {
+			if (!extUri.isEqual(resolved, resource)) {
 				resourcesToCheck.push(resolved);
 			}
 		} catch (e) {
@@ -611,7 +599,7 @@ export class SessionPermissionManager extends Disposable {
 		if (this._isPlatformRestrictedResource(resource, workingDirectory)) {
 			return false;
 		}
-		return this._matchesEditAutoApprovePatterns(resource.fsPath);
+		return this._matchesEditAutoApprovePatterns(resource);
 	}
 
 	/**
@@ -637,11 +625,16 @@ export class SessionPermissionManager extends Disposable {
 		return false;
 	}
 
-	private _matchesEditAutoApprovePatterns(filePath: string): boolean {
+	private _matchesEditAutoApprovePatterns(resource: URI): boolean {
 		let approved = true;
-		for (const [pattern, isApproved] of Object.entries(DEFAULT_EDIT_AUTO_APPROVE_PATTERNS)) {
-			if (isApproved !== approved && globMatch(pattern, filePath)) {
-				approved = isApproved;
+		const patterns = this._configService.getRootValue(platformRootSchema, AgentHostEditAutoApprovePatternsConfigKey) ?? DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
+		const ignoreCase = extUriBiasedIgnorePathCase.ignorePathCasing(resource);
+		for (const patternSet of [patterns, ALWAYS_CHECKED_EDIT_PATTERNS]) {
+			for (const [pattern, configuredApproval] of Object.entries(patternSet)) {
+				const isApproved = configuredApproval === true;
+				if (isApproved !== approved && globMatch(pattern, resource.fsPath, { ignoreCase })) {
+					approved = isApproved;
+				}
 			}
 		}
 		return approved;

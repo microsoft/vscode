@@ -212,10 +212,9 @@ suite('LanguageModelAccess model info', () => {
 			_serviceBrand: undefined,
 			resolveAutoModeEndpoint: async () => endpoint,
 			resolveAutoModePickerEndpoint: async () => endpoint,
-			getAutoPickerMetadata: async () => undefined,
+			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
 			areAutoModeTiersSupported: () => false,
 			onDidChangeAutoModeTierSupport: Event.None,
-			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
 		testingServiceCollection.define(IEndpointProvider, {
@@ -586,6 +585,34 @@ suite('normalizeTokenPrices', () => {
 		assert.strictEqual(result.default.outputPrice, 2500);
 		assert.strictEqual(result.default.cachePrice, 50);
 		assert.strictEqual(result.default.cacheWritePrice, undefined);
+		assert.strictEqual(result.longContext, undefined);
+	});
+
+	test('reads the current CAPI field names max_prompt_tokens and cache_read_price (regression for #330481)', () => {
+		// CAPI renamed `context_max` to `max_prompt_tokens` and `cache_price` to
+		// `cache_read_price`. Missing `contextMax` makes the model picker drop the
+		// Context Size control entirely and lets requests run on the full window.
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 1000, output_price: 5000, cache_read_price: 100, cache_write_price: 1250, max_prompt_tokens: 200_000 },
+			long_context: { input_price: 2000, output_price: 5000, cache_read_price: 200, cache_write_price: 1250, max_prompt_tokens: 936_000 },
+		});
+		assert.deepStrictEqual(result, {
+			default: { inputPrice: 1000, outputPrice: 5000, cachePrice: 100, cacheWritePrice: 1250, contextMax: 200_000 },
+			longContext: { inputPrice: 2000, outputPrice: 5000, cachePrice: 200, cacheWritePrice: 1250, contextMax: 936_000 },
+		});
+	});
+
+	test('a free long-context tier is dropped but still reports the default contextMax', () => {
+		// Identical prices across tiers means no surcharge, yet the default tier's
+		// context max must survive so the picker can offer the smaller window.
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 1000, output_price: 5000, cache_read_price: 100, max_prompt_tokens: 200_000 },
+			long_context: { input_price: 1000, output_price: 5000, cache_read_price: 100, max_prompt_tokens: 936_000 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.contextMax, 200_000);
 		assert.strictEqual(result.longContext, undefined);
 	});
 });

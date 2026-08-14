@@ -168,7 +168,7 @@ export class PromptTimelineModel extends Disposable {
 
 	/**
 	 * One tick per user prompt — unbucketed and uncapped, decorated with per-prompt diff stats. The
-	 * dock rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
+	 * gutter rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
 	 * raw prompt list rather than the capped {@link ticks} the overview ruler uses.
 	 */
 	private readonly _promptTicks = derived<readonly PromptTick[]>(this, reader => {
@@ -191,7 +191,7 @@ export class PromptTimelineModel extends Disposable {
 	private readonly _activeRequestId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activeRequestId(): IObservable<string | undefined> { return this._activeRequestId; }
 
-	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position and the dock rail's active row. */
+	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position and the gutter rail's active row. */
 	private readonly _activePromptId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activePromptId(): IObservable<string | undefined> { return this._activePromptId; }
 
@@ -487,26 +487,6 @@ export class PromptTimelineModel extends Disposable {
 		if (id !== undefined) {
 			this.reveal(id);
 		}
-	}
-
-	/**
-	 * Reveals the prompt `delta` positions away from the one the header names, aligned to the top of the
-	 * transcript like the rail and the label activation. The header then follows scroll tracking, hiding
-	 * once the target prompt is at the top.
-	 */
-	navigate(delta: number): void {
-		const prompts = this._prompts.get();
-		if (prompts.length === 0) {
-			return;
-		}
-		const id = this._activePromptId.get();
-		const current = id ? prompts.findIndex(p => p.requestId === id) : 0;
-		const base = current < 0 ? 0 : current;
-		const target = Math.max(0, Math.min(prompts.length - 1, base + delta));
-		if (target === base) {
-			return;
-		}
-		this.reveal(prompts[target].requestId);
 	}
 
 	/** The changed files for a tick's prompts, aggregated per file (for the hover card / drill-down). */

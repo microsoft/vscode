@@ -13,9 +13,11 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { type AutoMergeMethod, type CreatedPullRequest, type GitHubIssueOrPullRequest, type IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -60,6 +62,10 @@ class TestAgentHostOctoKitService implements IAgentHostOctoKitService {
 	}
 
 	async findPullRequestByHeadBranch(): Promise<CreatedPullRequest | undefined> {
+		throw new Error('not used');
+	}
+
+	async findPullRequestByHeadSha(): Promise<CreatedPullRequest | undefined> {
 		throw new Error('not used');
 	}
 
@@ -125,6 +131,7 @@ suite('AgentHostSessionTitleController', () => {
 		getGitHubToken = () => 'github-token',
 		gitHubContextRequestTimeout?: number,
 		getGitHubHost = () => 'github.com',
+		activeAgentTitleGeneration = false,
 	): {
 		controller: AgentHostSessionTitleController;
 		stateManager: AgentHostStateManager;
@@ -152,9 +159,167 @@ suite('AgentHostSessionTitleController', () => {
 			gitHubContextRequestTimeout,
 			octoKitService,
 			copilotApiService,
+			isActiveAgentTitleGenerationEnabled: () => activeAgentTitleGeneration,
 		}, new NullLogService()));
 		return { controller, stateManager, session, db, titleActions, copilotApiService, octoKitService };
 	}
+
+	test('active-agent mode completes the word crossing the 40-character fallback target without utility generation', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, session, db, titleActions } = setup(copilotApiService, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions sometimes lose titles');
+		const instruction = await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session));
+
+		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
+		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		assert.strictEqual(instruction, 'This chat currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.');
+		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
+	});
+
+	test('active-agent fallback hard-truncates a single oversized word', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'x'.repeat(50));
+
+		assert.deepStrictEqual(titleActions, [`${'x'.repeat(37)}...`]);
+	});
+
+	test('active-agent fallback hard-caps an oversized token crossing the target', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), `Fix https://example.com/${'x'.repeat(500)}`);
+
+		assert.strictEqual(titleActions[0].length, 40);
+		assert.ok(titleActions[0].endsWith('...'));
+	});
+
+	test('active-agent fallback omits the ellipsis when the crossing word completes the prompt', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions');
+
+		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions']);
+	});
+
+	test('utility-model mode does not add an active-agent reminder', async () => {
+		const { controller, session } = setup();
+		controller.seedTitleFromFirstMessage(session.toString(), 'Explain title generation');
+
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)), undefined);
+	});
+
+	test('materialized server tools override later root setting changes', async () => {
+		const enabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, false);
+		enabled.stateManager.dispatchServerAction(enabled.session.toString(), {
+			type: ActionType.SessionServerToolsChanged,
+			tools: sessionServerToolDefinitions,
+		});
+		enabled.controller.seedTitleFromFirstMessage(enabled.session.toString(), 'Use advertised rename tool');
+
+		const disabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		disabled.stateManager.dispatchServerAction(disabled.session.toString(), {
+			type: ActionType.SessionServerToolsChanged,
+			tools: [],
+		});
+		disabled.controller.seedTitleFromFirstMessage(disabled.session.toString(), 'Do not use missing rename tool');
+
+		assert.ok((await enabled.controller.prepareInstructionForAgent(enabled.session.toString(), buildDefaultChatUri(enabled.session)))?.includes('`rename_chat`'));
+		assert.strictEqual(await disabled.controller.prepareInstructionForAgent(disabled.session.toString(), buildDefaultChatUri(disabled.session)), undefined);
+		assert.strictEqual(disabled.copilotApiService.utilityCalls.length, 1);
+	});
+
+	test('active-agent mode reminds peer chats and keeps deterministic fork provenance without utility calls', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db } = setup(copilotApiService, 'Session title', undefined, undefined, undefined, undefined, undefined, true);
+		const chat = buildChatUri(session.toString(), 'peer-1');
+		stateManager.addChat(session.toString(), chat, {});
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
+
+		const instruction = await controller.prepareInstructionForAgent(session.toString(), chat);
+		assert.strictEqual(instruction, 'This chat currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.');
+
+		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked: Session title', 'Session title');
+		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'fork auto provenance should be persisted');
+		await waitForCondition(async () => await db.getMetadata(customChatTitleSourceMetadataKey(chat)) === AGENT_HOST_TITLE_SOURCE_AUTO, 'peer auto provenance should be persisted');
+	});
+
+	test('multi-chat default uses its own persisted title provenance after controller recreation', async () => {
+		const independentlyRenamed = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, true);
+		const defaultChat = buildDefaultChatUri(independentlyRenamed.session);
+		independentlyRenamed.stateManager.addChat(independentlyRenamed.session.toString(), buildChatUri(independentlyRenamed.session.toString(), 'peer'), {});
+		await independentlyRenamed.db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
+		await independentlyRenamed.db.setMetadata(customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_AGENT);
+
+		const independentRenameInstruction = await independentlyRenamed.controller.prepareInstructionForAgent(independentlyRenamed.session.toString(), defaultChat);
+
+		const independentlyAutomatic = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, true);
+		independentlyAutomatic.stateManager.addChat(independentlyAutomatic.session.toString(), buildChatUri(independentlyAutomatic.session.toString(), 'peer'), {});
+		await independentlyAutomatic.db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AGENT);
+		await independentlyAutomatic.db.setMetadata(customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_AUTO);
+		const independentAutoInstruction = await independentlyAutomatic.controller.prepareInstructionForAgent(independentlyAutomatic.session.toString(), defaultChat);
+
+		assert.deepStrictEqual({
+			independentRenameInstruction,
+			independentAutoInstruction,
+		}, {
+			independentRenameInstruction: undefined,
+			independentAutoInstruction: 'This chat currently has an auto-generated or placeholder name. Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once to give it a short, descriptive title based on the user\'s intent. If the prompt references a pull request or issue link, resolve that link first and use its context when choosing the title. Do not skip this call even if the current name already seems descriptive.',
+		});
+	});
+
+	test('clearSession releases session and peer-chat rename state', async () => {
+		const { controller, stateManager, session, db } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		const defaultChat = buildDefaultChatUri(session);
+		const chat = buildChatUri(session.toString(), 'peer-clear');
+		stateManager.addChat(session.toString(), chat, {});
+		controller.markTitleAuto(session.toString(), defaultChat, 'Default fallback');
+		controller.markTitleAuto(session.toString(), chat, 'Chat fallback');
+		await waitForCondition(async () =>
+			await db.getMetadata(customChatTitleSourceMetadataKey(defaultChat)) === AGENT_HOST_TITLE_SOURCE_AUTO
+			&& await db.getMetadata(customChatTitleSourceMetadataKey(chat)) === AGENT_HOST_TITLE_SOURCE_AUTO,
+			'auto provenance should be persisted');
+		controller.markTitleRenamed(session.toString(), defaultChat);
+		controller.markTitleRenamed(session.toString(), chat);
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), defaultChat), undefined);
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), chat), undefined);
+
+		controller.clearSession(session.toString(), [chat]);
+
+		assert.ok((await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('`rename_chat`'));
+		assert.ok((await controller.prepareInstructionForAgent(session.toString(), chat))?.includes('`rename_chat`'));
+	});
+
+	test('clearSession cancels generation and clears every title-state collection', () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.responsePromise = new Promise(() => { });
+		const { controller, stateManager, session } = setup(copilotApiService);
+		const provisionalChat = buildChatUri(session.toString(), 'peer-provisional');
+		const renamedChat = buildChatUri(session.toString(), 'peer-renamed');
+		stateManager.addChat(session.toString(), provisionalChat, {});
+		stateManager.addChat(session.toString(), renamedChat, {});
+		controller.seedTitleFromFirstMessage(session.toString(), 'Generate a title');
+		controller.seedProvisionalTitle(session.toString(), 'Provisional', provisionalChat);
+		controller.markTitleAuto(session.toString(), renamedChat, 'Automatic');
+		controller.markTitleRenamed(session.toString(), renamedChat);
+
+		controller.clearSession(session.toString(), [provisionalChat, renamedChat]);
+
+		assert.deepStrictEqual({
+			cancellations: controller['_titleGenerationCancellationSources'].size,
+			lastApplied: controller['_lastAppliedTitle'].size,
+			provisional: controller['_provisionalTitles'].size,
+			auto: controller['_autoTitles'].size,
+			renamed: controller['_renamedTitles'].size,
+		}, {
+			cancellations: 0,
+			lastApplied: 0,
+			provisional: 0,
+			auto: 0,
+			renamed: 0,
+		});
+	});
 
 	test('seedTitleFromFirstMessage applies fallback and persists generated title', async () => {
 		const copilotApiService = new TestCopilotApiService();
@@ -347,24 +512,28 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	});
 
-	test('seedTitleFromFirstMessage caps the fully formatted GitHub context', async () => {
+	test('seedTitleFromFirstMessage caps the combined prompt and GitHub context', async () => {
 		const copilotApiService = new TestCopilotApiService();
 		const octoKitService = new TestAgentHostOctoKitService();
 		octoKitService.responses.set('microsoft/vscode#123', { title: `start${'x'.repeat(30_000)}end`, body: '' });
 		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService);
+		const prompt = 'Fix https://github.com/microsoft/vscode/issues/123';
 
-		controller.seedTitleFromFirstMessage(session.toString(), 'Fix https://github.com/microsoft/vscode/issues/123');
+		controller.seedTitleFromFirstMessage(session.toString(), prompt);
 		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
 
 		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		const promptContent = userMessage.slice(userMessage.indexOf(prompt));
 		const context = userMessage.slice(userMessage.indexOf('GitHub issue and pull request context:'));
 		assert.deepStrictEqual({
-			contextLength: context.length,
+			promptContentLength: promptContent.length,
+			keepsRequest: promptContent.startsWith(prompt),
 			hasStart: context.includes('start'),
 			hasTruncationMarker: context.includes('\n...\n'),
 			hasEnd: context.includes('end'),
 		}, {
-			contextLength: 20_000,
+			promptContentLength: 20_000,
+			keepsRequest: true,
 			hasStart: true,
 			hasTruncationMarker: true,
 			hasEnd: true,
@@ -732,6 +901,91 @@ suite('AgentHostSessionTitleController', () => {
 			middleTruncated: true,
 			includesUserRequest: true,
 			keepsHeadAndTail: true,
+		});
+	});
+
+	test('refineTitleFromFirstTurn appends GitHub context from the request and offers the current title', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const octoKitService = new TestAgentHostOctoKitService();
+		octoKitService.responses.set('microsoft/vscode#123', { title: 'Agent Host logs an error when a local commit is not on GitHub', body: 'Issue body' });
+		const { controller, stateManager, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService);
+		const request = 'Tackle this issue: https://github.com/microsoft/vscode/issues/123';
+		await seedFirstTitle(controller, copilotApiService, db, session, request, 'First title');
+
+		copilotApiService.response = 'Missing commit lookup error';
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn(request, [textPart('Fixed the pull request lookup.')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Missing commit lookup error', 'refined title should be persisted');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			fetched: octoKitService.calls.map(call => call.number),
+			includesIssueTitle: userMessage.includes('The title of the issue is: Agent Host logs an error when a local commit is not on GitHub'),
+			includesResponse: userMessage.includes('Fixed the pull request lookup.'),
+			includesCurrentTitle: userMessage.includes('Its current title is: First title'),
+		}, {
+			fetched: [123, 123],
+			includesIssueTitle: true,
+			includesResponse: true,
+			includesCurrentTitle: true,
+		});
+	});
+
+	test('refineTitleFromFirstTurn ignores GitHub links the agent only mentioned in its response', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const octoKitService = new TestAgentHostOctoKitService();
+		octoKitService.responses.set('microsoft/vscode#123', { title: 'Requested issue', body: 'Issue body' });
+		octoKitService.responses.set('microsoft/vscode#456', { title: 'Mentioned issue', body: 'Other body' });
+		const { controller, stateManager, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService);
+		const request = 'Tackle this issue: https://github.com/microsoft/vscode/issues/123';
+		await seedFirstTitle(controller, copilotApiService, db, session, request, 'First title');
+
+		copilotApiService.response = 'Refined title';
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn(request, [textPart('This also affects https://github.com/microsoft/vscode/issues/456')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Refined title', 'refined title should be persisted');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			fetched: octoKitService.calls.map(call => call.number),
+			includesMentionedIssueContext: userMessage.includes('The title of the issue is: Mentioned issue'),
+		}, {
+			fetched: [123, 123],
+			includesMentionedIssueContext: false,
+		});
+	});
+
+	test('refineTitleFromFirstTurn keeps the issue title within budget despite an oversized response', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const octoKitService = new TestAgentHostOctoKitService();
+		octoKitService.responses.set('microsoft/vscode#123', { title: 'Local commit lookup fails', body: 'C'.repeat(30_000) });
+		const { controller, stateManager, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService);
+		const request = 'Tackle this issue: https://github.com/microsoft/vscode/issues/123';
+		await seedFirstTitle(controller, copilotApiService, db, session, request, 'First title');
+
+		copilotApiService.response = 'Refined title';
+		const hugeResponse = 'A'.repeat(15_000) + ' MIDDLE_MARKER ' + 'B'.repeat(15_000);
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn(request, [textPart(hugeResponse)])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Refined title', 'refined title should be persisted');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		const promptContent = userMessage.slice(userMessage.indexOf('User request:'), userMessage.indexOf('\n\nIts current title is:'));
+		assert.deepStrictEqual({
+			promptContentLength: promptContent.length,
+			includesUserRequest: promptContent.includes(request),
+			includesIssueTitle: promptContent.includes('The title of the issue is: Local commit lookup fails'),
+			keepsResponseHeadAndTail: promptContent.includes('AAAA') && promptContent.includes('BBBB'),
+			middleTruncated: !promptContent.includes('MIDDLE_MARKER'),
+		}, {
+			promptContentLength: 20_000,
+			includesUserRequest: true,
+			includesIssueTitle: true,
+			keepsResponseHeadAndTail: true,
+			middleTruncated: true,
 		});
 	});
 

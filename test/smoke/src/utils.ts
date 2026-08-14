@@ -238,8 +238,11 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 	// and other startup paths.
 	let xdgStateHome: string | undefined;
 	let copilotHome: string | undefined;
+	let codexHome: string | undefined;
 	if (opts?.userDataDir) {
 		xdgStateHome = `${opts.userDataDir}-copilot-state`;
+		codexHome = join(opts.userDataDir, 'codex-home');
+		fs.mkdirSync(codexHome, { recursive: true });
 		// Anchor the Copilot runtime's home (`COPILOT_HOME`) at the same
 		// `.copilot` directory the extension resolves from `XDG_STATE_HOME`,
 		// so the runtime's process logs land in a known, per-run location we
@@ -271,6 +274,7 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 		VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(getMockLlmServerUrl(mockServer)) : undefined,
 		XDG_STATE_HOME: xdgStateHome,
 		COPILOT_HOME: copilotHome,
+		CODEX_HOME: codexHome,
 	};
 }
 

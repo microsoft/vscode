@@ -145,6 +145,43 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 		]);
 	});
 
+	conformanceTest(context, 'resourceList returns an empty collection for an empty directory', async function () {
+		await initializeClient('resource-list-empty');
+		const root = createWorkspace('ahp-resource-list-empty-');
+
+		const result = await context.client.call<ResourceListResult>('resourceList', {
+			channel: ROOT_STATE_URI,
+			uri: URI.file(root).toString(),
+		});
+
+		assert.deepStrictEqual(result.entries, []);
+	});
+
+	conformanceTest(context, 'resourceWrite truncates an existing file by default', async function () {
+		await initializeClient('resource-write-default-truncate');
+		const root = createWorkspace('ahp-resource-write-default-truncate-');
+		const file = fileUri(root, 'replace.txt');
+		writeFileSync(join(root, 'replace.txt'), 'LONGER_ORIGINAL');
+
+		await writeText(file, 'short');
+
+		assert.strictEqual(readFileSync(join(root, 'replace.txt'), 'utf8'), 'short');
+	});
+
+	conformanceTest(context, 'resourceDelete removes an empty directory without recursive mode', async function () {
+		await initializeClient('resource-delete-empty-directory');
+		const root = createWorkspace('ahp-resource-delete-empty-directory-');
+		const directory = join(root, 'empty');
+		mkdirSync(directory);
+
+		await context.client.call('resourceDelete', {
+			channel: ROOT_STATE_URI,
+			uri: URI.file(directory).toString(),
+		});
+
+		assert.strictEqual(existsSync(directory), false);
+	});
+
 	conformanceTest(context, 'resourceCopy, resourceMove, and resourceDelete mutate the tree', async function () {
 		await initializeClient('resource-mutate');
 		const root = createWorkspace('ahp-resource-mutate-');
@@ -660,7 +697,6 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 						uri: URI.file(pluginRoot).toString(),
 						name: 'e2e-client-plugin',
 						type: CustomizationType.Plugin,
-						enabled: true,
 						nonce: 'nonce-1',
 					}],
 				},

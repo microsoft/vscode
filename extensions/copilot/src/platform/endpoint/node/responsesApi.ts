@@ -30,7 +30,7 @@ import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { getVerbosityForModelSync, modelSupportCacheBreakPoints } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
-import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
+import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex, MISSING_STATEFUL_TOOL_RESULT } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
 import { createResponsesStreamDumper } from './responsesApiDebugDump';
 
@@ -96,7 +96,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 				...tool.function,
 				type: 'function',
 				strict: false,
-				parameters: (tool.function.parameters || {}) as Record<string, unknown>,
+				parameters: (tool.function.parameters || { type: 'object', properties: {} }) as Record<string, unknown>,
 			});
 		}
 	}
@@ -338,6 +338,14 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 		markerIndex = undefined;
 	}
 
+	let statefulToolCalls: Array<{ id: string; name: string }> = [];
+	if (markerIndex !== undefined) {
+		const markerMessage = messages[markerIndex];
+		if (markerMessage.role === Raw.ChatRole.Assistant && markerMessage.toolCalls?.length) {
+			statefulToolCalls = markerMessage.toolCalls.map(toolCall => ({ id: toolCall.id, name: toolCall.function.name }));
+		}
+	}
+
 	const toolSearchCallIds = new Set<string>();
 	const toolSearchLoadedTools = new Set<string>();
 	// Only pre-scan when history will be sliced (matches the slicing block below);
@@ -380,7 +388,33 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 		messages = messages.slice(latestCompactionMessageIndex);
 	}
 
+	// The server retains calls from previous_response_id even when prompt pruning removes
+	// their local results. Close every call absent from the final post-marker message slice.
+	const sentToolResultIds = new Set(messages
+		.filter((message): message is Raw.ToolChatMessage => message.role === Raw.ChatRole.Tool)
+		.map(message => message.toolCallId));
+	statefulToolCalls = statefulToolCalls.filter(toolCall => !sentToolResultIds.has(toolCall.id));
+
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
+	for (const toolCall of statefulToolCalls) {
+		if (toolCall.name === CUSTOM_TOOL_SEARCH_NAME) {
+			input.push({
+				type: 'tool_search_output',
+				execution: 'client',
+				call_id: toolCall.id,
+				status: 'completed',
+				tools: [],
+			} satisfies ResponsesToolSearchOutputInput as unknown as OpenAI.Responses.ResponseInputItem);
+		} else {
+			input.push({
+				type: 'function_call_output',
+				call_id: toolCall.id,
+				output: supportsCacheBreakpoints
+					? [{ type: 'input_text', text: MISSING_STATEFUL_TOOL_RESULT }]
+					: MISSING_STATEFUL_TOOL_RESULT,
+			});
+		}
+	}
 	for (const message of messages) {
 		switch (message.role) {
 			case Raw.ChatRole.Assistant:
@@ -1286,7 +1320,8 @@ export class OpenAIResponsesProcessor {
 				return onProgress({
 					text: '',
 					thinking: {
-						id: chunk.item_id
+						id: chunk.item_id,
+						metadata: { vscode_reasoning_summary_part_done: true },
 					}
 				});
 			case 'response.completed': {

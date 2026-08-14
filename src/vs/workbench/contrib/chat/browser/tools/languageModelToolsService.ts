@@ -598,6 +598,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let prepareTimeWatch: StopWatch | undefined;
 		let invocationTimeWatch: StopWatch | undefined;
 		let preparedInvocation: IPreparedToolInvocation | undefined;
+		let activeTool = tool;
 		try {
 			if (dto.context) {
 				if (!model) {
@@ -706,7 +707,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const { autoConfirmed: fallbackAutoConfirmed, preparedInvocation: updatedPreparedInvocation } = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, undefined);
 				preparedInvocation = updatedPreparedInvocation;
-				if (preparedInvocation?.confirmationMessages?.title && !fallbackAutoConfirmed) {
+				const autoConfirmed = fallbackAutoConfirmed
+					?? (preToolUseHookResult?.permissionDecision === 'ask' ? undefined : dto.preApproved);
+				if (preparedInvocation?.confirmationMessages?.title && !autoConfirmed) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(preparedInvocation.confirmationMessages.title), detail: renderAsPlaintext(preparedInvocation.confirmationMessages.message!) });
 					if (!result.confirmed) {
 						throw new CancellationError();
@@ -720,7 +723,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 
 			invocationTimeWatch = StopWatch.create(true);
-			toolResult = await tool.impl.invoke(dto, countTokens, {
+			const currentTool = this._tools.get(dto.toolId);
+			if (!currentTool) {
+				throw new Error(`Tool ${dto.toolId} was not contributed`);
+			}
+			if (!currentTool.impl) {
+				throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
+			}
+			activeTool = currentTool;
+			toolResult = await currentTool.impl.invoke(dto, countTokens, {
 				report: step => {
 					toolInvocation?.acceptProgress(step);
 				}
@@ -729,14 +740,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// Apply post-processing compression (e.g. for run_in_terminal output)
 			// before the result reaches the model. Returns undefined when no
 			// compression applied.
-			const compressed = this._toolResultCompressor.maybeCompress(tool.data.id, dto.parameters, toolResult);
+			const compressed = this._toolResultCompressor.maybeCompress(activeTool.data.id, dto.parameters, toolResult);
 			if (compressed) {
 				toolResult = compressed;
 			}
-			this.ensureToolDetails(dto, toolResult, tool.data, toolInvocation);
+			this.ensureToolDetails(dto, toolResult, activeTool.data, toolInvocation);
 
 			const afterExecuteState = await toolInvocation?.didExecuteTool(toolResult, undefined, () =>
-				this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource, dto.chatRequestId, dto.context?.workingDirectory));
+				this.shouldAutoConfirmPostExecution(activeTool.data.id, activeTool.data.runsInWorkspace, activeTool.data.source, dto.parameters, dto.context?.sessionResource, dto.chatRequestId, dto.context?.workingDirectory));
 
 			if (toolInvocation && afterExecuteState?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				const postConfirm = await IChatToolInvocation.awaitPostConfirmation(toolInvocation, token);
@@ -758,9 +769,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				{
 					result: 'success',
 					chatSessionId: dto.context?.sessionResource ? chatSessionResourceToId(dto.context.sessionResource) : undefined,
-					toolId: tool.data.id,
-					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
-					toolSourceKind: tool.data.source.type,
+					toolId: activeTool.data.id,
+					toolExtensionId: activeTool.data.source.type === 'extension' ? activeTool.data.source.extensionId.value : undefined,
+					toolSourceKind: activeTool.data.source.type,
 					prepareTimeMs: prepareTimeWatch?.elapsed(),
 					invocationTimeMs: invocationTimeWatch?.elapsed(),
 				});
@@ -772,9 +783,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				{
 					result,
 					chatSessionId: dto.context?.sessionResource ? chatSessionResourceToId(dto.context.sessionResource) : undefined,
-					toolId: tool.data.id,
-					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
-					toolSourceKind: tool.data.source.type,
+					toolId: activeTool.data.id,
+					toolExtensionId: activeTool.data.source.type === 'extension' ? activeTool.data.source.extensionId.value : undefined,
+					toolSourceKind: activeTool.data.source.type,
 					prepareTimeMs: prepareTimeWatch?.elapsed(),
 					invocationTimeMs: invocationTimeWatch?.elapsed(),
 				});
@@ -784,7 +795,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 			toolResult ??= { content: [] };
 			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
-			if (tool.data.alwaysDisplayInputOutput) {
+			if (activeTool.data.alwaysDisplayInputOutput) {
 				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'embed', isText: true, value: String(err) }], isError: true };
 			}
 

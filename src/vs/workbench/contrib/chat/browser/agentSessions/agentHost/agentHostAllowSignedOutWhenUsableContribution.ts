@@ -51,6 +51,8 @@ export class AgentHostAllowSignedOutWhenUsableContribution extends Disposable im
 		this._register(autorun(reader => {
 			if (this._agentHostEnablementService.enabled.read(reader)) {
 				this._forwarder.start();
+			} else {
+				this._forwarder.stop();
 			}
 		}));
 	}
