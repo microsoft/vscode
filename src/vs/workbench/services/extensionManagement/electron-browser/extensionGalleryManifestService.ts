@@ -36,8 +36,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 	// Resolves which account may access the Private Marketplace and owns the durable verdict +
 	// in-process service-index caches. Injected as a Delayed singleton, so the proxy only
-	// instantiates the real service (and its IAuthenticationService dependency) on first non-event
-	// access — see the microtask deferral in the constructor.
+	// instantiates the real service on first non-event access. It does not depend on
+	// IAuthenticationService — that is connected post-startup by
+	// ExtensionGalleryAccountAuthenticationContribution — so constructing it here cannot re-enter
+	// this service.
 
 	// Set once the private-marketplace path activates the account service; guards the config-change
 	// handler below from instantiating it when no private marketplace was ever configured.
@@ -80,10 +82,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			this.logService.trace(`[Marketplace] Updating channels with manifest ${manifest ? 'available' : 'unavailable'}`);
 			channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest]));
 		};
-		// Defer to a microtask so this service is cached in the DI container before the Entra path
-		// resolves IAuthenticationService: resolving it mid-construction throws "RECURSIVELY
-		// instantiating service 'IAuthenticationService'" and breaks workbench startup.
-		Promise.resolve().then(() => this.getExtensionGalleryManifest()).then(manifest => {
+		this.getExtensionGalleryManifest().then(manifest => {
 			if (this._store.isDisposed) {
 				this.logService.trace('[Marketplace] Store is already disposed, skipping channel initialization');
 				return;
