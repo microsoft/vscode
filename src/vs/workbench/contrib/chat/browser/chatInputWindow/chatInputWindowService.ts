@@ -364,7 +364,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			tabindex: '0',
 			'aria-label': localize('chatInputWindow.close.label', "Close"),
 		}));
-		close.appendChild(renderIcon(Codicon.close));
+		close.appendChild(renderIcon(Codicon.closeSmall));
 		this._windowDisposables.add(dom.addDisposableListener(close, dom.EventType.CLICK, () => this.closeWindow()));
 		this._windowDisposables.add(dom.addStandardDisposableListener(close, dom.EventType.KEY_DOWN, event => {
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
