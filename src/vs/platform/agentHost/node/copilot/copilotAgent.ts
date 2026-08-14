@@ -2868,7 +2868,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				project,
 				workspaceless: isWorkspaceless,
 			});
-			this._chatBackings.set(chat.toString(), { sdkSessionId });
+			this._chatBackings.set(chat.toString(), { sdkSessionId, ...(options.model ? { model: options.model } : {}) });
 		}
 
 		this._logService.info(`[Copilot] Chat created; its backing stays deferred until the first send: ${session.toString()}`);
