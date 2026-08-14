@@ -537,6 +537,29 @@ export class AgentSideEffects extends Disposable {
 		});
 	}
 
+	/** Drops invocation tracking for a chat whose turn ended with calls outstanding. */
+	private _clearInvokedClientTools(chatUri: ProtocolURI): void {
+		const prefix = `${chatUri}:`;
+		for (const key of this._sdkInvokedClientTools) {
+			if (key.startsWith(prefix)) {
+				this._sdkInvokedClientTools.delete(key);
+			}
+		}
+	}
+
+	/** Whether a streamed tool call already carries arguments to run with. */
+	private static _hasToolInput(toolCall: ToolCallState): boolean {
+		const input = 'toolInput' in toolCall ? toolCall.toolInput : undefined;
+		return input !== undefined && input !== '' && input !== '{}';
+	}
+
+	/**
+	 * Client tool calls the runtime has invoked, keyed `${chat}:${toolCallId}`.
+	 * For a provider that announces invocations this is what admits a call to
+	 * execution, so a streamed ready alone never starts one.
+	 */
+	private readonly _sdkInvokedClientTools = new Set<string>();
+
 	private _syncToolInputNeeded(chatUri: ProtocolURI, turnId: string, toolCallId: string): void {
 		const confirmationId = this._toolConfirmationNeededId(chatUri, turnId, toolCallId);
 		const clientExecutionId = this._toolClientExecutionNeededId(chatUri, turnId, toolCallId);
@@ -565,7 +588,10 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const contributor = toolCall?.contributor;
-		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
+		const awaitingInvocation = contributor?.kind === ToolCallContributorKind.Client
+			&& this._options.getAgent(parseRequiredSessionUriFromChatUri(chatUri))?.drivesClientToolExecution === true
+			&& !this._sdkInvokedClientTools.has(`${chatUri}:${toolCallId}`);
+		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client && !awaitingInvocation) {
 			this._setSessionInputNeeded(chatUri, {
 				id: clientExecutionId,
 				kind: SessionInputRequestKind.ToolClientExecution,
@@ -841,7 +867,22 @@ export class AgentSideEffects extends Disposable {
 	 * alone.
 	 */
 	private _handleClientToolInvoked(signal: IAgentClientToolInvokedSignal, sessionKey: ProtocolURI, turnId: string): void {
-		if (this._findToolCall(sessionKey, turnId, signal.toolCallId)) {
+		this._sdkInvokedClientTools.add(`${sessionKey}:${signal.toolCallId}`);
+		const streamed = this._findToolCall(sessionKey, turnId, signal.toolCallId);
+		if (streamed) {
+			// The streamed arguments can be absent when the ready was synthesized
+			// on a disconnect; the runtime's are authoritative either way.
+			if (!AgentSideEffects._hasToolInput(streamed)) {
+				this._stateManager.dispatchServerAction(sessionKey, {
+					type: ActionType.ChatToolCallReady,
+					turnId,
+					toolCallId: signal.toolCallId,
+					invocationMessage: ('invocationMessage' in streamed ? streamed.invocationMessage : undefined) ?? signal.toolName,
+					toolInput: signal.toolInput,
+					confirmed: 'confirmed' in streamed ? streamed.confirmed : ToolCallConfirmationReason.NotNeeded,
+				});
+			}
+			this._syncToolInputNeeded(sessionKey, turnId, signal.toolCallId);
 			return;
 		}
 		const sessionUri = parseRequiredSessionUriFromChatUri(sessionKey);
@@ -997,6 +1038,7 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatToolCallComplete) {
+			this._sdkInvokedClientTools.delete(`${sessionKey}:${action.toolCallId}`);
 			this._turnTracker.toolCallEnded(sessionKey, turnId, action.toolCallId);
 
 			// Emit `languageModelToolInvoked` telemetry for the completed tool
@@ -1016,18 +1058,21 @@ export class AgentSideEffects extends Disposable {
 
 		if (action.type === ActionType.ChatTurnComplete) {
 			this._completeTurn(sessionKey, turnId, 'success');
+			this._clearInvokedClientTools(sessionKey);
 			this._toolCallTracker.clearSession(sessionKey);
 			this._runTurnCompleteSideEffects(sessionKey, turnId);
 		}
 
 		if (action.type === ActionType.ChatTurnCancelled) {
 			this._completeTurn(sessionKey, turnId, 'cancelled');
+			this._clearInvokedClientTools(sessionKey);
 			this._toolCallTracker.clearSession(sessionKey);
 			this._markSessionUnread(sessionUri);
 		}
 
 		if (action.type === ActionType.ChatError) {
 			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
+			this._clearInvokedClientTools(sessionKey);
 			this._toolCallTracker.clearSession(sessionKey);
 			this._captureTurnCheckpointAndRefresh(sessionKey, turnId);
 			this._markSessionUnread(sessionUri);
