@@ -2092,7 +2092,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _emitExtHostChats(): Promise<void> {
 		try {
 			const chats = await this._discoverExtHostChats();
-			if (chats) {
+			if (chats && this._isMigrateLegacyCopilotCliEnabled()) {
 				this._onDidDiscoverChats.fire(chats);
 			}
 		} catch (err) {

@@ -4266,6 +4266,44 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('does not signal extension-host chats when migration is disabled during discovery', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/disabled-during-migration-event-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/disabled-during-migration-event-cwd-`);
+			const sessionId = 'disabled-during-migration-event';
+			const listStarted = new DeferredPromise<void>();
+			const releaseList = new DeferredPromise<void>();
+			class GatedListClient extends TestCopilotClient {
+				override async listSessions(): ReturnType<ITestCopilotClient['listSessions']> {
+					listStarted.complete();
+					await releaseList.p;
+					return super.listSessions();
+				}
+			}
+			const client = new GatedListClient([sdkSession(sessionId, workingDirectory)]);
+			await writeExtensionHostMarker(userHome, sessionId);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				userHome,
+				rootConfig: { [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true },
+			});
+			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
+			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
+			try {
+				await listStarted.p;
+				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+				releaseList.complete();
+				for (let i = 0; i < 20; i++) {
+					await timeout(0);
+				}
+				assert.deepStrictEqual(discoveredChats, []);
+			} finally {
+				listener.dispose();
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('does not discover an extension-host chat with an empty Agent Host database', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/ghost-migration-event-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/ghost-migration-event-cwd-`);
