@@ -15,7 +15,7 @@ import { IExperimentationService } from '../../../../platform/telemetry/common/n
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import * as protocol from '../../common/serverProtocol';
 import { ContextItemResultBuilder, ResolvedRunnableResult } from '../types';
-import { currentTokenBudget, TSLanguageContextService } from '../tsContextService';
+import { AbstractTSLanguageContextService, currentTokenBudget } from '../tsContextService';
 import { computeContext as computeServerContext } from './api';
 import { CharacterBudget, ComputeContextSession, ContextResult, RequestContext as ServerRequestContext, TokenBudgetExhaustedError } from './contextProvider';
 import { CancellationTokenWithTimer, OperationCanceledException } from './typescripts';
@@ -93,7 +93,7 @@ class OnTimeoutData {
 	}
 }
 
-export class TS7LanguageContextService extends TSLanguageContextService {
+export class TS7LanguageContextService extends AbstractTSLanguageContextService {
 	private static readonly defaultCachePopulationRaceTimeout: number = 20;
 
 	private api: API<true> | undefined;

@@ -13,7 +13,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import * as protocol from '../../common/serverProtocol';
 import { ContextItemResultBuilder, ResolvedRunnableResult } from '../types';
-import { currentTokenBudget, TSLanguageContextService } from '../tsContextService';
+import { currentTokenBudget, AbstractTSLanguageContextService } from '../tsContextService';
 
 enum ExecutionTarget {
 	Semantic,
@@ -127,7 +127,7 @@ class OnTimeoutData {
 	}
 }
 
-export class TS6LanguageContextService extends TSLanguageContextService {
+export class TS6LanguageContextService extends AbstractTSLanguageContextService {
 
 	private static readonly defaultCachePopulationRaceTimeout: number = 20;
 	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic };

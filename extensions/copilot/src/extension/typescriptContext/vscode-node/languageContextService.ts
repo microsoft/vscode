@@ -20,7 +20,7 @@ import { ThrottledDebouncer } from './throttledDebounce';
 import { ContextItemSummary, ErrorLocation, ErrorPart, type OnCachePopulatedEvent, type OnContextComputedEvent, type OnContextComputedOnTimeoutEvent } from './types';
 import { TS6LanguageContextService } from './tsc6/tsContextService';
 import { TS7LanguageContextService } from './ts7/tsContextService';
-import { currentTokenBudget, TypeScript, type TSLanguageContextService } from './tsContextService';
+import { currentTokenBudget, NullTSLanguageContextService, TypeScript, type TSLanguageContextService } from './tsContextService';
 import { TelemetrySender } from './telemetrySender';
 
 export class LanguageContextServiceImpl implements ILanguageContextService, vscode.Disposable {
@@ -45,17 +45,19 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		this._onCachePopulated = new vscode.EventEmitter<OnCachePopulatedEvent>();
 		this._onContextComputed = new vscode.EventEmitter<OnContextComputedEvent>();
 		this._onContextComputedOnTimeout = new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>();
-		const useTS7 = TypeScript.useVersion7();
-		this.tsLanguageContextService = useTS7
-			? new TS7LanguageContextService(this.telemetryService, this.configurationService, this.experimentationService, this.logService)
+		const runsTS7 = TypeScript.runsVersion7();
+		const enableTS7 = this.enableTS7LanguageContext();
+		this.tsLanguageContextService = runsTS7
+			? enableTS7
+				? new TS7LanguageContextService(this.telemetryService, this.configurationService, this.experimentationService, this.logService)
+				: new NullTSLanguageContextService()
 			: new TS6LanguageContextService(this.telemetryService, this.configurationService, this.experimentationService, this.logService);
 		this.bindEvents();
 		this.disposables.add(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(TypeScript.versionKey)) {
+			if (e.affectsConfiguration(TypeScript.versionKey) || e.affectsConfiguration(ConfigKey.TypeScript7LanguageContext.fullyQualifiedId)) {
 				this.updateTSLanguageContextService();
 			}
 		}));
-
 	}
 
 	public dispose(): void {
@@ -94,12 +96,23 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 	}
 
 	private updateTSLanguageContextService(): void {
-		const useTS7 = TypeScript.useVersion7();
+		const runsTS7 = TypeScript.runsVersion7();
+		const enableTS7 = this.enableTS7LanguageContext();
 		const oldService: TSLanguageContextService = this.tsLanguageContextService;
-		if (useTS7 && oldService instanceof TS6LanguageContextService) {
-			oldService.dispose();
-			this.tsLanguageContextService = new TS7LanguageContextService(this.telemetryService, this.configurationService, this.experimentationService, this.logService);
-		} else if (!useTS7 && oldService instanceof TS7LanguageContextService) {
+		if (runsTS7) {
+			if (oldService instanceof TS6LanguageContextService) {
+				oldService.dispose();
+				this.tsLanguageContextService = enableTS7
+					? new TS7LanguageContextService(this.telemetryService, this.configurationService, this.experimentationService, this.logService)
+					: new NullTSLanguageContextService();
+			} else if (oldService instanceof TS7LanguageContextService && !enableTS7) {
+				oldService.dispose();
+				this.tsLanguageContextService = new NullTSLanguageContextService();
+			} else if (oldService instanceof NullTSLanguageContextService && enableTS7) {
+				oldService.dispose();
+				this.tsLanguageContextService = new TS7LanguageContextService(this.telemetryService, this.configurationService, this.experimentationService, this.logService);
+			}
+		} else if (!runsTS7 && (oldService instanceof TS7LanguageContextService || oldService instanceof NullTSLanguageContextService)) {
 			oldService.dispose();
 			this.tsLanguageContextService = new TS6LanguageContextService(this.telemetryService, this.configurationService, this.experimentationService, this.logService);
 		}
@@ -112,6 +125,10 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		this.tsLanguageContextService.onCachePopulated(this._onCachePopulated.fire.bind(this._onCachePopulated));
 		this.tsLanguageContextService.onContextComputed(this._onContextComputed.fire.bind(this._onContextComputed));
 		this.tsLanguageContextService.onContextComputedOnTimeout(this._onContextComputedOnTimeout.fire.bind(this._onContextComputedOnTimeout));
+	}
+
+	private enableTS7LanguageContext(): boolean {
+		return this.configurationService.getConfig(ConfigKey.TypeScript7LanguageContext) ?? false;
 	}
 }
 
@@ -497,7 +514,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 
 	private async isTypeScriptRunning(): Promise<boolean> {
 		// Check that the TypeScript extension is installed and runs in the same extension host.
-		const useTypeScript7 = TypeScript.useVersion7();
+		const useTypeScript7 = TypeScript.runsVersion7();
 		const typeScriptExtension = useTypeScript7
 			? vscode.extensions.getExtension('typescriptteam.native-preview')
 			: vscode.extensions.getExtension('vscode.typescript-language-features');

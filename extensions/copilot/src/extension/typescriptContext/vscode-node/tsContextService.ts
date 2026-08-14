@@ -20,7 +20,7 @@ export const currentTokenBudget: number = 8 * 1024;
 
 export namespace TypeScript {
 	export const versionKey = 'js/ts.experimental.useTsgo';
-	export function useVersion7(): boolean {
+	export function runsVersion7(): boolean {
 		const value = vscode.workspace.getConfiguration('js/ts.experimental').get<boolean>('useTsgo', false);
 		return value === true;
 	}
@@ -651,7 +651,13 @@ class CharacterBudget {
 	}
 }
 
-export abstract class TSLanguageContextService implements Omit<ILanguageContextService, '_serviceBrand'>, vscode.Disposable {
+export interface TSLanguageContextService extends Omit<ILanguageContextService, '_serviceBrand'>, vscode.Disposable {
+	readonly onCachePopulated: vscode.Event<OnCachePopulatedEvent>;
+	readonly onContextComputed: vscode.Event<OnContextComputedEvent>;
+	readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
+}
+
+export abstract class AbstractTSLanguageContextService implements TSLanguageContextService {
 
 	private static readonly defaultCachePopulationBudget: number = 500;
 
@@ -731,7 +737,7 @@ export abstract class TSLanguageContextService implements Omit<ILanguageContextS
 
 	private getCachePopulationBudget(): number {
 		const result = this.configurationService.getExperimentBasedConfig(ConfigKey.TypeScriptLanguageContextCacheTimeout, this.experimentationService);
-		return result ?? TSLanguageContextService.defaultCachePopulationBudget;
+		return result ?? AbstractTSLanguageContextService.defaultCachePopulationBudget;
 	}
 
 	private getUsageMode(): ContextItemUsageMode {
@@ -757,5 +763,38 @@ export abstract class TSLanguageContextService implements Omit<ILanguageContextS
 			default:
 				return new CharacterBudget(chars, chars);
 		}
+	}
+}
+
+export class NullTSLanguageContextService implements TSLanguageContextService {
+
+	public readonly onCachePopulated: vscode.Event<OnCachePopulatedEvent>;
+	public readonly onContextComputed: vscode.Event<OnContextComputedEvent>;
+	public readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
+
+	constructor() {
+		this.onCachePopulated = new vscode.EventEmitter<OnCachePopulatedEvent>().event;
+		this.onContextComputed = new vscode.EventEmitter<OnContextComputedEvent>().event;
+		this.onContextComputedOnTimeout = new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>().event;
+	}
+
+	public dispose(): void {
+		// No resources to dispose
+	}
+
+	public async isActivated(): Promise<boolean> {
+		return true;
+	}
+
+	public async populateCache(): Promise<void> {
+		// No cache to populate
+	}
+
+	public getContext(): AsyncIterable<ContextItem> {
+		return (async function* () { })();
+	}
+
+	public getContextOnTimeout(): readonly ContextItem[] | undefined {
+		return undefined;
 	}
 }
