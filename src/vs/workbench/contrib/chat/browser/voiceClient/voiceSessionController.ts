@@ -2105,7 +2105,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._pendingResponseSummaries.set(sessionKey, e.transcript);
 				this._omniClaimedResponseSummaries.set(sessionKey, e.transcript);
 				if (solicitedNarration?.kind === 'response') {
-					this._speakTranscriptOnlyResponse(codingSessionId, e.responseId, solicitedNarration).catch(error => {
+					this._speakTranscriptOnlyResponse(codingSessionId, e.responseId, { ...solicitedNarration, text: e.transcript }).catch(error => {
 						this.logService.error('[voice] transcript-only response fallback failed', error);
 					});
 				} else if (!solicitedNarration) {

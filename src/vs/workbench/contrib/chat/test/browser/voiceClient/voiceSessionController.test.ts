@@ -4642,7 +4642,7 @@ suite('VoiceSessionController', () => {
 			isFinal: true,
 			codingSessionId: sessionId,
 			responseId: 'transcript-only-response',
-			transcript: 'The requested file was created.',
+			transcript: 'Created /Users/meganrogge/Repos/vscode/docs/voice.md with the requested implementation details.',
 		});
 		const narrationId = voiceClientService.requests[0].narrationId;
 		voiceClientService.fireAudioResponse({
@@ -4651,7 +4651,7 @@ suite('VoiceSessionController', () => {
 			isFinal: true,
 			codingSessionId: sessionId,
 			responseId: narrationId,
-			transcript: 'The requested file was created.',
+			transcript: 'I created the requested documentation file.',
 			narrationKind: 'response',
 		});
 		await Promise.resolve();
@@ -4667,11 +4667,11 @@ suite('VoiceSessionController', () => {
 			})),
 		}, {
 			playedAudio: [],
-			synthesized: ['The requested file was created.'],
+			synthesized: ['I created the requested documentation file.'],
 			narrations: [{
 				sessionId,
 				kind: 'response',
-				text: 'The requested file was created.',
+				text: 'Created /Users/meganrogge/Repos/vscode/docs/voice.md with the requested implementation details.',
 			}],
 		});
 	});
