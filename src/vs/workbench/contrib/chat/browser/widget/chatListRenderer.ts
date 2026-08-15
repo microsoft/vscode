@@ -352,10 +352,30 @@ export function splitMarkdownContentAtRenderedCodeBlocks(markdown: IChatMarkdown
 	return result;
 }
 
+export function prepareResponseContentForRendering(
+	sourceParts: Iterable<IChatProgressResponseContent>,
+	isComplete: boolean,
+	hasRenderer: (languageId: string) => boolean,
+): IChatRendererContent[] {
+	const annotatedContent = annotateSpecialMarkdownContent(sourceParts);
+	if (isComplete) {
+		return annotatedContent;
+	}
+
+	const result: IChatRendererContent[] = [];
+	for (const part of annotatedContent) {
+		if (part.kind === 'markdownContent') {
+			result.push(...splitMarkdownContentAtRenderedCodeBlocks(part, hasRenderer));
+		} else {
+			result.push(part);
+		}
+	}
+	return result;
+}
+
 function normalizeMarkdownSource(value: string): { readonly value: string; readonly originalOffsets: readonly number[] } {
 	let normalized = '';
 	const originalOffsets = [0];
-	let atLineStart = true;
 	for (let index = 0; index < value.length;) {
 		const character = value[index];
 		if (character === '\r') {
@@ -363,19 +383,9 @@ function normalizeMarkdownSource(value: string): { readonly value: string; reado
 			normalized += '\n';
 			originalOffsets.push(nextOffset);
 			index = nextOffset;
-			atLineStart = true;
-		} else if (character === '\n') {
-			normalized += character;
-			originalOffsets.push(++index);
-			atLineStart = true;
-		} else if (atLineStart && character === '\t') {
-			normalized += '    ';
-			originalOffsets.push(index, index, index, index + 1);
-			index++;
 		} else {
 			normalized += character;
 			originalOffsets.push(++index);
-			atLineStart &&= character === ' ';
 		}
 	}
 	return { value: normalized, originalOffsets };
@@ -787,6 +797,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 */
 	private readonly _announcedToolProgressKeys = new Set<string>();
 	private readonly _responseContentCache = new WeakMap<IChatResponseViewModel, {
+		readonly dataId: string;
 		readonly sourceParts: readonly IChatProgressResponseContent[];
 		readonly content: IChatRendererContent[];
 	}>();
@@ -2805,23 +2816,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private getResponseContent(element: IChatResponseViewModel): IChatRendererContent[] {
 		const sourceParts = element.response.value;
+		if (element.isComplete) {
+			return prepareResponseContentForRendering(sourceParts, true, languageId => this.chatOutputRendererService.hasCodeBlockRenderer(languageId));
+		}
+
 		const cached = this._responseContentCache.get(element);
-		if (cached
+		if (cached?.dataId === element.dataId
 			&& cached.sourceParts.length === sourceParts.length
 			&& cached.sourceParts.every((part, index) => part === sourceParts[index])) {
 			return cached.content;
 		}
 
-		const result: IChatRendererContent[] = [];
-		for (const part of annotateSpecialMarkdownContent(sourceParts)) {
-			if (part.kind !== 'markdownContent') {
-				result.push(part);
-				continue;
-			}
-
-			result.push(...splitMarkdownContentAtRenderedCodeBlocks(part, languageId => this.chatOutputRendererService.hasCodeBlockRenderer(languageId)));
-		}
-		this._responseContentCache.set(element, { sourceParts: [...sourceParts], content: result });
+		const result = prepareResponseContentForRendering(sourceParts, false, languageId => this.chatOutputRendererService.hasCodeBlockRenderer(languageId));
+		this._responseContentCache.set(element, { dataId: element.dataId, sourceParts: [...sourceParts], content: result });
 		return result;
 	}
 
