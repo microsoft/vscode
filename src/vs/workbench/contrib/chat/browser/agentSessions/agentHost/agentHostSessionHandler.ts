@@ -2754,7 +2754,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			onFailureStage('prepareTurn');
 			// This waits only for local trust checks and ordered optimistic dispatch;
 			// working-directory action envelopes are not a turn-start barrier.
-			await this._workingDirectorySynchronizer.reconcile(session, cancellationToken);
+			await Promise.race([
+				this._workingDirectorySynchronizer.reconcile(session, cancellationToken),
+				completion.p,
+			]);
 			if (turnStore.isDisposed || cancellationToken.isCancellationRequested) {
 				this._inFlightTurns.delete(turnStore);
 				return completion.p;

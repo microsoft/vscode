@@ -4201,7 +4201,6 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, chatSession } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			await reconcileStarted.p;
 			handlerStore.dispose();
-			releaseReconcile.complete();
 			await turnPromise;
 
 			assert.deepStrictEqual({
@@ -4211,6 +4210,7 @@ suite('AgentHostChatContribution', () => {
 				turnStarted: false,
 				invalidatedSessionModels: [chatSession.sessionResource.toString()],
 			});
+			releaseReconcile.complete();
 		}));
 
 		test('live turn returns model credit details from usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

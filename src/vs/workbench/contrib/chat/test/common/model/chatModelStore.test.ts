@@ -165,6 +165,40 @@ suite('ChatModelStore', () => {
 		});
 	});
 
+	test('resource cleanup waits for all invalidated generations', async () => {
+		const uri = URI.parse('test://session');
+		const props: IStartSessionProps = {
+			sessionResource: uri,
+			location: ChatAgentLocation.Chat,
+			canUseTools: true
+		};
+		const disposedModels: ChatModel[] = [];
+		store.add(testObject.onDidDisposeModel(model => disposedModels.push(model)));
+
+		const firstRef = testObject.acquireOrCreate(props);
+		const firstModel = firstRef.object;
+		testObject.invalidate(uri);
+		const secondRef = testObject.acquireOrCreate(props);
+		const secondModel = secondRef.object;
+		testObject.invalidate(uri);
+
+		firstRef.dispose();
+		await testObject.waitForModelDisposals();
+		const disposedAfterFirstGeneration = [...disposedModels];
+
+		secondRef.dispose();
+		await testObject.waitForModelDisposals();
+		assert.deepStrictEqual({
+			generationsAreDistinct: firstModel !== secondModel,
+			disposedAfterFirstGeneration,
+			disposedAfterFinalGeneration: disposedModels,
+		}, {
+			generationsAreDistinct: true,
+			disposedAfterFirstGeneration: [],
+			disposedAfterFinalGeneration: [secondModel],
+		});
+	});
+
 	test('get and has', async () => {
 		const uri = URI.parse('test://session');
 		const props: IStartSessionProps = {

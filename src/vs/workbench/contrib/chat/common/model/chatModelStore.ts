@@ -231,14 +231,14 @@ export class ChatModelStore extends Disposable {
 					this._models.delete(resourceKey);
 					this._currentGenerationKeys.delete(resourceKey);
 				}
-				if (isCurrentGeneration || !this._currentGenerationKeys.has(resourceKey)) {
-					this._onDidDisposeModel.fire(object);
-				}
 				this._modelsByGeneration.delete(generationKey);
 				this._modelCreateOwners.delete(generationKey);
 				this._referenceOwners.delete(generationKey);
 				this._resourceKeysByGeneration.delete(generationKey);
 				this._invalidatedGenerationKeys.delete(generationKey);
+				if (![...this._resourceKeysByGeneration.values()].includes(resourceKey)) {
+					this._onDidDisposeModel.fire(object);
+				}
 				object.dispose();
 			}
 			this._modelsToDispose.delete(generationKey);
