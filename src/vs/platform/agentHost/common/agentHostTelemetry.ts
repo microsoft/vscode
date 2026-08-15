@@ -52,7 +52,7 @@ const CLIENT_TELEMETRY_LEVEL_META_KEY = 'vscode.telemetryLevel';
 
 export function toAgentHostClientMeta(connectionKind: AgentHostClientConnectionKind | undefined, telemetryLevel: TelemetryLevel): Record<string, unknown> {
 	const meta: Record<string, unknown> = {
-		[CLIENT_TELEMETRY_LEVEL_META_KEY]: telemetryLevelToMetaValue(telemetryLevel),
+		[CLIENT_TELEMETRY_LEVEL_META_KEY]: telemetryLevelToAgentHostValue(telemetryLevel),
 	};
 	if (connectionKind !== undefined && connectionKind !== AgentHostClientConnectionKind.Unknown) {
 		meta[CLIENT_CONNECTION_KIND_META_KEY] = connectionKind;
@@ -91,7 +91,7 @@ export function readClientTelemetryLevel(meta: Record<string, unknown> | undefin
 	}
 }
 
-function telemetryLevelToMetaValue(telemetryLevel: TelemetryLevel): TelemetryConfiguration {
+export function telemetryLevelToAgentHostValue(telemetryLevel: TelemetryLevel): TelemetryConfiguration {
 	switch (telemetryLevel) {
 		case TelemetryLevel.NONE:
 			return TelemetryConfiguration.OFF;

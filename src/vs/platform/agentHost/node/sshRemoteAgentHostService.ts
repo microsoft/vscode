@@ -17,6 +17,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
+import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import {
 	ISSHRemoteAgentHostMainService,
 	SSHAuthMethod,
@@ -46,6 +47,7 @@ import {
 } from './sshKnownHosts.js';
 import type { RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
+import { AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import {
 	type AgentHostEndpointAddress,
 	type AgentHostServerType,
@@ -69,6 +71,7 @@ import {
 	resolveRemotePlatform,
 	runAgentEndpoints,
 	shellEscape,
+	validateAgentHostTelemetryLevel,
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
@@ -372,18 +375,20 @@ function startRemoteAgentHost(
 	cliBin: string | undefined,
 	cliDataDir: string | undefined,
 	commandOverride?: string,
+	telemetryLevel = TelemetryConfiguration.OFF,
 ): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
 		if (!commandOverride && (!cliBin || !cliDataDir)) {
 			reject(new Error(`${LOG_PREFIX} startRemoteAgentHost requires either a cliBin+cliDataDir pair or a commandOverride`));
 			return;
 		}
-		const baseCmd = commandOverride ?? buildAgentHostBaseCommand(cliBin!, cliDataDir!);
+		const validatedTelemetryLevel = validateAgentHostTelemetryLevel(telemetryLevel);
+		const baseCmd = commandOverride ?? buildAgentHostBaseCommand(cliBin!, cliDataDir!, validatedTelemetryLevel);
 		// Wrap in a login shell so the agent host process inherits the
 		// user's PATH and environment from ~/.bash_profile / ~/.bashrc
 		// (ssh2 exec runs a non-interactive non-login shell by default).
 		// Echo the PID so we can record it for process reuse detection.
-		const cmd = `bash -l -c ${shellEscape(`echo VSCODE_PID=$$ && exec ${baseCmd}`)}`;
+		const cmd = `bash -l -c ${shellEscape(`echo VSCODE_PID=$$ && export ${AgentHostTelemetryLevelEnvKey}=${validatedTelemetryLevel} && exec ${baseCmd}`)}`;
 		logService.info(`${LOG_PREFIX} Starting remote agent host: ${cmd}`);
 
 		client.exec(cmd, (err: Error | undefined, stream: SSHChannel) => {
@@ -917,7 +922,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// picker over. Always start a fresh process (requirement 6).
 				this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}; skipping endpoint discovery/selection`);
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-				const result = await this._startRemoteAgentHost(sshClient, undefined, undefined, config.remoteAgentHostCommand);
+				const result = await this._startRemoteAgentHost(sshClient, undefined, undefined, config.remoteAgentHostCommand, config.telemetryLevel ?? TelemetryConfiguration.OFF);
 				endpoint = { type: 'tcp', host: '127.0.0.1', port: result.port };
 				connectionToken = result.connectionToken;
 				agentStream = result.stream;
@@ -948,7 +953,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				const standalones = live.filter(e => e.type === 'standalone');
 
 				const spawnDedicated = async (): Promise<IAgentHostEndpointMetadata> => {
-					const spawnCommand = buildAgentHostSpawnCommand(cliBin, cliDataDir, userDataPath);
+					const spawnCommand = buildAgentHostSpawnCommand(cliBin, cliDataDir, userDataPath, config.telemetryLevel ?? TelemetryConfiguration.OFF);
 					reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
 					this._logService.info(`${LOG_PREFIX} Spawning dedicated standalone agent host: ${spawnCommand}`);
 					// Fire-and-forget: the spawned process is self-managed via
@@ -1167,7 +1172,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		}
 	}
 
-	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, telemetryLevel?: ISSHAgentHostConfig['telemetryLevel'], agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
 		const resolved = await this.resolveSSHConfig(sshConfigHost);
 
@@ -1191,6 +1196,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
+			telemetryLevel,
 			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
 			userInitiated,
 			preferredAgentLocation,
@@ -2033,9 +2039,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	protected _startRemoteAgentHost(
-		client: SSHClient, cliBin: string | undefined, cliDataDir: string | undefined, commandOverride?: string,
+		client: SSHClient, cliBin: string | undefined, cliDataDir: string | undefined, commandOverride?: string, telemetryLevel?: TelemetryConfiguration,
 	): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
-		return startRemoteAgentHost(client, this._logService, cliBin, cliDataDir, commandOverride);
+		return startRemoteAgentHost(client, this._logService, cliBin, cliDataDir, commandOverride, telemetryLevel);
 	}
 
 	protected async _createWebSocketRelay(

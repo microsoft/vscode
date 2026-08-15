@@ -161,21 +161,18 @@ suite('AgentHostTelemetryService', () => {
 		assert.strictEqual((internalSender as unknown as { _options: { extensionVersion: string | undefined } })._options.extensionVersion, '0.58.0');
 	});
 
-	test('suppresses telemetry until the first client level and permanently disables after TelemetryLevel.NONE', async () => {
+	test('uses the launch telemetry level before a client connects and only becomes more restrictive', () => {
 		const delegate = new TestTelemetryService();
-		const service = disposables.add(new AgentHostTelemetryService(delegate, undefined, undefined, undefined, null));
+		const service = disposables.add(new AgentHostTelemetryService(delegate, undefined, undefined, undefined, TelemetryLevel.USAGE));
 
 		service.publicLog('beforeClientLevel', { count: 1 });
-		service.updateTelemetryLevel(TelemetryLevel.USAGE);
-		service.publicLog('afterSeededConfig', { count: 2 });
-		service.updateClientTelemetryLevel(TelemetryLevel.USAGE);
+		service.updateClientTelemetryLevel(TelemetryLevel.ERROR);
 		service.publicLog('afterClientLevel', { count: 2 });
-		service.updateTelemetryLevel(TelemetryLevel.NONE);
-		service.updateTelemetryLevel(TelemetryLevel.USAGE);
+		service.publicLogError('afterClientLevelError', { count: 3 });
+		service.updateClientTelemetryLevel(TelemetryLevel.NONE);
+		service.updateClientTelemetryLevel(TelemetryLevel.USAGE);
 		service.publicLog2('afterDisable');
 		service.publicLogError2('afterDisableError');
-		service.publicLog('afterDisableAsync', { count: 4 });
-		service.publicLogError('afterDisableErrorAsync', { count: 5 });
 
 		assert.deepStrictEqual({
 			telemetryLevel: service.telemetryLevel,
@@ -185,8 +182,8 @@ suite('AgentHostTelemetryService', () => {
 		}, {
 			telemetryLevel: TelemetryLevel.NONE,
 			sendErrorTelemetry: false,
-			events: [{ eventName: 'afterClientLevel', data: { count: 2 } }],
-			errorEvents: [],
+			events: [{ eventName: 'beforeClientLevel', data: { count: 1 } }],
+			errorEvents: [{ eventName: 'afterClientLevelError', data: { count: 3 } }],
 		});
 	});
 

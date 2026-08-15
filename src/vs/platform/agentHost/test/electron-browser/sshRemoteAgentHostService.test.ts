@@ -18,6 +18,8 @@ import { IConfirmation, IDialogService } from '../../../dialogs/common/dialogs.j
 import { INotificationService, Severity, type INotification, type INotificationHandle } from '../../../notification/common/notification.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { ITelemetryService, TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
@@ -150,7 +152,7 @@ class MockSSHMainService {
 
 	readonly disconnectCalls: string[] = [];
 	readonly connectCalls: ISSHAgentHostConfig[] = [];
-	readonly reconnectCalls: Array<{ sshConfigHost: string; name: string; remoteAgentHostCommand?: string; agentForward?: boolean; userInitiated?: boolean; preferredAgentLocation?: RemoteAgentHostLocationPreference }> = [];
+	readonly reconnectCalls: Array<{ sshConfigHost: string; name: string; remoteAgentHostCommand?: string; telemetryLevel?: TelemetryConfiguration; agentForward?: boolean; userInitiated?: boolean; preferredAgentLocation?: RemoteAgentHostLocationPreference }> = [];
 	private _nextConnectionId = 1;
 
 	connectResult: Partial<ISSHConnectResult> | undefined;
@@ -169,8 +171,8 @@ class MockSSHMainService {
 		};
 	}
 
-	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
-		this.reconnectCalls.push({ sshConfigHost, name, remoteAgentHostCommand, agentForward, userInitiated, preferredAgentLocation });
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, telemetryLevel?: TelemetryConfiguration, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
+		this.reconnectCalls.push({ sshConfigHost, name, remoteAgentHostCommand, telemetryLevel, agentForward, userInitiated, preferredAgentLocation });
 		return {
 			connectionId: this.connectResult?.connectionId ?? `conn-${this._nextConnectionId++}`,
 			address: this.connectResult?.address ?? `ssh:${sshConfigHost}`,
@@ -379,6 +381,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService as Partial<IConfigurationService>);
 		quickInputServiceStub = {};
@@ -457,6 +460,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 		assert.strictEqual(mainService.connectCalls.length, 1);
 		assert.strictEqual(mainService.connectCalls[0].preferredAgentLocation, 'editor');
+		assert.strictEqual(mainService.connectCalls[0].telemetryLevel, TelemetryConfiguration.OFF);
 	});
 
 	test('connect omits preferredAgentLocation from the main-process config when no preference is stored', async () => {
@@ -478,6 +482,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		assert.strictEqual(mainService.reconnectCalls.length, 1);
 		assert.strictEqual(mainService.reconnectCalls[0].sshConfigHost, 'remote.example');
 		assert.strictEqual(mainService.reconnectCalls[0].preferredAgentLocation, 'dedicated');
+		assert.strictEqual(mainService.reconnectCalls[0].telemetryLevel, TelemetryConfiguration.OFF);
 	});
 
 	test('reconnect omits preferredAgentLocation from the main-process call when no preference is stored', async () => {
@@ -800,6 +805,7 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
@@ -1071,6 +1077,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);

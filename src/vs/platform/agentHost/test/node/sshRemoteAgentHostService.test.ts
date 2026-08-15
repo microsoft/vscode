@@ -12,6 +12,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
@@ -301,7 +302,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	}
 
 	protected override async _startRemoteAgentHost(
-		_client: unknown, _cliBin: string | undefined, _cliDataDir: string | undefined, _commandOverride?: string,
+		_client: unknown, _cliBin: string | undefined, _cliDataDir: string | undefined, _commandOverride?: string, _telemetryLevel?: TelemetryConfiguration,
 	) {
 		this.startCalled++;
 		return { ...this.startResult, stream: new MockSSHChannel() as never };
@@ -578,7 +579,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			{ stdout: agentEndpointsStdout([newEntry]), code: 0 }, // wait-poll: agent endpoints (finds the new entry)
 		];
 
-		const result = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
+		const result = await service.connect(makeConfig({ sshConfigHost: 'myhost', telemetryLevel: TelemetryConfiguration.OFF }));
 		assert.strictEqual(result.serverType, 'standalone');
 		assert.strictEqual(result.instanceId, 'spawned-1');
 		assert.strictEqual(result.lifecycle, 'managed');
@@ -588,6 +589,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const execCalls = service.mockClients[0].execCalls;
 		assert.ok(execCalls.some(c => c.includes('--idle-timeout 300')), `should spawn with idle timeout; saw: ${JSON.stringify(execCalls)}`);
 		assert.ok(execCalls.some(c => c.includes('--new-instance')), `spawn must request a genuinely new instance; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(execCalls.some(c => c.includes('--telemetry-level off')), `spawn must apply telemetry disablement; saw: ${JSON.stringify(execCalls)}`);
 	});
 
 	test('reuses the single live standalone deterministically without a picker', async () => {
@@ -770,7 +772,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const events: ISSHEndpointSelectionRequest[] = [];
 		disposables.add(service.onDidRequestEndpointSelection(r => events.push(r)));
 
-		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, /* userInitiated */ false);
+		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, undefined, /* userInitiated */ false);
 
 		assert.deepStrictEqual(events, [], 'cold-start silent reconnect() must never fire an endpoint-selection request');
 		assert.strictEqual(result.serverType, 'standalone');
@@ -788,7 +790,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		const result = await service.withEndpointSelectionResponse(
 			{ kind: 'candidate', type: 'editor', pid: 300, instanceId: 'editor-1' },
-			() => service.reconnect('myhost', 'test-host', undefined, undefined, /* userInitiated */ true),
+			() => service.reconnect('myhost', 'test-host', undefined, undefined, undefined, /* userInitiated */ true),
 		);
 
 		assert.ok(seenCandidates, 'user-initiated reconnect() must still show the picker when an editor entry exists');
@@ -917,7 +919,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// userInitiated: true would normally still prompt when an editor is
 		// live (see the contrasting test above) — a stored preference must
 		// pre-empt that entirely.
-		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, /* userInitiated */ true, /* preferredAgentLocation */ 'editor');
+		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, undefined, /* userInitiated */ true, /* preferredAgentLocation */ 'editor');
 
 		assert.deepStrictEqual(events, []);
 		assert.strictEqual(result.serverType, 'editor');

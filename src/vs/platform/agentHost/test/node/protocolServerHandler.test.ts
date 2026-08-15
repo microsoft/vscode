@@ -349,7 +349,7 @@ suite('ProtocolServerHandler', () => {
 		managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 		logService = new CountingLogService();
 		telemetryService = new TestTelemetryService();
-		agentHostTelemetryService = disposables.add(new AgentHostTelemetryService(telemetryService, undefined, undefined, undefined, null));
+		agentHostTelemetryService = disposables.add(new AgentHostTelemetryService(telemetryService));
 		disposables.add(agentService);
 		disposables.add(handler = new ProtocolServerHandler(
 			agentService,
