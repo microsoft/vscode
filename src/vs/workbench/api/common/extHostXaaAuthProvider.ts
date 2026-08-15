@@ -6,7 +6,7 @@
 import type * as vscode from 'vscode';
 import { stringHash } from '../../../base/common/hash.js';
 import { buildIdJagExchangeBody, buildResourceRedemptionBody, fetchAuthorizationServerMetadata, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationTokenResponse, isAuthorizationTokenResponse, TOKEN_TYPE_ID_TOKEN, TOKEN_TYPE_REFRESH_TOKEN } from '../../../base/common/oauth.js';
-import { DynamicAuthProvider } from './extHostAuthentication.js';
+import { DynamicAuthProvider, IAuthorizationToken } from './extHostAuthentication.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Ctor<T> = new (...args: any[]) => T;
@@ -50,6 +50,23 @@ export function isExpired(entry: { token: { expires_in?: number }; created_at: n
 		return false;
 	}
 	return now > entry.created_at + (entry.token.expires_in * 1000) - 60_000;
+}
+
+/**
+ * Resolves which token to use as the `subject_token` in the RFC 8693 ID-JAG exchange.
+ * Prefers the long-lived `refresh_token` (immune to id_token expiry); falls back to
+ * `id_token`. Returns `undefined` when neither is available.
+ * Exported for testing.
+ */
+export function resolveSubjectToken(
+	idpSession: Pick<vscode.AuthenticationSession, 'accessToken' | 'idToken'>,
+	storedTokens: ReadonlyArray<Pick<IAuthorizationToken, 'access_token' | 'refresh_token'>>,
+): { subjectToken: string; subjectTokenType: string } | undefined {
+	const rawToken = storedTokens.find(t => t.access_token === idpSession.accessToken);
+	const refreshToken = rawToken?.refresh_token;
+	const subjectToken = refreshToken ?? idpSession.idToken;
+	if (!subjectToken) { return undefined; }
+	return { subjectToken, subjectTokenType: refreshToken ? TOKEN_TYPE_REFRESH_TOKEN : TOKEN_TYPE_ID_TOKEN };
 }
 
 /**
@@ -203,15 +220,11 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			silent: boolean,
 		): Promise<IResourceCacheEntry | undefined> {
 			// Leg 2: subject_token → ID-JAG.
-			// Prefer refresh_token as subject (long-lived); fall back to id_token.
-			const rawIdpToken = this._tokenStore.tokens.find(t => t.access_token === idpSession.accessToken);
-			const refreshToken = rawIdpToken?.refresh_token;
-			const subjectToken = refreshToken ?? idpSession.idToken;
-			const subjectTokenType = refreshToken ? TOKEN_TYPE_REFRESH_TOKEN : TOKEN_TYPE_ID_TOKEN;
-			if (!subjectToken) {
+			const resolved = resolveSubjectToken(idpSession, this._tokenStore.tokens);
+			if (!resolved) {
 				throw new Error('IdP session has neither a refresh_token nor an id_token for subject token exchange.');
 			}
-			const jag = await this._exchangeForIdJag(subjectToken, subjectTokenType, audience, resource, scopes);
+			const jag = await this._exchangeForIdJag(resolved.subjectToken, resolved.subjectTokenType, audience, resource, scopes);
 
 			// Leg 3: resource AS token endpoint
 			const resourceTokenEndpoint = await this._discoverResourceTokenEndpoint(audience);
@@ -316,9 +329,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 		}
 
 		private _hasSubjectToken(session: vscode.AuthenticationSession): boolean {
-			if (session.idToken) { return true; }
-			const rawToken = this._tokenStore.tokens.find(t => t.access_token === session.accessToken);
-			return !!rawToken?.refresh_token;
+			return !!resolveSubjectToken(session, this._tokenStore.tokens);
 		}
 
 		private async _exchangeForIdJag(subjectToken: string, subjectTokenType: string, audience: string, resource: string, scopes: string[]): Promise<string> {
