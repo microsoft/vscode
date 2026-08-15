@@ -689,11 +689,11 @@ export interface IAgentChats {
 	/** Dispose the addressed chat and free its backing. */
 	disposeChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
-	/**
-	 * Release the addressed chat's in-memory backing without deleting durable data.
-	 * Returns `false` when live provider work prevents release.
-	 */
-	releaseChat(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
+	/** Return whether the addressed chat can currently release its in-memory backing. */
+	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
+
+	/** Release the addressed chat's in-memory backing without deleting durable data. */
+	releaseChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/**
 	 * Send a user message into `chat`. On every send, the host passes the complete

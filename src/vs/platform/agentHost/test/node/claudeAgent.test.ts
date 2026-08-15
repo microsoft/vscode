@@ -9686,17 +9686,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
-	test('releaseChat does not block eviction for a provisional chat', async () => {
-		const { agent } = createTestContext(disposables);
-		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const session = AgentSession.uri('claude', 'release-provisional');
-		const chat = defaultChatUri(session);
-		await createSession(agent, { session, workingDirectories: [URI.file('/work')] });
-		await bindDefaultChat(agent, session);
-
-		assert.strictEqual(await agent.chats.releaseChat(chat, chatContext(chat)), true);
-	});
-
 	test('setPendingMessages routes steering to a materialized additional chat, warns for an unknown one', async () => {
 		const logService = new CapturingLogService();
 		const { agent, sdk } = createTestContext(disposables, { logService });

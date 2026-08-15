@@ -3302,7 +3302,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
 		},
 		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._disposeChat(chat, context),
-		releaseChat: (chat: URI, context: URI | IAgentChatContext): Promise<boolean> => this._releaseChat(chat, context),
+		releaseChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._releaseChat(chat, context),
 		sendMessage: (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
@@ -4743,13 +4743,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessionIdByChatUri.delete(chat.toString());
 	}
 
-	private async _releaseChat(chat: URI, context: URI | IAgentChatContext): Promise<boolean> {
+	private async _releaseChat(chat: URI, context: URI | IAgentChatContext): Promise<void> {
 		const operationContext = resolveAgentChatContext(context, chat);
 		const runtimeSession = this._resolveConversationSession(chat, operationContext);
 		if (!runtimeSession) {
-			return true;
+			return;
 		}
-		return this._disposeRuntimeSession(runtimeSession, false);
+		await this._disposeRuntimeSession(runtimeSession, false);
 	}
 
 	/**
@@ -4769,14 +4769,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * working directory, and would let a still-running prewarm continuation
 	 * materialize a thread for a chat the host already considers gone.
 	 */
-	private async _disposeRuntimeSession(sessionUri: URI, deleteManagedWorkingDirectory: boolean): Promise<boolean> {
+	private async _disposeRuntimeSession(sessionUri: URI, deleteManagedWorkingDirectory: boolean): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
 			if (deleteManagedWorkingDirectory) {
 				await this._reclaimManagedWorkingDirectoryIfNotLive(sessionUri);
 			}
-			return true;
+			return;
 		}
 		if (!deleteManagedWorkingDirectory) {
 			// Provisional sessions have no codex thread on disk to resume from;
@@ -4785,7 +4785,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// already skips eviction while a turn is active, but one could have
 			// started between that check and this call.
 			if (session.threadId === undefined || session.currentTurnId !== undefined) {
-				return false;
+				return;
 			}
 		}
 		if (session.threadId !== undefined) {
@@ -4797,7 +4797,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._releasedManagedWorkingDirectories.set(sessionId, session.managedWorkingDirectory);
 		}
 		await this._teardownSessionInMemory(session, sessionId, deleteManagedWorkingDirectory);
-		return true;
 	}
 
 	/**

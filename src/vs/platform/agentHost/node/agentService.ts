@@ -2371,15 +2371,23 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Idle eviction must use {@link IAgentChats.releaseChat}, not destructive
 	 * session finalization, so the session remains resumable.
 	 */
-	private async _releaseSession(provider: IAgent, session: URI, chats: readonly URI[]): Promise<boolean> {
+	private async _canReleaseSession(provider: IAgent, session: URI, chats: readonly URI[]): Promise<boolean> {
+		for (const chat of chats) {
+			if (provider.chats.canReleaseChat && !await provider.chats.canReleaseChat(chat, this._chatContext(session, chat))) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private async _releaseSession(provider: IAgent, session: URI, chats: readonly URI[]): Promise<void> {
 		await this._defaultChatBackingWrites.get(session.toString())?.catch(() => { });
 		// Still release every catalog chat if one rejects; otherwise an idle-evicted
 		// session could leave a chat resident indefinitely.
 		let firstError: unknown;
-		let released = true;
 		for (const chat of chats) {
 			try {
-				released = await provider.chats.releaseChat(chat, this._chatContext(session, chat)) && released;
+				await provider.chats.releaseChat(chat, this._chatContext(session, chat));
 			} catch (err) {
 				firstError ??= err;
 			}
@@ -2387,7 +2395,6 @@ export class AgentService extends Disposable implements IAgentService {
 		if (firstError !== undefined) {
 			throw firstError;
 		}
-		return released;
 	}
 
 	/**
@@ -3032,17 +3039,13 @@ export class AgentService extends Disposable implements IAgentService {
 	async subscribe(resource: URI, clientId: string): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
-		// Register the subscriber up front so a concurrent unsubscribe cannot
-		// evict the session state while we are awaiting restore. On any failure
-		// path below we must roll the registration back, otherwise the leaked
-		// refcount would permanently pin (or block eviction of) the resource.
-		// {@link addSubscriber} is the single point that triggers the
-		// uncommitted-changeset refresh on the 0→1 transition (covers both
-		// the cold-snapshot path here and the handshake fast-path used by
-		// {@link ProtocolServerHandler} when state is already cached).
-		this.addSubscriber(resource, clientId);
 		try {
 			await this._releaseSessionInFlight.get(this._sessionReleaseKey(resource));
+			// Register after an in-flight release settles so a successful release
+			// can evict cached state and this subscribe reconstructs it. The
+			// handshake fast path calls addSubscriber directly and therefore pins
+			// its already-returned snapshot instead.
+			this.addSubscriber(resource, clientId);
 			// Check for terminal state
 			const terminalState = this._terminalManager.getTerminalState(resourceStr);
 			if (terminalState) {
@@ -3352,8 +3355,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const trackedRelease = (async () => {
 			try {
-				const released = await this._releaseSession(provider, evictionTarget, chats);
-				if (!released) {
+				if (!await this._canReleaseSession(provider, evictionTarget, chats)) {
 					if (!this._hasSessionSubscribers(evictionTarget)) {
 						this._scheduleSessionRelease(evictionTarget);
 					}
@@ -3370,6 +3372,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (currentState) {
 					this._evictSessionState(evictionTarget, evictionTargetKey, key, currentState.chats.map(chat => chat.resource));
 				}
+				await this._releaseSession(provider, evictionTarget, chats);
 			} catch (err) {
 				this._logService.error(err, `[AgentService] Failed to release idle session ${evictionTargetKey}`);
 				if (!this._hasSessionSubscribers(evictionTarget)) {

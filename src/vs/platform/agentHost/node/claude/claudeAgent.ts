@@ -1584,17 +1584,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// resumed again.
 	}
 
-	private async _releaseChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<boolean> {
+	private async _releaseChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
 		const chatKey = chat.toString();
 		const initialContext = this._resolveChatContext(chat, operationContext);
-		let released = true;
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
 			const target = this._findChatByUri(chatKey);
 			if (!target || !target.isPipelineReady) {
 				return;
 			}
 			if (target.hasActiveTurn) {
-				released = false;
 				return;
 			}
 			this._logService.info(`[Claude:${target.sessionId}] Releasing idle chat from memory (durable state preserved)`);
@@ -1602,7 +1600,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// NB: `_chatBackings` retains the backing across release so the chat
 			// resolves uniformly on the next cold resume-on-send.
 		});
-		return released;
 	}
 
 	/**

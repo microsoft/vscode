@@ -7237,7 +7237,6 @@ suite('AgentService (node dispatcher)', () => {
 				},
 				releaseChat: async (chat: URI) => {
 					this.chatCalls.push({ op: 'releaseChat', args: [chat.toString()] });
-					return true;
 				},
 				sendMessage: async () => { },
 				abort: async () => { },
@@ -7296,7 +7295,7 @@ suite('AgentService (node dispatcher)', () => {
 						};
 					},
 					disposeChat: async () => { },
-					releaseChat: async () => true,
+					releaseChat: async () => { },
 					sendMessage: async () => { },
 					abort: async () => { },
 					changeModel: async () => { },
@@ -9314,10 +9313,9 @@ suite('AgentService (node dispatcher)', () => {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 				releaseChat: async (chat, context) => {
 					this.events.push('release:start');
-					const released = await base.releaseChat(chat, context);
+					await base.releaseChat(chat, context);
 					await this.release.p;
 					this.events.push('release:end');
-					return released;
 				},
 			}));
 
@@ -9331,12 +9329,28 @@ suite('AgentService (node dispatcher)', () => {
 			releaseAttempts = 0;
 
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-				releaseChat: async (chat, context) => {
+				canReleaseChat: async () => {
 					this.releaseAttempts++;
-					if (this.releaseAttempts === 1) {
-						return false;
-					}
-					return base.releaseChat(chat, context);
+					return this.releaseAttempts !== 1;
+				},
+				releaseChat: (chat, context) => base.releaseChat(chat, context),
+			}));
+		}
+
+		class DelayedCanReleaseMockAgent extends MockAgent {
+			readonly canRelease = new DeferredPromise<void>();
+			readonly events: string[] = [];
+
+			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+				canReleaseChat: async () => {
+					this.events.push('canRelease:start');
+					await this.canRelease.p;
+					this.events.push('canRelease:end');
+					return true;
+				},
+				releaseChat: async (chat, context) => {
+					this.events.push('release');
+					await base.releaseChat(chat, context);
 				},
 			}));
 		}
@@ -9507,7 +9521,6 @@ suite('AgentService (node dispatcher)', () => {
 				const chatReleases: string[] = [];
 				agent.chats.releaseChat = async chat => {
 					chatReleases.push(chat.toString());
-					return true;
 				};
 				service.registerProvider(agent);
 				const { session } = await createAgentSession(agent);
@@ -9593,7 +9606,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('subscription waits for provider release and keeps cached state', () => {
+		test('subscription waits for provider release and restores evicted state', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DelayedReleaseMockAgent('copilot');
 				service.registerProvider(agent);
@@ -9624,15 +9637,15 @@ suite('AgentService (node dispatcher)', () => {
 					events: agent.events,
 					hasCachedState: service.stateManager.getSessionState(sessionResource.toString()) !== undefined,
 				}, {
-					events: ['release:start', 'release:end'],
+					events: ['release:start', 'release:end', 'metadata'],
 					hasCachedState: true,
 				});
 			});
 		});
 
-		test('initial subscriber added during provider release keeps cached state', () => {
+		test('initial subscriber added during release preflight keeps cached state', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const agent = new DelayedReleaseMockAgent('copilot');
+				const agent = new DelayedCanReleaseMockAgent('copilot');
 				service.registerProvider(agent);
 				const { session } = await createAgentSession(agent);
 				agent.sessionMessages = [
@@ -9646,14 +9659,14 @@ suite('AgentService (node dispatcher)', () => {
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 
 				service.addSubscriber(session, 'client-2');
-				await agent.release.complete();
+				await agent.canRelease.complete();
 				await Promise.resolve();
 
 				assert.deepStrictEqual({
 					events: agent.events,
 					hasCachedState: service.stateManager.getSessionState(session.toString()) !== undefined,
 				}, {
-					events: ['release:start', 'release:end'],
+					events: ['canRelease:start', 'canRelease:end'],
 					hasCachedState: true,
 				});
 			});

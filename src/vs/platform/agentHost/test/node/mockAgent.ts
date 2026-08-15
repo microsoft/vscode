@@ -247,11 +247,10 @@ export class MockAgent implements IAgent {
 	}
 
 	/** Backing helper for {@link chats}.releaseChat: records a non-destructive release. */
-	private _releaseSessionRecord(session: URI): boolean {
+	private _releaseSessionRecord(session: URI): void {
 		// Non-destructive: record the call but keep the session in the catalog
 		// so a later restore/resume still finds its durable data.
 		this.releaseSessionCalls.push(session);
-		return true;
 	}
 
 	async abortSession(session: URI): Promise<void> {
@@ -342,13 +341,14 @@ export class MockAgent implements IAgent {
 				}
 			});
 		},
-		releaseChat: (chatUri: URI, context: URI | IAgentChatContext): Promise<boolean> => {
+		releaseChat: (chatUri: URI, context: URI | IAgentChatContext): Promise<void> => {
 			// Unlike dispose, release has no separate session-level finalize
 			// hook: every addressed chat (default or peer) maps directly to
 			// this mock's session-level release bookkeeping.
 			this._recordContext('releaseChat', chatUri, context);
 			const { session } = this._resolveChatTarget(chatUri, context);
-			return Promise.resolve(this._releaseSessionRecord(session));
+			this._releaseSessionRecord(session);
+			return Promise.resolve();
 		},
 		sendMessage: (chatUri: URI, prompt: string, _workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const clientType = typeof clientTypeOrContext === 'string' ? clientTypeOrContext : AgentHostClientType.Unknown;
@@ -1084,9 +1084,8 @@ export class ScriptedMockAgent implements IAgent {
 			this._sessions.delete(AgentSession.id(session));
 			return Promise.resolve();
 		},
-		releaseChat: async (chat: URI, context: URI | IAgentChatContext): Promise<boolean> => {
+		releaseChat: async (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			this._resolveChatTarget(chat, context);
-			return true;
 		},
 		sendMessage: (chatUri: URI, prompt: string, _workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
