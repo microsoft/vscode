@@ -894,10 +894,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
 			if (this._keybindingService.dispatchEvent(e, e.target)) {
 				e.preventDefault();
+				e.stopPropagation();
 				return;
 			} else {
 				this._findInput.inputBox.insertAtCursor('\n');
 				e.preventDefault();
+				e.stopPropagation();
 				return;
 			}
 		}
@@ -933,10 +935,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
 			if (this._keybindingService.dispatchEvent(e, e.target)) {
 				e.preventDefault();
+				e.stopPropagation();
 				return;
 			} else {
 				this._replaceInput.inputBox.insertAtCursor('\n');
 				e.preventDefault();
+				e.stopPropagation();
 				return;
 			}
 
