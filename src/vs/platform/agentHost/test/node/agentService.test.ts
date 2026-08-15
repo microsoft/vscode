@@ -9358,7 +9358,6 @@ suite('AgentService (node dispatcher)', () => {
 		class FailingReleaseMockAgent extends MockAgent {
 			releaseFailuresRemaining = 1;
 			releaseAttempts = 0;
-			metadataReads = 0;
 			releaseBarrier: DeferredPromise<void> | undefined;
 
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
@@ -9371,11 +9370,6 @@ suite('AgentService (node dispatcher)', () => {
 					await base.releaseChat(chat, context);
 				},
 			}));
-
-			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-				this.metadataReads++;
-				return super.getChatMetadata(chat, context);
-			}
 		}
 
 		test('an empty session created in this lifetime stays observable until GC fires', async () => {
@@ -9666,7 +9660,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('pending subscription cancelled during provider release does not register the client', () => {
+		test('inactive subscription is not registered after provider release', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DelayedReleaseMockAgent('copilot');
 				service.registerProvider(agent);
@@ -9680,42 +9674,16 @@ suite('AgentService (node dispatcher)', () => {
 				service.unsubscribe(session, 'client-1');
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 
-				const subscription = service.subscribe(session, 'client-2');
-				service.unsubscribe(session, 'client-2');
+				let isActive = true;
+				const subscription = service.subscribe(session, 'client-2', () => isActive);
+				isActive = false;
 				await agent.release.complete();
 
 				await assert.rejects(subscription, /Subscription cancelled/);
 			});
 		});
 
-		test('cancelled subscription cleanup does not cancel a newer subscription from the same client', () => {
-			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const agent = new DelayedReleaseMockAgent('copilot');
-				service.registerProvider(agent);
-				const { session } = await createAgentSession(agent);
-				agent.sessionMessages = [
-					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
-					{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
-				];
-				await service.restoreSession(session);
-				service.addSubscriber(session, 'client-1');
-				service.unsubscribe(session, 'client-1');
-				await new Promise(resolve => setTimeout(resolve, 30_000));
-
-				const cancelledSubscription = service.subscribe(session, 'client-2');
-				service.unsubscribe(session, 'client-2');
-				const replacementSubscription = service.subscribe(session, 'client-2');
-				await agent.release.complete();
-
-				const [, snapshot] = await Promise.all([
-					assert.rejects(cancelledSubscription, /Subscription cancelled/),
-					replacementSubscription,
-				]);
-				assert.strictEqual(snapshot.resource, session.toString());
-			});
-		});
-
-		test('failed provider release restores cached state and retries', () => {
+		test('failed provider release keeps cached state and retries', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new FailingReleaseMockAgent('copilot');
 				service.registerProvider(agent);
@@ -9726,7 +9694,6 @@ suite('AgentService (node dispatcher)', () => {
 				];
 				await service.restoreSession(session);
 				agent.releaseFailuresRemaining = 2;
-				agent.metadataReads = 0;
 				await (service as unknown as { _maybeEvictIdleSession(resource: URI): Promise<void> })._maybeEvictIdleSession(session);
 				const firstRelease = (service as unknown as { _releaseSessionInFlight: Map<string, Promise<void>> })._releaseSessionInFlight.get(session.toString());
 				assert.ok(firstRelease);
@@ -9742,28 +9709,24 @@ suite('AgentService (node dispatcher)', () => {
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 				assert.deepStrictEqual({
 					releaseAttempts: agent.releaseAttempts,
-					metadataReads: agent.metadataReads,
 					hasCachedState: service.stateManager.getSessionState(session.toString()) !== undefined,
 				}, {
 					releaseAttempts: 2,
-					metadataReads: 1,
 					hasCachedState: true,
 				});
 
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 				assert.deepStrictEqual({
 					releaseAttempts: agent.releaseAttempts,
-					metadataReads: agent.metadataReads,
 					hasCachedState: service.stateManager.getSessionState(session.toString()) !== undefined,
 				}, {
 					releaseAttempts: 3,
-					metadataReads: 1,
 					hasCachedState: false,
 				});
 			});
 		});
 
-		test('subscriber added during release retry keeps restored state', () => {
+		test('subscriber added during release retry keeps cached state', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new FailingReleaseMockAgent('copilot');
 				service.registerProvider(agent);

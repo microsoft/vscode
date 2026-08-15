@@ -259,10 +259,6 @@ function reconcileWorkingDirectories(requested: readonly URI[] | undefined, reso
 	return [...resolved, ...tail].map(d => d.toString());
 }
 
-interface IPendingSubscription {
-	cancelled: boolean;
-}
-
 /**
  * The agent service implementation that runs inside the agent-host utility
  * process. Dispatches to registered {@link IAgent} instances based
@@ -419,19 +415,17 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
 	 * resource URI string and valued by the set of subscribed protocol
-	 * client IDs. Populated by {@link subscribe} (or {@link addSubscriber}
-	 * for handshake fast-paths) and drained by {@link unsubscribe}. When a
+	 * client IDs. Populated by {@link addSubscriber} after subscription
+	 * resolution (or immediately for handshake fast-paths) and drained by
+	 * {@link unsubscribe}. When a
 	 * resource's set becomes empty, the resource is dropped from the map and
 	 * {@link _maybeEvictIdleSession} is invoked to release any cached state
 	 * for it.
 	 */
 	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
-	private readonly _pendingSubscriptions = new ResourceMap<Map<string, IPendingSubscription>>();
 	private readonly _releaseSessionInFlight = new Map<string, Promise<void>>();
-	private readonly _releaseSessionStateRestoredAfterFailure = new Set<string>();
 	private readonly _restoreSessionInFlight = new Map<string, Promise<void>>();
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
-	private _isDisposed = false;
 
 	/** Subagent chats armed for a bounded wait (once execution is confirmed); resolved by {@link _onChatSpawned}, awaited by {@link subscribe}. */
 	private readonly _pendingSubagentChats = new Map<string /* subagentChatUri */, DeferredPromise<void>>();
@@ -3043,25 +3037,14 @@ export class AgentService extends Disposable implements IAgentService {
 		this._terminalManager.disposeTerminal(terminal.toString());
 	}
 
-	async subscribe(resource: URI, clientId: string): Promise<IStateSnapshot> {
+	async subscribe(resource: URI, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
-		const pendingSubscription: IPendingSubscription = { cancelled: false };
-		let pendingSubscriptions = this._pendingSubscriptions.get(resource);
-		if (!pendingSubscriptions) {
-			pendingSubscriptions = new Map();
-			this._pendingSubscriptions.set(resource, pendingSubscriptions);
-		}
-		pendingSubscriptions.set(clientId, pendingSubscription);
 		try {
 			await this._releaseSessionInFlight.get(this._sessionReleaseKey(resource));
-			if (pendingSubscription.cancelled || this._isDisposed) {
+			if (this._store.isDisposed || (isActive && !isActive())) {
 				throw new Error(`Subscription cancelled: ${resourceStr}`);
 			}
-			// Register after an in-flight release settles so a successful release
-			// can evict cached state and this subscribe reconstructs it. The
-			// handshake fast path calls addSubscriber directly and therefore pins
-			// its already-returned snapshot instead.
 			this.addSubscriber(resource, clientId);
 			// Check for terminal state
 			const terminalState = this._terminalManager.getTerminalState(resourceStr);
@@ -3133,7 +3116,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!snapshot) {
 				throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
 			}
-			if (pendingSubscription.cancelled || this._isDisposed) {
+			if (this._store.isDisposed || (isActive && !isActive())) {
 				throw new Error(`Subscription cancelled: ${resourceStr}`);
 			}
 
@@ -3152,19 +3135,11 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			return snapshot;
-		} catch (err) {
-			if (this._pendingSubscriptions.get(resource)?.get(clientId) === pendingSubscription) {
-				this.unsubscribe(resource, clientId);
+		} catch (error) {
+			if (isActive && !isActive()) {
+				throw new Error(`Subscription cancelled: ${resourceStr}`);
 			}
-			throw err;
-		} finally {
-			const currentPendingSubscriptions = this._pendingSubscriptions.get(resource);
-			if (currentPendingSubscriptions?.get(clientId) === pendingSubscription) {
-				currentPendingSubscriptions.delete(clientId);
-				if (currentPendingSubscriptions.size === 0) {
-					this._pendingSubscriptions.delete(resource);
-				}
-			}
+			throw error;
 		}
 	}
 
@@ -3212,17 +3187,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	unsubscribe(resource: URI, clientId: string): void {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
-		}
-		const pendingSubscriptions = this._pendingSubscriptions.get(resource);
-		const pendingSubscription = pendingSubscriptions?.get(clientId);
-		if (pendingSubscriptions && pendingSubscription) {
-			pendingSubscription.cancelled = true;
-			pendingSubscriptions.delete(clientId);
-			if (pendingSubscriptions.size === 0) {
-				this._pendingSubscriptions.delete(resource);
-			}
 		}
 		const set = this._resourceSubscribers.get(resource);
 		if (!set) {
@@ -3259,7 +3225,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _scheduleSessionRelease(resource: URI): void {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		const session = this._sessionReleaseResource(resource);
@@ -3362,7 +3328,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * data stays intact; the next subscribe restores the session on demand.
 	 */
 	private async _maybeEvictIdleSession(resource: URI): Promise<void> {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		const key = resource.toString();
@@ -3404,12 +3370,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const trackedRelease = (async () => {
 			try {
 				if (!await this._canReleaseSession(provider, evictionTarget, chats)) {
-					if (!this._isDisposed && !this._hasSessionSubscribers(evictionTarget)) {
+					if (!this._store.isDisposed && !this._hasSessionSubscribers(evictionTarget)) {
 						this._scheduleSessionRelease(evictionTarget);
 					}
 					return;
 				}
-				if (this._isDisposed) {
+				if (this._store.isDisposed) {
 					return;
 				}
 				const currentState = this._stateManager.getSessionState(evictionTargetKey);
@@ -3420,34 +3386,17 @@ export class AgentService extends Disposable implements IAgentService {
 					this._scheduleSessionRelease(evictionTarget);
 					return;
 				}
-				const stateWasRestoredAfterReleaseFailure = this._releaseSessionStateRestoredAfterFailure.has(evictionTargetKey);
-				if (currentState && !stateWasRestoredAfterReleaseFailure) {
-					this._evictSessionState(evictionTarget, evictionTargetKey, key, currentState.chats.map(chat => chat.resource));
-				}
 				await this._releaseSession(provider, evictionTarget, chats);
-				if (stateWasRestoredAfterReleaseFailure) {
-					const restoredState = this._stateManager.getSessionState(evictionTargetKey);
-					if (restoredState && !this._hasSessionSubscribers(evictionTarget)) {
-						this._evictSessionState(evictionTarget, evictionTargetKey, key, restoredState.chats.map(chat => chat.resource));
-						this._releaseSessionStateRestoredAfterFailure.delete(evictionTargetKey);
-					}
+				if (this._store.isDisposed || this._hasSessionSubscribers(evictionTarget)) {
+					return;
+				}
+				const releasedState = this._stateManager.getSessionState(evictionTargetKey);
+				if (releasedState) {
+					this._evictSessionState(evictionTarget, evictionTargetKey, key, releasedState.chats.map(chat => chat.resource));
 				}
 			} catch (err) {
 				this._logService.error(err, `[AgentService] Failed to release idle session ${evictionTargetKey}`);
-				this._releaseSessionInFlight.delete(evictionTargetKey);
-				if (this._isDisposed) {
-					return;
-				}
-				if (!this._releaseSessionStateRestoredAfterFailure.has(evictionTargetKey)) {
-					try {
-						await this.restoreSession(evictionTarget);
-						this._releaseSessionStateRestoredAfterFailure.add(evictionTargetKey);
-					} catch (restoreError) {
-						this._logService.error(restoreError, `[AgentService] Failed to restore idle session ${evictionTargetKey} after release failure`);
-						return;
-					}
-				}
-				if (!this._isDisposed && !this._hasSessionSubscribers(evictionTarget)) {
+				if (!this._store.isDisposed && !this._hasSessionSubscribers(evictionTarget)) {
 					this._scheduleSessionRelease(evictionTarget);
 				}
 			}
@@ -5782,16 +5731,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	override dispose(): void {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
-		this._isDisposed = true;
-		for (const pendingSubscriptions of this._pendingSubscriptions.values()) {
-			for (const pendingSubscription of pendingSubscriptions.values()) {
-				pendingSubscription.cancelled = true;
-			}
-		}
-		this._pendingSubscriptions.clear();
 		for (const provider of this._providers.values()) {
 			provider.dispose();
 		}

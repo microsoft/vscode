@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -615,6 +616,38 @@ suite('ProtocolServerHandler', () => {
 			unsubscribes: agentService.unsubscribeCalls,
 		}, {
 			subscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+		});
+	});
+
+	test('cancelled subscribe does not clean up a newer subscribe from the same client', async () => {
+		stateManager.createSession(makeSessionSummary());
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const firstResponse = waitForResponse(transport, 2);
+		const secondResponse = waitForResponse(transport, 3);
+
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		await Promise.resolve();
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+		transport.simulateMessage(request(3, 'subscribe', { channel: sessionUri }));
+		await Promise.resolve();
+		await agentService.subscribeBarrier.complete();
+
+		const [first, second] = await Promise.all([firstResponse, secondResponse]);
+		assert.deepStrictEqual({
+			firstFailed: hasKey(first, { error: true }),
+			secondSucceeded: hasKey(second, { result: true }),
+			subscribes: agentService.subscribeCalls,
+			unsubscribes: agentService.unsubscribeCalls,
+		}, {
+			firstFailed: true,
+			secondSucceeded: true,
+			subscribes: [
+				{ resource: sessionUri, clientId: 'client-1' },
+				{ resource: sessionUri, clientId: 'client-1' },
+			],
 			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
 		});
 	});

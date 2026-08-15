@@ -865,7 +865,11 @@ export class ProtocolServerHandler extends Disposable {
 			}
 			client.subscriptions.set(classified.uri, classified);
 			try {
-				const snapshot = await this._agentService.subscribe(URI.parse(key), client.clientId);
+				const snapshot = await this._agentService.subscribe(
+					URI.parse(key),
+					client.clientId,
+					() => client.subscriptions.get(classified.uri) === classified,
+				);
 				if (client.subscriptions.get(classified.uri) !== classified) {
 					throw new Error(`Subscription cancelled: ${key}`);
 				}
@@ -1320,7 +1324,11 @@ export class ProtocolServerHandler extends Disposable {
 			}
 			client.subscriptions.set(classified.uri, classified);
 			try {
-				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
+				const snapshot = await this._agentService.subscribe(
+					URI.parse(params.channel),
+					client.clientId,
+					() => client.subscriptions.get(classified.uri) === classified,
+				);
 				if (client.subscriptions.get(classified.uri) !== classified) {
 					throw new Error(`Subscription cancelled: ${params.channel}`);
 				}
