@@ -678,7 +678,7 @@ suite('FindController query options persistence', () => {
 		});
 	});
 
-	test('issue #237774: Update searchScope when the selection changes', async () => {
+	test('issue #237774: Update searchScope when the scope changes', async () => {
 		await withAsyncTestCodeEditor([
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
@@ -700,10 +700,14 @@ suite('FindController query options persistence', () => {
 			findState.change({ searchScope: [new Selection(1, 1, 2, 1)] }, false);
 			assert.deepStrictEqual(findState.searchScope, [new Selection(1, 1, 2, 1)]);
 
+			// Duplicate ranges must not be treated as equal to distinct ranges
+			findState.change({ searchScope: [new Selection(1, 1, 2, 1), new Selection(1, 1, 2, 1)] }, false);
+			assert.deepStrictEqual(findState.searchScope, [new Selection(1, 1, 2, 1), new Selection(1, 1, 2, 1)]);
+
 			// Identical scope must not fire a change event
 			let changeEventFired = false;
 			const listener = findState.onFindReplaceStateChange(() => changeEventFired = true);
-			findState.change({ searchScope: [new Selection(1, 1, 2, 1)] }, false);
+			findState.change({ searchScope: [new Selection(1, 1, 2, 1), new Selection(1, 1, 2, 1)] }, false);
 			listener.dispose();
 			assert.strictEqual(changeEventFired, false);
 
