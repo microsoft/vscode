@@ -1951,6 +1951,8 @@ export interface IChatService {
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
+	readonly onDidInvalidateSessionModel: Event<URI>;
+
 	/**
 	 * An observable containing all live chat models.
 	 */

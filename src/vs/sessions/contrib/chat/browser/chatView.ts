@@ -251,6 +251,7 @@ export class ChatView extends AbstractChatView {
 				this._applyHistoryKey();
 			}
 		}));
+		this._register(this.chatService.onDidInvalidateSessionModel(resource => this._reloadInvalidatedChatModel(resource)));
 
 		// Voice transcript overlay + input glow.
 		this._setupVoiceOverlay();
@@ -367,11 +368,27 @@ export class ChatView extends AbstractChatView {
 		this._currentChatResource = resource;
 		this._currentChatResourceObs.set(resource, undefined);
 
-		// Cancel any in-flight load for the previous chat and start a fresh one.
-		this._loadCts.value?.cancel();
 		if (previousChatResource) {
 			this._clearCurrentChat();
 		}
+		this._loadChatModel(resource, false);
+	}
+
+	private _reloadInvalidatedChatModel(resource: URI): void {
+		if (!isEqual(this._currentChatResource, resource)) {
+			return;
+		}
+		this._saveCurrentViewState();
+		queueMicrotask(() => {
+			if (isEqual(this._currentChatResource, resource)) {
+				void this._loadChatModel(resource, true);
+			}
+		});
+	}
+
+	private _loadChatModel(resource: URI, preserveCurrentModelOnFailure: boolean): Promise<void> {
+		// Cancel any in-flight load for the previous model and start a fresh one.
+		this._loadCts.value?.cancel();
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
@@ -382,9 +399,10 @@ export class ChatView extends AbstractChatView {
 		const inputBeforeLoad = this._widget.getInput();
 
 		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
-			if (token.isCancellationRequested || !ref || !isEqual(this._currentChatResource, resource)) {
+			const isCurrentLoad = this._loadCts.value === cts && isEqual(this._currentChatResource, resource);
+			if (token.isCancellationRequested || !ref || !isCurrentLoad) {
 				ref?.dispose();
-				if (isEqual(this._currentChatResource, resource)) {
+				if (isCurrentLoad) {
 					this._widget.setLoading(false);
 				}
 				return;
@@ -403,12 +421,15 @@ export class ChatView extends AbstractChatView {
 			// inner widget is fully attached to the loaded model.
 			this.element.dataset.boundChatResource = resource.toString();
 		}, err => {
-			if (!token.isCancellationRequested) {
+			const isCurrentLoad = this._loadCts.value === cts && isEqual(this._currentChatResource, resource);
+			if (!token.isCancellationRequested && isCurrentLoad) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
 			}
-			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
+			if (!preserveCurrentModelOnFailure && isCurrentLoad) {
 				this._currentChatResource = undefined;
 				this._currentChatResourceObs.set(undefined, undefined);
+			}
+			if (isCurrentLoad) {
 				this._widget.setLoading(false);
 			}
 		});
@@ -417,6 +438,7 @@ export class ChatView extends AbstractChatView {
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
 		this.showProgressWhile(loadPromise, 800);
+		return loadPromise;
 	}
 
 	private _saveCurrentViewState(): void {

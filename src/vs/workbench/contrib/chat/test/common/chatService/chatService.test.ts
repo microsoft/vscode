@@ -775,6 +775,21 @@ suite('ChatService', () => {
 		keepAliveRef.dispose();
 	});
 
+	test('invalidateSessionModel notifies once for the current generation', async () => {
+		const testService = createChatService();
+		const modelRef = startSessionModel(testService);
+		const sessionResource = modelRef.object.sessionResource;
+		const invalidated: URI[] = [];
+		testDisposables.add(testService.onDidInvalidateSessionModel(resource => invalidated.push(resource)));
+
+		testService.invalidateSessionModel(sessionResource);
+		testService.invalidateSessionModel(sessionResource);
+
+		assert.deepStrictEqual(invalidated, [sessionResource]);
+		modelRef.dispose();
+		await testService.waitForModelDisposals();
+	});
+
 	test('onDidDisposeSession', async () => {
 		const testService = createChatService();
 		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);

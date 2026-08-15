@@ -206,6 +206,9 @@ export class ChatService extends Disposable implements IChatService {
 
 	public get onDidCreateModel() { return this._sessionModels.onDidCreateModel; }
 
+	private readonly _onDidInvalidateSessionModel = this._register(new Emitter<URI>());
+	public readonly onDidInvalidateSessionModel = this._onDidInvalidateSessionModel.event;
+
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
@@ -598,7 +601,9 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	invalidateSessionModel(sessionResource: URI): void {
-		this._sessionModels.invalidate(sessionResource);
+		if (this._sessionModels.invalidate(sessionResource)) {
+			this._onDidInvalidateSessionModel.fire(sessionResource);
+		}
 	}
 
 	getChatModelReferenceDebugInfo() {
