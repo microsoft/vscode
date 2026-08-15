@@ -19,6 +19,13 @@ type CopilotClientStartupOutcome = 'success' | 'failure' | 'cancelled';
 type CopilotStartupFailureCause = 'nativeModuleProcedureNotFound' | 'nativeModuleInitializationFailed' | 'nativeModuleNotFound' | 'permissionDenied' | 'timeout' | 'spawnFailed' | 'processExitedUnexpectedly' | 'processExited' | 'configurationChanged' | 'other';
 type CopilotStartupFailureResource = 'runtime' | 'cliNative' | 'conpty' | 'sandbox' | 'other';
 
+export class CopilotClientStartupConfigChangedError extends Error {
+	constructor() {
+		super('Copilot startup config changed while the client was starting');
+		this.name = 'CopilotClientStartupConfigChangedError';
+	}
+}
+
 export interface ICopilotFailureCorrelation extends IAgentHostInitiatorTelemetry {
 	readonly agentSessionId?: string;
 	readonly chatSessionId?: string;
@@ -93,13 +100,7 @@ export function classifyCopilotClientOperationFailure(error: unknown): CopilotCl
 }
 
 export function isCopilotClientStartupFailure(error: unknown): boolean {
-	return error instanceof Error && (
-		error.message.startsWith('Failed to start CLI server:')
-		|| error.message.startsWith('CLI server exited with code ')
-		|| error.message.startsWith('CLI server exited unexpectedly with code ')
-		|| error.message === 'Timeout waiting for CLI server to start'
-		|| error.message === 'Copilot startup config changed while the client was starting'
-	);
+	return error instanceof Error && getCopilotStartupFailureCause(error) !== undefined;
 }
 
 type CopilotClientOperationFailureEvent = ICopilotFailureCorrelation & {
@@ -152,7 +153,12 @@ type CopilotClientStartupClassification = {
 	comment: 'Tracks one terminal outcome for every Copilot client startup attempt.';
 };
 
-function getCopilotStartupFailureCause(message: string): CopilotStartupFailureCause {
+function getCopilotStartupFailureCause(error: Error): CopilotStartupFailureCause | undefined {
+	if (error instanceof CopilotClientStartupConfigChangedError) {
+		return 'configurationChanged';
+	}
+
+	const message = error.message;
 	const normalizedMessage = message.toLowerCase();
 	if (normalizedMessage.includes('specified procedure could not be found')) {
 		return 'nativeModuleProcedureNotFound';
@@ -169,15 +175,16 @@ function getCopilotStartupFailureCause(message: string): CopilotStartupFailureCa
 	if (message === 'Timeout waiting for CLI server to start') {
 		return 'timeout';
 	}
-	if (message === 'Copilot startup config changed while the client was starting') {
-		return 'configurationChanged';
-	}
 	if (message.startsWith('Failed to start CLI server:')) {
 		return 'spawnFailed';
 	}
-	return message.startsWith('CLI server exited unexpectedly with code ')
-		? 'processExitedUnexpectedly'
-		: 'processExited';
+	if (message.startsWith('CLI server exited unexpectedly with code ')) {
+		return 'processExitedUnexpectedly';
+	}
+	if (message.startsWith('CLI server exited with code ')) {
+		return 'processExited';
+	}
+	return undefined;
 }
 
 function getCopilotStartupFailureResource(message: string): CopilotStartupFailureResource {
@@ -201,7 +208,11 @@ function getCopilotStartupFailureResource(message: string): CopilotStartupFailur
 }
 
 function getCopilotStartupFailureDetails(error: unknown): Pick<CopilotClientStartupEvent, 'startupFailureCause' | 'startupFailureResource' | 'startupExitCode'> {
-	if (!(error instanceof Error) || !isCopilotClientStartupFailure(error)) {
+	if (!(error instanceof Error)) {
+		return {};
+	}
+	const startupFailureCause = getCopilotStartupFailureCause(error);
+	if (!startupFailureCause) {
 		return {};
 	}
 
@@ -210,7 +221,7 @@ function getCopilotStartupFailureDetails(error: unknown): Pick<CopilotClientStar
 	const parsedExitCode = exitCodeMatch?.groups?.exitCode === undefined ? undefined : Number(exitCodeMatch.groups.exitCode);
 
 	return {
-		startupFailureCause: getCopilotStartupFailureCause(message),
+		startupFailureCause,
 		startupFailureResource: getCopilotStartupFailureResource(message),
 		startupExitCode: parsedExitCode !== undefined && Number.isSafeInteger(parsedExitCode) ? parsedExitCode : undefined,
 	};

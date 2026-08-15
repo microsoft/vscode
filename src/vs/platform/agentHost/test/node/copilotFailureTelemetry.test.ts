@@ -14,7 +14,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { readAgentErrorTelemetryMeta } from '../../common/meta/agentErrorMeta.js';
 import { buildChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
-import { classifyCopilotClientOperationFailure, createCopilotFailureCorrelation, isCopilotClientStartupFailure, normalizeCopilotApiEndpoint, reportCopilotClientStartup, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
+import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isCopilotClientStartupFailure, normalizeCopilotApiEndpoint, reportCopilotClientStartup, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
 
 class CapturingTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -52,7 +52,7 @@ suite('CopilotFailureTelemetry', () => {
 			new Error('CLI server exited with code 1'),
 			new Error('CLI server exited unexpectedly with code 1'),
 			new Error('Timeout waiting for CLI server to start'),
-			new Error('Copilot startup config changed while the client was starting'),
+			new CopilotClientStartupConfigChangedError(),
 			new Error('429 too many requests'),
 		];
 		assert.deepStrictEqual({
@@ -81,7 +81,7 @@ suite('CopilotFailureTelemetry', () => {
 			outcome: 'failure',
 			durationMs: 10,
 			attemptNumber: 1,
-		}, new Error('Copilot startup config changed while the client was starting'));
+		}, new CopilotClientStartupConfigChangedError());
 		reportCopilotClientStartup(telemetryService, {
 			outcome: 'failure',
 			durationMs: 20,

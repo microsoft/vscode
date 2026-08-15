@@ -91,7 +91,7 @@ import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectories
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesPath } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
-import { classifyCopilotClientOperationFailure, createCopilotFailureCorrelation, isCopilotClientStartupFailure, reportCopilotClientOperationFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, reportCopilotClientStartup, type CopilotClientOperation, type CopilotClientOperationFailureKind, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
+import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isCopilotClientStartupFailure, reportCopilotClientOperationFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, reportCopilotClientStartup, type CopilotClientOperation, type CopilotClientOperationFailureKind, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
 
 interface ICopilotRuntimeManagedSettingsInput {
 	authInfo?: { type: 'token'; host: string; token: string };
@@ -1881,7 +1881,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup || this._getCopilotSdkLogLevelSetting() !== copilotSdkLogLevelSettingAtStartup || this._getEnterpriseHost() !== enterpriseHostAtStartup || this._isSystemProxyEnabled() !== systemProxyEnabledAtStartup) {
 				await client.stop();
-				throw new Error('Copilot startup config changed while the client was starting');
+				throw new CopilotClientStartupConfigChangedError();
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
 			this._client = client;
