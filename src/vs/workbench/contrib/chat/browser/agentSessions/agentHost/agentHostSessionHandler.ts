@@ -3491,20 +3491,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		subagentContext: ISubagentContext,
 	): void {
 		const initial = part$.get().toolCall;
-		// A tool call that had already settled when the reconnect snapshot was
-		// taken is fully rendered by that snapshot's serialized part, which —
-		// unlike a live invocation — cannot be adopted. Emitting a second card
-		// here would not only show the tool twice, it would also place a tool
-		// part between the restored markdown prefix and the markdown that keeps
-		// streaming into the same response part — and the response model only
-		// merges markdown with an immediately preceding markdown part, so a
-		// still-streaming answer would be split in two at the reconnect
-		// boundary. Subagent tools are excluded because their setup is what
-		// streams the child session's inner tool calls into this response;
-		// skipping it would drop them.
-		if (opts.snapshotToolCalls?.has(initial.toolCallId)
-			&& !snapshotInvocationToAdopt(opts, initial.toolCallId)
-			&& !shouldObserveSubagentChat(initial)) {
+		// The snapshot renders a settled tool call as a serialized part, which
+		// cannot be adopted. A live invocation for it would duplicate the card
+		// and land a tool part between the restored markdown prefix and the
+		// markdown still streaming into the same response part, splitting the
+		// answer at the reconnect boundary.
+		const renderedBySnapshot = !!opts.snapshotToolCalls?.has(initial.toolCallId)
+			&& !snapshotInvocationToAdopt(opts, initial.toolCallId);
+		if (renderedBySnapshot && !shouldObserveSubagentChat(initial)) {
 			return;
 		}
 		const contributor = initial.contributor;
@@ -3512,13 +3506,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// Set up before claiming: the claim is what tells the session-level
 			// watcher it may execute this call, and it must find the shared
 			// invocation already created when it does.
-			this._setupClientToolCall(initial, part$, store, opts, subagentContext);
+			this._setupClientToolCall(initial, part$, store, opts, subagentContext, renderedBySnapshot);
 			store.add(this._markToolCallRendered(opts.chatURI, opts.turnId, initial.toolCallId, opts.sessionResource));
 		} else if (contributor?.kind === ToolCallContributorKind.Client) {
 			this._setupOtherClientToolCall(initial, part$, store, opts);
 		} else {
 			store.add(this._markToolCallRendered(opts.chatURI, opts.turnId, initial.toolCallId, opts.sessionResource));
-			this._setupServerToolCall(initial, part$, store, opts, subagentContext);
+			this._setupServerToolCall(initial, part$, store, opts, subagentContext, renderedBySnapshot);
 		}
 	}
 
@@ -3657,6 +3651,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * {@link ChatToolInvocation} when present (reconnect parity); otherwise
 	 * emits a fresh one. Reacts to status transitions for re-confirmation,
 	 * terminal revival, finalization, and subagent observation.
+	 *
+	 * `renderedBySnapshot` marks a settled tool call the reconnect snapshot
+	 * already rendered as a serialized part. The invocation is still built so
+	 * subagent observation has something to drive, but it is not emitted —
+	 * the snapshot's part is the one on screen.
 	 */
 	private _setupServerToolCall(
 		initial: ToolCallState,
@@ -3664,6 +3663,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 		subagentContext: ISubagentContext,
+		renderedBySnapshot = false,
 	): void {
 		const toolCallId = initial.toolCallId;
 		const subAgentInvocationId = opts.subAgentInvocationId;
@@ -3680,10 +3680,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			invocation = adopted;
 		} else if (initial.status === ToolCallStatus.Streaming) {
 			invocation = toolCallStateToStreamingInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
-			opts.sink([invocation]);
+			if (!renderedBySnapshot) {
+				opts.sink([invocation]);
+			}
 		} else {
 			invocation = toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
-			opts.sink([invocation]);
+			if (!renderedBySnapshot) {
+				opts.sink([invocation]);
+			}
 		}
 
 		// Hook up a tool first observed after it already entered confirmation.
@@ -3897,6 +3901,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 		subagentContext: ISubagentContext,
+		renderedBySnapshot = false,
 	): void {
 		const toolCallId = initial.toolCallId;
 		const toolName = initial.toolName;
@@ -3953,7 +3958,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// The shared invocation is created with no `sessionResource`, so it
 		// does not `appendProgress` into a chat model. Emit it explicitly so it
 		// renders in this chat / subagent group (mirrors `_setupServerToolCall`).
-		opts.sink([invocation]);
+		if (!renderedBySnapshot) {
+			opts.sink([invocation]);
+		}
 
 		let confirmationDispatched = false;
 
@@ -4759,10 +4766,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const sessionKey = backendSession.toString();
 		const chatURI = this._getChatURI(chatSession.sessionResource);
 
-		// Index what the snapshot emitted per tool call: live
-		// `ChatToolInvocation` instances so per-tool setup adopts the same
-		// objects the chat UI holds, and serialized parts for tool calls that
-		// had already settled so per-tool setup skips them.
+		// Live invocations are adopted by per-tool setup; serialized parts mark
+		// a settled tool call it must not emit again.
 		const snapshotToolCalls = new Map<string, ChatToolInvocation | IChatToolInvocationSerialized>();
 		for (const item of initialProgress) {
 			if (item instanceof ChatToolInvocation || item.kind === 'toolInvocationSerialized') {
