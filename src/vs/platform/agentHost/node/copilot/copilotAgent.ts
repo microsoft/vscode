@@ -3792,6 +3792,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					return undefined;
 				}
 				const workingDirectory = await this._configurationService.resolveWorkingDirectoryForResume(configurationResource.toString(), persistedWorkingDirectory);
+				const launchWorkingDirectories = workingDirectories
+					? [workingDirectory, ...workingDirectories.slice(1)]
+					: undefined;
 				const client = await this._ensureClient();
 				const activeClient = this._getOrCreateActiveClient(configurationResource, workingDirectory);
 				activeClient.pluginController.reanchor(workingDirectory);
@@ -3802,7 +3805,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					client,
 					sessionId: info.sdkSessionId,
 					workingDirectory,
-					additionalDirectories: workingDirectories?.slice(1),
+					additionalDirectories: launchWorkingDirectories?.slice(1),
 					resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
 					snapshot,
 					disabledRootMcpServers: this._disabledRootMcpServers(configurationResource, info.sdkSessionId, snapshot),
@@ -3815,8 +3818,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await agentSession.initializeSession();
 				this._throwIfClientReplaced(client, agentSession);
 				this._registerLiveChat(chat, agentSession, activeClient);
-				if (workingDirectories) {
-					await this._storeSessionMetadata(context.resource, info.model, workingDirectory, workingDirectories, undefined, undefined);
+				if (launchWorkingDirectories) {
+					await this._storeSessionMetadata(context.resource, info.model, workingDirectory, launchWorkingDirectories, undefined, undefined);
 				}
 				this._logService.info(`[Copilot] Resumed chat backing ${chatKey} for configuration ${configurationResource.toString()}`);
 				return agentSession;
