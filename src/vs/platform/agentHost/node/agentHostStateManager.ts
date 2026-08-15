@@ -10,7 +10,7 @@ import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type AuthRequiredParams, type ProgressParams, type SessionSummaryChangedParams } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type AuthRequiredParams, type ProgressParams } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
 import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
@@ -115,7 +115,7 @@ class SessionSummaryNotifier extends Disposable {
 
 	constructor(
 		private readonly _getSummary: (session: string) => SessionSummary | undefined,
-		private readonly _emit: (session: string, changes: SessionSummaryChangedParams['changes']) => void,
+		private readonly _emit: (session: string, changes: Partial<SessionSummary>) => void,
 	) {
 		super();
 	}
@@ -176,19 +176,13 @@ class SessionSummaryNotifier extends Disposable {
 			return;
 		}
 
-		const changes: SessionSummaryChangedParams['changes'] = {};
+		const changes: Partial<SessionSummary> = {};
 		if (current.title !== lastNotified.title) { changes.title = current.title; }
 		if (current.status !== lastNotified.status) { changes.status = current.status; }
 		if (current.activity !== lastNotified.activity) { changes.activity = current.activity; }
 		if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
-		if (current.changes !== lastNotified.changes) {
-			if (current.changes === undefined) {
-				changes.changesCleared = true;
-			} else {
-				changes.changes = current.changes;
-			}
-		}
+		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
 		if (current.workingDirectories !== lastNotified.workingDirectories) { changes.workingDirectories = current.workingDirectories; }
 		if (current._meta !== lastNotified._meta) { changes._meta = current._meta; }
 

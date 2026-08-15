@@ -19,9 +19,9 @@ import { AgentSession, type IAgentCreateChatOptions, type IAgentCreateSessionCon
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -564,16 +564,14 @@ function fireSessionRemoved(agentHost: MockAgentHostService, rawId: string, prov
 	});
 }
 
-function fireSessionSummaryChanged(agentHost: MockAgentHostService, rawId: string, changes: SessionSummaryChangedParams['changes'], provider = 'copilotcli'): void {
+function fireSessionSummaryChanged(agentHost: MockAgentHostService, rawId: string, changes: Partial<SessionSummary>, provider = 'copilotcli'): void {
 	const sessionUri = AgentSession.uri(provider, rawId);
-	const notification: INotification = {
+	agentHost.fireNotification({
 		channel: 'ahp-root://',
 		type: NotificationType.SessionSummaryChanged,
 		session: sessionUri.toString(),
 		changes,
-	};
-	const roundTrippedNotification: INotification = JSON.parse(JSON.stringify(notification));
-	agentHost.fireNotification(roundTrippedNotification);
+	});
 }
 
 /**
@@ -1361,35 +1359,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: computePullRequestIcon(GitHubPullRequestState.Open).id,
 				color: computePullRequestIcon(GitHubPullRequestState.Open).color?.id,
 			},
-		});
-	}));
-
-	test('does not hydrate change stats cleared before persistence', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		const previousHost = new MockAgentHostService();
-		disposables.add(toDisposable(() => previousHost.dispose()));
-		previousHost.addSession({
-			...createSession('cleared-changes', { summary: 'Cleared Changes' }),
-			changes: { additions: 12, deletions: 4, files: 3 },
-		});
-		const previousProvider = createProvider(disposables, previousHost, undefined, { storageService });
-		await timeout(0);
-		await storageService.flush();
-
-		fireSessionSummaryChanged(previousHost, 'cleared-changes', { changesCleared: true });
-		await storageService.flush();
-
-		const nextHost = new MockAgentHostService();
-		disposables.add(toDisposable(() => nextHost.dispose()));
-		nextHost.setAuthenticationPending(true);
-		const restored = createProvider(disposables, nextHost, undefined, { storageService }).getSessions()[0];
-
-		assert.deepStrictEqual({
-			previousChangesSummary: previousProvider.getSessions()[0].changesSummary?.get(),
-			restoredChangesSummary: restored.changesSummary?.get(),
-		}, {
-			previousChangesSummary: undefined,
-			restoredChangesSummary: undefined,
 		});
 	}));
 
