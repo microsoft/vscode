@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
+import { promises as fs } from 'fs';
 import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
@@ -778,6 +779,21 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	return false;
 }
 
+// Detects binary content by scanning the beginning of the file for a NUL byte,
+// the same heuristic git itself relies on. This works regardless of the git CLI
+// locale, unlike matching against the localized "Binary files ... differ" text.
+async function isBinaryFile(filePath: string): Promise<boolean> {
+	const handle = await fs.open(filePath, 'r');
+
+	try {
+		const buffer = Buffer.alloc(8192);
+		const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+		return buffer.subarray(0, bytesRead).includes(0);
+	} finally {
+		await handle.close();
+	}
+}
+
 export class CommandCenter {
 
 	private disposables: Disposable[];
@@ -1453,7 +1469,8 @@ export class CommandCenter {
 	async copyChanges(repository: Repository): Promise<void> {
 		const resources = [
 			...repository.indexGroup.resourceStates.map(resource => ({ resource, staged: true })),
-			...repository.workingTreeGroup.resourceStates.map(resource => ({ resource, staged: false }))
+			...repository.workingTreeGroup.resourceStates.map(resource => ({ resource, staged: false })),
+			...repository.untrackedGroup.resourceStates.map(resource => ({ resource, staged: false }))
 		];
 
 		if (resources.length === 0) {
@@ -1466,30 +1483,43 @@ export class CommandCenter {
 
 		for (const { resource, staged } of resources) {
 			const relativePath = path.relative(repository.root, resource.resourceUri.fsPath);
+			const isDeleted = resource.type === Status.DELETED || resource.type === Status.INDEX_DELETED;
 
-			let rawDiff: string;
-			try {
-				rawDiff = staged
-					? await repository.diffIndexWithHEAD(resource.resourceUri.fsPath)
-					: await repository.diffWithHEAD(resource.resourceUri.fsPath);
-			} catch {
+			if (isDeleted) {
 				sections.push(`-------------- > /${relativePath}:\n[arquivo deletado]`);
 				continue;
 			}
 
-			if (rawDiff.includes('Binary files')) {
-				sections.push(`-------------- > /${relativePath}:\n[arquivo binário alterado]`);
-				continue;
+			try {
+				if (await isBinaryFile(resource.resourceUri.fsPath)) {
+					sections.push(`-------------- > /${relativePath}:\n[arquivo binário alterado]`);
+					continue;
+				}
+
+				let changedLines: string[];
+
+				if (resource.type === Status.UNTRACKED) {
+					// Untracked files have no HEAD/index counterpart to diff against,
+					// so treat every line of the working tree file as added.
+					const content = await fs.readFile(resource.resourceUri.fsPath, 'utf8');
+					changedLines = content.replace(/\n$/, '').split('\n').map(line => `+${line}`);
+				} else {
+					const rawDiff = staged
+						? await repository.diffIndexWithHEAD(resource.resourceUri.fsPath)
+						: await repository.diffWithHEAD(resource.resourceUri.fsPath);
+
+					changedLines = rawDiff
+						.split('\n')
+						.filter(line =>
+							(line.startsWith('+') && !line.startsWith('+++')) ||
+							(line.startsWith('-') && !line.startsWith('---'))
+						);
+				}
+
+				sections.push(`-------------- > /${relativePath}:\n${changedLines.join('\n')}`);
+			} catch {
+				sections.push(`-------------- > /${relativePath}:\n[erro ao gerar diff]`);
 			}
-
-			const changedLines = rawDiff
-				.split('\n')
-				.filter(line =>
-					(line.startsWith('+') && !line.startsWith('+++')) ||
-					(line.startsWith('-') && !line.startsWith('---'))
-				);
-
-			sections.push(`-------------- > /${relativePath}:\n${changedLines.join('\n')}`);
 		}
 
 		const output = `Changes to "${repoName}":\n${sections.join('\n\n')}`;
