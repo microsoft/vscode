@@ -331,7 +331,7 @@ export class MockAgent implements IAgent {
 			}
 			return this.createChat(session, chatUri, options);
 		},
-		disposeChat: (chatUri: URI, context?: URI | IAgentChatContext): Promise<void> => {
+		disposeChat: (chatUri: URI, context: URI | IAgentChatContext): Promise<void> => {
 			this._recordContext('disposeChat', chatUri, context);
 			const { session, chat } = this._resolveChatTarget(chatUri, context);
 			return this.disposeChat(session, chat).then(() => {
@@ -341,10 +341,11 @@ export class MockAgent implements IAgent {
 				}
 			});
 		},
-		releaseChat: (chatUri: URI, context?: URI | IAgentChatContext): Promise<void> => {
+		releaseChat: (chatUri: URI, context: URI | IAgentChatContext): Promise<void> => {
 			// Unlike dispose, release has no separate session-level finalize
 			// hook: every addressed chat (default or peer) maps directly to
 			// this mock's session-level release bookkeeping.
+			this._recordContext('releaseChat', chatUri, context);
 			const { session } = this._resolveChatTarget(chatUri, context);
 			this._releaseSessionRecord(session);
 			return Promise.resolve();
@@ -356,20 +357,23 @@ export class MockAgent implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri, operationContext);
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId, clientType);
 		},
-		abort: (chat: URI): Promise<void> => {
-			const { session } = this._resolveChatTarget(chat);
+		abort: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
+			this._recordContext('abort', chat, context);
+			const { session } = this._resolveChatTarget(chat, context);
 			return this.abortSession(session);
 		},
-		changeModel: (chatUri: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void> => {
+		changeModel: (chatUri: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
+			this._recordContext('changeModel', chatUri, context);
 			const { session, chat } = this._resolveChatTarget(chatUri, context);
 			return this.changeModel(session, model, chat);
 		},
-		changeAgent: (chatUri: URI, agent: AgentSelection | undefined, context?: URI | IAgentChatContext): Promise<void> => {
+		changeAgent: (chatUri: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> => {
+			this._recordContext('changeAgent', chatUri, context);
 			const { session, chat } = this._resolveChatTarget(chatUri, context);
 			return this.changeAgent(session, agent, chat);
 		},
-		getMessages: (chat: URI, _context?: URI | IAgentChatContext): Promise<readonly Turn[]> => {
-			this._recordContext('getMessages', chat, _context);
+		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => {
+			this._recordContext('getMessages', chat, context);
 			return this.getSessionMessages(chat);
 		},
 	};
@@ -1078,31 +1082,34 @@ export class ScriptedMockAgent implements IAgent {
 			}
 			throw new Error('Scripted mock agent does not support multiple chats');
 		},
-		disposeChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => {
+		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat, context);
 			this._sessions.delete(AgentSession.id(session));
 			return Promise.resolve();
 		},
-		releaseChat: async (): Promise<void> => { },
+		releaseChat: async (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
+			this._resolveChatTarget(chat, context);
+		},
 		sendMessage: (chatUri: URI, prompt: string, _workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
 			const { session, chat } = this._resolveChatTarget(chatUri, operationContext);
 			return this.sendMessage(session, chat, prompt, attachments, turnId);
 		},
-		abort: (chat: URI): Promise<void> => {
-			const { session } = this._resolveChatTarget(chat);
+		abort: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat, context);
 			return this.abortSession(session);
 		},
-		changeModel: (chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void> => {
+		changeModel: (chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat, context);
 			return this.changeModel(session, model);
 		},
-		changeAgent: (_chat: URI, _agent: AgentSelection | undefined, _context?: URI | IAgentChatContext): Promise<void> => {
+		changeAgent: (chat: URI, _agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> => {
 			// Scripted mock does not track agent selection.
+			resolveAgentChatContext(context, chat);
 			return Promise.resolve();
 		},
-		getMessages: (chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> => {
-			return this.getSessionMessages(context ? resolveAgentChatContext(context, chat).configurationResource : chat);
+		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(this._resolveChatTarget(chat, context).session);
 		},
 	};
 

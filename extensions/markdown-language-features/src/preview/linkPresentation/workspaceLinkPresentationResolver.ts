@@ -6,20 +6,15 @@
 import type { LinkPresentation } from '@vscode/markdown-editor';
 import type { IObservable } from '@vscode/observables';
 import * as vscode from 'vscode';
-import { MdLinkOpener } from '../util/openDocumentLink';
 import { createAsyncLinkPresentation, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
 
 export class WorkspaceLinkPresentationResolver implements LinkPresentationResolver {
 	readonly refreshOnInterval = true;
-	readonly #documentUri: vscode.Uri;
-	readonly #linkOpener: MdLinkOpener;
 	readonly #onDidChangeWorkspaceResource = new vscode.EventEmitter<void>();
 	readonly #subscriptions: vscode.Disposable;
 	#gitApi: Promise<GitApi | undefined> | undefined;
 
-	constructor(documentUri: vscode.Uri, linkOpener: MdLinkOpener) {
-		this.#documentUri = documentUri;
-		this.#linkOpener = linkOpener;
+	constructor() {
 		const refresh = () => this.#onDidChangeWorkspaceResource.fire();
 		this.#subscriptions = vscode.Disposable.from(
 			vscode.workspace.onDidCreateFiles(refresh),
@@ -37,15 +32,15 @@ export class WorkspaceLinkPresentationResolver implements LinkPresentationResolv
 			href,
 			{
 				kind: 'file',
-				status: { kind: 'pending', label: 'Loading' },
+				status: { kind: 'pending', label: vscode.l10n.t("Loading") },
 			},
 			context,
 			() => this.#resolve(href),
 			error => ({
 				kind: 'file',
-				status: { kind: 'error', label: 'Not found' },
-				tooltip: error instanceof Error ? error.message : 'The workspace resource could not be resolved.',
-				ariaLabel: `Workspace resource could not be resolved: ${href}`,
+				status: { kind: 'error', label: vscode.l10n.t("Not found") },
+				tooltip: error instanceof Error ? error.message : vscode.l10n.t("The workspace resource could not be resolved."),
+				ariaLabel: vscode.l10n.t("Workspace resource could not be resolved: {0}", href),
 			}),
 			[context.onDidRequestRefresh, this.#onDidChangeWorkspaceResource.event],
 		);
@@ -57,17 +52,9 @@ export class WorkspaceLinkPresentationResolver implements LinkPresentationResolv
 	}
 
 	async #resolve(href: string): Promise<LinkPresentation> {
-		if (href.startsWith('file:')) {
-			const uri = vscode.Uri.parse(href);
-			const stat = await vscode.workspace.fs.stat(uri);
-			return this.#present(uri, stat.type === vscode.FileType.Directory ? 'folder' : 'file');
-		}
-
-		const resolved = await this.#linkOpener.resolveDocumentLink(href, this.#documentUri);
-		if (!resolved || resolved.kind === 'external') {
-			throw new Error(`Workspace resource could not be resolved: ${href}`);
-		}
-		return this.#present(vscode.Uri.from(resolved.uri), resolved.kind);
+		const uri = vscode.Uri.parse(href);
+		const stat = await vscode.workspace.fs.stat(uri);
+		return this.#present(uri, stat.type === vscode.FileType.Directory ? 'folder' : 'file');
 	}
 
 	async #present(uri: vscode.Uri, kind: 'file' | 'folder'): Promise<LinkPresentation> {
@@ -111,10 +98,7 @@ export class WorkspaceLinkPresentationResolver implements LinkPresentationResolv
 }
 
 function isWorkspaceResourceLink(href: string): boolean {
-	if (href.startsWith('file:')) {
-		return true;
-	}
-	return !href.startsWith('#') && !/^[a-z][a-z0-9+.-]*:/i.test(href);
+	return /^(?:file|vscode-remote|vscode-vfs):/i.test(href);
 }
 
 interface GitExtension {
