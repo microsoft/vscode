@@ -565,7 +565,13 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				totalSentCharacters: this._totalSentCharacters,
 				totalReceivedCharacters: this._totalReceivedCharacters,
 			});
-			this._pendingErrorMessage ??= errorMessage;
+			this._state = ConnectionState.Closed;
+			this._ws = undefined;
+			const activeRequest = this._activeRequest;
+			this._activeRequest = undefined;
+			this._pendingErrorMessage = undefined;
+			activeRequest?.handleConnectionClose(1006, '', errorMessage);
+			ws.close();
 		});
 	}
 
