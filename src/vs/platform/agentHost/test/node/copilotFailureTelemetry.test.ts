@@ -14,7 +14,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { readAgentErrorTelemetryMeta } from '../../common/meta/agentErrorMeta.js';
 import { buildChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
-import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isCopilotClientStartupFailure, normalizeCopilotApiEndpoint, reportCopilotClientStartup, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
+import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isRecognizedCopilotClientStartupFailure, normalizeCopilotApiEndpoint, reportCopilotClientStartup, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
 
 class CapturingTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -57,7 +57,7 @@ suite('CopilotFailureTelemetry', () => {
 		];
 		assert.deepStrictEqual({
 			operationFailures: errors.map(classifyCopilotClientOperationFailure),
-			startupFailures: errors.map(isCopilotClientStartupFailure),
+			startupFailures: errors.map(isRecognizedCopilotClientStartupFailure),
 		}, {
 			operationFailures: [
 				'connectionClosed',
@@ -88,19 +88,25 @@ suite('CopilotFailureTelemetry', () => {
 			attemptNumber: 2,
 		}, new Error('Unexpected startup failure'));
 
-		assert.deepStrictEqual(telemetryService.events.map(event => event.data), [{
-			outcome: 'failure',
-			durationMs: 10,
-			attemptNumber: 1,
-			startupFailureCause: 'configurationChanged',
-			startupFailureResource: 'other',
-			startupExitCode: undefined,
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.copilotClientStartup',
+			data: {
+				outcome: 'failure',
+				durationMs: 10,
+				attemptNumber: 1,
+				startupFailureCause: 'configurationChanged',
+				startupFailureResource: 'other',
+				startupExitCode: undefined,
+			},
 		}, {
-			outcome: 'failure',
-			durationMs: 20,
-			attemptNumber: 2,
-			startupFailureCause: 'other',
-			startupFailureResource: 'other',
+			eventName: 'agentHost.copilotClientStartup',
+			data: {
+				outcome: 'failure',
+				durationMs: 20,
+				attemptNumber: 2,
+				startupFailureCause: 'other',
+				startupFailureResource: 'other',
+			},
 		}]);
 	});
 

@@ -91,7 +91,7 @@ import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectories
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesPath } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
-import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isCopilotClientStartupFailure, reportCopilotClientOperationFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, reportCopilotClientStartup, type CopilotClientOperation, type CopilotClientOperationFailureKind, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
+import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isRecognizedCopilotClientStartupFailure, reportCopilotClientOperationFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, reportCopilotClientStartup, type CopilotClientOperation, type CopilotClientOperationFailureKind, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
 
 interface ICopilotRuntimeManagedSettingsInput {
 	authInfo?: { type: 'token'; host: string; token: string };
@@ -1120,14 +1120,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return { failedTurnIds, stopSucceeded };
 	}
 
-	private async _retryAfterClosedConnection<T>(operation: CopilotClientOperation, task: () => Promise<T>, correlation?: ICopilotFailureCorrelation): Promise<T> {
+	private async _retryAfterClosedConnection<T>(operation: CopilotClientOperation, task: (client: CopilotClient) => Promise<T>, correlation?: ICopilotFailureCorrelation): Promise<T> {
+		const client = await this._ensureClient();
 		try {
-			return await task();
+			return await task(client);
 		} catch (error) {
 			if (!await this._handleClientOperationFailure(error, operation, correlation)) {
 				throw error;
 			}
-			return task();
+			return task(await this._ensureClient());
 		}
 	}
 
@@ -1736,6 +1737,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- client lifecycle ---------------------------------------------------
 
+	private async _stopClientAfterStartupTermination(client: CopilotClient, terminalError: Error): Promise<never> {
+		try {
+			await client.stop();
+		} catch (error) {
+			this._logService.error(error, '[Copilot] Failed to stop client after startup termination');
+		}
+		throw terminalError;
+	}
+
 	private async _ensureClient(): Promise<CopilotClient> {
 		if (this._shutdownPromise) {
 			throw new CancellationError();
@@ -1876,12 +1886,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const client = this._createCopilotClient(clientOptions);
 			await client.start();
 			if (this._shutdownPromise) {
-				await client.stop();
-				throw new CancellationError();
+				return this._stopClientAfterStartupTermination(client, new CancellationError());
 			}
 			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup || this._getCopilotSdkLogLevelSetting() !== copilotSdkLogLevelSettingAtStartup || this._getEnterpriseHost() !== enterpriseHostAtStartup || this._isSystemProxyEnabled() !== systemProxyEnabledAtStartup) {
-				await client.stop();
-				throw new CopilotClientStartupConfigChangedError();
+				return this._stopClientAfterStartupTermination(client, new CopilotClientStartupConfigChangedError());
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
 			this._client = client;
@@ -2170,12 +2178,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _listSdkSessions(reason: string): Promise<Awaited<ReturnType<CopilotClient['listSessions']>> | undefined> {
 		this._logService.info(`[Copilot] Listing ${reason}...`);
 		try {
-			return await this._retryAfterClosedConnection('listSessions', async () => {
-				const client = await this._ensureClient();
-				return client.listSessions();
-			});
+			return await this._retryAfterClosedConnection('listSessions', client => client.listSessions());
 		} catch (err) {
-			if (err instanceof CancellationError || isCopilotClientStartupFailure(err) || classifyCopilotClientOperationFailure(err) !== undefined) {
+			if (err instanceof CancellationError || isRecognizedCopilotClientStartupFailure(err) || classifyCopilotClientOperationFailure(err) !== undefined) {
 				this._logService.info(`[Copilot] Client unavailable while listing ${reason}: ${err instanceof Error ? err.message : String(err)}`);
 				return undefined;
 			}
@@ -2191,10 +2196,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const storedMetadata = await this._readStoredSessionMetadata(session);
 
-		const sessionMetadata = await this._retryAfterClosedConnection('getSessionMetadata', async () => {
-			const client = await this._ensureClient();
-			return client.getSessionMetadata(sessionId);
-		}, createCopilotFailureCorrelation(session, chat, undefined, sessionId));
+		const sessionMetadata = await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
 		if (!sessionMetadata) {
 			return undefined;
 		}

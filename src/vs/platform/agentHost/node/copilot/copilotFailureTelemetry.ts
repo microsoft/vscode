@@ -99,7 +99,7 @@ export function classifyCopilotClientOperationFailure(error: unknown): CopilotCl
 	return undefined;
 }
 
-export function isCopilotClientStartupFailure(error: unknown): boolean {
+export function isRecognizedCopilotClientStartupFailure(error: unknown): boolean {
 	return error instanceof Error && getCopilotStartupFailureCause(error) !== undefined;
 }
 
