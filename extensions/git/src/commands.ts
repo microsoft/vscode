@@ -1452,8 +1452,8 @@ export class CommandCenter {
 	@command('git.copyChanges', { repository: true })
 	async copyChanges(repository: Repository): Promise<void> {
 		const resources = [
-			...repository.indexGroup.resourceStates,
-			...repository.workingTreeGroup.resourceStates
+			...repository.indexGroup.resourceStates.map(resource => ({ resource, staged: true })),
+			...repository.workingTreeGroup.resourceStates.map(resource => ({ resource, staged: false }))
 		];
 
 		if (resources.length === 0) {
@@ -1464,9 +1464,23 @@ export class CommandCenter {
 		const repoName = path.basename(repository.root);
 		const sections: string[] = [];
 
-		for (const resource of resources) {
+		for (const { resource, staged } of resources) {
 			const relativePath = path.relative(repository.root, resource.resourceUri.fsPath);
-			const rawDiff = await repository.diffWithHEAD(resource.resourceUri.fsPath);
+
+			let rawDiff: string;
+			try {
+				rawDiff = staged
+					? await repository.diffIndexWithHEAD(resource.resourceUri.fsPath)
+					: await repository.diffWithHEAD(resource.resourceUri.fsPath);
+			} catch {
+				sections.push(`-------------- > /${relativePath}:\n[arquivo deletado]`);
+				continue;
+			}
+
+			if (rawDiff.includes('Binary files')) {
+				sections.push(`-------------- > /${relativePath}:\n[arquivo binário alterado]`);
+				continue;
+			}
 
 			const changedLines = rawDiff
 				.split('\n')
