@@ -12,6 +12,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
+import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
@@ -42,7 +43,7 @@ const EMPTY_TURN_DATA: ITurnData = { stats: EMPTY_DIFF_STATS, previewFiles: [] }
  * edited one. Returns {@link EMPTY_TURN_DATA} when the chat exposes no last-turn
  * changes (e.g. before its first turn, or a provider that can't determine them).
  */
-function computeTurnData(chat: IChat, reader: IReader): ITurnData {
+function computeTurnData(chat: IChat, reader: IReader, browserViewWorkbenchService: IBrowserViewWorkbenchService): ITurnData {
 	const changes = chat.lastTurnChanges?.read(reader) ?? [];
 
 	let files = 0, insertions = 0, deletions = 0;
@@ -60,7 +61,7 @@ function computeTurnData(chat: IChat, reader: IReader): ITurnData {
 			continue; // a deletion has nothing to preview
 		}
 		const uri = isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
-		const kind = previewKind(uri);
+		const kind = previewKind(uri, browserViewWorkbenchService);
 		if (!kind) {
 			continue;
 		}
@@ -124,6 +125,7 @@ export class SessionChatInputToolbar extends Disposable {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
+		@IBrowserViewWorkbenchService private readonly _browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -143,7 +145,7 @@ export class SessionChatInputToolbar extends Disposable {
 				};
 			}
 			const chat = this._chat.read(reader);
-			return chat ? computeTurnData(chat, reader) : EMPTY_TURN_DATA;
+			return chat ? computeTurnData(chat, reader, this._browserViewWorkbenchService) : EMPTY_TURN_DATA;
 		});
 		this._diffStats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => this._turnData.read(reader).stats);
 		this._previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => this._turnData.read(reader).previewFiles);

@@ -26,6 +26,7 @@ import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingServic
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../chatResponseFileChangesService.js';
+import { IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
 import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
@@ -55,6 +56,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IBrowserViewWorkbenchService private readonly _browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
 
@@ -85,7 +87,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 					if (!diff.isOutsideWorkspace) {
 						continue;
 					}
-					const kind = previewKind(diff.modifiedURI);
+					const kind = previewKind(diff.modifiedURI, this._browserViewWorkbenchService);
 					if (!kind) {
 						continue;
 					}
@@ -258,7 +260,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	 * icon-free action that opens the file.
 	 */
 	private _getRowActions(diff: IEditSessionEntryDiff): IAction[] {
-		const kind = previewKind(diff.modifiedURI);
+		const kind = previewKind(diff.modifiedURI, this._browserViewWorkbenchService);
 		if (!kind) {
 			return [];
 		}

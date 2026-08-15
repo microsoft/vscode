@@ -11,14 +11,11 @@ import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { BrowserViewEditorId } from '../../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
@@ -28,6 +25,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AnimatedCounterWidget } from '../../../../browser/animatedCounterWidget.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
+import { BrowserViewEditorId, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
 import '../media/chatTurnPills.css';
@@ -68,13 +66,17 @@ export interface IPreviewFile {
 	readonly created: boolean;
 }
 
-/** Classify a resource as a previewable file, if applicable. */
-export function previewKind(uri: URI): IPreviewFile['kind'] | undefined {
+/**
+ * Classify a resource as a previewable file, if applicable. HTML only counts
+ * when the Integrated Browser can actually render it, so the preview never
+ * opens a page the browser refuses to serve.
+ */
+export function previewKind(uri: URI, browserViewWorkbenchService: IBrowserViewWorkbenchService): IPreviewFile['kind'] | undefined {
 	const path = uri.path.toLowerCase();
 	if (path.endsWith('.md') || path.endsWith('.markdown')) {
 		return 'markdown';
 	}
-	if (!isWeb && uri.scheme === Schemas.file && (path.endsWith('.html') || path.endsWith('.htm'))) {
+	if ((path.endsWith('.html') || path.endsWith('.htm')) && browserViewWorkbenchService.canRenderFile(uri)) {
 		return 'html';
 	}
 	return undefined;

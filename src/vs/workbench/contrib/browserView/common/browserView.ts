@@ -182,6 +182,9 @@ export interface IBrowserEditorViewState {
 
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
 
+/** The editor that renders a page in the Integrated Browser. */
+export const BrowserViewEditorId = 'workbench.editor.browser';
+
 /**
  * A filter that contextually restricts the browser views returned by
  * {@link IBrowserViewWorkbenchService.getContextualBrowserViews}.
@@ -262,6 +265,14 @@ export interface IBrowserViewWorkbenchService {
 	 * Get all known browser views.
 	 */
 	getKnownBrowserViews(): Map<string, BrowserEditorInput>;
+
+	/**
+	 * Whether the Integrated Browser can render the file, i.e. it is available
+	 * (desktop) and the file resides within a trusted root. Files outside a
+	 * trusted root are served as `403 Forbidden`, so callers offering a preview
+	 * should hide it rather than open a page the browser will refuse.
+	 */
+	canRenderFile(resource: URI): boolean;
 
 	/**
 	 * Register a contextual filter that restricts which browser views are

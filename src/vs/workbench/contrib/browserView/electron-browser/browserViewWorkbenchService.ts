@@ -34,7 +34,7 @@ import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEdito
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { getCopilotRootPaths } from '../../../../platform/agentHost/common/copilotHome.js';
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
@@ -205,6 +205,16 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this._known;
+	}
+
+	canRenderFile(resource: URI): boolean {
+		if (resource.scheme !== Schemas.file) {
+			return false;
+		}
+		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
+			return true;
+		}
+		return this._getTrustedFileRoots().some(root => isEqualOrParent(resource, URI.file(root)));
 	}
 
 	registerContextualFilter(filter: IBrowserViewContextualFilter): IDisposable {

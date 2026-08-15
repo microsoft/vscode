@@ -42,6 +42,10 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return this.known;
 	}
 
+	canRenderFile(_resource: URI): boolean {
+		return true;
+	}
+
 	registerContextualFilter(_filter: IBrowserViewContextualFilter): IDisposable {
 		return Disposable.None;
 	}

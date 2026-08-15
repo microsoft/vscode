@@ -8,6 +8,7 @@ import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel
 import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
@@ -29,6 +30,10 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this._known;
+	}
+
+	canRenderFile(_resource: URI): boolean {
+		return false; // the Integrated Browser is not available in web
 	}
 
 	registerContextualFilter(_filter: IBrowserViewContextualFilter): IDisposable {

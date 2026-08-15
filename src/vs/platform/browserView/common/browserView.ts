@@ -11,8 +11,6 @@ import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
 
-export const BrowserViewEditorId = 'workbench.editor.browser';
-
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
 	// Tab management
