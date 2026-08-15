@@ -501,7 +501,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.title = append(this.centerContent, $('div.window-title'));
 		this.createTitle();
 
-		// Center-Adjacent Toolbar (e.g., update indicator)
+		// Center-Adjacent Toolbar
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			const centerAdjacentToolBarElement = append(this.rightContent, $('div.center-adjacent-toolbar-container'));
 			this.centerAdjacentToolBarElement = centerAdjacentToolBarElement;
@@ -515,18 +515,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				hoverDelegate: this.hoverDelegate
 			}));
 
-			// Re-evaluate fit when items change (e.g. the update indicator appears), see #303222.
+			// Re-evaluate fit when items change, see #303222.
 			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
 		}
 
-		// Create Toolbar Actions
-		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
-			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
-			this.createActionToolBar();
-			this.createActionToolBarMenus();
-		}
-
-		// Update Toolbar
+		// Update Toolbar (before the right-aligned toolbar actions)
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			const updateToolBarElement = append(this.rightContent, $('div.update-toolbar-container'));
 			this.updateToolBarElement = updateToolBarElement;
@@ -541,6 +534,13 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}));
 
 			this.updateToolBarDisposable.add(updateToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
+		}
+
+		// Create Toolbar Actions
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
+			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
+			this.createActionToolBar();
+			this.createActionToolBarMenus();
 		}
 
 		// Window Controls Container

@@ -9,6 +9,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import {
@@ -45,21 +46,23 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ChatOriginKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -85,6 +88,17 @@ import { createNoopGitService, createNullSessionDataService, createSessionDataSe
 
 interface IStartCall {
 	readonly token: string;
+}
+
+function reducerBackedEnablementChangeEvent(stateManager: AgentHostStateManager): Event<{ sessions: readonly string[] }> {
+	return Event.map(
+		Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+			envelope.action.type === ActionType.SessionCustomizationsChanged
+			|| envelope.action.type === ActionType.SessionCustomizationUpdated
+			|| envelope.action.type === ActionType.SessionCustomizationToggled
+		),
+		envelope => ({ sessions: [envelope.channel.toString()] }),
+	);
 }
 
 /**
@@ -121,6 +135,10 @@ function defaultChatUri(session: URI): URI {
 /** Recovers the owning session id from a {@link IAgentChatMetadata.chat} default-chat URI. */
 function sessionIdOfChat(chat: URI): string {
 	return AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat)));
+}
+
+function discoverClaudeCodeChats(agent: ClaudeAgent): Promise<IAgentChatMetadata[] | undefined> {
+	return (agent as unknown as { _listClaudeCodeChats(): Promise<IAgentChatMetadata[] | undefined> })._listClaudeCodeChats();
 }
 
 /**
@@ -440,6 +458,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	supportedCommandsResult: SlashCommand[] = [];
 	supportedAgentsResult: AgentInfo[] | undefined = undefined;
 	mcpServerStatusResult: McpServerStatus[] | undefined = undefined;
+	mcpToggleGate: Promise<void> | undefined;
 
 	/** Phase 19 — programmable native model enumeration. */
 	supportedModelsResult: ModelInfo[] = [];
@@ -481,12 +500,17 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return this.canLoadWithoutDownloadResult;
 	}
 
+	ensureAvailableForDiscoveryCalls = 0;
+	async ensureAvailableForDiscovery(): Promise<void> {
+		this.ensureAvailableForDiscoveryCalls++;
+	}
+
 	/**
 	 * Programmable result for {@link canLoadWithoutDownload}. Defaults to
 	 * `true` (SDK already local). Set to `false` to simulate the cold-start
 	 * case where the SDK isn't downloaded yet — restore-reachable reads
-	 * ({@link listSessions}, {@link getSessionInfo} via `getChatMetadata`,
-	 * {@link getSessionMessages}) MUST defer rather than trigger a download.
+	 * ({@link getSessionInfo} via `getChatMetadata`, {@link getSessionMessages})
+	 * MUST defer rather than trigger a download.
 	 */
 	canLoadWithoutDownloadResult = true;
 
@@ -733,6 +757,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	readonly recordedFlagSettings: Settings[] = [];
 	readonly mcpToggleCalls: Array<{ serverName: string; enabled: boolean }> = [];
 	readonly mcpReconnectCalls: string[] = [];
+	mcpServerStatusCallCount = 0;
 
 	private _yieldIndex = 0;
 
@@ -812,6 +837,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 		return Promise.resolve(this._sdk.supportedAgentsResult) as never;
 	}
 	mcpServerStatus(): never {
+		this.mcpServerStatusCallCount++;
 		if (this._sdk.mcpServerStatusResult === undefined) { throw new Error('FakeQuery: mcpServerStatus not modeled'); }
 		return Promise.resolve(this._sdk.mcpServerStatusResult) as never;
 	}
@@ -842,12 +868,14 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	}
 	toggleMcpServer(serverName: string, enabled: boolean): never {
 		this.mcpToggleCalls.push({ serverName, enabled });
-		if (this._sdk.mcpServerStatusResult) {
-			this._sdk.mcpServerStatusResult = this._sdk.mcpServerStatusResult.map(server =>
-				server.name === serverName ? { ...server, status: enabled ? 'connected' : 'disabled' } : server
-			);
-		}
-		return Promise.resolve() as never;
+		return (async () => {
+			await this._sdk.mcpToggleGate;
+			if (this._sdk.mcpServerStatusResult) {
+				this._sdk.mcpServerStatusResult = this._sdk.mcpServerStatusResult.map(server =>
+					server.name === serverName ? { ...server, status: enabled ? 'connected' : 'disabled' } : server
+				);
+			}
+		})() as never;
 	}
 	setMcpServers(): never { throw new Error('FakeQuery: setMcpServers not modeled'); }
 	streamInput(): never { throw new Error('FakeQuery: streamInput not modeled'); }
@@ -1045,6 +1073,7 @@ function createTestContext(
 		[IAgentHostCheckpointService, overrides?.checkpointService ?? NULL_CHECKPOINT_SERVICE],
 		[IAgentConfigurationService, configService],
 		[IAgentHostStateManager, stateManager],
+		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, otelService],
 		[IProductService, FakeProductService],
@@ -1169,11 +1198,41 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, new RecordingOTelService()],
+		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 		[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 		// Every test ClaudeAgent's always-on merged model refresh reads `userHome`
 		// at construction, so a mock environment service is part of the baseline.
 		[INativeEnvironmentService, { userHome: URI.file('/mock-home') } as INativeEnvironmentService],
 	];
+}
+
+function reducerBackedEnablementService(stateManager: AgentHostStateManager): ICustomizationEnablementService {
+	const resolve = (session: string, target: { readonly id: string; readonly name: string; readonly source: URI }) => {
+		const customizations = stateManager.getSessionState(session)?.customizations ?? [];
+		const customization = customizations
+			.flatMap(item => [item, ...(item.type === CustomizationType.McpServer ? [] : item.children ?? [])])
+			.find(item => item.id === target.id || (item.name === target.name && item.uri === target.source.toString()));
+		const enablement = customization?.type === CustomizationType.Plugin || customization?.type === CustomizationType.McpServer
+			? customization.enablement ?? []
+			: [];
+		return {
+			kind: 'resolved' as const,
+			enablement,
+			enabled: isCustomizationEnabled({ enablement }),
+			workingDirectory: { kind: 'workspaceless' as const },
+		};
+	};
+	return {
+		_serviceBrand: undefined,
+		onDidChange: reducerBackedEnablementChangeEvent(stateManager),
+		initializeSession: async () => { },
+		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+		resolve,
+		applyClientGlobalEnablement: resolve,
+		replaceEnablement: resolve,
+		setEnablement: resolve,
+		whenIdle: async () => { },
+	};
 }
 
 // #endregion
@@ -1988,7 +2047,7 @@ suite('ClaudeAgent', () => {
 		// Phase 9 suites below.
 		const { agent } = createTestContext(disposables);
 		const chat = defaultChatUri(URI.parse('claude:/unknown'));
-		await agent.chats.abort(chat);
+		await agent.chats.abort(chat, chatContext(chat));
 		await agent.chats.changeModel(chat, { id: 'claude-opus-4.6' }, chatContext(chat));
 	});
 
@@ -4075,6 +4134,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, new RecordingOTelService()],
 			[IProductService, FakeProductService],
@@ -4708,7 +4768,7 @@ suite('ClaudeAgent', () => {
 		}];
 
 		await disposeSession(agent, created.session);
-		const result = await agent.listLegacyChats();
+		const result = await discoverClaudeCodeChats(agent);
 		assert.ok(result);
 
 		assert.deepStrictEqual({
@@ -4736,28 +4796,43 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual({ a, b, distinct: a !== b }, { a: [], b: [], distinct: true });
 	});
 
-	test('legacy discovery returns SDK entries decorated with the per-session DB overlay', async () => {
+	test('native catalog returns every SDK entry while migration returns known sessions', async () => {
 		// Plan section 3.3.2: the SDK is the source of truth; the per-session DB
 		// is a pure overlay/cache. We seed two SDK entries and a single
 		// DB carrying `claude.customizationDirectory` for entry 'a'. The
 		// result must include both entries; the overlay value must
 		// surface only on the entry that has a DB.
 		const dbA = new TestSessionDatabase();
+		const dbB = new TestSessionDatabase();
+		const dbC = new TestSessionDatabase();
 		await dbA.setMetadata('claude.customizationDirectory', URI.file('/foo').toString());
+		await dbA.setMetadata('agentHost.workspaceless', 'false');
 
 		const sessionData: ISessionDataService = {
 			...createNullSessionDataService(),
+			openDatabase: session => ({
+				object: AgentSession.id(session) === 'a' ? dbA : AgentSession.id(session) === 'b' ? dbB : dbC,
+				dispose: () => { /* no-op */ },
+			}),
 			tryOpenDatabase: async session => {
 				if (AgentSession.id(session) === 'a') {
 					return { object: dbA, dispose: () => { /* no-op */ } };
+				}
+				if (AgentSession.id(session) === 'b') {
+					return { object: dbB, dispose: () => { /* no-op */ } };
+				}
+				if (AgentSession.id(session) === 'c') {
+					return { object: dbC, dispose: () => { /* no-op */ } };
 				}
 				return undefined;
 			},
 		};
 		const sdk = new FakeClaudeAgentSdkService();
+		sdk.canLoadWithoutDownloadResult = false;
 		sdk.sessionList = [
 			{ sessionId: 'a', summary: 'Session A', lastModified: 1000, createdAt: 900 },
 			{ sessionId: 'b', summary: 'Session B', lastModified: 2000, createdAt: 1900 },
+			{ sessionId: 'c', summary: 'Session C', lastModified: 3000, createdAt: 2900 },
 		];
 
 		const services = new ServiceCollection(
@@ -4773,9 +4848,12 @@ suite('ClaudeAgent', () => {
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+		await agent.materializeChat(defaultChatUri(AgentSession.uri('claude', 'b')), chatContext(defaultChatUri(AgentSession.uri('claude', 'b'))), undefined);
 
-		const result = await agent.listLegacyChats();
+		const result = await discoverClaudeCodeChats(agent);
+		const chatsToMigrate = await agent.listChatsToMigrate();
 		assert.ok(result);
+		assert.ok(chatsToMigrate);
 		const a = result.find(r => sessionIdOfChat(r.chat) === 'a');
 		const b = result.find(r => sessionIdOfChat(r.chat) === 'b');
 		assert.deepStrictEqual({
@@ -4786,18 +4864,51 @@ suite('ClaudeAgent', () => {
 			modifiedA: a?.modifiedTime,
 			modifiedB: b?.modifiedTime,
 			sdkCalls: sdk.listSessionsCallCount,
+			availabilityRequests: sdk.ensureAvailableForDiscoveryCalls,
+			migrationChats: chatsToMigrate.map(r => sessionIdOfChat(r.chat)),
 		}, {
-			count: 2,
-			ids: ['a', 'b'],
+			count: 3,
+			ids: ['a', 'b', 'c'],
 			summaryA: 'Session A',
 			summaryB: 'Session B',
 			modifiedA: 1000,
 			modifiedB: 2000,
-			sdkCalls: 1,
+			sdkCalls: 2,
+			availabilityRequests: 1,
+			migrationChats: ['a'],
 		});
 	});
 
-	test('legacy discovery tolerates a corrupt DB without poisoning the rest of the listing', async () => {
+	test('native discovery emits only unknown Claude Code chats as external', async () => {
+		const knownInternal = AgentSession.uri('claude', 'known-internal');
+		const knownExternal = AgentSession.uri('claude', 'known-external');
+		const unknownExternal = AgentSession.uri('claude', 'unknown-external');
+		const chats = [
+			{ chat: defaultChatUri(knownInternal), startTime: 1, modifiedTime: 2 },
+			{ chat: defaultChatUri(knownExternal), startTime: 3, modifiedTime: 4 },
+			{ chat: defaultChatUri(unknownExternal), startTime: 5, modifiedTime: 6 },
+		];
+		const emitted: unknown[] = [];
+		const emitClaudeCodeChats = (ClaudeAgent.prototype as unknown as {
+			_emitClaudeCodeChats(this: {
+				_listClaudeCodeChats(): Promise<typeof chats>;
+				_isKnownClaudeCodeChat(chat: IAgentChatMetadata): Promise<boolean>;
+				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
+				_logService: { warn(message: string): void };
+			}): Promise<void>;
+		})._emitClaudeCodeChats;
+
+		await emitClaudeCodeChats.call({
+			_listClaudeCodeChats: async () => chats,
+			_isKnownClaudeCodeChat: async chat => sessionIdOfChat(chat.chat) !== 'unknown-external',
+			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
+			_logService: { warn: () => { } },
+		});
+
+		assert.deepStrictEqual(emitted, [{ ...chats[2], external: true }]);
+	});
+
+	test('external chat discovery tolerates a corrupt DB without poisoning the rest of the listing', async () => {
 		// Plan section 3.3.2 risk: a single corrupt per-session DB MUST NOT
 		// drop the other entries from the listing. CopilotAgent's
 		// `Promise.all`-with-throwing-mapper pattern at copilotAgent.ts:519
@@ -4844,7 +4955,7 @@ suite('ClaudeAgent', () => {
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
-		const result = await agent.listLegacyChats();
+		const result = await discoverClaudeCodeChats(agent);
 		assert.ok(result);
 		const find = (id: string) => result.find(r => sessionIdOfChat(r.chat) === id);
 		assert.deepStrictEqual({
@@ -4858,7 +4969,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('legacy discovery returns undefined (cannot enumerate yet) when the SDK fails to load', async () => {
+	test('external chat discovery returns undefined (cannot enumerate yet) when the SDK fails to load', async () => {
 		// Copilot-reviewer comment: `AgentService.listSessions` fans out
 		// across providers via `Promise.all` (agentService.ts:202-204).
 		// If our SDK dynamic import rejects (corrupt install, missing
@@ -4866,8 +4977,8 @@ suite('ClaudeAgent', () => {
 		// session list disappears too \u2014 the sibling Copilot provider
 		// goes blank. Catching here keeps Claude's row from poisoning the
 		// fan-out; `undefined` (not `[]`) signals "can't enumerate yet"
-		// rather than falsely claiming there are no legacy chats, so the
-		// caller retries on the next legacy discovery pass instead of
+		// rather than falsely claiming there are no external chats, so the
+		// caller retries on the next external discovery pass instead of
 		// permanently dropping this provider's chats from migration.
 		const sdk = new FakeClaudeAgentSdkService();
 		sdk.listSessionsRejection = new Error('simulated SDK load failure');
@@ -4886,7 +4997,7 @@ suite('ClaudeAgent', () => {
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
-		const result = await agent.listLegacyChats();
+		const result = await discoverClaudeCodeChats(agent);
 		assert.deepStrictEqual(result, undefined);
 	});
 
@@ -5002,7 +5113,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('restore-reachable SDK reads defer (no download) when the SDK is not yet local (preselection premature-download fix)', async () => {
+	test('restore reads defer while cold discovery requests SDK availability', async () => {
 		// Regression: when a materialized Claude session is restored on
 		// startup (the renderer subscribes to the last-active session), the
 		// host's restore path calls `getChatMetadata` -> `getSessionInfo`
@@ -5010,8 +5121,8 @@ suite('ClaudeAgent', () => {
 		// Before the fix that eagerly triggered a cold SDK download (with no
 		// progress interest registered, so no notification) purely from
 		// preselecting/restoring Claude — the download must only start on the
-		// first user message. Legacy discovery was already guarded; this locks
-		// in the matching guard on the two other restore-reachable reads.
+		// first user message. Discovery is different: it requests background SDK
+		// availability so native chats are retried without a new session.
 		const sdk = new FakeClaudeAgentSdkService();
 		sdk.canLoadWithoutDownloadResult = false;
 		sdk.sessionList = [
@@ -5031,31 +5142,32 @@ suite('ClaudeAgent', () => {
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+		const discoveredChats: number[] = [];
+		disposables.add(agent.onDidDiscoverChats(chats => discoveredChats.push(chats.length)));
 
 		const sessionUri = AgentSession.uri('claude', 'materialized');
 		const chat = defaultChatUri(sessionUri);
 		const metadata = await agent.getChatMetadata(chat, chatContext(chat));
 		await bindDefaultChat(agent, sessionUri);
 		const messages = await agent.chats.getMessages(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
-		const sessions = await agent.listLegacyChats();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			metadata,
 			messages,
-			sessions,
-			// The SDK must never be touched — no `getSessionInfo` /
-			// `getSessionMessages` calls => no dynamic import => no download.
+			// Restore must never touch the SDK. Discovery alone asks the SDK
+			// service to begin availability work.
 			getSessionInfoCalls: sdk.getSessionInfoCalls,
 			getSessionMessagesCalls: sdk.getSessionMessagesCalls,
+			availabilityRequests: sdk.ensureAvailableForDiscoveryCalls,
+			discoveredChats,
 		}, {
 			metadata: undefined,
 			messages: [],
-			// `undefined`, not `[]`: the SDK isn't local yet so legacy
-			// discovery can't enumerate, and must not falsely claim there
-			// are no legacy chats to migrate.
-			sessions: undefined,
 			getSessionInfoCalls: [],
 			getSessionMessagesCalls: [],
+			availabilityRequests: 1,
+			discoveredChats: [1],
 		});
 	});
 
@@ -5381,6 +5493,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, new RecordingOTelService()],
 			[IProductService, FakeProductService],
@@ -6314,9 +6427,11 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		// deferred MUST resolve with `false` so the SDK's `for await`
 		// loop unwinds and the subprocess shuts down cleanly.
 		const sdk = new FakeClaudeAgentSdkService();
+		const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 		const fakeConfigService: IAgentConfigurationService = {
 			onDidSessionConfigChange: Event.None,
 			getSessionConfigValues: () => undefined,
+			onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 		} as unknown as IAgentConfigurationService;
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionData = new RecordingSessionDataService(createSessionDataService());
@@ -6325,6 +6440,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			[ILogService, new NullLogService()],
 			[IAgentConfigurationService, fakeConfigService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostOTelService, new RecordingOTelService()],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -7483,7 +7599,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		const inFlight = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		await tick();
 
-		await ctx.agent.chats.abort(defaultChatUri(created.session));
+		await ctx.agent.chats.abort(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
 		await assert.rejects(inFlight, (err: unknown) => isCancellationError(err));
 
 		// Unblock the (now-aborted) iterator so it terminates cleanly.
@@ -7525,7 +7641,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		});
 		await tick();
 
-		await ctx.agent.chats.abort(defaultChatUri(created.session));
+		await ctx.agent.chats.abort(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
 		const result = await permissionPromise;
 		assert.deepStrictEqual(result, { behavior: 'deny', message: 'User declined' });
 	});
@@ -7570,7 +7686,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 
 		// Now abort and resend; the rebound query MUST receive the same
 		// model + effort via the rebind's re-apply pass.
-		await ctx.agent.chats.abort(defaultChatUri(sessionUri));
+		await ctx.agent.chats.abort(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
 		ctx.sdk.queryAdvance = undefined;
 		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'after-abort', undefined, undefined, 'turn-3', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
@@ -7868,15 +7984,15 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function makeSyncedRef(uri: string, dir: string): ISyncedCustomization {
+	function makeSyncedRef(uri: string, dir: string, children?: ChildCustomization[]): ISyncedCustomization {
 		return {
 			customization: {
 				type: CustomizationType.Plugin,
 				id: customizationId(uri),
 				uri,
 				name: uri,
-				enabled: true,
 				load: { kind: CustomizationLoadStatus.Loaded },
+				...(children === undefined ? undefined : { children }),
 			},
 			pluginDir: URI.file(dir),
 		};
@@ -7888,7 +8004,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			id: customizationId(uri),
 			uri,
 			name,
-			enabled: true,
 		};
 	}
 
@@ -7901,6 +8016,30 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const resolveReducerEnablement = (session: string, target: { readonly id: string }) => {
+			const findCustomization = (customizations: readonly (Customization | ChildCustomization)[]): PluginCustomization | McpServerCustomization | undefined => {
+				for (const customization of customizations) {
+					if (customization.id === target.id && (customization.type === CustomizationType.Plugin || customization.type === CustomizationType.McpServer)) {
+						return customization;
+					}
+					if (customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory) {
+						const child = findCustomization(customization.children ?? []);
+						if (child !== undefined) {
+							return child;
+						}
+					}
+				}
+				return undefined;
+			};
+			const customization = findCustomization(stateManager.getSessionState(session)?.customizations ?? []);
+			const enablement = customization?.enablement ?? [];
+			return {
+				kind: 'resolved' as const,
+				enablement,
+				enabled: isCustomizationEnabled({ enablement }),
+				workingDirectory: { kind: 'workspaceless' as const },
+			};
+		};
 
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -7921,6 +8060,24 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, otelService],
+			[IAgentHostCustomizationEnablementService, {
+				_serviceBrand: undefined,
+				onDidChange: reducerBackedEnablementChangeEvent(stateManager),
+				initializeSession: async () => { },
+				getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+				resolve: resolveReducerEnablement,
+				applyClientGlobalEnablement: (session, target, clientEnablement) => {
+					const existing = resolveReducerEnablement(session, target);
+					const global = clientEnablement.find(entry => entry.kind === CustomizationEnablementKind.Global);
+					const enablement = global === undefined
+						? existing.enablement
+						: [...existing.enablement.filter(entry => entry.kind !== CustomizationEnablementKind.Global), global];
+					return { ...existing, enablement, enabled: isCustomizationEnabled({ enablement }) };
+				},
+				replaceEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+				setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+				whenIdle: async () => { },
+			} satisfies ICustomizationEnablementService],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
@@ -8022,7 +8179,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(sessionResource, {
 			type: ActionType.SessionCustomizationToggled,
 			id: server.id,
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 		const staged = await agent.getChatCustomizations(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		const sessionId = created.sdkSessionId;
@@ -8034,7 +8191,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(sessionResource, {
 			type: ActionType.SessionCustomizationToggled,
 			id: server.id,
-			enabled: true,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
 		});
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
@@ -8043,9 +8200,10 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const toggleCalls = queries.flatMap(query => query.mcpToggleCalls);
 		const toggleTransitions = toggleCalls.filter((call, index) => index === 0 || toggleCalls[index - 1].enabled !== call.enabled);
 
-		const enabledForSlack = (customizations: readonly Customization[]) => customizations
-			.find(customization => customization.type === CustomizationType.McpServer && customization.name === 'slack')
-			?.enabled;
+		const enabledForSlack = (customizations: readonly Customization[]) => {
+			const customization = customizations.find(customization => customization.type === CustomizationType.McpServer && customization.name === 'slack');
+			return customization?.type === CustomizationType.McpServer ? isCustomizationEnabled(customization) : undefined;
+		};
 		assert.deepStrictEqual({
 			staged: enabledForSlack(staged),
 			afterMaterialize: enabledForSlack(afterMaterialize),
@@ -8062,6 +8220,90 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			],
 			reconnectedServers: ['slack'],
 		});
+	});
+
+	test('reconciles newly-disabled MCP servers when customizations are republished', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const workspace = URI.file('/work');
+		await fileService.createFolder(workspace);
+		await fileService.writeFile(
+			URI.joinPath(workspace, '.mcp.json'),
+			VSBuffer.fromString(JSON.stringify({ slack: { type: 'http', url: 'https://mcp.slack.com/mcp' } })),
+		);
+		const created = await createSession(agent, { workingDirectories: [workspace] });
+		const chat = defaultChatUri(created.session);
+		const initial = await agent.getChatCustomizations!(chat, chatContext(chat), hostCustomizations(stateManager, created.session));
+		const slack = initial.find(customization => customization.type === CustomizationType.McpServer && customization.name === 'slack');
+		assert.ok(slack);
+		publishReducerCustomizations(stateManager, created.session, initial);
+		const sessionId = AgentSession.id(created.session);
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [{ name: 'slack', status: 'connected' }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'start', undefined, undefined, 'turn-1');
+
+		const query = sdk.warmQueries.map(warm => warm.produced).find((query): query is FakeQuery => query !== undefined)!;
+		const mcpServerStatusCallCount = query.mcpServerStatusCallCount;
+		publishReducerCustomizations(stateManager, created.session, initial);
+		await timeout(0);
+		assert.strictEqual(query.mcpServerStatusCallCount, mcpServerStatusCallCount);
+
+		const disabledEnablement: CustomizationEnablement[] = [{ kind: CustomizationEnablementKind.Session, enabled: false }];
+		publishReducerCustomizations(stateManager, created.session, initial.map(customization =>
+			customization.id === slack.id
+				? { ...customization, enablement: disabledEnablement }
+				: customization
+		));
+		await timeout(0);
+
+		const queries = sdk.warmQueries.map(warm => warm.produced).filter((query): query is FakeQuery => query !== undefined);
+		assert.deepStrictEqual(queries.flatMap(query => query.mcpToggleCalls), [{ serverName: 'slack', enabled: false }]);
+	});
+
+	test('serializes customization and send-triggered MCP reconciliation', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const workspace = URI.file('/work');
+		await fileService.createFolder(workspace);
+		await fileService.writeFile(
+			URI.joinPath(workspace, '.mcp.json'),
+			VSBuffer.fromString(JSON.stringify({ slack: { type: 'http', url: 'https://mcp.slack.com/mcp' } })),
+		);
+		const created = await createSession(agent, { workingDirectories: [workspace] });
+		const chat = defaultChatUri(created.session);
+		const initial = await agent.getChatCustomizations!(chat, chatContext(chat), hostCustomizations(stateManager, created.session));
+		const slack = initial.find(customization => customization.type === CustomizationType.McpServer && customization.name === 'slack');
+		assert.ok(slack);
+		publishReducerCustomizations(stateManager, created.session, initial);
+		const sessionId = AgentSession.id(created.session);
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [{ name: 'slack', status: 'connected' }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'start', undefined, undefined, 'turn-1');
+
+		const gate = new DeferredPromise<void>();
+		sdk.mcpToggleGate = gate.p;
+		const disabledEnablement: CustomizationEnablement[] = [{ kind: CustomizationEnablementKind.Session, enabled: false }];
+		const disabled = initial.map(customization =>
+			customization.id === slack.id
+				? { ...customization, enablement: disabledEnablement }
+				: customization
+		);
+		publishReducerCustomizations(stateManager, created.session, disabled);
+		await timeout(0);
+		let queries = sdk.warmQueries.map(warm => warm.produced).filter((query): query is FakeQuery => query !== undefined);
+		assert.deepStrictEqual(queries.flatMap(query => query.mcpToggleCalls), [{ serverName: 'slack', enabled: false }]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		const send = agent.chats.sendMessage(defaultChatUri(created.session), 'continue', undefined, undefined, 'turn-2');
+		await timeout(0);
+		queries = sdk.warmQueries.map(warm => warm.produced).filter((query): query is FakeQuery => query !== undefined);
+		assert.deepStrictEqual(queries.flatMap(query => query.mcpToggleCalls), [{ serverName: 'slack', enabled: false }]);
+
+		gate.complete();
+		await send;
 	});
 
 	test('createChat re-seeds the eager activeClient when the host re-creates an existing chat', async () => {
@@ -8156,7 +8398,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(s1.session.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId('https://shared'),
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 
 		const [projected1, projected2] = await Promise.all([
@@ -8164,8 +8406,14 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			agent.getChatCustomizations(defaultChatUri(s2.session), chatContext(defaultChatUri(s2.session)), hostCustomizations(stateManager, s2.session)),
 		]);
 		assert.deepStrictEqual({
-			first: projected1.find(customization => customization.id === customizationId('https://shared'))?.enabled,
-			second: projected2.find(customization => customization.id === customizationId('https://shared'))?.enabled,
+			first: (() => {
+				const customization = projected1.find(customization => customization.id === customizationId('https://shared'));
+				return customization?.type === CustomizationType.Plugin ? isCustomizationEnabled(customization) : undefined;
+			})(),
+			second: (() => {
+				const customization = projected2.find(customization => customization.id === customizationId('https://shared'));
+				return customization?.type === CustomizationType.Plugin ? isCustomizationEnabled(customization) : undefined;
+			})(),
 		}, {
 			first: false,
 			second: true,
@@ -8223,11 +8471,101 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(created.session.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId('https://a'),
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 
 		const customizations = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
-		assert.strictEqual(customizations.find(c => c.uri === 'https://a')?.enabled, false);
+		const customization = customizations.find(c => c.uri === 'https://a');
+		assert.strictEqual(customization?.type === CustomizationType.Plugin ? isCustomizationEnabled(customization) : undefined, false);
+	});
+
+	test('replacing client customizations removes stale plugin and bundled MCP enablement', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const pluginUri = 'https://bundle';
+		const serverName = 'bundled';
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'bundled-server',
+			uri: `${pluginUri}/.mcp.json`,
+			name: serverName,
+			state: { kind: McpCustomizationServerStatus.Starting },
+		};
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: customizationId(pluginUri),
+			uri: pluginUri,
+			name: 'Bundle',
+			children: [child],
+		};
+		const clientCustomization: ClientPluginCustomization = {
+			...makeClientCustomization(pluginUri, 'Bundle'),
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			childEnablement: { [serverName]: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+		};
+		pm.syncResult = [makeSyncedRef(pluginUri, '/p/bundle', [child])];
+		await syncClientCustomizations(agent, stateManager, created.session, 'client-1', [clientCustomization]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		const session = agent.getSessionForTesting(created.session)!;
+		session.setHostCustomizations([plugin]);
+		const getDesiredMcpEnablement = () => (session as unknown as { _getDesiredMcpServerEnablement(): Map<string, boolean> })._getDesiredMcpServerEnablement();
+
+		const before = [...getDesiredMcpEnablement()];
+		pm.syncResult = [];
+		await syncClientCustomizations(agent, stateManager, created.session, 'client-1', []);
+		const after = [...getDesiredMcpEnablement()];
+
+		assert.deepStrictEqual({ before, after }, {
+			before: [[serverName, false]],
+			after: [[serverName, true]],
+		});
+	});
+
+	test('removing a client removes its plugin and bundled MCP enablement', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const pluginUri = 'https://bundle';
+		const serverName = 'bundled';
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'bundled-server',
+			uri: `${pluginUri}/.mcp.json`,
+			name: serverName,
+			state: { kind: McpCustomizationServerStatus.Starting },
+		};
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: customizationId(pluginUri),
+			uri: pluginUri,
+			name: 'Bundle',
+			children: [child],
+		};
+		pm.syncResult = [makeSyncedRef(pluginUri, '/p/bundle', [child])];
+		await syncClientCustomizations(agent, stateManager, created.session, 'client-1', [{
+			...makeClientCustomization(pluginUri, 'Bundle'),
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			childEnablement: { [serverName]: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+		}]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		const session = agent.getSessionForTesting(created.session)!;
+		session.setHostCustomizations([plugin]);
+		const getDesiredMcpEnablement = () => (session as unknown as { _getDesiredMcpServerEnablement(): Map<string, boolean> })._getDesiredMcpServerEnablement();
+
+		const before = [...getDesiredMcpEnablement()];
+		agent.removeActiveClient(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), 'client-1');
+		await tick();
+		const after = [...getDesiredMcpEnablement()];
+
+		assert.deepStrictEqual({ before, after }, {
+			before: [[serverName, false]],
+			after: [[serverName, true]],
+		});
 	});
 
 	test('send pre-flight: dirty customizations triggers a rebind (SDK plugin URI set is captured at startup, so any change must restart the Query)', async () => {
@@ -8307,7 +8645,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		stateManager.dispatchServerAction(created.session.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId('https://x'),
-			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		});
 		assert.strictEqual(session.clientCustomizationsDiff.hasDifference, false);
 		assert.strictEqual(sdk.startupCallCount, startupsBefore, 'no rebind during the in-flight turn');
@@ -8922,7 +9260,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forkCall: { sessionId: parentId, options: { upToMessageId: 'a1' } },
 			sentPrompt: injectedPrompt,
 			turns: ['side question'],
-			sideChat: { turnId: 'u1', inheritedTurnCount: 1, partialResponse },
+			sideChat: { turnId: 'u1', inheritedTurnId: 'u1', partialResponse },
 		});
 	});
 
@@ -8947,7 +9285,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forked: 0,
 			sideChat: {
 				turnId: 'turn-source',
-				inheritedTurnCount: 0,
 				context: sourceContext,
 			},
 		});
@@ -8970,7 +9307,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
 		}, {
 			forked: 0,
-			sideChat: { turnId: 'turn-source', inheritedTurnCount: 0 },
+			sideChat: { turnId: 'turn-source' },
 		});
 	});
 
@@ -9006,7 +9343,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forked: 0,
 			sideChat: {
 				turnId,
-				inheritedTurnCount: 0,
 				context: sourceContext,
 			},
 		});
@@ -9058,7 +9394,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			turns: ['side question'],
 			sideChat: {
 				turnId: 'local-1',
-				inheritedTurnCount: 1,
+				inheritedTurnId: 'u1',
 				context: sourceContext,
 			},
 		});
@@ -9793,7 +10129,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.chats!.createChat(chatUri, created.session, { ...resolvedChatOptions(), fork: { source: defaultChatUri(created.session), turnId: 'u1' } });
 
 		// Select a custom agent for the additional chat before it is materialized.
-		await agent.chats!.changeAgent(chatUri, { uri: 'file:///foo/agents/reviewer.md' });
+		await agent.chats!.changeAgent(chatUri, { uri: 'file:///foo/agents/reviewer.md' }, chatContext(chatUri));
 
 		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
 		await agent.chats!.sendMessage(chatUri, 'hi', undefined, undefined, 'turn-1');
@@ -9923,6 +10259,22 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 			liveChats: [chatUri.toString()],
 			resume: sessionId,
 			startupCount: 1,
+		});
+	});
+
+	test('materializeChat does not assign the default backing to a peer without providerData', async () => {
+		const { agent } = createTestContext(disposables);
+		const session = AgentSession.uri('claude', 'peer-without-backing');
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+
+		const result = await agent.materializeChat!(chat, { configurationResource: session, resource: chat }, undefined);
+
+		assert.deepStrictEqual({
+			result,
+			backing: (agent as unknown as { _chatBackings: Map<string, unknown> })._chatBackings.get(chat.toString()),
+		}, {
+			result: undefined,
+			backing: undefined,
 		});
 	});
 });

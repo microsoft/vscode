@@ -5,6 +5,7 @@
 
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
@@ -1074,7 +1075,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			if (options?.optionGroups && options.optionGroups.length) {
 				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, [...options.optionGroups]);
 			}
-		}).catch(err => this._logService.error('Error fetching chat session options', err));
+		}).catch(err => {
+			if (!isCancellationError(err)) {
+				this._logService.error('Error fetching chat session options', err);
+			}
+		});
 	}
 
 	override dispose(): void {
