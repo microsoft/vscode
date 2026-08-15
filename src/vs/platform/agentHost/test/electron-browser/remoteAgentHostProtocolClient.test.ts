@@ -301,38 +301,6 @@ suite('RemoteAgentHostProtocolClient', () => {
 		while (transport.sentMessages.length === 0) {
 			await Promise.resolve();
 		}
-
-		test('initialize sends the local client telemetry identity only for usage telemetry', async () => {
-			const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));
-			const { client } = createClientForIdentity('test.example:1234', transport, createPermissionService(), undefined, new NullLogService(), new TestConfigurationService(), undefined, agentsWindowAgentHostClientInfo, new TestClientIdentityTelemetryService());
-			const connectPromise = client.connect();
-			const initialize = transport.sentMessages[0] as JsonRpcRequest;
-
-			assert.deepStrictEqual((initialize.params as { _meta?: Record<string, unknown> })._meta, {
-				'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
-				'vscode.clientMachineId': 'client-machine-id',
-				'vscode.clientDevDeviceId': 'client-dev-device-id',
-			});
-
-			transport.fireMessage({
-				jsonrpc: '2.0',
-				id: initialize.id,
-				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
-			});
-			await connectPromise;
-
-			const noTelemetryTransport = disposables.add(new TestProtocolTransport());
-			const noTelemetryClient = createClient(noTelemetryTransport).client;
-			const noTelemetryConnectPromise = noTelemetryClient.connect();
-			const noTelemetryInitialize = noTelemetryTransport.sentMessages[0] as JsonRpcRequest;
-			assert.strictEqual((noTelemetryInitialize.params as { _meta?: Record<string, unknown> })._meta, undefined);
-			noTelemetryTransport.fireMessage({
-				jsonrpc: '2.0',
-				id: noTelemetryInitialize.id,
-				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
-			});
-			await noTelemetryConnectPromise;
-		});
 		const sent = transport.sentMessages[0] as JsonRpcRequest;
 		transport.fireMessage({
 			jsonrpc: '2.0',
@@ -341,6 +309,38 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 		await connectPromise;
 	}
+
+	test('initialize sends the local client telemetry identity only for usage telemetry', async () => {
+		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));
+		const { client } = createClientForIdentity('test.example:1234', transport, createPermissionService(), undefined, new NullLogService(), new TestConfigurationService(), undefined, agentsWindowAgentHostClientInfo, new TestClientIdentityTelemetryService());
+		const connectPromise = client.connect();
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+
+		assert.deepStrictEqual((initialize.params as { _meta?: Record<string, unknown> })._meta, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
+			'vscode.clientMachineId': 'client-machine-id',
+			'vscode.clientDevDeviceId': 'client-dev-device-id',
+		});
+
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+		await connectPromise;
+
+		const noTelemetryTransport = disposables.add(new TestProtocolTransport());
+		const noTelemetryClient = createClient(noTelemetryTransport).client;
+		const noTelemetryConnectPromise = noTelemetryClient.connect();
+		const noTelemetryInitialize = noTelemetryTransport.sentMessages[0] as JsonRpcRequest;
+		assert.strictEqual((noTelemetryInitialize.params as { _meta?: Record<string, unknown> })._meta, undefined);
+		noTelemetryTransport.fireMessage({
+			jsonrpc: '2.0',
+			id: noTelemetryInitialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+		await noTelemetryConnectPromise;
+	});
 
 	async function flushMicrotasks(): Promise<void> {
 		// `await Promise.resolve()` only advances one microtask; loop to drain chained handlers.

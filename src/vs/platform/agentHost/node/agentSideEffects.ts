@@ -1664,7 +1664,7 @@ export class AgentSideEffects extends Disposable {
 				if (agent) {
 					const chat = URI.parse(channel);
 					const session = parseRequiredSessionUriFromChatUri(channel);
-					agent.chats.abort(chat, this._chatContext(session, channel)).catch(err => {
+					agent.chats.abort(chat, { ...this._chatContext(session, channel), clientTelemetryContext: clientContext }).catch(err => {
 						this._logService.error('[AgentSideEffects] abort failed', err);
 					});
 				}
@@ -2150,13 +2150,14 @@ export class AgentSideEffects extends Disposable {
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
 			const chatContext = this._chatContext(options.sessionChannel, chat);
+			const clientOperationContext = { ...chatContext, clientTelemetryContext: clientContext };
 
 			const selectionUpdates: Promise<void>[] = [];
 			if (message.model) {
 				failureStage = 'modelSelection';
-				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model, chatContext));
+				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model, clientOperationContext));
 			}
-			selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent, chatContext).catch(err => {
+			selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent, clientOperationContext).catch(err => {
 				this._logService.error('[AgentSideEffects] changeAgent failed', err);
 			}));
 
@@ -2171,7 +2172,7 @@ export class AgentSideEffects extends Disposable {
 					: []),
 				...(renameInstruction ? [renameInstruction] : []),
 			];
-			const sendContext = { ...chatContext, ...(hostInstructions.length ? { hostInstructions } : {}), clientTelemetryContext: clientContext };
+			const sendContext = { ...clientOperationContext, ...(hostInstructions.length ? { hostInstructions } : {}) };
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
 			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {

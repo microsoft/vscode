@@ -2180,15 +2180,30 @@ suite('AgentSideEffects', () => {
 
 		test('calls abortSession on the agent', async () => {
 			setupSession();
+			const clientContext = {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			};
 			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnCancelled,
 				turnId: 'turn-1',
 				duration: 1000,
-			});
+			}, 'client-1', clientContext);
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.abortSessionCalls, [URI.parse(sessionUri.toString())]);
+			const abortContext = agent.chatContexts.find(call => call.boundary === 'abort')?.context;
+			assert.deepStrictEqual({
+				abortSessionCalls: agent.abortSessionCalls,
+				clientTelemetryContext: !URI.isUri(abortContext) ? abortContext?.clientTelemetryContext : undefined,
+			}, {
+				abortSessionCalls: [URI.parse(sessionUri.toString())],
+				clientTelemetryContext: clientContext,
+			});
 		});
 	});
 
@@ -2198,16 +2213,37 @@ suite('AgentSideEffects', () => {
 
 		test('calls changeModel on the agent before sending the message', async () => {
 			setupSession();
+			const clientContext = {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			};
 			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'gpt-5' } },
-			});
+			}, 'client-1', clientContext);
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: URI.parse(defaultChatUri) }]);
+			const contexts = Object.fromEntries(agent.chatContexts
+				.filter(call => call.boundary === 'changeModel' || call.boundary === 'changeAgent' || call.boundary === 'sendMessage')
+				.map(call => [call.boundary, !URI.isUri(call.context) ? call.context?.clientTelemetryContext : undefined]));
+			assert.deepStrictEqual({
+				changeModelCalls: agent.changeModelCalls,
+				contexts,
+			}, {
+				changeModelCalls: [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: URI.parse(defaultChatUri) }],
+				contexts: {
+					changeModel: clientContext,
+					changeAgent: clientContext,
+					sendMessage: clientContext,
+				},
+			});
 		});
 
 		test('waits for model selection before sending the message', async () => {

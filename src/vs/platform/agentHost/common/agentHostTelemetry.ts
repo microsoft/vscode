@@ -52,10 +52,6 @@ const CLIENT_CONNECTION_KIND_META_KEY = 'vscode.clientConnectionKind';
 const CLIENT_MACHINE_ID_META_KEY = 'vscode.clientMachineId';
 const CLIENT_DEV_DEVICE_ID_META_KEY = 'vscode.clientDevDeviceId';
 
-export function isClientTelemetryIdentityMetaKey(key: string): boolean {
-	return key === CLIENT_MACHINE_ID_META_KEY || key === CLIENT_DEV_DEVICE_ID_META_KEY;
-}
-
 export function toClientTelemetryMeta(connectionKind: AgentHostClientConnectionKind | undefined, machineId: string | undefined, devDeviceId: string | undefined): Record<string, unknown> | undefined {
 	const meta: Record<string, unknown> = {};
 	if (connectionKind !== undefined && connectionKind !== AgentHostClientConnectionKind.Unknown) {
