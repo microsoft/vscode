@@ -10,7 +10,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { autorun, observableFromEvent } from '../../../util/vs/base/common/observableInternal';
 import { getByokCompletionModels, onDidChangeByokCompletionModels } from '../../byok/common/byokCompletionModels';
-import { registerUnificationCommands, setupByokCompletionModels } from '../../completions-core/vscode-node/completionsServiceBridges';
+import { registerUnificationCommands } from '../../completions-core/vscode-node/completionsServiceBridges';
 import { ICopilotInlineCompletionItemProviderService } from '../common/copilotInlineCompletionItemProviderService';
 import { unificationStateObservable } from './completionsUnificationContribution';
 
@@ -32,12 +32,6 @@ export class CompletionsCoreContribution extends Disposable {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService
 	) {
 		super();
-
-		// Bridge BYOK (chatLanguageModels.json) models into the completions pipeline early,
-		// before the inline completion provider is registered (signed-out/offline scenarios
-		// never produce a Copilot token, yet must still serve custom completions).
-		const completionsInstaService = _copilotInlineCompletionItemProviderService.getOrCreateInstantiationService();
-		this._register(completionsInstaService.invokeFunction(setupByokCompletionModels));
 
 		const unificationState = unificationStateObservable(this);
 
