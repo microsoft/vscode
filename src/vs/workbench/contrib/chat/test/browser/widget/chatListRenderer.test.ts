@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { maxMarkdownRenderLength } from '../../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -16,7 +17,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup, splitMarkdownContentAtRenderedCodeBlocks } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
@@ -34,9 +35,107 @@ import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+import { contentRefUrl } from '../../../common/widget/annotations.js';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('splitMarkdownContentAtRenderedCodeBlocks', () => {
+		const split = (value: string) => splitMarkdownContentAtRenderedCodeBlocks(
+			{ kind: 'markdownContent', content: new MarkdownString(value) },
+			languageId => languageId.toLowerCase() === 'mermaid',
+		).map(part => part.content.value);
+
+		test('keeps completed rendered code blocks stable while trailing markdown streams', () => {
+			const fence = '```mermaid\ngraph TD\n```';
+
+			assert.deepStrictEqual({
+				incomplete: split('```mermaid\ngraph TD'),
+				noTrailingContent: split(fence),
+				trailingContent: split(`${fence}\nTrailing`),
+				moreTrailingContent: split(`${fence}\nTrailing content`),
+				longFence: split('````mermaid\ngraph TD\n````\nTrailing'),
+				tildeFence: split('~~~mermaid\ngraph TD\n~~~\nTrailing'),
+				nonRenderedFence: split('```typescript\nconst value = 1;\n```\nTrailing'),
+				multipleFences: split('```mermaid\ngraph TD\n```\nBetween\n```mermaid\ngraph LR\n```\nAfter'),
+				nestedFence: split('> ```mermaid\n> graph TD\n> ```\n> Trailing'),
+				crlfFence: split('Before\r\n```mermaid\r\ngraph TD\r\n```\r\nAfter'),
+				bareCrFence: split('Before\r```mermaid\rgraph TD\r```\rAfter'),
+				tabBeforeFence: split('\tindented\n\n```mermaid\ngraph TD\n```\nTrailing'),
+				tabInFenceBody: split('```mermaid\n\tgraph TD\n\tA-->B\n```\nTrailing'),
+				referenceDefinition: split('[ref]: https://example.com\n\n```mermaid\ngraph TD\n```\nTrailing'),
+				referenceUsage: split('[before][ref]\n\n```mermaid\ngraph TD\n```\nTrailing'),
+				multilineReferenceUsage: split('[before\ncontinued][ref]\n\n```mermaid\ngraph TD\n```\nTrailing'),
+				htmlBeforeFence: split('<div>\n```mermaid\nfake\n```\n</div>\n\n```mermaid\ngraph TD\n```\nTrailing'),
+				oversized: split(`${'x'.repeat(maxMarkdownRenderLength)}\n\`\`\`mermaid\ngraph TD\n\`\`\`\nTrailing`).length,
+			}, {
+				incomplete: ['```mermaid\ngraph TD'],
+				noTrailingContent: [fence],
+				trailingContent: [fence, '\nTrailing'],
+				moreTrailingContent: [fence, '\nTrailing content'],
+				longFence: ['````mermaid\ngraph TD\n````', '\nTrailing'],
+				tildeFence: ['~~~mermaid\ngraph TD\n~~~', '\nTrailing'],
+				nonRenderedFence: ['```typescript\nconst value = 1;\n```\nTrailing'],
+				multipleFences: ['```mermaid\ngraph TD\n```', '\nBetween\n```mermaid\ngraph LR\n```', '\nAfter'],
+				nestedFence: ['> ```mermaid\n> graph TD\n> ```\n> Trailing'],
+				crlfFence: ['Before\r\n```mermaid\r\ngraph TD\r\n```', '\r\nAfter'],
+				bareCrFence: ['Before\r```mermaid\rgraph TD\r```', '\rAfter'],
+				tabBeforeFence: ['\tindented\n\n```mermaid\ngraph TD\n```', '\nTrailing'],
+				tabInFenceBody: ['```mermaid\n\tgraph TD\n\tA-->B\n```', '\nTrailing'],
+				referenceDefinition: ['[ref]: https://example.com\n\n```mermaid\ngraph TD\n```\nTrailing'],
+				referenceUsage: ['[before][ref]\n\n```mermaid\ngraph TD\n```\nTrailing'],
+				multilineReferenceUsage: ['[before\ncontinued][ref]\n\n```mermaid\ngraph TD\n```\nTrailing'],
+				htmlBeforeFence: ['<div>\n```mermaid\nfake\n```\n</div>\n\n```mermaid\ngraph TD\n```', '\nTrailing'],
+				oversized: 1,
+			});
+		});
+
+		test('does not split Markdown with raw HTML enabled', () => {
+			const content = new MarkdownString('<div>\n```mermaid\ngraph TD\n```\n</div>\nTrailing', { supportHtml: true });
+			const markdown = { kind: 'markdownContent' as const, content };
+
+			assert.deepStrictEqual(splitMarkdownContentAtRenderedCodeBlocks(markdown, languageId => languageId === 'mermaid'), [markdown]);
+		});
+
+		test('preserves markdown metadata and partitions inline references', () => {
+			const baseUri = URI.parse('https://example.com/base/');
+			const targetUri = URI.parse('https://example.com/target');
+			const content = new MarkdownString(`[first](${contentRefUrl}/1)\n\n\`\`\`mermaid\ngraph TD\n\`\`\`\n[eleventh](${contentRefUrl}/11)`, { isTrusted: true });
+			content.baseUri = baseUri;
+			content.uris = { target: targetUri };
+			const parts = splitMarkdownContentAtRenderedCodeBlocks({
+				kind: 'markdownContent',
+				content,
+				inlineReferences: {
+					1: { kind: 'inlineReference', inlineReference: URI.parse('file:///first') },
+					11: { kind: 'inlineReference', inlineReference: URI.parse('file:///eleventh') },
+				},
+			}, languageId => languageId === 'mermaid');
+
+			assert.deepStrictEqual(parts.map(part => ({
+				value: part.content.value,
+				isTrusted: part.content.isTrusted,
+				baseUri: part.content.baseUri?.toString(),
+				uris: part.content.uris,
+				inlineReferenceKeys: Object.keys(part.inlineReferences ?? {}),
+			})), [
+				{
+					value: `[first](${contentRefUrl}/1)\n\n\`\`\`mermaid\ngraph TD\n\`\`\``,
+					isTrusted: true,
+					baseUri: baseUri.toString(),
+					uris: { target: targetUri },
+					inlineReferenceKeys: ['1'],
+				},
+				{
+					value: `\n[eleventh](${contentRefUrl}/11)`,
+					isTrusted: true,
+					baseUri: baseUri.toString(),
+					uris: { target: targetUri },
+					inlineReferenceKeys: ['11'],
+				},
+			]);
+		});
+	});
 
 	suite('shouldScheduleInitialHeightChange', () => {
 		test('only schedules first measurement updates when needed to avoid clipping', () => {
