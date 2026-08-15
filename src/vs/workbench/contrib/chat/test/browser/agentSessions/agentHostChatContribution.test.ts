@@ -9701,6 +9701,49 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(toolInvocation!.toolCallId, 'tc-running');
 		});
 
+		test('does not re-emit a settled tool call, keeping the streamed markdown in one part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Reconnecting after a tool completed but while the final response is
+			// still streaming must not append a second card for that tool. A tool
+			// part between the restored markdown prefix and the later continuation
+			// would break markdown merging and split the answer in two.
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-settled-tool');
+			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString(), { streamingText: 'that fallback fails to' });
+			sessionState.activeTurn!.responseParts.unshift({
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					toolCallId: 'tc-done',
+					toolName: 'bash',
+					displayName: 'Bash',
+					invocationMessage: 'Ran command',
+					pastTenseMessage: 'Ran command',
+					status: ToolCallStatus.Completed,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					success: true,
+					content: [],
+				},
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-settled-tool' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			agentHostService.fireAction({
+				channel: sessionUri.toString(),
+				action: { type: 'chat/delta', turnId: 'turn-active', partId: 'md-active', content: 'ward destroying history.' } as ChatAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual(
+				(session.progressObs?.get() ?? []).map(part => part.kind === 'markdownContent' ? `markdown:${part.content.value}` : part.kind),
+				['toolInvocationSerialized', 'markdown:that fallback fails to', 'markdown:ward destroying history.'],
+			);
+		}));
+
 		test('adopts and updates an active streaming tool call after reconnect', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-streaming-tool');
