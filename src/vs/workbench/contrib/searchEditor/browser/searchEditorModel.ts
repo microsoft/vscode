@@ -35,6 +35,10 @@ export class SearchEditorModel {
 	async resolve(): Promise<SearchEditorData> {
 		return assertReturnsDefined(searchEditorModelFactory.models.get(this.resource)).resolve();
 	}
+
+	dispose(): void {
+		searchEditorModelFactory.models.delete(this.resource);
+	}
 }
 
 class SearchEditorModelFactory {
