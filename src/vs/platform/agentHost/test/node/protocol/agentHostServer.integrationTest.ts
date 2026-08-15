@@ -1,0 +1,34 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
+import { getAgentHostE2ETestTimeout, IServerHandle, startServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+
+suite('Agent Host Server', function () {
+
+	let server: IServerHandle;
+
+	suiteSetup(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
+		server = await startServer({ quiet: false });
+	});
+
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
+	});
+
+	test('starts with production agent services registered', async function () {
+		this.timeout(10_000);
+
+		const client = new TestProtocolClient(server.port);
+		try {
+			await client.connect();
+			await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-agent-host-server-services' });
+		} finally {
+			client.close();
+		}
+	});
+});

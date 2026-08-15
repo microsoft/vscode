@@ -44,7 +44,9 @@
 		let shellForeground = '#CCCCCC';
 		if (data) {
 			baseTheme = data.baseTheme;
-			shellBackground = data.colorInfo.editorBackground ?? data.colorInfo.background;
+			shellBackground = data.baseTheme === 'vs'
+				? (data.colorInfo.background ?? data.colorInfo.editorBackground)
+				: (data.colorInfo.editorBackground ?? data.colorInfo.background);
 			shellForeground = data.colorInfo.foreground ?? shellForeground;
 		} else if (configuration.autoDetectHighContrast && configuration.colorScheme.highContrast) {
 			if (configuration.colorScheme.dark) {
@@ -63,7 +65,7 @@
 				shellForeground = '#CCCCCC';
 			} else {
 				baseTheme = 'vs';
-				shellBackground = '#FFFFFF';
+				shellBackground = '#F3F3F3';
 				shellForeground = '#000000';
 			}
 		}
@@ -109,6 +111,9 @@
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
+
+		// Set product configuration as global (used e.g. to select the ASAR path in `amdX`)
+		globalThis._VSCODE_PRODUCT_JSON = { ...configuration.product };
 
 		// Dev only: CSS import map tricks
 		setupCSSImportMaps<T>(configuration, baseUrl);

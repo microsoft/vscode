@@ -54,7 +54,7 @@ function renderCodeEditor({ container, disposableStore, theme }: ComponentFixtur
 		container,
 		{
 			automaticLayout: true,
-			minimap: { enabled: true },
+			minimap: { enabled: false },
 			lineNumbers: 'on',
 			scrollBeyondLastLine: false,
 			fontSize: 14,

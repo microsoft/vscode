@@ -9,7 +9,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IOpenedMainWindow, IOpenedAuxiliaryWindow } from '../../../../platform/window/common/window.js';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IOpenedMainWindow, IOpenedAuxiliaryWindow, IRectangle } from '../../../../platform/window/common/window.js';
 import { isResourceEditorInput, pathsToEditors } from '../../../common/editor.js';
 import { whenEditorClosed } from '../../../browser/editor.js';
 import { IWorkspace, IWorkspaceProvider } from '../../../browser/web.api.js';
@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
 import { BrowserLifecycleService } from '../../lifecycle/browser/lifecycleService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { getWorkspaceIdentifier } from '../../workspaces/browser/workspaces.js';
+import { getWorkspaceIdentifier } from '../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { localize } from '../../../../nls.js';
 import Severity from '../../../../base/common/severity.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -585,6 +585,15 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return undefined;
 	}
 
+	async getWindowPosition(targetWindow: Window): Promise<IRectangle> {
+		return {
+			x: targetWindow.screenX,
+			y: targetWindow.screenY,
+			width: targetWindow.outerWidth,
+			height: targetWindow.outerHeight,
+		};
+	}
+
 	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
 	getWindows(options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
 	async getWindows(options: { includeAuxiliaryWindows: boolean }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>> {
@@ -634,6 +643,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
 
 		mainWindow.close();
+	}
+
+	async shutdown(): Promise<void> {
+		return this.close();
 	}
 
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {

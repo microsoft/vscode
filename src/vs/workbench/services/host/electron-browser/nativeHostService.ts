@@ -181,6 +181,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.getCursorScreenPoint();
 	}
 
+	getWindowPosition(targetWindow: Window): Promise<IRectangle | undefined> {
+		return this.nativeHostService.getWindowPosition({ targetWindowId: getWindowId(targetWindow) });
+	}
+
 	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
 	getWindows(options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
 	getWindows(options: { includeAuxiliaryWindows: boolean }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>> {
@@ -212,6 +216,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	close(): Promise<void> {
 		return this.nativeHostService.closeWindow();
+	}
+
+	shutdown(): Promise<void> {
+		return this.nativeHostService.quit();
 	}
 
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {

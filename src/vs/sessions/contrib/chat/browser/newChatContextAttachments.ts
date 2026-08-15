@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { DragAndDropObserver } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { renderIcon, renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
@@ -34,13 +33,25 @@ import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 
-import { IChatRequestVariableEntry, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImageUtils.js';
+import { createImageHoverContent, openPastedTextArtifact } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgets.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
-import { CodeDataTransfers, containsDragType, extractEditorsDropData, getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
-import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
+
+/**
+ * The attachment surface of the composer, as seen by its input plumbing
+ * (completions, paste). Kept free of rendering so those parts can be used
+ * without the pill UI.
+ */
+export interface INewChatAttachments {
+	readonly onDidChangeContext: Event<void>;
+	readonly attachments: readonly IChatRequestVariableEntry[];
+	setAttachments(entries: readonly IChatRequestVariableEntry[]): void;
+	addAttachments(...entries: IChatRequestVariableEntry[]): void;
+	removeAttachment(id: string): void;
+}
 
 /**
  * Manages context attachments for the sessions new-chat widget.
@@ -51,7 +62,7 @@ import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '..
  * - Drag and drop files
  * - Paste images from clipboard (Ctrl/Cmd+V)
  */
-export class NewChatContextAttachments extends Disposable {
+export class NewChatContextAttachments extends Disposable implements INewChatAttachments {
 
 	private readonly _attachedContext: IChatRequestVariableEntry[] = [];
 	private _container: HTMLElement | undefined;
@@ -108,7 +119,8 @@ export class NewChatContextAttachments extends Disposable {
 		this._resourceLabels.clear();
 		dom.clearNode(this._container);
 
-		if (this._attachedContext.length === 0) {
+		const visibleAttachments = this._attachedContext.filter(entry => !isAgentHostCompletionVariableEntry(entry));
+		if (visibleAttachments.length === 0) {
 			this._container.style.display = 'none';
 			return;
 		}
@@ -116,14 +128,23 @@ export class NewChatContextAttachments extends Disposable {
 		this._container.style.display = '';
 		this._container.classList.add('show-file-icons');
 
-		for (const entry of this._attachedContext) {
+		for (const entry of visibleAttachments) {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
-			pill.tabIndex = 0;
-			pill.role = 'button';
 			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
 			if (entry.kind === 'image') {
-				dom.append(pill, renderIcon(Codicon.fileMedia));
+				const icon = dom.append(pill, renderIcon(Codicon.fileMedia));
 				dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
+				const buffer = coerceImageBuffer(entry.value);
+				if (buffer) {
+					// Swap the generic icon for a thumbnail once the shared helper
+					// has decoded one, matching the workbench attachment pill.
+					const preview = createImageHoverContent(resource, entry.name, buffer, entry.id, undefined, undefined, (url, isThumbnail) => {
+						if (isThumbnail) {
+							icon.replaceWith(dom.$('img.sessions-chat-attachment-image', { src: url, alt: '' }));
+						}
+					});
+					this._renderDisposables.add(preview.disposable);
+				}
 			} else {
 				const label = this._resourceLabels.create(pill, { supportIcons: true });
 				this._renderDisposables.add(label);
@@ -132,6 +153,11 @@ export class NewChatContextAttachments extends Disposable {
 						fileKind: entry.kind === 'directory' ? FileKind.FOLDER : FileKind.FILE,
 						hidePath: true,
 					});
+				} else if (isPastedTextArtifact(entry)) {
+					// Matches the workbench paste pill: a file icon for the artifact's
+					// language, and how much text it stands in for.
+					label.setLabel(entry.fileName, undefined, { extraClasses: ['file-icon', `${entry.language}-lang-file-icon`] });
+					dom.append(pill, dom.$('span.sessions-chat-attachment-info', undefined, localize('pastedLines', "Pasted {0}", entry.pastedLines)));
 				} else {
 					label.setLabel(entry.name);
 				}
@@ -154,159 +180,30 @@ export class NewChatContextAttachments extends Disposable {
 				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
 					await this.openerService.open(resource, { fromUserGesture: true });
 				}));
+			} else if (isPastedTextArtifact(entry)) {
+				pill.style.cursor = 'pointer';
+				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
+					await this.instantiationService.invokeFunction(openPastedTextArtifact, entry);
+				}));
+			}
+
+			// Only expose the pill itself as a focusable button when it has an open
+			// action; reference pills without a resource (e.g. `#session`) would
+			// otherwise be a focusable control that does nothing.
+			if (imageData || resource || isPastedTextArtifact(entry)) {
+				pill.tabIndex = 0;
+				pill.role = 'button';
 			}
 
 			const removeButton = dom.append(pill, dom.$('.sessions-chat-attachment-remove'));
 			removeButton.title = localize('removeAttachment', "Remove");
 			removeButton.tabIndex = -1;
-			dom.append(removeButton, renderIcon(Codicon.close));
+			dom.append(removeButton, renderIcon(Codicon.closeCompact));
 			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, (e) => {
 				e.stopPropagation();
-				this._removeAttachment(entry.id);
+				this.removeAttachment(entry.id);
 			}));
 		}
-	}
-
-	// --- Drag and drop ---
-
-	registerDropTarget(dndContainer: HTMLElement): void {
-		const overlay = dom.append(dndContainer, dom.$('.sessions-chat-dnd-overlay'));
-		let overlayText: HTMLElement | undefined;
-
-		const isDropSupported = (e: DragEvent): boolean => {
-			return containsDragType(e, DataTransfers.FILES, CodeDataTransfers.EDITORS, CodeDataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.INTERNAL_URI_LIST);
-		};
-
-		const showOverlay = () => {
-			overlay.classList.add('visible');
-			if (!overlayText) {
-				const label = localize('attachAsContext', "Attach as Context");
-				const iconAndTextElements = renderLabelWithIcons(`$(${Codicon.attach.id}) ${label}`);
-				const htmlElements = iconAndTextElements.map(element => {
-					if (typeof element === 'string') {
-						return dom.$('span.overlay-text', undefined, element);
-					}
-					return element;
-				});
-				overlayText = dom.$('span.attach-context-overlay-text', undefined, ...htmlElements);
-				overlay.appendChild(overlayText);
-			}
-		};
-
-		const hideOverlay = () => {
-			overlay.classList.remove('visible');
-			overlayText?.remove();
-			overlayText = undefined;
-		};
-
-		this._register(new DragAndDropObserver(dndContainer, {
-			onDragOver: (e) => {
-				if (isDropSupported(e)) {
-					e.preventDefault();
-					e.stopPropagation();
-					if (e.dataTransfer) {
-						e.dataTransfer.dropEffect = 'copy';
-					}
-					showOverlay();
-				}
-			},
-			onDragLeave: () => {
-				hideOverlay();
-			},
-			onDrop: async (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				hideOverlay();
-
-				// Extract editor data from VS Code internal drags (e.g., explorer view)
-				const editorDropData = extractEditorsDropData(e);
-				if (editorDropData.length > 0) {
-					for (const editor of editorDropData) {
-						if (editor.resource) {
-							await this._attachFileUri(editor.resource, basename(editor.resource));
-						}
-					}
-					return;
-				}
-
-				// Fallback: try native file items
-				const items = e.dataTransfer?.items;
-				if (items) {
-					for (const item of Array.from(items)) {
-						if (item.kind === 'file') {
-							const file = item.getAsFile();
-							if (!file) {
-								continue;
-							}
-							const filePath = getPathForFile(file);
-							if (!filePath) {
-								continue;
-							}
-							const uri = URI.file(filePath);
-							await this._attachFileUri(uri, file.name);
-						}
-					}
-				}
-			},
-		}));
-	}
-
-	// --- Paste ---
-
-	registerPasteHandler(element: HTMLElement): void {
-		const supportedMimeTypes = [
-			'image/png',
-			'image/jpeg',
-			'image/jpg',
-			'image/bmp',
-			'image/gif',
-			'image/tiff'
-		];
-
-		this._register(dom.addDisposableListener(element, dom.EventType.PASTE, async (e: ClipboardEvent) => {
-			const items = e.clipboardData?.items;
-			if (!items) {
-				return;
-			}
-
-			// Check synchronously for image data before any async work
-			// so preventDefault stops the editor from inserting text.
-			let imageFile: File | undefined;
-			for (const item of Array.from(items)) {
-				if (!item.type.startsWith('image/') || !supportedMimeTypes.includes(item.type)) {
-					continue;
-				}
-				const file = item.getAsFile();
-				if (file) {
-					imageFile = file;
-					break;
-				}
-			}
-
-			if (!imageFile) {
-				return;
-			}
-
-			e.preventDefault();
-			e.stopPropagation();
-
-			const arrayBuffer = await imageFile.arrayBuffer();
-			const data = new Uint8Array(arrayBuffer);
-			if (!isImage(data)) {
-				return;
-			}
-
-			const resizedData = await resizeImage(data, imageFile.type);
-			const displayName = this._getUniqueImageName();
-
-			this._addAttachments({
-				id: await imageToHash(resizedData),
-				name: displayName,
-				fullName: displayName,
-				value: resizedData,
-				kind: 'image',
-			});
-		}, true));
 	}
 
 	// --- Picker ---
@@ -580,6 +477,10 @@ export class NewChatContextAttachments extends Disposable {
 		return name;
 	}
 
+	addAttachments(...entries: IChatRequestVariableEntry[]): void {
+		this._addAttachments(...entries);
+	}
+
 	private _addAttachments(...entries: IChatRequestVariableEntry[]): void {
 		for (const entry of entries) {
 			if (!this._attachedContext.some(e => e.id === entry.id)) {
@@ -590,7 +491,8 @@ export class NewChatContextAttachments extends Disposable {
 		this._onDidChangeContext.fire();
 	}
 
-	private _removeAttachment(id: string): void {
+
+	removeAttachment(id: string): void {
 		const index = this._attachedContext.findIndex(e => e.id === id);
 		if (index >= 0) {
 			this._attachedContext.splice(index, 1);

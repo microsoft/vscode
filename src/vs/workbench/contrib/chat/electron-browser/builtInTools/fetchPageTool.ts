@@ -9,6 +9,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { extname } from '../../../../../base/common/path.js';
+import { normalizePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -20,6 +21,8 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { WorkingDirectory } from '../../common/workingDirectory.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
@@ -58,14 +61,15 @@ export class FetchWebPageTool implements IToolImpl {
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 		@IChatService private readonly _chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentNetworkFilterService private readonly _agentNetworkFilterService: IAgentNetworkFilterService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const urls = (invocation.parameters as IFetchWebPageToolParams).urls || [];
-		const { webUris, fileUris, invalidUris } = this._parseUris(urls);
+		const { webUris, fileUris, invalidUris, blockedUris } = this._parseUris(urls);
 		const allValidUris = [...webUris.values(), ...fileUris.values()];
 
-		if (!allValidUris.length && invalidUris.size === 0) {
+		if (!allValidUris.length && invalidUris.size === 0 && blockedUris.size === 0) {
 			return {
 				content: [{ kind: 'text', value: localize('fetchWebPage.noValidUrls', 'No valid URLs provided.') }]
 			};
@@ -125,7 +129,9 @@ export class FetchWebPageTool implements IToolImpl {
 		let webIndex = 0;
 		let fileIndex = 0;
 		for (const url of urls) {
-			if (invalidUris.has(url)) {
+			if (blockedUris.has(url)) {
+				results.push(this._agentNetworkFilterService.formatError(URI.parse(url)));
+			} else if (invalidUris.has(url)) {
 				results.push(undefined);
 			} else if (webUris.has(url)) {
 				results.push({ type: 'extracted', value: webContents[webIndex] });
@@ -156,7 +162,7 @@ export class FetchWebPageTool implements IToolImpl {
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const { webUris, fileUris, invalidUris } = this._parseUris(context.parameters.urls);
+		const { webUris, fileUris, invalidUris, blockedUris } = this._parseUris(context.parameters.urls);
 
 		// Check which file URIs can actually be read
 		const validFileUris: URI[] = [];
@@ -171,15 +177,15 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
-		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
+		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls, ...Array.from(blockedUris)];
 		// All valid URIs (web + file) for display in messages
 		const allFetchedUris = new ResourceSet([...webUris.values(), ...validFileUris]);
 		// File URIs that are inside the workspace don't need confirmation — they're already accessible
 		// and don't carry the web content risks (prompt injection, malicious redirects).
-		// File URIs outside the workspace are treated like web URIs and require confirmation.
-		const fileUrisOutsideWorkspace = validFileUris.filter(
-			uri => !this._workspaceContextService.getWorkspaceFolder(uri)
-		);
+		// When a working directory is set (agents window), it is the source of truth;
+		// only fall back to workspace folders when no working directory is specified.
+		const workingDir = new WorkingDirectory(this._workspaceContextService, context.workingDirectory);
+		const fileUrisOutsideWorkspace = validFileUris.filter(uri => !workingDir.getFolder(uri));
 		const urlsNeedingConfirmation = new ResourceSet([...webUris.values(), ...fileUrisOutsideWorkspace]);
 
 		const pastTenseMessage = invalid.length
@@ -230,12 +236,17 @@ export class FetchWebPageTool implements IToolImpl {
 		let confirmationNotNeededReason: string | undefined;
 		if (context.chatSessionResource) {
 			const model = this._chatService.getSession(context.chatSessionResource);
-			const userMessages = model?.getRequests().map(r => r.message.text.toLowerCase());
+			const userMessages = model?.getRequests().map(r => r.message.text) ?? [];
+			// Collect the resources the user actually referenced by parsing whole
+			// whitespace-delimited tokens from their messages. Parsing at token granularity
+			// (rather than a substring match) ensures a `file://` URI embedded inside another
+			// URL the user pasted — e.g. `https://host/p?u=file:///home/victim/.ssh/id_rsa` —
+			// is parsed as part of its enclosing web URL and is not mistaken for an explicit
+			// request for that local file, which would otherwise auto-approve the read.
+			const referencedResources = collectReferencedResources(userMessages);
 			let urlsMentionedInPrompt = false;
 			for (const uri of urlsNeedingConfirmation) {
-				// Normalize to lowercase and remove any trailing slash
-				const toToCheck = uri.toString(true).toLowerCase().replace(/\/$/, '');
-				if (userMessages?.some(m => m.includes(toToCheck))) {
+				if (referencedResources.has(uri)) {
 					urlsNeedingConfirmation.delete(uri);
 					urlsMentionedInPrompt = true;
 				}
@@ -276,26 +287,31 @@ export class FetchWebPageTool implements IToolImpl {
 		return result;
 	}
 
-	private _parseUris(urls?: string[]): { webUris: Map<string, URI>; fileUris: Map<string, URI>; invalidUris: Set<string> } {
+	private _parseUris(urls?: string[]): { webUris: Map<string, URI>; fileUris: Map<string, URI>; invalidUris: Set<string>; blockedUris: Set<string> } {
 		const webUris = new Map<string, URI>();
 		const fileUris = new Map<string, URI>();
 		const invalidUris = new Set<string>();
+		const blockedUris = new Set<string>();
 
 		urls?.forEach(url => {
 			try {
 				const uriObj = URI.parse(url);
 				if (uriObj.scheme === 'http' || uriObj.scheme === 'https') {
-					webUris.set(url, uriObj);
+					if (!this._agentNetworkFilterService.isUriAllowed(uriObj)) {
+						blockedUris.add(url);
+					} else {
+						webUris.set(url, uriObj);
+					}
 				} else {
-					// Try to handle other schemes via file service
-					fileUris.set(url, uriObj);
+					// Normalize `..` so the confirmation-gating workspace check and the eventual read agree on one path.
+					fileUris.set(url, normalizePath(uriObj));
 				}
 			} catch (e) {
 				invalidUris.add(url);
 			}
 		});
 
-		return { webUris, fileUris, invalidUris };
+		return { webUris, fileUris, invalidUris, blockedUris };
 	}
 
 	private _getPromptPartsForResults(urls: string[], results: ResultType[]): (IToolResultTextPart | IToolResultDataPart)[] {
@@ -351,3 +367,41 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 	}
 }
+
+/**
+ * Matches the start of a URI scheme (RFC 3986: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":").
+ * Used as a cheap filter so only scheme-qualified tokens are parsed.
+ */
+const _schemePrefix = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+
+/**
+ * Collects the URIs a user explicitly referenced across their chat messages, used to decide
+ * whether a fetch may skip its confirmation dialog. Each message is split on whitespace and
+ * scheme-qualified tokens are parsed into URIs; parsing at token granularity is what makes
+ * this safe — a `file://` URI embedded inside another URL the user pasted (e.g. a
+ * `?u=file:///…` query parameter) is parsed as part of its enclosing URL and never becomes a
+ * standalone reference. Membership is compared by {@link ResourceSet} (keyed on `URI.toString()`).
+ */
+function collectReferencedResources(messages: readonly string[]): ResourceSet {
+	const resources = new ResourceSet();
+	for (const message of messages) {
+		for (const rawToken of message.split(/\s+/)) {
+			// Trim common punctuation/brackets a user might type around a URL.
+			const token = rawToken.replace(/^[<("'`[{]+/, '').replace(/[>)"'`\]},.;]+$/, '');
+			// Cheap pre-check: only tokens that start with a URI scheme are worth parsing.
+			// This avoids using exceptions for control flow on every plain word in a message.
+			if (!_schemePrefix.test(token)) {
+				continue;
+			}
+			try {
+				// Strict parsing rejects scheme-less tokens, so only genuine `scheme:…`
+				// tokens (http, https, file, …) are treated as references.
+				resources.add(URI.parse(token, true));
+			} catch {
+				// Scheme-like but not a valid URI; ignore.
+			}
+		}
+	}
+	return resources;
+}
+

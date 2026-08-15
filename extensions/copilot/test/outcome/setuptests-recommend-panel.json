@@ -1,0 +1,56 @@
+[
+	{
+		"name": "setupTests - recommend [panel] - dotnetCoreApp",
+		"requests": [
+			"6024da9eed1a18637cf01e9077b64f250216c328698c8007b044300a0df1709a"
+		]
+	},
+	{
+		"name": "setupTests - recommend [panel] - goWebApp",
+		"requests": [
+			"a8f4bfc343cef8a3da0a9ac1b1dd1090776afa0b3e55257568359e2a3b677826"
+		]
+	},
+	{
+		"name": "setupTests - recommend [panel] - javaSpringApp",
+		"requests": [
+			"9792854713783f15265cdef3e3b9dda46dc78ac8f0617ff8391c74414f0e99b8"
+		]
+	},
+	{
+		"name": "setupTests - recommend [panel] - nodeApp",
+		"requests": [
+			"a7a9ec523e81383a46b26e6ebb68cc930c5912dd22a88f0bf33eee798629ba75"
+		]
+	},
+	{
+		"name": "setupTests - recommend [panel] - nodeExpressApp",
+		"requests": [
+			"20962ef6fc6c49530927478ae89f61fc6dfc0d17beb7ea891ccb32fb3dff6025"
+		]
+	},
+	{
+		"name": "setupTests - recommend [panel] - phpLaravelApp",
+		"requests": [
+			"8d747f47883f6c54d1381cbfd284be5087c3874ff1b51cb7200c3f989c1e29c2"
+		]
+	},
+	{
+		"name": "setupTests - recommend [panel] - pythonFlaskApp",
+		"requests": [
+			"838f8a381d7a186e59d7a2e01218772a09558e57c352b55621ba8a5c0d79ed87"
+		]
+	},
+	{
+		"name": "setupTests - recommend [panel] - rubyOnRailsApp",
+		"requests": [
+			"3c702b5c8f179d50ce955a8ddb2795106c7596d1c96f49867cc7e88f35dbdc0a"
+		]
+	},
+	{
+		"name": "setupTests - recommend [panel] - webAppWithWebpack",
+		"requests": [
+			"37ba8f90cec81f0099f89e0b8aa045fed05a881cb93a33f1314f695540ccaf7f"
+		]
+	}
+]

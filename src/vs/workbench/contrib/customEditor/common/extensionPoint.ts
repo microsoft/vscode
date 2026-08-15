@@ -22,6 +22,25 @@ const Fields = Object.freeze({
 	priority: 'priority',
 });
 
+const PriorityFields = Object.freeze({
+	textEditor: 'textEditor',
+	diffEditor: 'diffEditor',
+});
+
+const customEditorPrioritySchema = {
+	type: 'string',
+	enum: [
+		CustomEditorPriority.default,
+		CustomEditorPriority.option,
+		CustomEditorPriority.explicit,
+	],
+	markdownEnumDescriptions: [
+		nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
+		nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
+		nls.localize('contributes.priority.explicit', 'The editor is not automatically used or opted into by an association from another editor mode. It can still be opened using the `Reopen With` command or an association configured specifically for this editor mode.'),
+	],
+} as const satisfies IJSONSchema;
+
 const customEditorsContributionSchema = {
 	type: 'object',
 	required: [
@@ -59,15 +78,24 @@ const customEditorsContributionSchema = {
 			}
 		},
 		[Fields.priority]: {
-			type: 'string',
-			markdownDeprecationMessage: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file. This may be overridden by users using the `workbench.editorAssociations` setting.'),
-			enum: [
-				CustomEditorPriority.default,
-				CustomEditorPriority.option,
-			],
-			markdownEnumDescriptions: [
-				nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
-				nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
+			markdownDescription: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file or diff editor. This may be overridden by users using the `workbench.editorAssociations` or `workbench.diffEditorAssociations` setting. When omitted, the custom editor defaults to `default` for the normal editor and `explicit` for diff editors, so it is not used for diffs unless it opts in.'),
+			anyOf: [
+				customEditorPrioritySchema,
+				{
+					type: 'object',
+					required: [PriorityFields.textEditor],
+					additionalProperties: false,
+					properties: {
+						[PriorityFields.textEditor]: {
+							...customEditorPrioritySchema,
+							markdownDescription: nls.localize('contributes.priority.textEditor', 'Controls if the custom editor is enabled automatically when the user opens a file. `diffEditor` does not inherit this value; when it is not specified it defaults to `explicit`.'),
+						},
+						[PriorityFields.diffEditor]: {
+							...customEditorPrioritySchema,
+							markdownDescription: nls.localize('contributes.priority.diffEditor', 'Controls if the custom editor is enabled automatically when the user opens a diff. When not specified this defaults to `explicit`, so the custom editor is not used for diffs unless it opts in.'),
+						},
+					}
+				}
 			],
 			default: CustomEditorPriority.default
 		}
@@ -127,7 +155,7 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 			.map(customEditor => {
 				return [
 					customEditor.viewType,
-					customEditor.priority ?? '',
+					renderPriority(customEditor.priority),
 					coalesce(customEditor.selector.map(x => x.filenamePattern)).join(', ')
 				];
 			});
@@ -140,6 +168,19 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 			dispose: () => { }
 		};
 	}
+}
+
+function renderPriority(priority: ICustomEditorsExtensionPoint['priority'] | string | undefined): string {
+	if (!priority) {
+		return '';
+	}
+	if (typeof priority === 'string') {
+		return priority;
+	}
+	return coalesce([
+		priority.textEditor ? `textEditor: ${priority.textEditor}` : undefined,
+		priority.diffEditor ? `diffEditor: ${priority.diffEditor}` : undefined,
+	]).join(', ');
 }
 
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({

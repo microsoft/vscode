@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
-import { ObservableMap } from '../../../../../base/common/observable.js';
+import { IObservable, ObservableMap } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatAgentLocation } from '../constants.js';
@@ -20,6 +20,7 @@ export interface IStartSessionProps {
 	readonly transferEditingSession?: IChatEditingSession;
 	readonly disableBackgroundKeepAlive?: boolean;
 	readonly inputState?: ISerializableChatModelInputState;
+	readonly isReadOnly?: IObservable<boolean>;
 }
 
 export interface ChatModelStoreDelegate {
@@ -212,7 +213,7 @@ export class ChatModelStore extends Disposable {
 		ownerEntries.set(ownerId, debugOwner ?? 'unspecified');
 
 		let isDisposed = false;
-		return {
+		const wrapped: IReference<ChatModel> = {
 			object: reference.object,
 			dispose: () => {
 				if (isDisposed) {
@@ -226,8 +227,13 @@ export class ChatModelStore extends Disposable {
 					this._referenceOwners.delete(key);
 				}
 				reference.dispose();
+
+				// Break the reference from this wrapper to the ChatModel so that
+				// stale holders of this IChatModelReference cannot retain the model.
+				(wrapped as { object: ChatModel | null }).object = null;
 			}
 		};
+		return wrapped;
 	}
 
 	/**

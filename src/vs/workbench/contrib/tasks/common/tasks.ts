@@ -579,9 +579,9 @@ export interface IConfigurationProperties {
 	hide?: boolean;
 
 	/**
-	 * Show this task in the Agent Sessions run action dropdown
+	 * Show this task in the Agents run action dropdown
 	 */
-	inSessions?: boolean;
+	inAgents?: boolean;
 }
 
 export enum RunOnOptions {

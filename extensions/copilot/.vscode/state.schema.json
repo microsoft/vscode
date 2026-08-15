@@ -1,0 +1,159 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema",
+	"type": "object",
+	"definitions": {
+		"position": {
+			"type": "object",
+			"properties": {
+				"line": {
+					"description": "The zero-based line number.",
+					"type": "integer"
+				},
+				"character": {
+					"description": "The zero-based character number.",
+					"type": "integer"
+				}
+			}
+		},
+		"range": {
+			"type": "object",
+			"properties": {
+				"start": {
+					"description": "The start of the range.",
+					"$ref": "#/definitions/position"
+				},
+				"end": {
+					"description": "The end of the range.",
+					"$ref": "#/definitions/position"
+				}
+			}
+		},
+		"selection": {
+			"type": "object",
+			"properties": {
+				"anchor": {
+					"description": "The starting position of the selection.",
+					"$ref": "#/definitions/position"
+				},
+				"active": {
+					"description": "The active cursor position of the selection.",
+					"$ref": "#/definitions/position"
+				}
+			}
+		},
+		"diagnostic": {
+			"type": "object",
+			"properties": {
+				"start": {
+					"description": "The start range of the diagnostic.",
+					"$ref": "#/definitions/position"
+				},
+				"end": {
+					"description": "The end range of the diagnostic.",
+					"$ref": "#/definitions/position"
+				},
+				"message": {
+					"description": "The diagnostic message.",
+					"type": "string"
+				},
+				"severity": {
+					"description": "The diagnostic severity.",
+					"type": "integer"
+				},
+				"relatedInformation": {
+					"description": "The diagnostic code.",
+					"type": "integer"
+				}
+			}
+
+		},
+		"activeTextEditor": {
+			"type": "object",
+			"properties": {
+				"selections": {
+					"description": "Selections in the active editor.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/selection"
+					}
+				},
+				"documentFilePath": {
+					"description": "A relative filepath to the active file test fixture.",
+					"type": "string"
+				},
+				"visibleRanges": {
+					"description": "Visible ranges in the active editor.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/range"
+					}
+				},
+				"languageId": {
+					"description": "The language ID of the active editor.",
+					"type": "string"
+				}
+			}
+		}
+	},
+	"required": [
+		"activeTextEditor",
+		"terminalBuffer",
+		"debugConsoleOutput",
+		"activeFileDiagnostics"
+	],
+	"properties": {
+		"activeTextEditor": {
+			"description": "The active editor.",
+			"$ref": "#/definitions/activeTextEditor"
+		},
+		"terminalBuffer": {
+			"description": "The contents of the terminal buffer.",
+			"type": "string"
+		},
+		"debugConsoleOutput": {
+			"description": "The contents of the debug console.",
+			"type": "string"
+		},
+		"activeFileDiagnostics": {
+			"description": "The diagnostics for the active file.",
+			"type": "array",
+			"items": {
+				"$ref": "#/definitions/diagnostic"
+			}
+		},
+		"workspaceFoldersFilePaths": {
+			"description": "A list of workspace folder paths.",
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"symbols": {
+			"description": "Symbols in the active file.",
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "integer"
+					},
+					"containerName": {
+						"type": "string"
+					},
+					"filePath": {
+						"type": "string"
+					},
+					"start": {
+						"$ref": "#/definitions/position"
+					},
+					"end": {
+						"$ref": "#/definitions/position"
+					}
+				}
+			}
+		}
+	}
+}

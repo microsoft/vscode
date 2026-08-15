@@ -116,6 +116,9 @@ export interface IHostService {
 	 */
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle } | undefined>;
 
+	/** Get the native bounds of a window or `undefined` if unavailable. */
+	getWindowPosition(targetWindow: Window): Promise<IRectangle | undefined>;
+
 	/**
 	 * Get the list of opened windows, optionally including auxiliary windows.
 	 */
@@ -140,6 +143,13 @@ export interface IHostService {
 	 * Attempt to close the active main window.
 	 */
 	close(): Promise<void>;
+
+	/**
+	 * Quit the entire application. Unlike {@link close}, this will
+	 * terminate the process even on macOS where closing the last
+	 * window normally keeps the app running.
+	 */
+	shutdown(): Promise<void>;
 
 	/**
 	 * Execute an asynchronous `expectedShutdownTask`. While this task is

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LazyStatefulPromise, raceTimeout } from '../../../../base/common/async.js';
-import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { BugIndicatingError, CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
@@ -94,12 +94,25 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		super();
 		this._name = '';
 		this._viewModel = new LazyStatefulPromise(async () => {
-			const model = await this._createModel();
-			this._register(model);
-			const vm = new MultiDiffEditorViewModel(model, this._instantiationService);
-			this._register(vm);
-			await raceTimeout(vm.waitForDiffs(), 1000);
-			return vm;
+			const store = new DisposableStore();
+			try {
+				const model = store.add(await this._createModel());
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+
+				const vm = store.add(new MultiDiffEditorViewModel(model, this._instantiationService));
+				await raceTimeout(vm.waitForDiffOr1s(), 1000);
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+
+				this._register(store);
+				return vm;
+			} catch (error) {
+				store.dispose();
+				throw error;
+			}
 		});
 		this._resolvedSource = new ObservableLazyPromise(async () => {
 			const source: IResolvedMultiDiffSource | undefined = this.initialResources
@@ -108,6 +121,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return {
 				source,
 				resources: source ? observableFromValueWithChangeEvent(this, source.resources) : constObservable([]),
+				label: source?.label ? observableFromValueWithChangeEvent(this, source.label) : undefined,
 			};
 		});
 		this.resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
@@ -141,7 +155,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this._register(autorun((reader) => {
 			/** @description Updates name */
 			const resources = this.resources.read(reader);
-			const label = this.label ?? localize('name', "Multi Diff Editor");
+			const resolvedSource = this._resolvedSource.cachedPromiseResult.read(reader)?.data;
+			const label = resolvedSource?.label?.read(reader) ?? this.label ?? localize('name', "Multi Diff Editor");
 			if (resources && resources.length === 1) {
 				this._name = localize({ key: 'nameWithOneFile', comment: ['{0} is the name of the editor'] }, "{0} (1 file)", label);
 			} else if (resources) {
@@ -190,18 +205,38 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			let modified: IReference<IResolvedTextEditorModel> | undefined;
 
 			const multiDiffItemStore = new DisposableStore();
+			const createModelReference = async (resource: URI | undefined) => resource ? this._textModelService.createModelReference(resource) : undefined;
 
-			try {
-				[original, modified] = await Promise.all([
-					r.originalUri ? this._textModelService.createModelReference(r.originalUri) : undefined,
-					r.modifiedUri ? this._textModelService.createModelReference(r.modifiedUri) : undefined,
-				]);
+			const [originalResult, modifiedResult] = await Promise.allSettled([
+				createModelReference(r.originalUri),
+				createModelReference(r.modifiedUri),
+			]);
+
+			if (originalResult.status === 'fulfilled') {
+				original = originalResult.value;
 				if (original) { multiDiffItemStore.add(original); }
+			}
+			if (modifiedResult.status === 'fulfilled') {
+				modified = modifiedResult.value;
 				if (modified) { multiDiffItemStore.add(modified); }
-			} catch (e) {
+			}
+
+			if (store.isDisposed) {
+				multiDiffItemStore.dispose();
+				return undefined;
+			}
+
+			let errorResult: PromiseRejectedResult | undefined;
+			if (originalResult.status === 'rejected') {
+				errorResult = originalResult;
+			} else if (modifiedResult.status === 'rejected') {
+				errorResult = modifiedResult;
+			}
+			if (errorResult) {
+				multiDiffItemStore.dispose();
 				// e.g. "File seems to be binary and cannot be opened as text"
-				console.error(e);
-				onUnexpectedError(e);
+				console.error(errorResult.reason);
+				onUnexpectedError(errorResult.reason);
 				return undefined;
 			}
 
@@ -276,7 +311,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		return this;
 	}
 
-	override  revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.doSaveOrRevert('revert', group, options);
 	}
 

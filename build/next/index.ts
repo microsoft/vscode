@@ -18,6 +18,8 @@ import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
+import { runBuildFast } from './build-fast.ts';
+import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 
 const globAsync = promisify(glob);
 
@@ -30,8 +32,8 @@ const commit = getVersion(REPO_ROOT);
 const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-// CLI: transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
-const command = process.argv[2]; // 'transpile' or 'bundle'
+// CLI: build-fast [--force] | transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
+const command = process.argv[2];
 
 function getArgValue(name: string): string | undefined {
 	const index = process.argv.indexOf(name);
@@ -47,6 +49,7 @@ const options = {
 	nls: process.argv.includes('--nls'),
 	manglePrivates: process.argv.includes('--mangle-privates'),
 	excludeTests: process.argv.includes('--exclude-tests'),
+	force: process.argv.includes('--force'),
 	out: getArgValue('--out'),
 	target: getArgValue('--target') ?? 'desktop', // 'desktop' | 'server' | 'server-web' | 'web'
 	sourceMapBaseUrl: getArgValue('--source-map-base-url'),
@@ -58,9 +61,6 @@ type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web';
 const SRC_DIR = 'src';
 const OUT_DIR = 'out';
 const OUT_VSCODE_DIR = 'out-vscode';
-
-// UTF-8 BOM - added to test files with 'utf8' in the path (matches gulp build behavior)
-const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 
 // ============================================================================
 // Entry Points (from build/buildfile.ts)
@@ -100,8 +100,10 @@ const desktopEntryPoints = [
 	'vs/sessions/sessions.desktop.main',
 	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
+	'vs/platform/localTranscription/node/localTranscriptionMain',
 	'vs/platform/terminal/node/ptyHostMain',
 	'vs/platform/agentHost/node/agentHostMain',
+	'vs/platform/agentHost/node/diffWorkerMain',
 	'vs/workbench/api/node/extensionHostProcess',
 ];
 
@@ -118,6 +120,11 @@ const webEntryPoints = [
 	'vs/code/browser/workbench/workbench',
 ];
 
+// Additional web-only entry points (CDN build only, not in server-web)
+const webOnlyEntryPoints = [
+	'vs/sessions/sessions.web.main.internal',
+];
+
 const keyboardMapEntryPoints = [
 	'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux',
 	'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin',
@@ -130,6 +137,7 @@ const serverEntryPoints = [
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
 	'vs/platform/agentHost/node/agentHostMain',
+	'vs/platform/agentHost/node/diffWorkerMain',
 ];
 
 // Bootstrap files per target
@@ -171,6 +179,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 		case 'web':
 			return [
 				...workerEntryPoints,
+				...webOnlyEntryPoints,
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
 			];
@@ -218,6 +227,7 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 		case 'web':
 			return new Set([
 				'vs/workbench/workbench.web.main.internal',
+				'vs/sessions/sessions.web.main.internal',
 			]);
 		default:
 			throw new Error(`Unknown target: ${target}`);
@@ -237,7 +247,9 @@ const commonResourcePatterns = [
 	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
-	'vs/sessions/contrib/chat/browser/media/*.svg'
+	'vs/workbench/contrib/chat/browser/widget/media/chatPet/*.{gif,png}',
+	'vs/sessions/contrib/chat/browser/media/*.svg',
+	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg'
 ];
 
 // Resources for desktop target
@@ -272,10 +284,12 @@ const desktopResourcePatterns = [
 
 	// Media - audio
 	'vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
 	'vs/workbench/services/extensionManagement/common/media/*.png',
@@ -331,10 +345,12 @@ const serverWebResourcePatterns = [
 
 	// Media - audio
 	'vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.png',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
@@ -357,10 +373,12 @@ const webResourcePatterns = [
 
 	// Media - audio
 	'vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.png',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
@@ -451,27 +469,6 @@ function readISODate(outDir: string): string {
 }
 
 /**
- * Only used to make encoding tests happy. The source files don't have a BOM but the
- * tests expect one... so we add it here.
- */
-function needsBomAdded(filePath: string): boolean {
-	return /([\/\\])test\1.*utf8/.test(filePath);
-}
-
-async function copyFile(srcPath: string, destPath: string): Promise<void> {
-	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-
-	if (needsBomAdded(srcPath)) {
-		const content = await fs.promises.readFile(srcPath);
-		if (content[0] !== 0xef || content[1] !== 0xbb || content[2] !== 0xbf) {
-			await fs.promises.writeFile(destPath, Buffer.concat([UTF8_BOM, content]));
-			return;
-		}
-	}
-	await fs.promises.copyFile(srcPath, destPath);
-}
-
-/**
  * Standalone TypeScript files that need to be compiled separately (not bundled).
  * These run in special contexts (e.g., Electron preload) where bundling isn't appropriate.
  * Only needed for desktop target.
@@ -548,11 +545,11 @@ async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise
 
 	const allFiles = [...new Set([...files, ...dtsFiles])];
 
-	await Promise.all(allFiles.map(file => {
+	await mapWithConcurrency(allFiles, MAX_CONCURRENT_FILE_OPERATIONS, file => {
 		const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
 		const destPath = path.join(REPO_ROOT, outDir, file);
 		return copyFile(srcPath, destPath);
-	}));
+	});
 
 	console.log(`[resources] Copied ${allFiles.length} files`);
 }
@@ -689,32 +686,6 @@ function fileContentMapperPlugin(outDir: string, target: BuildTarget): esbuild.P
 // Transpile (Goal 1: TS → JS using esbuild.transform for maximum speed)
 // ============================================================================
 
-// Shared transform options for single-file transpilation
-const transformOptions: esbuild.TransformOptions = {
-	loader: 'ts',
-	format: 'esm',
-	target: 'es2024',
-	sourcemap: 'inline',
-	sourcesContent: false,
-	tsconfigRaw: JSON.stringify({
-		compilerOptions: {
-			experimentalDecorators: true,
-			useDefineForClassFields: false
-		}
-	}),
-};
-
-async function transpileFile(srcPath: string, destPath: string): Promise<void> {
-	const source = await fs.promises.readFile(srcPath, 'utf-8');
-	const result = await esbuild.transform(source, {
-		...transformOptions,
-		sourcefile: srcPath,
-	});
-
-	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-	await fs.promises.writeFile(destPath, result.code);
-}
-
 async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 	// Find all .ts files
 	const ignorePatterns = ['**/*.d.ts'];
@@ -729,12 +700,11 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 
 	console.log(`[transpile] Found ${files.length} files`);
 
-	// Transpile all files in parallel using esbuild.transform (fastest approach)
-	await Promise.all(files.map(file => {
+	await mapWithConcurrency(files, MAX_CONCURRENT_FILE_OPERATIONS, file => {
 		const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
 		const destPath = path.join(REPO_ROOT, outDir, file.replace(/\.ts$/, '.js'));
 		return transpileFile(srcPath, destPath);
-	}));
+	});
 }
 
 // ============================================================================
@@ -1004,6 +974,29 @@ ${tslib}`,
 		}
 	}
 
+	// Syntax-check JS files that were post-processed (mangle-privates, NLS).
+	// These steps do raw string surgery on bundled JS so a bug could silently
+	// produce syntactically broken output. Catch it here at build time.
+	// Uses esbuild.transform() as a parser since the bundles are ESM.
+	const postProcessedFiles = new Set([...mangleEdits.keys(), ...nlsEdits.keys()]);
+	if (postProcessedFiles.size > 0) {
+		const errors = (await Promise.all([...postProcessedFiles].map(async jsPath => {
+			try {
+				const src = await fs.promises.readFile(jsPath, 'utf-8');
+				await esbuild.transform(src, { loader: 'js', format: 'esm' });
+				return undefined;
+			} catch (e: unknown) {
+				const rel = path.relative(path.join(REPO_ROOT, outDir), jsPath);
+				const message = e instanceof Error ? e.message : String(e);
+				return { rel, message };
+			}
+		}))).filter(error => error !== undefined).sort((a, b) => a.rel.localeCompare(b.rel));
+		if (errors.length > 0) {
+			throw new Error(`[bundle] Syntax errors in post-processed JS files:\n${errors.map(e => `${e.rel}: ${e.message}`).join('\n')}`);
+		}
+		console.log(`[bundle] Syntax check passed for ${postProcessedFiles.size} post-processed JS files`);
+	}
+
 	// Log mangle-privates stats
 	if (doManglePrivates && mangleStats.length > 0) {
 		let totalClasses = 0, totalFields = 0, totalEdits = 0, totalElapsed = 0;
@@ -1061,44 +1054,51 @@ async function watch(): Promise<void> {
 
 	let pendingTsFiles: Set<string> = new Set();
 	let pendingCopyFiles: Set<string> = new Set();
+	let processingChanges = false;
 
 	const processChanges = async () => {
-		console.log('Starting transpilation...');
-		const t1 = Date.now();
-		const tsFiles = [...pendingTsFiles];
-		const filesToCopy = [...pendingCopyFiles];
-		pendingTsFiles = new Set();
-		pendingCopyFiles = new Set();
+		if (processingChanges) {
+			return;
+		}
 
+		processingChanges = true;
 		try {
-			// Transform changed TypeScript files in parallel
-			if (tsFiles.length > 0) {
-				console.log(`[watch] Transpiling ${tsFiles.length} file(s)...`);
-				await Promise.all(tsFiles.map(srcPath => {
-					const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
-					const destPath = path.join(REPO_ROOT, outDir, relativePath.replace(/\.ts$/, '.js'));
-					return transpileFile(srcPath, destPath);
-				}));
-			}
+			while (pendingTsFiles.size > 0 || pendingCopyFiles.size > 0) {
+				console.log('Starting transpilation...');
+				const t1 = Date.now();
+				const tsFiles = [...pendingTsFiles];
+				const filesToCopy = [...pendingCopyFiles];
+				pendingTsFiles = new Set();
+				pendingCopyFiles = new Set();
 
-			// Copy changed resource files in parallel
-			if (filesToCopy.length > 0) {
-				await Promise.all(filesToCopy.map(async (srcPath) => {
-					const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
-					const destPath = path.join(REPO_ROOT, outDir, relativePath);
-					await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-					await fs.promises.copyFile(srcPath, destPath);
-					console.log(`[watch] Copied ${relativePath}`);
-				}));
-			}
+				try {
+					if (tsFiles.length > 0) {
+						console.log(`[watch] Transpiling ${tsFiles.length} file(s)...`);
+						await mapWithConcurrency(tsFiles, MAX_CONCURRENT_FILE_OPERATIONS, srcPath => {
+							const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
+							const destPath = path.join(REPO_ROOT, outDir, relativePath.replace(/\.ts$/, '.js'));
+							return transpileFile(srcPath, destPath);
+						});
+					}
 
-			if (tsFiles.length > 0 || filesToCopy.length > 0) {
-				console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
+					if (filesToCopy.length > 0) {
+						await mapWithConcurrency(filesToCopy, MAX_CONCURRENT_FILE_OPERATIONS, async srcPath => {
+							const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
+							const destPath = path.join(REPO_ROOT, outDir, relativePath);
+							await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+							await copyFile(srcPath, destPath);
+							console.log(`[watch] Copied ${relativePath}`);
+						});
+					}
+
+					console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
+				} catch (err) {
+					console.error('[watch] Rebuild failed:', err);
+					console.log(`Finished transpilation with 1 errors after ${Date.now() - t1} ms`);
+				}
 			}
-		} catch (err) {
-			console.error('[watch] Rebuild failed:', err);
-			console.log(`Finished transpilation with 1 errors after ${Date.now() - t1} ms`);
-			// Continue watching
+		} finally {
+			processingChanges = false;
 		}
 	};
 
@@ -1139,8 +1139,12 @@ function printUsage(): void {
 	console.log(`Usage: npx tsx build/next/index.ts <command> [options]
 
 Commands:
+	build-fast         Incrementally build changed development outputs
 	transpile          Transpile TypeScript to JavaScript (single-file, fast)
 	bundle             Bundle entry points into optimized bundles
+
+Options for 'build-fast':
+	--force            Ignore incremental state and rebuild all lanes
 
 Options for 'transpile':
 	--watch            Watch for changes and rebuild incrementally
@@ -1156,6 +1160,8 @@ Options for 'bundle':
 	--source-map-base-url <url>  Rewrite sourceMappingURL to CDN URL
 
 Examples:
+	npx tsx build/next/index.ts build-fast
+	npx tsx build/next/index.ts build-fast --force
 	npx tsx build/next/index.ts transpile
 	npx tsx build/next/index.ts transpile --watch
 	npx tsx build/next/index.ts transpile --out out-build
@@ -1173,6 +1179,9 @@ async function main(): Promise<void> {
 
 	try {
 		switch (command) {
+			case 'build-fast':
+				await runBuildFast(REPO_ROOT, options.force);
+				break;
 			case 'transpile':
 				if (options.watch) {
 					await watch();

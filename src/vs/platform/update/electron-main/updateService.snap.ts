@@ -115,11 +115,17 @@ abstract class AbstractUpdateService implements IUpdateService {
 			return Promise.resolve(undefined);
 		}
 
+		// Remember the Ready state so we can restore it if the quit is vetoed
+		const readyState = this.state;
+
+		this.setState(State.Restarting(this.state.update));
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
 		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
+				this.logService.info('update#quitAndInstall(): quit was vetoed, restoring Ready state');
+				this.setState(readyState);
 				return;
 			}
 

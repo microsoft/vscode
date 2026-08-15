@@ -333,6 +333,13 @@
 		// Base
 		// "foreground": "",
 		"focusBorder": "#2AA19899",
+		// agent sessions
+		"agentsPanel.border": "#586E7566",
+		"agentsBottomPanel.border": "#00000000",
+		"agentsCard.border": "#00000000",
+		"agentsChatInput.border": "#586E7566",
+		"agentsChatInput.focusBorder": "#2AA19899",
+		"agentsNewSessionButton.border": "#586E7566",
 		// "contrastActiveBorder": "",
 		// "contrastBorder": "",
 
@@ -516,7 +523,11 @@
 		"terminal.ansiBrightBlue": "#839496",
 		"terminal.ansiBrightMagenta": "#6c71c4",
 		"terminal.ansiBrightCyan": "#93a1a1",
-		"terminal.ansiBrightWhite": "#fdf6e3"
+		"terminal.ansiBrightWhite": "#fdf6e3",
+		// modern ui
+		"surface.border": "#00222c",
+		"modernActivityBar.activeBackground": "#005A6F",
+		"modernActivityBar.hoverBackground": "#005A6F87",
 	},
 	"semanticHighlighting": true
 }

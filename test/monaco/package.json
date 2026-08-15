@@ -5,7 +5,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "compile": "node ../../node_modules/typescript/bin/tsc",
+    "compile": "node ../../node_modules/typescript/bin/tsc6",
     "bundle-webpack": "webpack --config ./webpack.config.js --bail",
     "esm-check": "node esm-check/esm-check.js",
     "test": "node runner.js"
@@ -22,6 +22,6 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "postcss": "^8.5.6"
+    "postcss": "^8.5.12"
   }
 }

@@ -5,16 +5,32 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
 import { IWebContentExtractorOptions } from '../../common/webContentExtractor.js';
 
 interface MockElectronEvent {
 	preventDefault?: sinon.SinonStub;
+}
+
+type MockWillFrameNavigateEvent = Electron.Event<Electron.WebContentsWillFrameNavigateEventParams> & {
+	preventDefault: sinon.SinonStub;
+};
+
+function createWillFrameNavigateEvent(url: string): MockWillFrameNavigateEvent {
+	return {
+		url,
+		isSameDocument: false,
+		isMainFrame: false,
+		frame: null,
+		preventDefault: sinon.stub(),
+	} as MockWillFrameNavigateEvent;
 }
 
 class MockWebContents {
@@ -24,9 +40,11 @@ class MockWebContents {
 	public loadURL = sinon.stub().resolves();
 	public getTitle = sinon.stub().returns('Test Page Title');
 	public executeJavaScript = sinon.stub().resolves(undefined);
+	public setWindowOpenHandler = sinon.stub();
 
 	public session = {
 		webRequest: {
+			onBeforeRequest: sinon.stub(),
 			onBeforeSendHeaders: sinon.stub(),
 			onHeadersReceived: sinon.stub()
 		},
@@ -118,12 +136,18 @@ suite('WebPageLoader', () => {
 		sinon.restore();
 	});
 
-	function createWebPageLoader(uri: URI, options?: IWebContentExtractorOptions, isTrustedDomain?: (uri: URI) => boolean): WebPageLoader {
+	function createWebPageLoader(uri: URI, options?: IWebContentExtractorOptions, isTrustedDomain?: (uri: URI) => boolean, isDomainAllowed?: (uri: URI) => boolean): WebPageLoader {
+		const agentNetworkFilterService: IAgentNetworkFilterService = {
+			_serviceBrand: undefined,
+			onDidChange: Event.None,
+			isUriAllowed: isDomainAllowed ?? (() => true),
+			formatError: (u) => `Access to ${u.authority} is blocked by network domain policy.`,
+		};
 		const loader = new WebPageLoader((options) => {
 			window = new MockBrowserWindow(options);
 			// eslint-disable-next-line local/code-no-any-casts
 			return window as any;
-		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false));
+		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false), agentNetworkFilterService);
 		disposables.add(loader);
 		return loader;
 	}
@@ -546,6 +570,218 @@ suite('WebPageLoader', () => {
 		assert.strictEqual(result.status, 'ok');
 	}));
 
+	test('navigation to domain blocked by isDomainAllowed returns error', async () => {
+		const uri = URI.parse('https://example.com/page');
+		const blockedUrl = 'https://blocked-domain.com/path';
+
+		const loader = createWebPageLoader(uri, { followRedirects: true }, undefined, (u) => u.authority !== 'blocked-domain.com');
+
+		window.webContents.debugger.sendCommand.resolves({});
+
+		const loadPromise = loader.load();
+
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', mockEvent, blockedUrl);
+
+		const result = await loadPromise;
+
+		assert.ok((mockEvent.preventDefault!).called);
+		assert.strictEqual(result.status, 'error');
+		if (result.status === 'error') {
+			assert.ok(result.error?.includes('blocked-domain.com'));
+		}
+	});
+
+	test('navigation to allowed domain is not blocked by isDomainAllowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const allowedUrl = 'https://allowed-domain.com/path';
+
+		const loader = createWebPageLoader(uri, { followRedirects: true }, undefined, (u) => u.authority !== 'blocked-domain.com');
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', mockEvent, allowedUrl);
+
+		// Should not prevent navigation to allowed domain
+		assert.ok(!(mockEvent.preventDefault!).called);
+
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('network policy cancels denied subframe requests and allows trusted requests', () => {
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			undefined,
+			undefined,
+			uri => uri.authority === 'allowed.example'
+		);
+
+		assert.ok(window.webContents.session.webRequest.onBeforeRequest.calledOnce);
+		const listener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const deniedCallback = sinon.stub();
+		const allowedCallback = sinon.stub();
+
+		listener({ url: 'https://denied.example/private', resourceType: 'subFrame' }, deniedCallback);
+		listener({ url: 'https://allowed.example/frame', resourceType: 'subFrame' }, allowedCallback);
+
+		assert.deepStrictEqual({
+			denied: deniedCallback.firstCall?.args[0],
+			allowed: allowedCallback.firstCall?.args[0],
+		}, {
+			denied: { cancel: true },
+			allowed: { cancel: false },
+		});
+	});
+
+	test('denies all child window creation from fetched content', () => {
+		createWebPageLoader(URI.parse('https://allowed.example/page'));
+
+		assert.ok(window.webContents.setWindowOpenHandler.calledOnce);
+		const handler = window.webContents.setWindowOpenHandler.firstCall.args[0];
+
+		assert.deepStrictEqual([
+			handler({ url: 'https://allowed.example/popup' }),
+			handler({ url: 'vscode:mcp/install?test' }),
+			handler({ url: 'calculator:' }),
+		], [
+			{ action: 'deny' },
+			{ action: 'deny' },
+			{ action: 'deny' },
+		]);
+	});
+
+	test('rejects unsafe schemes before domain filtering requests', () => {
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			undefined,
+			undefined,
+			() => true
+		);
+
+		assert.ok(window.webContents.session.webRequest.onBeforeRequest.calledOnce);
+		const listener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const callbackResults = new Map<string, unknown>();
+		for (const url of [
+			'https://allowed.example/resource',
+			'http://allowed.example/resource',
+			'vscode:mcp/install?test',
+			'file:///private/file',
+			'calculator:',
+		]) {
+			listener({ url, resourceType: 'subFrame' }, (result: unknown) => callbackResults.set(url, result));
+		}
+
+		assert.deepStrictEqual(Object.fromEntries(callbackResults), {
+			'https://allowed.example/resource': { cancel: false },
+			'http://allowed.example/resource': { cancel: false },
+			'vscode:mcp/install?test': { cancel: true },
+			'file:///private/file': { cancel: true },
+			'calculator:': { cancel: true },
+		});
+	});
+
+	test('applies domain policy to WebSocket requests', () => {
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			undefined,
+			undefined,
+			uri => uri.authority === 'allowed.example'
+		);
+
+		const listener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const callbackResults = new Map<string, unknown>();
+		for (const url of [
+			'ws://allowed.example/socket',
+			'wss://allowed.example/socket',
+			'ws://denied.example/socket',
+			'wss://denied.example/socket',
+		]) {
+			listener({ url, resourceType: 'webSocket' }, (result: unknown) => callbackResults.set(url, result));
+		}
+
+		assert.deepStrictEqual(Object.fromEntries(callbackResults), {
+			'ws://allowed.example/socket': { cancel: false },
+			'wss://allowed.example/socket': { cancel: false },
+			'ws://denied.example/socket': { cancel: true },
+			'wss://denied.example/socket': { cancel: true },
+		});
+	});
+
+	test('fails closed for malformed request and frame URLs', () => {
+		createWebPageLoader(URI.parse('https://allowed.example/page'));
+		const requestListener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const requestCallback = sinon.stub();
+		const frameEvent = createWillFrameNavigateEvent('not a uri');
+
+		requestListener({ url: 'not a uri', resourceType: 'subFrame' }, requestCallback);
+		window.webContents.emit('will-frame-navigate', frameEvent);
+
+		assert.deepStrictEqual({
+			request: requestCallback.firstCall?.args[0],
+			framePrevented: frameEvent.preventDefault.calledOnce,
+		}, {
+			request: { cancel: true },
+			framePrevented: true,
+		});
+	});
+
+	test('blocks unsafe frame navigation schemes and preserves browser content schemes', () => {
+		createWebPageLoader(URI.parse('https://allowed.example/page'));
+
+		const results = new Map<string, boolean>();
+		for (const url of [
+			'https://allowed.example/frame',
+			'http://allowed.example/frame',
+			'about:blank',
+			'data:text/html,frame',
+			'blob:https://allowed.example/frame-id',
+			'vscode:mcp/install?test',
+			'file:///private/file',
+			'mailto:test@example.com',
+			'calculator:',
+		]) {
+			const details = createWillFrameNavigateEvent(url);
+			window.webContents.emit('will-frame-navigate', details);
+			results.set(url, details.preventDefault.called);
+		}
+
+		assert.deepStrictEqual(Object.fromEntries(results), {
+			'https://allowed.example/frame': false,
+			'http://allowed.example/frame': false,
+			'about:blank': false,
+			'data:text/html,frame': false,
+			'blob:https://allowed.example/frame-id': false,
+			'vscode:mcp/install?test': true,
+			'file:///private/file': true,
+			'mailto:test@example.com': true,
+			'calculator:': true,
+		});
+	});
+
+	test('blocks unsafe main-frame schemes when redirects are enabled', () => {
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			{ followRedirects: true },
+			undefined,
+			() => true
+		);
+		const event = { preventDefault: sinon.stub() };
+
+		window.webContents.emit('will-navigate', event, 'vscode:mcp/install?test');
+
+		assert.ok(event.preventDefault.calledOnce);
+	});
+
 	//#endregion
 
 	//#region HTTP Error Tests
@@ -943,11 +1179,78 @@ suite('WebPageLoader', () => {
 		assert.strictEqual(getFullAXTreeCalls.length, 3, 'Should call getFullAXTree for all 3 frames');
 	}));
 
+	test('network policy skips denied frames and their descendants during extraction', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://allowed.example/page-with-iframes');
+		const frameTree = {
+			frame: { id: 'main-frame', url: uri.toString() },
+			childFrames: [
+				{
+					frame: { id: 'allowed-frame', url: 'https://allowed.example/frame' },
+					childFrames: []
+				},
+				{
+					frame: { id: 'denied-frame', url: 'https://denied.example/private' },
+					childFrames: [
+						{
+							frame: { id: 'denied-descendant', url: 'https://allowed.example/nested' },
+							childFrames: []
+						}
+					]
+				}
+			]
+		};
+		const contentByFrame = new Map<string, string>([
+			['main-frame', 'Allowed main frame content'],
+			['allowed-frame', 'Allowed child frame content'],
+			['denied-frame', 'DENIED_FRAME_SECRET_MARKER'],
+			['denied-descendant', 'DENIED_DESCENDANT_SECRET_MARKER'],
+		]);
+		const loader = createWebPageLoader(
+			uri,
+			undefined,
+			undefined,
+			frameUri => frameUri.authority === 'allowed.example'
+		);
+		setupDebuggerMock({
+			frameTree,
+			axNodes: frameId => [{
+				nodeId: `${frameId}-text`,
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: contentByFrame.get(frameId) ?? '' }
+			}]
+		});
+
+		const loadPromise = loader.load();
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+		const result = await loadPromise;
+
+		assert.strictEqual(result.status, 'ok');
+		const extractedFrameIds = window.webContents.debugger.sendCommand.getCalls()
+			.filter(call => call.args[0] === 'Accessibility.getFullAXTree')
+			.map(call => call.args[1]?.frameId);
+		const content = result.status === 'ok' ? result.result : '';
+		assert.deepStrictEqual({
+			extractedFrameIds,
+			includesMainContent: content.includes('Allowed main frame content'),
+			includesAllowedFrameContent: content.includes('Allowed child frame content'),
+			includesDeniedFrameContent: content.includes('DENIED_FRAME_SECRET_MARKER'),
+			includesDeniedDescendantContent: content.includes('DENIED_DESCENDANT_SECRET_MARKER'),
+		}, {
+			extractedFrameIds: ['main-frame', 'allowed-frame'],
+			includesMainContent: true,
+			includesAllowedFrameContent: true,
+			includesDeniedFrameContent: false,
+			includesDeniedDescendantContent: false,
+		});
+	}));
+
 	//#endregion
 
 	//#region Header Modification Tests
 
-	test('onBeforeSendHeaders adds browser headers for navigation', () => {
+	test('onBeforeSendHeaders adds privacy headers for all requests', () => {
 		createWebPageLoader(URI.parse('https://example.com/page'));
 
 		// Get the callback passed to onBeforeSendHeaders
@@ -960,10 +1263,10 @@ suite('WebPageLoader', () => {
 			modifiedHeaders = details.requestHeaders;
 		};
 
-		// Simulate a request to the same domain
+		// Simulate a sub-resource request (no resourceType)
 		callback(
 			{
-				url: 'https://example.com/page',
+				url: 'https://example.com/style.css',
 				requestHeaders: {
 					'TestHeader': 'TestValue'
 				}
@@ -971,11 +1274,39 @@ suite('WebPageLoader', () => {
 			mockCallback
 		);
 
-		// Verify headers were added
+		// Verify privacy headers were added
 		assert.ok(modifiedHeaders);
 		assert.strictEqual(modifiedHeaders['DNT'], '1');
 		assert.strictEqual(modifiedHeaders['Sec-GPC'], '1');
 		assert.strictEqual(modifiedHeaders['TestHeader'], 'TestValue');
+		// Accept header should NOT be set for non-mainFrame requests
+		assert.strictEqual(modifiedHeaders['Accept'], undefined);
+	});
+
+	test('onBeforeSendHeaders adds Accept header preferring markdown for mainFrame requests', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		assert.ok(window.webContents.session.webRequest.onBeforeSendHeaders.called);
+		const callback = window.webContents.session.webRequest.onBeforeSendHeaders.getCall(0).args[0];
+
+		let modifiedHeaders: Record<string, string> | undefined;
+		const mockCallback = (details: { requestHeaders: Record<string, string> }) => {
+			modifiedHeaders = details.requestHeaders;
+		};
+
+		// Simulate a mainFrame navigation request
+		callback(
+			{
+				url: 'https://example.com/page',
+				resourceType: 'mainFrame',
+				requestHeaders: {}
+			},
+			mockCallback
+		);
+
+		assert.ok(modifiedHeaders);
+		assert.ok(modifiedHeaders['Accept']?.includes('text/markdown'));
+		assert.ok(modifiedHeaders['Accept']?.includes('text/html'));
 	});
 
 	//#endregion
@@ -1123,6 +1454,82 @@ suite('WebPageLoader', () => {
 			assert.ok(result.error.includes('repomd.xml'));
 		}
 	});
+
+	//#endregion
+
+	//#region Markdown Content Negotiation Tests
+
+	test('onHeadersReceived detects markdown content-type for mainFrame responses', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		let response: { cancel?: boolean } | undefined;
+		const mockCallback = (result: { cancel?: boolean }) => {
+			response = result;
+		};
+
+		// Simulate a markdown response for mainFrame
+		listener(
+			{
+				url: 'https://example.com/page',
+				resourceType: 'mainFrame',
+				responseHeaders: {
+					'Content-Type': ['text/markdown; charset=utf-8']
+				}
+			},
+			mockCallback
+		);
+
+		assert.ok(response);
+		assert.strictEqual(response!.cancel, false);
+	});
+
+	test('markdown content-type extraction uses raw body', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://learn.microsoft.com/en-us/docs');
+
+		const loader = createWebPageLoader(uri);
+		// Use AX nodes that exceed MIN_CONTENT_LENGTH so the test only passes
+		// if the markdown branch short-circuits before accessibility extraction.
+		const longAXNodes: AXNode[] = [
+			{
+				nodeId: 'node1',
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: 'This is a long accessibility tree content that exceeds the minimum content length requirement of one hundred characters easily.' }
+			}
+		];
+		setupDebuggerMock({ axNodes: longAXNodes });
+
+		// Get the onHeadersReceived listener to simulate markdown response
+		const headersListener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		const loadPromise = loader.load();
+
+		// Simulate receiving a markdown content-type response
+		headersListener(
+			{
+				url: uri.toString(),
+				resourceType: 'mainFrame',
+				responseHeaders: {
+					'Content-Type': ['text/markdown; charset=utf-8']
+				}
+			},
+			() => { }
+		);
+
+		// Make executeJavaScript return markdown content
+		window.webContents.executeJavaScript.resolves('# Hello World\n\nThis is markdown content.');
+
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+
+		assert.strictEqual(result.status, 'ok');
+		assert.ok(result.result.includes('# Hello World'));
+		assert.ok(result.result.includes('This is markdown content.'));
+	}));
 
 	//#endregion
 

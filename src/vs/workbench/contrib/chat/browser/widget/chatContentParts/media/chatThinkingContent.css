@@ -13,6 +13,8 @@
 	position: relative;
 	color: var(--vscode-descriptionForeground);
 
+	contain: layout style;
+
 	.chat-thinking-external-resources {
 		margin-top: 4px;
 		margin-left: 5px;
@@ -22,11 +24,19 @@
 		margin: 0px;
 	}
 
+	> .chat-used-context-label {
+		position: relative;
+	}
+
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
 		line-height: 1.5em;
 		font-size: 13px;
+
+		&.chat-thinking-title-with-diff {
+			padding-right: var(--vscode-spacing-size20);
+		}
 
 		.monaco-button-mdlabel {
 			font-size: var(--vscode-chat-font-size-body-s);
@@ -54,19 +64,50 @@
 		.chat-thinking-title-detail-text {
 			opacity: 0.7;
 		}
+	}
 
-		.chat-thinking-title-diff {
-			padding-left: 6px;
+	> .chat-used-context-label > .chat-thinking-title-diff.monaco-button {
+		display: inline-flex;
+		align-items: center;
+		padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+		margin-left: var(--vscode-spacing-sizeNone);
+		border-radius: var(--vscode-cornerRadius-small);
+		gap: var(--vscode-spacing-size40);
+		background: transparent;
+		color: inherit;
+		line-height: 1.5em;
+		vertical-align: middle;
 
-			> .label-added {
-				color: var(--vscode-chat-linesAddedForeground);
-			}
-
-			> .label-removed {
-				padding-left: 4px;
-				color: var(--vscode-chat-linesRemovedForeground);
-			}
+		> .label-added {
+			color: var(--vscode-chat-linesAddedForeground);
 		}
+
+		> .label-removed {
+			color: var(--vscode-chat-linesRemovedForeground);
+		}
+
+		&:hover,
+		&.hovered {
+			background-color: var(--vscode-toolbar-hoverBackground);
+			color: var(--vscode-foreground);
+		}
+
+		&:focus {
+			outline: none;
+		}
+
+		&:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+	}
+
+	> .chat-used-context-label > .chat-collapsible-hover-chevron {
+		vertical-align: middle;
+	}
+
+	> .chat-used-context-label:hover > .chat-collapsible-hover-chevron {
+		opacity: 1;
 	}
 
 	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
@@ -90,6 +131,7 @@
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
 			animation: chat-thinking-shimmer 2s linear infinite;
+			will-change: background-position;
 		}
 	}
 
@@ -106,6 +148,7 @@
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		animation: chat-thinking-shimmer 2s linear infinite;
+		will-change: background-position;
 	}
 
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
@@ -114,11 +157,11 @@
 	}
 
 	/* Curved connector from the header to the first thinking item */
-	&:not(.chat-used-context-collapsed)::after {
+	&:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
 		content: '';
 		position: absolute;
 		left: 3px;
-		top: 22px;
+		top: 100%;
 		height: 16px;
 		width: 5px;
 		border-left: 1px solid var(--vscode-chat-requestBorder);
@@ -174,7 +217,9 @@
 
 			.progress-container,
 			.chat-confirmation-widget-container {
-				margin: 0 0 2px 6px;
+				margin: 0 0 0 6px;
+				box-sizing: border-box;
+				max-width: calc(100% - 6px);
 			}
 
 			/* todo: ideally not !important, but the competing css has 14 specificity */
@@ -239,6 +284,28 @@
 					margin-bottom: 0px;
 				}
 			}
+		}
+
+		/*
+		 * External-edit pills (agent host) sit directly inside
+		 * `.chat-thinking-tool-wrapper` rather than nested inside a markdown
+		 * code block, so they need the same left padding to clear the
+		 * absolutely-positioned thinking icon.
+		 */
+		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
+			padding: 5px 12px 4px 24px;
+
+			.status-icon.codicon-check {
+				display: none;
+			}
+
+			.show-checkmarks .status-icon.codicon-check {
+				display: inline-flex;
+			}
+		}
+
+		.chat-confirmation-widget2 .chat-confirmation-message-terminal-disclaimer .chat-markdown-part.rendered-markdown {
+			padding: 2px 0px;
 		}
 
 		.chat-thinking-tool-wrapper .chat-terminal-thinking-content .chat-markdown-part.rendered-markdown {
@@ -387,8 +454,29 @@
 		-webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 20px, black calc(100% - 20px), transparent 100%);
 	}
 
+	> .monaco-scrollable-element:has(.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming)) {
+		overflow: hidden;
+		height: auto;
+		opacity: 1;
+
+		> .scrollbar {
+			display: none;
+		}
+	}
+
+	&.chat-thinking-fixed-mode-animated > .monaco-scrollable-element {
+		transition:
+			max-height 180ms cubic-bezier(0.2, 0, 0, 1),
+			opacity 140ms cubic-bezier(0.2, 0, 0, 1);
+	}
+
 	&.chat-used-context-collapsed > .monaco-scrollable-element:has(.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming)) {
-		display: none;
+		display: block;
+		opacity: 0;
+
+		> .chat-used-context-list.chat-thinking-collapsible {
+			display: block;
+		}
 	}
 
 	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
@@ -419,6 +507,10 @@
 			padding-left: 19px;
 		}
 
+		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
+			padding-left: 19px;
+		}
+
 		/* chain of thought lines */
 		.chat-thinking-tool-wrapper,
 		.chat-thinking-item.markdown-content,
@@ -439,7 +531,7 @@
 		display: block;
 	}
 
-	&:not(.chat-used-context-collapsed) > .monaco-scrollable-element {
+	&:not(.chat-used-context-collapsed) > .monaco-scrollable-element:has(.chat-thinking-streaming) {
 		overflow: visible;
 		height: auto;
 	}
@@ -456,6 +548,17 @@
 
 .editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
 	background: var(--vscode-editor-background);
+}
+
+.monaco-reduce-motion .chat-thinking-fixed-mode > .monaco-scrollable-element,
+.monaco-workbench.monaco-reduce-motion .chat-thinking-fixed-mode > .monaco-scrollable-element {
+	transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-thinking-fixed-mode > .monaco-scrollable-element {
+		transition: none !important;
+	}
 }
 
 .interactive-session .interactive-response .value .chat-thinking-box .chat-used-context-label code {

@@ -33,6 +33,53 @@ suite('MarkdownRenderer', () => {
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
 			assert.strictEqual(result.innerHTML, '<p><img alt="image"></p>');
 		});
+
+		test('Strips links with disallowed schemes (default config)', () => {
+			const markdown = { value: `Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)` };
+			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
+			// No <a> element should remain because the scheme isn't allowed.
+			assert.strictEqual(result.querySelector('a'), null);
+		});
+
+		test('Preserves link when scheme is allowed via allowedLinkSchemes.augment', () => {
+			const markdown = { value: `Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)` };
+			const result: HTMLElement = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					allowedLinkSchemes: { augment: ['vscode-agent-host'] },
+				},
+			})).element;
+			const anchor = result.querySelector('a');
+			assert.ok(anchor, 'expected <a> to be preserved when scheme is allowed');
+			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
+		});
+
+		test('Transforms parsed link targets without changing labels, titles, or code', () => {
+			const markdown = { value: '`[same](file:///same)` [a[b].ts](file:///same "file:///same") ![image](file:///same|width=10,height=20)' };
+			const result = store.add(renderMarkdown(markdown, {
+				transformUri: href => href === 'file:///same' ? 'https://example.com/a.ts' : href,
+			})).element;
+			const anchor = result.querySelector('a');
+			assert.deepStrictEqual(
+				{
+					anchorCount: result.querySelectorAll('a').length,
+					text: anchor?.textContent,
+					href: anchor?.dataset.href,
+					title: anchor?.title,
+					image: result.querySelector('img')?.src,
+					imageWidth: result.querySelector('img')?.getAttribute('width'),
+					imageHeight: result.querySelector('img')?.getAttribute('height'),
+				},
+				{
+					anchorCount: 1,
+					text: 'a[b].ts',
+					href: 'https://example.com/a.ts',
+					title: 'file:///same',
+					image: 'https://example.com/a.ts',
+					imageWidth: '10',
+					imageHeight: '20',
+				},
+			);
+		});
 	});
 
 	suite('Images', () => {
@@ -283,7 +330,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a href="" title="command:doFoo" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
 	});
 
 	test('Should remove relative links if there is no base url', () => {
@@ -305,6 +352,45 @@ suite('MarkdownRenderer', () => {
 
 		const result = store.add(renderMarkdown(md)).element;
 		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a> <img src="https://example.com/path/cat.gif"></p>`);
+	});
+
+	suite('Copy-safe hrefs', () => {
+		// Rich-text copy resolved empty hrefs against the workbench document, so every pasted
+		// link became a `workbench.html` URL. Clicks still route through `data-href`.
+		test('keeps the real href only for targets that resolve elsewhere', () => {
+			const md = new MarkdownString(`[web](https://example.com/page) [mail](mailto:user@example.com) [run](command:doFoo) [file](file:///home/user/a.ts) [ref](http://_vscodecontentref_/0)`, { isTrusted: true });
+
+			const result = store.add(renderMarkdown(md, { actionHandler: () => { } })).element;
+			assert.deepStrictEqual(
+				Array.from(result.querySelectorAll('a'), a => [a.getAttribute('href'), a.getAttribute('data-href'), a.getAttribute('draggable')]),
+				[
+					['https://example.com/page', 'https://example.com/page', 'false'],
+					['mailto:user@example.com', 'mailto:user@example.com', 'false'],
+					['', 'command:doFoo', 'false'],
+					['', 'file:///home/user/a.ts', 'false'],
+					['', 'http://_vscodecontentref_/0', 'false'],
+				]);
+		});
+
+		test('leaves the href empty when nothing intercepts clicks', () => {
+			// Without an action handler the anchor would navigate natively, bypassing the opener.
+			const md = new MarkdownString(`[web](https://example.com/page)`, {});
+
+			const anchor = store.add(renderMarkdown(md)).element.querySelector('a')!;
+			assert.deepStrictEqual(
+				[anchor.getAttribute('href'), anchor.getAttribute('data-href')],
+				['', 'https://example.com/page']);
+		});
+
+		test('keeps the resolved href for relative links against an https baseUri', () => {
+			const md = new MarkdownString(`[text](./foo)`, { isTrusted: true });
+			md.baseUri = URI.parse('https://example.com/path/');
+
+			const anchor = store.add(renderMarkdown(md, { actionHandler: () => { } })).element.querySelector('a')!;
+			assert.deepStrictEqual(
+				[anchor.getAttribute('href'), anchor.getAttribute('data-href')],
+				['https://example.com/path/foo', 'https://example.com/path/foo']);
+		});
 	});
 
 	test('Should use decoded file path as title for file:// links', () => {
@@ -368,6 +454,11 @@ suite('MarkdownRenderer', () => {
 			].join('\n');
 			const result: string = renderAsPlaintext(markdown, { includeCodeBlocksFences: true });
 			assert.strictEqual(result, expected);
+		});
+
+		test('does not double-escape entities inside code spans', () => {
+			assert.strictEqual(renderAsPlaintext({ value: 'Run `tests & build`' }), 'Run tests & build');
+			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');
 		});
 	});
 
@@ -794,6 +885,26 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test('list with bold incomplete link target', () => {
+				const incomplete = `- list item one
+- **[link](http://microsoft`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('ordered list with bold incomplete link target', () => {
+				const incomplete = `1. list item one
+2. **[link](http://microsoft`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test('list with incomplete subitem', () => {
 				const incomplete = `1. list item one
 	- `;
@@ -834,6 +945,35 @@ suite('MarkdownRenderer', () => {
 			});
 		});
 
+		suite('blockquote', () => {
+			test('incomplete double star', () => {
+				const incomplete = '> **text';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete double star before trailing quote-only lines', () => {
+				const incomplete = '> **text\n>\n>';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer('> **text**\n>\n>');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('preserves reference links when completing inline tokens', () => {
+				const incomplete = '[id]: https://example.com\n\n> [label][id] **text';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+		});
+
 		suite('codespan', () => {
 			simpleMarkdownTestSuite('codespan', '`');
 
@@ -852,6 +992,20 @@ suite('MarkdownRenderer', () => {
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.marked.lexer(text + '`');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('codespan inside <body> wrapped markdown', () => {
+				// The chat content renderer wraps `supportHtml` markdown in
+				// `<body>...</body>` so dompurify keeps leading comments. That
+				// makes `</body>` the literal last token — the paragraph with
+				// the bare backtick is no longer at the end. The fixup must
+				// still close the codespan while preserving the trailing html.
+				const text = '<body>\n\nCreated isolated worktree for branch `xyz\n\n</body>';
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer('<body>\n\nCreated isolated worktree for branch `xyz`\n\n</body>');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
@@ -953,6 +1107,15 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test('incomplete link target inside parentheses', () => {
+				const incomplete = '([text](http://microsoft.com';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test('incomplete link target with extra stuff', () => {
 				const incomplete = '[before `text` after](http://microsoft.com';
 				const tokens = marked.marked.lexer(incomplete);
@@ -1025,12 +1188,30 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test.skip('incomplete link in list', () => {
+			test('incomplete link in list', () => {
 				const incomplete = '- [text';
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.marked.lexer(incomplete + '](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target inside bold', () => {
+				const incomplete = '**[text](http://microsoft';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with arg inside bold', () => {
+				const incomplete = '**[text](http://microsoft.com "more text ';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '")**');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 

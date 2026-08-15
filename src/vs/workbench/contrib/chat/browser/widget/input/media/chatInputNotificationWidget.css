@@ -1,0 +1,162 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The frame and severity tints come from `.chat-input-notice`, and the join with
+	the input - and whether this slot takes up space - from the stack. */
+
+/* Match the chat input's focus ring. The input reports its frame state to the
+	stack - see `chatInputStack.ts` - so this selects that state directly rather
+	than inspecting the stack's subtree for it. */
+.interactive-session .chat-input-stack.chat-input-stack-input-focused > .chat-input-notification-container .chat-input-notification-widget.severity-info {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* Working+focused: the chat input dims its focus border; match it here. */
+.interactive-session .chat-input-stack.chat-input-stack-input-focused.chat-input-stack-input-working > .chat-input-notification-container .chat-input-notification-widget.severity-info {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+}
+
+/*
+ * The line box the title and description are set on. Named so the severity icon
+ * can match it and centre on the first line rather than on a wrapped block.
+ */
+.chat-input-notification-widget {
+	--chat-input-notification-line-height: 18px;
+}
+
+/* Header row: icon + title + dismiss */
+.chat-input-notification-widget .chat-input-notification-header {
+	display: flex;
+	/* Top, not centre: a title that wraps would otherwise leave the icon and the
+		dismiss floating halfway down a column of text. */
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+/* Severity icon. The colour comes from the severity the notice declares. */
+.chat-input-notification-widget .chat-input-notification-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	height: var(--chat-input-notification-line-height);
+	color: var(--chat-input-notice-severity);
+}
+
+/*
+ * Title and description share their type and wrapping; only weight, colour and
+ * how they take space differ.
+ *
+ * `overflow-wrap` breaks a word that cannot fit a line on its own, which is all
+ * this needs. `word-break: break-word` would additionally drop the minimum
+ * measure to a single character, and a flex row is happy to take that offer -
+ * the prose then collapses into a one-letter-per-line column hundreds of pixels
+ * tall rather than making the row give way.
+ */
+.chat-input-notification-widget .chat-input-notification-title,
+.chat-input-notification-widget .chat-input-notification-description {
+	font-size: var(--vscode-fontSize-label1);
+	line-height: var(--chat-input-notification-line-height);
+	min-width: 0;
+	overflow-wrap: break-word;
+	white-space: normal;
+}
+
+.chat-input-notification-widget .chat-input-notification-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	flex: 1;
+}
+
+/* Markdown-rendered title/description: keep the text inline (no block <p> margins). */
+.chat-input-notification-widget .chat-input-notification-title-markdown,
+.chat-input-notification-widget .chat-input-notification-description-markdown {
+	display: inline;
+}
+
+.chat-input-notification-widget .chat-input-notification-title-markdown > p,
+.chat-input-notification-widget .chat-input-notification-description-markdown > p {
+	display: inline;
+	margin: 0;
+}
+
+.chat-input-notification-widget .chat-input-notification-title-markdown code,
+.chat-input-notification-widget .chat-input-notification-description-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label2);
+	padding: 0 3px;
+	border-radius: 3px;
+	background: var(--vscode-textCodeBlock-background);
+}
+
+/*
+ * Body row: description and actions side by side.
+ *
+ * They share the row only while the description still reads as prose there -
+ * `flex-basis: auto` puts its full measure on the line, so the row gives way and
+ * the actions take their own line as soon as the description would have to be
+ * chopped up to fit beside them. Without that the description is ground down to
+ * a few characters per line and the notice grows taller than the chat it is
+ * announcing.
+ */
+.chat-input-notification-widget .chat-input-notification-body {
+	display: flex;
+	align-items: flex-start;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	padding-left: 22px; /* align with title text after the severity icon */
+}
+
+/* Description */
+.chat-input-notification-widget .chat-input-notification-description {
+	color: var(--vscode-descriptionForeground);
+	flex: 1 1 auto;
+}
+
+/* Actions container */
+.chat-input-notification-widget .chat-input-notification-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	flex-shrink: 0;
+	/*
+	 * Never wider than the row: actions that outgrow the notice stack and wrap
+	 * their labels inside the frame rather than escaping past its right edge.
+	 */
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	min-width: 0;
+	max-width: 100%;
+	margin-left: auto;
+}
+
+/* Action buttons */
+.chat-input-notification-widget .chat-input-notification-action-button {
+	font-size: var(--vscode-fontSize-label2);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
+	min-width: unset;
+	width: auto;
+	/* 24px is the resting size, held by `min-height` rather than a fixed height so
+		a label forced to wrap grows the button instead of spilling out of it. */
+	height: auto;
+	min-height: 24px;
+}
+
+/* Transparent ghost style for secondary action buttons (e.g. "View Usage") */
+.chat-input-notification-widget .chat-input-notification-action-button.secondary {
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	opacity: 0.8;
+}
+
+.chat-input-notification-widget .chat-input-notification-action-button.secondary:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
+
+/* Dismiss + mute icon buttons are styled by `.chat-input-notice-action`. */

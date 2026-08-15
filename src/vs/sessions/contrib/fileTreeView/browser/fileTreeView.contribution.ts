@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionData.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../services/sessions/common/session.js';
 import { GitHubFileSystemProvider } from './githubFileSystemProvider.js';
 
 // --- View registration is currently disabled in favor of the "Add Context" picker.

@@ -273,7 +273,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	}
 
 	protected _notifyAction(action: ChatUserAction) {
-		if (action.kind === 'chatEditingHunkAction') {
+		if (action.kind === 'chatEditingHunkAction' && action.outcome === 'accepted') {
 			this._aiEditTelemetryService.handleCodeAccepted({
 				suggestionId: undefined, // TODO@hediet try to figure this out
 				acceptanceMethod: 'accept',
@@ -290,6 +290,26 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				feature: this._telemetryInfo.feature,
 				languageId: action.languageId,
 				source: undefined,
+				sourceRequestId: this._telemetryInfo.requestId,
+			});
+		} else if (action.kind === 'chatEditingHunkAction' && action.outcome === 'rejected') {
+			this._aiEditTelemetryService.handleCodeRejected({
+				suggestionId: undefined,
+				rejectionMethod: 'reject',
+				presentation: 'highlightedEdit',
+				modelId: this._telemetryInfo.modelId,
+				modeId: this._telemetryInfo.modeId,
+				applyCodeBlockSuggestionId: this._telemetryInfo.applyCodeBlockSuggestionId,
+				editDeltaInfo: new EditDeltaInfo(
+					action.linesAdded,
+					action.linesRemoved,
+					-1,
+					-1,
+				),
+				feature: this._telemetryInfo.feature,
+				languageId: action.languageId,
+				source: undefined,
+				sourceRequestId: this._telemetryInfo.requestId,
 			});
 		}
 

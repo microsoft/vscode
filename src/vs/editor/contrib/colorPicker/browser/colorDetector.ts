@@ -125,6 +125,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this.stop();
 
 		if (!this._isColorDecoratorsEnabled) {
+			this.removeAllDecorations();
 			return;
 		}
 		const model = this._editor.getModel();

@@ -78,6 +78,9 @@
       editedFileEvents: undefined,
       modelId: undefined,
       modeInfo: undefined,
+      hiddenFromTranscript: undefined,
+      terminalExecutionId: undefined,
+      origin: undefined,
       responseId: undefined,
       result: { metadata: { metadataKey: "value" } },
       responseMarkdownInfo: undefined,
@@ -94,6 +97,8 @@
         completedAt: undefined
       },
       vote: undefined,
+      modelTotals: undefined,
+      sessionCopilotCredits: undefined,
       voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: {
@@ -164,6 +169,9 @@
       editedFileEvents: undefined,
       modelId: undefined,
       modeInfo: undefined,
+      hiddenFromTranscript: undefined,
+      terminalExecutionId: undefined,
+      origin: undefined,
       responseId: undefined,
       result: {  },
       responseMarkdownInfo: undefined,
@@ -173,6 +181,8 @@
         completedAt: undefined
       },
       vote: undefined,
+      modelTotals: undefined,
+      sessionCopilotCredits: undefined,
       voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: undefined,

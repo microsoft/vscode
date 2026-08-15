@@ -57,6 +57,7 @@ export class McpGatewayChannel<TContext> extends Disposable implements IServerCh
 
 		switch (command) {
 			case 'createGateway': {
+				const { chatSessionResource } = (args as { chatSessionResource?: string } | undefined) ?? {};
 				const brokerChannel = ipcChannelForContext(this._ipcServer, ctx);
 
 				// Fetch initial server list before creating the gateway (IPC is async, but the invoker interface is sync)
@@ -72,7 +73,7 @@ export class McpGatewayChannel<TContext> extends Disposable implements IServerCh
 					onDidChangeResources: brokerChannel.listen<void>('onDidChangeResources'),
 					listServers: () => currentServers,
 					listToolsForServer: serverId => brokerChannel.call<readonly MCP.Tool[]>('listToolsForServer', { serverId }),
-					callToolForServer: (serverId, name, callArgs) => brokerChannel.call<MCP.CallToolResult>('callToolForServer', { serverId, name, args: callArgs }),
+					callToolForServer: (serverId, name, callArgs) => brokerChannel.call<MCP.CallToolResult>('callToolForServer', { serverId, name, args: callArgs, chatSessionResource }),
 					listResourcesForServer: serverId => brokerChannel.call<readonly MCP.Resource[]>('listResourcesForServer', { serverId }),
 					readResourceForServer: (serverId, uri) => brokerChannel.call<MCP.ReadResourceResult>('readResourceForServer', { serverId, uri }),
 					listResourceTemplatesForServer: serverId => brokerChannel.call<readonly MCP.ResourceTemplate[]>('listResourceTemplatesForServer', { serverId }),

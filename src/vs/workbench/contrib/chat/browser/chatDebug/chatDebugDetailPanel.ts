@@ -165,7 +165,7 @@ export class ChatDebugDetailPanel extends Disposable {
 
 		const closeButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.closeDetail', "Close"), title: localize('chatDebug.closeDetail', "Close") }));
 		closeButton.element.classList.add('chat-debug-detail-button');
-		closeButton.icon = Codicon.close;
+		closeButton.icon = Codicon.closeSmall;
 		this.detailDisposables.add(closeButton.onDidClick(() => {
 			this.hide();
 		}));
@@ -278,8 +278,12 @@ export class ChatDebugDetailPanel extends Disposable {
 	layout(height: number): void {
 		const headerHeight = this.headerElement?.offsetHeight ?? 0;
 		const scrollableHeight = Math.max(0, height - headerHeight);
+		// Preserve scroll position across layout changes (e.g. when opening
+		// an editor causes the workbench to re-layout this panel).
+		const scrollPos = this.scrollable.getScrollPosition();
 		this.contentContainer.style.height = `${scrollableHeight}px`;
 		this.scrollable.scanDomNode();
+		this.scrollable.setScrollPosition({ scrollTop: scrollPos.scrollTop });
 		this.sash.layout();
 	}
 

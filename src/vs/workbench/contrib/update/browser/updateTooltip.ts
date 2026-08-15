@@ -4,24 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
 import { AvailableForDownload, Disabled, DisablementReason, Downloaded, Downloading, Idle, IUpdate, Overwriting, Ready, Restarting, State, StateType, Updating } from '../../../../platform/update/common/update.js';
 import { ShowCurrentReleaseNotesActionId } from '../common/update.js';
-import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, getUpdateInfoUrl, tryParseDate } from '../common/updateUtils.js';
+import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, tryParseDate } from '../common/updateUtils.js';
 import './media/updateTooltip.css';
 
 /**
@@ -38,8 +33,10 @@ export class UpdateTooltip extends Disposable {
 	private readonly productNameNode: HTMLElement;
 	private readonly currentVersionNode: HTMLElement;
 	private readonly currentVersionCopyValue: { value: string };
+	private readonly currentVersionCopyButton: HTMLElement;
 	private readonly latestVersionNode: HTMLElement;
 	private readonly latestVersionCopyValue: { value: string };
+	private readonly latestVersionCopyButton: HTMLElement;
 	private readonly releaseDateNode: HTMLElement;
 
 	// Progress section
@@ -52,10 +49,6 @@ export class UpdateTooltip extends Disposable {
 	private readonly downloadStatsContainer: HTMLElement;
 	private readonly timeRemainingNode: HTMLElement;
 	private readonly speedInfoNode: HTMLElement;
-
-	// Update markdown section
-	private readonly markdownContainer: HTMLElement;
-	private readonly markdown = this._register(new MutableDisposable());
 
 	// State-specific message
 	private readonly messageNode: HTMLElement;
@@ -72,11 +65,8 @@ export class UpdateTooltip extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@IRequestService private readonly requestService: IRequestService,
 	) {
 		super();
 
@@ -101,10 +91,12 @@ export class UpdateTooltip extends Disposable {
 		const currentVersionRow = this.createVersionRow(details);
 		this.currentVersionNode = currentVersionRow.label;
 		this.currentVersionCopyValue = currentVersionRow.copyValue;
+		this.currentVersionCopyButton = currentVersionRow.copyButton;
 
 		const latestVersionRow = this.createVersionRow(details);
 		this.latestVersionNode = latestVersionRow.label;
 		this.latestVersionCopyValue = latestVersionRow.copyValue;
+		this.latestVersionCopyButton = latestVersionRow.copyButton;
 
 		this.releaseDateNode = dom.append(details, dom.$('.product-release-date'));
 
@@ -121,9 +113,6 @@ export class UpdateTooltip extends Disposable {
 		this.downloadStatsContainer = dom.append(this.progressContainer, dom.$('.download-stats'));
 		this.timeRemainingNode = dom.append(this.downloadStatsContainer, dom.$('.time-remaining'));
 		this.speedInfoNode = dom.append(this.downloadStatsContainer, dom.$('.speed-info'));
-
-		// Update markdown section
-		this.markdownContainer = dom.append(this.domNode, dom.$('.update-markdown'));
 
 		// State-specific message
 		this.messageNode = dom.append(this.domNode, dom.$('.state-message'));
@@ -160,8 +149,10 @@ export class UpdateTooltip extends Disposable {
 				: localize('updateTooltip.currentVersionLabel', "Current Version: {0}", productVersion);
 			this.currentVersionCopyValue.value = currentCommitId ? `${productVersion} (${this.productService.commit})` : productVersion;
 			this.currentVersionNode.parentElement!.style.display = '';
+			this.currentVersionCopyButton.tabIndex = 0;
 		} else {
 			this.currentVersionNode.parentElement!.style.display = 'none';
+			this.currentVersionCopyButton.tabIndex = -1;
 		}
 	}
 
@@ -171,9 +162,8 @@ export class UpdateTooltip extends Disposable {
 		this.speedInfoNode.textContent = '';
 		this.timeRemainingNode.textContent = '';
 		this.messageNode.style.display = 'none';
-		this.markdownContainer.style.display = 'none';
-		this.markdown.clear();
 		this.actionButton.style.display = 'none';
+		this.actionButton.tabIndex = -1;
 		this.actionButton.dataset.commandId = '';
 		this.releaseNotesButton.style.marginRight = '';
 	}
@@ -210,6 +200,9 @@ export class UpdateTooltip extends Disposable {
 				break;
 			case StateType.Overwriting:
 				this.renderOverwriting(state);
+				break;
+			case StateType.Cancelling:
+				this.renderCancelling();
 				break;
 			case StateType.Restarting:
 				this.renderRestarting(state);
@@ -382,49 +375,9 @@ export class UpdateTooltip extends Disposable {
 		this.renderMessage(localize('updateTooltip.restartingPleaseWait', "Restarting to update, please wait..."));
 	}
 
-	public async renderPostInstall(markdown?: string): Promise<boolean> {
-		this.hideAll();
-		this.renderTitleAndInfo(localize('updateTooltip.installedDefaultTitle', "New Update Installed"));
-		this.renderMessage(
-			localize('updateTooltip.installedDefaultMessage', "See release notes for details on what's new in this release."),
-			Codicon.info);
-
-		let text: string | null = markdown ?? null;
-		if (!text) {
-			try {
-				const url = getUpdateInfoUrl(this.productService.version);
-				const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
-				text = await asTextOrError(context);
-			} catch { }
-		}
-
-		if (!text) {
-			return false;
-		}
-
-		this.titleNode.textContent = localize('updateTooltip.installedTitle', "New in {0}", this.productService.version);
-		this.productInfoNode.style.display = 'none';
-		this.messageNode.style.display = 'none';
-
-		const rendered = this.markdownRendererService.render(
-			new MarkdownString(text, {
-				isTrusted: true,
-				supportHtml: true,
-				supportThemeIcons: true,
-			}),
-			{
-				actionHandler: (link, mdStr) => {
-					openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted);
-					this.hoverService.hideHover(true);
-				},
-			});
-
-		this.markdown.value = rendered;
-		dom.clearNode(this.markdownContainer);
-		this.markdownContainer.appendChild(rendered.element);
-		this.markdownContainer.style.display = '';
-
-		return true;
+	private renderCancelling() {
+		this.renderTitleAndInfo(localize('updateTooltip.cancellingTitle', "Cancelling Update"));
+		this.renderMessage(localize('updateTooltip.cancellingPleaseWait', "Cancelling update, please wait..."));
 	}
 
 	private renderTitleAndInfo(title: string, update?: IUpdate) {
@@ -439,8 +392,10 @@ export class UpdateTooltip extends Disposable {
 				: localize('updateTooltip.latestVersionLabel', "Latest Version: {0}", version);
 			this.latestVersionCopyValue.value = updateCommitId ? `${version} (${update.version})` : version;
 			this.latestVersionNode.parentElement!.style.display = '';
+			this.latestVersionCopyButton.tabIndex = 0;
 		} else {
 			this.latestVersionNode.parentElement!.style.display = 'none';
+			this.latestVersionCopyButton.tabIndex = -1;
 		}
 
 		// Release date
@@ -455,6 +410,7 @@ export class UpdateTooltip extends Disposable {
 		// Release notes button
 		this.releaseNotesVersion = version ?? this.productService.version;
 		this.releaseNotesButton.style.display = this.releaseNotesVersion ? '' : 'none';
+		this.releaseNotesButton.tabIndex = this.releaseNotesVersion ? 0 : -1;
 		this.releaseNotesButton.style.marginRight = this.releaseNotesVersion ? 'auto' : '';
 		this.buttonBar.style.display = this.releaseNotesVersion ? '' : 'none';
 	}
@@ -463,6 +419,7 @@ export class UpdateTooltip extends Disposable {
 		this.actionButton.textContent = label;
 		this.actionButton.dataset.commandId = commandId;
 		this.actionButton.style.display = '';
+		this.actionButton.tabIndex = 0;
 	}
 
 	private renderMessage(message: string, icon?: ThemeIcon) {
@@ -475,7 +432,7 @@ export class UpdateTooltip extends Disposable {
 		this.messageNode.style.display = '';
 	}
 
-	private createVersionRow(parent: HTMLElement): { label: HTMLElement; copyValue: { value: string } } {
+	private createVersionRow(parent: HTMLElement): { label: HTMLElement; copyValue: { value: string }; copyButton: HTMLElement } {
 		const row = dom.append(parent, dom.$('.product-version'));
 		const label = dom.append(row, dom.$('span'));
 		const copyValue = { value: '' };
@@ -497,7 +454,7 @@ export class UpdateTooltip extends Disposable {
 			}
 		}));
 
-		return { label, copyValue };
+		return { label, copyValue, copyButton };
 	}
 
 	private runCommandAndClose(command: string, ...args: unknown[]) {
