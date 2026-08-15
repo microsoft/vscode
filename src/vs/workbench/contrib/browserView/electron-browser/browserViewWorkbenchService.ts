@@ -34,7 +34,8 @@ import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEdito
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
+import { isEqual, extUri, extUriIgnorePathCase } from '../../../../base/common/resources.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { getCopilotRootPaths } from '../../../../platform/agentHost/common/copilotHome.js';
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
@@ -214,7 +215,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			return true;
 		}
-		return this._getTrustedFileRoots().some(root => isEqualOrParent(resource, URI.file(root)));
+		// Match the path casing rule the main process enforces for trusted roots.
+		const pathUtil = isLinux ? extUri : extUriIgnorePathCase;
+		return this._getTrustedFileRoots().some(root => pathUtil.isEqualOrParent(resource, URI.file(root)));
 	}
 
 	registerContextualFilter(filter: IBrowserViewContextualFilter): IDisposable {
