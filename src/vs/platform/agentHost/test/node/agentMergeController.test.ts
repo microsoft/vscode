@@ -8,7 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { AgentMergeConfigKey, AgentMergeSessionConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -55,14 +55,14 @@ suite('AgentMergeController', () => {
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.Mode]: 'interactive',
 			[SessionConfigKey.AutoApprove]: 'default',
-			[AgentMergeSessionConfigKey]: { enabled: true },
+			[SessionConfigKey.AgentMerge]: { enabled: true },
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 
 		const injected = configurationService.getSessionConfigValues(session);
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.Mode]: 'plan',
-			[AgentMergeSessionConfigKey]: { enabled: false },
+			[SessionConfigKey.AgentMerge]: { enabled: false },
 		});
 		const restored = configurationService.getSessionConfigValues(session);
 
@@ -106,7 +106,7 @@ suite('AgentMergeController', () => {
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.Mode]: 'interactive',
 			[SessionConfigKey.AutoApprove]: 'default',
-			[AgentMergeSessionConfigKey]: { enabled: true },
+			[SessionConfigKey.AgentMerge]: { enabled: true },
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
@@ -129,7 +129,7 @@ suite('AgentMergeController', () => {
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.Mode]: 'interactive',
 			[SessionConfigKey.AutoApprove]: 'default',
-			[AgentMergeSessionConfigKey]: { enabled: true },
+			[SessionConfigKey.AgentMerge]: { enabled: true },
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 

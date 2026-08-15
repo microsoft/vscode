@@ -27,7 +27,6 @@ import { AgentHostSessionReleaseGraceMsEnvVar, IAgentHostManagedSettingsDiagnost
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { AgentMergeControllerConfigKey, AgentMergeSessionConfigKey } from '../common/agentMerge.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isSessionAction, type ChatAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
@@ -144,8 +143,8 @@ type AgentHostLegacyMigrationClassification = {
 };
 
 const HOST_OWNED_SESSION_CONFIG_KEYS = [
-	AgentMergeSessionConfigKey,
-	AgentMergeControllerConfigKey,
+	SessionConfigKey.AgentMerge,
+	SessionConfigKey.AgentMergeController,
 	SessionConfigKey.Isolation,
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
@@ -2855,13 +2854,7 @@ export class AgentService extends Disposable implements IAgentService {
 			config: config.config,
 		};
 		try {
-			// Wrap with the host's isolation schema so the created config carries the
-			// `isolation` / `branch` values (and their git-derived defaults). The
-			// agent's own `resolveSessionConfig` omits them (isolation is host-owned),
-			// so without this a fresh worktree session's isolation is `undefined` at
-			// create time — the pending mark below is skipped and the send falls back
-			// to folder even though the user picked worktree.
-			const resolved = await this._withIsolationSchema(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
+			const resolved = await this._withHostSessionConfigContributions(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
 			return { schema: resolved.schema, values: resolved.values };
 		} catch (err) {
 			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
@@ -2875,18 +2868,22 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
-		return this._withIsolationSchema(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
+		return this._withHostSessionConfigContributions(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
 	}
 
 	/**
-	 * Host-owned contribution of the shared `isolation` (folder / worktree),
-	 * `branch`, `worktreeBranchPrefix`, `worktreeIncludeFiles`, and `worktreeBranchTrack` session-config
-	 * properties on top of whatever an agent returned from `resolveSessionConfig`. Provider-returned
-	 * properties and values with these keys are replaced by the host contribution.
+	 * Applies host-owned session configuration contributions after the provider
+	 * resolves its configuration.
 	 */
-	private async _withIsolationSchema(result: ResolveSessionConfigResult, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+	private async _withHostSessionConfigContributions(result: ResolveSessionConfigResult, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+		result = await this._withWorktreeConfigContribution(result, params);
+		result = this._withAgentMergeConfigContribution(result, params.config);
+		return result;
+	}
+
+	private async _withWorktreeConfigContribution(result: ResolveSessionConfigResult, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		if (!this._worktree) {
-			return this._withAgentMergeConfigValues(result, params.config);
+			return result;
 		}
 		const iso = await this._worktree.resolveIsolationConfig({ workingDirectory: params.workingDirectory, config: params.config });
 		const properties: Record<string, SessionConfigPropertySchema> = {
@@ -2921,12 +2918,12 @@ export class AgentService extends Disposable implements IAgentService {
 			&& params.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')) {
 			values[SessionConfigKey.WorktreeIncludeFiles] = params.config[SessionConfigKey.WorktreeIncludeFiles];
 		}
-		return this._withAgentMergeConfigValues({ schema: { ...result.schema, properties }, values }, params.config);
+		return { schema: { ...result.schema, properties }, values };
 	}
 
-	private _withAgentMergeConfigValues(result: ResolveSessionConfigResult, config: Record<string, unknown> | undefined): ResolveSessionConfigResult {
+	private _withAgentMergeConfigContribution(result: ResolveSessionConfigResult, config: Record<string, unknown> | undefined): ResolveSessionConfigResult {
 		const values = { ...result.values };
-		for (const key of [AgentMergeSessionConfigKey, AgentMergeControllerConfigKey]) {
+		for (const key of [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeController]) {
 			if (config && Object.hasOwn(config, key)) {
 				values[key] = config[key];
 			}

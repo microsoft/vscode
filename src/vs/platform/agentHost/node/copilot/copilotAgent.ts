@@ -2908,7 +2908,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
 		// Isolation / branch are contributed by the host (see
-		// AgentService._withIsolationSchema); this agent only owns its platform
+		// AgentService._withHostSessionConfigContributions); this agent only owns its platform
 		// session config (auto-approve / mode / permissions).
 		const values = platformSessionSchema.validateOrDefault(migrateLegacyAutopilotConfig(params.config), {
 			[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,

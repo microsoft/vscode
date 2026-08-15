@@ -18,7 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
-import { AgentMergeControllerConfigKey, AgentMergeSessionConfigKey, AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
@@ -3250,7 +3250,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				nextValues[key] = runningConfig.values[key];
 			}
 		}
-		for (const key of [AgentMergeSessionConfigKey, AgentMergeControllerConfigKey]) {
+		for (const key of [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeController]) {
 			if (Object.hasOwn(runningConfig.values, key)) {
 				nextValues[key] = runningConfig.values[key];
 			}
@@ -3308,7 +3308,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		connection.dispatch(cached.backendUri.toString(), {
 			type: ActionType.SessionConfigChanged,
 			config: {
-				[AgentMergeSessionConfigKey]: {
+				[SessionConfigKey.AgentMerge]: {
 					enabled,
 					...(overrides ? { overrides } : {}),
 				},

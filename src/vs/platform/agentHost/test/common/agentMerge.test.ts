@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, AgentMergeControllerConfigKey, AgentMergeSessionConfigKey, evaluateAgentMerge, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
 suite('Agent Merge gate', () => {
@@ -119,8 +120,8 @@ suite('Agent Merge gate', () => {
 
 	test('keeps client and controller state in separate config values', () => {
 		assert.deepStrictEqual(readAgentMergeSessionState({
-			[AgentMergeSessionConfigKey]: { enabled: true, overrides: { fixCI: false } },
-			[AgentMergeControllerConfigKey]: {
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: false } },
+			[SessionConfigKey.AgentMergeController]: {
 				target: {
 					branchName: 'feature',
 					pullRequestUrl: 'https://github.com/octo/repo/pull/1',

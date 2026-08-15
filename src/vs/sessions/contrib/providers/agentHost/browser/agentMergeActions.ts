@@ -56,9 +56,11 @@ registerAction2(class EnableAgentMergeAction extends AgentMergeActionBase {
 		if (!active) {
 			return;
 		}
+		const logService = accessor.get(ILogService);
+		const notificationService = accessor.get(INotificationService);
 		await active.provider.setAgentMergeEnabled(active.session.sessionId, true);
-		accessor.get(ILogService).info(`[AgentMergeActions] Enable requested: session=${active.session.sessionId}, provider=${active.session.providerId}`);
-		accessor.get(INotificationService).info(localize('agentMerge.enabled', "Agent Merge is enabled for the active session."));
+		logService.info(`[AgentMergeActions] Enable requested: session=${active.session.sessionId}, provider=${active.session.providerId}`);
+		notificationService.info(localize('agentMerge.enabled', "Agent Merge is enabled for the active session."));
 	}
 });
 
@@ -77,9 +79,11 @@ registerAction2(class DisableAgentMergeAction extends AgentMergeActionBase {
 		if (!active) {
 			return;
 		}
+		const logService = accessor.get(ILogService);
+		const notificationService = accessor.get(INotificationService);
 		await active.provider.setAgentMergeEnabled(active.session.sessionId, false);
-		accessor.get(ILogService).info(`[AgentMergeActions] Disable requested: session=${active.session.sessionId}, provider=${active.session.providerId}`);
-		accessor.get(INotificationService).info(localize('agentMerge.disabled', "Agent Merge is disabled for the active session."));
+		logService.info(`[AgentMergeActions] Disable requested: session=${active.session.sessionId}, provider=${active.session.providerId}`);
+		notificationService.info(localize('agentMerge.disabled', "Agent Merge is disabled for the active session."));
 	}
 });
 
@@ -98,7 +102,11 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 		if (!active) {
 			return;
 		}
-		const defaults = getGlobalConfiguration(accessor.get(IConfigurationService));
+		const configurationService = accessor.get(IConfigurationService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const logService = accessor.get(ILogService);
+		const notificationService = accessor.get(INotificationService);
+		const defaults = getGlobalConfiguration(configurationService);
 		const current = active.provider.getAgentMergeSessionState(active.session.sessionId);
 		const effective = resolveAgentMergeConfiguration(defaults, current?.overrides);
 		const picks: IAgentMergeActionPick[] = [
@@ -108,7 +116,7 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 			{ action: 'mergePullRequest', label: localize('agentMerge.action.mergePullRequest', "Automatically Merge When Ready"), picked: effective.mergePullRequest },
 			{ reset: true, label: localize('agentMerge.action.reset', "Reset to Global Defaults"), description: localize('agentMerge.action.reset.description', "Remove all action overrides for this session") },
 		];
-		const selected = await accessor.get(IQuickInputService).pick(picks, {
+		const selected = await quickInputService.pick(picks, {
 			canPickMany: true,
 			placeHolder: localize('agentMerge.action.select', "Select actions Agent Merge may perform for this session"),
 		});
@@ -119,8 +127,8 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 		const selectedActions = new Set(selected.flatMap(item => item.action ? [item.action] : []));
 		const overrides = reset ? undefined : toOverrides(selectedActions);
 		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides);
-		accessor.get(ILogService).info(`[AgentMergeActions] Action overrides updated: session=${active.session.sessionId}, provider=${active.session.providerId}, reset=${reset}, enabledActions=${[...selectedActions].sort().join(',') || 'none'}`);
-		accessor.get(INotificationService).info(reset
+		logService.info(`[AgentMergeActions] Action overrides updated: session=${active.session.sessionId}, provider=${active.session.providerId}, reset=${reset}, enabledActions=${[...selectedActions].sort().join(',') || 'none'}`);
+		notificationService.info(reset
 			? localize('agentMerge.action.reset.complete', "Agent Merge now follows the global action defaults for this session.")
 			: localize('agentMerge.action.updated', "Agent Merge actions were updated for the active session."));
 	}

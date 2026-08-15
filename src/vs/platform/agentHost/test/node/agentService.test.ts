@@ -625,7 +625,12 @@ suite('AgentService (node dispatcher)', () => {
 		const initial = await localService.resolveSessionConfig({
 			provider: 'codex',
 			workingDirectory,
-			config: { [SessionConfigKey.Isolation]: 'worktree', providerSetting: 'initial' },
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.AgentMerge]: { enabled: true },
+				[SessionConfigKey.AgentMergeController]: { lastPromptFingerprint: 'fingerprint' },
+				providerSetting: 'initial',
+			},
 		});
 		const selected = await localService.resolveSessionConfig({
 			provider: 'codex',
@@ -665,6 +670,8 @@ suite('AgentService (node dispatcher)', () => {
 				isolation: initial.values[SessionConfigKey.Isolation],
 				branchDefault: initial.schema.properties[SessionConfigKey.Branch]?.default,
 				branch: initial.values[SessionConfigKey.Branch],
+				agentMerge: initial.values[SessionConfigKey.AgentMerge],
+				agentMergeController: initial.values[SessionConfigKey.AgentMergeController],
 				providerSetting: initial.values.providerSetting,
 			},
 			selected: {
@@ -687,7 +694,14 @@ suite('AgentService (node dispatcher)', () => {
 				{ providerSetting: 'folder' },
 			],
 			providerCompletionConfigs: [{ providerSetting: 'completion' }],
-			initial: { isolation: 'worktree', branchDefault: 'main', branch: 'main', providerSetting: 'initial' },
+			initial: {
+				isolation: 'worktree',
+				branchDefault: 'main',
+				branch: 'main',
+				agentMerge: { enabled: true },
+				agentMergeController: { lastPromptFingerprint: 'fingerprint' },
+				providerSetting: 'initial',
+			},
 			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, providerSetting: 'selected' },
 			folder: { isolation: 'folder', branch: 'feature', providerSetting: 'folder' },
 		});

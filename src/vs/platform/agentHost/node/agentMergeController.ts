@@ -14,7 +14,7 @@ import { IGitHubService } from '../../github/common/githubService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeAction, AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeControllerConfigKey, AgentMergePromptContext, AgentMergeSessionConfigKey, AgentMergeSessionState, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
+import { AgentMergeAction, AgentMergeConfigKey, AgentMergeConfiguration, AgentMergePromptContext, AgentMergeSessionState, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -187,7 +187,7 @@ export class AgentMergeController extends Disposable {
 		};
 		this._logService.info(`[AgentMergeController] Applying autonomous session configuration: session=${session}, mode=autopilot, approvals=${autoApprovePolicyRestricted ? 'unchanged-policy-restricted' : 'assisted'}`);
 		this._configurationService.updateSessionConfig(session, {
-			[AgentMergeControllerConfigKey]: toControllerState(agentMerge, { injectedConfiguration }),
+			[SessionConfigKey.AgentMergeController]: toControllerState(agentMerge, { injectedConfiguration }),
 			[SessionConfigKey.Mode]: injectedConfiguration.mode,
 			...(injectedConfiguration.autoApprove ? { [SessionConfigKey.AutoApprove]: injectedConfiguration.autoApprove } : {}),
 		});
@@ -199,7 +199,7 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		const patch: Record<string, unknown> = {
-			[AgentMergeControllerConfigKey]: preserveControllerState
+			[SessionConfigKey.AgentMergeController]: preserveControllerState
 				? toControllerState(agentMerge, { injectedConfiguration: undefined })
 				: {},
 		};
@@ -521,7 +521,7 @@ export class AgentMergeController extends Disposable {
 
 	private _updateAgentMergeState(session: string, current: AgentMergeSessionState, patch: Partial<AgentMergeSessionState>): void {
 		this._configurationService.updateSessionConfig(session, {
-			[AgentMergeControllerConfigKey]: toControllerState(current, patch),
+			[SessionConfigKey.AgentMergeController]: toControllerState(current, patch),
 		});
 	}
 
@@ -529,11 +529,11 @@ export class AgentMergeController extends Disposable {
 		this._logService.info(`[AgentMergeController] Disabling Agent Merge for ${session}: ${reason}`);
 		this._activeTurns.delete(session);
 		const patch: Record<string, unknown> = {
-			[AgentMergeSessionConfigKey]: {
+			[SessionConfigKey.AgentMerge]: {
 				enabled: false,
 				...(current.overrides ? { overrides: current.overrides } : {}),
 			},
-			[AgentMergeControllerConfigKey]: {},
+			[SessionConfigKey.AgentMergeController]: {},
 		};
 		this._addInjectedConfigurationRestore(patch, session, current);
 		this._configurationService.updateSessionConfig(session, patch);

@@ -6,9 +6,7 @@
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { GitHubActor, PullRequestCheck, PullRequestChecks, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
-
-export const AgentMergeSessionConfigKey = 'agentMerge';
-export const AgentMergeControllerConfigKey = 'agentMerge.controller';
+import { SessionConfigKey } from './sessionConfigKeys.js';
 
 export const AgentMergeConfigKey = {
 	Enabled: 'agentMerge.enabled',
@@ -174,11 +172,11 @@ export function resolveAgentMergeConfiguration(defaults: AgentMergeConfiguration
 }
 
 export function readAgentMergeSessionState(values: Record<string, unknown> | undefined): AgentMergeSessionState | undefined {
-	const value = values?.[AgentMergeSessionConfigKey];
+	const value = values?.[SessionConfigKey.AgentMerge];
 	if (!isRecord(value) || typeof value.enabled !== 'boolean') {
 		return undefined;
 	}
-	const controller = isRecord(values?.[AgentMergeControllerConfigKey]) ? values[AgentMergeControllerConfigKey] : {};
+	const controller = isRecord(values?.[SessionConfigKey.AgentMergeController]) ? values[SessionConfigKey.AgentMergeController] : {};
 	const overrides = readOverrides(value.overrides);
 	const target = readTarget(controller.target);
 	const injectedConfiguration = readInjectedConfiguration(controller.injectedConfiguration);
