@@ -348,6 +348,10 @@ export class AgentHostSessionListStore extends Disposable {
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
 				changes: session.changes,
 				workingDirectories: session.workingDirectories?.map(d => d.toString()),
+				// The repository root a worktree-isolated session belongs to; the
+				// workspace filter matches on it because the worktree itself lives
+				// outside the repository folder.
+				...(session.project ? { project: { uri: session.project.uri.toString(), displayName: session.project.displayName } } : {}),
 				// Carry `_meta` so the adoptable-legacy marker survives into the list
 				// item; consumers use it to avoid passively restoring (and thereby
 				// migrating) an un-adopted legacy Copilot CLI session.
@@ -371,7 +375,7 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
-		const workingDirectories = entry.summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		const workingDirectories = this._containmentCandidates(entry.summary);
 		const workspace = this._workspaceContextService.getWorkspace();
 		const folders = workspace.folders;
 		const configuration = workspace.configuration;
@@ -396,6 +400,23 @@ export class AgentHostSessionListStore extends Disposable {
 		return workingDirectories.some(directory =>
 			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
 		);
+	}
+
+	/**
+	 * The directories a session may be matched against a workspace folder by: its
+	 * working directories plus its server-owned project (repository) root. A
+	 * worktree-isolated session runs out of a directory outside the repository
+	 * (`<repo>.worktrees/<name>` for agent-host worktrees, `copilot-worktrees/`
+	 * for legacy extension-host ones), so working directories alone would hide it
+	 * from a window opened on that repository; its project root is the primary
+	 * repository root and restores the match.
+	 */
+	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
+		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		if (summary.project?.uri) {
+			candidates.push(URI.parse(summary.project.uri));
+		}
+		return candidates;
 	}
 
 	private _toRemoval(entry: IAgentHostSessionListEntry): IAgentHostSessionListRemoval {
