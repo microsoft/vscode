@@ -78,6 +78,12 @@ AGENTHOST_PORT=$(pick_port)
 
 STAMP=$(date +%Y%m%d-%H%M%S)-$$
 RUN_DIR="${TMPDIR:-/tmp}/code-oss-dev/$STAMP"
+# Electron's main IPC socket ("<run-dir>/user-data/<version>-main.sock") must fit
+# the ~103-char unix socket limit, which macOS's default TMPDIR alone overflows.
+if (( ${#RUN_DIR} + 25 > 103 )); then
+	RUN_DIR="/tmp/code-oss-dev/$STAMP"
+	echo "[launch.sh] TMPDIR too long for unix sockets; using $RUN_DIR" >&2
+fi
 DEST_UDD="$RUN_DIR/user-data"
 SHARED_DATA_DIR="$RUN_DIR/shared-data"
 mkdir -p "$DEST_UDD" "$SHARED_DATA_DIR"

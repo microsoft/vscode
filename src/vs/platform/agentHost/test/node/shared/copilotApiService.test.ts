@@ -286,7 +286,7 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(captured().url, 'https://custom.copilot.example.com/v1/messages');
 		});
 
-		test('reuses endpoint discovery when resolving the GitHub login', async () => {
+		test('reuses endpoint discovery when resolving GitHub login and Copilot SKU', async () => {
 			let discoveryCount = 0;
 			const service = createService(async input => {
 				const url = getUrl(input);
@@ -294,6 +294,7 @@ suite('CopilotApiService', () => {
 					discoveryCount++;
 					return new Response(JSON.stringify({
 						login: 'octocat',
+						access_type_sku: 'copilot_for_business_seat',
 						endpoints: { api: 'https://custom.copilot.example.com' },
 					}), { status: 200 });
 				}
@@ -302,10 +303,12 @@ suite('CopilotApiService', () => {
 
 			const apiEndpoint = await service.resolveApiEndpoint('gh-tok');
 			const login = await service.resolveUserLogin('gh-tok');
+			const copilotSku = await service.resolveCopilotSku('gh-tok');
 
-			assert.deepStrictEqual({ apiEndpoint, login, discoveryCount }, {
+			assert.deepStrictEqual({ apiEndpoint, login, copilotSku, discoveryCount }, {
 				apiEndpoint: 'https://custom.copilot.example.com',
 				login: 'octocat',
+				copilotSku: 'copilot_for_business_seat',
 				discoveryCount: 1,
 			});
 		});

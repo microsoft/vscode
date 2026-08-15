@@ -145,11 +145,6 @@
 	left: 0;
 }
 
-.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.uri-icon {
-	top: -2px;
-	left: -2px;
-}
-
 .style-override .pane-composite-part.auxiliarybar > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.uri-icon {
 	top: 0px;
 	left: 0px;

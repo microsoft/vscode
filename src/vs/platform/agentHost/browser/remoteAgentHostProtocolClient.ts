@@ -39,7 +39,7 @@ import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
@@ -368,9 +368,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
 				this._updateTelemetryLevel();
-			}
-			if (e.affectsConfiguration(PREFER_LONG_CONTEXT_SETTING_ID)) {
-				this._updatePreferLongContextEnabled();
 			}
 			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
 				this._updateTerminalAutoApproveEnabled();
@@ -778,7 +775,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _clientMeta(): Record<string, unknown> {
-		return toAgentHostClientMeta(this._transport.clientConnectionKind, this._effectiveTelemetryLevel());
+		const telemetryLevel = this._effectiveTelemetryLevel();
+		const sendIdentity = telemetryLevel >= TelemetryLevel.USAGE;
+		return toAgentHostClientMeta(
+			this._transport.clientConnectionKind,
+			telemetryLevel,
+			sendIdentity ? this._telemetryService.machineId : undefined,
+			sendIdentity ? this._telemetryService.devDeviceId : undefined,
+		);
 	}
 
 	private _applyInitializeResult(result: CommandMap['initialize']['result'], forwardClientConfig = true): void {
@@ -809,7 +813,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _forwardClientConfig(includeManagedSettings = true): void {
 		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY));
 		this._updateTelemetryLevel();
-		this._updatePreferLongContextEnabled();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
 		this._updateDisableRepoInfoTelemetry();
@@ -1634,11 +1637,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _updateDisableRepoInfoTelemetry(): void {
 		const disabled = this._configurationService.getValue<boolean>(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID) === true;
 		this._dispatchRootConfig({ [AgentHostDisableRepoInfoTelemetryConfigKey]: disabled });
-	}
-
-	private _updatePreferLongContextEnabled(): void {
-		const enabled = this._configurationService.getValue<boolean>(PREFER_LONG_CONTEXT_SETTING_ID) === true;
-		this._dispatchRootConfig({ [AgentHostPreferLongContextEnabledConfigKey]: enabled });
 	}
 
 	private _updateTerminalAutoApproveEnabled(): void {
