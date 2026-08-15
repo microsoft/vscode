@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -394,12 +394,13 @@ export async function createRealSession(
 	clientId: string,
 	trackingList: string[],
 	workingDirectory: URI,
+	beforeCreateSession?: () => Promise<void>,
 ): Promise<string> {
 	const sessionUri = await createProviderSession(c, {
 		provider: config.provider,
 		scheme: config.scheme,
 		githubToken: config.githubToken ?? resolveGitHubToken(),
-	}, clientId, trackingList, workingDirectory);
+	}, clientId, trackingList, workingDirectory, beforeCreateSession);
 	c.setAhpSnapshotNormalization({
 		workingDirectory: workingDirectory.fsPath,
 		homeDirectory: homedir(),
@@ -848,7 +849,7 @@ export class AgentHostE2EServerLease {
 	private _testsOnCurrentServer = 0;
 	private _cleanupClientSeq = 1_000_000;
 	private _currentCapiReplay: ReturnType<typeof capiReplayFor> | undefined;
-	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
+	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
 	private readonly _target: IAgentHostTarget;
 
 	constructor(
@@ -856,11 +857,14 @@ export class AgentHostE2EServerLease {
 		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
 	) {
 		const dataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		const codexHomeDir = join(dataDir, '.codex');
+		mkdirSync(codexHomeDir);
 		this._dataDir = dataDir;
 		this._target = startOptions.target ?? defaultAgentHostTarget;
 		this._startOptions = {
 			claudeSdkRoot: startOptions.claudeSdkRoot,
 			codexSdkRoot: startOptions.codexSdkRoot,
+			codexHomeDir,
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
 			env: { [AgentHostSessionReleaseGraceMsEnvVar]: '0' },

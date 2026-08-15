@@ -3321,6 +3321,41 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(listController.items.map(item => item.label), ['Contains folder']);
 		});
 
+		test('worktree session is shown in a window opened on its repository folder', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const folder = URI.file('/src/repo');
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => ({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'worktree'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Worktree session',
+				// A worktree lives in the `<repo>.worktrees` sibling, never under the folder.
+				workingDirectories: [URI.file('/src/repo.worktrees/feature')],
+				project: { uri: folder, displayName: 'repo' },
+			});
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'other-repo-worktree'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Other repo worktree session',
+				workingDirectories: [URI.file('/src/other.worktrees/feature')],
+				project: { uri: URI.file('/src/other'), displayName: 'other' },
+			});
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual(listController.items.map(item => item.label), ['Worktree session']);
+		});
+
 		test('sessionAdded notification filters out sessions outside the workspace', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 

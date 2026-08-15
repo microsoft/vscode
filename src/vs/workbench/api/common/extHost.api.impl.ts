@@ -1067,9 +1067,21 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
 				return extHostQuickDiff.createSourceControlDiffInformation(uri);
 			},
-			createDataWatcher<T extends vscode.DataWatcherParams>(params: T): vscode.DataWatcher<vscode.DataWatcherData<T>> {
-				checkProposedApiEnabled(extension, 'dataChannels');
-				return extHostDataChannels.createDataWatcher(extension, params);
+			get linkPresentationRules(): readonly vscode.LinkPresentationRule[] {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.linkPresentationRules;
+			},
+			get onDidChangeLinkPresentationRules(): vscode.Event<void> {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.onDidChangeLinkPresentationRules;
+			},
+			createLinkPresentationWatcher(id: string, resource: vscode.Uri): vscode.LinkPresentationWatcher {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.createLinkPresentationWatcher(extension, id, resource);
+			},
+			registerLinkPresentationProvider(id: string, provider: vscode.LinkPresentationProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.registerLinkPresentationProvider(extension, id, provider);
 			},
 			createAgentEditorComments(uri: vscode.Uri): vscode.AgentEditorCommentsProvider {
 				checkProposedApiEnabled(extension, 'agentEditorComments');
@@ -2041,8 +2053,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DiagnosticSeverity: extHostTypes.DiagnosticSeverity,
 			DiagnosticTag: extHostTypes.DiagnosticTag,
 			Disposable: extHostTypes.Disposable,
-			DataWatcherKind: extHostTypes.DataWatcherKind,
-			AgentSessionStatus: extHostTypes.AgentSessionStatus,
 			DocumentHighlight: extHostTypes.DocumentHighlight,
 			DocumentHighlightKind: extHostTypes.DocumentHighlightKind,
 			MultiDocumentHighlight: extHostTypes.MultiDocumentHighlight,
