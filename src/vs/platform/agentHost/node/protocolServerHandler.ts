@@ -188,10 +188,12 @@ const enum ChannelKind {
  *
  * `uri` is the canonical channel URI string used everywhere a subscription
  * is referenced — the same string is broadcast on outbound notifications
- * and persists across reconnects.
+ * and persists across reconnects. State subscriptions remain inactive while
+ * their baseline snapshot is resolving so disconnect can cancel them without
+ * exposing pre-snapshot actions to the client.
  */
 type ChannelSubscription =
-	| { readonly kind: ChannelKind.State; readonly uri: string }
+	| { readonly kind: ChannelKind.State; readonly uri: string; readonly active: boolean }
 	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string }
 	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
 
@@ -298,7 +300,7 @@ function classifyChannel(channel: string): ChannelSubscription | undefined {
 	if (isAhpResourceWatchChannel(channel)) {
 		return { kind: ChannelKind.ResourceWatch, uri: channel };
 	}
-	return { kind: ChannelKind.State, uri: channel };
+	return { kind: ChannelKind.State, uri: channel, active: true };
 }
 
 /**
@@ -834,6 +836,7 @@ export class ProtocolServerHandler extends Disposable {
 		canReplay: boolean,
 	): Promise<unknown> {
 		const missing: string[] = [];
+		const pendingStateSubscriptions: { readonly pending: ChannelSubscription; readonly active: ChannelSubscription }[] = [];
 		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
 			const key = sub.toString();
 			const classified = classifyChannel(key);
@@ -863,20 +866,21 @@ export class ProtocolServerHandler extends Disposable {
 					fromSeq: this._stateManager.serverSeq,
 				};
 			}
-			client.subscriptions.set(classified.uri, classified);
+			const pendingSubscription: ChannelSubscription = { ...classified, active: false };
+			pendingStateSubscriptions.push({ pending: pendingSubscription, active: classified });
+			client.subscriptions.set(classified.uri, pendingSubscription);
 			try {
 				const snapshot = await this._agentService.subscribe(
 					URI.parse(key),
 					client.clientId,
-					() => client.subscriptions.get(classified.uri) === classified,
+					() => client.subscriptions.get(classified.uri) === pendingSubscription,
 				);
-				if (client.subscriptions.get(classified.uri) !== classified) {
+				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
 					throw new Error(`Subscription cancelled: ${key}`);
 				}
-				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				return snapshot;
 			} catch (err) {
-				if (client.subscriptions.get(classified.uri) === classified) {
+				if (client.subscriptions.get(classified.uri) === pendingSubscription) {
 					client.subscriptions.delete(classified.uri);
 				}
 				this._logService.info(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
@@ -885,6 +889,12 @@ export class ProtocolServerHandler extends Disposable {
 			}
 		}));
 
+		for (const { pending, active } of pendingStateSubscriptions) {
+			if (client.subscriptions.get(pending.uri) === pending) {
+				client.subscriptions.set(active.uri, active);
+				this._clearClientToolCallDisconnectTimeout(client.clientId, active.uri);
+			}
+		}
 		this._reconcileActiveClientsAfterReconnect(client);
 
 		if (canReplay) {
@@ -1160,6 +1170,9 @@ export class ProtocolServerHandler extends Disposable {
 					continue;
 				}
 				this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+				if (!sub.active) {
+					continue;
+				}
 			} else if (sub.kind === ChannelKind.ResourceWatch) {
 				this._agentService.onResourceWatchUnsubscribed(sub.uri);
 			}
@@ -1172,7 +1185,8 @@ export class ProtocolServerHandler extends Disposable {
 			return false;
 		}
 		for (const other of record.connections) {
-			if (other !== client && other.subscriptions.has(uri)) {
+			const subscription = other.subscriptions.get(uri);
+			if (other !== client && subscription?.kind === ChannelKind.State) {
 				return true;
 			}
 		}
@@ -1322,23 +1336,25 @@ export class ProtocolServerHandler extends Disposable {
 					},
 				};
 			}
-			client.subscriptions.set(classified.uri, classified);
+			const pendingSubscription: ChannelSubscription = { ...classified, active: false };
+			client.subscriptions.set(classified.uri, pendingSubscription);
 			try {
 				const snapshot = await this._agentService.subscribe(
 					URI.parse(params.channel),
 					client.clientId,
-					() => client.subscriptions.get(classified.uri) === classified,
+					() => client.subscriptions.get(classified.uri) === pendingSubscription,
 				);
-				if (client.subscriptions.get(classified.uri) !== classified) {
+				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
 					throw new Error(`Subscription cancelled: ${params.channel}`);
 				}
+				client.subscriptions.set(classified.uri, classified);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
 				// the generated wire `Snapshot` union does not list it yet. The value
 				// is JSON over the wire, so narrowing at this boundary is safe.
 				return { snapshot: snapshot as SubscribeResult['snapshot'] };
 			} catch (err) {
-				if (client.subscriptions.get(classified.uri) === classified) {
+				if (client.subscriptions.get(classified.uri) === pendingSubscription) {
 					client.subscriptions.delete(classified.uri);
 				}
 				if (err instanceof ProtocolError) {
@@ -1753,6 +1769,9 @@ export class ProtocolServerHandler extends Disposable {
 				return;
 			}
 			this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+			if (!sub.active) {
+				return;
+			}
 			if (isAhpChatChannel(sub.uri)) {
 				this._releaseActiveClientForSession(parseRequiredSessionUriFromChatUri(sub.uri), client.clientId, sub.uri);
 			} else {
@@ -1799,7 +1818,7 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
 		const sub = client.subscriptions.get(envelope.channel);
-		if (sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch) {
+		if ((sub?.kind === ChannelKind.State && sub.active) || sub?.kind === ChannelKind.ResourceWatch) {
 			return true;
 		}
 		if (!isAhpRootChannel(envelope.channel)) {
@@ -1810,7 +1829,7 @@ export class ProtocolServerHandler extends Disposable {
 
 	private *_stateAndResourceWatchUris(client: IConnectedClient): Iterable<string> {
 		for (const sub of client.subscriptions.values()) {
-			if (sub.kind === ChannelKind.State || sub.kind === ChannelKind.ResourceWatch) {
+			if ((sub.kind === ChannelKind.State && sub.active) || sub.kind === ChannelKind.ResourceWatch) {
 				yield sub.uri;
 			}
 		}

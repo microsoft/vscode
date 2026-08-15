@@ -133,6 +133,7 @@ class MockAgentService implements IAgentService {
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
 	subscribeBarrier: DeferredPromise<void> | undefined;
+	readonly subscribeBarriers = new Map<string, DeferredPromise<void>>();
 	readonly subscribeCalls: { resource: string; clientId: string }[] = [];
 	readonly unsubscribeCalls: { resource: string; clientId: string }[] = [];
 
@@ -192,7 +193,7 @@ class MockAgentService implements IAgentService {
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
 	async subscribe(resource: URI, clientId: string): Promise<IStateSnapshot> {
 		this.subscribeCalls.push({ resource: resource.toString(), clientId });
-		await this.subscribeBarrier?.p;
+		await (this.subscribeBarriers.get(resource.toString())?.p ?? this.subscribeBarrier?.p);
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
 			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
@@ -617,6 +618,32 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			subscribes: [{ resource: sessionUri, clientId: 'client-1' }],
 			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+		});
+	});
+
+	test('pending subscribe receives state in its snapshot without an early action', async () => {
+		stateManager.createSession(makeSessionSummary());
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		await Promise.resolve();
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated while subscribing' });
+		const actionsWhilePending = findNotifications(transport.sent, 'action');
+		await agentService.subscribeBarrier.complete();
+		const response = await responsePromise as { result: { snapshot: IStateSnapshot } };
+		const snapshotState = response.result.snapshot.state;
+
+		assert.deepStrictEqual({
+			actionsWhilePending: actionsWhilePending.length,
+			actionsAfterResponse: findNotifications(transport.sent, 'action').length,
+			snapshotTitle: hasKey(snapshotState, { title: true }) ? snapshotState.title : undefined,
+		}, {
+			actionsWhilePending: 0,
+			actionsAfterResponse: 0,
+			snapshotTitle: 'Updated while subscribing',
 		});
 	});
 
@@ -1315,6 +1342,66 @@ suite('ProtocolServerHandler', () => {
 		if (result.type === 'replay') {
 			assert.strictEqual(result.actions.length, 2);
 		}
+	});
+
+	test('pending reconnect replays an action without broadcasting it early', async () => {
+		const slowSessionUri = URI.from({ scheme: 'copilot', path: '/slow-session' }).toString();
+		stateManager.createSession(makeSessionSummary());
+		stateManager.createSession(makeSessionSummary(slowSessionUri));
+		const initialTransport = connectClient('client-reconnect-pending', [sessionUri, slowSessionUri]);
+		const initialResponse = findResponse(initialTransport.sent, 1) as { result: InitializeResult };
+		initialTransport.simulateClose();
+		const slowSubscribeBarrier = new DeferredPromise<void>();
+		agentService.subscribeBarriers.set(slowSessionUri, slowSubscribeBarrier);
+
+		const reconnectTransport = new MockProtocolTransport();
+		server.simulateConnection(reconnectTransport);
+		const responsePromise = waitForResponse(reconnectTransport, 2);
+		reconnectTransport.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-reconnect-pending',
+			lastSeenServerSeq: initialResponse.result.serverSeq,
+			subscriptions: [sessionUri, slowSessionUri],
+		}));
+		await Promise.resolve();
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated while reconnecting' });
+		const actionsWhilePending = findNotifications(reconnectTransport.sent, 'action');
+		await slowSubscribeBarrier.complete();
+		const response = await responsePromise as { result: ReconnectResult };
+		const replayedTitleChanges = response.result.type === 'replay'
+			? response.result.actions.filter(envelope => envelope.action.type === ActionType.SessionTitleChanged)
+			: [];
+
+		assert.deepStrictEqual({
+			actionsWhilePending: actionsWhilePending.length,
+			actionsAfterResponse: findNotifications(reconnectTransport.sent, 'action').length,
+			replayedTitleChanges: replayedTitleChanges.length,
+		}, {
+			actionsWhilePending: 0,
+			actionsAfterResponse: 0,
+			replayedTitleChanges: 1,
+		});
+	});
+
+	test('pending reconnect retains refcount when the overlapping transport closes', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const initialTransport = connectClient('client-reconnect-overlap', [sessionUri]);
+		const initialResponse = findResponse(initialTransport.sent, 1) as { result: InitializeResult };
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+
+		const reconnectTransport = new MockProtocolTransport();
+		server.simulateConnection(reconnectTransport);
+		const responsePromise = waitForResponse(reconnectTransport, 2);
+		reconnectTransport.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-reconnect-overlap',
+			lastSeenServerSeq: initialResponse.result.serverSeq,
+			subscriptions: [sessionUri],
+		}));
+		await Promise.resolve();
+		initialTransport.simulateClose();
+		await agentService.subscribeBarrier.complete();
+		await responsePromise;
+
+		assert.deepStrictEqual(agentService.unsubscribeCalls, []);
 	});
 
 	test('reconnect rejects a client the server no longer remembers', async () => {
