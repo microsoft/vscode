@@ -955,7 +955,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 		this._mcpCustomizations = this._register(this._instantiationService.createInstance(McpCustomizationController, {
 			providerId: this.resourceUri.scheme,
-			sessionId: this.sessionId,
+			sessionId: AgentSession.id(this.resourceUri),
 			sessionUri: this.resourceUri,
 			emit: action => this._emitAction(action),
 			pluginMcpServerSources: () => pluginMcpServerSources,
