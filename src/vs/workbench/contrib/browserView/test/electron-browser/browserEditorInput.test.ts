@@ -27,7 +27,6 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;
-	readonly onDidChangeFileRenderability = Event.None;
 	readonly isSharingAvailable = false;
 	readonly known = new Map<string, BrowserEditorInput>();
 	input: BrowserEditorInput | undefined;
@@ -41,10 +40,6 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this.known;
-	}
-
-	canRenderFile(_resource: URI): boolean {
-		return true;
 	}
 
 	registerContextualFilter(_filter: IBrowserViewContextualFilter): IDisposable {

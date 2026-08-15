@@ -267,19 +267,6 @@ export interface IBrowserViewWorkbenchService {
 	getKnownBrowserViews(): Map<string, BrowserEditorInput>;
 
 	/**
-	 * Whether the Integrated Browser can render the file, i.e. it is available
-	 * (desktop) and the file resides within a trusted root. Files outside a
-	 * trusted root are served as `403 Forbidden`, so callers offering a preview
-	 * should hide it rather than open a page the browser will refuse.
-	 */
-	canRenderFile(resource: URI): boolean;
-
-	/**
-	 * Fires when the set of files the Integrated Browser can render changes.
-	 */
-	readonly onDidChangeFileRenderability: Event<void>;
-
-	/**
 	 * Register a contextual filter that restricts which browser views are
 	 * returned by {@link getContextualBrowserViews}. A view is part of the
 	 * contextual set only when every registered filter includes it.

@@ -144,9 +144,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 	reg.defineInstance(IBrowserViewWorkbenchService, new class extends mock<IBrowserViewWorkbenchService>() {
 		override readonly onDidChangeBrowserViews = Event.None;
-		override readonly onDidChangeFileRenderability = Event.None;
 		override getKnownBrowserViews() { return new Map(); }
-		override canRenderFile() { return false; }
 	}());
 	reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 	reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; override hasProvider() { return false; } }());

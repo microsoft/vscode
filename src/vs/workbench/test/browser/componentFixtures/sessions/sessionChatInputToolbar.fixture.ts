@@ -103,9 +103,7 @@ function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrows
 	const known = new Map(inputs.map(input => [input.id, input]));
 	return new class extends mock<IBrowserViewWorkbenchService>() {
 		override readonly onDidChangeBrowserViews = Event.None;
-		override readonly onDidChangeFileRenderability = Event.None;
 		override getKnownBrowserViews() { return known; }
-		override canRenderFile() { return false; }
 		override async getPreferredGroup() { return undefined; }
 	}();
 }

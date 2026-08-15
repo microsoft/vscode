@@ -34,8 +34,7 @@ import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEdito
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual, extUri, extUriIgnorePathCase } from '../../../../base/common/resources.js';
-import { isLinux } from '../../../../base/common/platform.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { getCopilotRootPaths } from '../../../../platform/agentHost/common/copilotHome.js';
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
@@ -87,9 +86,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private readonly _onDidChangeBrowserViews = this._register(new Emitter<void>());
 	readonly onDidChangeBrowserViews: Event<void> = this._onDidChangeBrowserViews.event;
 
-	private readonly _onDidChangeFileRenderability = this._register(new Emitter<void>());
-	readonly onDidChangeFileRenderability: Event<void> = this._onDidChangeFileRenderability.event;
-
 	private static readonly _sharingAvailableContext = ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
@@ -137,27 +133,22 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		// Send the full per-window configuration as a single unit, and resend it
 		// whenever any of its inputs change.
-		void this._updateWindowConfiguration();
+		this._updateWindowConfiguration();
 		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
-		this._register(this.keybindingService.onDidUpdateKeybindings(() => void this._updateWindowConfiguration()));
-		this._register(this.themeService.onDidColorThemeChange(() => void this._updateWindowConfiguration()));
-		this._register(this.accessibilityService.onDidChangeReducedMotion(() => void this._updateWindowConfiguration()));
-		const onDidChangeFileRenderability = Event.any(
-			Event.map(this.workspaceTrustManagementService.onDidChangeTrustedFolders, () => undefined),
-			Event.map(this.workspaceTrustManagementService.onDidChangeTrust, () => undefined),
-			Event.map(this.workspaceContextService.onDidChangeWorkspaceFolders, () => undefined),
-		);
-		this._register(onDidChangeFileRenderability(() => {
-			void this._updateWindowConfiguration().then(() => this._onDidChangeFileRenderability.fire());
-		}));
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateWindowConfiguration()));
+		this._register(this.themeService.onDidColorThemeChange(() => this._updateWindowConfiguration()));
+		this._register(this.accessibilityService.onDidChangeReducedMotion(() => this._updateWindowConfiguration()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this._updateWindowConfiguration()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this._updateWindowConfiguration()));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateWindowConfiguration()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(chatEnabledKeys)) {
-				void this._updateWindowConfiguration();
+				this._updateWindowConfiguration();
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
-				void this._updateWindowConfiguration();
+				this._updateWindowConfiguration();
 			}
 		}));
 
@@ -209,23 +200,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	setRemoteProxyInfo(info: ITunnelProxyInfo | undefined): void {
 		this._remoteProxyInfo = info;
-		void this._updateWindowConfiguration();
+		this._updateWindowConfiguration();
 	}
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this._known;
-	}
-
-	canRenderFile(resource: URI): boolean {
-		if (resource.scheme !== Schemas.file) {
-			return false;
-		}
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			return true;
-		}
-		// Match the path casing rule the main process enforces for trusted roots.
-		const pathUtil = isLinux ? extUri : extUriIgnorePathCase;
-		return this._getTrustedFileRoots().some(root => pathUtil.isEqualOrParent(resource, URI.file(root)));
 	}
 
 	registerContextualFilter(filter: IBrowserViewContextualFilter): IDisposable {
@@ -515,8 +494,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return undefined;
 	}
 
-	private _updateWindowConfiguration(): Promise<void> {
-		return this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
+	private _updateWindowConfiguration(): void {
+		void this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
 			theme: this._getTheme(),
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
