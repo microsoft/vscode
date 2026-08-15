@@ -34,6 +34,7 @@ import { INativeEnvironmentService } from '../../../../platform/environment/comm
 import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
@@ -1089,13 +1090,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			message: localize('copilotAgent.connectionClosed', "Copilot stopped unexpectedly. Retry your request."),
 		};
 		for (const chat of this._allLiveSessions()) {
+			const clientContext = chat.currentTurnClientContext;
 			const failedTurnId = chat.failActiveTurn(error);
 			if (failedTurnId) {
 				failedTurnIds.add(failedTurnId);
 				reportCopilotClientRecoveryTurn(
 					this._telemetryService,
 					clientFailureId,
-					createCopilotFailureCorrelation(chat.sessionUri, chat.chatUri, failedTurnId, chat.sessionId),
+					createCopilotFailureCorrelation(chat.sessionUri, chat.chatUri, failedTurnId, chat.sessionId, clientContext),
 				);
 			}
 		}
@@ -1126,7 +1128,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _clientFailureCorrelation(chat: URI, turnId?: string, operationContext?: URI | IAgentChatContext): ICopilotFailureCorrelation {
 		const context = this._resolveSendChatContext(chat, operationContext);
-		return createCopilotFailureCorrelation(context.configurationResource, chat, turnId, context.target?.sessionId ?? context.configurationId);
+		const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext?.clientTelemetryContext;
+		return createCopilotFailureCorrelation(context.configurationResource, chat, turnId, context.target?.sessionId ?? context.configurationId, clientTelemetryContext);
 	}
 
 	/** Number of live chats (default or peer, across all sessions) with an in-flight turn. */
@@ -2445,7 +2448,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
 			const clientType = typeof clientTypeOrContext === 'string' ? clientTypeOrContext : AgentHostClientType.Unknown;
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
-			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId, clientType, workingDirectories, operationContext);
+			const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext?.clientTelemetryContext;
+			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId, clientType, workingDirectories, operationContext, clientTelemetryContext);
 		},
 		abort: (chatUri: URI, context: URI | IAgentChatContext): Promise<void> => {
 			return this._abortSession(chatUri, context);
@@ -3065,9 +3069,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		target?.handleClientToolCallComplete(toolCallId, result);
 	}
 
-	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext): Promise<void> {
+	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		try {
-			await this._sendMessageOnce(chat, prompt, attachments, turnId, senderClientId, clientType, workingDirectories, operationContext);
+			await this._sendMessageOnce(chat, prompt, attachments, turnId, senderClientId, clientType, workingDirectories, operationContext, clientTelemetryContext);
 		} catch (error) {
 			const recovery = await this._recoverFromClosedConnection(error, 'sendMessage', this._clientFailureCorrelation(chat, turnId, operationContext));
 			if (turnId && recovery?.failedTurnIds.has(turnId)) {
@@ -3077,7 +3081,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext): Promise<void> {
+	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		const context = this._resolveSendChatContext(chat, operationContext);
 		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
 			const current = this._resolveSendChatContext(chat, operationContext);
@@ -3124,7 +3128,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// next text/reasoning chunk (and any host-emitted announcement)
 			// allocates a fresh response part.
 			if (turnId) {
-				entry.resetTurnState(turnId, senderClientId, clientType);
+				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 			}
 
 			try {
@@ -3132,7 +3136,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const sideChat = this._chatBackings.get(current.chatKey)?.sideChat;
 				const turns = sideChat ? await entry.getMessages() : [];
 				const sdkPrompt = prepareSideChatPrompt(prompt, turns, sideChat);
-				await entry.send(sdkPrompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext));
+				await entry.send(sdkPrompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext);
 			} catch (err) {
 				const errCode = (err as { code?: number })?.code;
 				const errMsg = err instanceof Error ? err.message : String(err);

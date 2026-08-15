@@ -37,12 +37,12 @@ import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type Completion
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
-import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
+import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID, TelemetryLevel, telemetryLevelEnabled } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
-import { AgentHostClientConnectionKind, toClientConnectionTelemetryMeta } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, toClientTelemetryMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -319,6 +319,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostResourceService private readonly _resourceService: IAgentHostResourceService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._resourceIdentity = identity;
@@ -774,7 +775,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _clientConnectionTelemetryMeta(): { _meta: Record<string, unknown> } | Record<string, never> {
-		const meta = toClientConnectionTelemetryMeta(this._transport.clientConnectionKind);
+		const sendIdentity = telemetryLevelEnabled(this._telemetryService, TelemetryLevel.USAGE);
+		const machineId = sendIdentity ? this._telemetryService.machineId : undefined;
+		const devDeviceId = sendIdentity ? this._telemetryService.devDeviceId : undefined;
+		const meta = toClientTelemetryMeta(this._transport.clientConnectionKind, machineId, devDeviceId);
 		return meta ? { _meta: meta } : {};
 	}
 

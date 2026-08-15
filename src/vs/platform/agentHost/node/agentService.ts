@@ -3547,7 +3547,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 		}
-		this._stateManager.dispatchClientAction(channel, action, origin);
+		this._stateManager.dispatchClientAction(channel, action, origin, clientContext);
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 			const editTelemetryEnabled = action.config[AgentHostEditTelemetryEnabledConfigKey];
