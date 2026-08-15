@@ -1337,6 +1337,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('does not hydrate change stats cleared before persistence', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const previousHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => previousHost.dispose()));
+		previousHost.addSession({
+			...createSession('cleared-changes', { summary: 'Cleared Changes' }),
+			changes: { additions: 12, deletions: 4, files: 3 },
+		});
+		const previousProvider = createProvider(disposables, previousHost, undefined, { storageService });
+		await timeout(0);
+
+		fireSessionSummaryChanged(previousHost, 'cleared-changes', { changes: undefined });
+		await storageService.flush();
+
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const restored = createProvider(disposables, nextHost, undefined, { storageService }).getSessions()[0];
+
+		assert.deepStrictEqual({
+			previousChangesSummary: previousProvider.getSessions()[0].changesSummary?.get(),
+			restoredChangesSummary: restored.changesSummary?.get(),
+		}, {
+			previousChangesSummary: undefined,
+			restoredChangesSummary: undefined,
+		});
+	}));
+
 	test('discards a legacy cache entry so read state is rebuilt from the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Storage-key literals of the pre-`.v2` cache schema, whose entries
 		// carried a stale `isRead: true` written by the old always-read adapter.

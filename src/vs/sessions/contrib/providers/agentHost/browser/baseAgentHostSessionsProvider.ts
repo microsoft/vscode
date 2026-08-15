@@ -704,13 +704,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
 	get changesSummary(): IObservable<ISessionChangesSummary | undefined> { return this._changesSummary; }
 	/**
-	 * Sets the aggregate change chip. Callers inside a transaction MUST pass it
+	 * Sets or clears the aggregate change chip. Callers inside a transaction MUST pass it
 	 * — a `set` without one builds and finishes its own transaction, notifying
 	 * observers before the enclosing update has applied its remaining fields.
 	 */
 	setChangesSummary(changes: ChangesSummary | undefined, tx?: ITransaction): boolean {
 		if (!changes) {
-			return false;
+			if (this._changesSummary.get() === undefined) {
+				return false;
+			}
+			this._changesSummary.set(undefined, tx);
+			return true;
 		}
 
 		const { additions, deletions, files } = changes;
@@ -5246,7 +5250,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// itself (label / URI template / `changeKind`) arrives via the
 			// `SessionChangesetsChanged` action, handled by
 			// `_handleChangesetsChanged`.
-			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes, tx)) {
+			if (Object.prototype.hasOwnProperty.call(changes, 'changes') && cached.setChangesSummary(changes.changes, tx)) {
 				didChange = true;
 			}
 
