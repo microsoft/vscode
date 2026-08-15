@@ -188,8 +188,6 @@ suite('buildSandboxConfigForSdk', () => {
 		});
 
 		suite('getServerManagedSandboxEnabled', () => {
-			ensureNoDisposablesAreLeakedInTestSuite();
-
 			test('returns explicit server-managed sandbox enablement', () => {
 				assert.deepStrictEqual([
 					getServerManagedSandboxEnabled({ serverManaged: true, settings: { sandbox: { enabled: true } } }),
