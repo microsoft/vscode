@@ -451,17 +451,14 @@ export const AgentHostAutoReplyEnabledConfigKey = 'autoReplyEnabled';
 
 export const AgentHostAutoReplyAnswer = 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.';
 
-// Root config key forwarded from the renderer when Copilot Chat's `github.copilot.chat.preferLongContext.enabled` setting changes.
-export const AgentHostPreferLongContextEnabledConfigKey = 'preferLongContextEnabled';
-
-// The Copilot Chat setting ID for preferring long context, forwarded into the agent host root config.
-export const PREFER_LONG_CONTEXT_SETTING_ID = 'github.copilot.chat.preferLongContext.enabled';
-
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 
 /** Root config key forwarded from the renderer for active-agent title generation. */
 export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
+
+/** Root config key controlling rich-link guidance for Markdown plan documents. */
+export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
 
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
@@ -739,12 +736,6 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.autoReplyEnabled.description', "Whether VS Code's auto-reply setting is enabled. When `true`, `ask_user` questions are auto-answered instead of blocking on the user, mirroring autopilot mode."),
 		default: false,
 	}),
-	[AgentHostPreferLongContextEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.preferLongContextEnabled.title', "Prefer Long Context"),
-		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true` (default), models with a free long context window only show the long context option in the picker. When `false`, the smaller default context option stays selectable."),
-		default: true,
-	}),
 	[AgentHostSystemProxyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.systemProxyEnabled.title', "System Proxy Discovery"),
@@ -755,6 +746,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
 		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of utility-model title generation."),
+		default: false,
+	}),
+	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.markdownPlanRichLinksEnabled.title', "Markdown Plan Rich Links"),
+		description: localize('agentHost.config.markdownPlanRichLinksEnabled.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
 		default: false,
 	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({

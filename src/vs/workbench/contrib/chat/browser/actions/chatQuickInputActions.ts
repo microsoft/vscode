@@ -48,7 +48,7 @@ export function registerQuickChatActions() {
 				title: localize2('chat.closeQuickChat.label', "Close Quick Chat"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				icon: Codicon.close,
+				icon: Codicon.closeSmall,
 				menu: {
 					id: MenuId.ChatInputSide,
 					group: 'navigation',

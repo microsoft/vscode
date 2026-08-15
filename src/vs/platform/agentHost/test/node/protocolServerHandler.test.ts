@@ -1250,6 +1250,8 @@ suite('ProtocolServerHandler', () => {
 	test('retains client info for action attribution across reconnect', async () => {
 		const transport1 = connectClient('client-attribution', undefined, agentsWindowAgentHostClientInfo, {
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel,
+			'vscode.clientMachineId': 'client-machine-id',
+			'vscode.clientDevDeviceId': 'client-dev-device-id',
 		});
 		transport1.simulateMessage(notification('dispatchAction', {
 			channel: 'ahp-root://',
@@ -1265,6 +1267,10 @@ suite('ProtocolServerHandler', () => {
 			clientId: 'client-attribution',
 			lastSeenServerSeq: stateManager.serverSeq,
 			subscriptions: [],
+			_meta: {
+				'vscode.clientMachineId': 'client-machine-id',
+				'vscode.clientDevDeviceId': 'client-dev-device-id',
+			},
 		}));
 		await reconnectRespPromise;
 		transport2.simulateMessage(notification('dispatchAction', {
@@ -1276,10 +1282,79 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			clientTypes: agentService.handledClientTypes,
 			connectionKinds: agentService.handledClientContexts.map(context => context?.connectionKind),
+			machineIds: agentService.handledClientContexts.map(context => context?.machineId),
+			devDeviceIds: agentService.handledClientContexts.map(context => context?.devDeviceId),
 		}, {
 			clientTypes: ['agents_window', 'agents_window'],
 			connectionKinds: ['dev_tunnel', 'dev_tunnel'],
+			machineIds: ['client-machine-id', 'client-machine-id'],
+			devDeviceIds: ['client-dev-device-id', 'client-dev-device-id'],
 		});
+	});
+
+	test('does not retain client telemetry identity when reconnect omits it', async () => {
+		const transport1 = connectClient('client-consent', undefined, agentsWindowAgentHostClientInfo, {
+			'vscode.clientMachineId': 'client-machine-id',
+			'vscode.clientDevDeviceId': 'client-dev-device-id',
+		});
+		transport1.simulateClose();
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-consent',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+		transport2.simulateMessage(notification('dispatchAction', {
+			channel: 'ahp-root://',
+			clientSeq: 1,
+			action: { type: ActionType.RootConfigChanged, config: {} },
+		}));
+
+		assert.deepStrictEqual(agentService.handledClientContexts.at(-1), {
+			clientType: 'agents_window',
+			connectionKind: 'unknown',
+			transportKind: 'unknown',
+			hostLaunchKind: 'vscode_main_process',
+		});
+	});
+
+	test('attributes telemetry identity independently for concurrent clients', () => {
+		const clients = [
+			connectClient('client-a', undefined, agentsWindowAgentHostClientInfo, {
+				'vscode.clientMachineId': 'machine-a',
+				'vscode.clientDevDeviceId': 'device-a',
+			}),
+			connectClient('client-b', undefined, editorWindowAgentHostClientInfo, {
+				'vscode.clientMachineId': 'machine-b',
+				'vscode.clientDevDeviceId': 'device-b',
+			}),
+		];
+
+		for (const client of clients) {
+			client.simulateMessage(notification('dispatchAction', {
+				channel: 'ahp-root://',
+				clientSeq: 1,
+				action: { type: ActionType.RootConfigChanged, config: {} },
+			}));
+		}
+
+		assert.deepStrictEqual(agentService.handledClientContexts.map(context => ({
+			clientType: context?.clientType,
+			machineId: context?.machineId,
+			devDeviceId: context?.devDeviceId,
+		})), [{
+			clientType: 'agents_window',
+			machineId: 'machine-a',
+			devDeviceId: 'device-a',
+		}, {
+			clientType: 'editor_window',
+			machineId: 'machine-b',
+			devDeviceId: 'device-b',
+		}]);
 	});
 
 	test('reports client topology and attributes actions to the initiating connection', () => {
@@ -1289,7 +1364,11 @@ suite('ProtocolServerHandler', () => {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: 'tunnel-client',
 			clientInfo: { name: 'vscode-agents-window', version: '1.2.3', title: 'VS Code Agents Window' },
-			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel },
+			_meta: {
+				'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel,
+				'vscode.clientMachineId': 'client-machine-id',
+				'vscode.clientDevDeviceId': 'client-dev-device-id',
+			},
 		}));
 		transport.simulateMessage(notification('dispatchAction', {
 			channel: 'ahp-root://',
@@ -1317,6 +1396,8 @@ suite('ProtocolServerHandler', () => {
 				connectionKind: 'dev_tunnel',
 				transportKind: 'websocket',
 				hostLaunchKind: 'vscode_main_process',
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
 			},
 			connectionEvents: [{
 				eventName: 'agentHost.clientConnection',
@@ -1329,6 +1410,8 @@ suite('ProtocolServerHandler', () => {
 					clientImplementationVersion: '1.2.3',
 					connectionKind: 'dev_tunnel',
 					transportKind: 'websocket',
+					clientMachineId: 'client-machine-id',
+					clientDevDeviceId: 'client-dev-device-id',
 					protocolVersion: PROTOCOL_VERSION,
 					isReconnect: false,
 					connectedClientCount: 1,
@@ -1348,6 +1431,8 @@ suite('ProtocolServerHandler', () => {
 					clientImplementationVersion: '1.2.3',
 					connectionKind: 'dev_tunnel',
 					transportKind: 'websocket',
+					clientMachineId: 'client-machine-id',
+					clientDevDeviceId: 'client-dev-device-id',
 					protocolVersion: PROTOCOL_VERSION,
 					isReconnect: false,
 					connectedClientCount: 0,

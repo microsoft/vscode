@@ -424,6 +424,35 @@ suite('StyleOverridesContribution', () => {
 			borderColor: 'rgb(18, 52, 86)',
 		});
 	});
+
+	test('hides collapsed primary side bar grips without hiding constrained auxiliary sash grips', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override nosidebar nopanel';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const leftPrimarySideBarSash = appendElement(root, 'monaco-sash vertical minimum primary-sidebar-sash');
+		const rightPrimarySideBarSash = appendElement(root, 'monaco-sash vertical maximum primary-sidebar-sash');
+		const minimumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical minimum');
+		const maximumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical maximum');
+		const panelSash = appendElement(root, 'monaco-sash horizontal maximum');
+		const targetWindow = getWindow(root);
+
+		assert.deepStrictEqual({
+			leftPrimarySideBarGrip: targetWindow.getComputedStyle(leftPrimarySideBarSash, '::after').content,
+			rightPrimarySideBarGrip: targetWindow.getComputedStyle(rightPrimarySideBarSash, '::after').content,
+			minimumAuxiliaryBarGrip: targetWindow.getComputedStyle(minimumAuxiliaryBarSash, '::after').content,
+			maximumAuxiliaryBarGrip: targetWindow.getComputedStyle(maximumAuxiliaryBarSash, '::after').content,
+			panelGrip: targetWindow.getComputedStyle(panelSash, '::after').content,
+		}, {
+			leftPrimarySideBarGrip: 'none',
+			rightPrimarySideBarGrip: 'none',
+			minimumAuxiliaryBarGrip: '\"\"',
+			maximumAuxiliaryBarGrip: '\"\"',
+			panelGrip: 'none',
+		});
+	});
+
 	test('uses the registered modern tab colors', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui-tabs';
@@ -544,6 +573,69 @@ suite('StyleOverridesContribution', () => {
 			selectedActionBackground: 'rgb(85, 68, 51)',
 			settingsTabBackground: 'rgb(18, 52, 86)',
 			settingsTabForeground: 'rgb(171, 205, 239)',
+		});
+	});
+
+	test('keeps clean editor tabs compact while reserving persistent indicators', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui-tabs';
+		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
+		root.style.setProperty('--vscode-spacing-size280', '28px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const compactTitle = appendElement(editor, 'title tabs');
+		const compactTabs = appendElement(compactTitle, 'tabs-container');
+		const compactTab = appendElement(compactTabs, 'tab');
+		const dirtyTab = appendElement(compactTabs, 'tab dirty');
+		const dirtyCloseOffTab = appendElement(compactTabs, 'tab dirty close-action-off');
+		const dirtyBorderTopTab = appendElement(compactTabs, 'tab dirty dirty-border-top close-action-off');
+		const dirtyBorderTopCloseableTab = appendElement(compactTabs, 'tab dirty dirty-border-top');
+		const stickyTab = appendElement(compactTabs, 'tab sticky');
+		const stickyActionOffTab = appendElement(compactTabs, 'tab sticky pinned-action-off close-action-off');
+		const dirtyLeftTab = appendElement(compactTabs, 'tab dirty tab-actions-left');
+		const dirtyBorderTopLeftTab = appendElement(compactTabs, 'tab dirty dirty-border-top close-action-off tab-actions-left');
+		const dirtyBorderTopCloseableLeftTab = appendElement(compactTabs, 'tab dirty dirty-border-top tab-actions-left');
+		const reservedTitle = appendElement(editor, 'title tabs tab-actions-reserve-space');
+		const reservedTabs = appendElement(reservedTitle, 'tabs-container');
+		const reservedTab = appendElement(reservedTabs, 'tab');
+		const reservedLeftTab = appendElement(reservedTabs, 'tab tab-actions-left');
+		const reservedDirtyBorderTopTab = appendElement(reservedTabs, 'tab dirty dirty-border-top');
+		const reservedDirtyBorderTopLeftTab = appendElement(reservedTabs, 'tab dirty dirty-border-top tab-actions-left');
+
+		const targetWindow = getWindow(root);
+		assert.deepStrictEqual({
+			compact: [targetWindow.getComputedStyle(compactTab).paddingLeft, targetWindow.getComputedStyle(compactTab).paddingRight],
+			dirty: [targetWindow.getComputedStyle(dirtyTab).paddingLeft, targetWindow.getComputedStyle(dirtyTab).paddingRight],
+			dirtyCloseOff: [targetWindow.getComputedStyle(dirtyCloseOffTab).paddingLeft, targetWindow.getComputedStyle(dirtyCloseOffTab).paddingRight],
+			dirtyBorderTop: [targetWindow.getComputedStyle(dirtyBorderTopTab).paddingLeft, targetWindow.getComputedStyle(dirtyBorderTopTab).paddingRight],
+			dirtyBorderTopCloseable: [targetWindow.getComputedStyle(dirtyBorderTopCloseableTab).paddingLeft, targetWindow.getComputedStyle(dirtyBorderTopCloseableTab).paddingRight],
+			sticky: [targetWindow.getComputedStyle(stickyTab).paddingLeft, targetWindow.getComputedStyle(stickyTab).paddingRight],
+			stickyActionOff: [targetWindow.getComputedStyle(stickyActionOffTab).paddingLeft, targetWindow.getComputedStyle(stickyActionOffTab).paddingRight],
+			dirtyLeft: [targetWindow.getComputedStyle(dirtyLeftTab).paddingLeft, targetWindow.getComputedStyle(dirtyLeftTab).paddingRight],
+			dirtyBorderTopLeft: [targetWindow.getComputedStyle(dirtyBorderTopLeftTab).paddingLeft, targetWindow.getComputedStyle(dirtyBorderTopLeftTab).paddingRight],
+			dirtyBorderTopCloseableLeft: [targetWindow.getComputedStyle(dirtyBorderTopCloseableLeftTab).paddingLeft, targetWindow.getComputedStyle(dirtyBorderTopCloseableLeftTab).paddingRight],
+			reserved: [targetWindow.getComputedStyle(reservedTab).paddingLeft, targetWindow.getComputedStyle(reservedTab).paddingRight],
+			reservedLeft: [targetWindow.getComputedStyle(reservedLeftTab).paddingLeft, targetWindow.getComputedStyle(reservedLeftTab).paddingRight],
+			reservedDirtyBorderTop: [targetWindow.getComputedStyle(reservedDirtyBorderTopTab).paddingLeft, targetWindow.getComputedStyle(reservedDirtyBorderTopTab).paddingRight],
+			reservedDirtyBorderTopLeft: [targetWindow.getComputedStyle(reservedDirtyBorderTopLeftTab).paddingLeft, targetWindow.getComputedStyle(reservedDirtyBorderTopLeftTab).paddingRight],
+		}, {
+			compact: ['6px', '8px'],
+			dirty: ['6px', '28px'],
+			dirtyCloseOff: ['6px', '28px'],
+			dirtyBorderTop: ['6px', '8px'],
+			dirtyBorderTopCloseable: ['6px', '8px'],
+			sticky: ['6px', '28px'],
+			stickyActionOff: ['6px', '8px'],
+			dirtyLeft: ['28px', '8px'],
+			dirtyBorderTopLeft: ['6px', '8px'],
+			dirtyBorderTopCloseableLeft: ['6px', '8px'],
+			reserved: ['6px', '28px'],
+			reservedLeft: ['28px', '8px'],
+			reservedDirtyBorderTop: ['6px', '28px'],
+			reservedDirtyBorderTopLeft: ['28px', '8px'],
 		});
 	});
 

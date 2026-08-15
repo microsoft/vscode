@@ -13,6 +13,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { SymbolKind, SymbolTag } from '../../../../../../../editor/common/languages.js';
+import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -265,6 +266,54 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(part.codeblocks.length, 0);
 		assert.strictEqual(renderedCodeBlocks.length, 0);
 		assert.ok(part.domNode.textContent?.includes('Hello, world!'));
+	});
+
+	test('gates rich link rendering behind the chat setting', () => {
+		const rule = {
+			id: 'test.linkPresentation',
+			uriPattern: /^https:\/\/github\.com\/microsoft\/vscode\/pull\/1$/,
+			initialKind: 'pullRequest' as const,
+		};
+		const presentation = observableValue<ILinkPresentation | undefined>('test.linkPresentation', {
+			kind: 'pullRequest',
+			title: 'Test pull request',
+		});
+		let ruleChecks = 0;
+		let watcherCreations = 0;
+		instantiationService.stub(ILinkPresentationService, {
+			_serviceBrand: undefined,
+			onDidChangeLinkPresentationRules: Event.None,
+			linkPresentationRules: [rule],
+			registerLinkPresentationProvider: () => ({ dispose: () => { } }),
+			registerExtensionLinkPresentationProvider: () => ({ dispose: () => { } }),
+			getLinkPresentationRule: resource => {
+				ruleChecks++;
+				return rule.uriPattern.test(resource.toString(true)) ? rule : undefined;
+			},
+			createLinkPresentationWatcher: () => {
+				watcherCreations++;
+				return { presentation, dispose: () => { } };
+			},
+		});
+
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configurationService.setUserConfiguration(ChatConfiguration.RichLinks, false);
+		const disabledPart = createMarkdownPart('[pull request](https://github.com/microsoft/vscode/pull/1)');
+
+		configurationService.setUserConfiguration(ChatConfiguration.RichLinks, true);
+		const enabledPart = createMarkdownPart('[pull request](https://github.com/microsoft/vscode/pull/1)');
+
+		assert.deepStrictEqual({
+			disabledRichLinks: disabledPart.domNode.querySelectorAll('.chat-rich-link').length,
+			enabledRichLinks: enabledPart.domNode.querySelectorAll('.chat-rich-link').length,
+			ruleChecks,
+			watcherCreations,
+		}, {
+			disabledRichLinks: 0,
+			enabledRichLinks: 1,
+			ruleChecks: 1,
+			watcherCreations: 1,
+		});
 	});
 
 	test('renders a single code block and passes text to CodeBlockPart', () => {

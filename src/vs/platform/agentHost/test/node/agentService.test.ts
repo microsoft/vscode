@@ -30,7 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -38,7 +38,7 @@ import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agent
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -2665,6 +2665,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
+			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await svc.listSessions();
 
 			const session = AgentSession.uri('copilot', 'provider-announced');
@@ -3105,6 +3106,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 			agent.sessionMetadataOverrides = { _meta: withSessionEhcliAdoptable(undefined) };
 			svc.registerProvider(agent);
+			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await svc.listSessions();
 
 			const surfaced = svc.stateManager.getSurfacedSessionSummary(legacy.toString());
@@ -5575,8 +5577,8 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
-		test('adopts an already-surfaced legacy session on open even when the migrate setting is off', async () => {
-			// The surfaced adoptable marker stays authoritative after migration is disabled.
+		test('adopts a surfaced legacy session on open only when the migrate setting is on', async () => {
+			// Open-adoption is strictly gated on the live migrate setting.
 			class AdoptOnOpenAgent extends MockAgent {
 				adoptCalls = 0;
 				private _adopted = false;
@@ -5600,8 +5602,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const session = AgentSession.uri('copilot', 'surfaced-legacy');
 			const sessionStr = session.toString();
-			// Migrate setting is off (default). Surface the session as adoptable.
-			const summary: SessionSummary = {
+			localService.stateManager.announceSurfacedSession({
 				resource: sessionStr,
 				provider: 'copilot',
 				title: 'Legacy',
@@ -5609,15 +5610,127 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				_meta: withSessionEhcliAdoptable(undefined),
-			};
-			localService.stateManager.announceSurfacedSession(summary);
+			});
 
+			// Migrate setting off: opening must not adopt (dead-ends on missing backend metadata).
+			await assert.rejects(() => localService.restoreSession(session));
+			assert.strictEqual(agent.adoptCalls, 0);
+
+			// Migrate setting on: opening adopts in place.
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await localService.restoreSession(session);
 
 			assert.deepStrictEqual(
 				{ adoptCalls: agent.adoptCalls, restored: !!localService.stateManager.getSessionState(sessionStr) },
 				{ adoptCalls: 1, restored: true },
 			);
+		});
+
+		test('a passive read/archive action does not adopt a surfaced legacy session (listing must not migrate)', async () => {
+			// Regression for #330383: a passive read/archive toggle from the sessions list must not restore/adopt an un-opened legacy session.
+			for (const action of [{ type: ActionType.SessionIsReadChanged, isRead: true } as const, { type: ActionType.SessionIsArchivedChanged, isArchived: true } as const]) {
+				class AdoptOnOpenAgent extends MockAgent {
+					adoptCalls = 0;
+					private _adopted = false;
+					constructor() { super('copilot'); }
+					async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+						this.adoptCalls++;
+						this._adopted = true;
+						return { adopted: true, eligible: true };
+					}
+					override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+						return this._adopted ? { chat, startTime: Date.now(), modifiedTime: Date.now() } : undefined;
+					}
+				}
+
+				const db = new TestSessionDatabase();
+				const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new AdoptOnOpenAgent());
+				localService.registerProvider(agent);
+				agent.sessionMessages = [];
+
+				const session = AgentSession.uri('copilot', `surfaced-legacy-${action.type}`);
+				const sessionStr = session.toString();
+				localService.stateManager.announceSurfacedSession({
+					resource: sessionStr,
+					provider: 'copilot',
+					title: 'Legacy',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					_meta: withSessionEhcliAdoptable(undefined),
+				});
+
+				localService.dispatchAction(sessionStr, action, 'test-client', 1, AgentHostClientType.EditorWindow);
+				await timeout(0);
+				await timeout(0);
+
+				assert.deepStrictEqual(
+					{ action: action.type, adoptCalls: agent.adoptCalls, restored: !!localService.stateManager.getSessionState(sessionStr) },
+					{ action: action.type, adoptCalls: 0, restored: false },
+				);
+			}
+		});
+
+		test('turning the migrate setting off un-surfaces adoptable legacy sessions that were never opened', async () => {
+			class AdoptOnOpenAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				override async getChatMetadata(): Promise<IAgentChatMetadata | undefined> {
+					return undefined; // never adopted
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new AdoptOnOpenAgent());
+			localService.registerProvider(agent);
+
+			// Setting on, then surface an adoptable legacy session.
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const session = AgentSession.uri('copilot', 'surfaced-legacy-unsurface');
+			const sessionStr = session.toString();
+			localService.stateManager.announceSurfacedSession({
+				resource: sessionStr,
+				provider: 'copilot',
+				title: 'Legacy',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				_meta: withSessionEhcliAdoptable(undefined),
+			});
+			(localService as unknown as { _announcedSurfacedKeys: Set<string> })._announcedSurfacedKeys.add(sessionStr);
+
+			let removed: string | undefined;
+			disposables.add(localService.onDidNotification(n => {
+				if (n.type === 'root/sessionRemoved') {
+					removed = n.session;
+				}
+			}));
+
+			// Turn the setting off: the un-opened surfaced entry is dropped.
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+
+			assert.deepStrictEqual(
+				{ surfaced: localService.stateManager.getSurfacedSessionSummary(sessionStr), removed },
+				{ surfaced: undefined, removed: sessionStr },
+			);
+		});
+
+		test('excludes adoptable-legacy sessions from the list while the migrate setting is off', async () => {
+			// Guards against a refresh re-surfacing a registry entry that can no longer be opened while migration is off.
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const adoptable: IAgentSessionMetadata = {
+				session: AgentSession.uri('copilot', 'adoptable-list-gate'),
+				startTime: Date.now(),
+				modifiedTime: Date.now(),
+				_meta: withSessionEhcliAdoptable(undefined),
+			};
+			const shouldInclude = (localService as unknown as { _shouldIncludeSession(s: IAgentSessionMetadata): boolean })._shouldIncludeSession.bind(localService);
+
+			const includedWhileOff = shouldInclude(adoptable);
+			localService.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			const includedWhileOn = shouldInclude(adoptable);
+
+			assert.deepStrictEqual({ includedWhileOff, includedWhileOn }, { includedWhileOff: false, includedWhileOn: true });
 		});
 
 		test('restores known session without listing all provider sessions', async () => {
@@ -9045,7 +9158,7 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('rename server tools', () => {
-		test('rename session and chat replace live and persisted titles', async () => {
+		test('rename_chat replaces live and persisted default and peer chat titles', async () => {
 			class ServerToolAgent extends MockAgent {
 				serverToolHost: IAgentServerToolHost | undefined;
 
@@ -9064,14 +9177,22 @@ suite('AgentService (node dispatcher)', () => {
 			const defaultChat = buildDefaultChatUri(session);
 			const peerChat = buildChatUri(sessionUri, 'peer-rename');
 			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Previous user title' });
-			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Previous peer title' });
 			await db.setMetadata('customTitle', 'Previous user title');
+			await db.setMetadata('customTitleSource', 'user');
+
+			const singleChatResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
+				title: 'Single-chat title',
+			});
+
+			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Previous peer title' });
+			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Multi-chat session title' });
+			await db.setMetadata('customTitle', 'Multi-chat session title');
 			await db.setMetadata('customTitleSource', 'user');
 			await db.setMetadata(`customChatTitle:${peerChat}`, 'Previous peer title');
 			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
 
-			const sessionResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameSession, {
-				title: 'Complete replacement session title',
+			const multiChatDefaultResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
+				title: 'Complete replacement default chat title',
 			});
 			const chatResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
 				chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-rename`,
@@ -9079,21 +9200,29 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			assert.deepStrictEqual({
-				sessionResult,
+				singleChatResult,
+				multiChatDefaultResult,
 				chatResult,
 				liveSessionTitle: localService.stateManager.getSessionState(sessionUri)?.title,
+				liveDefaultChatTitle: localService.stateManager.getChatState(defaultChat)?.title,
 				liveChatTitle: localService.stateManager.getChatState(peerChat)?.title,
 				persistedSessionTitle: await db.getMetadata('customTitle'),
 				persistedSessionSource: await db.getMetadata('customTitleSource'),
+				persistedDefaultChatTitle: await db.getMetadata(`customChatTitle:${defaultChat}`),
+				persistedDefaultChatSource: await db.getMetadata(`customChatTitleSource:${defaultChat}`),
 				persistedChatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
 				persistedChatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
 			}, {
-				sessionResult: 'Renamed session to "Complete replacement session title".',
+				singleChatResult: 'Renamed chat to "Single-chat title".',
+				multiChatDefaultResult: 'Renamed chat to "Complete replacement default chat title".',
 				chatResult: 'Renamed chat to "Complete replacement peer chat title".',
-				liveSessionTitle: 'Complete replacement session title',
+				liveSessionTitle: 'Multi-chat session title',
+				liveDefaultChatTitle: 'Complete replacement default chat title',
 				liveChatTitle: 'Complete replacement peer chat title',
-				persistedSessionTitle: 'Complete replacement session title',
-				persistedSessionSource: 'agent',
+				persistedSessionTitle: 'Multi-chat session title',
+				persistedSessionSource: 'user',
+				persistedDefaultChatTitle: 'Complete replacement default chat title',
+				persistedDefaultChatSource: 'agent',
 				persistedChatTitle: 'Complete replacement peer chat title',
 				persistedChatSource: 'agent',
 			});
@@ -9123,16 +9252,25 @@ suite('AgentService (node dispatcher)', () => {
 			localService.registerProvider(agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
 			const peerChat = buildChatUri(sessionUri, 'peer-failure');
 			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Original session' });
-			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Original chat' });
 			await db.setMetadata('customTitle', 'Original session');
 			await db.setMetadata('customTitleSource', 'user');
+
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Session-backed title will fail' }),
+				/title persistence failed/,
+			);
+
+			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Original chat' });
+			await db.setMetadata(`customChatTitle:${defaultChat}`, 'Original session');
+			await db.setMetadata(`customChatTitleSource:${defaultChat}`, 'user');
 			await db.setMetadata(`customChatTitle:${peerChat}`, 'Original chat');
 			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
 
 			await assert.rejects(
-				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameSession, { title: 'Will fail' }),
+				async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Chat-backed title will fail' }),
 				/title persistence failed/,
 			);
 			await assert.rejects(
@@ -9146,6 +9284,9 @@ suite('AgentService (node dispatcher)', () => {
 				liveSession: localService.stateManager.getSessionState(sessionUri)?.title,
 				sessionTitle: await db.getMetadata('customTitle'),
 				sessionSource: await db.getMetadata('customTitleSource'),
+				liveDefaultChat: localService.stateManager.getChatState(defaultChat)?.title,
+				defaultChatTitle: await db.getMetadata(`customChatTitle:${defaultChat}`),
+				defaultChatSource: await db.getMetadata(`customChatTitleSource:${defaultChat}`),
 				liveChat: localService.stateManager.getChatState(peerChat)?.title,
 				chatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
 				chatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
@@ -9153,6 +9294,9 @@ suite('AgentService (node dispatcher)', () => {
 				liveSession: 'Original session',
 				sessionTitle: 'Original session',
 				sessionSource: 'user',
+				liveDefaultChat: 'Original session',
+				defaultChatTitle: 'Original session',
+				defaultChatSource: 'user',
 				liveChat: 'Original chat',
 				chatTitle: 'Original chat',
 				chatSource: 'user',

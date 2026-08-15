@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { LinkPresentation, LinkPresentationStatus } from '@vscode/markdown-editor';
+import type { LinkPresentationStatus } from '@vscode/markdown-editor';
 import type { IObservable } from '@vscode/observables';
 import * as vscode from 'vscode';
-import { createAsyncLinkPresentation, decodeUrlPathSegments, LinkPresentationCache, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
+import { createAsyncLinkPresentation, decodeUrlPathSegments, LinkPresentationCache, type LinkPresentation, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
 
 const githubRepositoryScope = 'repo';
 
@@ -33,16 +33,19 @@ export class GitHubLinkPresentationResolver implements LinkPresentationResolver 
 		if (!target) {
 			return undefined;
 		}
+		const persisted = this.#cache.getPersisted(href);
+		const loadingPresentation: LinkPresentation = {
+			kind: target.kind === 'tree' ? 'resource' : target.kind,
+			status: { kind: 'pending', label: 'Loading' },
+		};
 		return createAsyncLinkPresentation(
 			href,
-			{
-				kind: target.kind === 'tree' ? 'resource' : target.kind,
-				status: { kind: 'pending', label: 'Loading' },
-			},
+			persisted ?? loadingPresentation,
 			context,
 			() => this.#cache.get(href, () => this.#resolve(target)),
 			error => getGitHubLookupFailurePresentationForTarget(target, error),
-			[context.onDidRequestRefresh, this.#onDidChangeAuthentication.event],
+			[context.onDidRequestRefresh],
+			{ event: this.#onDidChangeAuthentication.event, presentation: loadingPresentation },
 		);
 	}
 

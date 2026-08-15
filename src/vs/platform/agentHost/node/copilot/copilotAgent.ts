@@ -34,15 +34,16 @@ import { INativeEnvironmentService } from '../../../../platform/environment/comm
 import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
+import { prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -57,7 +58,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
@@ -550,6 +551,21 @@ interface IExtensionHostCliMarker {
 }
 
 /**
+ * Shape of the extension-host Copilot CLI `vscode.requests.metadata.json`
+ * sidecar written next to a session's SDK event log. Only the fields adoption
+ * needs are modelled; `copilotRequestId` is the SDK `user.message` envelope id,
+ * which is also the turn id `mapSessionEvents` restores turns under.
+ */
+interface IExtensionHostCliRequestDetails {
+	readonly copilotRequestId?: string;
+	readonly responseModelId?: string;
+	readonly creditsUsed?: number;
+}
+
+/** Copilot bills in nano-AIU; the extension host persists whole credits. */
+const NANO_AIU_PER_CREDIT = 1_000_000_000;
+
+/**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
  */
 export class CopilotAgent extends Disposable implements IAgent {
@@ -603,7 +619,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _capiModels: readonly IAgentModelInfo[] = [];
 	private _byokModels: readonly IAgentModelInfo[] = [];
 
-	/** Model IDs whose long-context tier costs the same as the default tier. */
+	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
 	private readonly _freeLongContextModels = new Set<string>();
 
 	/**
@@ -777,10 +793,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
 			: undefined;
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
-		// Session titles are host-owned; just mirror the filtered signal into telemetry.
-		this._register(sessionTitleSignal.onDidChangeSessionTitle(({ provider, session, conversationId, title }) => {
+		// Mirror host-owned titles under the SDK conversation id used by the agent's turn spans.
+		this._register(sessionTitleSignal.onDidChangeSessionTitle(({ provider, session, title }) => {
 			if (provider === this.id) {
-				this._otelService.emitSessionTitleChanged(conversationId, session.toString(), title);
+				this._otelService.emitSessionTitleChanged(this._sdkConversationId(session), session.toString(), title);
 			}
 		}));
 		// Mirror the sub-agent fan-out signals onto the first-class spawned-
@@ -888,10 +904,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _getEnterpriseHost(): string | undefined {
 		return this._gitHubEndpointService.getEnterpriseHost();
-	}
-
-	private _isPreferLongContextEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostPreferLongContextEnabledConfigKey) === true;
 	}
 
 	private _isSystemProxyEnabled(): boolean {
@@ -1078,13 +1090,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			message: localize('copilotAgent.connectionClosed', "Copilot stopped unexpectedly. Retry your request."),
 		};
 		for (const chat of this._allLiveSessions()) {
+			const clientContext = chat.currentTurnClientContext;
 			const failedTurnId = chat.failActiveTurn(error);
 			if (failedTurnId) {
 				failedTurnIds.add(failedTurnId);
 				reportCopilotClientRecoveryTurn(
 					this._telemetryService,
 					clientFailureId,
-					createCopilotFailureCorrelation(chat.sessionUri, chat.chatUri, failedTurnId, chat.sessionId),
+					createCopilotFailureCorrelation(chat.sessionUri, chat.chatUri, failedTurnId, chat.sessionId, clientContext),
 				);
 			}
 		}
@@ -1115,7 +1128,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _clientFailureCorrelation(chat: URI, turnId?: string, operationContext?: URI | IAgentChatContext): ICopilotFailureCorrelation {
 		const context = this._resolveSendChatContext(chat, operationContext);
-		return createCopilotFailureCorrelation(context.configurationResource, chat, turnId, context.target?.sessionId ?? context.configurationId);
+		const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext?.clientTelemetryContext;
+		return createCopilotFailureCorrelation(context.configurationResource, chat, turnId, context.target?.sessionId ?? context.configurationId, clientTelemetryContext);
 	}
 
 	/** Number of live chats (default or peer, across all sessions) with an in-flight turn. */
@@ -1383,6 +1397,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} else {
 			await this._restartClientIfProxyChanged();
 		}
+		await this._resolveCopilotSku(token);
 		void this._scheduleModelRefresh();
 	}
 
@@ -1391,6 +1406,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			resource: this._gitHubEndpointService.getCopilotResource(),
 			reason: AuthRequiredReason.Expired,
 		}, undefined);
+	}
+
+	private async _resolveCopilotSku(githubToken: string): Promise<void> {
+		try {
+			const copilotSku = await this._copilotApiService.resolveCopilotSku?.(githubToken);
+			if (copilotSku && this._githubToken === githubToken) {
+				// __GDPR__COMMON__ "copilotSku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU of the authenticated GitHub account." }
+				this._telemetryService.setCommonProperty('copilotSku', copilotSku);
+			}
+		} catch (err) {
+			this._logService.debug(`[Copilot] SKU resolution failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
@@ -1901,26 +1928,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		// When both tiers cost the same and the user prefers long context, show only the long-context option as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
-		if (this._isPreferLongContextEnabled() && !hasLongContextSurcharge(billing)) {
-			return {
-				type: 'number',
-				title: localize('copilot.modelContextSize.title', "Context Size"),
-				description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-				default: longContextMax,
-				enum: [longContextMax],
-				enumLabels: [formatTokenCount(longContextMax)],
-				enumDescriptions: [
-					localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
-				],
-			};
-		}
-
+		// Offer both sizes; default to the full window when long context is free, else the smaller tier.
 		return {
 			type: 'number',
 			title: localize('copilot.modelContextSize.title', "Context Size"),
 			description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-			default: defaultMax,
+			default: hasLongContextSurcharge(billing) ? defaultMax : longContextMax,
 			enum: [defaultMax, longContextMax],
 			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
 			enumDescriptions: [
@@ -1947,9 +1960,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Whether the model has a long-context window available at no additional cost.
-	 * When true the model should always run in `long_context` tier without showing
-	 * a context-size picker.
+	 * Whether the model has a larger long-context window at no additional cost. When true, a session
+	 * with no explicit selection defaults to `long_context` while the picker still offers both sizes.
 	 */
 	private _isFreeLongContext(modelId: string | undefined): boolean {
 		return !!modelId && this._freeLongContextModels.has(modelId);
@@ -2189,16 +2201,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const client = await this._ensureClient();
 		const { models } = await client.rpc.models.list({ gitHubToken });
 		this._freeLongContextModels.clear();
-		const preferLongContext = this._isPreferLongContextEnabled();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
 			const configSchema = this._createModelConfigSchema(m, billing);
-			// A model has free long context (larger window, no surcharge), but only treat it as free when the user prefers long context.
+			// Free long context: a larger long-context window at no surcharge. Defaults to the full window; picker keeps both.
 			const tokenPrices = billing?.tokenPrices;
 			const hasLargerLongContext = !!tokenPrices?.contextMax
 				&& !!tokenPrices.longContext?.contextMax
 				&& tokenPrices.longContext.contextMax > tokenPrices.contextMax;
-			if (preferLongContext && hasLargerLongContext && !hasLongContextSurcharge(billing)) {
+			if (hasLargerLongContext && !hasLongContextSurcharge(billing)) {
 				this._freeLongContextModels.add(m.id);
 			}
 			return {
@@ -2328,13 +2339,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
+	/** Resolves the Copilot SDK conversation id backing a session URI, falling back to the AH session id. */
+	private _sdkConversationId(session: URI): string {
+		const sessionId = AgentSession.id(session);
+		return this._findSessionChat(session)?.sessionId
+			?? this._provisionalSessions.get(sessionId)?.sdkSessionId
+			?? this._chatBackings.get(buildDefaultChatUri(session))?.sdkSessionId
+			?? sessionId;
+	}
+
 	/** Returns the chat URI bound to the session-backed chat, if any. */
 	private _findSessionChatUri(session: URI): URI | undefined {
-		const sessionId = AgentSession.id(session);
-		const sdkSessionId = this._findSessionChat(session)?.sessionId
-			?? this._provisionalSessions.get(sessionId)?.sdkSessionId
-			?? sessionId;
-		return this._findBoundSessionChatUri(sdkSessionId);
+		return this._findBoundSessionChatUri(this._sdkConversationId(session));
 	}
 
 	/** Normalizes an addressed chat operation and refreshes any host snapshot carried in its context. */
@@ -2432,7 +2448,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
 			const clientType = typeof clientTypeOrContext === 'string' ? clientTypeOrContext : AgentHostClientType.Unknown;
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
-			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId, clientType, workingDirectories, operationContext);
+			const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext?.clientTelemetryContext;
+			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId, clientType, workingDirectories, operationContext, clientTelemetryContext);
 		},
 		abort: (chatUri: URI, context: URI | IAgentChatContext): Promise<void> => {
 			return this._abortSession(chatUri, context);
@@ -2672,10 +2689,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	/** Returns whether `sessionId` is a legacy extension-host Copilot CLI session. */
-	/** Absolute path of the extension-host Copilot CLI `vscode.metadata.json` marker for `sessionId`. */
-	private _extensionHostCliMarkerPath(sessionId: string): string {
-		return join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sessionId, 'vscode.metadata.json');
+	/** Absolute path of an extension-host Copilot CLI sidecar file for `sessionId`. */
+	private _extensionHostCliSidecarPath(sessionId: string, fileName: string): string {
+		return join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sessionId, fileName);
 	}
 
 	/** Memoizes the (stable) marker read so repeated `listSessions` calls don't re-read the disk. */
@@ -2688,7 +2704,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _readExtensionHostCliMarker(sessionId: string): Promise<IExtensionHostCliMarker | undefined> {
 		let cached = this._extensionHostCliMarkerCache.get(sessionId);
 		if (!cached) {
-			cached = fs.readFile(this._extensionHostCliMarkerPath(sessionId), 'utf8')
+			cached = fs.readFile(this._extensionHostCliSidecarPath(sessionId, 'vscode.metadata.json'), 'utf8')
 				.then(raw => {
 					const parsed = JSON.parse(raw) as unknown;
 					return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as IExtensionHostCliMarker : undefined;
@@ -2764,8 +2780,65 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// a git repo would otherwise default to worktree and show a spurious
 			// "Creating worktree…".
 			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle, /* markRead */ true);
+			await this._adoptLegacyTurnUsage(session, sessionId);
 			return { adopted: true, eligible: true };
 		});
+	}
+
+	/**
+	 * Carries the per-request credit totals the extension host persisted in
+	 * `vscode.requests.metadata.json` into the adopted session's `turn_usage`
+	 * rows, so restored turns keep their "credits used" gauge. Best-effort: a
+	 * missing/malformed sidecar or a write failure must never fail adoption.
+	 *
+	 * Only ever called from {@link ensureChatAdopted} once a legacy extension-host
+	 * Copilot CLI session has passed every eligibility gate and is actually being
+	 * migrated — no native or non-VS Code Copilot session's usage is read or written.
+	 */
+	private async _adoptLegacyTurnUsage(session: URI, sessionId: string): Promise<void> {
+		// Absent for sessions predating the extension host's credit tracking, so a
+		// missing sidecar is the expected case, not a failure.
+		const raw = await fs.readFile(this._extensionHostCliSidecarPath(sessionId, 'vscode.requests.metadata.json'), 'utf8').catch(() => undefined);
+		if (raw === undefined) {
+			return;
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			if (!Array.isArray(parsed)) {
+				return;
+			}
+			// Each entry is keyed by the SDK `user.message` envelope id, which is
+			// also the turn id `mapSessionEvents` restores the turn under.
+			const rows: { readonly turnId: string; readonly usage: UsageInfo }[] = [];
+			for (const entry of parsed as readonly IExtensionHostCliRequestDetails[]) {
+				const turnId = entry?.copilotRequestId;
+				const credits = entry?.creditsUsed;
+				if (typeof turnId !== 'string' || !turnId || typeof credits !== 'number' || !Number.isFinite(credits) || credits < 0) {
+					continue;
+				}
+				rows.push({
+					turnId,
+					usage: {
+						...(typeof entry.responseModelId === 'string' && entry.responseModelId ? { model: entry.responseModelId } : {}),
+						_meta: { copilotUsage: { totalNanoAiu: Math.round(credits * NANO_AIU_PER_CREDIT) } },
+					},
+				});
+			}
+			if (rows.length === 0) {
+				return;
+			}
+			const dbRef = this._sessionDataService.openDatabase(session);
+			try {
+				for (const row of rows) {
+					await dbRef.object.setTurnUsage(row.turnId, JSON.stringify(row.usage));
+				}
+			} finally {
+				dbRef.dispose();
+			}
+			this._logService.info(`[Copilot] Adopted ${rows.length} legacy turn usage records for session ${sessionId}`);
+		} catch (err) {
+			this._logService.warn(`[Copilot] Failed to adopt legacy turn usage for session ${sessionId}`, err);
+		}
 	}
 
 	/** Materializes a provisional chat into a real SDK session immediately before first send. */
@@ -2996,9 +3069,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		target?.handleClientToolCallComplete(toolCallId, result);
 	}
 
-	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext): Promise<void> {
+	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		try {
-			await this._sendMessageOnce(chat, prompt, attachments, turnId, senderClientId, clientType, workingDirectories, operationContext);
+			await this._sendMessageOnce(chat, prompt, attachments, turnId, senderClientId, clientType, workingDirectories, operationContext, clientTelemetryContext);
 		} catch (error) {
 			const recovery = await this._recoverFromClosedConnection(error, 'sendMessage', this._clientFailureCorrelation(chat, turnId, operationContext));
 			if (turnId && recovery?.failedTurnIds.has(turnId)) {
@@ -3008,7 +3081,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext): Promise<void> {
+	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		const context = this._resolveSendChatContext(chat, operationContext);
 		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
 			const current = this._resolveSendChatContext(chat, operationContext);
@@ -3055,7 +3128,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// next text/reasoning chunk (and any host-emitted announcement)
 			// allocates a fresh response part.
 			if (turnId) {
-				entry.resetTurnState(turnId, senderClientId, clientType);
+				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 			}
 
 			try {
@@ -3063,7 +3136,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const sideChat = this._chatBackings.get(current.chatKey)?.sideChat;
 				const turns = sideChat ? await entry.getMessages() : [];
 				const sdkPrompt = prepareSideChatPrompt(prompt, turns, sideChat);
-				await entry.send(sdkPrompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext));
+				await entry.send(sdkPrompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext);
 			} catch (err) {
 				const errCode = (err as { code?: number })?.code;
 				const errMsg = err instanceof Error ? err.message : String(err);
@@ -3166,7 +3239,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const turns = await entry.getMessages();
 		const sideChat = this._chatBackings.get(context.chatKey)?.sideChat;
-		return stripSideChatContext(turns.slice(sideChat?.inheritedTurnCount ?? 0), sideChat);
+		return sliceSideChatTurns(turns, sideChat);
 	}
 
 	/** Reconstructs a subagent transcript from the parent chat named by the host-supplied tool origin. */
@@ -3323,7 +3396,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					turnId: options.sideChat.turnId,
 					...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}),
 					...(options.sideChat.providerAnchorTurnId ? { providerAnchorTurnId: options.sideChat.providerAnchorTurnId } : {}),
-					inheritedTurnCount: forked.inheritedTurnCount,
+					...(forked.inheritedTurnId !== undefined ? { inheritedTurnId: forked.inheritedTurnId } : {}),
 					...(options.sideChat.sourceContext ? { context: options.sideChat.sourceContext } : {}),
 					...(options.sideChat.partialResponse ? { partialResponse: options.sideChat.partialResponse } : {}),
 				};
@@ -3377,9 +3450,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			try {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: session, chatChannelUri: chat, resource: storageScope });
 				await agentSession.initializeSession();
-				if (sideChat) {
-					sideChat = { ...sideChat, inheritedTurnCount: (await agentSession.getMessages()).length };
-				}
 				if (fork?.turnIdMapping) {
 					await agentSession.remapTurnIds(fork.turnIdMapping);
 				}
@@ -3461,10 +3531,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * so the forked chat inherits turn event IDs and file-edit
 	 * snapshots. Returns the new SDK session id.
 	 */
-	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnCount: number }> {
+	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnId: string | undefined }> {
 		const sourceTurns = await sourceEntry.getMessages();
 		const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === turnId);
-		const inheritedTurnCount = sourceTurnIndex === -1 ? sourceTurns.length : sourceTurnIndex + 1;
+		if (sourceTurnIndex === -1) {
+			this._logService.warn(`[Copilot] fork: turn ${turnId} not found in source session ${sourceEntry.sessionId}; inheriting all ${sourceTurns.length} turns`);
+		}
+		const inheritedTurnIndex = sourceTurnIndex === -1 ? sourceTurns.length - 1 : sourceTurnIndex;
+		const inheritedTurnId = sourceTurns[inheritedTurnIndex]?.id;
 		// toEventId is exclusive — events before it are included. If there's no
 		// next turn, omit it to include all events.
 		const toEventId = await sourceEntry.getNextTurnEventId(turnId);
@@ -3492,7 +3566,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (err) {
 			this._logService.warn(`[Copilot] Failed to copy session database for chat fork: ${err instanceof Error ? err.message : String(err)}`);
 		}
-		return { sessionId: newSessionId, inheritedTurnCount };
+		return { sessionId: newSessionId, inheritedTurnId };
 	}
 
 	private async _disposeChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
