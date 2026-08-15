@@ -1874,6 +1874,12 @@
               "title": "API Key",
               "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property."
             },
+            "completionsUrl": {
+              "type": "string",
+              "pattern": "^https?://.+",
+              "patternErrorMessage": "URL must start with http:// or https://",
+              "markdownDescription": "Default full URL used **verbatim** for inline code completions (FIM) requests for models in this group, e.g. `https://api.deepseek.com/beta/completions` or `https://api.siliconflow.cn/v1/completions`. Individual models can override this with their own `completionsUrl` property. When neither is set, the group's models are only available for chat."
+            },
             "models": {
               "type": "array",
               "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property.",
