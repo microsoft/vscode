@@ -12,6 +12,8 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
 import {
 	IWSLRemoteAgentHostMainService,
@@ -80,6 +82,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -193,7 +196,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			commit: this._commit,
 			os: targetOs,
 			arch: targetArch,
-			telemetryLevel: config.telemetryLevel,
+			telemetryLevel: telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
 			remoteAgentHostCommand: config.remoteAgentHostCommand,
 		});
 
@@ -346,12 +349,12 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		}
 	}
 
-	async reconnect(distro: string, name: string, remoteAgentHostCommand?: string, telemetryLevel?: IWSLAgentHostConfig['telemetryLevel']): Promise<IWSLConnectResult> {
+	async reconnect(distro: string, name: string, remoteAgentHostCommand?: string): Promise<IWSLConnectResult> {
 		const existingId = this._distroToConnectionId.get(distro);
 		if (existingId) {
 			this._closeConnection(existingId);
 		}
-		return this.connect({ distro, name, remoteAgentHostCommand, telemetryLevel });
+		return this.connect({ distro, name, remoteAgentHostCommand });
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {

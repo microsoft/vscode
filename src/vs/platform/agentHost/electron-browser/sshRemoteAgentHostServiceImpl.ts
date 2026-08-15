@@ -17,15 +17,12 @@ import { INotificationService, Severity } from '../../notification/common/notifi
 import { toAction } from '../../../base/common/actions.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../common/remoteAgentHostService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../quickinput/common/quickInput.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
-import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostServerType } from '../common/agentHostEndpointRegistry.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../common/remoteAgentHostLocationPreference.js';
 import { promptRemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreferenceDialog.js';
@@ -146,7 +143,6 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IProductService private readonly _productService: IProductService,
 		@ISSHHostKeyTrustService private readonly _hostKeyTrustService: ISSHHostKeyTrustService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -257,11 +253,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		}
 
 		const commandOverride = this._getRemoteAgentHostCommand();
-		const telemetryLevel = this._effectiveTelemetryLevel();
 		const agentForward = this._isSSHAgentForwardingEnabled();
 		const preferredAgentLocation = this._locationPreferenceService.getPreference(computeSSHConnectionKey({ sshConfigHost }));
 		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
-		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, telemetryLevel, agentForward, userInitiated, preferredAgentLocation);
+		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward, userInitiated, preferredAgentLocation);
 		return this._setupConnection(result, userInitiated ?? true);
 	}
 
@@ -429,7 +424,6 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	private _augmentConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfig {
 		const result = {
 			...config,
-			telemetryLevel: this._effectiveTelemetryLevel(),
 		};
 		const commandOverride = this._getRemoteAgentHostCommand();
 		if (commandOverride) {
@@ -449,10 +443,6 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			result.preferredAgentLocation = preferredAgentLocation;
 		}
 		return result;
-	}
-
-	private _effectiveTelemetryLevel() {
-		return telemetryLevelToAgentHostValue(Math.min(getTelemetryLevel(this._configurationService), this._telemetryService.telemetryLevel));
 	}
 
 	private _getRemoteAgentHostCommand(): string | undefined {

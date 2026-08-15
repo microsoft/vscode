@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
@@ -464,6 +465,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		service = new TestableSSHRemoteAgentHostMainService(
 			logService,
 			productService as IProductService,
+			NullTelemetryService,
 		);
 		disposables.add(service);
 	});
@@ -579,7 +581,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			{ stdout: agentEndpointsStdout([newEntry]), code: 0 }, // wait-poll: agent endpoints (finds the new entry)
 		];
 
-		const result = await service.connect(makeConfig({ sshConfigHost: 'myhost', telemetryLevel: TelemetryConfiguration.OFF }));
+		const result = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
 		assert.strictEqual(result.serverType, 'standalone');
 		assert.strictEqual(result.instanceId, 'spawned-1');
 		assert.strictEqual(result.lifecycle, 'managed');
@@ -772,7 +774,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const events: ISSHEndpointSelectionRequest[] = [];
 		disposables.add(service.onDidRequestEndpointSelection(r => events.push(r)));
 
-		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, undefined, /* userInitiated */ false);
+		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, /* userInitiated */ false);
 
 		assert.deepStrictEqual(events, [], 'cold-start silent reconnect() must never fire an endpoint-selection request');
 		assert.strictEqual(result.serverType, 'standalone');
@@ -790,7 +792,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		const result = await service.withEndpointSelectionResponse(
 			{ kind: 'candidate', type: 'editor', pid: 300, instanceId: 'editor-1' },
-			() => service.reconnect('myhost', 'test-host', undefined, undefined, undefined, /* userInitiated */ true),
+			() => service.reconnect('myhost', 'test-host', undefined, undefined, /* userInitiated */ true),
 		);
 
 		assert.ok(seenCandidates, 'user-initiated reconnect() must still show the picker when an editor entry exists');
@@ -919,7 +921,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// userInitiated: true would normally still prompt when an editor is
 		// live (see the contrasting test above) — a stored preference must
 		// pre-empt that entirely.
-		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, undefined, /* userInitiated */ true, /* preferredAgentLocation */ 'editor');
+		const result = await service.reconnect('myhost', 'test-host', undefined, undefined, /* userInitiated */ true, /* preferredAgentLocation */ 'editor');
 
 		assert.deepStrictEqual(events, []);
 		assert.strictEqual(result.serverType, 'editor');
@@ -1190,6 +1192,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 				quality,
 				dataFolderName,
 			} as IProductService,
+			NullTelemetryService,
 		));
 		const request = new DeferredPromise<ISSHKeyboardInteractiveRequest>();
 		disposables.add(kbiService.onDidRequestKeyboardInteractive(kbiRequest => request.complete(kbiRequest)));
@@ -1284,6 +1287,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const loggingService = disposables.add(new TestableSSHRemoteAgentHostMainService(
 			logService,
 			productService as IProductService,
+			NullTelemetryService,
 		));
 		loggingService.execResponses = [
 			{ stdout: 'Linux\n', code: 0 },
@@ -1311,6 +1315,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const loggingService = disposables.add(new TestableSSHRemoteAgentHostMainService(
 			logService,
 			productService as IProductService,
+			NullTelemetryService,
 		));
 		loggingService.execResponses = [
 			{ stdout: 'Linux\n', code: 0 },
@@ -1345,6 +1350,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			pinnedService = new TestableSSHRemoteAgentHostMainService(
 				logService,
 				productService as IProductService,
+				NullTelemetryService,
 			);
 			disposables.add(pinnedService);
 		});
@@ -1634,6 +1640,7 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		service = new AuthAttemptsTestService(
 			logService,
 			productService as IProductService,
+			NullTelemetryService,
 		);
 		disposables.add(service);
 	});

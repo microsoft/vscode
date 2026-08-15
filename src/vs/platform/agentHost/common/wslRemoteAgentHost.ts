@@ -6,7 +6,6 @@
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import type { IRelayMessage } from './relayTransport.js';
 
 /**
@@ -40,8 +39,6 @@ export interface IWSLAgentHostConfig {
 	readonly name: string;
 	/** Dev override: custom command to start the remote agent host. See SSH equivalent. */
 	readonly remoteAgentHostCommand?: string;
-	/** Effective telemetry level to apply before the remote process starts. */
-	readonly telemetryLevel?: TelemetryConfiguration;
 }
 
 export interface IWSLConnectProgress {
@@ -132,5 +129,5 @@ export interface IWSLRemoteAgentHostMainService {
 	listRunningDistros(): Promise<string[]>;
 	connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult>;
 	disconnect(distro: string): Promise<void>;
-	reconnect(distro: string, name: string, remoteAgentHostCommand?: string, telemetryLevel?: TelemetryConfiguration): Promise<IWSLConnectResult>;
+	reconnect(distro: string, name: string, remoteAgentHostCommand?: string): Promise<IWSLConnectResult>;
 }

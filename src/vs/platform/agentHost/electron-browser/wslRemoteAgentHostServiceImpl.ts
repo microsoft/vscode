@@ -11,14 +11,11 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../common/remoteAgentHostService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
-import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import { WSLRelayTransport } from './wslRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
@@ -93,7 +90,6 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWSLRelayClientFactory private readonly _relayClientFactory: IWSLRelayClientFactory,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -167,7 +163,7 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 
 		const commandOverride = this._getRemoteAgentHostCommand();
 		this._logService.info(`[WSLRemoteAgentHost] Reconnecting to distro ${distro}`);
-		const result = await this._mainService.reconnect(distro, name, commandOverride, this._effectiveTelemetryLevel());
+		const result = await this._mainService.reconnect(distro, name, commandOverride);
 		return this._setupConnection(result);
 	}
 
@@ -322,17 +318,12 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 	private _augmentConfig(config: IWSLAgentHostConfig): IWSLAgentHostConfig {
 		const result: IWSLAgentHostConfig = {
 			...config,
-			telemetryLevel: this._effectiveTelemetryLevel(),
 		};
 		const commandOverride = this._getRemoteAgentHostCommand();
 		if (commandOverride) {
 			return { ...result, remoteAgentHostCommand: commandOverride };
 		}
 		return result;
-	}
-
-	private _effectiveTelemetryLevel() {
-		return telemetryLevelToAgentHostValue(Math.min(getTelemetryLevel(this._configurationService), this._telemetryService.telemetryLevel));
 	}
 
 	private _getRemoteAgentHostCommand(): string | undefined {

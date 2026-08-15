@@ -17,7 +17,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import {
 	ISSHRemoteAgentHostMainService,
 	SSHAuthMethod,
@@ -48,6 +48,7 @@ import {
 import type { RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
 import { AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
+import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import {
 	type AgentHostEndpointAddress,
 	type AgentHostServerType,
@@ -773,6 +774,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -922,7 +924,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// picker over. Always start a fresh process (requirement 6).
 				this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}; skipping endpoint discovery/selection`);
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-				const result = await this._startRemoteAgentHost(sshClient, undefined, undefined, config.remoteAgentHostCommand, config.telemetryLevel ?? TelemetryConfiguration.OFF);
+				const result = await this._startRemoteAgentHost(sshClient, undefined, undefined, config.remoteAgentHostCommand, this._effectiveTelemetryLevel);
 				endpoint = { type: 'tcp', host: '127.0.0.1', port: result.port };
 				connectionToken = result.connectionToken;
 				agentStream = result.stream;
@@ -953,7 +955,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				const standalones = live.filter(e => e.type === 'standalone');
 
 				const spawnDedicated = async (): Promise<IAgentHostEndpointMetadata> => {
-					const spawnCommand = buildAgentHostSpawnCommand(cliBin, cliDataDir, userDataPath, config.telemetryLevel ?? TelemetryConfiguration.OFF);
+					const spawnCommand = buildAgentHostSpawnCommand(cliBin, cliDataDir, userDataPath, this._effectiveTelemetryLevel);
 					reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
 					this._logService.info(`${LOG_PREFIX} Spawning dedicated standalone agent host: ${spawnCommand}`);
 					// Fire-and-forget: the spawned process is self-managed via
@@ -1172,7 +1174,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		}
 	}
 
-	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, telemetryLevel?: ISSHAgentHostConfig['telemetryLevel'], agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
 		const resolved = await this.resolveSSHConfig(sshConfigHost);
 
@@ -1196,7 +1198,6 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
-			telemetryLevel,
 			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
 			userInitiated,
 			preferredAgentLocation,
@@ -2036,6 +2037,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	private get _commit(): string | undefined {
 		return this._productService.commit;
+	}
+
+	private get _effectiveTelemetryLevel(): TelemetryConfiguration {
+		return telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel);
 	}
 
 	protected _startRemoteAgentHost(

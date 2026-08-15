@@ -7,7 +7,6 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import type { AgentHostEndpointAddress, AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from './relayTransport.js';
@@ -60,8 +59,6 @@ export interface ISSHAgentHostConfig {
 	readonly sshConfigHost?: string;
 	/** Dev override: custom command to start the remote agent host instead of the default CLI. */
 	readonly remoteAgentHostCommand?: string;
-	/** Effective telemetry level to apply before the remote process starts. */
-	readonly telemetryLevel?: TelemetryConfiguration;
 	/** When true, enables OpenSSH agent forwarding (auth-agent@openssh.com) for this connection. Requires {@link authMethod} to be Agent. */
 	readonly agentForward?: boolean;
 	/**
@@ -601,5 +598,5 @@ export interface ISSHRemoteAgentHostMainService {
 	 * The renderer computes this from its stored preference for this host's
 	 * {@link computeSSHConnectionKey stable key} before calling reconnect.
 	 */
-	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, telemetryLevel?: TelemetryConfiguration, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult>;
+	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult>;
 }
