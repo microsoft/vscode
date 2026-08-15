@@ -85,8 +85,10 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 	const knownBrowsers = new Map(inputs.map(input => [input.id, input]));
 	const browserViewService = new class extends mock<IBrowserViewWorkbenchService>() {
 		override readonly onDidChangeBrowserViews = Event.None;
+		override readonly onDidChangeFileRenderability = Event.None;
 		override getKnownBrowserViews() { return knownBrowsers; }
 		override getContextualBrowserViews() { return knownBrowsers; }
+		override canRenderFile() { return false; }
 		override async getPreferredGroup() { return undefined; }
 	}();
 
