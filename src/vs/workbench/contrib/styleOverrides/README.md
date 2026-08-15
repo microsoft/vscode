@@ -9,12 +9,19 @@ Modern UI uses the standard workbench color theme system. Theme authors can use 
 | `surface.border` | Border shared by floating side bars and panels | A translucent `foreground` in dark and light themes; `contrastBorder` in high contrast themes |
 | `editor.border` | Border of the editor surface in the modern layout | `surface.border` |
 | `modernTab.activeBackground` | Background of active Modern UI tabs | `list.inactiveSelectionBackground` |
-| `modernTab.activeActionBackground` | Opaque background of actions on active Modern UI editor tabs | `modernTab.activeBackground` composited over `editor.background` |
 | `modernTab.activeForeground` | Foreground of active Modern UI tabs | `list.inactiveSelectionForeground`, then `foreground` |
 | `modernTab.hoverBackground` | Background of hovered Modern UI tabs | `list.hoverBackground` |
-| `modernTab.hoverActionBackground` | Opaque background of actions on hovered Modern UI editor tabs | `modernTab.hoverBackground` composited over `editor.background` |
 | `modernTab.hoverForeground` | Foreground of hovered Modern UI tabs | `list.hoverForeground`, then `foreground` |
-| `modernTab.selectedActionBackground` | Opaque background of actions on selected Modern UI editor tabs | `tab.selectedBackground` composited over `editor.background` |
+| `modernEditorTab.activeBackground` | Background of active Modern UI editor tabs | `modernTab.activeBackground` |
+| `modernEditorTab.activeActionBackground` | Opaque background of actions on active Modern UI editor tabs | `modernEditorTab.activeBackground` composited over `editor.background` |
+| `modernEditorTab.activeForeground` | Foreground of active Modern UI editor tabs | `modernTab.activeForeground` |
+| `modernEditorTab.activeHoverBackground` | Background of active Modern UI editor tabs when hovered | `modernEditorTab.hoverBackground` |
+| `modernEditorTab.activeHoverActionBackground` | Opaque background of actions on active Modern UI editor tabs when hovered | `modernEditorTab.activeHoverBackground` composited over `editor.background` |
+| `modernEditorTab.inactiveBackground` | Background of inactive Modern UI editor tabs | Transparent |
+| `modernEditorTab.hoverBackground` | Background of hovered Modern UI editor tabs | `modernTab.hoverBackground` |
+| `modernEditorTab.hoverActionBackground` | Opaque background of actions on hovered Modern UI editor tabs | `modernEditorTab.hoverBackground` composited over `editor.background` |
+| `modernEditorTab.hoverForeground` | Foreground of hovered Modern UI editor tabs | `modernTab.hoverForeground` |
+| `modernEditorTab.selectedActionBackground` | Opaque background of actions on selected Modern UI editor tabs | `tab.selectedBackground` composited over `editor.background` |
 | `modernActivityBar.activeBackground` | Background of active Modern UI activity bar items in the default side position | `modernTab.activeBackground` |
 | `modernActivityBar.activeForeground` | Foreground of active Modern UI activity bar items in the default side position | `modernTab.activeForeground` |
 | `modernActivityBar.hoverBackground` | Background of hovered Modern UI activity bar items in the default side position | `modernTab.hoverBackground` |
@@ -32,12 +39,19 @@ Activity bar items in non-default top or bottom positions use the `modernTab.*` 
     "surface.border": "#3a3a3a",
     "editor.border": "#505050",
     "modernTab.activeBackground": "#3d3d3d",
-    "modernTab.activeActionBackground": "#3d3d3d",
     "modernTab.activeForeground": "#f0f0f0",
     "modernTab.hoverBackground": "#292929",
-    "modernTab.hoverActionBackground": "#292929",
     "modernTab.hoverForeground": "#f0f0f0",
-    "modernTab.selectedActionBackground": "#3d3d3d",
+    "modernEditorTab.activeBackground": "#454545",
+    "modernEditorTab.activeActionBackground": "#454545",
+    "modernEditorTab.activeForeground": "#ffffff",
+    "modernEditorTab.activeHoverBackground": "#505050",
+    "modernEditorTab.activeHoverActionBackground": "#505050",
+    "modernEditorTab.inactiveBackground": "#242424",
+    "modernEditorTab.hoverBackground": "#323232",
+    "modernEditorTab.hoverActionBackground": "#323232",
+    "modernEditorTab.hoverForeground": "#ffffff",
+    "modernEditorTab.selectedActionBackground": "#454545",
     "modernActivityBar.activeBackground": "#3d3d3d",
     "modernActivityBar.activeForeground": "#f0f0f0",
     "modernActivityBar.hoverBackground": "#292929",
@@ -46,6 +60,6 @@ Activity bar items in non-default top or bottom positions use the `modernTab.*` 
 }
 ```
 
-CSS custom properties prefixed with `--modern-ui-` are internal implementation details. Theme authors should use the registered `modernTab.*` colors for tab states instead.
+CSS custom properties prefixed with `--modern-ui-` are internal implementation details. Theme authors should use the registered `modernTab.*` and `modernEditorTab.*` colors for tab states instead.
 
 The color registrations and canonical descriptions are defined in `src/vs/workbench/common/theme.ts`.

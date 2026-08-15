@@ -5,7 +5,6 @@
 
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { IAgentHostSocketInfo } from './agentService.js';
 
 export const ITunnelAgentHostService = createDecorator<ITunnelAgentHostService>('tunnelAgentHostService');
 
@@ -130,6 +129,8 @@ export interface ITunnelGatewayEndpoint {
 export interface ITunnelGatewayInventory {
 	readonly userDataPath: string;
 	readonly endpoints: readonly ITunnelGatewayEndpoint[];
+	/** Set when the tunnel is bound to one specific agent host instance: the inventory lists only that endpoint and no dedicated host can be spawned. */
+	readonly delegatedInstanceId?: string;
 }
 
 /**
@@ -219,14 +220,21 @@ export function parseTunnelGatewayInventory(json: string): ITunnelGatewayInvento
 	if (!isPlainObject(parsed)) {
 		throw new TunnelGatewayProtocolError('Gateway inventory message is not an object');
 	}
-	const { userDataPath, endpoints } = parsed;
+	const { userDataPath, endpoints, delegatedInstanceId } = parsed;
 	if (typeof userDataPath !== 'string' || !userDataPath) {
 		throw new TunnelGatewayProtocolError('Gateway inventory message has an invalid "userDataPath"');
 	}
 	if (!Array.isArray(endpoints)) {
 		throw new TunnelGatewayProtocolError('Gateway inventory message has an invalid "endpoints"');
 	}
-	return { userDataPath, endpoints: endpoints.map((e, i) => parseTunnelGatewayEndpoint(e, i)) };
+	if (delegatedInstanceId !== undefined && (typeof delegatedInstanceId !== 'string' || !delegatedInstanceId)) {
+		throw new TunnelGatewayProtocolError('Gateway inventory message has an invalid "delegatedInstanceId"');
+	}
+	const parsedEndpoints = endpoints.map((e, i) => parseTunnelGatewayEndpoint(e, i));
+	if (delegatedInstanceId === undefined) {
+		return { userDataPath, endpoints: parsedEndpoints };
+	}
+	return { userDataPath, endpoints: parsedEndpoints, delegatedInstanceId };
 }
 
 /**
@@ -498,9 +506,20 @@ export const TUNNEL_HOST_LOG_ID = 'tunnelHostService';
 /** Information about an actively hosted tunnel. */
 export interface ITunnelHostInfo {
 	readonly tunnelName: string;
-	readonly tunnelId: string;
-	readonly clusterId: string;
-	readonly domain: string;
+	/** Stable dev tunnel identity, which can be absent when an older CLI reports the hosted tunnel. */
+	readonly tunnelId?: string;
+	/** Set when remote session access is being provided by full Remote Tunnel Access rather than a dedicated agent host tunnel. */
+	readonly viaRemoteTunnelAccess?: boolean;
+}
+
+/** Whether a discovered tunnel is the hosted tunnel, preferring its stable identity over its display name. */
+export function isTunnelHosted(sharingInfo: ITunnelHostInfo | undefined, tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
+	if (!sharingInfo) {
+		return false;
+	}
+	return sharingInfo.tunnelId !== undefined
+		? sharingInfo.tunnelId === tunnel.tunnelId
+		: sharingInfo.tunnelName === tunnel.name;
 }
 
 /** Status of the tunnel host. */
@@ -509,8 +528,7 @@ export type TunnelHostStatus =
 	| { readonly active: true; readonly info: ITunnelHostInfo };
 
 /**
- * Shared-process service that hosts a dev tunnel using `TunnelRelayTunnelHost`
- * and pipes incoming connections to the local agent host.
+ * Shared-process service that hosts a dev tunnel using the code CLI.
  */
 export const ITunnelAgentHostHostingService = createDecorator<ITunnelAgentHostHostingService>('tunnelAgentHostHostingService');
 
@@ -521,15 +539,12 @@ export interface ITunnelAgentHostHostingService {
 	readonly onDidChangeStatus: Event<TunnelHostStatus>;
 
 	/**
-	 * Start hosting a dev tunnel that forwards connections to the local
-	 * agent host. Creates a tunnel with the appropriate labels and port
-	 * configuration, then connects a `TunnelRelayTunnelHost`.
+	 * Start hosting a dev tunnel that exposes the local agent host.
 	 *
 	 * @param token The user's access token.
 	 * @param authProvider The auth provider that issued the token.
-	 * @param socketInfo Socket path for the local agent host.
 	 */
-	startHosting(token: string, authProvider: 'github' | 'microsoft', socketInfo: IAgentHostSocketInfo): Promise<ITunnelHostInfo>;
+	startHosting(token: string, authProvider: 'github' | 'microsoft'): Promise<ITunnelHostInfo>;
 
 	/** Stop hosting and clean up the tunnel. */
 	stopHosting(): Promise<void>;

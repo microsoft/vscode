@@ -215,7 +215,6 @@ suite('LanguageModelAccess model info', () => {
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
 			areAutoModeTiersSupported: () => false,
 			onDidChangeAutoModeTierSupport: Event.None,
-			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
 		testingServiceCollection.define(IEndpointProvider, {
@@ -369,6 +368,70 @@ suite('LanguageModelAccess model info', () => {
 			assert.strictEqual(internals._resolvedUtilityEndpoints.size, 0);
 		} finally {
 			languageModelAccess.dispose();
+		}
+	});
+
+	test('publishes both context size options with the longer window as default for a free long-context model', async () => {
+		const endpoint = {
+			model: 'free-long-context',
+			name: 'Free Long Context',
+			family: 'free-long-context',
+			version: '1',
+			modelProvider: 'copilot',
+			modelMaxPromptTokens: 1_000_000,
+			maxOutputTokens: 8_192,
+			multiplier: 1,
+			supportsToolCalls: true,
+			supportsVision: false,
+			supportsPrediction: false,
+			showInModelPicker: false,
+			isFallback: false,
+			tokenizer: TokenizerType.O200K,
+			urlOrRequestMetadata: '',
+			// Free long context: default tier 200K, full window 1M, no surcharge — picker offers both.
+			tokenPricing: { default: { inputPrice: 1, outputPrice: 1, contextMax: 200_000 } },
+		} as unknown as IChatEndpoint;
+		const copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'token', username: 'fake', copilot_plan: 'unknown' }));
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(ICopilotTokenManager, {
+			_serviceBrand: undefined,
+			onDidCopilotTokenRefresh: Event.None,
+			getCopilotToken: async () => copilotToken,
+			resetCopilotToken: () => { },
+		} as unknown as ICopilotTokenManager);
+		testingServiceCollection.define(IAutomodeService, {
+			_serviceBrand: undefined,
+			resolveAutoModeEndpoint: async () => endpoint,
+			resolveAutoModePickerEndpoint: async () => endpoint,
+			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
+			areAutoModeTiersSupported: () => false,
+			onDidChangeAutoModeTierSupport: Event.None,
+			consumeLastRoutingDecision: () => undefined,
+			invalidateRouterCache: () => { },
+		} as unknown as IAutomodeService);
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [endpoint],
+			getChatEndpoint: async () => endpoint,
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const extensionContext = accessor.get(IVSCodeExtensionContext);
+		const baseCountCacheKey = 'lmBaseCount/free-long-context';
+		await extensionContext.globalState.update(baseCountCacheKey, { extensionVersion: accessor.get(IEnvService).getVersion(), baseCount: 0 });
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		try {
+			const modelInfo = await raceTimeout((languageModelAccess as unknown as { _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> })._provideLanguageModelChatInfo({ silent: true }, CancellationToken.None), 2_000);
+			assert.ok(modelInfo, 'provideLanguageModelChatInfo did not resolve');
+			const model = modelInfo.find(m => m.id === 'free-long-context');
+			const contextSize = (model as unknown as { configurationSchema?: { properties?: Record<string, { enum?: unknown[]; default?: unknown }> } } | undefined)?.configurationSchema?.properties?.contextSize;
+			assert.deepStrictEqual(contextSize?.enum, [200_000, 1_000_000]);
+			assert.strictEqual(contextSize?.default, 1_000_000);
+		} finally {
+			languageModelAccess.dispose();
+			await extensionContext.globalState.update(baseCountCacheKey, undefined);
 		}
 	});
 });
@@ -586,6 +649,34 @@ suite('normalizeTokenPrices', () => {
 		assert.strictEqual(result.default.outputPrice, 2500);
 		assert.strictEqual(result.default.cachePrice, 50);
 		assert.strictEqual(result.default.cacheWritePrice, undefined);
+		assert.strictEqual(result.longContext, undefined);
+	});
+
+	test('reads the current CAPI field names max_prompt_tokens and cache_read_price (regression for #330481)', () => {
+		// CAPI renamed `context_max` to `max_prompt_tokens` and `cache_price` to
+		// `cache_read_price`. Missing `contextMax` makes the model picker drop the
+		// Context Size control entirely and lets requests run on the full window.
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 1000, output_price: 5000, cache_read_price: 100, cache_write_price: 1250, max_prompt_tokens: 200_000 },
+			long_context: { input_price: 2000, output_price: 5000, cache_read_price: 200, cache_write_price: 1250, max_prompt_tokens: 936_000 },
+		});
+		assert.deepStrictEqual(result, {
+			default: { inputPrice: 1000, outputPrice: 5000, cachePrice: 100, cacheWritePrice: 1250, contextMax: 200_000 },
+			longContext: { inputPrice: 2000, outputPrice: 5000, cachePrice: 200, cacheWritePrice: 1250, contextMax: 936_000 },
+		});
+	});
+
+	test('a free long-context tier is dropped but still reports the default contextMax', () => {
+		// Identical prices across tiers means no surcharge, yet the default tier's
+		// context max must survive so the picker can offer the smaller window.
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 1000, output_price: 5000, cache_read_price: 100, max_prompt_tokens: 200_000 },
+			long_context: { input_price: 1000, output_price: 5000, cache_read_price: 100, max_prompt_tokens: 936_000 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.contextMax, 200_000);
 		assert.strictEqual(result.longContext, undefined);
 	});
 });

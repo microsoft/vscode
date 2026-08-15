@@ -70,6 +70,12 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 /** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
 export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
 
+/** Configuration key gating active-agent session and chat title generation. */
+export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
+
+/** Configuration key enabling rich-link guidance for Markdown plan documents. */
+export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
+
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
  * agent-host provider. When `true`, the Copilot provider advertises the
@@ -117,8 +123,8 @@ export const AgentHostCodexMultiRootEnabledSettingId = 'chat.agentHost.codexAgen
 export const AgentHostAllowSignedOutWhenUsableSettingId = 'chat.agentHost.allowSignedOutWhenUsable';
 
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
-// `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
-// root-config keys in `copilotCliConfig.ts`.
+// `modelCapabilityOverrides`) live with their root-config keys in
+// `copilotCliConfig.ts`.
 
 /**
  * Configuration key controlling whether the Claude provider is registered in
@@ -1133,8 +1139,7 @@ export interface IAgentConnection {
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');
 
 /**
- * The local wrapper around the agent host process (manages lifecycle, restart,
- * exposes the proxied service). Consumed by the main process and workbench.
+ * The ambient Agent Host connection used by workbench surfaces.
  */
 export interface IAgentHostService extends IAgentConnection {
 
@@ -1161,6 +1166,7 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Start connecting to the agent host if it has not already started. */
 	startAgentHost(): void;
 
+	/** Restart the agent host process, if this connection owns its lifecycle. */
 	restartAgentHost(): Promise<void>;
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;

@@ -16,7 +16,9 @@ const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
 
 /**
  * Surfaces a model's promo as a chat input notification, scoped to the harness
- * (chat session type) of the model that carries it. Dismissals are persisted by promo id.
+ * (chat session type) of the model that carries it. Dismissals are persisted by
+ * promo id in application storage, so they survive reloads and apply to every
+ * open window.
  */
 export class ChatPromoNotificationContribution extends Disposable implements IWorkbenchContribution {
 
@@ -37,6 +39,12 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 				this._update();
 			}
 		}));
+
+		// A dismissal in another window writes to the same application-scoped key,
+		// which is broadcast to every window. Re-drive so the promo also disappears
+		// here instead of lingering until this window reloads.
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, DISMISSED_PROMOS_STORAGE_KEY, this._store)(() => this._update()));
+
 		this._update();
 	}
 
@@ -90,6 +98,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 				}],
 				dismissible: true,
 				autoDismissOnMessage: false,
+				deferForNewUsers: true,
 				sessionTypes: [harness],
 			});
 		}

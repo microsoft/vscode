@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
-import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
+import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -15,7 +15,8 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, INativeManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -25,7 +26,7 @@ import { IWorkbenchEnvironmentService } from '../../../environment/common/enviro
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { DefaultAccountProvider } from '../../browser/defaultAccount.js';
-import { IManagedSettingsResponse } from '../../browser/managedSettings.js';
+import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('DefaultAccountProvider managed settings', () => {
 
@@ -38,12 +39,12 @@ suite('DefaultAccountProvider managed settings', () => {
 		scopes: ['user:email'],
 	}];
 
-	test('cached server control forces only the first fetch', async () => {
+	test('cached settings perform one startup compatibility fetch', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({
 			forceRemoteSettingsRefresh: true,
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
-		const provider = await createProvider({}, requestService);
+		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(true);
 
 		const first = await provider['getManagedSettings'](sessions, cachedPolicy);
@@ -51,38 +52,84 @@ suite('DefaultAccountProvider managed settings', () => {
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
+			requestQuery: new URL(requestService.requests[0].url!).search,
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
+			requestQuery: '?client_id=vscode&client_version=1.132.0&copilot_runtime_version=0.0.344',
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
 	});
 
-	test('native false suppresses cached server true', async () => {
-		const requestService = new TestRequestService(async () => {
-			throw new Error('unexpected request');
-		});
-		const provider = await createProvider({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }, requestService);
+	test('404 clears cached server managed settings', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({}, 404));
+		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(true);
 
 		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
+			status: provider.managedSettingsFetchStatus,
 			data: result.data,
+			compatibilityError: provider.managedSettingsCompatibilityError,
 		}, {
-			requestCount: 0,
-			data: cachedPolicy.policyData,
+			requestCount: 1,
+			status: 404,
+			data: { managedSettings: undefined },
+			compatibilityError: null,
 		});
 	});
 
-	test('failed forced fetch retains cached managed settings', async () => {
+	test('466 blocks and does not fall back to cached server managed settings', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({
+			error_code: 'client_update_required',
+			client_id: 'vscode',
+			client_version: '1.132.0',
+			minimum_client_version: '1.133.0',
+		}, 466));
+		const provider = await createProvider(requestService);
+		const cachedPolicy = createCachedPolicy(false);
+
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			status: provider.managedSettingsFetchStatus,
+			data: result.data,
+			compatibilityError: provider.managedSettingsCompatibilityError,
+		}, {
+			status: 466,
+			data: { managedSettings: undefined },
+			compatibilityError: {
+				errorCode: 'client_update_required',
+				clientVersion: '1.132.0',
+				minimumClientVersion: '1.133.0',
+			},
+		});
+	});
+
+	test('malformed 466 still blocks without compatibility metadata', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({ error_code: 'unexpected' }, 466));
+		const provider = await createProvider(requestService);
+
+		const result = await provider['getManagedSettings'](sessions, createCachedPolicy(false));
+
+		assert.deepStrictEqual({
+			data: result.data,
+			compatibilityError: provider.managedSettingsCompatibilityError,
+		}, {
+			data: { managedSettings: undefined },
+			compatibilityError: { errorCode: 'client_update_required' },
+		});
+	});
+
+	test('failed startup fetch retains cached managed settings when no rejection is known', async () => {
 		const requestService = new TestRequestService(async () => {
 			throw new Error('managed settings unavailable');
 		});
-		const provider = await createProvider({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }, requestService);
+		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
 		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
@@ -98,7 +145,63 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
-	async function createProvider(nativeManagedSettings: Record<string, boolean>, requestService: TestRequestService): Promise<DefaultAccountProvider> {
+	test('transient failure does not clear an update-required state', async () => {
+		let requestCount = 0;
+		const requestService = new TestRequestService(async () => {
+			requestCount++;
+			if (requestCount === 1) {
+				return jsonResponse({ error_code: 'client_update_required', client_id: 'vscode' }, 466);
+			}
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService);
+		const cachedPolicy = createCachedPolicy(false);
+
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+
+		assert.deepStrictEqual({
+			status: provider.managedSettingsFetchStatus,
+			data: result.data,
+			compatibilityError: provider.managedSettingsCompatibilityError,
+		}, {
+			status: 'no-response',
+			data: { managedSettings: undefined },
+			compatibilityError: { errorCode: 'client_update_required' },
+		});
+	});
+
+	test('successful full refresh clears a prior update-required state', async () => {
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
+				return jsonResponse({});
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(requestService);
+		provider['setManagedSettingsCompatibilityError']({ errorCode: 'client_update_required' });
+
+		const account = await provider['getDefaultAccountFromAuthenticatedSessions'](
+			{ id: 'github', name: 'GitHub', enterprise: false },
+			sessions,
+			{ forceRefresh: true }
+		);
+		assert.ok(account);
+		provider['setDefaultAccount'](account);
+
+		assert.deepStrictEqual({
+			compatibilityError: provider.managedSettingsCompatibilityError,
+			managedSettings: provider.policyData?.managedSettings,
+		}, {
+			compatibilityError: null,
+			managedSettings: {},
+		});
+	});
+
+	async function createProvider(requestService: TestRequestService): Promise<DefaultAccountProvider> {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAuthenticationService, {
@@ -123,6 +226,11 @@ suite('DefaultAccountProvider managed settings', () => {
 			remoteAuthority: undefined,
 			isSessionsWindow: false,
 		});
+		instantiationService.stub(IProductService, {
+			...TestProductService,
+			version: '1.132.0',
+			copilotVersions: { runtime: '0.0.344', sdk: '0.1.0' },
+		});
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IHostService, {
@@ -130,11 +238,6 @@ suite('DefaultAccountProvider managed settings', () => {
 			onDidChangeFocus: Event.None,
 		});
 		instantiationService.stub(ICommandService, {});
-		instantiationService.stub(INativeManagedSettingsService, {
-			managedSettings: nativeManagedSettings,
-			initialize: async () => nativeManagedSettings,
-			onDidChangeManagedSettings: Event.None,
-		});
 
 		const provider = disposables.add(instantiationService.createInstance(DefaultAccountProvider, {
 			preferredExtensions: [],
@@ -146,7 +249,7 @@ suite('DefaultAccountProvider managed settings', () => {
 				scopes: [['user:email']],
 			},
 			tokenEntitlementUrl: '',
-			entitlementUrl: '',
+			entitlementUrl: 'https://api.github.com/copilot_internal/user',
 			mcpRegistryDataUrl: '',
 			managedSettingsUrl: 'https://api.github.com/copilot_internal/managed_settings',
 		}));
@@ -172,12 +275,14 @@ class TestRequestService implements IRequestService {
 	readonly _serviceBrand: undefined;
 	readonly onDidCompleteRequest = Event.None;
 	requestCount = 0;
+	readonly requests: IRequestOptions[] = [];
 
-	constructor(private readonly requestHandler: () => Promise<IRequestContext>) { }
+	constructor(private readonly requestHandler: (options: IRequestOptions) => Promise<IRequestContext>) { }
 
-	request(): Promise<IRequestContext> {
+	request(options: IRequestOptions): Promise<IRequestContext> {
 		this.requestCount++;
-		return this.requestHandler();
+		this.requests.push(options);
+		return this.requestHandler(options);
 	}
 
 	async resolveProxy(): Promise<string | undefined> {
@@ -197,9 +302,9 @@ class TestRequestService implements IRequestService {
 	}
 }
 
-function jsonResponse(data: IManagedSettingsResponse): IRequestContext {
+function jsonResponse(data: unknown, statusCode = 200): IRequestContext {
 	return {
-		res: { statusCode: 200, headers: {} },
+		res: { statusCode, headers: {} },
 		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(data))),
 	};
 }
