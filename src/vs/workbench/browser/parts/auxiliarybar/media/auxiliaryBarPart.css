@@ -86,6 +86,10 @@
 	color: var(--vscode-activityBarTop-foreground) !important;
 }
 
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label {
+	color: var(--vscode-activityBarTop-hoverForeground, var(--vscode-activityBarTop-foreground)) !important;
+}
+
 .monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,
 .monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,
@@ -96,6 +100,10 @@
 .monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover .action-label,
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover .action-label {
 	outline: var(--vscode-contrastActiveBorder, unset) dashed 1px !important;
+}
+
+.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover {
+	background-color: var(--vscode-activityBarTop-hoverBackground, transparent);
 }
 
 .monaco-workbench .auxiliarybar.part.pane-composite-part > .composite.title > .title-actions {
