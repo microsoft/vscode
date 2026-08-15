@@ -48,7 +48,17 @@
         "emmet.includeLanguages": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
           },
           "default": {},
           "markdownDescription": "%emmetIncludeLanguages%"

@@ -40,6 +40,13 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		});
 	}
 
+	/**
+	 * Internal method to provide completion items for Emmet abbreviations
+	 * @param document The text document to provide completions for
+	 * @param position The position in the document to provide completions at
+	 * @param context The completion context
+	 * @returns A promise resolving to completion items or undefined
+	 */
 	private provideCompletionItemsInternal(document: vscode.TextDocument, position: vscode.Position, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 		const excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
@@ -48,8 +55,28 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		}
 
 		const mappedLanguages = getMappingForIncludedLanguages();
-		const isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
-		const emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), mappedLanguages, excludedLanguages);
+		const mapping = mappedLanguages[document.languageId];
+		const isSyntaxMapped = !!mapping;
+		
+		let emmetMode: string | undefined;
+		if (isSyntaxMapped) {
+			if (typeof mapping === 'string') {
+				// Handle single string mapping (backward compatibility)
+				emmetMode = getEmmetMode(mapping, mappedLanguages, excludedLanguages);
+			} else if (Array.isArray(mapping)) {
+				// Handle array of languages (new feature)
+				// Try each language in the array until we find a valid Emmet mode
+				for (const lang of mapping) {
+					const mode = getEmmetMode(lang, mappedLanguages, excludedLanguages);
+					if (mode) {
+						emmetMode = mode;
+						break;
+					}
+				}
+			}
+		} else {
+			emmetMode = getEmmetMode(document.languageId, mappedLanguages, excludedLanguages);
+		}
 
 		if (!emmetMode
 			|| emmetConfig['showExpandedAbbreviation'] === 'never'
