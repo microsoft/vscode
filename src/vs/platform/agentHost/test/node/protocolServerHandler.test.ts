@@ -132,6 +132,8 @@ class MockAgentService implements IAgentService {
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
 	subscribeBarrier: DeferredPromise<void> | undefined;
+	readonly subscribeCalls: { resource: string; clientId: string }[] = [];
+	readonly unsubscribeCalls: { resource: string; clientId: string }[] = [];
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -187,7 +189,8 @@ class MockAgentService implements IAgentService {
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
-	async subscribe(resource: URI, _clientId: string): Promise<IStateSnapshot> {
+	async subscribe(resource: URI, clientId: string): Promise<IStateSnapshot> {
+		this.subscribeCalls.push({ resource: resource.toString(), clientId });
 		await this.subscribeBarrier?.p;
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
@@ -196,7 +199,9 @@ class MockAgentService implements IAgentService {
 		return snapshot;
 	}
 	addSubscriber(_resource: URI, _clientId: string): void { }
-	unsubscribe(_resource: URI, _clientId: string): void { }
+	unsubscribe(resource: URI, clientId: string): void {
+		this.unsubscribeCalls.push({ resource: resource.toString(), clientId });
+	}
 	async shutdown(): Promise<void> { this.shutdownCalls++; }
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
@@ -591,6 +596,27 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(resp, 'should have sent response');
 		const result = (resp as unknown as { result: { snapshot: IStateSnapshot } }).result;
 		assert.strictEqual(result.snapshot.resource.toString(), sessionUri.toString());
+	});
+
+	test('disconnect cancels a pending subscribe request', async () => {
+		stateManager.createSession(makeSessionSummary());
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		await Promise.resolve();
+		transport.simulateClose();
+		await agentService.subscribeBarrier.complete();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			subscribes: agentService.subscribeCalls,
+			unsubscribes: agentService.unsubscribeCalls,
+		}, {
+			subscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+		});
 	});
 
 	test('client action is dispatched and echoed', () => {
@@ -1007,6 +1033,35 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			idleWhileRestoring: false,
 			idleAfterRestore: true,
+		});
+	});
+
+	test('disconnect cancels pending reconnect subscription restoration', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const initialTransport = connectClient('client-reconnect-cancel', [sessionUri]);
+		const initialResponse = findResponse(initialTransport.sent, 1) as { result: InitializeResult };
+		initialTransport.simulateClose();
+		agentService.unsubscribeCalls.length = 0;
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+
+		const reconnectTransport = new MockProtocolTransport();
+		server.simulateConnection(reconnectTransport);
+		reconnectTransport.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-reconnect-cancel',
+			lastSeenServerSeq: initialResponse.result.serverSeq,
+			subscriptions: [sessionUri],
+		}));
+		await Promise.resolve();
+		reconnectTransport.simulateClose();
+		await agentService.subscribeBarrier.complete();
+		await handler.whenIdle();
+
+		assert.deepStrictEqual({
+			subscribes: agentService.subscribeCalls,
+			unsubscribes: agentService.unsubscribeCalls,
+		}, {
+			subscribes: [{ resource: sessionUri, clientId: 'client-reconnect-cancel' }],
+			unsubscribes: [{ resource: sessionUri, clientId: 'client-reconnect-cancel' }],
 		});
 	});
 

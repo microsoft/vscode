@@ -863,12 +863,18 @@ export class ProtocolServerHandler extends Disposable {
 					fromSeq: this._stateManager.serverSeq,
 				};
 			}
+			client.subscriptions.set(classified.uri, classified);
 			try {
 				const snapshot = await this._agentService.subscribe(URI.parse(key), client.clientId);
-				client.subscriptions.set(classified.uri, classified);
+				if (client.subscriptions.get(classified.uri) !== classified) {
+					throw new Error(`Subscription cancelled: ${key}`);
+				}
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				return snapshot;
 			} catch (err) {
+				if (client.subscriptions.get(classified.uri) === classified) {
+					client.subscriptions.delete(classified.uri);
+				}
 				this._logService.info(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
 				missing.push(sub);
 				return undefined;
@@ -1312,15 +1318,21 @@ export class ProtocolServerHandler extends Disposable {
 					},
 				};
 			}
+			client.subscriptions.set(classified.uri, classified);
 			try {
 				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
-				client.subscriptions.set(classified.uri, classified);
+				if (client.subscriptions.get(classified.uri) !== classified) {
+					throw new Error(`Subscription cancelled: ${params.channel}`);
+				}
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
 				// the generated wire `Snapshot` union does not list it yet. The value
 				// is JSON over the wire, so narrowing at this boundary is safe.
 				return { snapshot: snapshot as SubscribeResult['snapshot'] };
 			} catch (err) {
+				if (client.subscriptions.get(classified.uri) === classified) {
+					client.subscriptions.delete(classified.uri);
+				}
 				if (err instanceof ProtocolError) {
 					throw err;
 				}
