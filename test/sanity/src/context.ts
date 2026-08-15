@@ -918,11 +918,11 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installWindowsApp(type: 'user' | 'system', installerPath: string): string {
-		const resolvedInstallerPath = path.resolve(installerPath);
-
-		if (!path.isAbsolute(resolvedInstallerPath)) {
+		if (!path.isAbsolute(installerPath)) {
 			this.error(`Installer path must be absolute: ${installerPath}`);
 		}
+
+		const resolvedInstallerPath = path.resolve(installerPath);
 
 		if (path.extname(resolvedInstallerPath).toLowerCase() !== '.exe') {
 			this.error(`Installer path must point to an .exe file: ${resolvedInstallerPath}`);
