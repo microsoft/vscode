@@ -28,7 +28,7 @@ import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChangedParams } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -5207,7 +5207,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _handleSessionSummaryChanged(session: string, changes: Partial<SessionSummary>): void {
+	private _handleSessionSummaryChanged(session: string, changes: SessionSummaryChangedParams['changes']): void {
 		// Set when a delta clears the adoptable-legacy marker so we can reopen the
 		// passive state subscription after the transaction commits (the observable
 		// updates in `_ensureSessionStateSubscription` must not run nested in `tx`).
@@ -5250,7 +5250,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// itself (label / URI template / `changeKind`) arrives via the
 			// `SessionChangesetsChanged` action, handled by
 			// `_handleChangesetsChanged`.
-			if (Object.prototype.hasOwnProperty.call(changes, 'changes') && cached.setChangesSummary(changes.changes, tx)) {
+			if (changes.changesCleared === true && cached.setChangesSummary(undefined, tx)) {
+				didChange = true;
+			} else if (changes.changes !== undefined && cached.setChangesSummary(changes.changes, tx)) {
 				didChange = true;
 			}
 

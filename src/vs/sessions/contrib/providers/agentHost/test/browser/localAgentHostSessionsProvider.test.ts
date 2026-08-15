@@ -19,9 +19,9 @@ import { AgentSession, type IAgentCreateChatOptions, type IAgentCreateSessionCon
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -564,14 +564,16 @@ function fireSessionRemoved(agentHost: MockAgentHostService, rawId: string, prov
 	});
 }
 
-function fireSessionSummaryChanged(agentHost: MockAgentHostService, rawId: string, changes: Partial<SessionSummary>, provider = 'copilotcli'): void {
+function fireSessionSummaryChanged(agentHost: MockAgentHostService, rawId: string, changes: SessionSummaryChangedParams['changes'], provider = 'copilotcli'): void {
 	const sessionUri = AgentSession.uri(provider, rawId);
-	agentHost.fireNotification({
+	const notification: INotification = {
 		channel: 'ahp-root://',
 		type: NotificationType.SessionSummaryChanged,
 		session: sessionUri.toString(),
 		changes,
-	});
+	};
+	const roundTrippedNotification: INotification = JSON.parse(JSON.stringify(notification));
+	agentHost.fireNotification(roundTrippedNotification);
 }
 
 /**
@@ -1289,19 +1291,49 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('hydrates persisted pull request icon and change stats before the live list is available', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('hydrates persisted change stats before the live list is available', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const previousHost = new MockAgentHostService();
 		disposables.add(toDisposable(() => previousHost.dispose()));
-		previousHost.addSession(createSession('cached-metadata', {
-			summary: 'Cached Metadata',
+		previousHost.addSession(createSession('cached-metadata', { summary: 'Cached Metadata' }));
+		createProvider(disposables, previousHost, undefined, { storageService });
+		await timeout(0);
+		await storageService.flush();
+
+		fireSessionSummaryChanged(previousHost, 'cached-metadata', {
+			changes: { additions: 12, deletions: 4, files: 3 },
+		});
+		await storageService.flush();
+
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const nextProvider = createProvider(disposables, nextHost, undefined, { storageService });
+		const listSessionsCallsBeforeRead = nextHost.listSessionsCallCount;
+		const restored = nextProvider.getSessions()[0];
+
+		assert.deepStrictEqual({
+			listSessionsCallsBeforeRead,
+			changesSummary: restored.changesSummary?.get(),
+		}, {
+			listSessionsCallsBeforeRead: 0,
+			changesSummary: { additions: 12, deletions: 4, files: 3 },
+		});
+	}));
+
+	test('hydrates a pull request icon persisted by a metadata-only update', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const previousHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => previousHost.dispose()));
+		previousHost.addSession(createSession('cached-pr', {
+			summary: 'Cached PR',
 			project: { uri: URI.file('/repo'), displayName: 'repo' },
 		}));
 		createProvider(disposables, previousHost, undefined, { storageService });
 		await timeout(0);
+		await storageService.flush();
 
-		fireSessionSummaryChanged(previousHost, 'cached-metadata', {
-			changes: { additions: 12, deletions: 4, files: 3 },
+		fireSessionSummaryChanged(previousHost, 'cached-pr', {
 			_meta: withSessionGitHubState(undefined, {
 				owner: 'owner',
 				repo: 'repo',
@@ -1319,17 +1351,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
 		const nextProvider = createProvider(disposables, nextHost, undefined, { storageService, gitHubService });
-		const listSessionsCallsBeforeRead = nextHost.listSessionsCallCount;
 		const restored = nextProvider.getSessions()[0];
 		const pullRequestIcon = restored.completedStateIcon?.get();
 
 		assert.deepStrictEqual({
-			listSessionsCallsBeforeRead,
-			changesSummary: restored.changesSummary?.get(),
 			pullRequestIcon: pullRequestIcon && { id: pullRequestIcon.id, color: pullRequestIcon.color?.id },
 		}, {
-			listSessionsCallsBeforeRead: 0,
-			changesSummary: { additions: 12, deletions: 4, files: 3 },
 			pullRequestIcon: {
 				id: computePullRequestIcon(GitHubPullRequestState.Open).id,
 				color: computePullRequestIcon(GitHubPullRequestState.Open).color?.id,
@@ -1347,8 +1374,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		const previousProvider = createProvider(disposables, previousHost, undefined, { storageService });
 		await timeout(0);
+		await storageService.flush();
 
-		fireSessionSummaryChanged(previousHost, 'cleared-changes', { changes: undefined });
+		fireSessionSummaryChanged(previousHost, 'cleared-changes', { changesCleared: true });
 		await storageService.flush();
 
 		const nextHost = new MockAgentHostService();

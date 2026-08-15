@@ -78,7 +78,6 @@ export {
 	AuthRequiredReason,
 	type SessionAddedParams,
 	type SessionRemovedParams,
-	type SessionSummaryChangedParams,
 	type ProgressParams,
 	type AuthRequiredParams,
 } from './protocol/notifications.js';
@@ -133,8 +132,19 @@ import type {
 	RootConfigChangedAction,
 } from './protocol/actions.js';
 
-import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams, AuthRequiredParams } from './protocol/notifications.js';
+import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams as ProtocolSessionSummaryChangedParams, ProgressParams, AuthRequiredParams } from './protocol/notifications.js';
 import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ChatAction as IChatAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, ClientChatAction as IClientChatAction_, ServerChatAction as IServerChatAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, ChangesetAction as IChangesetAction_, ClientChangesetAction as IClientChangesetAction_, AnnotationsAction as IAnnotationsAction_, ClientAnnotationsAction as IClientAnnotationsAction_ } from './protocol/action-origin.generated.js';
+
+/**
+ * Adds a wire-representable aggregate-change clear to the partial summary.
+ * JSON serialization cannot preserve an explicit `undefined` property.
+ */
+export interface SessionSummaryChangedParams extends Omit<ProtocolSessionSummaryChangedParams, 'changes'> {
+	changes: ProtocolSessionSummaryChangedParams['changes'] & {
+		/** Clear the cached aggregate change summary. */
+		changesCleared?: true;
+	};
+}
 
 /**
  * Discriminated union of all server→client protocol notifications other than

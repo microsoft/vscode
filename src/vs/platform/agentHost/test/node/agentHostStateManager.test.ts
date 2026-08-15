@@ -9,9 +9,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type INotification, type SessionSummaryChangedParams } from '../../common/state/sessionActions.js';
 import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
-import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
@@ -733,6 +732,31 @@ suite('AgentHostStateManager', () => {
 			const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged);
 			assert.strictEqual(changed.length, 1, 'should coalesce into one notification');
 			assert.strictEqual((changed[0] as SessionSummaryChangedParams).changes.title, 'Second');
+		});
+	});
+
+	test('emits a wire-representable change-summary clear', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.createSession({
+				...makeSessionSummary(),
+				changes: { additions: 12, deletions: 4, files: 3 },
+			});
+
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+			manager.setSessionSummaryChanges(sessionUri, undefined);
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			const notification = notifications.find(notification => notification.type === NotificationType.SessionSummaryChanged);
+			const roundTripped: INotification | undefined = notification && JSON.parse(JSON.stringify(notification));
+
+			assert.deepStrictEqual(roundTripped, {
+				type: NotificationType.SessionSummaryChanged,
+				channel: ROOT_STATE_URI,
+				session: sessionUri,
+				changes: { changesCleared: true },
+			});
 		});
 	});
 
