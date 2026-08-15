@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -19,7 +20,7 @@ import type { Implementation } from '../../common/state/protocol/common/commands
 import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -129,6 +130,8 @@ class MockAgentService implements IAgentService {
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	shutdownCalls = 0;
+	createSessionBarrier: DeferredPromise<void> | undefined;
+	subscribeBarrier: DeferredPromise<void> | undefined;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -153,6 +156,7 @@ class MockAgentService implements IAgentService {
 	}
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		this.createSessionConfigs.push(config);
+		await this.createSessionBarrier?.p;
 		const session = config?.session ?? URI.parse('copilot:///new-session');
 		this._stateManager.createSession({
 			resource: session.toString(),
@@ -184,6 +188,7 @@ class MockAgentService implements IAgentService {
 	}
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
 	async subscribe(resource: URI, _clientId: string): Promise<IStateSnapshot> {
+		await this.subscribeBarrier?.p;
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
 			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
@@ -880,6 +885,25 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result.items.map(item => readSessionWorkspaceless(item._meta)), [true]);
 	});
 
+	test('listSessions carries external provenance on _meta', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Native Chat',
+			_meta: withSessionExternal(undefined, true),
+		});
+
+		const transport = connectClient('client-list-external');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => readSessionExternal(item._meta)), [true]);
+	});
+
 	test('listSessions omits _meta when the agent provides none', async () => {
 		// The wire item is built field by field and `satisfies SessionSummary`
 		// cannot catch a dropped optional, so pin the absent case too: a
@@ -946,6 +970,61 @@ suite('ProtocolServerHandler', () => {
 			errorCode: AhpErrorCodes.SessionAlreadyExists,
 			errorMessage: `Fork target session must differ from source session: ${session}`,
 			createCalls: 0,
+		});
+	});
+
+	test('whenIdle waits for in-flight protocol requests after disposal', async () => {
+		const transport = connectClient('client-drain');
+		agentService.createSessionBarrier = new DeferredPromise<void>();
+		const newSession = URI.parse('copilot:///drain-session').toString();
+		transport.simulateMessage(request(2, 'createSession', { channel: newSession }));
+		handler.dispose();
+		let idle = false;
+		const whenIdle = handler.whenIdle().then(() => idle = true);
+
+		await Promise.resolve();
+		const idleWhileRequestPending = idle;
+		agentService.createSessionBarrier.complete();
+		await whenIdle;
+
+		assert.deepStrictEqual({
+			idleWhileRequestPending,
+			idleAfterRequest: idle,
+		}, {
+			idleWhileRequestPending: false,
+			idleAfterRequest: true,
+		});
+	});
+
+	test('whenIdle waits for reconnect subscription restoration', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const initialTransport = connectClient('client-drain-reconnect', [sessionUri]);
+		const initialResponse = findResponse(initialTransport.sent, 1) as { result: InitializeResult };
+		initialTransport.simulateClose();
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+
+		const reconnectTransport = new MockProtocolTransport();
+		server.simulateConnection(reconnectTransport);
+		reconnectTransport.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-drain-reconnect',
+			lastSeenServerSeq: initialResponse.result.serverSeq,
+			subscriptions: [sessionUri],
+		}));
+		await Promise.resolve();
+		let idle = false;
+		const whenIdle = handler.whenIdle().then(() => idle = true);
+
+		await Promise.resolve();
+		const idleWhileRestoring = idle;
+		agentService.subscribeBarrier.complete();
+		await whenIdle;
+
+		assert.deepStrictEqual({
+			idleWhileRestoring,
+			idleAfterRestore: idle,
+		}, {
+			idleWhileRestoring: false,
+			idleAfterRestore: true,
 		});
 	});
 
@@ -1189,6 +1268,8 @@ suite('ProtocolServerHandler', () => {
 	test('retains client info for action attribution across reconnect', async () => {
 		const transport1 = connectClient('client-attribution', undefined, agentsWindowAgentHostClientInfo, {
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel,
+			'vscode.clientMachineId': 'client-machine-id',
+			'vscode.clientDevDeviceId': 'client-dev-device-id',
 		});
 		transport1.simulateMessage(notification('dispatchAction', {
 			channel: 'ahp-root://',
@@ -1204,6 +1285,10 @@ suite('ProtocolServerHandler', () => {
 			clientId: 'client-attribution',
 			lastSeenServerSeq: stateManager.serverSeq,
 			subscriptions: [],
+			_meta: {
+				'vscode.clientMachineId': 'client-machine-id',
+				'vscode.clientDevDeviceId': 'client-dev-device-id',
+			},
 		}));
 		await reconnectRespPromise;
 		transport2.simulateMessage(notification('dispatchAction', {
@@ -1215,10 +1300,79 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			clientTypes: agentService.handledClientTypes,
 			connectionKinds: agentService.handledClientContexts.map(context => context?.connectionKind),
+			machineIds: agentService.handledClientContexts.map(context => context?.machineId),
+			devDeviceIds: agentService.handledClientContexts.map(context => context?.devDeviceId),
 		}, {
 			clientTypes: ['agents_window', 'agents_window'],
 			connectionKinds: ['dev_tunnel', 'dev_tunnel'],
+			machineIds: ['client-machine-id', 'client-machine-id'],
+			devDeviceIds: ['client-dev-device-id', 'client-dev-device-id'],
 		});
+	});
+
+	test('does not retain client telemetry identity when reconnect omits it', async () => {
+		const transport1 = connectClient('client-consent', undefined, agentsWindowAgentHostClientInfo, {
+			'vscode.clientMachineId': 'client-machine-id',
+			'vscode.clientDevDeviceId': 'client-dev-device-id',
+		});
+		transport1.simulateClose();
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-consent',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+		transport2.simulateMessage(notification('dispatchAction', {
+			channel: 'ahp-root://',
+			clientSeq: 1,
+			action: { type: ActionType.RootConfigChanged, config: {} },
+		}));
+
+		assert.deepStrictEqual(agentService.handledClientContexts.at(-1), {
+			clientType: 'agents_window',
+			connectionKind: 'unknown',
+			transportKind: 'unknown',
+			hostLaunchKind: 'vscode_main_process',
+		});
+	});
+
+	test('attributes telemetry identity independently for concurrent clients', () => {
+		const clients = [
+			connectClient('client-a', undefined, agentsWindowAgentHostClientInfo, {
+				'vscode.clientMachineId': 'machine-a',
+				'vscode.clientDevDeviceId': 'device-a',
+			}),
+			connectClient('client-b', undefined, editorWindowAgentHostClientInfo, {
+				'vscode.clientMachineId': 'machine-b',
+				'vscode.clientDevDeviceId': 'device-b',
+			}),
+		];
+
+		for (const client of clients) {
+			client.simulateMessage(notification('dispatchAction', {
+				channel: 'ahp-root://',
+				clientSeq: 1,
+				action: { type: ActionType.RootConfigChanged, config: {} },
+			}));
+		}
+
+		assert.deepStrictEqual(agentService.handledClientContexts.map(context => ({
+			clientType: context?.clientType,
+			machineId: context?.machineId,
+			devDeviceId: context?.devDeviceId,
+		})), [{
+			clientType: 'agents_window',
+			machineId: 'machine-a',
+			devDeviceId: 'device-a',
+		}, {
+			clientType: 'editor_window',
+			machineId: 'machine-b',
+			devDeviceId: 'device-b',
+		}]);
 	});
 
 	test('reports client topology and attributes actions to the initiating connection', () => {
@@ -1228,7 +1382,11 @@ suite('ProtocolServerHandler', () => {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: 'tunnel-client',
 			clientInfo: { name: 'vscode-agents-window', version: '1.2.3', title: 'VS Code Agents Window' },
-			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel },
+			_meta: {
+				'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevTunnel,
+				'vscode.clientMachineId': 'client-machine-id',
+				'vscode.clientDevDeviceId': 'client-dev-device-id',
+			},
 		}));
 		transport.simulateMessage(notification('dispatchAction', {
 			channel: 'ahp-root://',
@@ -1256,6 +1414,8 @@ suite('ProtocolServerHandler', () => {
 				connectionKind: 'dev_tunnel',
 				transportKind: 'websocket',
 				hostLaunchKind: 'vscode_main_process',
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
 			},
 			connectionEvents: [{
 				eventName: 'agentHost.clientConnection',
@@ -1268,6 +1428,8 @@ suite('ProtocolServerHandler', () => {
 					clientImplementationVersion: '1.2.3',
 					connectionKind: 'dev_tunnel',
 					transportKind: 'websocket',
+					clientMachineId: 'client-machine-id',
+					clientDevDeviceId: 'client-dev-device-id',
 					protocolVersion: PROTOCOL_VERSION,
 					isReconnect: false,
 					connectedClientCount: 1,
@@ -1287,6 +1449,8 @@ suite('ProtocolServerHandler', () => {
 					clientImplementationVersion: '1.2.3',
 					connectionKind: 'dev_tunnel',
 					transportKind: 'websocket',
+					clientMachineId: 'client-machine-id',
+					clientDevDeviceId: 'client-dev-device-id',
 					protocolVersion: PROTOCOL_VERSION,
 					isReconnect: false,
 					connectedClientCount: 0,

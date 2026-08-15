@@ -72,10 +72,10 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		return sessionUri;
 	}
 
-	async function createWorkspaceSession(prefix: string): Promise<{ sessionUri: string; workspace: string }> {
+	async function createWorkspaceSession(prefix: string, beforeCreateSession?: () => Promise<void>): Promise<{ sessionUri: string; workspace: string }> {
 		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
 		tempDirs.push(workspace);
-		const sessionUri = await createRealSession(context.client, config, `${prefix}-client`, createdSessions, URI.file(workspace));
+		const sessionUri = await createRealSession(context.client, config, `${prefix}-client`, createdSessions, URI.file(workspace), beforeCreateSession);
 		return { sessionUri, workspace };
 	}
 
@@ -576,13 +576,12 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	// Windows publishes the terminal but omits the completed command metadata.
 	(context.isWindows ? test.skip : test)('custom terminal tool preserves a nonzero shell exit code', async function () {
 		this.timeout(180_000);
-		const { sessionUri } = await createWorkspaceSession('custom-terminal-exit-code');
 		const deterministicShellConfig = context.isWindows ? {} : { [AgentHostConfigKey.DefaultShell]: '/bin/bash' };
 		try {
-			await setRootConfig({
+			const { sessionUri } = await createWorkspaceSession('custom-terminal-exit-code', () => setRootConfig({
 				[CopilotCliConfigKey.EnableCustomTerminalTool]: true,
 				...deterministicShellConfig,
-			}, 100);
+			}, 100));
 			const turnId = 'turn-custom-terminal-exit-code';
 			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Run exactly `node -e "process.exit(9)"` with bash, then reply exactly "failed as expected".', 1);
 			const shellStart = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
@@ -619,7 +618,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	});
 
 	// Windows loses the persisted provider session during restart, so the host cannot reconstruct its tool history.
-	(context.isWindows ? test.skip : test)('tool-rich provider history is reconstructed after a host restart', async function () {
+	(!context.isWindows || context.runKnownIssueTests ? test : test.skip)('tool-rich provider history is reconstructed after a host restart', async function () {
 		this.timeout(240_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('tool-history-restart');
 		writeFileSync(join(workspace, 'history.txt'), 'before\n');

@@ -105,6 +105,30 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
 		});
 
+		test('sanitizes agent-provided markdown', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'text',
+					title: 'Question',
+					message: new MarkdownString('![remote](https://example.com/question.png)'),
+					detailedMessage: new MarkdownString('![remote](https://example.com/details.png)')
+				}
+			]);
+			carousel.message = new MarkdownString('![remote](https://example.com/carousel.png)');
+			createWidget(carousel);
+
+			assert.deepStrictEqual({
+				carouselMessageImages: widget.domNode.querySelectorAll('.chat-question-carousel-message img').length,
+				questionMessageImages: widget.domNode.querySelectorAll('.chat-question-title img').length,
+				detailedMessageImages: widget.domNode.querySelectorAll('.chat-question-detailed-message img').length,
+			}, {
+				carouselMessageImages: 0,
+				questionMessageImages: 0,
+				detailedMessageImages: 0,
+			});
+		});
+
 		test('renders plain string question message as text', () => {
 			const carousel = createMockCarousel([
 				{
@@ -1147,6 +1171,8 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(message, 'Carousel message should be rendered');
 			assert.ok(message?.querySelector('.rendered-markdown'), 'Message should be rendered as markdown');
 		});
+
+
 
 		test('shows required indicator on required questions', () => {
 			const carousel = createMockCarousel([

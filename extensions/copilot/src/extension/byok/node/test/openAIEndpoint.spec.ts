@@ -44,6 +44,29 @@ const createTestOptions = (messages: Raw.ChatMessage[]): ICreateEndpointBodyOpti
 	location: undefined as any
 });
 
+const createParameterlessToolOptions = (): ICreateEndpointBodyOptions => {
+	const tools = [{
+		type: 'function' as const,
+		function: {
+			name: 'terminal_last_command',
+			description: 'Get the last command run in the active terminal.',
+			parameters: undefined,
+		}
+	}];
+	return {
+		...createTestOptions([{
+			role: Raw.ChatRole.User,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+		}]),
+		postOptions: {
+			tools
+		},
+		requestOptions: {
+			tools
+		}
+	};
+};
+
 const createMakeRequestOptions = (messages: Raw.ChatMessage[], ignoreStatefulMarker?: boolean): IMakeChatRequestOptions => ({
 	debugName: 'test',
 	messages,
@@ -127,6 +150,35 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('CAPI mode (useResponsesApi = false)', () => {
+		it('adds an empty object schema to a parameterless tool', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: {
+							...modelMetadata.capabilities.supports,
+							tool_calls: true,
+						}
+					}
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const body = endpoint.createRequestBody(createParameterlessToolOptions());
+			endpoint.interceptBody(body);
+
+			expect(body.tools).toStrictEqual([{
+				type: 'function',
+				function: {
+					name: 'terminal_last_command',
+					description: 'Get the last command run in the active terminal.',
+					parameters: { type: 'object', properties: {} },
+				}
+			}]);
+		});
+
 		it('should set cot_id and cot_summary properties when processing thinking content', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
@@ -245,6 +297,33 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
+		it('adds an empty object schema to a parameterless tool', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: {
+							...modelMetadata.capabilities.supports,
+							tool_calls: true,
+						}
+					}
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+
+			const body = endpoint.createRequestBody(createParameterlessToolOptions());
+			endpoint.interceptBody(body);
+
+			expect(body.tools).toStrictEqual([{
+				type: 'function',
+				name: 'terminal_last_command',
+				description: 'Get the last command run in the active terminal.',
+				parameters: { type: 'object', properties: {} },
+				strict: false,
+			}]);
+		});
+
 		it('should preserve reasoning object when thinking is supported', () => {
 			const modelWithReasoningEffort = {
 				...modelMetadata,

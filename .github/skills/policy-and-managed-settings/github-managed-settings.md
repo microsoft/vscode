@@ -82,6 +82,8 @@ the schema's nested
 | Schema property (path) | Type in schema | Composition (`x-composition.strategy`) |
 |------------------------|----------------|----------------------------------------|
 | `permissions.disableBypassPermissionsMode` | string enum `"disable"` | most-restrictive-wins (sticky once set) |
+| `model` | string (`auto`, a model family name, or a full model id) | — |
+| `permissions.model` | string (legacy location for `model`) | — |
 | `forceRemoteSettingsRefresh` | boolean | MDM wins; controls the server cache rather than a configuration setting |
 | `enabledPlugins` | `{ "PLUGIN@MARKETPLACE": boolean }` | deny-wins (false beats true; enterprise denials immutable) |
 | `extraKnownMarketplaces` | `{ name: { source, autoUpdate? } }`, source `github` \| `git` \| `directory` | most-restrictive-wins (higher layer is the complete allowlist); explicit `autoUpdate` overrides the client's global plugin auto-update setting for that marketplace |
@@ -111,6 +113,15 @@ the schema's nested
 Note the schema's `x-composition` describes the **server/runtime** layering across
 enterprise/org/user. Inside VS Code the bag has already been collapsed to a single
 projected `ManagedSettingsData` before a `policy.value()` callback ever sees it.
+
+> **Multi-key precedence (`model`).** The channel merge in `pickManagedSettings` only resolves the
+> *same* key across delivery channels; it does not know that top-level `model` supersedes the legacy
+> nested `permissions.model`. That cross-key precedence is resolved in the policy's `value()`
+> callback (`managedModelValue` in `copilotManagedSettings.ts`), which reads the top-level key first
+> and falls back to the legacy key (treating a blank value as unset). Because it is key-level, a
+> non-empty top-level `model` wins even when `permissions.model` was supplied by a
+> higher-precedence channel. The `ChatDefaultModel` policy declares **both** keys in its
+> `managedSettings` so native MDM watches each and projection keeps them.
 
 ## Declaring a managed setting on a policy
 
@@ -234,6 +245,8 @@ Constants (also in `copilotManagedSettings.ts`):
 | `GITHUB_COPILOT_WIN32_POLICY_NAME` | `GitHubCopilot` (productName for the watcher) |
 | `GITHUB_COPILOT_MACOS_BUNDLE_ID` | `com.github.copilot` (CFPreferences app id) |
 | `COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY` | `permissions.disableBypassPermissionsMode` |
+| `COPILOT_TOP_LEVEL_MODEL_KEY` | `model` (canonical; wins over the legacy nested key) |
+| `COPILOT_MODEL_KEY` | `permissions.model` (legacy; retained for original-schema deployments) |
 | `COPILOT_ENABLED_PLUGINS_KEY` | `enabledPlugins` |
 | `COPILOT_EXTRA_MARKETPLACES_KEY` | `extraKnownMarketplaces` |
 | `COPILOT_STRICT_MARKETPLACES_KEY` | `strictKnownMarketplaces` |

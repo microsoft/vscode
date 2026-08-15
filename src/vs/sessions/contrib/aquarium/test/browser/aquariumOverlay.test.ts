@@ -16,6 +16,7 @@ import { InMemoryStorageService, StorageScope } from '../../../../../platform/st
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AquariumService, SESSIONS_DEVELOPER_JOY_ENABLED_SETTING } from '../../browser/aquariumOverlay.js';
+import { disposeSharedFishDefs, Fish, FishSpecies } from '../../browser/fish.js';
 
 suite('AquariumService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,6 +86,77 @@ suite('AquariumService', () => {
 			afterHide: { visible: false, display: 'none', stored: false },
 			shown: true,
 			afterShow: { visible: true, display: '' },
+		});
+	});
+
+	test('creates aquarium elements in the main realm for an auxiliary window', () => {
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		store.add(toDisposable(() => iframe.remove()));
+
+		const auxiliaryDocument = iframe.contentDocument!;
+		const toggleContainer = document.createElement('div');
+		auxiliaryDocument.body.appendChild(toggleContainer);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		store.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		const storageService = store.add(new InMemoryStorageService());
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}();
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupManagedHover(): IManagedHover {
+				return {
+					dispose() { },
+					show() { },
+					hide() { },
+					update() { },
+				};
+			}
+		}();
+		const configurationService = new TestConfigurationService({ [SESSIONS_DEVELOPER_JOY_ENABLED_SETTING]: true });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const service = store.add(new AquariumService(
+			layoutService,
+			new MockContextKeyService(),
+			hoverService,
+			storageService,
+			configurationService,
+			new TestAccessibilityService(),
+			new NullTelemetryServiceShape(),
+		));
+		store.add(service.mountToggle(toggleContainer));
+		const fish = new Fish({
+			species: FishSpecies.Stable,
+			size: 24,
+			positionX: 0,
+			positionY: 0,
+			velocityX: 1,
+			velocityY: 0,
+		}, auxiliaryDocument);
+		auxiliaryDocument.body.appendChild(fish.element);
+		store.add(toDisposable(() => {
+			fish.element.remove();
+			disposeSharedFishDefs(auxiliaryDocument);
+		}));
+
+		const button = toggleContainer.querySelector('.agents-aquarium-toggle');
+		const svg = fish.element.querySelector('svg');
+		assert.deepStrictEqual({
+			buttonOwnerDocument: button?.ownerDocument === auxiliaryDocument,
+			fishOwnerDocument: fish.element.ownerDocument === auxiliaryDocument,
+			mainRealmButton: button instanceof HTMLButtonElement,
+			mainRealmFish: fish.element instanceof HTMLDivElement,
+			mainRealmSvg: svg instanceof SVGSVGElement,
+		}, {
+			buttonOwnerDocument: true,
+			fishOwnerDocument: true,
+			mainRealmButton: true,
+			mainRealmFish: true,
+			mainRealmSvg: true,
 		});
 	});
 });

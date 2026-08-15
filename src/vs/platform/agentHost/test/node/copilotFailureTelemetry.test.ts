@@ -10,6 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { readAgentErrorTelemetryMeta } from '../../common/meta/agentErrorMeta.js';
 import { buildChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { classifyCopilotClientFailure, createCopilotFailureCorrelation, normalizeCopilotApiEndpoint, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
@@ -66,7 +68,20 @@ suite('CopilotFailureTelemetry', () => {
 		const session = AgentSession.uri('copilotcli', 'agent-session-id');
 		const chat = URI.parse(buildChatUri(session, 'peer-chat-id'));
 
-		assert.deepStrictEqual(createCopilotFailureCorrelation(session, chat, 'turn-id', 'sdk-session-id'), {
+		assert.deepStrictEqual(createCopilotFailureCorrelation(session, chat, 'turn-id', 'sdk-session-id', {
+			clientType: AgentHostClientType.EditorWindow,
+			connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+			transportKind: AgentHostTransportKind.MessagePort,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		}), {
+			initiatorClientType: 'editor_window',
+			initiatorConnectionKind: 'remote_extension_host',
+			initiatorTransportKind: 'message_port',
+			hostLaunchKind: 'vscode_main_process',
+			initiatorMachineId: 'client-machine-id',
+			initiatorDevDeviceId: 'client-dev-device-id',
 			agentSessionId: 'agent-session-id',
 			chatSessionId: getTelemetryChatSessionId(chat),
 			turnId: 'turn-id',

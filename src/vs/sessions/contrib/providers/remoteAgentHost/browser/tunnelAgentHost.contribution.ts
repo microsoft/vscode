@@ -8,7 +8,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import * as nls from '../../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -16,6 +16,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { ITunnelHostService } from '../../../../../workbench/contrib/chat/common/tunnelHost.js';
 import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { logTunnelConnectAttempt, logTunnelConnectResolved, logTunnelDiscoveryResult, TunnelConnectErrorCategory, TunnelConnectFailureReason, TunnelDiscoveryTrigger } from '../../../../common/sessionsTelemetry.js';
@@ -92,6 +93,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IHostService private readonly _hostService: IHostService,
+		@ITunnelHostService private readonly _tunnelHostService: ITunnelHostService,
 		@IAgentHostFilterService agentHostFilterService: IAgentHostFilterService,
 	) {
 		super();
@@ -116,6 +118,11 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			this._reconcileProviders();
 			// Stop any reconnect loops for tunnels that no longer exist
 			this._pruneReconnectState();
+		}));
+
+		this._register(this._tunnelHostService.onDidChangeStatus(() => {
+			this._resetHostedTunnelReconnectState();
+			this._silentStatusCheck();
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -200,6 +207,22 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _getProviderTunnels() {
 		return this._tunnelService.getCachedTunnels().filter(tunnel => !this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId));
+	}
+
+	private _isHostedTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
+		return isTunnelHosted(this._tunnelHostService.sharingInfo, tunnel);
+	}
+
+	private _resetHostedTunnelReconnectState(): void {
+		for (const tunnel of this._tunnelService.getCachedTunnels()) {
+			if (this._isHostedTunnel(tunnel)) {
+				const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+				this._resetReconnectState(address);
+				if (this._remoteAgentHostService.connections.some(connection => connection.address === address && RemoteAgentHostConnectionStatus.isConnected(connection.status))) {
+					this._tunnelService.disconnect(address).catch(() => { /* best effort */ });
+				}
+			}
+		}
 	}
 
 	private _createProvider(address: string, name: string): void {
@@ -301,6 +324,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		if (!cached) {
 			return Promise.resolve();
 		}
+		if (this._isHostedTunnel(cached)) {
+			this._resetReconnectState(address);
+			return Promise.resolve();
+		}
 		if (!options.userInitiated && this._tunnelService.isAutoConnectSuppressed(tunnelId)) {
 			this._logService.info(`[TunnelAgentHost] Skipping background connect for user-disconnected tunnel ${address}`);
 			return Promise.resolve();
@@ -345,6 +372,11 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 					hostConnectionCount: 0,
 				};
 				await this._tunnelService.connect(tunnelInfo, cached.authProvider, { userInitiated: options.userInitiated });
+				if (this._isHostedTunnel(cached)) {
+					await this._tunnelService.disconnect(address);
+					this._resetReconnectState(address);
+					return;
+				}
 				// Re-check after the await: the user may have disconnected this
 				// tunnel while this background connect was already in flight.
 				if (!options.userInitiated && this._tunnelService.isAutoConnectSuppressed(cached.tunnelId)) {
@@ -495,6 +527,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 		const cached = this._tunnelService.getCachedTunnels().find(t => t.tunnelId === tunnelId);
 		if (!cached) {
+			return;
+		}
+		if (this._isHostedTunnel(cached)) {
+			this._resetReconnectState(address);
 			return;
 		}
 
@@ -882,7 +918,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			const autoConnect = this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId);
 			if (autoConnect) {
 				for (const tunnel of onlineTunnels) {
-					if (tunnel.hostConnectionCount > 0) {
+					if (tunnel.hostConnectionCount > 0 && !this._isHostedTunnel(tunnel)) {
 						const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 						if (this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId)) {
 							continue;
