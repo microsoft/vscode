@@ -10,10 +10,21 @@ import * as vscode from 'vscode';
 
 suite('Tests for getMappingForIncludedLanguages with one-to-many mapping', () => {
 
-	test('Should return empty object when no config is set', () => {
-		const mapping = getMappingForIncludedLanguages();
-		assert.ok(mapping);
-		assert.strictEqual(Object.keys(mapping).length, 0);
+	test('Should return built-in mappings when no config is set', async () => {
+		const oldConfig = vscode.workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
+		await vscode.workspace.getConfiguration('emmet').update('includeLanguages', undefined, vscode.ConfigurationTarget.Global);
+		
+		try {
+			const mapping = getMappingForIncludedLanguages();
+			assert.ok(mapping);
+			// getMappingForIncludedLanguages includes built-in default mappings
+			// (e.g., handlebars: 'html', php: 'html') even when user config is unset
+			assert.ok(Object.keys(mapping).length > 0);
+			assert.strictEqual(mapping['handlebars'], 'html');
+			assert.strictEqual(mapping['php'], 'html');
+		} finally {
+			await vscode.workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, vscode.ConfigurationTarget.Global);
+		}
 	});
 
 	test('Should handle single string mapping (backward compatibility)', async () => {

@@ -161,22 +161,6 @@ const languageMappingForCompletionProviders: Map<string, string | string[]> = ne
 const completionProviderDisposables: vscode.Disposable[] = [];
 
 /**
- * Helper function to check if two mappings are equal (handles both string and array comparisons)
- * @param a First mapping value (string or string array)
- * @param b Second mapping value (string or string array)
- * @returns true if the mappings are equal, false otherwise
- */
-function areMappingsEqual(a: string | string[], b: string | string[]): boolean {
-	if (a === b) return true;
-	if (typeof a === 'string' && typeof b === 'string') return a === b;
-	if (Array.isArray(a) && Array.isArray(b)) {
-		if (a.length !== b.length) return false;
-		return a.every((val, index) => val === b[index]);
-	}
-	return false;
-}
-
-/**
  * Helper function to merge trigger characters from multiple languages
  * @param languages Array of language identifiers to merge trigger characters from
  * @returns Array of unique trigger characters from all specified languages
@@ -227,9 +211,6 @@ function refreshCompletionProviders(_: vscode.ExtensionContext) {
 	const includedLanguages = getMappingForIncludedLanguages();
 	Object.keys(includedLanguages).forEach(language => {
 		const mapping = includedLanguages[language];
-		if (languageMappingForCompletionProviders.has(language) && areMappingsEqual(languageMappingForCompletionProviders.get(language)!, mapping)) {
-			return;
-		}
 
 		if (useInlineCompletionProvider) {
 			const inlineCompletionsProvider = vscode.languages.registerInlineCompletionItemProvider({ language, scheme: '*' }, inlineCompletionProvider);
