@@ -405,6 +405,47 @@ suite('ProtocolServerHandler', () => {
 		transport.dispose();
 	});
 
+	test('uses the launch telemetry level when a legacy client omits telemetry metadata', () => {
+		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'legacy-client',
+			clientInfo: editorWindowAgentHostClientInfo,
+		}));
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			eventNames: telemetryService.events.map(event => event.eventName),
+		}, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			eventNames: ['agentHost.clientConnection'],
+		});
+		transport.simulateClose();
+		transport.dispose();
+	});
+
+	test('fails closed before reporting the client connection for malformed telemetry metadata', () => {
+		const transport = new MockProtocolTransport(AgentHostTransportKind.WebSocket);
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'malformed-telemetry-client',
+			clientInfo: editorWindowAgentHostClientInfo,
+			_meta: { 'vscode.telemetryLevel': 'invalid' },
+		}));
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			events: telemetryService.events,
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			events: [],
+		});
+		transport.simulateClose();
+		transport.dispose();
+	});
+
 	test('handshake rejects unsupported protocol versions', () => {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
@@ -1361,6 +1402,59 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			telemetryLevel: TelemetryLevel.NONE,
 			events: eventsBeforeReconnect,
+		});
+		transport2.simulateClose();
+		transport2.dispose();
+	});
+
+	test('fails closed before reporting a reconnected client for malformed telemetry metadata', async () => {
+		const transport1 = connectClient('malformed-telemetry-reconnect-client');
+		transport1.simulateClose();
+		const eventsBeforeReconnect = [...telemetryService.events];
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectResponse = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'malformed-telemetry-reconnect-client',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+			_meta: { 'vscode.telemetryLevel': 'invalid' },
+		}));
+		await reconnectResponse;
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			events: telemetryService.events,
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			events: eventsBeforeReconnect,
+		});
+		transport2.simulateClose();
+		transport2.dispose();
+	});
+
+	test('uses the launch telemetry level when a legacy reconnect omits telemetry metadata', async () => {
+		const transport1 = connectClient('legacy-reconnect-client');
+		transport1.simulateClose();
+		const eventCountBeforeReconnect = telemetryService.events.length;
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectResponse = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'legacy-reconnect-client',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+		}));
+		await reconnectResponse;
+
+		assert.deepStrictEqual({
+			telemetryLevel: agentHostTelemetryService.telemetryLevel,
+			newEventNames: telemetryService.events.slice(eventCountBeforeReconnect).map(event => event.eventName),
+		}, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			newEventNames: ['agentHost.clientConnection'],
 		});
 		transport2.simulateClose();
 		transport2.dispose();

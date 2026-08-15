@@ -422,9 +422,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	private _augmentConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfig {
-		const result = {
-			...config,
-		};
+		const result = { ...config };
 		const commandOverride = this._getRemoteAgentHostCommand();
 		if (commandOverride) {
 			result.remoteAgentHostCommand = commandOverride;

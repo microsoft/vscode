@@ -37,11 +37,11 @@ export interface IAgentHostTelemetryServiceOptions {
 	readonly disableTelemetry?: boolean;
 	readonly fetchFn?: typeof globalThis.fetch;
 	readonly requestService?: IRequestService;
+	readonly readTelemetryLevelEnvironment?: () => string | undefined;
 }
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void;
-	updateClientTelemetryLevel(telemetryLevel: TelemetryLevel): void;
 }
 
 export class AgentHostTelemetryService extends Disposable implements IAgentHostTelemetryService {
@@ -206,10 +206,6 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void {
 		this._telemetryLevel = Math.min(this._telemetryLevel, telemetryLevel);
 	}
-
-	updateClientTelemetryLevel(telemetryLevel: TelemetryLevel): void {
-		this.updateTelemetryLevel(telemetryLevel);
-	}
 }
 
 export function updateAgentHostTelemetryLevelFromConfig(telemetryService: ITelemetryService, config: Record<string, unknown> | undefined): void {
@@ -281,9 +277,15 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 	const internalSender = loggingOnly ? undefined : disposables.add(new AgentHostInternalTelemetrySender({ requestService: options.requestService, commonProperties, extensionVersion }));
 	const restricted = loggingOnly ? undefined : new AgentHostRestrictedTelemetrySender(commonProperties, logService, undefined, internalSender, options.fetchFn);
 
-	const initialTelemetryLevelArg = environmentService.args?.['telemetry-level'] ?? process.env[AgentHostTelemetryLevelEnvKey];
-	const initialTelemetryLevel = initialTelemetryLevelArg === undefined
-		? TelemetryLevel.USAGE
-		: agentHostConfigValueToTelemetryLevel(initialTelemetryLevelArg) ?? TelemetryLevel.NONE;
+	const initialTelemetryLevel = Math.min(
+		parseLaunchTelemetryLevel(environmentService.args?.['telemetry-level']),
+		parseLaunchTelemetryLevel((options.readTelemetryLevelEnvironment ?? (() => process.env[AgentHostTelemetryLevelEnvKey]))()),
+	);
 	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted, productService.copilotVersions?.sdk, productService.copilotVersions?.runtime, initialTelemetryLevel));
+}
+
+function parseLaunchTelemetryLevel(value: string | undefined): TelemetryLevel {
+	return value === undefined
+		? TelemetryLevel.USAGE
+		: agentHostConfigValueToTelemetryLevel(value) ?? TelemetryLevel.NONE;
 }

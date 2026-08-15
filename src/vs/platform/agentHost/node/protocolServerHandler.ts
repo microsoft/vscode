@@ -1200,7 +1200,7 @@ export class ProtocolServerHandler extends Disposable {
 	private _applyClientTelemetryLevel(meta: Record<string, unknown> | undefined): void {
 		const telemetryLevel = readClientTelemetryLevel(meta);
 		if (telemetryLevel !== undefined && isAgentHostTelemetryService(this._telemetryService)) {
-			this._telemetryService.updateClientTelemetryLevel(telemetryLevel);
+			this._telemetryService.updateTelemetryLevel(telemetryLevel);
 		}
 	}
 

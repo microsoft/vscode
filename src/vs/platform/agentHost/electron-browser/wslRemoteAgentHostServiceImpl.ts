@@ -316,14 +316,11 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 	}
 
 	private _augmentConfig(config: IWSLAgentHostConfig): IWSLAgentHostConfig {
-		const result: IWSLAgentHostConfig = {
-			...config,
-		};
 		const commandOverride = this._getRemoteAgentHostCommand();
 		if (commandOverride) {
-			return { ...result, remoteAgentHostCommand: commandOverride };
+			return { ...config, remoteAgentHostCommand: commandOverride };
 		}
-		return result;
+		return config;
 	}
 
 	private _getRemoteAgentHostCommand(): string | undefined {

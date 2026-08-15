@@ -87,7 +87,8 @@ export function readClientConnectionKind(meta: Record<string, unknown> | undefin
 }
 
 export function readClientTelemetryLevel(meta: Record<string, unknown> | undefined): TelemetryLevel | undefined {
-	switch (meta?.[CLIENT_TELEMETRY_LEVEL_META_KEY]) {
+	const value = meta?.[CLIENT_TELEMETRY_LEVEL_META_KEY];
+	switch (value) {
 		case TelemetryConfiguration.OFF:
 			return TelemetryLevel.NONE;
 		case TelemetryConfiguration.CRASH:
@@ -97,7 +98,7 @@ export function readClientTelemetryLevel(meta: Record<string, unknown> | undefin
 		case TelemetryConfiguration.ON:
 			return TelemetryLevel.USAGE;
 		default:
-			return undefined;
+			return value === undefined ? undefined : TelemetryLevel.NONE;
 	}
 }
 

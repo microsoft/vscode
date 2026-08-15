@@ -17,7 +17,7 @@ import type { IProductService } from '../../../product/common/productService.js'
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
-import { AgentHostTelemetryService, createAgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
+import { AgentHostTelemetryService, createAgentHostTelemetryService, type IAgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
 import { AgentHostInternalTelemetrySender } from '../../node/agentHostMicrosoftTelemetry.js';
 
 class TestTelemetryService implements ITelemetryService {
@@ -101,6 +101,54 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 suite('AgentHostTelemetryService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	async function createFactoryService(telemetryLevelArg: string | undefined, telemetryLevelEnvironment: string | undefined): Promise<IAgentHostTelemetryService> {
+		const localDisposables = disposables.add(new DisposableStore());
+		const logService = new NullLogService();
+		const fileService = localDisposables.add(new FileService(logService));
+		localDisposables.add(fileService.registerProvider(Schemas.file, localDisposables.add(new InMemoryFileSystemProvider())));
+		return createAgentHostTelemetryService({
+			environmentService: {
+				args: telemetryLevelArg === undefined ? {} : { 'telemetry-level': telemetryLevelArg },
+				isBuilt: true,
+				disableTelemetry: false,
+				appRoot: '/app',
+				extensionsPath: '/extensions',
+				userHome: URI.file('/home'),
+				tmpDir: URI.file('/tmp'),
+				userDataPath: '/user-data',
+				appSettingsHome: URI.file('/User'),
+			} as INativeEnvironmentService,
+			productService: {
+				_serviceBrand: undefined,
+				version: '1.130.0',
+				enableTelemetry: true,
+			} as IProductService,
+			fileService,
+			loggerService: localDisposables.add(new NullLoggerService()),
+			logService,
+			disposables: localDisposables,
+			readTelemetryLevelEnvironment: () => telemetryLevelEnvironment,
+		});
+	}
+
+	test('uses the most restrictive valid launch source and fails closed for malformed sources', async () => {
+		const services = await Promise.all([
+			createFactoryService('all', 'off'),
+			createFactoryService('off', 'all'),
+			createFactoryService('invalid', 'all'),
+			createFactoryService('all', 'invalid'),
+			createFactoryService(undefined, undefined),
+		]);
+
+		assert.deepStrictEqual(services.map(service => service.telemetryLevel), [
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+			TelemetryLevel.USAGE,
+		]);
+	});
+
 	test('logging-only builds do not create restricted network senders', async () => {
 		const localDisposables = disposables.add(new DisposableStore());
 		const logService = new NullLogService();
@@ -170,11 +218,11 @@ suite('AgentHostTelemetryService', () => {
 		const service = disposables.add(new AgentHostTelemetryService(delegate, undefined, undefined, undefined, TelemetryLevel.USAGE));
 
 		service.publicLog('beforeClientLevel', { count: 1 });
-		service.updateClientTelemetryLevel(TelemetryLevel.ERROR);
+		service.updateTelemetryLevel(TelemetryLevel.ERROR);
 		service.publicLog('afterClientLevel', { count: 2 });
 		service.publicLogError('afterClientLevelError', { count: 3 });
-		service.updateClientTelemetryLevel(TelemetryLevel.NONE);
-		service.updateClientTelemetryLevel(TelemetryLevel.USAGE);
+		service.updateTelemetryLevel(TelemetryLevel.NONE);
+		service.updateTelemetryLevel(TelemetryLevel.USAGE);
 		service.publicLog2('afterDisable');
 		service.publicLogError2('afterDisableError');
 
