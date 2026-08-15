@@ -1589,10 +1589,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const initialContext = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
 			const target = this._findChatByUri(chatKey);
-			if (!target || !target.isPipelineReady) {
-				return;
-			}
-			if (target.hasActiveTurn) {
+			if (!target || !target.isPipelineReady || target.hasActiveTurn) {
 				return;
 			}
 			this._logService.info(`[Claude:${target.sessionId}] Releasing idle chat from memory (durable state preserved)`);
