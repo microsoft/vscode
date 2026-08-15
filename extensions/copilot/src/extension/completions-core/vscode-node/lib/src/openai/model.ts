@@ -121,14 +121,22 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 	 * model id (or `${group}/${id}` when ambiguous) in `github.copilot.selectedCompletionModel`.
 	 */
 	getCustomCompletionModels(): ModelItem[] {
-		return this.byokModels.map(model => ({
-			modelId: model.id,
-			label: model.label,
-			preview: false,
-			tokenizer: TokenizerName.o200k,
-			custom: true,
-			customGroup: model.groupName,
-		}));
+		// A custom model whose id collides with a CAPI cloud completion model gets a
+		// `group/id` qualified id in the picker: the cloud entry keeps the bare id
+		// (resolved first in getCurrentModelRequestInfo) and the custom entry stays
+		// selectable without ambiguity.
+		const genericIds = new Set(this.getGenericCompletionModels().map(model => model.modelId));
+		return this.byokModels.map(model => {
+			const collidesWithGeneric = !model.id.includes('/') && genericIds.has(model.id);
+			return {
+				modelId: collidesWithGeneric ? `${model.groupName}/${model.id}` : model.id,
+				label: model.label,
+				preview: false,
+				tokenizer: TokenizerName.o200k,
+				custom: true,
+				customGroup: model.groupName,
+			};
+		});
 	}
 
 	getTokenizerForModel(modelId: string): TokenizerName {
@@ -169,14 +177,17 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 		const defaultModelId = this.getDefaultModelId();
 		let userSelectedCompletionModel = this._instantiationService.invokeFunction(getUserSelectedModelConfiguration);
 		if (userSelectedCompletionModel) {
-			// A custom BYOK (OpenAI-compatible) completion model is always valid, even
-			// when the CAPI model list is empty (e.g. signed out / fully offline).
-			const customModel = getByokCompletionModelById(userSelectedCompletionModel);
-			if (customModel) {
-				return new ModelRequestInfo(userSelectedCompletionModel, 'modelpicker', customModel);
-			}
 			const genericModels = this.getGenericCompletionModels().map(model => model.modelId);
+			// Resolve against the CAPI cloud model list FIRST: a custom model whose id
+			// collides with a cloud completion model must never hijack the request or
+			// leak its API key to the custom endpoint.
 			if (!genericModels.includes(userSelectedCompletionModel)) {
+				// A custom BYOK (OpenAI-compatible) completion model is valid even when
+				// the CAPI model list is empty (e.g. signed out / fully offline).
+				const customModel = getByokCompletionModelById(userSelectedCompletionModel);
+				if (customModel) {
+					return new ModelRequestInfo(userSelectedCompletionModel, 'modelpicker', customModel);
+				}
 				if (genericModels.length > 0) {
 					this._logService.logIt(
 						LogLevel.INFO,

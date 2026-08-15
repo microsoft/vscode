@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ICompletionModelInformation } from '../../../../../../../platform/endpoint/common/endpointProvider';
 import { clearByokCompletionModelConfigs, updateByokCompletionModelConfig } from '../../../../../../byok/common/byokCompletionModels';
 import { ConfigKey, ICompletionsConfigProvider, InMemoryConfigProvider } from '../../config';
 import { createLibTestingContext } from '../../test/context';
-import { ICompletionsModelManagerService } from '../model';
+import { AvailableModelsManager, ICompletionsModelManagerService } from '../model';
 
 suite('AvailableModelsManager BYOK models', function () {
 
@@ -75,5 +76,48 @@ suite('AvailableModelsManager BYOK models', function () {
 		const info = manager.getCurrentModelRequestInfo();
 
 		assert.strictEqual(info.customModel, undefined);
+	});
+
+	test('a cloud model with the same id takes precedence over the custom model', function () {
+		const serviceCollection = createLibTestingContext();
+		const accessor = serviceCollection.createTestingAccessor();
+		(accessor.get(ICompletionsConfigProvider) as InMemoryConfigProvider).setConfig(ConfigKey.UserSelectedCompletionModel, 'colliding-model');
+
+		updateByokCompletionModelConfig('customendpoint', 'Custom', {
+			apiKey: 'sk-test',
+			models: [
+				{
+					id: 'colliding-model',
+					name: 'Custom Model',
+					url: 'https://custom.example.com/v1/chat/completions',
+					completionsUrl: 'https://custom.example.com/v1/completions',
+				},
+			],
+		});
+
+		const manager = accessor.get(ICompletionsModelManagerService) as AvailableModelsManager;
+		manager.fetchedModelData = [{
+			id: 'colliding-model',
+			vendor: 'copilot',
+			name: 'Cloud Model',
+			model_picker_enabled: true,
+			is_chat_default: false,
+			is_chat_fallback: false,
+			version: '1',
+			capabilities: { type: 'completion', family: 'cloud', tokenizer: 'o200k' },
+		} as unknown as ICompletionModelInformation];
+
+		const info = manager.getCurrentModelRequestInfo();
+
+		// The cloud entry wins: the request goes to the Copilot proxy, not the
+		// custom endpoint, so no customModel (and no API key) is attached.
+		assert.strictEqual(info.modelId, 'colliding-model');
+		assert.strictEqual(info.customModel, undefined);
+
+		// The picker surfaces the custom entry under a qualified id instead of a
+		// duplicate bare id.
+		const customModels = manager.getCustomCompletionModels();
+		assert.strictEqual(customModels.length, 1);
+		assert.strictEqual(customModels[0].modelId, 'Custom/colliding-model');
 	});
 });
