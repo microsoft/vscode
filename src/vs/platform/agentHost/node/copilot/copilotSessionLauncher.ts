@@ -414,9 +414,7 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 	// tier.
 	const contextSize = model?.config?.[ContextSizeConfigKey];
 	if (contextSize === undefined) {
-		// When the model's long-context tier costs the same as the default tier,
-		// always opt into long_context — no picker is shown and the user gets the
-		// larger window for free.
+		// No selection: free long context defaults to the full window; other models stay on the SDK default tier.
 		return freeLongContext ? 'long_context' : undefined;
 	}
 	const selectedWindow = Number(contextSize);
