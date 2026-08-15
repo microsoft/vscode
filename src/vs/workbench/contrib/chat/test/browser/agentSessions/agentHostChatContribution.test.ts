@@ -9701,11 +9701,12 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(toolInvocation!.toolCallId, 'tc-running');
 		});
 
-		test('does not re-emit a settled tool call, keeping the streamed markdown in one part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('replays a settled tool call once, keeping the streamed markdown in one part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// Reconnecting after a tool completed but while the final response is
-			// still streaming must not append a second card for that tool. A tool
-			// part between the restored markdown prefix and the later continuation
-			// would break markdown merging and split the answer in two.
+			// still streaming must render that tool exactly once. A second tool
+			// part between the replayed markdown prefix and the later
+			// continuation would break markdown merging and split the answer in
+			// two, mid-word, at the reconnect boundary.
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-settled-tool');
@@ -9740,7 +9741,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(
 				(session.progressObs?.get() ?? []).map(part => part.kind === 'markdownContent' ? `markdown:${part.content.value}` : part.kind),
-				['toolInvocationSerialized', 'markdown:that fallback fails to', 'markdown:ward destroying history.'],
+				['toolInvocation', 'markdown:that fallback fails to', 'markdown:ward destroying history.'],
 			);
 		}));
 
