@@ -283,6 +283,7 @@
 	"config.untrackedChanges.mixed": "All changes, tracked and untracked, appear together and behave equally.",
 	"config.untrackedChanges.separate": "Untracked changes appear separately in the Source Control view. They are also excluded from several actions.",
 	"config.untrackedChanges.hidden": "Untracked changes are hidden and excluded from several actions.",
+	"config.untrackedChanges.default": "Use the value of git's `status.showUntrackedFiles` configuration. When set to `no`, behaves like \"hidden\". Otherwise, behaves like \"mixed\".",
 	"config.requireGitUserConfig": "Controls whether to require explicit Git user configuration or allow Git to guess if missing.",
 	"config.showCommitInput": "Controls whether to show the commit input in the Git source control panel.",
 	"config.terminalAuthentication": "Controls whether to enable VS Code to be the authentication handler for Git processes spawned in the Integrated Terminal. Note: Terminals need to be restarted to pick up a change in this setting.",
