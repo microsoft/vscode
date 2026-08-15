@@ -35,7 +35,7 @@ import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agent
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -1332,25 +1332,30 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			svc.registerProvider(agent);
-			// A session from an earlier host lifetime: known on disk but absent
-			// from state, exactly like one whose worktree has since been deleted.
-			const session = AgentSession.uri(agent.id, 'stale-session');
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [URI.file('/workspace')] });
+			svc.stateManager.removeSession(session.toString());
+			await db.setMetadata(AH_META_IS_READ_DB_KEY, 'true');
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+			const notificationPromise = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === NotificationType.SessionSummaryChanged && notification.session === session.toString()));
 
 			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1);
-			const envelope = await envelopePromise;
-			await timeout(0);
+			const [envelope, notification] = await Promise.all([envelopePromise, notificationPromise]);
 
 			assert.deepStrictEqual({
 				rejectionReason: envelope.rejectionReason,
-				action: envelope.action,
 				restored: svc.stateManager.getSessionState(session.toString()) !== undefined,
-				persisted: db.setMetadataCalls,
+				persistedArchived: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+				notification,
 			}, {
 				rejectionReason: undefined,
-				action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
 				restored: false,
-				persisted: [{ key: AH_META_IS_ARCHIVED_DB_KEY, value: 'true' }],
+				persistedArchived: 'true',
+				notification: {
+					type: NotificationType.SessionSummaryChanged,
+					channel: ROOT_STATE_URI,
+					session: session.toString(),
+					changes: { status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived },
+				},
 			});
 		});
 

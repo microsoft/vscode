@@ -473,16 +473,22 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(turnStarted, 'should deliver actions after the initially missing state materializes');
 	});
 
-	test('delivers a catalog flag for an unloaded session to root-channel subscribers', () => {
-		// No client has the session loaded, so nobody is subscribed to its
-		// session channel — only the root catalog.
-		const transport = connectClient('client-1', ['ahp-root://']);
-		transport.sent.length = 0;
+	test('routes an unloaded session catalog action only to exact-channel subscribers', () => {
+		const rootTransport = connectClient('root-client', ['ahp-root://']);
+		const sessionTransport = connectClient('session-client', [sessionUri]);
+		rootTransport.sent.length = 0;
+		sessionTransport.sent.length = 0;
 
 		stateManager.dispatchClientAction(sessionUri, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, { clientId: 'client-2', clientSeq: 1 });
 
-		const actions = findNotifications(transport.sent, 'action').map(message => (message.params as unknown as { action: { type: string; isArchived?: boolean } }).action);
-		assert.deepStrictEqual(actions, [{ type: ActionType.SessionIsArchivedChanged, isArchived: true }]);
+		const actions = (transport: MockProtocolTransport) => findNotifications(transport.sent, 'action').map(message => (message.params as unknown as { action: { type: string; isArchived?: boolean } }).action);
+		assert.deepStrictEqual({
+			root: actions(rootTransport),
+			session: actions(sessionTransport),
+		}, {
+			root: [],
+			session: [{ type: ActionType.SessionIsArchivedChanged, isArchived: true }],
+		});
 	});
 
 	test('ping responds before initialize', async () => {

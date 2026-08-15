@@ -1346,6 +1346,16 @@ export class AgentHostStateManager extends Disposable {
 		return this._applyAndEmit(channel, action, origin);
 	}
 
+	/** Emits a catalog delta without retaining session state. */
+	emitSessionSummaryChanged(session: URI, changes: Partial<SessionSummary>): void {
+		this._onDidEmitNotification.fire({
+			type: 'root/sessionSummaryChanged',
+			channel: ROOT_STATE_URI,
+			session,
+			changes,
+		});
+	}
+
 	/**
 	 * Reject a client-originated action without applying it to state. Emits an
 	 * {@link ActionEnvelope} that carries the original {@link ActionOrigin} and a

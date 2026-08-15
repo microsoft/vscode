@@ -215,11 +215,7 @@ export function isSessionAction(action: StateAction): action is SessionAction {
 	return action.type.startsWith('session/');
 }
 
-/**
- * Whether an action sets a durable session-catalog flag: state describing the
- * session's list entry rather than its conversation. Applying one needs no
- * loaded session, and every root-catalog subscriber must see it.
- */
+/** Whether an action sets a host-owned durable session-catalog flag. */
 export function isSessionCatalogFlagAction(action: StateAction): action is IIsArchivedChangedAction | IIsReadChangedAction {
 	return action.type === ActionType.SessionIsArchivedChanged || action.type === ActionType.SessionIsReadChanged;
 }
