@@ -14,7 +14,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { readAgentErrorTelemetryMeta } from '../../common/meta/agentErrorMeta.js';
 import { buildChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
-import { classifyCopilotClientFailure, createCopilotFailureCorrelation, normalizeCopilotApiEndpoint, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
+import { classifyCopilotClientOperationFailure, createCopilotFailureCorrelation, isCopilotClientStartupFailure, normalizeCopilotApiEndpoint, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
 
 class CapturingTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -40,28 +40,35 @@ class CapturingTelemetryService implements ITelemetryService {
 suite('CopilotFailureTelemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('classifies only known client lifecycle failures', () => {
-		assert.deepStrictEqual([
-			classifyCopilotClientFailure(new Error('Connection is closed.')),
-			classifyCopilotClientFailure(new Error('Connection is disposed.')),
-			classifyCopilotClientFailure(new Error('Client not connected')),
-			classifyCopilotClientFailure(new Error('The in-process runtime connection is closed.')),
-			classifyCopilotClientFailure(new Error('Failed to start CLI server: spawn failed')),
-			classifyCopilotClientFailure(new Error('CLI server exited with code 1')),
-			classifyCopilotClientFailure(new Error('CLI server exited unexpectedly with code 1')),
-			classifyCopilotClientFailure(new Error('Timeout waiting for CLI server to start')),
-			classifyCopilotClientFailure(new Error('429 too many requests')),
-		], [
-			'connectionClosed',
-			'connectionDisposed',
-			'clientNotConnected',
-			'runtimeConnectionClosed',
-			'startupFailed',
-			'startupFailed',
-			'startupFailed',
-			'startupFailed',
-			undefined,
-		]);
+	test('separates startup failures from established-client operation failures', () => {
+		const errors = [
+			new Error('Connection is closed.'),
+			new Error('Connection is disposed.'),
+			new Error('Client not connected'),
+			new Error('The in-process runtime connection is closed.'),
+			new Error('Failed to start CLI server: spawn failed'),
+			new Error('CLI server exited with code 1'),
+			new Error('CLI server exited unexpectedly with code 1'),
+			new Error('Timeout waiting for CLI server to start'),
+			new Error('429 too many requests'),
+		];
+		assert.deepStrictEqual({
+			operationFailures: errors.map(classifyCopilotClientOperationFailure),
+			startupFailures: errors.map(isCopilotClientStartupFailure),
+		}, {
+			operationFailures: [
+				'connectionClosed',
+				'connectionDisposed',
+				'clientNotConnected',
+				'runtimeConnectionClosed',
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			],
+			startupFailures: [false, false, false, false, true, true, true, true, false],
+		});
 	});
 
 	test('builds the Agent Host and SDK correlation tuple', () => {

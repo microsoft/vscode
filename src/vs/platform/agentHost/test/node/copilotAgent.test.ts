@@ -1001,7 +1001,8 @@ suite('CopilotAgent', () => {
 				restricted: false,
 				...(assignmentContext ? { 'abexp.assignmentcontext': assignmentContext } : {}),
 			});
-			assert.deepStrictEqual({ events: telemetryService.events, experimentProperties: telemetryService.experimentProperties }, {
+			const forwardedEvents = telemetryService.events.filter(event => event.eventName === 'copilotSdk/response.success');
+			assert.deepStrictEqual({ events: forwardedEvents, experimentProperties: telemetryService.experimentProperties }, {
 				events: [
 					{ eventName: 'copilotSdk/response.success', data: expectedData('set', 'experiment:1') },
 					{ eventName: 'copilotSdk/response.success', data: expectedData('wiped-sticky', 'experiment:1') },
@@ -1055,7 +1056,7 @@ suite('CopilotAgent', () => {
 			await forward(notification('idle-session', 'runtime-idle'));
 			await forward(notification('unknown-session', 'runtime-unknown'));
 
-			assert.deepStrictEqual(telemetryService.events.map(event => ({
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'copilotSdk/response.success').map(event => ({
 				sessionId: (event.data as Record<string, unknown>).sdk_session_id,
 				turnId: (event.data as Record<string, unknown>).turnId,
 			})), [
@@ -2117,7 +2118,7 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const models = await waitForState(agent.models, m => m.length > 0);
 			const failure = telemetryService.errorEvents[0].data as Record<string, unknown>;
-			const recovery = telemetryService.events[0].data as Record<string, unknown>;
+			const recovery = telemetryService.events.find(event => event.eventName === 'agentHost.copilotClientRecovery')?.data as Record<string, unknown>;
 
 			assert.deepStrictEqual({
 				modelNames: models.map(model => model.name),
@@ -2166,8 +2167,49 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('reports one successful Copilot client startup outcome for concurrent callers', async () => {
+		const client = new TestCopilotClient([]);
+		const startGate = new DeferredPromise<void>();
+		client.startGate = startGate.p;
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		const first = agent.listChatsToMigrate();
+		const second = agent.listChatsToMigrate();
+		try {
+			for (let i = 0; i < 20 && client.startCallCount < 1; i++) {
+				await timeout(0);
+			}
+			startGate.complete();
+			await Promise.all([first, second]);
+			const startupEvents = telemetryService.events
+				.filter(event => event.eventName === 'agentHost.copilotClientStartup')
+				.map(event => {
+					const data = event.data as Record<string, unknown>;
+					return { ...data, durationMs: typeof data.durationMs };
+				});
+
+			assert.deepStrictEqual({
+				startCallCount: client.startCallCount,
+				listSessionCallCount: client.listSessionCallCount,
+				startupEvents,
+			}, {
+				startCallCount: 1,
+				listSessionCallCount: 2,
+				startupEvents: [{
+					outcome: 'success',
+					durationMs: 'number',
+					attemptNumber: 1,
+				}],
+			});
+		} finally {
+			startGate.complete();
+			await Promise.all([first, second]);
+			await disposeAgent(agent);
+		}
+	});
+
 	test('surfaces undefined (not a rejection) for a classified Copilot client startup failure', async () => {
-		// A `startupFailed`-classified error means the CLI client is transiently
+		// A recognized startup error means the CLI client is transiently
 		// unavailable, not that this provider authoritatively has no legacy
 		// chats: `listChatsToMigrate` must resolve to `undefined` (still reporting
 		// the failure via telemetry) rather than reject or return `[]`.
@@ -2177,25 +2219,23 @@ suite('CopilotAgent', () => {
 		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
 		try {
 			assert.strictEqual(await agent.listChatsToMigrate(), undefined);
-			assert.strictEqual(telemetryService.errorEvents.length, 1);
-			const failure = telemetryService.errorEvents[0].data as Record<string, unknown>;
+			const startup = telemetryService.events.find(event => event.eventName === 'agentHost.copilotClientStartup')?.data as Record<string, unknown>;
 			assert.deepStrictEqual({
-				...failure,
-				clientFailureId: typeof failure.clientFailureId,
-				callstack: typeof failure.callstack,
+				operationFailureEvents: telemetryService.errorEvents.filter(event => event.eventName === 'agentHost.copilotClientFailure').length,
+				startup: {
+					...startup,
+					durationMs: typeof startup.durationMs,
+				},
 			}, {
-				clientFailureId: 'string',
-				failureKind: 'startupFailed',
-				operation: 'startClient',
-				startupFailureCause: 'spawnFailed',
-				startupFailureResource: 'other',
-				startupExitCode: undefined,
-				activeTurnCount: 0,
-				recoveryStarted: false,
-				errorName: 'Error',
-				errorCode: undefined,
-				msg: 'Failed to start CLI server: spawn failed',
-				callstack: 'string',
+				operationFailureEvents: 0,
+				startup: {
+					outcome: 'failure',
+					durationMs: 'number',
+					attemptNumber: 1,
+					startupFailureCause: 'spawnFailed',
+					startupFailureResource: 'other',
+					startupExitCode: undefined,
+				},
 			});
 		} finally {
 			client.startError = undefined;
@@ -2248,14 +2288,14 @@ suite('CopilotAgent', () => {
 		try {
 			for (const testCase of cases) {
 				client.startError = new Error(testCase.message);
-				// All of these are `startupFailed`-classified: the client is
+				// All of these are recognized startup failures: the client is
 				// transiently unavailable, so `listChatsToMigrate` resolves to
 				// `undefined` (still reporting telemetry below) rather than
 				// rejecting.
 				assert.strictEqual(await agent.listChatsToMigrate(), undefined);
 			}
 
-			assert.deepStrictEqual(telemetryService.errorEvents.map(event => {
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.copilotClientStartup').map(event => {
 				const data = event.data as Record<string, unknown>;
 				return {
 					startupFailureCause: data.startupFailureCause,
@@ -2271,7 +2311,7 @@ suite('CopilotAgent', () => {
 
 	test('coalesces closed connection recovery and preserves an already-cancelled turn', async () => {
 		type RecoveryInternals = {
-			_recoverFromClosedConnection(error: unknown, operation: 'modelRefresh'): Promise<{ failedTurnIds: ReadonlySet<string> } | undefined>;
+			_handleClientOperationFailure(error: unknown, operation: 'modelRefresh'): Promise<{ failedTurnIds: ReadonlySet<string> } | undefined>;
 		};
 		class GatedStopClient extends TestCopilotClient {
 			readonly stopGate = new DeferredPromise<void>();
@@ -2332,7 +2372,7 @@ suite('CopilotAgent', () => {
 				await timeout(0);
 			}
 			const internals = agent as unknown as RecoveryInternals;
-			const second = internals._recoverFromClosedConnection(new Error('Connection is closed.'), 'modelRefresh');
+			const second = internals._handleClientOperationFailure(new Error('Connection is closed.'), 'modelRefresh');
 			client.stopGate.complete();
 			const [, secondResult] = await Promise.all([abort, second]);
 			const failures = telemetryService.errorEvents
@@ -2341,7 +2381,7 @@ suite('CopilotAgent', () => {
 			const recoveryTurns = telemetryService.errorEvents
 				.filter(event => event.eventName === 'agentHost.copilotClientRecoveryTurnFailed')
 				.map(event => event.data as Record<string, unknown>);
-			const recovery = telemetryService.events[0].data as Record<string, unknown>;
+			const recovery = telemetryService.events.find(event => event.eventName === 'agentHost.copilotClientRecovery')?.data as Record<string, unknown>;
 
 			assert.deepStrictEqual({
 				calls,
@@ -2641,7 +2681,8 @@ suite('CopilotAgent', () => {
 		const client = new TestCopilotClient([]);
 		const startGate = new DeferredPromise<void>();
 		client.startGate = startGate.p;
-		const agent = createTestAgent(disposables, { copilotClient: client });
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
 		try {
 			const listPromise = agent.listChatsToMigrate();
 			await Promise.resolve();
@@ -2658,9 +2699,20 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({
 				starts: client.startCallCount,
 				stops: client.stopCallCount,
+				startup: telemetryService.events
+					.filter(event => event.eventName === 'agentHost.copilotClientStartup')
+					.map(event => {
+						const data = event.data as Record<string, unknown>;
+						return { ...data, durationMs: typeof data.durationMs };
+					}),
 			}, {
 				starts: 1,
 				stops: 1,
+				startup: [{
+					outcome: 'cancelled',
+					durationMs: 'number',
+					attemptNumber: 1,
+				}],
 			});
 		} finally {
 			await disposeAgent(agent);

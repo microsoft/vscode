@@ -13,9 +13,10 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
 
-export type CopilotClientFailureOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage' | 'startClient';
-export type CopilotClientFailureKind = 'clientNotConnected' | 'connectionClosed' | 'connectionDisposed' | 'runtimeConnectionClosed' | 'startupFailed';
-type CopilotStartupFailureCause = 'nativeModuleProcedureNotFound' | 'nativeModuleInitializationFailed' | 'nativeModuleNotFound' | 'permissionDenied' | 'timeout' | 'spawnFailed' | 'processExitedUnexpectedly' | 'processExited';
+export type CopilotClientOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage';
+export type CopilotClientOperationFailureKind = 'clientNotConnected' | 'connectionClosed' | 'connectionDisposed' | 'runtimeConnectionClosed';
+type CopilotClientStartupOutcome = 'success' | 'failure' | 'cancelled';
+type CopilotStartupFailureCause = 'nativeModuleProcedureNotFound' | 'nativeModuleInitializationFailed' | 'nativeModuleNotFound' | 'permissionDenied' | 'timeout' | 'spawnFailed' | 'processExitedUnexpectedly' | 'processExited' | 'configurationChanged' | 'other';
 type CopilotStartupFailureResource = 'runtime' | 'cliNative' | 'conpty' | 'sandbox' | 'other';
 
 export interface ICopilotFailureCorrelation extends IAgentHostInitiatorTelemetry {
@@ -74,7 +75,7 @@ export function createCopilotFailureCorrelation(sessionUri: URI, chatUri: URI, t
 	};
 }
 
-export function classifyCopilotClientFailure(error: unknown): CopilotClientFailureKind | undefined {
+export function classifyCopilotClientOperationFailure(error: unknown): CopilotClientOperationFailureKind | undefined {
 	if (!(error instanceof Error)) {
 		return undefined;
 	}
@@ -88,21 +89,22 @@ export function classifyCopilotClientFailure(error: unknown): CopilotClientFailu
 		case 'The in-process runtime connection is closed.':
 			return 'runtimeConnectionClosed';
 	}
-	return error.message.startsWith('Failed to start CLI server:')
+	return undefined;
+}
+
+export function isCopilotClientStartupFailure(error: unknown): boolean {
+	return error instanceof Error && (
+		error.message.startsWith('Failed to start CLI server:')
 		|| error.message.startsWith('CLI server exited with code ')
 		|| error.message.startsWith('CLI server exited unexpectedly with code ')
 		|| error.message === 'Timeout waiting for CLI server to start'
-		? 'startupFailed'
-		: undefined;
+	);
 }
 
-type CopilotClientFailureEvent = ICopilotFailureCorrelation & {
+type CopilotClientOperationFailureEvent = ICopilotFailureCorrelation & {
 	clientFailureId: string;
-	failureKind: CopilotClientFailureKind;
-	operation: CopilotClientFailureOperation;
-	startupFailureCause?: CopilotStartupFailureCause;
-	startupFailureResource?: CopilotStartupFailureResource;
-	startupExitCode?: number;
+	failureKind: CopilotClientOperationFailureKind;
+	operation: CopilotClientOperation;
 	activeTurnCount: number;
 	recoveryStarted: boolean;
 	errorName: string | undefined;
@@ -111,13 +113,10 @@ type CopilotClientFailureEvent = ICopilotFailureCorrelation & {
 	callstack: string | undefined;
 };
 
-type CopilotClientFailureClassification = IAgentHostInitiatorClassification & {
+type CopilotClientOperationFailureClassification = IAgentHostInitiatorClassification & {
 	clientFailureId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier shared by detections and recovery telemetry for one Copilot client failure episode.' };
 	failureKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded category of Copilot client failure that was detected.' };
 	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Copilot provider operation that detected the client failure.' };
-	startupFailureCause?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded cause extracted from a Copilot client startup failure.' };
-	startupFailureResource?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded Copilot CLI resource involved in a startup failure.' };
-	startupExitCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The Copilot CLI process exit code reported for a startup failure.' };
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host session identifier, when the failing operation targeted a session.' };
 	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host chat identifier, when the failing operation targeted a chat.' };
 	turnId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host turn identifier, when available.' };
@@ -129,7 +128,27 @@ type CopilotClientFailureClassification = IAgentHostInitiatorClassification & {
 	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The client failure message. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The client failure stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	owner: 'roblourens';
-	comment: 'Tracks detected Copilot client failures and whether recovery was started.';
+	comment: 'Tracks failures detected while operating an established Copilot client and whether recovery was started.';
+};
+
+type CopilotClientStartupEvent = {
+	outcome: CopilotClientStartupOutcome;
+	durationMs: number;
+	attemptNumber: number;
+	startupFailureCause?: CopilotStartupFailureCause;
+	startupFailureResource?: CopilotStartupFailureResource;
+	startupExitCode?: number;
+};
+
+type CopilotClientStartupClassification = {
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the startup attempt succeeded, failed, or was cancelled during shutdown.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the Copilot client startup attempt in milliseconds.' };
+	attemptNumber: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One-based Copilot client startup attempt number within this Agent Host process.' };
+	startupFailureCause?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded cause of a failed Copilot client startup attempt.' };
+	startupFailureResource?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded Copilot CLI resource involved in a failed startup attempt.' };
+	startupExitCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The Copilot CLI process exit code reported for a failed startup attempt.' };
+	owner: 'roblourens';
+	comment: 'Tracks one terminal outcome for every Copilot client startup attempt.';
 };
 
 function getCopilotStartupFailureCause(message: string): CopilotStartupFailureCause {
@@ -177,8 +196,8 @@ function getCopilotStartupFailureResource(message: string): CopilotStartupFailur
 	return 'other';
 }
 
-function getCopilotStartupFailureDetails(error: unknown): Pick<CopilotClientFailureEvent, 'startupFailureCause' | 'startupFailureResource' | 'startupExitCode'> {
-	if (!(error instanceof Error) || classifyCopilotClientFailure(error) !== 'startupFailed') {
+function getCopilotStartupFailureDetails(error: unknown): Pick<CopilotClientStartupEvent, 'startupFailureCause' | 'startupFailureResource' | 'startupExitCode'> {
+	if (!(error instanceof Error) || !isCopilotClientStartupFailure(error)) {
 		return {};
 	}
 
@@ -193,22 +212,42 @@ function getCopilotStartupFailureDetails(error: unknown): Pick<CopilotClientFail
 	};
 }
 
-export function reportCopilotClientFailure(
+export function reportCopilotClientStartup(
+	telemetryService: ITelemetryService,
+	data: Omit<CopilotClientStartupEvent, 'startupFailureCause' | 'startupFailureResource' | 'startupExitCode'>,
+	error?: unknown,
+): void {
+	let failureDetails: Pick<CopilotClientStartupEvent, 'startupFailureCause' | 'startupFailureResource' | 'startupExitCode'> = {};
+	if (data.outcome === 'failure') {
+		failureDetails = getCopilotStartupFailureDetails(error);
+		if (!failureDetails.startupFailureCause) {
+			failureDetails = {
+				startupFailureCause: error instanceof Error && error.message === 'Copilot startup config changed while the client was starting' ? 'configurationChanged' : 'other',
+				startupFailureResource: 'other',
+			};
+		}
+	}
+	telemetryService.publicLog2<CopilotClientStartupEvent, CopilotClientStartupClassification>('agentHost.copilotClientStartup', {
+		...data,
+		...failureDetails,
+	});
+}
+
+export function reportCopilotClientOperationFailure(
 	telemetryService: ITelemetryService,
 	clientFailureId: string,
-	failureKind: CopilotClientFailureKind,
-	operation: CopilotClientFailureOperation,
+	failureKind: CopilotClientOperationFailureKind,
+	operation: CopilotClientOperation,
 	activeTurnCount: number,
 	recoveryStarted: boolean,
 	error: unknown,
 	correlation?: ICopilotFailureCorrelation,
 ): void {
 	const packed = packErrorForTelemetry(error);
-	telemetryService.publicLogError2<CopilotClientFailureEvent, CopilotClientFailureClassification>('agentHost.copilotClientFailure', {
+	telemetryService.publicLogError2<CopilotClientOperationFailureEvent, CopilotClientOperationFailureClassification>('agentHost.copilotClientFailure', {
 		clientFailureId,
 		failureKind,
 		operation,
-		...getCopilotStartupFailureDetails(error),
 		...correlation,
 		activeTurnCount,
 		recoveryStarted,
@@ -221,7 +260,7 @@ export function reportCopilotClientFailure(
 
 type CopilotClientRecoveryEvent = {
 	clientFailureId: string;
-	failureKind: CopilotClientFailureKind;
+	failureKind: CopilotClientOperationFailureKind;
 	durationMs: number;
 	failedTurnCount: number;
 	stopSucceeded: boolean;
