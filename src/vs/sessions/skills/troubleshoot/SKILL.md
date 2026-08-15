@@ -2,7 +2,6 @@
 name: troubleshoot
 description: Investigate unexpected behavior in the current Copilot agent session by analyzing its event log. Use when the user asks why something happened, why a request was slow, why a tool was or was not used, or why instructions/skills/agents did not load.
 ---
-<!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 # Troubleshoot
 

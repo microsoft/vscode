@@ -2,7 +2,6 @@
 name: code-review
 description: Perform a code review of the current session's changes. Use when the user requests a code review via the Run Code Review button in the Changes toolbar.
 ---
-<!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 # Code Review
 

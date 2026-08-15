@@ -2,7 +2,6 @@
 name: fix-ci
 description: Fix the failed CI checks for the current session. Use when the user requests a CI fix via the Fix Checks button in the Changes toolbar.
 ---
-<!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 # Fix CI
 

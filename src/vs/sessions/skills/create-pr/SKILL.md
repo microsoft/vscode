@@ -2,7 +2,6 @@
 name: create-pr
 description: Create a pull request for the current session. Use when the user wants to open a PR with the session's changes.
 ---
-<!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 # Create Pull Request
 

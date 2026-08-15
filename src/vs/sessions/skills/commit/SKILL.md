@@ -2,7 +2,6 @@
 name: commit
 description: Commit staged or unstaged changes with an AI-generated commit message that matches the repository's existing commit style. Use when the user asks to 'commit', 'commit changes', 'create a commit', 'save my work', or 'check in code'.
 ---
-<!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 # Commit Changes
 

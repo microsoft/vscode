@@ -2,7 +2,6 @@
 name: merge
 description: Merge changes from the topic branch to the merge base branch. Use when the user wants to merge their session's work back to the base branch.
 ---
-<!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 # Merge Changes
 
