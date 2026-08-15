@@ -99,12 +99,12 @@ export function previewFilesEqual(a: readonly IPreviewFile[], b: readonly IPrevi
 }
 
 /** Opens a turn file with the editor configured for resources opened from chat. */
-export async function openChatTurnFile(file: IPreviewFile, openerService: IOpenerService, configurationService: IConfigurationService): Promise<void> {
+export async function openChatTurnFile(file: IPreviewFile, openerService: IOpenerService, configurationService: IConfigurationService, browserViewWorkbenchService: IBrowserViewWorkbenchService): Promise<void> {
 	const configuredOverride = getEditorOverrideForChatResource(file.uri, configurationService);
 	await openerService.open(file.uri, {
 		fromUserGesture: true,
 		editorOptions: {
-			override: configuredOverride ?? (file.kind === 'html' ? BrowserViewEditorId : undefined),
+			override: configuredOverride ?? (file.kind === 'html' && browserViewWorkbenchService.canRenderFile(file.uri) ? BrowserViewEditorId : undefined),
 		},
 	});
 }

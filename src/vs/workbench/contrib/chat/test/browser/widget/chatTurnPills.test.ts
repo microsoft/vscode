@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -17,6 +18,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 /** A browser view service that can render the given resources, mimicking its trusted-root rule. */
 function browserViewService(...renderable: URI[]): IBrowserViewWorkbenchService {
 	return new class extends mock<IBrowserViewWorkbenchService>() {
+		override readonly onDidChangeFileRenderability = Event.None;
 		override canRenderFile(resource: URI): boolean {
 			return renderable.some(candidate => isEqual(candidate, resource));
 		}
@@ -41,7 +43,7 @@ suite('ChatTurnPills', () => {
 			},
 		});
 
-		await openChatTurnFile({ uri: resource, kind: 'markdown', created: true }, openerService, configurationService);
+		await openChatTurnFile({ uri: resource, kind: 'markdown', created: true }, openerService, configurationService, browserViewService());
 
 		assert.deepStrictEqual(opened, {
 			resource: resource.toString(),
@@ -87,7 +89,7 @@ suite('ChatTurnPills', () => {
 			}
 		};
 
-		await openChatTurnFile({ uri: resource, kind: 'html', created: true }, openerService, new TestConfigurationService());
+		await openChatTurnFile({ uri: resource, kind: 'html', created: true }, openerService, new TestConfigurationService(), browserViewService(resource));
 
 		assert.deepStrictEqual(opened, {
 			resource: resource.toString(),
@@ -95,6 +97,29 @@ suite('ChatTurnPills', () => {
 				fromUserGesture: true,
 				editorOptions: {
 					override: BrowserViewEditorId,
+				},
+			},
+		});
+	});
+
+	test('falls back to the default editor when HTML renderability was revoked', async () => {
+		const resource = URI.file('/workspace/index.html');
+		let opened: { resource: string; options: OpenInternalOptions | OpenExternalOptions | undefined } | undefined;
+		const openerService = new class extends mock<IOpenerService>() {
+			override async open(resource: string | URI, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+				opened = { resource: resource.toString(), options };
+				return true;
+			}
+		};
+
+		await openChatTurnFile({ uri: resource, kind: 'html', created: true }, openerService, new TestConfigurationService(), browserViewService());
+
+		assert.deepStrictEqual(opened, {
+			resource: resource.toString(),
+			options: {
+				fromUserGesture: true,
+				editorOptions: {
+					override: undefined,
 				},
 			},
 		});
@@ -115,7 +140,7 @@ suite('ChatTurnPills', () => {
 			},
 		});
 
-		await openChatTurnFile({ uri: resource, kind: 'html', created: true }, openerService, configurationService);
+		await openChatTurnFile({ uri: resource, kind: 'html', created: true }, openerService, configurationService, browserViewService(resource));
 
 		assert.deepStrictEqual(opened, {
 			resource: resource.toString(),

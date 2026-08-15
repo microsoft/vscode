@@ -27,6 +27,7 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;
+	readonly onDidChangeFileRenderability = Event.None;
 	readonly isSharingAvailable = false;
 	readonly known = new Map<string, BrowserEditorInput>();
 	input: BrowserEditorInput | undefined;

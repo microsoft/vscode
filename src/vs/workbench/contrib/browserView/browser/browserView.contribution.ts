@@ -24,6 +24,7 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;
+	readonly onDidChangeFileRenderability = Event.None;
 	readonly isSharingAvailable = false;
 
 	private readonly _known = new Map<string, BrowserEditorInput>();

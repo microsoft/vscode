@@ -5,7 +5,7 @@
 
 import { $ } from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -132,6 +132,7 @@ export class SessionChatInputToolbar extends Disposable {
 
 		this.element = $('.session-chat-input-toolbar.hidden');
 
+		const fileRenderabilityChanged = observableSignalFromEvent(this, this._browserViewWorkbenchService.onDidChangeFileRenderability);
 		this._turnData = derivedOpts<ITurnData>({ owner: this, equalsFn: turnDataEqual }, reader => {
 			const debugData = this._debugData.read(reader);
 			if (debugData) {
@@ -144,6 +145,7 @@ export class SessionChatInputToolbar extends Disposable {
 					})),
 				};
 			}
+			fileRenderabilityChanged.read(reader);
 			const chat = this._chat.read(reader);
 			return chat ? computeTurnData(chat, reader, this._browserViewWorkbenchService) : EMPTY_TURN_DATA;
 		});
@@ -157,7 +159,7 @@ export class SessionChatInputToolbar extends Disposable {
 			changesEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
 			previewEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
 			openChanges: () => this._debugData.get() ? undefined : this._openChanges(),
-			openFile: file => this._debugData.get() ? undefined : openChatTurnFile(file, this._openerService, this._configurationService),
+			openFile: file => this._debugData.get() ? undefined : openChatTurnFile(file, this._openerService, this._configurationService, this._browserViewWorkbenchService),
 		};
 
 		const pills = this._register(instantiationService.createInstance(ChatTurnPillsWidget, model));

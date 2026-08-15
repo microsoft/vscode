@@ -275,6 +275,11 @@ export interface IBrowserViewWorkbenchService {
 	canRenderFile(resource: URI): boolean;
 
 	/**
+	 * Fires when the set of files the Integrated Browser can render changes.
+	 */
+	readonly onDidChangeFileRenderability: Event<void>;
+
+	/**
 	 * Register a contextual filter that restricts which browser views are
 	 * returned by {@link getContextualBrowserViews}. A view is part of the
 	 * contextual set only when every registered filter includes it.

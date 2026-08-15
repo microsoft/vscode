@@ -8,7 +8,7 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { basename, getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -78,7 +78,9 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		});
 
 		const previewDiffs = this._chatResponseFileChangesService.getFileEditsForRequest?.(_content.sessionResource, _content.requestId) ?? constObservable([]);
+		const fileRenderabilityChanged = observableSignalFromEvent(this, this._browserViewWorkbenchService.onDidChangeFileRenderability);
 		const previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => {
+			fileRenderabilityChanged.read(reader);
 			const created: IPreviewFile[] = [];
 			const edited: IPreviewFile[] = [];
 			const seen = new Set<string>();
@@ -136,7 +138,10 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 
 		// Only feed diffs into the list when the changes summary is shown, so the
 		// disclosure stays empty when just the preview action is enabled.
-		const listDiffs = derived(this, reader => showChanges.read(reader) ? this._diffs.read(reader) : []);
+		const listDiffs = derived(this, reader => {
+			fileRenderabilityChanged.read(reader);
+			return showChanges.read(reader) ? [...this._diffs.read(reader)] : [];
+		});
 		this._register(renderChangesSummaryFileList(details, listDiffs, this._instantiationService, this._editorService, this._configurationService, {
 			getRowActions: diff => this._getRowActions(diff),
 		}));
@@ -251,7 +256,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	private _openPrimaryPreview(files: readonly IPreviewFile[]): void {
 		const primaryFile = files.at(0);
 		if (primaryFile) {
-			openChatTurnFile(primaryFile, this._openerService, this._configurationService);
+			openChatTurnFile(primaryFile, this._openerService, this._configurationService, this._browserViewWorkbenchService);
 		}
 	}
 
@@ -268,7 +273,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		return [toAction({
 			id: 'chat.turnChanges.previewFile',
 			label: localize('chat.turnChanges.preview', "Preview"),
-			run: () => openChatTurnFile(file, this._openerService, this._configurationService),
+			run: () => openChatTurnFile(file, this._openerService, this._configurationService, this._browserViewWorkbenchService),
 		})];
 	}
 
