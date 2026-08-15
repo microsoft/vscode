@@ -245,8 +245,10 @@ export class InstantiationService implements IInstantiationService {
 
 				if (instanceOrDesc instanceof SyncDescriptor) {
 					const d = { id: dependency.id, desc: instanceOrDesc, _trace: item._trace.branch(dependency.id, true) };
+					if (!graph.lookup(d)) {
+						stack.push(d);
+					}
 					graph.insertEdge(item, d);
-					stack.push(d);
 				}
 			}
 		}
