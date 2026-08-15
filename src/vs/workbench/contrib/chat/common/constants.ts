@@ -41,11 +41,13 @@ export enum ChatConfiguration {
 	UtilitySmallModel = 'chat.utilitySmallModel',
 	BYOKUtilityModelDefault = 'chat.byokUtilityModelDefault',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
+	SaveBeforeSend = 'chat.saveBeforeSend',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
+	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -92,6 +94,7 @@ export enum ChatConfiguration {
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
+	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	AssistedPermissionsEnabled = 'chat.assistedPermissions.enabled',
@@ -116,6 +119,7 @@ export enum ChatConfiguration {
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
+	RichLinks = 'chat.experimental.richLinks.enabled',
 
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
@@ -160,7 +164,7 @@ export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
 
 /** Approval values exposed by the `chat.defaultConfiguration` setting. */
 export enum ChatDefaultPermissionLevel {
-	Default = 'default',
+	Manual = 'manual',
 	Assisted = 'assisted',
 	AllowAll = 'allowAll',
 }
@@ -168,14 +172,15 @@ export enum ChatDefaultPermissionLevel {
 export interface IChatDefaultConfiguration {
 	/** Starting agent mode: `interactive` / `plan` / `autopilot`. */
 	readonly mode?: AgentSessionMode;
-	/** Starting approval level: `default` / `assisted` / `allowAll`. */
+	/** Starting approval level: `manual` / `assisted` / `allowAll`. */
 	readonly approvals?: ChatDefaultPermissionLevel;
 }
 
 /** Maps a default-configuration value to the internal Agent Host permission level. */
 export function getChatPermissionLevelFromDefaultConfiguration(value: unknown): ChatPermissionLevel | undefined {
 	switch (value) {
-		case ChatDefaultPermissionLevel.Default:
+		case ChatDefaultPermissionLevel.Manual:
+		case ChatPermissionLevel.Default:
 			return ChatPermissionLevel.Default;
 		case ChatDefaultPermissionLevel.Assisted:
 			return ChatPermissionLevel.Assisted;
@@ -256,6 +261,9 @@ export namespace ChatAgentLocation {
  */
 const chatAlwaysUnsupportedFileSchemes = new Set([
 	Schemas.vscodeChatEditor,
+	// Chat's own read-only resources, such as a pasted-text artifact: their
+	// contents already reach the model through the attachment they belong to.
+	Schemas.vscodeChatResponseResource,
 	Schemas.walkThrough,
 	Schemas.vscodeLocalChatSession,
 	Schemas.vscodeSettings,
@@ -265,6 +273,13 @@ const chatAlwaysUnsupportedFileSchemes = new Set([
 	'ccreq',
 	'openai-codex', // Codex session custom editor scheme
 ]);
+
+/** Schemes whose models are chat input editors. */
+export const chatInputSchemes: readonly string[] = [Schemas.vscodeChatInput, Schemas.sessionsChatInput];
+
+export function isChatInputModel(uri: URI): boolean {
+	return chatInputSchemes.includes(uri.scheme);
+}
 
 export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: string): boolean {
 	const chatService = accessor.get(IChatSessionsService);
@@ -329,13 +344,14 @@ export function isNewChatSessionTypeUsable(
 	sessionType: string,
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	workspace: IWorkspace
+	workspace: IWorkspace,
+	agentHostEnabled = true,
 ): boolean {
 	if (sessionType === localChatSessionType) {
 		return isEditorLocalAgentEnabled(configurationService, workspace);
 	}
 	if (isAgentHostTarget(sessionType)) {
-		return true;
+		return agentHostEnabled;
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace);
 }
@@ -366,12 +382,12 @@ export function getDefaultNewChatSessionType(
 		return localChatSessionType;
 	}
 
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled);
 	if (remembered) {
 		return remembered;
 	}
 
-	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace)) {
+	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace, agentHostEnabled)) {
 		return options.currentSessionType;
 	}
 
@@ -396,7 +412,7 @@ export function resolveDefaultNewChatSessionType(
 		return { sessionType: localChatSessionType };
 	}
 
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled);
 	if (remembered && remembered !== localChatSessionType) {
 		return { sessionType: remembered };
 	}
@@ -414,10 +430,11 @@ function getUsableRememberedSessionType(
 	storageService: IStorageService,
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	workspace: IWorkspace
+	workspace: IWorkspace,
+	agentHostEnabled: boolean,
 ): string | undefined {
 	const remembered = getRememberedSessionType(storageService);
-	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace) ? remembered : undefined;
+	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace, agentHostEnabled) ? remembered : undefined;
 }
 
 export function getDefaultNewChatSessionResource(

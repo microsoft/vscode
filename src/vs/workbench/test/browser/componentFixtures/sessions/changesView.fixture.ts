@@ -28,11 +28,12 @@ import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../../serv
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionState, ChangesViewSection, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -85,6 +86,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 
 	constructor(session: IActiveSession, options: IChangesViewFixtureOptions) {
@@ -126,7 +128,12 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 
 	setSectionCollapsed(_sessionResource: URI, _section: ChangesViewSection, _collapsed: boolean): void { }
 
+	getDetailsViewState(_sessionResource: URI, _viewMode: ChangesViewMode): IChangesDetailsViewState | undefined { return undefined; }
+
+	setDetailsViewState(_sessionResource: URI, _viewMode: ChangesViewMode, _state: IChangesDetailsViewState): void { }
+
 	setChangesetId(_changesetId: string | undefined): void { }
+	showChangeset(_changeset: ISessionChangeset): void { }
 
 	setChangesetFilesReviewState(_resources: readonly URI[], _reviewed: boolean): void { }
 
@@ -406,6 +413,11 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: 'fixture', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceFolderLabelService, new class extends mock<IWorkspaceFolderLabelService>() {
+				override getWorkspaceFolderLabel(): string {
+					return 'vscode (feature/changes-view-fixtures)';
+				}
+			}());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { override getNotebook() { return undefined; } }());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override async readFile(resource: URI): Promise<IFileContent> {

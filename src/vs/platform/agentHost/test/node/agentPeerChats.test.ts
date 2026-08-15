@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MessageKind, ResponsePartKind, TurnState, type Turn } from '../../common/state/sessionState.js';
-import { buildSideChatSourceContext, decodeProviderData, encodeProviderData, injectSideChatContext, prepareSideChatPrompt, stripSideChatContext, type IPersistedSideChat } from '../../node/agentPeerChats.js';
+import { buildSideChatSourceContext, decodeProviderData, encodeProviderData, injectSideChatContext, prepareSideChatPrompt, resolveSideChatBoundary, sliceSideChatTurns, stripSideChatContext, type IPersistedSideChat } from '../../node/agentPeerChats.js';
 
 suite('agentPeerChats', () => {
 
@@ -22,7 +22,7 @@ suite('agentPeerChats', () => {
 	const sideChat: IPersistedSideChat = {
 		source: 'ahp-chat://default/source',
 		turnId: sourceTurn.id,
-		inheritedTurnCount: 1,
+		inheritedTurnId: sourceTurn.id,
 	};
 
 	const countOccurrences = (value: string, needle: string) => value.split(needle).length - 1;
@@ -111,7 +111,7 @@ suite('agentPeerChats', () => {
 		}], {
 			source: 'ahp-chat://default/source',
 			turnId: 'active-turn',
-			inheritedTurnCount: 1,
+			inheritedTurnId: 'active-turn',
 			context: 'User request:\ncurrent question',
 			partialResponse,
 		});
@@ -128,7 +128,7 @@ suite('agentPeerChats', () => {
 		}], {
 			source: 'ahp-chat://default/source',
 			turnId: 'active-turn',
-			inheritedTurnCount: 1,
+			inheritedTurnId: sourceTurn.id,
 			context: sourceContext,
 			partialResponse,
 		});
@@ -150,7 +150,7 @@ suite('agentPeerChats', () => {
 			source: 'ahp-chat://default/source',
 			turnId: 'local-turn',
 			providerAnchorTurnId: sourceTurn.id,
-			inheritedTurnCount: 1,
+			inheritedTurnId: sourceTurn.id,
 			context: sourceContext,
 		};
 		const prepared = prepareSideChatPrompt('Explain the branch', [sourceTurn], localSideChat);
@@ -192,6 +192,293 @@ suite('agentPeerChats', () => {
 		assert.deepStrictEqual(decodeProviderData(providerData)?.sideChat?.selection, {
 			text: '  selected text  ',
 			responsePartId: 'response-part-1',
+		});
+	});
+
+	test('round-trips the selected agent through provider data', () => {
+		const providerData = encodeProviderData({
+			sdkSessionId: 'sdk-session',
+			agent: { uri: 'agent://workspace/reviewer' },
+		});
+
+		assert.deepStrictEqual(decodeProviderData(providerData)?.agent, {
+			uri: 'agent://workspace/reviewer',
+		});
+	});
+
+	test('uses the seed marker for a side chat without an inherited turn id', () => {
+		const inheritedTurns: Turn[] = Array.from({ length: 16 }, (_, index) => ({
+			...sourceTurn,
+			id: `inherited-${index}`,
+			message: { ...sourceTurn.message, text: `inherited ${index}` },
+		}));
+		const prompt = 'Investigate the regression';
+		const seedTurn: Turn = {
+			...sourceTurn,
+			id: 'side-chat-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext(prompt) },
+		};
+		const ownTurns: Turn[] = Array.from({ length: 12 }, (_, index) => ({
+			...sourceTurn,
+			id: `own-${index}`,
+			message: { ...sourceTurn.message, text: `own ${index}` },
+		}));
+		const turns = [...inheritedTurns, seedTurn, ...ownTurns];
+		const visible = sliceSideChatTurns(turns, { ...sideChat, inheritedTurnId: undefined });
+
+		assert.deepStrictEqual({
+			totalTurnCount: turns.length,
+			visibleTurnCount: visible.length,
+			firstVisibleText: visible[0]?.message.text,
+			hasSideChatContext: visible[0]?.message.text.includes('<side-chat-context>') ?? false,
+		}, {
+			totalTurnCount: 29,
+			visibleTurnCount: 13,
+			firstVisibleText: prompt,
+			hasSideChatContext: false,
+		});
+	});
+
+	test('keeps aligned side-chat boundaries untouched', () => {
+		const prompt = 'Explain the branch';
+		const turns: Turn[] = [
+			sourceTurn,
+			{
+				...sourceTurn,
+				id: 'side-chat-seed',
+				message: { ...sourceTurn.message, text: injectSideChatContext(prompt) },
+			},
+			{
+				...sourceTurn,
+				id: 'own-turn',
+				message: { ...sourceTurn.message, text: 'Follow up' },
+			},
+		];
+		const visible = sliceSideChatTurns(turns, sideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, sideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+			visibleTexts: visible.map(turn => turn.message.text),
+		}, {
+			boundary: 1,
+			visibleTurnIds: ['side-chat-seed', 'own-turn'],
+			visibleTexts: [prompt, 'Follow up'],
+		});
+	});
+
+	test('uses the aligned child seed instead of an earlier parent side-chat seed', () => {
+		const parentSeed: Turn = {
+			...sourceTurn,
+			id: 'parent-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Parent prompt') },
+		};
+		const parentOwnTurn: Turn = {
+			...sourceTurn,
+			id: 'parent-own',
+			message: { ...sourceTurn.message, text: 'Parent follow up' },
+		};
+		const childPrompt = 'Child prompt';
+		const childSeed: Turn = {
+			...sourceTurn,
+			id: 'child-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext(childPrompt) },
+		};
+		const childOwnTurn: Turn = {
+			...sourceTurn,
+			id: 'child-own',
+			message: { ...sourceTurn.message, text: 'Child follow up' },
+		};
+		const turns = [sourceTurn, parentSeed, parentOwnTurn, childSeed, childOwnTurn];
+		const childSideChat = { ...sideChat, inheritedTurnId: undefined };
+		const visible = sliceSideChatTurns(turns, childSideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, childSideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+			visibleTexts: visible.map(turn => turn.message.text),
+		}, {
+			boundary: 3,
+			visibleTurnIds: ['child-seed', 'child-own'],
+			visibleTexts: [childPrompt, 'Child follow up'],
+		});
+	});
+
+	test('uses the nested child seed when no inherited turn id was persisted', () => {
+		const parentSeed: Turn = {
+			...sourceTurn,
+			id: 'parent-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Parent prompt') },
+		};
+		const parentOwnTurn: Turn = {
+			...sourceTurn,
+			id: 'parent-own',
+			message: { ...sourceTurn.message, text: 'Parent follow up' },
+		};
+		const childPrompt = 'Child prompt';
+		const childSeed: Turn = {
+			...sourceTurn,
+			id: 'child-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext(childPrompt) },
+		};
+		const childOwnTurns: Turn[] = Array.from({ length: 2 }, (_, index) => ({
+			...sourceTurn,
+			id: `child-own-${index}`,
+			message: { ...sourceTurn.message, text: `Child follow up ${index}` },
+		}));
+		const turns = [sourceTurn, parentSeed, parentOwnTurn, childSeed, ...childOwnTurns];
+		const childSideChat = { ...sideChat, inheritedTurnId: undefined };
+		const visible = sliceSideChatTurns(turns, childSideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, childSideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+		}, {
+			boundary: 3,
+			visibleTurnIds: ['child-seed', 'child-own-0', 'child-own-1'],
+		});
+	});
+
+	test('keeps a nested child that has not sent anything at its inherited turn', () => {
+		const parentSeed: Turn = {
+			...sourceTurn,
+			id: 'parent-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Parent prompt') },
+		};
+		const parentOwnTurns: Turn[] = Array.from({ length: 2 }, (_, index) => ({
+			...sourceTurn,
+			id: `parent-own-${index}`,
+			message: { ...sourceTurn.message, text: `Parent follow up ${index}` },
+		}));
+		// The child forked the parent side chat but has not sent a message, so the
+		// only marker in its transcript is the one it inherited from the parent.
+		const turns = [sourceTurn, parentSeed, ...parentOwnTurns];
+		const childSideChat = { ...sideChat, inheritedTurnId: 'parent-own-1' };
+		const prepared = prepareSideChatPrompt('Child prompt', turns, childSideChat);
+		const visible = sliceSideChatTurns(turns, childSideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, childSideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+			seedsTheFirstPrompt: prepared.startsWith('<side-chat-context>'),
+		}, {
+			boundary: 4,
+			visibleTurnIds: [],
+			seedsTheFirstPrompt: true,
+		});
+	});
+
+	test('keeps the inherited turn of a nested child that already sent messages', () => {
+		const parentSeed: Turn = {
+			...sourceTurn,
+			id: 'parent-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Parent prompt') },
+		};
+		const childSeed: Turn = {
+			...sourceTurn,
+			id: 'child-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Child prompt') },
+		};
+		const turns = [sourceTurn, parentSeed, { ...sourceTurn, id: 'parent-own' }, childSeed, { ...sourceTurn, id: 'child-own' }];
+		const childSideChat = { ...sideChat, inheritedTurnId: 'parent-own' };
+		const visible = sliceSideChatTurns(turns, childSideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, childSideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+		}, {
+			boundary: 3,
+			visibleTurnIds: ['child-seed', 'child-own'],
+		});
+	});
+
+	test('falls back to the last marker when the inherited turn is gone', () => {
+		const childSeed: Turn = {
+			...sourceTurn,
+			id: 'child-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('Child prompt') },
+		};
+		const turns = [sourceTurn, childSeed, { ...sourceTurn, id: 'child-own' }];
+		// A truncation removed the recorded turn, so its id no longer resolves.
+		const childSideChat = { ...sideChat, inheritedTurnId: 'removed-turn' };
+		const visible = sliceSideChatTurns(turns, childSideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, childSideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+		}, {
+			boundary: 1,
+			visibleTurnIds: ['child-seed', 'child-own'],
+		});
+	});
+
+	test('round-trips the inherited turn id through provider data', () => {
+		const providerData = encodeProviderData({
+			sdkSessionId: 'sdk-session',
+			sideChat: { ...sideChat, inheritedTurnId: 'inherited-3' },
+		});
+
+		assert.strictEqual(decodeProviderData(providerData)?.sideChat?.inheritedTurnId, 'inherited-3');
+	});
+
+	test('uses the inherited turn id when a new side chat has no seed yet', () => {
+		const visible = sliceSideChatTurns([sourceTurn], sideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary([sourceTurn], sideChat),
+			visibleTurnIds: visible.map(turn => turn.id),
+		}, {
+			boundary: 1,
+			visibleTurnIds: [],
+		});
+	});
+
+	test('does not inject a second seed when using the seed marker fallback', () => {
+		const inheritedTurns: Turn[] = Array.from({ length: 16 }, (_, index) => ({
+			...sourceTurn,
+			id: `inherited-${index}`,
+			message: { ...sourceTurn.message, text: `inherited ${index}` },
+		}));
+		const seedTurn: Turn = {
+			...sourceTurn,
+			id: 'side-chat-seed',
+			message: { ...sourceTurn.message, text: injectSideChatContext('First prompt') },
+		};
+		const ownTurns: Turn[] = Array.from({ length: 12 }, (_, index) => ({
+			...sourceTurn,
+			id: `own-${index}`,
+			message: { ...sourceTurn.message, text: `own ${index}` },
+		}));
+		const turns = [...inheritedTurns, seedTurn, ...ownTurns];
+		const prompt = 'Follow up';
+		const prepared = prepareSideChatPrompt(prompt, turns, { ...sideChat, inheritedTurnId: undefined });
+
+		assert.deepStrictEqual({
+			prepared,
+			sideChatContextCount: countOccurrences([...turns.map(turn => turn.message.text), prepared].join('\n'), '<side-chat-context>'),
+		}, {
+			prepared: prompt,
+			sideChatContextCount: 1,
+		});
+	});
+
+	test('treats the transcript as inherited when there is no inherited turn id or seed', () => {
+		const turns: Turn[] = Array.from({ length: 21 }, (_, index) => ({
+			...sourceTurn,
+			id: `source-${index}`,
+			message: { ...sourceTurn.message, text: `source ${index}` },
+		}));
+		const legacySideChat = { ...sideChat, inheritedTurnId: undefined };
+		const visible = sliceSideChatTurns(turns, legacySideChat);
+
+		assert.deepStrictEqual({
+			boundary: resolveSideChatBoundary(turns, legacySideChat),
+			visibleTurnCount: visible.length,
+			visibleTurnIds: visible.map(turn => turn.id),
+		}, {
+			boundary: 21,
+			visibleTurnCount: 0,
+			visibleTurnIds: [],
 		});
 	});
 });

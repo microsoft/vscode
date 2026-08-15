@@ -9,7 +9,7 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getGitCommitDate } from '../lib/date.ts';
-import { applyIncrementalClientChanges } from './transpile.ts';
+import { applyIncrementalClientChanges, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS } from './transpile.ts';
 
 const STATE_SCHEMA = 1;
 const BUILD_RECIPE = 1;
@@ -257,9 +257,9 @@ export async function collectSnapshot(repoRoot: string): Promise<BuildFastSnapsh
 	]);
 	const head = headOutput.toString('utf8').trim();
 	const dirtyPaths = new Set([...parseNullSeparatedPaths(trackedOutput), ...parseNullSeparatedPaths(untrackedOutput)]);
-	const dirtyEntries = await Promise.all([...dirtyPaths].sort().map(async filePath => {
+	const dirtyEntries = await mapWithConcurrency([...dirtyPaths].sort(), MAX_CONCURRENT_FILE_OPERATIONS, async filePath => {
 		return [filePath, await fingerprintFile(path.join(repoRoot, filePath))] as const;
-	}));
+	});
 	return { head, dirty: Object.fromEntries(dirtyEntries) };
 }
 

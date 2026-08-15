@@ -16,13 +16,16 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
 import { SessionHasWorkspaceContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getSessionWorkspaceKind, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
@@ -31,7 +34,7 @@ import { SESSIONS_FILES_VIEW_ID } from './filesView.js';
 
 // --- Open Files view action
 
-class OpenFilesViewAction extends Action2 {
+export class OpenFilesViewAction extends Action2 {
 	static readonly ID = 'workbench.agentSessions.action.openFilesView';
 
 	constructor() {
@@ -55,6 +58,8 @@ class OpenFilesViewAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const viewsService = accessor.get(IViewsService);
+		const commandService = accessor.get(ICommandService);
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
@@ -62,6 +67,10 @@ class OpenFilesViewAction extends Action2 {
 		const targetSession = session ?? sessionsService.activeSession.get();
 		if (!targetSession) {
 			return;
+		}
+
+		if (layoutService.isSinglePaneLayoutEnabled) {
+			await commandService.executeCommand(NEW_FILE_TAB_COMMAND_ID);
 		}
 
 		await viewsService.openView(SESSIONS_FILES_VIEW_ID, false);
@@ -106,7 +115,7 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 			// Path and branch still describe the checkout while the worktree is pending, so withhold them.
 			const worktreePending = session?.worktreePending?.read(reader) ?? false;
 			const kind = getSessionWorkspaceKind(workspace, worktreePending);
-			const icon = kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact;
+			const icon = workspace.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact);
 			const folder = workspace.folders[0];
 			const branch = worktreePending ? undefined : folder?.gitRepository?.branchName?.trim() || undefined;
 			const workingDirectoryPath = worktreePending ? undefined : folder?.workingDirectory.fsPath;

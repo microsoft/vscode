@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -22,13 +22,14 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { localize } from '../../../../nls.js';
 
 /** Storage key for the last session type used to create a quick chat. */
 const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUsedSessionType';
@@ -122,7 +123,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// UI. Sends originating from {@link sendRequest} and
 		// {@link sendNewChatRequest} are deduplicated via
 		// {@link _pendingSendChatResources}.
-		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource, message }) => {
+		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource, message, attachedContext }) => {
 			if (this._pendingSendChatResources.has(chatSessionResource.toString())) {
 				return;
 			}
@@ -133,7 +134,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					chat: ownedChat.chat,
 					isNewSession: false,
 					isNewChat: false,
-					options: { query: message?.text ?? '' },
+					options: { query: message?.text ?? '', attachedContext },
 				});
 			}
 		}));
@@ -753,9 +754,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		const session = provider.createNewSession(folderUri, sessionTypeId, { metadata: createOptions?.metadata });
 		this._unlistedNewSessions.set(session.resource, session);
+		const requestActivity = new MutableDisposable();
 		try {
 			try {
-				provider.startNewSessionRequest?.(session.sessionId);
+				requestActivity.value = isDeferredNewSessionRequestOptions(options)
+					? provider.startNewSessionRequest?.(session.sessionId, options.activity)
+					: provider.startNewSessionRequest?.(session.sessionId);
 				createOptions?.onSessionCreated?.(session);
 			} catch (error) {
 				provider.deleteNewSession(session.sessionId);
@@ -763,8 +767,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 			const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
 				.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
-			return await this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token, folderUri);
+			return await this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token, folderUri, requestActivity);
 		} finally {
+			requestActivity.dispose();
 			this._unlistedNewSessions.delete(session.resource);
 		}
 	}
@@ -783,12 +788,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		supportsWorktreeConfiguration: boolean,
 		token: CancellationToken,
 		folderUri?: URI,
+		requestActivity?: MutableDisposable<IDisposable>,
 	): Promise<ISession | undefined> {
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const requestOptionsPromise = typeof options === 'function' ? options() : Promise.resolve(options);
+			const requestOptionsPromise = (async () => {
+				try {
+					return isDeferredNewSessionRequestOptions(options) ? await options.resolve() : options;
+				} finally {
+					requestActivity?.clear();
+				}
+			})();
 			const configurationPromise = this._configureNewSession(provider, session, createOptions, supportsWorktreeConfiguration, token, folderUri);
 			const [resolvedOptions] = await raceCancellationError(Promise.all([requestOptionsPromise, configurationPromise]), token);
 			if (token.isCancellationRequested) {
@@ -1034,7 +1046,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async cancelCurrentRequest(session: ISession): Promise<void> {
-		await this.chatService.cancelCurrentRequestForSession(session.mainChat.get().resource, 'sessionsManagement');
+		const resource = session.mainChat.get().resource;
+		// A restored, unloaded session has no pending request tracked in this window, so load its model first to re-establish cancellation tracking.
+		const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'sessionsManagement:cancel');
+		if (!modelRef) {
+			throw new Error(localize('sessions.cancelCurrentRequest.loadFailed', "Failed to load chat session for cancellation."));
+		}
+		try {
+			await this.chatService.cancelCurrentRequestForSession(resource, 'sessionsManagement');
+		} finally {
+			modelRef.dispose();
+		}
 	}
 
 	async archiveSession(session: ISession): Promise<void> {
@@ -1116,6 +1138,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this._getProvider(session)?.renameSession(session.sessionId, title);
 		this._onDidRenameSession.fire(session);
 	}
+}
+
+function isDeferredNewSessionRequestOptions(options: NewSessionRequestOptions): options is IDeferredNewSessionRequestOptions {
+	return (options as IDeferredNewSessionRequestOptions).kind === 'deferred';
 }
 
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Eager);

@@ -182,6 +182,9 @@ export interface IBrowserEditorViewState {
 
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
 
+/** The editor that renders a page in the Integrated Browser. */
+export const BrowserViewEditorId = 'workbench.editor.browser';
+
 /**
  * A filter that contextually restricts the browser views returned by
  * {@link IBrowserViewWorkbenchService.getContextualBrowserViews}.
@@ -353,6 +356,7 @@ export interface IBrowserViewCDPService {
 export interface IBrowserViewModel extends IDisposable {
 	readonly id: string;
 	readonly owner: IBrowserViewOwner;
+	readonly associatedResource: URI | undefined;
 	readonly url: string;
 	readonly title: string;
 	readonly favicon: string | undefined;
@@ -473,6 +477,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	constructor(
 		readonly id: string,
 		readonly owner: IBrowserViewOwner,
+		readonly associatedResource: URI | undefined,
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,

@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
-import { IAutomation, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
@@ -82,28 +83,28 @@ export interface ISessionModelsSnapshot {
 	readonly modelTarget: string | undefined;
 }
 
-export interface IAutomationSnapshot {
-	readonly automation: IAutomation;
+export interface IAutomation {
+	readonly automation: IAutomationDescriptor;
 	readonly runs: readonly IAutomationRun[];
 }
 
 export type IAutomationSnapshotImportResult =
 	| { readonly kind: 'inserted' }
 	| { readonly kind: 'alreadyPresent' }
-	| { readonly kind: 'conflict'; readonly current: IAutomationSnapshot };
+	| { readonly kind: 'conflict'; readonly current: IAutomation };
 
 export type IGuardedAutomationSnapshotRemovalResult =
 	| { readonly kind: 'removed' }
-	| { readonly kind: 'conflict'; readonly current: IAutomationSnapshot }
+	| { readonly kind: 'conflict'; readonly current: IAutomation }
 	| { readonly kind: 'missing' };
 
 export interface ISessionsProviderAutomations extends IAutomationStore {
 	/** Imports a snapshot without replacing an Automation already stored under the same ID. */
-	importAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<IAutomationSnapshotImportResult>;
+	importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult>;
 	/** Inserts or replaces an Automation snapshot without publishing create or update telemetry. */
-	upsertAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<void>;
+	upsertAutomationSnapshot(snapshot: IAutomation): Promise<void>;
 	/** Removes a snapshot only when the currently stored Automation and runs still match it. */
-	removeAutomationSnapshotIfUnchanged(expected: IAutomationSnapshot): Promise<IGuardedAutomationSnapshotRemovalResult>;
+	removeAutomationSnapshotIfUnchanged(expected: IAutomation): Promise<IGuardedAutomationSnapshotRemovalResult>;
 }
 
 /**
@@ -230,7 +231,7 @@ export interface ISessionsProvider {
 	 * Mark a new session as preparing its first request before asynchronous
 	 * configuration and request-context resolution begin.
 	 */
-	startNewSessionRequest?(sessionId: string): void;
+	startNewSessionRequest?(sessionId: string, activity?: string): IDisposable | undefined;
 
 	/**
 	 * Create a new **quick chat**: a workspace-less session not scoped to any
