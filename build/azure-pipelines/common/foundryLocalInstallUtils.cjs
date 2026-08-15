@@ -112,7 +112,9 @@ async function downloadFile(url, dest) {
 		file.close();
 	} catch (e) {
 		file.close();
-		if (fs.existsSync(dest)) fs.unlinkSync(dest);
+		if (fs.existsSync(dest)) {
+			fs.unlinkSync(dest);
+		}
 		throw e;
 	}
 }
@@ -188,7 +190,9 @@ async function getBaseAddress(feedUrl) {
 	}
 	const resources = serviceIndexCache.get(feedUrl).resources || [];
 	const res = resources.find(r => r['@type'] && r['@type'].startsWith('PackageBaseAddress/3.0.0'));
-	if (!res) throw new Error('Could not find PackageBaseAddress/3.0.0 in NuGet feed.');
+	if (!res) {
+		throw new Error('Could not find PackageBaseAddress/3.0.0 in NuGet feed.');
+	}
 	const baseAddress = res['@id'];
 	return baseAddress.endsWith('/') ? baseAddress : baseAddress + '/';
 }
