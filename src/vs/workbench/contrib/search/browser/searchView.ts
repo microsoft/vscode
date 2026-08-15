@@ -2288,10 +2288,7 @@ export class SearchView extends ViewPane {
 
 						if (isIMatchInNotebook(match)) {
 							elemParent.showMatch(match);
-							// `updateMatchesForEditorWidget` rebuilds the notebook matches into new objects and
-							// fires a change that only queues an async refresh of the lazy tree, so `match` may not
-							// be materialized in the tree yet. Selecting or focusing it in that state throws
-							// `TreeError [SearchView] Tree element not found`. Guard on `hasNode` before touching the tree.
+							// Rebuilt notebook matches only queue an async tree refresh, so guard on `hasNode` to avoid `TreeError: Tree element not found`.
 							if (this.tree.hasNode(match) && (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match))) {
 								this.tree.setSelection([match], getSelectionKeyboardEvent());
 								this.tree.setFocus([match]);
