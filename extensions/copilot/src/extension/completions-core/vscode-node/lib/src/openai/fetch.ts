@@ -8,6 +8,7 @@ import { CopilotAnnotations, StreamCopilotAnnotations } from '../../../../../../
 import { IEnvService } from '../../../../../../platform/env/common/envService';
 import { Completion } from '../../../../../../platform/nesFetch/common/completionsAPI';
 import { ByokCompletionModel } from '../../../../../byok/common/byokCompletionModels';
+import { sanitizeCustomRequestHeaders } from '../../../../../byok/common/sanitizeCustomHeaders';
 import { Completions, ICompletionsFetchService } from '../../../../../../platform/nesFetch/common/completionsFetchService';
 import { ResponseStream } from '../../../../../../platform/nesFetch/common/responseStream';
 import { RequestId, getRequestId } from '../../../../../../platform/networking/common/fetch';
@@ -165,6 +166,18 @@ function uiKindToIntent(uiKind: CopilotUiKind): string | undefined {
 			return 'copilot-panel';
 	}
 }
+
+/**
+ * Copilot-proxy headers that only exist on the completions path and must never
+ * be forwarded from user configuration to a custom (BYOK) endpoint. They extend
+ * the shared reserved set used by {@link sanitizeCustomRequestHeaders}.
+ */
+const COMPLETIONS_FORBIDDEN_CUSTOM_HEADERS: ReadonlySet<string> = new Set([
+	'openai-organization',
+	'x-policy-id',
+	'x-copilot-async',
+	'x-copilot-speculative',
+]);
 
 // Request methods
 
@@ -465,9 +478,14 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			let fullHeaders: Record<string, string>;
 
 			if (customModel) {
-				// Minimal headers for custom endpoints: Content-Type, X-Request-Id and
-				// Authorization (Bearer <apiKey>) are added by the fetch service.
-				fullHeaders = {};
+				// Content-Type, X-Request-Id and Authorization (Bearer <apiKey>) are added
+				// by the fetch service. User-configured requestHeaders (e.g. x-api-key,
+				// APIM subscription keys) are sanitized and forwarded so custom auth
+				// schemes keep working.
+				fullHeaders = sanitizeCustomRequestHeaders(customModel.requestHeaders, {
+					modelId: customModel.id,
+					extraForbiddenHeaders: COMPLETIONS_FORBIDDEN_CUSTOM_HEADERS,
+				});
 			} else {
 				fullHeaders = {
 					...headers,

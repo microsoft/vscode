@@ -250,6 +250,50 @@ suite('"Fetch" unit tests', function () {
 		assert.strictEqual(recordingFetchService.lastHeaders?.['Authorization'], undefined);
 	});
 
+	test('BYOK forwards sanitized custom requestHeaders', async function () {
+		const recordingFetchService = new MockCompletionsFetchService();
+		const serviceCollectionClone = serviceCollection.clone();
+		serviceCollectionClone.define(ICompletionsFetchService, recordingFetchService);
+		const accessor = serviceCollectionClone.createTestingAccessor();
+
+		const openAIFetcher = accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
+		const params: CompletionParams = {
+			prompt: { prefix: 'prefix', suffix: '', isFimEnabled: false },
+			languageId: '',
+			repoInfo: undefined,
+			engineModelId: 'custom-model',
+			count: 1,
+			uiKind: CopilotUiKind.GhostText,
+			ourRequestId: generateUuid(),
+			extra: {},
+			customModel: {
+				id: 'custom-model',
+				label: 'Custom Model',
+				vendor: 'customendpoint',
+				groupName: 'Custom',
+				completionsUrl: 'https://custom.example.com/v1/completions',
+				model: 'custom-model',
+				requestHeaders: {
+					// Explicitly configured custom auth headers are forwarded.
+					'x-api-key': 'apim-subscription-key',
+					'x-custom-tenant': 'tenant-1',
+					// Auth/content headers managed by the fetch service are stripped.
+					Authorization: 'Bearer user-managed',
+					'Content-Type': 'text/plain',
+					'X-Request-Id': 'user-set',
+					'X-GitHub-Api-Version': '2099-01-01',
+				},
+			},
+		};
+
+		await openAIFetcher.fetchAndStreamCompletions(params, TelemetryWithExp.createEmptyConfigForTesting(), () => undefined);
+
+		assert.deepStrictEqual(recordingFetchService.lastHeaders, {
+			'x-api-key': 'apim-subscription-key',
+			'x-custom-tenant': 'tenant-1',
+		});
+	});
+
 	test('BYOK 401 does not reset the Copilot token and points at the apiKey', async function () {
 		const result = await assertResponseWithContext(accessor, 401, undefined, fakeCustomModel());
 
