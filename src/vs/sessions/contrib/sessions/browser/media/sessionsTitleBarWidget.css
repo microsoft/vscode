@@ -43,6 +43,11 @@
 	border-color: var(--vscode-commandCenter-activeBorder);
 }
 
+.monaco-workbench .part.titlebar.inactive .command-center .agent-sessions-titlebar-container:not(:hover):not(.agent-sessions-titlebar-approved) {
+	color: var(--vscode-titleBar-inactiveForeground);
+	border-color: var(--vscode-commandCenter-inactiveBorder);
+}
+
 /* Session pill - clickable area for session picker, fills the command center box */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
 	display: flex;
