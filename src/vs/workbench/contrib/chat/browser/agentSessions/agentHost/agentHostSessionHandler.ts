@@ -622,8 +622,6 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 		this.transferredState = inputState ? { editingSession: undefined, inputState } : undefined;
 		if (hasActiveTurn) {
-			// Progress is appended by the turn observer the handler installs
-			// right after construction.
 			this.isCompleteObs.set(false, undefined);
 		}
 
@@ -922,6 +920,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _activeClientEntries = new ResourceMap<ActiveClientEntry>();
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
+	/**
+	 * Tool call edits that arrived before the session's ChatModel existed, so
+	 * {@link _ensureSnapshotController} could not record them. Flushed into
+	 * the controller as soon as one can be obtained.
+	 */
+	private readonly _pendingToolCallEdits = new ResourceMap<{ requestId: string; toolCall: ToolCallState }[]>();
+	/** Waits for the ChatModel that will receive {@link _pendingToolCallEdits}. */
+	private readonly _pendingToolCallEditFlushes = this._register(new DisposableResourceMap());
 	/**
 	 * Requests a turn observer is currently rendering, keyed by
 	 * {@link _toolCallKey} for tool calls and {@link _inputRequestKey} for chat
@@ -1348,8 +1354,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								participant: this._config.agentId,
 								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
 							});
-							// Marks the session as having an active turn; the
-							// observer appends into it before we return.
 							this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
 						}
 					}
@@ -1425,6 +1429,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._mcpAuthWatchers.deleteAndDispose(sessionResource);
 					this._releaseSessionInputNeeded(sessionResource);
 					this._pendingHistoryTurns.delete(sessionResource);
+					this._pendingToolCallEdits.delete(sessionResource);
+					this._pendingToolCallEditFlushes.deleteAndDispose(sessionResource);
 					this._surfacedMcpAuthServers.delete(sessionResource);
 					const chatURI = this._chatURIsBySessionResource.get(sessionResource);
 					this._chatURIsBySessionResource.delete(sessionResource);
@@ -4748,6 +4754,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
+		// Edits observed before the model existed (an active turn replays
+		// synchronously during `provideChatSessionContent`).
+		const pendingEdits = this._pendingToolCallEdits.get(sessionResource);
+		if (pendingEdits) {
+			this._pendingToolCallEdits.delete(sessionResource);
+			for (const { requestId, toolCall } of pendingEdits) {
+				editingSession.addToolCallEdits(requestId, toolCall);
+			}
+		}
+
 		return editingSession;
 	}
 
@@ -4762,7 +4778,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		tc: ToolCallState,
 	): IChatProgress[] {
 		const controller = this._ensureSnapshotController(sessionResource);
-		controller?.addToolCallEdits(requestId, tc);
+		if (controller) {
+			controller.addToolCallEdits(requestId, tc);
+		} else {
+			// No ChatModel yet — an active turn replays synchronously from
+			// `provideChatSessionContent`, before the model is created. Queue
+			// the edits and flush them when it arrives, so Restore Checkpoint
+			// still has a boundary for this turn. The pills render regardless.
+			const pending = this._pendingToolCallEdits.get(sessionResource) ?? [];
+			pending.push({ requestId, toolCall: tc });
+			this._pendingToolCallEdits.set(sessionResource, pending);
+			if (!this._pendingToolCallEditFlushes.has(sessionResource)) {
+				this._pendingToolCallEditFlushes.set(sessionResource, this._chatService.onDidCreateModel(model => {
+					if (isEqual(model.sessionResource, sessionResource)) {
+						this._pendingToolCallEditFlushes.deleteAndDispose(sessionResource);
+						this._ensureSnapshotController(sessionResource);
+					}
+				}));
+			}
+		}
 		if (tc.status !== ToolCallStatus.Completed) {
 			return [];
 		}

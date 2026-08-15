@@ -1991,9 +1991,8 @@ suite('AgentHostClientTools', () => {
 			await timeout(0);
 			await timeout(0);
 
-			// Reconnect replays the turn through the same observer the live
-			// path uses, so the tool has exactly one card — the shared
-			// invocation the watcher drives — with no orphaned duplicate.
+			// Reconnect replays through the live path's observer, so there is
+			// no separate snapshot invocation to orphan.
 			const invocations = (session as unknown as { progressObs: { get(): IChatProgress[] } })
 				.progressObs.get()
 				.filter((p): p is ChatToolInvocation => p instanceof ChatToolInvocation && p.toolCallId === 'tool-call-1');
