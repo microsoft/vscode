@@ -1449,6 +1449,41 @@ export class CommandCenter {
 		await resource.compareWithWorkspace();
 	}
 
+	@command('git.copyChanges', { repository: true })
+	async copyChanges(repository: Repository): Promise<void> {
+		const resources = [
+			...repository.indexGroup.resourceStates,
+			...repository.workingTreeGroup.resourceStates
+		];
+
+		if (resources.length === 0) {
+			window.showInformationMessage(l10n.t('There are no changes to copy'));
+			return;
+		}
+
+		const repoName = path.basename(repository.root);
+		const sections: string[] = [];
+
+		for (const resource of resources) {
+			const relativePath = path.relative(repository.root, resource.resourceUri.fsPath);
+			const rawDiff = await repository.diffWithHEAD(resource.resourceUri.fsPath);
+
+			const changedLines = rawDiff
+				.split('\n')
+				.filter(line =>
+					(line.startsWith('+') && !line.startsWith('+++')) ||
+					(line.startsWith('-') && !line.startsWith('---'))
+				);
+
+			sections.push(`-------------- > /${relativePath}:\n${changedLines.join('\n')}`);
+		}
+
+		const output = `Changes to "${repoName}":\n${sections.join('\n\n')}`;
+
+		await env.clipboard.writeText(output);
+		window.showInformationMessage(l10n.t('Changes copied to clipboard'));
+	}
+
 	@command('git.rename', { repository: true })
 	async rename(repository: Repository, fromUri: Uri | undefined): Promise<void> {
 		fromUri = fromUri ?? window.activeTextEditor?.document.uri;
