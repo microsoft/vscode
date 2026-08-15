@@ -315,7 +315,6 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 
 	private _connectStartTime: number | undefined;
 	private _connectedTime: number | undefined;
-	private _pendingErrorMessage: string | undefined;
 	private _totalSentMessageCount = 0;
 	private _totalReceivedMessageCount = 0;
 	private _totalSentCharacters = 0;
@@ -539,9 +538,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				totalSentCharacters: this._totalSentCharacters,
 				totalReceivedCharacters: this._totalReceivedCharacters,
 			});
-			const errorMessage = this._pendingErrorMessage;
-			this._pendingErrorMessage = undefined;
-			this._activeRequest?.handleConnectionClose(event.code, event.reason, errorMessage);
+			this._activeRequest?.handleConnectionClose(event.code, event.reason);
 			this._activeRequest = undefined;
 		});
 
@@ -569,7 +566,6 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 			this._ws = undefined;
 			const activeRequest = this._activeRequest;
 			this._activeRequest = undefined;
-			this._pendingErrorMessage = undefined;
 			activeRequest?.handleConnectionClose(1006, '', errorMessage);
 			ws.close();
 		});
