@@ -65,6 +65,22 @@ A baseline PR becomes session-related when the user references it in a message o
 
 Pull-request identity uses the Agent Host's configured GitHub host. Never canonicalize references to `github.com`: Enterprise checkout URLs and explicit references must remain comparable by host, owner, repository, and number.
 
+## Agent Merge
+
+Agent Merge is a provider-neutral Agent Host controller. Copilot, Claude, and Codex use the same persisted session state, pull-request subscription, readiness gate, system-initiated repair turn, scoped GitHub tools, and native merge executor.
+
+The client owns only enablement and per-session action overrides under session config. The host owns the bound branch and pull request, comment watermark, injected permission-mode state, deduplication fingerprint, and retry count under a separate host-only config value. Both values survive session restore; provider config never receives either value.
+
+Global `chat.agentHost.agentMerge.*` settings are mirrored into Agent Host root config and apply live. A session can override address-reviews, fix-CI, resolve-conflicts, and merge actions, or reset to the global defaults. Enabling Agent Merge injects Autopilot mode and Assisted approvals unless managed policy forbids elevated approval modes. Disabling restores each value only while it still equals the injected value, preserving later manual changes.
+
+The controller subscribes to the reusable platform GitHub service at background priority and uses a 10-minute safety backstop. A pure, fail-closed gate starts a model turn only for authorized maintainer or Copilot review feedback, failed required checks, conflicts, or a behind branch. Pending checks do not start a turn. Repeated identical work and total autonomous repair attempts are bounded. A branch or pull-request identity change disables the controller and requires explicit re-enablement.
+
+Repair turns receive only pull-request-bound tools for failed CI details, attributed review-thread replies and resolution, and failed-workflow reruns. Pull-request feedback and CI content remain untrusted. The agent is never authorized to merge. The controller performs a fresh readiness check and then directly merges or enqueues through the GitHub service.
+
+The Agents Window initially exposes command-palette actions only: enable, disable, and configure the active Agent Host session. Configure uses an accessible multi-select Quick Pick and includes reset-to-global-defaults behavior.
+
+Diagnostics use the `AgentMergeController`, `AgentMergeTools`, and `AgentMergeActions` log prefixes. Lifecycle and outcomes are logged at info/debug level, repeated evaluation details at trace level, and rejected or exhausted operations at warning/error level. Logs include session and turn identifiers plus counts and enum-like outcomes, but never pull-request comment bodies, CI log contents, prompt text, credentials, or local paths.
+
 ## Changeset Operations
 
 The Agent Host advertises host-executed changeset operations for commit, merge, pull requests, sync, and discard. `Merge Changes` is available on the Branch Changes changeset only for a ready worktree session with no pull request and with committed or uncommitted branch work. Native worktree isolation is identified by session config; adopted linked worktrees retain `isolation: folder` and are identified by their repository project differing from the working directory. Pull-request operations are registered before merge, so Create PR leads when both workflows are eligible; the Changes view filters merge from its canonical visible-operation observable when the resource-scoped `git.branchProtection` setting marks the base branch as protected. Local and remote providers recompute cached workspaces when that setting changes so an open session updates immediately. Merge/PR availability prefers `git.hasBaseBranchChanges` (divergence from the local merge target, falling back to `origin/<base>` only when no local base branch exists) over upstream divergence, so a branch already merged locally is not offered again merely because it remains ahead of its remote tracking branch. The base-divergence probe runs alongside the existing push-remote lookup; branches with an upstream use `rev-list --max-count=1`, while only the existing no-upstream fallback computes a full count for `outgoingChanges`.

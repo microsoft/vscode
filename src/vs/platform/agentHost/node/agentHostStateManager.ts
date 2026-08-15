@@ -266,6 +266,8 @@ export class AgentHostStateManager extends Disposable {
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
 	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
 	readonly onDidChangeSessionActiveTurn: Event<{ session: string; active: boolean }> = this._onDidChangeSessionActiveTurn.event;
+	private readonly _onDidRemoveSession = this._register(new Emitter<string>());
+	readonly onDidRemoveSession: Event<string> = this._onDidRemoveSession.event;
 
 	private readonly _onDidChangeSessionTitle = this._register(new Emitter<{ session: string; title: string }>());
 	readonly onDidChangeSessionTitle: Event<{ session: string; title: string }> = this._onDidChangeSessionTitle.event;
@@ -1096,6 +1098,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 		this._invalidateChatEntry(buildDefaultChatUri(session));
 		this._sessionStates.delete(session);
+		this._onDidRemoveSession.fire(session);
 		this._summaryNotifier.remove(session);
 		this._logService.trace(`[AgentHostStateManager] Removed session: ${session}`);
 	}

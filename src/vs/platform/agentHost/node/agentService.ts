@@ -27,6 +27,7 @@ import { AgentHostSessionReleaseGraceMsEnvVar, IAgentHostManagedSettingsDiagnost
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { AgentMergeControllerConfigKey, AgentMergeSessionConfigKey } from '../common/agentMerge.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isSessionAction, type ChatAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
@@ -84,6 +85,8 @@ import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { AgentMergeController } from './agentMergeController.js';
+import { AgentMergeTools } from './agentMergeTools.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -141,6 +144,8 @@ type AgentHostLegacyMigrationClassification = {
 };
 
 const HOST_OWNED_SESSION_CONFIG_KEYS = [
+	AgentMergeSessionConfigKey,
+	AgentMergeControllerConfigKey,
 	SessionConfigKey.Isolation,
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
@@ -370,6 +375,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _agents = observableValue<readonly IAgent[]>('agents', []);
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
+	private readonly _agentMergeController: AgentMergeController;
 	/** Owns static / per-turn changeset compute, publish, persist, restore. */
 	private readonly _changesets: IAgentHostChangesetService;
 	/** Shared active changeset subscription registry. */
@@ -592,6 +598,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._gitStateService = this._register(instantiationService.createInstance(AgentHostGitStateService));
 		services.set(IAgentHostGitStateService, this._gitStateService);
+		this._agentMergeController = this._register(instantiationService.createInstance(AgentMergeController, {
+			startTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
+		}));
 
 		this._checkpointService = this._register(instantiationService.createInstance(AgentHostCheckpointService));
 		services.set(IAgentHostCheckpointService, this._checkpointService);
@@ -701,7 +710,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// state. The set of groups (and their display) is the single source of
 		// truth in `serverToolGroups.ts`; the session-management group's runtime
 		// dependency (this service) is injected via the accessor.
-		this._serverToolHost = new AgentServerToolHost(this._stateManager, buildServerToolGroups(this._createSessionServerToolAccessor()));
+		const agentMergeTools = instantiationService.createInstance(
+			AgentMergeTools,
+			session => this._agentMergeController.getTurnContext(session),
+		);
+		this._serverToolHost = new AgentServerToolHost(this._stateManager, buildServerToolGroups(this._createSessionServerToolAccessor(), agentMergeTools));
 	}
 
 	/**
@@ -933,7 +946,11 @@ export class AgentService extends Disposable implements IAgentService {
 	// ---- auth ---------------------------------------------------------------
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		return this._authService.authenticate(params, this._providers.values());
+		const result = await this._authService.authenticate(params, this._providers.values());
+		if (result.authenticated) {
+			this._agentMergeController.refresh();
+		}
+		return result;
 	}
 
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
@@ -1031,6 +1048,21 @@ export class AgentService extends Disposable implements IAgentService {
 		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat.toString(), action);
 		this._sideEffects.handleAction(chat.toString(), action);
+	}
+
+	private _startAgentMergePrompt(session: string, turnId: string, prompt: string): boolean {
+		if (this._stateManager.getSessionState(session)?.activeTurn) {
+			return false;
+		}
+		const chat = buildDefaultChatUri(session).toString();
+		const message: Message = {
+			text: prompt,
+			origin: { kind: MessageKind.SystemNotification },
+		};
+		const action = { type: ActionType.ChatTurnStarted, turnId, startedAt: new Date().toISOString(), message } as const;
+		this._stateManager.dispatchServerAction(chat, action);
+		this._sideEffects.handleAction(chat, action);
+		return true;
 	}
 
 	/**
@@ -2854,7 +2886,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _withIsolationSchema(result: ResolveSessionConfigResult, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		if (!this._worktree) {
-			return result;
+			return this._withAgentMergeConfigValues(result, params.config);
 		}
 		const iso = await this._worktree.resolveIsolationConfig({ workingDirectory: params.workingDirectory, config: params.config });
 		const properties: Record<string, SessionConfigPropertySchema> = {
@@ -2889,7 +2921,17 @@ export class AgentService extends Disposable implements IAgentService {
 			&& params.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')) {
 			values[SessionConfigKey.WorktreeIncludeFiles] = params.config[SessionConfigKey.WorktreeIncludeFiles];
 		}
-		return { schema: { ...result.schema, properties }, values };
+		return this._withAgentMergeConfigValues({ schema: { ...result.schema, properties }, values }, params.config);
+	}
+
+	private _withAgentMergeConfigValues(result: ResolveSessionConfigResult, config: Record<string, unknown> | undefined): ResolveSessionConfigResult {
+		const values = { ...result.values };
+		for (const key of [AgentMergeSessionConfigKey, AgentMergeControllerConfigKey]) {
+			if (config && Object.hasOwn(config, key)) {
+				values[key] = config[key];
+			}
+		}
+		return { ...result, values };
 	}
 
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
@@ -4103,6 +4145,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (restoredConfig) {
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
 		}
+		this._agentMergeController.onSessionAvailable(sessionStr);
 		// Seed restored session customizations into state so the very first
 		// snapshot after selecting an existing session contains effective
 		// instructions/agents without waiting for a follow-up republish.
