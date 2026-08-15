@@ -29,6 +29,7 @@ import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile,
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
@@ -155,6 +156,12 @@ function invokeWithProxyEnvironment<T>(proxy: string | undefined, invoke: () => 
 }
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
+/**
+ * Surface name VS Code declares to the CLI for telemetry attribution. Matches
+ * the client identifier the Copilot Chat extension already reports, so CLI
+ * sessions VS Code drives roll up with the rest of VS Code's Copilot usage.
+ */
+const COPILOT_CHAT_EXTENSION_NAME = 'copilot-chat';
 const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
 
 interface ICopilotClosedConnectionRecoveryResult {
@@ -779,6 +786,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 		this._lastManagedSettingsPermissions = this._managedSettingsService.permissions;
@@ -1726,6 +1734,47 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- client lifecycle ---------------------------------------------------
 
+	/**
+	 * Identity VS Code declares to the Copilot CLI so the GitHub telemetry the
+	 * CLI emits on our behalf is attributed to VS Code rather than to the CLI's
+	 * own build. Without it, a CLI session VS Code drove is indistinguishable
+	 * from one a user ran directly in a terminal.
+	 *
+	 * The values follow the per-surface shape agreed for VS Code: the editor is
+	 * `vscode` at the product version, and the surface is the Copilot Chat
+	 * extension at its own version (resolved from the bundled manifest, the same
+	 * source the internal telemetry uses). The runtime fills in its own build,
+	 * so we do not send it. Every field is optional, so a missing extension
+	 * version just drops that field rather than mislabeling it.
+	 */
+	private async _copilotCliClientInfo(): Promise<NonNullable<CopilotClientOptions['clientInfo']>> {
+		return {
+			editorName: 'vscode',
+			editorVersion: this._productService.version,
+			extensionName: COPILOT_CHAT_EXTENSION_NAME,
+			extensionVersion: await this._resolveCopilotChatExtensionVersion(),
+		};
+	}
+
+	/**
+	 * Version of the bundled Copilot Chat extension, read from its manifest.
+	 * Returns `undefined` when it can't be resolved so the caller omits the
+	 * field rather than reporting the wrong version.
+	 */
+	private async _resolveCopilotChatExtensionVersion(): Promise<string | undefined> {
+		const builtinExtensionsPath = this._environmentService.builtinExtensionsPath;
+		if (!builtinExtensionsPath) {
+			return undefined;
+		}
+		try {
+			const manifest = JSON.parse(await fs.readFile(join(builtinExtensionsPath, 'copilot', 'package.json'), 'utf8')) as { version?: unknown };
+			return typeof manifest.version === 'string' ? manifest.version : undefined;
+		} catch (error) {
+			this._logService.debug(`[Copilot] Failed to resolve Copilot Chat extension version: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		}
+	}
+
 	private async _ensureClient(): Promise<CopilotClient> {
 		if (this._shutdownPromise) {
 			throw new CancellationError();
@@ -1851,6 +1900,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const clientOptions: CopilotClientOptions = {
 				useLoggedInUser: false,
 				connection: RuntimeConnection.forStdio({ path: cliPath }),
+				clientInfo: await this._copilotCliClientInfo(),
 				env,
 				telemetry,
 				logLevel: copilotSdkLogLevelAtStartup,
