@@ -2271,6 +2271,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// hypothetical caller forgets it.
 		const effectiveTurnId = turnId ?? generateUuid();
 		const sendContext = this._requireChatContext(chat, operationContext, 'sendMessage');
+		const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext?.clientTelemetryContext;
 		const context = this._resolveChatContext(chat, sendContext);
 
 		return this._sessionSequencer.queue(context.sequencerKey, async () => {
@@ -2287,7 +2288,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const turns = sideChat ? await this._reconstructTurns(session.sessionId, current.chat, session.subagents) : [];
 			const sdkPrompt = prepareSideChatPrompt(prompt, turns, sideChat);
 			const switchTransport = session.hasPendingTransportSwitch ? this._ensureAuthenticated(session.provisionalModel) : undefined;
-			await session.send(this._buildSdkPrompt(session.sessionId, sdkPrompt, attachments, effectiveTurnId), effectiveTurnId, current.configurationResource, workingDirectories, switchTransport, resolveAgentHostInstructions(operationContext));
+			await session.send(this._buildSdkPrompt(session.sessionId, sdkPrompt, attachments, effectiveTurnId), effectiveTurnId, current.configurationResource, workingDirectories, switchTransport, resolveAgentHostInstructions(operationContext), clientTelemetryContext);
 			if (workingDirectories) {
 				await this._metadataStore.write(current.resource, { workingDirectories });
 			}
