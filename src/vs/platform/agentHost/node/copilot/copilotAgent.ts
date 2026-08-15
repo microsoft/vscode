@@ -663,6 +663,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _clientStopping: Promise<void> | undefined;
 	private _resolvedProxy: string | undefined;
+	private _proxyRefresh: Promise<void> | undefined;
 	private _proxyResolutionGeneration = 0;
 	private _appliedProxy: string | undefined;
 	/**
@@ -1754,7 +1755,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._clientStarting) {
 			return this._clientStarting;
 		}
-		if (this._proxyResolutionGeneration === 0) {
+		if (!this._proxyRefresh) {
 			this._refreshProxy();
 		}
 		// Snapshot the startup config so we can detect a change that lands while the
@@ -4053,7 +4054,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _refreshProxy(): void {
 		const generation = ++this._proxyResolutionGeneration;
-		void this._resolveProxyForSdk().then(async proxy => {
+		const refresh = this._resolveProxyForSdk().then(async proxy => {
 			if (generation !== this._proxyResolutionGeneration) {
 				return;
 			}
@@ -4077,6 +4078,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			await this._requestClientRestart(`CAPI proxy changed (${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'})`);
 		}).catch(error => this._logService.error('[Copilot] Failed to refresh CAPI proxy', error));
+		this._proxyRefresh = refresh;
+		void refresh.finally(() => {
+			if (this._proxyRefresh === refresh) {
+				this._proxyRefresh = undefined;
+			}
+		});
 	}
 
 	private _getOrCreateActiveClient(session: URI, directory: URI | undefined): ActiveClient {

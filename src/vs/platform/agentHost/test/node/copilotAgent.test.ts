@@ -2895,7 +2895,7 @@ suite('CopilotAgent', () => {
 				}, {
 					startCallCount: 2,
 					stopCallCount: 1,
-					resolveProxyCalls: 1,
+					resolveProxyCalls: 2,
 					httpProxy: proxyResolver.resolvedProxy,
 					httpsProxy: proxyResolver.resolvedProxy,
 				});
@@ -2991,7 +2991,7 @@ suite('CopilotAgent', () => {
 					httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
 				}, {
 					startCallCount: 1,
-					resolveProxyCalls: 1,
+					resolveProxyCalls: 2,
 					httpProxy: proxyResolver.resolvedProxy,
 					httpsProxy: proxyResolver.resolvedProxy,
 				});
@@ -3081,7 +3081,7 @@ suite('CopilotAgent', () => {
 				}, {
 					startCallCount: 2,
 					stopCallCount: 1,
-					resolveProxyCalls: 2,
+					resolveProxyCalls: 3,
 					httpProxy: enterpriseProxy,
 					httpsProxy: enterpriseProxy,
 				});
@@ -3118,6 +3118,75 @@ suite('CopilotAgent', () => {
 					httpsProxy: proxy,
 				});
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('refreshes the cached proxy without blocking every fresh client start', async () => {
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			const secondResolutionGate = new DeferredPromise<void>();
+			const initialProxy = 'http://initial-system-proxy.example:8080';
+			const changedProxy = 'http://changed-system-proxy.example:8080';
+			proxyResolver.resolvedProxy = initialProxy;
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			const stopClient = () => (agent as unknown as { _stopClient(): Promise<void> })._stopClient();
+			try {
+				disposables.add(proxyResolver.register('test', {
+					resolveProxy: async () => undefined,
+					lookupAuthorization: async () => undefined,
+					lookupKerberosAuthorization: async () => undefined,
+				}));
+				await timeout(0);
+				await agent.listChatsToMigrate();
+				await stopClient();
+
+				proxyResolver.resolvedProxy = changedProxy;
+				proxyResolver.resolveProxyGate = secondResolutionGate.p;
+				await agent.listChatsToMigrate();
+				const duringResolution = {
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					resolveProxyCalls: proxyResolver.resolveProxyCalls,
+					httpProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTP_PROXY'],
+					httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+				};
+
+				secondResolutionGate.complete();
+				for (let i = 0; i < 20 && client.stopCallCount < 2; i++) {
+					await timeout(0);
+				}
+				proxyResolver.resolveProxyGate = undefined;
+				await agent.listChatsToMigrate();
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					duringResolution,
+					afterResolution: {
+						startCallCount: client.startCallCount,
+						stopCallCount: client.stopCallCount,
+						resolveProxyCalls: proxyResolver.resolveProxyCalls,
+						httpProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTP_PROXY'],
+						httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+					},
+				}, {
+					duringResolution: {
+						startCallCount: 2,
+						stopCallCount: 1,
+						resolveProxyCalls: 3,
+						httpProxy: initialProxy,
+						httpsProxy: initialProxy,
+					},
+					afterResolution: {
+						startCallCount: 3,
+						stopCallCount: 2,
+						resolveProxyCalls: 4,
+						httpProxy: changedProxy,
+						httpsProxy: changedProxy,
+					},
+				});
+			} finally {
+				secondResolutionGate.complete();
 				await disposeAgent(agent);
 			}
 		});
