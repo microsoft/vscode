@@ -74,6 +74,11 @@ export namespace TriggerRemoteIndexingError {
 		userMessage: l10n.t("No workspace found")
 	};
 
+	export const workspaceFileScanFailed: TriggerIndexingError = {
+		id: 'workspace-file-scan-failed',
+		userMessage: l10n.t("Could not scan workspace files for indexing")
+	};
+
 	export const stillResolving: TriggerIndexingError = {
 		id: 'still-resolving',
 		userMessage: l10n.t("Still resolving repos. Please try again shortly.")

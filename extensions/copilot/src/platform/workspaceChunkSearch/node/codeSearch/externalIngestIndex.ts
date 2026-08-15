@@ -43,6 +43,7 @@ import { computeCheckpointHash, ExternalIngestFile, ExternalIngestFileSet, Exter
 import { WorkspaceFolderIdMap } from './workspaceFolderIdMap';
 
 const debug = false;
+const maxExternalIngestFileCount = 100_000;
 
 const enum ShouldIngestState {
 	/** File is tracked but we haven't yet determined if it should be ingested */
@@ -84,6 +85,7 @@ export class ExternalIngestIndex extends Disposable {
 	private readonly workspaceFolderIdMap: WorkspaceFolderIdMap;
 
 	private _isDisposed = false;
+	private _isReconciliationComplete = false;
 
 	/**
 	 * Set of repo root URIs that are covered by code search.
@@ -303,7 +305,7 @@ export class ExternalIngestIndex extends Disposable {
 				return;
 			}
 
-			await this.reconcileDbFiles();
+			this._isReconciliationComplete = await this.reconcileDbFiles();
 			if (this._isDisposed) {
 				return;
 			}
@@ -316,6 +318,11 @@ export class ExternalIngestIndex extends Disposable {
 
 	async doIngest(telemetryInfo: TelemetryCorrelationId, onProgress: (message: string) => void, callerToken: CancellationToken): Promise<Result<true, TriggerIndexingError>> {
 		await raceCancellationError(this.initialize(), callerToken);
+
+		if (!this._isReconciliationComplete) {
+			this._initializePromise = undefined;
+			return Result.error(TriggerRemoteIndexingError.workspaceFileScanFailed);
+		}
 
 		const filesetName = this.getFilesetName();
 		if (!filesetName) {
@@ -888,9 +895,42 @@ export class ExternalIngestIndex extends Disposable {
 		}
 	}
 
-	private async reconcileDbFiles(): Promise<void> {
+	private async reconcileDbFiles(): Promise<boolean> {
 		await this._workspaceService.ensureWorkspaceIsFullyLoaded();
 		await this._ignoreService.init();
+
+		const candidateFiles = new ResourceSet();
+		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
+
+		for (const folder of workspaceFolders) {
+			const remainingFileCount = maxExternalIngestFileCount - candidateFiles.size;
+			if (remainingFileCount <= 0) {
+				this._logService.warn(`ExternalIngestIndex::reconcileDbFiles() Workspace file scan reached the limit of ${maxExternalIngestFileCount} files. Skipping reconciliation.`);
+				return false;
+			}
+
+			try {
+				const { files: paths, limitReached } = await this._searchService.findFilesWithDefaultExcludesAndLimitInformation(
+					new RelativePattern(folder, '**/*'),
+					remainingFileCount,
+					CancellationToken.None
+				);
+
+				this._logService.trace(`ExternalIngestIndex::reconcileDbFiles() Found ${paths.length} candidate files in workspace folder ${folder.toString()}.`);
+
+				for (const uri of paths) {
+					candidateFiles.add(uri);
+				}
+
+				if (limitReached) {
+					this._logService.warn(`ExternalIngestIndex::reconcileDbFiles() Workspace file scan reached the limit of ${maxExternalIngestFileCount} files. Skipping reconciliation.`);
+					return false;
+				}
+			} catch (err) {
+				this._logService.error(`ExternalIngestIndex::reconcileDbFiles() Error processing workspace folder ${folder.toString()}: ${toErrorMessage(err, true)}`);
+				return false;
+			}
+		}
 
 		const initialDbFiles = new ResourceSet();
 		for (const uri of this.iterateDbFiles()) {
@@ -904,42 +944,25 @@ export class ExternalIngestIndex extends Disposable {
 		let removedFileCount = 0;
 
 		const seen = new ResourceSet();
-		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
+		for (const uri of candidateFiles) {
+			if (!await this.shouldTrackFile(uri, CancellationToken.None)) {
+				continue;
+			}
 
-		for (const folder of workspaceFolders) {
-			try {
-				const paths = await this._searchService.findFilesWithDefaultExcludes(
-					new RelativePattern(folder, '**/*'),
-					Number.MAX_SAFE_INTEGER,
-					CancellationToken.None
-				);
+			const stat = await this.safeStat(uri);
+			if (!stat) {
+				continue;
+			}
 
-				this._logService.trace(`ExternalIngestIndex::reconcileDbFiles() Found ${paths.length} candidate files in workspace folder ${folder.toString()}.`);
+			seen.add(uri);
 
-				for (const uri of paths) {
-					// Skip files under code search repos
-					if (!await this.shouldTrackFile(uri, CancellationToken.None)) {
-						continue;
-					}
-
-					const stat = await this.safeStat(uri);
-					if (!stat) {
-						continue;
-					}
-
-					seen.add(uri);
-
-					const existing = this.get(uri);
-					if (!existing) {
-						await this.tryAddOrUpdateFile(uri);
-						addedFileCount++;
-					} else if (existing.size !== stat.size || existing.mtime !== stat.mtime) {
-						await this.tryAddOrUpdateFile(uri);
-						updatedFileCount++;
-					}
-				}
-			} catch (err) {
-				this._logService.error(`ExternalIngestIndex::reconcileDbFiles() Error processing workspace folder ${folder.toString()}: ${toErrorMessage(err, true)}`);
+			const existing = this.get(uri);
+			if (!existing) {
+				await this.tryAddOrUpdateFile(uri);
+				addedFileCount++;
+			} else if (existing.size !== stat.size || existing.mtime !== stat.mtime) {
+				await this.tryAddOrUpdateFile(uri);
+				updatedFileCount++;
 			}
 		}
 
@@ -951,6 +974,7 @@ export class ExternalIngestIndex extends Disposable {
 			}
 		}
 		this._logService.trace(`ExternalIngestIndex::reconcileDbFiles() Reconciled database. Added: ${addedFileCount}, updated: ${updatedFileCount}, removed: ${removedFileCount}`);
+		return true;
 	}
 
 	private registerWatcher(): void {
@@ -1098,5 +1122,3 @@ export class ExternalIngestIndex extends Disposable {
 		return { fileCount: files.length, files };
 	}
 }
-
-

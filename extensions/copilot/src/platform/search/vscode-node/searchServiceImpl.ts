@@ -8,6 +8,7 @@ import { combineGlob } from '../../../util/common/glob';
 import { filterIngoredResources, IIgnoreService } from '../../ignore/common/ignoreService';
 import { LogExecTime } from '../../log/common/logExecTime';
 import { ILogService } from '../../log/common/logService';
+import type { FindFilesWithLimitResult } from '../common/searchService';
 import { BaseSearchServiceImpl } from '../vscode/baseSearchServiceImpl';
 
 export class SearchServiceImpl extends BaseSearchServiceImpl {
@@ -22,15 +23,22 @@ export class SearchServiceImpl extends BaseSearchServiceImpl {
 	override async findFilesWithDefaultExcludes(include: vscode.GlobPattern, maxResults: 1, token: vscode.CancellationToken): Promise<vscode.Uri | undefined>;
 	override async findFilesWithDefaultExcludes(include: vscode.GlobPattern, maxResults: number | undefined, token: vscode.CancellationToken): Promise<vscode.Uri[]>;
 	override async findFilesWithDefaultExcludes(include: vscode.GlobPattern, maxResults: 1 | number | undefined, token: vscode.CancellationToken): Promise<vscode.Uri | vscode.Uri[] | undefined> {
+		const result = await this.findFilesWithDefaultExcludesAndLimitInformationImpl(include, maxResults, token);
+		return maxResults === 1 ? result.files[0] : result.files;
+	}
+
+	override findFilesWithDefaultExcludesAndLimitInformation(include: vscode.GlobPattern, maxResults: number, token: vscode.CancellationToken): Promise<FindFilesWithLimitResult> {
+		return this.findFilesWithDefaultExcludesAndLimitInformationImpl(include, maxResults, token);
+	}
+
+	private async findFilesWithDefaultExcludesAndLimitInformationImpl(include: vscode.GlobPattern, maxResults: number | undefined, token: vscode.CancellationToken): Promise<FindFilesWithLimitResult> {
 		const copilotIgnoreExclude = await this._ignoreService.asMinimatchPattern();
 		const results = await this._findFilesWithDefaultExcludesAndExcludes(include, copilotIgnoreExclude, maxResults, token);
-		if (!this._ignoreService.isRegexExclusionsEnabled || !results) {
-			return results;
-		} else if (Array.isArray(results)) {
-			return await filterIngoredResources(this._ignoreService, results);
-		} else {
-			return await this._ignoreService.isCopilotIgnored(results) ? undefined : results;
-		}
+		const files = Array.isArray(results) ? results : results ? [results] : [];
+		return {
+			files: this._ignoreService.isRegexExclusionsEnabled ? await filterIngoredResources(this._ignoreService, files) : files,
+			limitReached: maxResults !== undefined && files.length >= maxResults,
+		};
 	}
 
 	@LogExecTime(self => self._logService, 'SearchServiceImpl::findFiles')

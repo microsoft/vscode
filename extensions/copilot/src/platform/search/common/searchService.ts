@@ -9,10 +9,16 @@ import { ExcludeSettingOptions } from '../../../vscodeTypes';
 
 export const ISearchService = createServiceIdentifier<ISearchService>('ISearchService');
 
+export interface FindFilesWithLimitResult {
+	readonly files: vscode.Uri[];
+	readonly limitReached: boolean;
+}
+
 export interface ISearchService {
 	readonly _serviceBrand: undefined;
 	findFilesWithDefaultExcludes(include: vscode.GlobPattern, maxResults: 1, token: vscode.CancellationToken): Promise<vscode.Uri | undefined>;
 	findFilesWithDefaultExcludes(include: vscode.GlobPattern, maxResults: number | undefined, token: vscode.CancellationToken): Promise<vscode.Uri[]>;
+	findFilesWithDefaultExcludesAndLimitInformation(include: vscode.GlobPattern, maxResults: number, token: vscode.CancellationToken): Promise<FindFilesWithLimitResult>;
 	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete>;
 	findTextInFiles2(query: vscode.TextSearchQuery2, options?: vscode.FindTextInFilesOptions2, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse;
 	findFiles(filePattern: vscode.GlobPattern | vscode.GlobPattern[], options?: vscode.FindFiles2Options, token?: vscode.CancellationToken): Thenable<vscode.Uri[]>;
@@ -28,6 +34,12 @@ export abstract class AbstractSearchService implements ISearchService {
 	async findFilesWithDefaultExcludes(include: vscode.GlobPattern, maxResults: number | undefined, token: vscode.CancellationToken): Promise<vscode.Uri[] | vscode.Uri | undefined> {
 		return this._findFilesWithDefaultExcludesAndExcludes(include, undefined, maxResults, token);
 	}
+
+	async findFilesWithDefaultExcludesAndLimitInformation(include: vscode.GlobPattern, maxResults: number, token: vscode.CancellationToken): Promise<FindFilesWithLimitResult> {
+		const files = await this.findFilesWithDefaultExcludes(include, maxResults, token);
+		return { files, limitReached: files.length >= maxResults };
+	}
+
 	async findFilesWithExcludes(include: vscode.GlobPattern, exclude: vscode.GlobPattern, maxResults: 1, token: vscode.CancellationToken): Promise<vscode.Uri | undefined>;
 	async findFilesWithExcludes(include: vscode.GlobPattern, exclude: vscode.GlobPattern, maxResults: number | undefined, token: vscode.CancellationToken): Promise<vscode.Uri[] | vscode.Uri | undefined> {
 		return this._findFilesWithDefaultExcludesAndExcludes(include, exclude, maxResults, token);

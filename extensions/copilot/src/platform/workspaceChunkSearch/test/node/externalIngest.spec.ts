@@ -5,23 +5,28 @@
 
 import ingestUtils = require('@github/blackbird-external-ingest-utils');
 import assert from 'assert';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, suite, test, vi } from 'vitest';
-import type { FileSystemWatcher } from 'vscode';
+import type { FileSystemWatcher, GlobPattern } from 'vscode';
 import { Result } from '../../../../util/common/result';
 import { CallTracker, TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../../util/vs/base/common/map';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { StaticGitHubAuthenticationService } from '../../../authentication/common/staticGitHubAuthenticationService';
+import { IVSCodeExtensionContext } from '../../../extContext/common/extensionContext';
 import { IFileSystemService } from '../../../filesystem/common/fileSystemService';
 import { FileType } from '../../../filesystem/common/fileTypes';
 import { GithubRequestOptions, IGithubApiFetcherService } from '../../../github/common/githubApiFetcherService';
-import { ISearchService } from '../../../search/common/searchService';
+import { type FindFilesWithLimitResult, ISearchService } from '../../../search/common/searchService';
+import { MockExtensionContext } from '../../../test/node/extensionContext';
 import { createPlatformServices, TestingServiceCollection } from '../../../test/node/services';
 import { IWorkspaceService, NullWorkspaceService } from '../../../workspace/common/workspaceService';
 import { ExternalIngestClient, ExternalIngestFile, ExternalIngestFileSet, ExternalIngestUpdateIndexResult, IExternalIngestClient } from '../../node/codeSearch/externalIngestClient';
@@ -101,6 +106,9 @@ function createFileFromBytes(content: Uint8Array, mtime = Date.now()): MockFileE
 class MockFileSystem extends mock<IFileSystemService & ISearchService>() implements IFileSystemService, ISearchService {
 	readonly readFileCalls = new ResourceMap<number>();
 	readonly statCalls = new ResourceMap<number>();
+	readonly findFilesWithDefaultExcludesCalls: Array<number | undefined> = [];
+	searchResults: URI[] | undefined;
+	filteredSearchResults: URI[] | undefined;
 
 	constructor(private readonly _files: ResourceMap<MockFileEntry>) {
 		super();
@@ -164,8 +172,24 @@ class MockFileSystem extends mock<IFileSystemService & ISearchService>() impleme
 
 	// #region ISearchService
 
-	override findFilesWithDefaultExcludes(): any {
-		return Promise.resolve([...this._files.keys()]);
+	override async findFilesWithDefaultExcludes(_include: GlobPattern, maxResults: 1, _token: CancellationToken): Promise<URI | undefined>;
+	override async findFilesWithDefaultExcludes(_include: GlobPattern, maxResults: number | undefined, _token: CancellationToken): Promise<URI[]>;
+	override async findFilesWithDefaultExcludes(include: GlobPattern, maxResults: number | undefined, token: CancellationToken): Promise<URI[] | URI | undefined> {
+		if (maxResults === undefined) {
+			return this.searchResults ?? [...this._files.keys()];
+		}
+
+		const result = await this.findFilesWithDefaultExcludesAndLimitInformation(include, maxResults, token);
+		return maxResults === 1 ? result.files[0] : result.files;
+	}
+
+	override async findFilesWithDefaultExcludesAndLimitInformation(_include: GlobPattern, maxResults: number, _token: CancellationToken): Promise<FindFilesWithLimitResult> {
+		this.findFilesWithDefaultExcludesCalls.push(maxResults);
+		const results = this.searchResults ?? [...this._files.keys()];
+		return {
+			files: this.filteredSearchResults ?? results.slice(0, maxResults),
+			limitReached: results.length >= maxResults,
+		};
 	}
 
 	override findFiles(): Promise<URI[]> {
@@ -357,6 +381,58 @@ suite('ExternalIngestIndex', () => {
 		// Files should be tracked after initialization
 		assert.strictEqual(await index.shouldTrackFile(file1, CancellationToken.None), true);
 		assert.strictEqual(await index.shouldTrackFile(file2, CancellationToken.None), true);
+	});
+
+	test('initialize bounds reconciliation and preserves the database when the scan reaches the limit', async () => {
+		const workspaceRoot = URI.file('/workspace');
+		const existingFile = URI.joinPath(workspaceRoot, 'existing.ts');
+		const files = new ResourceMap<MockFileEntry>();
+		files.set(existingFile, createFileFromString('const existing = true;'));
+
+		const storagePath = mkdtempSync(join(tmpdir(), 'copilot-external-ingest-'));
+		const currentIndex = disposables.add(new MutableDisposable<ExternalIngestIndex>());
+		disposables.add(toDisposable(() => rmSync(storagePath, { recursive: true, force: true })));
+
+		const mockFs = new MockFileSystem(files);
+		const mockClient = createMockExternalIngestClient();
+		testingServiceCollection.set(IFileSystemService, mockFs);
+		testingServiceCollection.set(ISearchService, mockFs);
+		testingServiceCollection.set(IWorkspaceService, new MockWorkspaceService([workspaceRoot]));
+		testingServiceCollection.define(IVSCodeExtensionContext, new SyncDescriptor(MockExtensionContext, [undefined, undefined, storagePath]));
+
+		const accessor = disposables.add(testingServiceCollection.createTestingAccessor());
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const initialIndex = currentIndex.value = instantiationService.createInstance(ExternalIngestIndex, mockClient, []);
+		await initialIndex.initialize();
+		currentIndex.clear();
+
+		files.delete(existingFile);
+		mockFs.searchResults = new Array<URI>(100_000).fill(URI.joinPath(workspaceRoot, 'candidate.ts'));
+		mockFs.filteredSearchResults = [URI.joinPath(workspaceRoot, 'candidate.ts')];
+
+		const truncatedIndex = currentIndex.value = instantiationService.createInstance(ExternalIngestIndex, mockClient, []);
+		await truncatedIndex.initialize();
+		const ingestResult = await truncatedIndex.doIngest(testTelemetryInfo, emptyProgressCb, CancellationToken.None);
+		const filesAfterTruncatedScan = truncatedIndex.getDiagnostics().files.map(uri => uri.toString());
+
+		mockFs.searchResults = [];
+		mockFs.filteredSearchResults = undefined;
+		const retryResult = await truncatedIndex.doIngest(testTelemetryInfo, emptyProgressCb, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			searchLimits: mockFs.findFilesWithDefaultExcludesCalls,
+			filesAfterTruncatedScan,
+			ingestError: ingestResult.isError() ? ingestResult.err.id : undefined,
+			filesAfterRetry: truncatedIndex.getDiagnostics().files.map(uri => uri.toString()),
+			retrySucceeded: retryResult.isOk(),
+		}, {
+			searchLimits: [100_000, 100_000, 100_000],
+			filesAfterTruncatedScan: [existingFile.toString()],
+			ingestError: 'workspace-file-scan-failed',
+			filesAfterRetry: [],
+			retrySucceeded: true,
+		});
 	});
 
 	test('files that fail canIngestPathAndSize are tracked but not ingested', async () => {
