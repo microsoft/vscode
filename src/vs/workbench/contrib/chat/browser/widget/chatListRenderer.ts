@@ -25,7 +25,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { marked, Tokens } from '../../../../../base/common/marked/marked.js';
+import { marked, type Token, Tokens } from '../../../../../base/common/marked/marked.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp, formatTokenCount } from '../../../../../base/common/numbers.js';
@@ -300,7 +300,7 @@ export function splitMarkdownContentAtRenderedCodeBlocks(markdown: IChatMarkdown
 	}
 
 	const normalized = normalizeMarkdownSource(value);
-	const fencePattern = /(?:^|\n) {0,3}(?:`{3,}|~{3,})(?<info>[^\n]*)/g;
+	const fencePattern = /(?:`{3,}|~{3,})(?<info>[^\n]*)/g;
 	let hasRenderedFence = false;
 	for (const match of normalized.value.matchAll(fencePattern)) {
 		if (hasRenderer(postProcessCodeBlockLanguageId(match.groups?.info.trim()))) {
@@ -315,41 +315,137 @@ export function splitMarkdownContentAtRenderedCodeBlocks(markdown: IChatMarkdown
 	const tokens = marked.lexer(normalized.value, { gfm: true, breaks: true });
 	const splitOffsets: number[] = [];
 	const codeRanges: Array<{ readonly start: number; readonly end: number }> = [];
-	let searchOffset = 0;
-	for (const token of tokens) {
-		const tokenOffset = normalized.value.indexOf(token.raw, searchOffset);
-		if (tokenOffset < 0) {
-			return [markdown];
-		}
-		const tokenEnd = tokenOffset + token.raw.length;
-		searchOffset = tokenEnd;
-		if (token.type !== 'code') {
-			continue;
-		}
-
-		codeRanges.push({ start: tokenOffset, end: tokenEnd });
-
-		if (codeblockHasClosingFence(token.raw)
-			&& hasRenderer(postProcessCodeBlockLanguageId((token as Tokens.Code).lang))) {
-			const splitOffset = trimTrailingLineEnding(value, normalized.originalOffsets[tokenEnd]);
-			if (splitOffset < value.length) {
-				splitOffsets.push(splitOffset);
-			}
-		}
+	if (!collectMarkdownCodeBlockRanges(tokens, normalized.value, undefined, hasRenderer, splitOffsets, codeRanges)) {
+		return [markdown];
 	}
+	const usableSplitOffsets = [...new Set(splitOffsets.filter(offset => offset < normalized.value.length))].sort((a, b) => a - b);
 
-	if (splitOffsets.length === 0 || Object.keys(tokens.links).length > 0 || hasPotentialReferenceLinks(normalized.value, codeRanges)) {
+	if (usableSplitOffsets.length === 0 || Object.keys(tokens.links).length > 0 || hasPotentialReferenceLinks(normalized.value, codeRanges)) {
 		return [markdown];
 	}
 
 	const result: IChatMarkdownContent[] = [];
 	let start = 0;
-	for (const splitOffset of splitOffsets) {
+	for (const normalizedSplitOffset of usableSplitOffsets) {
+		const splitOffset = trimTrailingLineEnding(value, normalized.originalOffsets[normalizedSplitOffset]);
 		result.push(createMarkdownSegment(markdown, value.slice(start, splitOffset)));
 		start = splitOffset;
 	}
 	result.push(createMarkdownSegment(markdown, value.slice(start)));
 	return result;
+}
+
+interface IMarkdownSourceMap {
+	readonly startOffsets: readonly number[];
+	readonly endOffsets: readonly number[];
+}
+
+function collectMarkdownCodeBlockRanges(
+	tokens: readonly Token[],
+	source: string,
+	sourceMap: IMarkdownSourceMap | undefined,
+	hasRenderer: (languageId: string) => boolean,
+	splitOffsets: number[],
+	codeRanges: Array<{ readonly start: number; readonly end: number }>,
+): boolean {
+	let searchOffset = 0;
+	for (const token of tokens) {
+		const tokenOffset = source.indexOf(token.raw, searchOffset);
+		if (tokenOffset < 0) {
+			return false;
+		}
+		const tokenEnd = tokenOffset + token.raw.length;
+		searchOffset = tokenEnd;
+
+		if (token.type === 'code') {
+			const codeStart = getMarkdownSourceStart(sourceMap, tokenOffset);
+			const codeEnd = getMarkdownSourceEnd(sourceMap, tokenEnd);
+			codeRanges.push({ start: codeStart, end: codeEnd });
+
+			if (codeblockHasClosingFence(token.raw)
+				&& hasRenderer(postProcessCodeBlockLanguageId((token as Tokens.Code).lang))) {
+				splitOffsets.push(codeEnd);
+			}
+		} else if (token.type === 'blockquote') {
+			const blockquote = token as Tokens.Blockquote;
+			const nestedSourceMap = createNestedMarkdownSourceMap(blockquote.raw, blockquote.text, sourceMap, tokenOffset);
+			if (!nestedSourceMap || !collectMarkdownCodeBlockRanges(blockquote.tokens, blockquote.text, nestedSourceMap, hasRenderer, splitOffsets, codeRanges)) {
+				return false;
+			}
+		} else if (token.type === 'list') {
+			const list = token as Tokens.List;
+			let itemSearchOffset = 0;
+			for (const item of list.items) {
+				const itemOffset = list.raw.indexOf(item.raw, itemSearchOffset);
+				if (itemOffset < 0) {
+					return false;
+				}
+				itemSearchOffset = itemOffset + item.raw.length;
+
+				const nestedSourceMap = createNestedMarkdownSourceMap(item.raw, item.text, sourceMap, tokenOffset + itemOffset);
+				if (!nestedSourceMap || !collectMarkdownCodeBlockRanges(item.tokens, item.text, nestedSourceMap, hasRenderer, splitOffsets, codeRanges)) {
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
+
+function createNestedMarkdownSourceMap(raw: string, text: string, parentSourceMap: IMarkdownSourceMap | undefined, parentOffset: number): IMarkdownSourceMap | undefined {
+	const rawLines = raw.split('\n');
+	const textLines = text.split('\n');
+	if (rawLines.length !== textLines.length) {
+		return undefined;
+	}
+
+	const startOffsets = new Array<number>(text.length + 1);
+	const endOffsets = new Array<number>(text.length + 1);
+	let rawLineStart = 0;
+	let textLineStart = 0;
+	for (let index = 0; index < rawLines.length; index++) {
+		const rawLine = rawLines[index];
+		const textLine = textLines[index];
+		if (!rawLine.endsWith(textLine)) {
+			return undefined;
+		}
+
+		const contentStart = rawLineStart + rawLine.length - textLine.length;
+		startOffsets[textLineStart] = getMarkdownSourceStart(parentSourceMap, parentOffset + contentStart);
+		if (index === 0) {
+			endOffsets[textLineStart] = getMarkdownSourceEnd(parentSourceMap, parentOffset + contentStart);
+		}
+
+		for (let character = 0; character < textLine.length; character++) {
+			const textOffset = textLineStart + character + 1;
+			const rawOffset = contentStart + character + 1;
+			startOffsets[textOffset] = getMarkdownSourceStart(parentSourceMap, parentOffset + rawOffset);
+			endOffsets[textOffset] = getMarkdownSourceEnd(parentSourceMap, parentOffset + rawOffset);
+		}
+
+		if (index < rawLines.length - 1) {
+			const nextTextLineStart = textLineStart + textLine.length + 1;
+			const nextRawLineStart = rawLineStart + rawLine.length + 1;
+			endOffsets[nextTextLineStart] = getMarkdownSourceEnd(parentSourceMap, parentOffset + nextRawLineStart);
+			rawLineStart = nextRawLineStart;
+			textLineStart = nextTextLineStart;
+		}
+	}
+
+	for (let offset = 0; offset <= text.length; offset++) {
+		if (startOffsets[offset] === undefined || endOffsets[offset] === undefined) {
+			return undefined;
+		}
+	}
+	return { startOffsets, endOffsets };
+}
+
+function getMarkdownSourceStart(sourceMap: IMarkdownSourceMap | undefined, offset: number): number {
+	return sourceMap ? sourceMap.startOffsets[offset] : offset;
+}
+
+function getMarkdownSourceEnd(sourceMap: IMarkdownSourceMap | undefined, offset: number): number {
+	return sourceMap ? sourceMap.endOffsets[offset] : offset;
 }
 
 export function prepareResponseContentForRendering(
