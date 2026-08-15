@@ -33,11 +33,10 @@ export class SinglePaneWorkbench extends Workbench {
 
 	/** Node width past the detail width at which editor content counts as visible. */
 	private static readonly _EDITOR_CONTENT_VISIBLE_THRESHOLD = 4;
-	private static readonly _DETAIL_AUTO_SHOW_MARGIN = 100;
 
 	private _dockedAuxiliaryBarWidth = DockedAuxiliaryBarController.DEFAULT_WIDTH;
 	private _syncingEditorVisibility = false;
-	private _detailHiddenForEditorResize = false;
+	private _editorWidthAfterDetailAutoHide: number | undefined;
 	private readonly _memento = new DockedEditorSizeMemento();
 
 	override get isSinglePaneLayoutEnabled(): boolean {
@@ -249,7 +248,7 @@ export class SinglePaneWorkbench extends Workbench {
 
 	protected override _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
 		if (partId === Parts.AUXILIARYBAR_PART && source !== 'resize') {
-			this._detailHiddenForEditorResize = false;
+			this._editorWidthAfterDetailAutoHide = undefined;
 		}
 		super._fireDidChangePartVisibility(partId, visible, source);
 	}
@@ -272,15 +271,17 @@ export class SinglePaneWorkbench extends Workbench {
 		try {
 			const detailFitsBesideEditor = nodeWidth >= this._dockedAuxiliaryBarWidth + EDITOR_PART_MINIMUM_WIDTH;
 			if (this.partVisibility.editor && this.partVisibility.auxiliaryBar && !detailFitsBesideEditor) {
-				this._detailHiddenForEditorResize = true;
+				this._editorWidthAfterDetailAutoHide = nodeWidth;
 				this.setAuxiliaryBarHiddenForResize(true);
 				return;
 			}
 
-			const detailShowThreshold = this._dockedAuxiliaryBarWidth + EDITOR_PART_MINIMUM_WIDTH + SinglePaneWorkbench._DETAIL_AUTO_SHOW_MARGIN;
-			if (this.partVisibility.editor && !this.partVisibility.auxiliaryBar && this._detailHiddenForEditorResize && nodeWidth >= detailShowThreshold) {
+			const detailShowThreshold = this._editorWidthAfterDetailAutoHide === undefined
+				? undefined
+				: this._editorWidthAfterDetailAutoHide + this._dockedAuxiliaryBarWidth;
+			if (this.partVisibility.editor && !this.partVisibility.auxiliaryBar && detailShowThreshold !== undefined && nodeWidth >= detailShowThreshold) {
 				this.setAuxiliaryBarHiddenForResize(false);
-				this._detailHiddenForEditorResize = false;
+				this._editorWidthAfterDetailAutoHide = undefined;
 				return;
 			}
 
