@@ -98,6 +98,7 @@ export function isCopilotClientStartupFailure(error: unknown): boolean {
 		|| error.message.startsWith('CLI server exited with code ')
 		|| error.message.startsWith('CLI server exited unexpectedly with code ')
 		|| error.message === 'Timeout waiting for CLI server to start'
+		|| error.message === 'Copilot startup config changed while the client was starting'
 	);
 }
 
@@ -168,6 +169,9 @@ function getCopilotStartupFailureCause(message: string): CopilotStartupFailureCa
 	if (message === 'Timeout waiting for CLI server to start') {
 		return 'timeout';
 	}
+	if (message === 'Copilot startup config changed while the client was starting') {
+		return 'configurationChanged';
+	}
 	if (message.startsWith('Failed to start CLI server:')) {
 		return 'spawnFailed';
 	}
@@ -222,7 +226,7 @@ export function reportCopilotClientStartup(
 		failureDetails = getCopilotStartupFailureDetails(error);
 		if (!failureDetails.startupFailureCause) {
 			failureDetails = {
-				startupFailureCause: error instanceof Error && error.message === 'Copilot startup config changed while the client was starting' ? 'configurationChanged' : 'other',
+				startupFailureCause: 'other',
 				startupFailureResource: 'other',
 			};
 		}

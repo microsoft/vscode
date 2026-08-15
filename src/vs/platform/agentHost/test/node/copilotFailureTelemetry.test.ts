@@ -14,7 +14,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { readAgentErrorTelemetryMeta } from '../../common/meta/agentErrorMeta.js';
 import { buildChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
-import { classifyCopilotClientOperationFailure, createCopilotFailureCorrelation, isCopilotClientStartupFailure, normalizeCopilotApiEndpoint, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
+import { classifyCopilotClientOperationFailure, createCopilotFailureCorrelation, isCopilotClientStartupFailure, normalizeCopilotApiEndpoint, reportCopilotClientStartup, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
 
 class CapturingTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -28,7 +28,9 @@ class CapturingTelemetryService implements ITelemetryService {
 	readonly events: { eventName: string; data: Record<string, unknown> | undefined }[] = [];
 
 	publicLog(): void { }
-	publicLog2(): void { }
+	publicLog2(eventName: string, data?: Record<string, unknown>): void {
+		this.events.push({ eventName, data });
+	}
 	publicLogError(): void { }
 	publicLogError2(eventName: string, data?: Record<string, unknown>): void {
 		this.events.push({ eventName, data });
@@ -50,6 +52,7 @@ suite('CopilotFailureTelemetry', () => {
 			new Error('CLI server exited with code 1'),
 			new Error('CLI server exited unexpectedly with code 1'),
 			new Error('Timeout waiting for CLI server to start'),
+			new Error('Copilot startup config changed while the client was starting'),
 			new Error('429 too many requests'),
 		];
 		assert.deepStrictEqual({
@@ -66,9 +69,39 @@ suite('CopilotFailureTelemetry', () => {
 				undefined,
 				undefined,
 				undefined,
+				undefined,
 			],
-			startupFailures: [false, false, false, false, true, true, true, true, false],
+			startupFailures: [false, false, false, false, true, true, true, true, true, false],
 		});
+	});
+
+	test('reports bounded causes for configuration changes and unknown startup failures', () => {
+		const telemetryService = new CapturingTelemetryService();
+		reportCopilotClientStartup(telemetryService, {
+			outcome: 'failure',
+			durationMs: 10,
+			attemptNumber: 1,
+		}, new Error('Copilot startup config changed while the client was starting'));
+		reportCopilotClientStartup(telemetryService, {
+			outcome: 'failure',
+			durationMs: 20,
+			attemptNumber: 2,
+		}, new Error('Unexpected startup failure'));
+
+		assert.deepStrictEqual(telemetryService.events.map(event => event.data), [{
+			outcome: 'failure',
+			durationMs: 10,
+			attemptNumber: 1,
+			startupFailureCause: 'configurationChanged',
+			startupFailureResource: 'other',
+			startupExitCode: undefined,
+		}, {
+			outcome: 'failure',
+			durationMs: 20,
+			attemptNumber: 2,
+			startupFailureCause: 'other',
+			startupFailureResource: 'other',
+		}]);
 	});
 
 	test('builds the Agent Host and SDK correlation tuple', () => {

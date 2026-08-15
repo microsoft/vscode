@@ -479,6 +479,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	};
 	startCallCount = 0;
 	stopCallCount = 0;
+	readonly startCalled = new DeferredPromise<void>();
 	startGate: Promise<void> | undefined;
 	startError: Error | undefined;
 	listSessionCallCount = 0;
@@ -499,6 +500,7 @@ class TestCopilotClient implements ITestCopilotClient {
 
 	async start(): Promise<void> {
 		this.startCallCount++;
+		this.startCalled.complete();
 		await this.startGate;
 		if (this.startError) {
 			throw this.startError;
@@ -2176,9 +2178,7 @@ suite('CopilotAgent', () => {
 		const first = agent.listChatsToMigrate();
 		const second = agent.listChatsToMigrate();
 		try {
-			for (let i = 0; i < 20 && client.startCallCount < 1; i++) {
-				await timeout(0);
-			}
+			await client.startCalled.p;
 			startGate.complete();
 			await Promise.all([first, second]);
 			const startupEvents = telemetryService.events
@@ -2203,7 +2203,7 @@ suite('CopilotAgent', () => {
 			});
 		} finally {
 			startGate.complete();
-			await Promise.all([first, second]);
+			await Promise.allSettled([first, second]);
 			await disposeAgent(agent);
 		}
 	});
