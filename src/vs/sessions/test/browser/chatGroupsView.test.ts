@@ -248,6 +248,27 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('dropping a hidden subagent on an edge opens it in a new group', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const subagent = createChat('subagent', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, subagent], [main]);
+		view.setSession(session, options);
+
+		await view['_onChatDrop'](view['_groups'][0].id, 'right', { sessionId: session.sessionId, resource: subagent.resource.toString() });
+
+		const groups = Array.from(view.element.querySelectorAll('.chat-group-view'));
+		assert.deepStrictEqual({
+			groupCount: view.groupCount.get(),
+			groupTabs: groups.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeChat: session.activeChat.get().resource.toString(),
+		}, {
+			groupCount: 2,
+			groupTabs: [[main.resource.toString()], [subagent.resource.toString()]],
+			activeChat: subagent.resource.toString(),
+		});
+	});
+
 	test('opening a subagent through the sessions service uses the group adjacent to its parent', async () => {
 		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
@@ -292,14 +313,14 @@ suite('Sessions - ChatGroupsView', () => {
 		]);
 	});
 
-	test('left split updates logical and accessible group order', () => {
+	test('left split updates logical and accessible group order', async () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		const session = new TestActiveSession([main, secondary]);
 		view.setSession(session, options);
 
-		view['_onChatDrop'](view['_groups'][0].id, 'left', { sessionId: session.sessionId, resource: secondary.resource.toString() });
+		await view['_onChatDrop'](view['_groups'][0].id, 'left', { sessionId: session.sessionId, resource: secondary.resource.toString() });
 
 		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
 		const labelByChat = Object.fromEntries(groups.map(group => [
