@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -57,7 +56,6 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { getIgnoredSettings } from '../../../../platform/userDataSync/common/settingsMerge.js';
 import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -71,7 +69,7 @@ import { SettingsTarget } from './preferencesWidgets.js';
 import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsLabelAriaLabel } from './settingsEditorSettingIndicators.js';
 import { ITOCEntry, ITOCFilter } from './settingsLayout.js';
 import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, objectSettingSupportsRemoveDefaultValue, settingKeyToDisplayFormat } from './settingsTreeModels.js';
-import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from './settingsWidgets.js';
+import { ExcludeSettingWidget, getEnumItemDescriptionAndIcon, IBoolObjectDataItem, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from './settingsWidgets.js';
 
 const $ = DOM.$;
 
@@ -126,14 +124,16 @@ function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
 		return schema.anyOf.map(getEnumOptionsFromSchema).flat();
 	}
 
-	const enumDescriptions = schema.enumDescriptions ?? [];
+	const enumDescriptions = schema.markdownEnumDescriptions ?? schema.enumDescriptions ?? [];
+	const enumDescriptionsAreMarkdown = !!schema.markdownEnumDescriptions;
 
 	return (schema.enum ?? []).map((value, idx) => {
-		const description = idx < enumDescriptions.length
+		const rawDescription = idx < enumDescriptions.length
 			? enumDescriptions[idx]
 			: undefined;
+		const { description, icon } = getEnumItemDescriptionAndIcon(rawDescription, enumDescriptionsAreMarkdown);
 
-		return { value, description };
+		return { value, description, descriptionIsMarkdown: enumDescriptionsAreMarkdown, icon };
 	});
 }
 
@@ -306,8 +306,8 @@ function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySu
 			element.setting.enum.forEach((key, i) => {
 				// include the currently selected value, even if uniqueItems is true
 				if (!element.setting.uniqueItems || (idx !== undefined && key === keys[idx]) || !keys.includes(key)) {
-					const description = element.setting.enumDescriptions?.[i];
-					enumOptions.push({ value: key, description });
+					const { description, icon } = getEnumItemDescriptionAndIcon(element.setting.enumDescriptions?.[i], element.setting.enumDescriptionsAreMarkdown);
+					enumOptions.push({ value: key, description, descriptionIsMarkdown: element.setting.enumDescriptionsAreMarkdown, icon });
 				}
 			});
 		}
@@ -429,9 +429,12 @@ function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem
 		let enumOptions: IObjectEnumOption[] = [];
 		if (element.setting.enum) {
 			enumOptions = element.setting.enum.map((setting, i) => {
+				const { description, icon } = getEnumItemDescriptionAndIcon(element.setting.enumDescriptions?.[i], element.setting.enumDescriptionsAreMarkdown);
 				return {
 					value: setting,
-					description: element.setting.enumDescriptions?.[i]
+					description,
+					descriptionIsMarkdown: element.setting.enumDescriptionsAreMarkdown,
+					icon
 				};
 			});
 		}
@@ -1881,7 +1884,8 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 		});
 
 		const selectBox = new SelectBox([], 0, this._contextViewService, styles, {
-			useCustomDrawn: !hasNativeContextMenu(this._configService) || !(isIOS && BrowserFeatures.pointerEvents)
+			// Custom rendering is required to show enum icons inside the dropdown list.
+			useCustomDrawn: true
 		});
 
 		common.toDispose.add(selectBox);
@@ -1941,8 +1945,10 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 			.map(String)
 			.map(escapeInvisibleChars)
 			.map((data, index) => {
-				const description = (enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
+				const { description: rawDescription, icon } = getEnumItemDescriptionAndIcon(enumDescriptions[index], enumDescriptionsAreMarkdown);
+				const description = rawDescription && (enumDescriptionsAreMarkdown ? fixSettingLinks(rawDescription, false) : rawDescription);
 				return {
+					icon,
 					text: enumItemLabels[index] ? enumItemLabels[index] : data,
 					detail: enumItemLabels[index] ? data : '',
 					description,

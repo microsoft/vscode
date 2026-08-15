@@ -6,6 +6,7 @@
 import { Event } from '../../../common/event.js';
 import { IDisposable } from '../../../common/lifecycle.js';
 import { isMacintosh } from '../../../common/platform.js';
+import { ThemeIcon } from '../../../common/themables.js';
 import { MarkdownActionHandler } from '../../markdownRenderer.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { IListStyles, unthemedListStyles } from '../list/listWidget.js';
@@ -45,6 +46,7 @@ export interface ISelectBoxOptions {
 // Utilize optionItem interface to capture all option parameters
 export interface ISelectOptionItem {
 	text: string;
+	icon?: ThemeIcon;
 	detail?: string;
 	decoratorRight?: string;
 	description?: string;
