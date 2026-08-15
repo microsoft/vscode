@@ -2791,7 +2791,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			for (const entry of parsed as readonly IExtensionHostCliRequestDetails[]) {
 				const turnId = entry?.copilotRequestId;
 				const credits = entry?.creditsUsed;
-				if (typeof turnId !== 'string' || !turnId || typeof credits !== 'number' || !Number.isFinite(credits) || credits <= 0) {
+				if (typeof turnId !== 'string' || !turnId || typeof credits !== 'number' || !Number.isFinite(credits) || credits < 0) {
 					continue;
 				}
 				rows.push({

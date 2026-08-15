@@ -9573,9 +9573,11 @@ suite('CopilotAgent', () => {
 				await writeExtensionHostMarker(userHome, sessionId);
 				await writeExtensionHostRequestDetails(userHome, sessionId, [
 					{ vscodeRequestId: 'vsc-1', copilotRequestId: 'evt-1', responseModelId: 'gpt-5.4', creditsUsed: 1.5 },
+					// Zero credits is real consumption and keeps its response model.
+					{ vscodeRequestId: 'vsc-2', copilotRequestId: 'evt-2', responseModelId: 'gpt-5.4-mini', creditsUsed: 0 },
 					// No credits recorded and no SDK id: both are skipped.
-					{ vscodeRequestId: 'vsc-2', copilotRequestId: 'evt-2' },
-					{ vscodeRequestId: 'vsc-3', creditsUsed: 4 },
+					{ vscodeRequestId: 'vsc-3', copilotRequestId: 'evt-3' },
+					{ vscodeRequestId: 'vsc-4', creditsUsed: 4 },
 				]);
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
@@ -9588,7 +9590,10 @@ suite('CopilotAgent', () => {
 					{ adopted, usages },
 					{
 						adopted: { adopted: true, eligible: true },
-						usages: [['evt-1', JSON.stringify({ model: 'gpt-5.4', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } })]],
+						usages: [
+							['evt-1', JSON.stringify({ model: 'gpt-5.4', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } })],
+							['evt-2', JSON.stringify({ model: 'gpt-5.4-mini', _meta: { copilotUsage: { totalNanoAiu: 0 } } })],
+						],
 					},
 				);
 			} finally {
