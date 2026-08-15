@@ -26,6 +26,33 @@
 	text-overflow: ellipsis;
 }
 
+.chat-routing-badge .chat-routing-badge-label.chat-routing-badge-completed {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size20);
+}
+
+.chat-routing-badge-response-prefix {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-routing-badge-response-preview {
+	display: block;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-routing-badge-response-preview > * {
+	display: inline;
+	margin: 0;
+	white-space: inherit;
+}
+
 .chat-routing-badge .chat-routing-badge-countdown {
 	color: var(--vscode-descriptionForeground);
 	font-variant-numeric: tabular-nums;
@@ -159,17 +186,39 @@
 
 .chat-routing-badge-folder-action {
 	flex: 0 0 auto;
-	padding: 0;
-	color: var(--vscode-textLink-foreground);
-	background: none;
-	border: 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	max-width: 180px;
+	height: 22px;
+	padding: 0 6px;
+	color: inherit;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
 	font: inherit;
 	cursor: pointer;
 }
 
-.chat-routing-badge-folder-action:hover {
-	color: var(--vscode-textLink-activeForeground);
-	text-decoration: underline;
+.chat-routing-badge-folder-action:hover,
+.chat-routing-badge-folder-action[aria-expanded='true'] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-routing-badge-folder-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-routing-badge-folder-action-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-routing-badge-folder-action .codicon {
+	flex: 0 0 auto;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-routing-badge-folder-action:focus-visible {

@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
-import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
+import { FinishedCallback, IResponseDelta, isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { ChatCompletion, FilterReason, FinishedCompletionReason, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
@@ -22,7 +22,8 @@ import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
 import type { ThinkingData } from '../../../thinking/common/thinking';
 import { CacheType, CustomDataPartMimeTypes } from '../../common/endpointTypes';
-import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
+import { MISSING_STATEFUL_TOOL_RESULT } from '../../common/statefulMarkerContainer';
+import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
 
 const testEndpoint: IChatEndpoint = {
 	urlOrRequestMetadata: 'https://example.test/chat',
@@ -765,6 +766,56 @@ describe('createResponsesRequestBody', () => {
 			type: 'message',
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('synthesizes outputs for calls missing after a reused HTTP stateful marker', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const completedCallId = 'call-completed';
+		const missingCallIds = ['call-missing-1', 'call-missing-2'];
+		const markerMessage: Raw.AssistantChatMessage = {
+			...createStatefulMarkerMessage(testEndpoint.model, 'resp-prev') as Raw.AssistantChatMessage,
+			toolCalls: [completedCallId, ...missingCallIds].map(id => ({
+				id,
+				type: 'function',
+				function: { name: 'test_tool', arguments: '{}' },
+			})),
+		};
+		const messages: Raw.ChatMessage[] = [
+			markerMessage,
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: completedCallId,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'completed output' }],
+			},
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'continue' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+		const outputs = body.input
+			?.filter(item => item.type === 'function_call_output')
+			.map(item => {
+				const output = item as OpenAI.Responses.ResponseInputItem.FunctionCallOutput;
+				return { callId: output.call_id, output: output.output };
+			});
+
+		expect({
+			previousResponseId: body.previous_response_id,
+			outputs,
+		}).toEqual({
+			previousResponseId: 'resp-prev',
+			outputs: [
+				...missingCallIds.map(callId => ({ callId, output: MISSING_STATEFUL_TOOL_RESULT })),
+				{ callId: completedCallId, output: 'completed output' },
+			],
 		});
 
 		accessor.dispose();
@@ -1950,6 +2001,61 @@ describe('processResponseFromChatEndpoint terminal events', () => {
 			code: 0,
 			message: 'something broke',
 			metadata: { code: 'internal_error' },
+		});
+	});
+
+	describe('OpenAIResponsesProcessor reasoning summaries', () => {
+		it('marks streamed summary part boundaries', () => {
+			const services = createPlatformServices();
+			const accessor = services.createTestingAccessor();
+			const processor = accessor.get(IInstantiationService).createInstance(
+				OpenAIResponsesProcessor,
+				TelemetryData.createAndMarkAsIssued(),
+				new SpyingTelemetryService(),
+				'req-1',
+				'gh-req-1',
+				'',
+				undefined,
+			);
+			const deltas: IResponseDelta[] = [];
+			const capture: FinishedCallback = async (_text, _index, delta) => {
+				deltas.push(delta);
+				return undefined;
+			};
+
+			processor.push({
+				type: 'response.reasoning_summary_text.delta',
+				item_id: 'rs_1',
+				output_index: 0,
+				summary_index: 0,
+				delta: 'first',
+				sequence_number: 0,
+			}, capture);
+			processor.push({
+				type: 'response.reasoning_summary_part.done',
+				item_id: 'rs_1',
+				output_index: 0,
+				summary_index: 0,
+				part: { type: 'summary_text', text: 'first' },
+				sequence_number: 1,
+			}, capture);
+			processor.push({
+				type: 'response.reasoning_summary_text.delta',
+				item_id: 'rs_1',
+				output_index: 0,
+				summary_index: 1,
+				delta: 'second',
+				sequence_number: 2,
+			}, capture);
+
+			expect(deltas.map(delta => delta.thinking)).toEqual([
+				{ id: 'rs_1', text: 'first' },
+				{ id: 'rs_1', metadata: { vscode_reasoning_summary_part_done: true } },
+				{ id: 'rs_1', text: 'second' },
+			]);
+
+			accessor.dispose();
+			services.dispose();
 		});
 	});
 

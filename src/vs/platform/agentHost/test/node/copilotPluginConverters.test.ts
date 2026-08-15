@@ -20,7 +20,7 @@ import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, typ
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name, enabled: true, state: { kind: McpServerStatus.Starting } };
+	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name, state: { kind: McpServerStatus.Starting } };
 }
 function stubHookCustomization(type: string): HookCustomization {
 	return { type: CustomizationType.Hook, id: `hook:${type}`, uri: 'file:///plugin/hooks.json', name: 'hooks.json' };
@@ -531,6 +531,20 @@ suite('copilotPluginConverters', () => {
 			} finally {
 				cleanup();
 			}
+		});
+
+		test('onUserPromptSubmitted returns host context without rewriting the prompt', async () => {
+			const hooks = toSdkHooks([], {
+				onPreToolUse: async () => { },
+				onPostToolUse: async () => { },
+				onUserPromptSubmitted: () => ({ additionalContext: 'Rename with exact casing' }),
+			});
+			const input = { prompt: 'Keep GitHub casing', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+
+			const result = await hooks.onUserPromptSubmitted!(input, { sessionId: 'test' });
+
+			assert.strictEqual(input.prompt, 'Keep GitHub casing');
+			assert.deepStrictEqual(result, { additionalContext: 'Rename with exact casing' });
 		});
 	});
 

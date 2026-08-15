@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData } from '@github/copilot-sdk';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename, isAbsolute, join } from '../../../../base/common/path.js';
 import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
@@ -83,8 +83,8 @@ function stripPromptScaffolding(text: string): string {
 }
 
 /**
- * Converts SDK `tool.execution_complete` content blocks into AHP tool result
- * content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
+ * Converts SDK `tool.execution_complete` image and shell result blocks into
+ * AHP tool result content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
  * the tool call's terminal content block; when no terminal block exists yet
  * (e.g. history replay, where no live channel survives) and `terminal` is
  * provided, a non-pty terminal block is synthesized so the outcome still
@@ -96,14 +96,25 @@ export interface ISdkShellExit {
 	readonly result: TerminalCommandResult;
 }
 
-export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly ToolExecutionCompleteContent[] | undefined, terminal?: { session: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
+type SdkToolExecutionCompleteContent = Exclude<ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit> | (Omit<ToolExecutionCompleteContentShellExit, 'outputPreview'> & {
+	readonly outputPreview?: string | null;
+});
+
+export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { session: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
 	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
+			case 'image':
+				content.push({
+					type: ToolResultContentType.EmbeddedResource,
+					data: sdkContent.data,
+					contentType: sdkContent.mimeType,
+				});
+				break;
 			case 'shell_exit': {
 				const result: TerminalCommandResult = {
 					exitCode: sdkContent.exitCode,
-					...(sdkContent.outputPreview !== undefined ? { preview: sdkContent.outputPreview } : {}),
+					...(typeof sdkContent.outputPreview === 'string' ? { preview: sdkContent.outputPreview } : {}),
 					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
 				};
 				shellExit = { shellId: sdkContent.shellId, result };
@@ -312,6 +323,7 @@ export async function mapSessionEvents(
 	const toolInfoByCallId = new Map<string, IToolStartInfo>();
 	const editToolCallIds: string[] = [];
 	const completionsByCallId = new Map<string, ToolExecutionCompleteData>();
+	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
 
 	// The SDK tags events that originate from a sub-agent with an
 	// envelope-level `agentId` (the deprecated `data.parentToolCallId` is no
@@ -326,6 +338,11 @@ export async function mapSessionEvents(
 
 	for (const e of events) {
 		if (e.type === 'subagent.started') {
+			subagentInfoByToolCallId.set(e.data.toolCallId, {
+				agentName: e.data.agentName,
+				agentDisplayName: e.data.agentDisplayName,
+				agentDescription: e.data.agentDescription,
+			});
 			if (e.agentId) {
 				parentToolCallIdByAgentId.set(e.agentId, e.data.toolCallId);
 			}
@@ -381,8 +398,6 @@ export async function mapSessionEvents(
 	const subagentTurnStates = new Map<string, TurnState>();
 	const terminatedSubagentTurns = new Set<string>();
 	const subagentTurns = new Map<string, Turn[]>();
-	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
-
 	let parentBuilder: ITurnBuilder | undefined;
 	let parentTurnState = TurnState.Cancelled;
 	let parentTurnTerminated = false;
@@ -463,6 +478,13 @@ export async function mapSessionEvents(
 					touch(parentBuilder);
 				}
 				break;
+			case 'session.start': {
+				// Restore the initial model; later model-change events take precedence.
+				if (!e.agentId && e.data.selectedModel) {
+					currentModel = { id: e.data.selectedModel };
+				}
+				break;
+			}
 			case 'session.model_change': {
 				currentModel = { id: e.data.newModel };
 				break;
@@ -600,12 +622,6 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'subagent.started': {
-				const d = e.data;
-				subagentInfoByToolCallId.set(d.toolCallId, {
-					agentName: d.agentName,
-					agentDisplayName: d.agentDisplayName,
-					agentDescription: d.agentDescription,
-				});
 				break;
 			}
 			case 'tool.execution_start': {

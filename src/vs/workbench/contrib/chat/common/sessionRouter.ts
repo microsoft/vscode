@@ -4,7 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatSendRequestOptions } from './chatService/chatService.js';
 
 /**
  * Setting that gates the "omni" chat experience — advisory badge routing on omni
@@ -26,6 +31,8 @@ export function isHighConfidenceSessionRoute(result: ISessionRouteResult): boole
 export interface IRoutableSession {
 	/** Stable identifier used to dispatch the request (e.g. via a `send_message` tool). */
 	readonly sessionId: string;
+	/** Authoritative provider-owned session resource, when available. */
+	readonly resource?: URI;
 	/** Human-readable session name shown to the user. */
 	readonly label: string;
 	/** Owning repository, when known (e.g. `owner/repo`). */
@@ -44,6 +51,98 @@ export interface IRoutableSession {
 	readonly lastRequest?: string;
 	/** The session's most recent response (already truncated by the caller), when known. */
 	readonly lastResponse?: string;
+}
+
+export type ChatSessionRoutingDispatchReasonCode = 'cancelled' | 'providerRemoved' | 'unsupportedOptions' | 'workspaceNotTrusted';
+
+export interface IChatSessionRoutingDispatchResult {
+	readonly status: 'sent' | 'queued' | 'rejected';
+	readonly resource?: URI;
+	readonly requestId?: string;
+	/** Last activity timestamp before dispatch, used to identify completion of this request. */
+	readonly activityBaseline?: number;
+	readonly reason?: string;
+	readonly reasonCode?: ChatSessionRoutingDispatchReasonCode;
+	/** Reveals the routed session in its owning presentation service. */
+	readonly reveal?: () => Promise<void>;
+	readonly completion?: Promise<IChatSessionRoutingDispatchResult>;
+}
+
+export interface IChatSessionRoutingWorkspace {
+	readonly uri: URI;
+	readonly providerId: string;
+	readonly group?: string;
+	readonly label: string;
+	readonly description?: string;
+	readonly icon?: ThemeIcon;
+	readonly disabled?: boolean;
+}
+
+export interface IChatSessionRoutingWorkspaceGroup {
+	readonly id: string;
+	readonly label?: string;
+	readonly tooltip?: string;
+	readonly icon?: ThemeIcon;
+}
+
+export interface IChatSessionRoutingWorkspaceBrowseAction {
+	readonly id: string;
+	readonly providerId?: string;
+	readonly group?: string;
+	readonly label: string;
+	readonly description?: string;
+	readonly icon?: ThemeIcon;
+	readonly disabled?: boolean;
+}
+
+export interface IChatSessionRoutingWorkspaceCatalog {
+	readonly groups: readonly IChatSessionRoutingWorkspaceGroup[];
+	readonly workspaces: readonly IChatSessionRoutingWorkspace[];
+	readonly browseActions: readonly IChatSessionRoutingWorkspaceBrowseAction[];
+	readonly defaultWorkspace?: IChatSessionRoutingWorkspace;
+}
+
+export interface IChatSessionRoutingNewSessionTarget {
+	readonly folder?: URI;
+	readonly providerId?: string;
+}
+
+/**
+ * Provider-neutral catalog and dispatch boundary used by routing hosts that own
+ * a broader session model than the workbench's renderer-local chat catalog.
+ */
+export interface IChatSessionRoutingProvider {
+	readonly onDidChangeSessions?: Event<void>;
+	readonly onDidChangeNewSessionWorkspaceCatalog?: Event<void>;
+	getCandidateSessions(token: CancellationToken): readonly IRoutableSession[] | Promise<readonly IRoutableSession[]>;
+	getSessionSnapshot?(resource: URI, token: CancellationToken): IRoutableSession | undefined | Promise<IRoutableSession | undefined>;
+	watchSession?(resource: URI, listener: () => void): IDisposable;
+	getNewSessionWorkspaceCatalog?(): IChatSessionRoutingWorkspaceCatalog | Promise<IChatSessionRoutingWorkspaceCatalog>;
+	selectNewSessionWorkspace?(workspace: IChatSessionRoutingWorkspace): void | Promise<void>;
+	browseNewSessionWorkspace?(actionId: string, token: CancellationToken): Promise<IChatSessionRoutingWorkspace | undefined>;
+	resolveSessionResource(sessionId: string): URI | undefined;
+	dispatchToSession(
+		sessionId: string,
+		message: string,
+		options: IChatSendRequestOptions,
+		token: CancellationToken,
+	): Promise<IChatSessionRoutingDispatchResult>;
+	dispatchToNewSession(
+		target: IChatSessionRoutingNewSessionTarget,
+		message: string,
+		options: IChatSendRequestOptions,
+		token: CancellationToken,
+	): Promise<IChatSessionRoutingDispatchResult>;
+	revealSession(resource: URI): Promise<void>;
+}
+
+export const IChatSessionRoutingProviderService = createDecorator<IChatSessionRoutingProviderService>('chatSessionRoutingProviderService');
+
+export interface IChatSessionRoutingProviderService {
+	readonly _serviceBrand: undefined;
+
+	registerProvider(provider: IChatSessionRoutingProvider): IDisposable;
+	getProvider(): IChatSessionRoutingProvider | undefined;
 }
 
 /** A single scored candidate produced by the router, sorted best-first. */

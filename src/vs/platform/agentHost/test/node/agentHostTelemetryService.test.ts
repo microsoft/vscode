@@ -64,6 +64,7 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	readonly enabledFlags: boolean[] = [];
 	readonly internal: string[] = [];
 	readonly internalContexts: (IAgentHostInternalTelemetryContext | undefined)[] = [];
+	readonly commonProperties: Record<string, string | boolean> = {};
 
 	sendGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
 		this.standard.push(eventName);
@@ -91,6 +92,9 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	}
 	setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void {
 		this.internalContexts.push(context);
+	}
+	setCommonProperty(name: string, value: string | boolean): void {
+		this.commonProperties[name] = value;
 	}
 }
 
@@ -183,6 +187,19 @@ suite('AgentHostTelemetryService', () => {
 			sendErrorTelemetry: false,
 			events: [{ eventName: 'beforeDisable', data: { count: 1 } }],
 			errorEvents: [],
+		});
+	});
+
+	test('forwards common properties to standard and restricted telemetry', () => {
+		const delegate = new TestTelemetryService();
+		const sink = new TestRestrictedSink();
+		const service = disposables.add(new AgentHostTelemetryService(delegate, sink));
+
+		service.setCommonProperty('copilotSku', 'copilot_for_business_seat');
+
+		assert.deepStrictEqual({ delegate: delegate.commonProperties, restricted: sink.commonProperties }, {
+			delegate: { copilotSku: 'copilot_for_business_seat' },
+			restricted: { copilotSku: 'copilot_for_business_seat' },
 		});
 	});
 

@@ -35,13 +35,13 @@ import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../wo
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { observeUsableWithoutGitHub } from '../../../browser/sessionsAuthGate.js';
-import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { observeAllowSignedOutWhenUsable } from '../../../browser/sessionsAuthGate.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
-import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, ICodexAccountService, shouldShowCodexAccount } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
@@ -55,6 +55,7 @@ import { language } from '../../../../base/common/platform.js';
 import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
@@ -65,7 +66,6 @@ const PERSONALIZE_ACTION_IDS: readonly string[] = [
 	'workbench.action.openSettings',
 ];
 const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
-const SIGN_IN_ACTION_ID = 'workbench.action.agenticSignIn';
 const accountDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
 const accountTimeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 
@@ -73,16 +73,26 @@ export function shouldShowAccountPanelSummary(state: Pick<IAccountTitleBarState,
 	return !hasCopilotDashboard && !isAccountLoading && !(state.source === 'copilot' && state.kind === 'prominent');
 }
 
-// Register the shared VS Code update entry at the trailing edge of the Agents titlebar.
+const sessionsChangesPrimaryActionVisible = ContextKeyExpr.and(
+	SinglePaneLayoutEnabledContext,
+	SessionIsCreatedContext,
+	SessionHasChangesContext
+)!;
+
+// Register the shared VS Code update entry at the leading edge of the Agents titlebar actions.
 registerUpdateTitleBarMenuPlacement(Menus.TitleBarUpdate, {
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+	when: ContextKeyExpr.and(
+		IsAuxiliaryWindowContext.toNegated(),
+		SessionsWelcomeVisibleContext.toNegated(),
+		sessionsChangesPrimaryActionVisible.negate()
+	),
 });
 
 // Sign In (shown when signed out)
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.agenticSignIn',
+			id: AGENTIC_SIGN_IN_COMMAND_ID,
 			title: localize2('signIn', "Sign in to use GitHub Copilot"),
 			icon: Codicon.signIn,
 			menu: {
@@ -171,6 +181,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
+	private accountIcon: URI | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
 	private avatarRequestCounter = 0;
@@ -183,8 +194,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private readonly copilotDashboardStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly clickPanelDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly avatarLoadDisposable = this._register(new MutableDisposable());
-	/** Whether a signed-out user can work without GitHub right now. */
-	private readonly usableWithoutGitHub: IObservable<boolean>;
+	/** Whether the conditional-auth opt-in permits signed-out operation. */
+	private readonly allowSignedOutWhenUsable: IObservable<boolean>;
 
 	constructor(
 		action: IAction,
@@ -197,18 +208,17 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@ICodexAccountService private readonly codexAccountService: ICodexAccountService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(undefined, action, options);
-		this.usableWithoutGitHub = observeUsableWithoutGitHub(sessionsManagementService, configurationService);
+		this.allowSignedOutWhenUsable = observeAllowSignedOutWhenUsable(configurationService);
 		this.lastState = getAccountTitleBarState({
 			isAccountLoading: true,
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-			usableWithoutGitHub: false,
+			allowSignedOutWhenUsable: false,
 		});
 
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refreshAccount()));
@@ -226,10 +236,14 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				this.clickPanelDisposable.clear();
 				this.renderState();
 			}
+			if (event.affectsConfiguration(ACCOUNTS_AVATAR_SETTING)) {
+				this.refreshAvatar();
+			}
 		}));
-		// A type becoming usable/unusable without GitHub, or toggling the opt-in,
-		// can flip the signed-out affordance between the calm and alarming states.
-		this._register(runOnChange(this.usableWithoutGitHub, () => this.renderState()));
+		// A signed-out user sees either a quiet "Sign In" (the opt-in is on, so signing
+		// in is optional) or a prominent "Agents Signed Out". Re-render so toggling the
+		// setting switches between them while the window is open.
+		this._register(runOnChange(this.allowSignedOutWhenUsable, () => this.renderState()));
 		this.refreshAccount();
 	}
 
@@ -279,6 +293,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.accountName = info?.accountName;
 		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
+		this.accountIcon = info?.accountIcon;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
 		this.renderState();
@@ -306,7 +321,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-			usableWithoutGitHub: this.usableWithoutGitHub.get(),
+			allowSignedOutWhenUsable: this.allowSignedOutWhenUsable.get(),
 		});
 		this.lastState = state;
 
@@ -357,7 +372,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private refreshAvatar(): void {
-		const avatarUrl = getAccountProfileImageUrl(this.accountProviderId, this.accountName);
+		const avatarUrl = this.configurationService.getValue<boolean>(ACCOUNTS_AVATAR_SETTING)
+			? getAccountProfileImageUrl(this.accountProviderId, this.accountName, this.accountIcon)
+			: undefined;
 		if (avatarUrl === this.currentAvatarUrl) {
 			return;
 		}
@@ -769,7 +786,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				signOut = action;
 				continue;
 			}
-			if (action.id === SIGN_IN_ACTION_ID) {
+			if (action.id === AGENTIC_SIGN_IN_COMMAND_ID) {
 				if (!this.isAccountLoading) {
 					signIn = action;
 				}

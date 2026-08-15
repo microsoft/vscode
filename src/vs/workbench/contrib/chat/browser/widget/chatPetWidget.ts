@@ -12,7 +12,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -22,10 +22,13 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatPetVariant, IChatPetService } from '../chatPetService.js';
 
-export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'falling' | 'splat' | 'onTheRun' | 'searching' | 'searchingDown';
+export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat' | 'onTheRun' | 'searching' | 'searchingDown';
 export type ChatPetClickInteraction = Extract<ChatPetState, 'buttonPress' | 'complete' | 'love' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry'>;
 
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
+export const CHAT_PET_CONFIRMATION_ATTENTION_DURATION = 2_000;
+export const CHAT_PET_ICON_TRANSFORMATION_CHANCE = 1 / 100;
+export const CHAT_PET_YAPPING_CHANCE = 1 / 100;
 const TRANSIENT_STATE_DURATION = 2_000;
 const COMPLETE_STATE_DURATION = 960;
 const BUTTON_PRESS_STATE_DURATION = 2_850;
@@ -35,9 +38,11 @@ const COOL_STATE_DURATION = 3_000;
 const SING_STATE_DURATION = 2_880;
 const SPEECHLESS_STATE_DURATION = 2_720;
 const WORRY_STATE_DURATION = 2_400;
+const DIZZY_STATE_DURATION = 2_200;
 const WAKE_STATE_DURATION = 880;
+const DIZZY_DIRECTION_CHANGE_COUNT = 8;
+const DIZZY_DIRECTION_CHANGE_MAX_INTERVAL = 600;
 const SEARCH_INTERVAL = 10_000;
-const RESPAWN_SIGN_DURATION = 600;
 const RESPAWN_EFFECT_DURATION = 800;
 const RESPAWN_EFFECT_REDUCED_MOTION_DURATION = 400;
 const DRAG_THRESHOLD = 2;
@@ -47,16 +52,35 @@ const HOP_REST_DELAY = 90;
 const HOP_HOLD_GRACE = 350;
 const HOP_IDLE_DEBOUNCE = 900;
 const POSITION_EPSILON = 0.5;
+const THROW_VELOCITY_SAMPLE_DURATION = 100;
+const THROW_RELEASE_GRACE_DURATION = 80;
+const THROW_MIN_HORIZONTAL_VELOCITY = 650;
+const THROW_MIN_FLIGHT_VELOCITY = 1_000;
+const THROW_MAX_HORIZONTAL_VELOCITY = 2_400;
+const THROW_MIN_UPWARD_VELOCITY = 420;
+const THROW_MAX_UPWARD_VELOCITY = 1_400;
+const THROW_KEYBOARD_HORIZONTAL_VELOCITY = 1_400;
+const THROW_GRAVITY = 1_800;
+const THROW_MAX_FRAME_DURATION = 32;
+const THROW_MAX_DURATION = 4_000;
+const THROW_WALL_IMPACT_DURATION = 110;
+const THROW_WALL_RESTITUTION = 0.1;
+const THROW_WALL_REBOUND_VELOCITY = 120;
+const THROW_CEILING_RESTITUTION = 0.2;
+const THROW_ROTATION_PER_PIXEL = 0.65;
 const CHAT_PET_SOURCE_SIZE = 96;
+const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
 const CHAT_PET_BUTTON_PRESS_SOURCE_WIDTH = 160;
 const CHAT_PET_SING_SOURCE_WIDTH = 164;
 const CHAT_PET_SING_SOURCE_HEIGHT = 124;
+const CHAT_PET_DIZZY_SOURCE_HEIGHT = 128;
 const CHAT_PET_MAX_VERTICAL_OFFSET = 10;
 const CHAT_PET_DEFAULT_RIGHT_INSET = 32;
 const CHAT_PET_MIN_SCALE = 0.4;
 const CHAT_PET_SCALE_STEP = 0.2;
 const CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG = 20;
+const CHAT_PET_SLEEP_RIGHT_OVERHANG = (CHAT_PET_SLEEP_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 const CHAT_PET_TYPING_RIGHT_OVERHANG = (CHAT_PET_TYPING_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 const CHAT_PET_BUTTON_PRESS_RIGHT_OVERHANG = (CHAT_PET_BUTTON_PRESS_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 const CHAT_PET_SING_RIGHT_OVERHANG = (CHAT_PET_SING_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
@@ -64,9 +88,9 @@ const CHAT_PET_SING_RIGHT_OVERHANG = (CHAT_PET_SING_SOURCE_WIDTH - CHAT_PET_SOUR
 const IDLE_FRAME_DURATIONS = Array.from({ length: 50 }, () => 40);
 const SLEEP_FRAME_DURATIONS = Array.from({ length: 8 }, () => 300);
 const WAKE_FRAME_DURATIONS = [160, 100, 80, 90, 90, 90, 100, 170];
-const TYPING_FRAME_DURATIONS = [400, 600];
+const TYPING_FRAME_DURATIONS = [320, 480];
 const BUTTON_PRESS_FRAME_DURATIONS = [500, 300, 350, 250, 450, 1_000];
-const FALLING_FRAME_DURATIONS = Array.from({ length: 4 }, () => 120);
+const FALLING_FRAME_DURATIONS = [120, 80, 80, 120, 80, 80];
 const JUMP_FRAME_DURATIONS = [70, 80, 90, 160, 100, 100];
 const SPLAT_FRAME_DURATIONS = [120, 100, 100, 200];
 const RESPAWN_FRAME_DURATIONS = [120, 100, 120, 240, 100, 120];
@@ -77,12 +101,19 @@ const COOL_FRAME_DURATIONS = [600, 120, 120, 120, 160, 80, 80, 80, 1_640];
 const SING_FRAME_DURATIONS = [180, 180, 180, 180];
 const SPEECHLESS_FRAME_DURATIONS = [400, 120, 1_000, 120, 1_080];
 const WORRY_FRAME_DURATIONS = [600, 600];
+const DIZZY_FRAME_DURATIONS = Array.from({ length: 8 }, () => 120);
 const SEARCH_FRAME_DURATIONS = [500, 500, 500, 500];
+
+interface ChatPetFixedOrientationDecoration {
+	readonly frameBounds: readonly (readonly [number, number, number, number])[];
+	readonly sourceFrame: number;
+}
 
 interface ChatPetSpriteSource {
 	readonly url: string;
 	readonly frameWidth: number;
 	readonly frameHeight?: number;
+	readonly fixedOrientationDecorations?: readonly ChatPetFixedOrientationDecoration[];
 	readonly frameDurations: readonly number[];
 	readonly iterations: number;
 }
@@ -98,6 +129,66 @@ interface ChatPetSpriteElement {
 	readonly canvas: HTMLCanvasElement;
 }
 
+const CHAT_PET_SING_FIXED_ORIENTATION_DECORATIONS: readonly ChatPetFixedOrientationDecoration[] = [
+	{
+		frameBounds: [
+			[16, 36, 80, 52],
+			[16, 36, 80, 52],
+			[16, 36, 80, 52],
+			[16, 36, 80, 52],
+		],
+		sourceFrame: 0,
+	},
+	{
+		frameBounds: [
+			[96, 8, 160, 72],
+			[96, 4, 160, 68],
+			[100, 0, 164, 64],
+			[92, 4, 156, 68],
+		],
+		sourceFrame: 0,
+	},
+];
+
+interface ChatPetPointerSample {
+	readonly x: number;
+	readonly y: number;
+	readonly time: number;
+}
+
+interface ChatPetThrowVelocity {
+	readonly x: number;
+	readonly y: number;
+}
+
+interface ChatPetThrowMotion extends ChatPetThrowVelocity {
+	readonly left: number;
+	readonly top: number;
+}
+
+type ChatPetWall = 'left' | 'right';
+
+interface ChatPetThrowBounds {
+	readonly minimumLeft: number;
+	readonly maximumLeft: number;
+	readonly minimumTop: number;
+}
+
+interface ChatPetThrowGeometry {
+	readonly bounds: ChatPetThrowBounds;
+	readonly displaySize: number;
+	readonly overlayLeft: number;
+	readonly overlayTop: number;
+	readonly platformLeft: number;
+	readonly platformRight: number;
+	readonly platformTop: number;
+	readonly floorTop: number;
+}
+
+interface ChatPetThrowStep extends ChatPetThrowMotion {
+	readonly wall: ChatPetWall | undefined;
+}
+
 export function getChatPetBuddyName(quality: string | undefined): 'buddy-idle-stable' | 'buddy-idle-insiders' {
 	return quality === 'stable' ? 'buddy-idle-stable' : 'buddy-idle-insiders';
 }
@@ -107,7 +198,12 @@ const speechSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 const respawnSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 
 export function doesChatPetStateTrackCursor(state: ChatPetState | undefined): boolean {
-	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'buttonPress' && state !== 'complete' && state !== 'jump' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'sing' && state !== 'speechless' && state !== 'worry' && state !== 'falling' && state !== 'splat' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
+	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'buttonPress' && state !== 'complete' && state !== 'jump' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'sing' && state !== 'speechless' && state !== 'worry' && state !== 'dizzy' && state !== 'falling' && state !== 'wallImpact' && state !== 'splat' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
+}
+
+export function doesChatPetStateBlink(state: ChatPetState | undefined, frameIndex?: number): boolean {
+	return (state === 'typing' || state === 'buttonPress' || state === 'love')
+		&& (state !== 'buttonPress' || frameIndex !== BUTTON_PRESS_FRAME_DURATIONS.length - 1);
 }
 
 export function getChatPetSpriteName(state: ChatPetState, quality: string | undefined): string {
@@ -125,6 +221,10 @@ export function getChatPetSpriteName(state: ChatPetState, quality: string | unde
 			return `buddy-falling-${variant}`;
 		case 'jump':
 			return `buddy-jump-${variant}`;
+		case 'dizzy':
+			return `buddy-dizzy-${variant}`;
+		case 'wallImpact':
+			return `buddy-wall-impact-${variant}`;
 		case 'splat':
 			return `buddy-splat-${variant}`;
 		case 'onTheRun':
@@ -180,9 +280,12 @@ export function getChatPetFrameDurations(state: ChatPetState): readonly number[]
 			return SPEECHLESS_FRAME_DURATIONS;
 		case 'worry':
 			return WORRY_FRAME_DURATIONS;
+		case 'dizzy':
+			return DIZZY_FRAME_DURATIONS;
 		case 'searching':
 			return SEARCH_FRAME_DURATIONS;
 		case 'onTheRun':
+		case 'wallImpact':
 		case 'searchingDown':
 			return [];
 		case 'yappingMouthOpen':
@@ -193,7 +296,7 @@ export function getChatPetFrameDurations(state: ChatPetState): readonly number[]
 	}
 }
 
-function createSpriteSources(name: string, state: ChatPetState, tracksCursor = true, sourceWidth?: number, sourceHeight = CHAT_PET_SOURCE_SIZE): ChatPetSpriteSources {
+function createSpriteSources(name: string, state: ChatPetState, tracksCursor = true, sourceWidth?: number, sourceHeight = CHAT_PET_SOURCE_SIZE, fixedOrientationDecorations?: readonly ChatPetFixedOrientationDecoration[]): ChatPetSpriteSources {
 	const root = 'vs/workbench/contrib/chat/browser/widget/media/chatPet';
 	const suffix = tracksCursor ? '-tracking-96' : `-${sourceHeight}`;
 	const frameDurations = getChatPetFrameDurations(state);
@@ -206,6 +309,7 @@ function createSpriteSources(name: string, state: ChatPetState, tracksCursor = t
 		url: FileAccess.asBrowserUri(`${root}/${name}${suffix}.png`).toString(true),
 		frameWidth,
 		frameHeight: sourceHeight,
+		fixedOrientationDecorations,
 		frameDurations: [],
 		iterations: 1,
 	};
@@ -214,6 +318,7 @@ function createSpriteSources(name: string, state: ChatPetState, tracksCursor = t
 			url: FileAccess.asBrowserUri(`${root}/${name}${suffix}.spritesheet.png`).toString(true),
 			frameWidth,
 			frameHeight: sourceHeight,
+			fixedOrientationDecorations,
 			frameDurations,
 			iterations: state === 'waking' || state === 'buttonPress' || state === 'cool' || state === 'splat' || state === 'searching' || state === 'jump' ? 1 : Infinity,
 		},
@@ -235,8 +340,8 @@ function getSpriteSources(variant: ChatPetVariant): Record<ChatPetState, ChatPet
 		const createStateSpriteSources = (state: ChatPetState) => createSpriteSources(getChatPetSpriteName(state, variant), state, doesChatPetStateTrackCursor(state));
 		sources = {
 			idle: createStateSpriteSources('idle'),
-			sleep: createStateSpriteSources('sleep'),
-			waking: createStateSpriteSources('waking'),
+			sleep: createSpriteSources(getChatPetSpriteName('sleep', variant), 'sleep', false, CHAT_PET_SLEEP_SOURCE_WIDTH),
+			waking: createSpriteSources(getChatPetSpriteName('waking', variant), 'waking', false, CHAT_PET_SLEEP_SOURCE_WIDTH),
 			typing: createStateSpriteSources('typing'),
 			rendering: createStateSpriteSources('rendering'),
 			buttonPress: createStateSpriteSources('buttonPress'),
@@ -247,10 +352,12 @@ function getSpriteSources(variant: ChatPetVariant): Record<ChatPetState, ChatPet
 			cool: createStateSpriteSources('cool'),
 			yapping: createStateSpriteSources('yapping'),
 			yappingMouthOpen: createStateSpriteSources('yappingMouthOpen'),
-			sing: createSpriteSources(getChatPetSpriteName('sing', variant), 'sing', false, CHAT_PET_SING_SOURCE_WIDTH, CHAT_PET_SING_SOURCE_HEIGHT),
+			sing: createSpriteSources(getChatPetSpriteName('sing', variant), 'sing', false, CHAT_PET_SING_SOURCE_WIDTH, CHAT_PET_SING_SOURCE_HEIGHT, CHAT_PET_SING_FIXED_ORIENTATION_DECORATIONS),
 			speechless: createStateSpriteSources('speechless'),
 			worry: createStateSpriteSources('worry'),
+			dizzy: createSpriteSources(getChatPetSpriteName('dizzy', variant), 'dizzy', false, undefined, CHAT_PET_DIZZY_SOURCE_HEIGHT),
 			falling: createStateSpriteSources('falling'),
+			wallImpact: createStateSpriteSources('wallImpact'),
 			splat: createStateSpriteSources('splat'),
 			onTheRun: createStateSpriteSources('onTheRun'),
 			searching: createStateSpriteSources('searching'),
@@ -318,9 +425,9 @@ export function isChatPetImageSource(image: Pick<HTMLImageElement, 'getAttribute
 	return image.getAttribute('src') === source;
 }
 
-export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boolean, hasInput: boolean, idleExpired: boolean): ChatPetState {
+export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boolean, confirmationAttentionExpired: boolean, hasInput: boolean, idleExpired: boolean): ChatPetState {
 	if (needsInput) {
-		return 'clapping';
+		return confirmationAttentionExpired ? 'idle' : 'clapping';
 	}
 	if (hasActiveRequest) {
 		return 'rendering';
@@ -336,6 +443,10 @@ export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boole
 
 export function isChatPetVisible(enabled: boolean, isLatestFocusedWidget: boolean): boolean {
 	return enabled && isLatestFocusedWidget;
+}
+
+export function isChatPetKeyboardInteractionEnabled(enabled: boolean, isDead: boolean, hasPointerInteraction: boolean, isAirborne: boolean, onTheRun: boolean): boolean {
+	return enabled && !isDead && !hasPointerInteraction && !isAirborne && !onTheRun;
 }
 
 function isChatPetYapState(state: ChatPetState | undefined): boolean {
@@ -354,24 +465,26 @@ export function getChatPetRenderedState(baseState: ChatPetState, transientState:
 
 type ChatPetAnimationFrame = { frameIndex: number; complete: true } | { frameIndex: number; complete: false; nextFrameDelay: number };
 
-export function getChatPetAnimationFrame(frameDurations: readonly number[], elapsed: number, iterations: number): ChatPetAnimationFrame {
+export function getChatPetAnimationFrame(frameDurations: readonly number[], elapsed: number, iterations: number, reverse = false): ChatPetAnimationFrame {
 	if (frameDurations.length === 0) {
 		return { frameIndex: 0, complete: true };
 	}
 
 	const totalDuration = frameDurations.reduce((total, duration) => total + duration, 0);
+	const lastFrameIndex = frameDurations.length - 1;
 	if (elapsed >= totalDuration * iterations) {
-		return { frameIndex: frameDurations.length - 1, complete: true };
+		return { frameIndex: reverse ? 0 : lastFrameIndex, complete: true };
 	}
 	const iterationElapsed = Math.max(0, elapsed) % totalDuration;
 	let frameEnd = 0;
-	for (let frameIndex = 0; frameIndex < frameDurations.length; frameIndex++) {
+	for (let animationFrameIndex = 0; animationFrameIndex < frameDurations.length; animationFrameIndex++) {
+		const frameIndex = reverse ? lastFrameIndex - animationFrameIndex : animationFrameIndex;
 		frameEnd += frameDurations[frameIndex];
 		if (iterationElapsed < frameEnd) {
 			return { frameIndex, complete: false, nextFrameDelay: frameEnd - iterationElapsed };
 		}
 	}
-	return { frameIndex: frameDurations.length - 1, complete: false, nextFrameDelay: totalDuration };
+	return { frameIndex: reverse ? 0 : lastFrameIndex, complete: false, nextFrameDelay: totalDuration };
 }
 
 function getTransientStateDuration(state: ChatPetState): number {
@@ -392,6 +505,8 @@ function getTransientStateDuration(state: ChatPetState): number {
 			return SPEECHLESS_STATE_DURATION;
 		case 'worry':
 			return WORRY_STATE_DURATION;
+		case 'dizzy':
+			return DIZZY_STATE_DURATION;
 		case 'waking':
 			return WAKE_STATE_DURATION;
 		default:
@@ -400,13 +515,17 @@ function getTransientStateDuration(state: ChatPetState): number {
 }
 
 export function getChatPetClickInteraction(random: number, previousInteraction?: ChatPetClickInteraction): ChatPetClickInteraction {
-	if (random < 0.01) {
+	if (random < CHAT_PET_ICON_TRANSFORMATION_CHANCE) {
 		return 'complete';
 	}
+	const yappingThreshold = CHAT_PET_ICON_TRANSFORMATION_CHANCE + CHAT_PET_YAPPING_CHANCE;
+	if (random < yappingThreshold) {
+		return 'yapping';
+	}
 
-	const interactions: readonly ChatPetClickInteraction[] = ['buttonPress', 'love', 'cool', 'yapping', 'sing', 'speechless', 'worry'];
+	const interactions: readonly ChatPetClickInteraction[] = ['buttonPress', 'love', 'cool', 'sing', 'speechless', 'worry'];
 	const availableInteractions = interactions.filter(interaction => interaction !== previousInteraction);
-	const normalizedRandom = (random - 0.01) / 0.99;
+	const normalizedRandom = (random - yappingThreshold) / (1 - yappingThreshold);
 	return availableInteractions[Math.min(Math.floor(normalizedRandom * availableInteractions.length), availableInteractions.length - 1)];
 }
 
@@ -424,12 +543,96 @@ export function getChatPetGazeDirection(cursorX: number, cursorY: number, petCen
 	];
 }
 
+type ChatPetFacingDirection = 'left' | 'right';
+
+export class ChatPetFacingController {
+
+	private _direction: ChatPetFacingDirection = 'right';
+	private _tracksCursor = false;
+
+	get direction(): ChatPetFacingDirection {
+		return this._direction;
+	}
+
+	setDirection(direction: ChatPetFacingDirection): void {
+		this._direction = direction;
+	}
+
+	setState(state: ChatPetState, isDragging: boolean): void {
+		this._tracksCursor = state === 'idle' && !isDragging;
+	}
+
+	snapToCursor(cursorX: number, petCenterX: number): ChatPetFacingDirection {
+		if (cursorX < petCenterX) {
+			this.setDirection('left');
+		} else if (cursorX > petCenterX) {
+			this.setDirection('right');
+		}
+		return this._direction;
+	}
+
+	update(cursorX: number, petCenterX: number): ChatPetFacingDirection {
+		if (this._tracksCursor) {
+			return this.snapToCursor(cursorX, petCenterX);
+		}
+		return this._direction;
+	}
+}
+
+export class ChatPetDirectionChangeController {
+
+	private _lastDirection: ChatPetFacingDirection | undefined;
+	private _lastDirectionChangeTime: number | undefined;
+	private _directionChangeCount = 0;
+
+	constructor(
+		private readonly directionChangeCount = DIZZY_DIRECTION_CHANGE_COUNT,
+		private readonly maxDirectionChangeInterval = DIZZY_DIRECTION_CHANGE_MAX_INTERVAL,
+	) { }
+
+	record(direction: ChatPetFacingDirection, timestamp: number): boolean {
+		if (this._lastDirection === direction) {
+			return false;
+		}
+		if (this._lastDirection === undefined) {
+			this._lastDirection = direction;
+			this._lastDirectionChangeTime = timestamp;
+			return false;
+		}
+		if (this._lastDirectionChangeTime !== undefined && timestamp - this._lastDirectionChangeTime > this.maxDirectionChangeInterval) {
+			this._directionChangeCount = 0;
+		}
+
+		this._lastDirection = direction;
+		this._lastDirectionChangeTime = timestamp;
+		this._directionChangeCount++;
+		if (this._directionChangeCount < this.directionChangeCount) {
+			return false;
+		}
+
+		this.reset();
+		return true;
+	}
+
+	reset(): void {
+		this._lastDirection = undefined;
+		this._lastDirectionChangeTime = undefined;
+		this._directionChangeCount = 0;
+	}
+}
+
 export function getChatPetHorizontalPosition(left: number, minimumLeft: number, maximumLeft: number): number {
 	return Math.max(minimumLeft, Math.min(Math.max(minimumLeft, maximumLeft), left));
 }
 
 export function getChatPetDefaultHorizontalPosition(minimumLeft: number, maximumLeft: number): number {
 	return Math.max(minimumLeft, maximumLeft - CHAT_PET_DEFAULT_RIGHT_INSET);
+}
+
+export function getChatPetRestoredHorizontalPosition(previousLeft: number | undefined, minimumLeft: number, maximumLeft: number): number {
+	return previousLeft === undefined
+		? getChatPetDefaultHorizontalPosition(minimumLeft, maximumLeft)
+		: getChatPetHorizontalPosition(previousLeft, minimumLeft, maximumLeft);
 }
 
 export function getChatPetScale(scale: number, delta: number): number {
@@ -443,13 +646,106 @@ export function getChatPetDragPosition(left: number, top: number, minimumLeft: n
 	];
 }
 
-export function getChatPetFallTarget(petLeft: number, petTop: number, petWidth: number, petHeight: number, platformLeft: number, platformRight: number, platformTop: number, floorTop: number): { readonly top: number; readonly landsOnPlatform: boolean } {
+export function getChatPetThrowVelocity(samples: readonly ChatPetPointerSample[], releaseTime: number): ChatPetThrowVelocity | undefined {
+	if (samples.length < 2) {
+		return undefined;
+	}
+
+	const latest = samples[samples.length - 1];
+	if (releaseTime - latest.time > THROW_RELEASE_GRACE_DURATION) {
+		return undefined;
+	}
+
+	let first = latest;
+	for (let index = samples.length - 2; index >= 0; index--) {
+		const sample = samples[index];
+		if (latest.time - sample.time > THROW_VELOCITY_SAMPLE_DURATION) {
+			break;
+		}
+		first = sample;
+	}
+
+	const elapsed = Math.max(16, latest.time - first.time);
+	const velocityX = (latest.x - first.x) / elapsed * 1_000;
+	const velocityY = (latest.y - first.y) / elapsed * 1_000;
+	const horizontalVelocity = Math.abs(velocityX);
+	if (horizontalVelocity < THROW_MIN_HORIZONTAL_VELOCITY || horizontalVelocity < Math.abs(velocityY)) {
+		return undefined;
+	}
+
+	const flightVelocity = Math.min(THROW_MAX_HORIZONTAL_VELOCITY, Math.max(THROW_MIN_FLIGHT_VELOCITY, horizontalVelocity));
+	return {
+		x: Math.sign(velocityX) * flightVelocity,
+		y: Math.max(-THROW_MAX_UPWARD_VELOCITY, Math.min(velocityY, -THROW_MIN_UPWARD_VELOCITY)),
+	};
+}
+
+export function advanceChatPetThrow(motion: ChatPetThrowMotion, elapsed: number, bounds: ChatPetThrowBounds): ChatPetThrowStep {
+	const duration = Math.max(0, elapsed) / 1_000;
+	const projectedLeft = motion.left + motion.x * duration;
+	const hasHorizontalRange = bounds.maximumLeft > bounds.minimumLeft;
+	let wall: ChatPetWall | undefined;
+	let motionDuration = duration;
+	let left = hasHorizontalRange ? projectedLeft : bounds.minimumLeft;
+
+	if (hasHorizontalRange && projectedLeft < bounds.minimumLeft) {
+		wall = 'left';
+		motionDuration *= (bounds.minimumLeft - motion.left) / (projectedLeft - motion.left);
+		left = bounds.minimumLeft;
+	} else if (hasHorizontalRange && projectedLeft > bounds.maximumLeft) {
+		wall = 'right';
+		motionDuration *= (bounds.maximumLeft - motion.left) / (projectedLeft - motion.left);
+		left = bounds.maximumLeft;
+	}
+
+	let top = motion.top + motion.y * motionDuration + THROW_GRAVITY * motionDuration * motionDuration / 2;
+	let velocityY = motion.y + THROW_GRAVITY * motionDuration;
+	if (top < bounds.minimumTop) {
+		top = bounds.minimumTop;
+		velocityY = Math.abs(velocityY) * THROW_CEILING_RESTITUTION;
+	}
+
+	return {
+		left,
+		top,
+		x: hasHorizontalRange ? motion.x : 0,
+		y: velocityY,
+		wall,
+	};
+}
+
+export function shouldSettleChatPetThrow(startTime: number, currentTime: number, top: number, verticalVelocity: number, floorTop: number): boolean {
+	return currentTime - startTime >= THROW_MAX_DURATION || (top > floorTop && verticalVelocity >= 0);
+}
+
+export function getChatPetFallTarget(petLeft: number, petTop: number, petWidth: number, petHeight: number, platformLeft: number, platformRight: number, platformTop: number, floorBottom: number): { readonly top: number; readonly landsOnPlatform: boolean } {
 	const petCenter = petLeft + petWidth / 2;
 	const landsOnPlatform = petCenter >= platformLeft && petCenter <= platformRight && petTop + petHeight <= platformTop;
 	return {
-		top: landsOnPlatform ? platformTop - petHeight : floorTop,
+		top: landsOnPlatform ? platformTop - petHeight : floorBottom - petHeight,
 		landsOnPlatform,
 	};
+}
+
+export function getChatPetThrowLanding(previousLeft: number, previousTop: number, left: number, top: number, petWidth: number, petHeight: number, platformLeft: number, platformRight: number, platformTop: number, floorTop: number): { readonly left: number; readonly top: number; readonly landsOnPlatform: boolean } | undefined {
+	if (top <= previousTop) {
+		return undefined;
+	}
+
+	const getLeftAtTop = (targetTop: number) => previousLeft + (left - previousLeft) * (targetTop - previousTop) / (top - previousTop);
+	const platformLandingTop = platformTop - petHeight;
+	if (previousTop <= platformLandingTop && top >= platformLandingTop) {
+		const landingLeft = getLeftAtTop(platformLandingTop);
+		const petCenter = landingLeft + petWidth / 2;
+		if (petCenter >= platformLeft && petCenter <= platformRight) {
+			return { left: landingLeft, top: platformLandingTop, landsOnPlatform: true };
+		}
+	}
+
+	if (previousTop <= floorTop && top >= floorTop) {
+		return { left: getLeftAtTop(floorTop), top: floorTop, landsOnPlatform: false };
+	}
+	return undefined;
 }
 
 export function getChatPetFallDuration(distance: number): number {
@@ -471,15 +767,22 @@ export function shouldPlaceChatPetSpeechBubbleLeft(state: ChatPetState | undefin
 	return state === 'rendering' && buttonRight + CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG * scale > inputRight;
 }
 
-export function shouldFlipChatPetWideSprite(state: ChatPetState | undefined, buttonRight: number, inputRight: number, scale = 1): boolean {
-	const rightOverhang = state === 'typing'
-		? CHAT_PET_TYPING_RIGHT_OVERHANG
-		: state === 'buttonPress'
-			? CHAT_PET_BUTTON_PRESS_RIGHT_OVERHANG
-			: state === 'sing'
-				? CHAT_PET_SING_RIGHT_OVERHANG
-				: 0;
-	return rightOverhang > 0 && buttonRight + rightOverhang * scale > inputRight;
+export function getChatPetWideSpriteHorizontalOffset(state: ChatPetState | undefined, facingDirection: ChatPetFacingDirection, buttonLeft: number, buttonRight: number, inputLeft: number, inputRight: number, scale = 1): number {
+	const overhang = state === 'sleep' || state === 'waking'
+		? CHAT_PET_SLEEP_RIGHT_OVERHANG
+		: state === 'typing'
+			? CHAT_PET_TYPING_RIGHT_OVERHANG
+			: state === 'buttonPress'
+				? CHAT_PET_BUTTON_PRESS_RIGHT_OVERHANG
+				: state === 'sing'
+					? CHAT_PET_SING_RIGHT_OVERHANG
+					: 0;
+	if (overhang === 0) {
+		return 0;
+	}
+	return facingDirection === 'left'
+		? Math.max(0, overhang - (buttonLeft - inputLeft) / scale)
+		: Math.min(0, (inputRight - buttonRight) / scale - overhang);
 }
 
 export class ChatPetHopController extends Disposable {
@@ -554,27 +857,30 @@ export class ChatPetWidget extends Disposable {
 	private readonly _overlay: HTMLElement;
 	private readonly _button: Button;
 	private readonly _visual: HTMLElement;
-	private readonly _reviveSign: HTMLElement;
-	private readonly _reviveImage: HTMLImageElement;
 	private readonly _respawnEffect: ChatPetSpriteElement;
 	private readonly _sprites: readonly ChatPetSpriteElement[];
 	private readonly _speechBubble: ChatPetSpriteElement;
 	private readonly _eyes: HTMLElement;
 	private readonly _pupils: HTMLElement[] = [];
+	private readonly _facingController = new ChatPetFacingController();
+	private readonly _directionChangeController = new ChatPetDirectionChangeController();
 	private readonly _gazeScheduler: dom.AnimationFrameScheduler;
 	private readonly _dragMonitor = this._register(new GlobalPointerMoveMonitor());
 	private readonly _idleExpired = observableValue(this, false);
+	private readonly _confirmationAttentionExpired = observableValue(this, false);
 	private readonly _transientState = observableValue<ChatPetState | undefined>(this, undefined);
 	private readonly _isDragging = observableValue(this, false);
 	private readonly _isDead = observableValue(this, false);
 	private readonly _idleScheduler = this._register(new RunOnceScheduler(() => this._idleExpired.set(true, undefined), CHAT_PET_IDLE_SLEEP_DELAY));
+	private readonly _confirmationAttentionScheduler = this._register(new RunOnceScheduler(() => this._confirmationAttentionExpired.set(true, undefined), CHAT_PET_CONFIRMATION_ATTENTION_DURATION));
 	private readonly _transientScheduler = this._register(new RunOnceScheduler(() => this._transientState.set(undefined, undefined), TRANSIENT_STATE_DURATION));
 	private readonly _searchScheduler: RunOnceScheduler;
 	private readonly _clickSuppressionScheduler = this._register(new RunOnceScheduler(() => this._suppressNextPointerClick = false, 0));
 	private readonly _spriteAnimation = this._register(new MutableDisposable());
 	private readonly _speechAnimation = this._register(new MutableDisposable());
 	private readonly _respawnAnimation = this._register(new MutableDisposable());
-	private readonly _respawnEffectScheduler = this._register(new RunOnceScheduler(() => this._showRespawnEffect(), RESPAWN_SIGN_DURATION));
+	private readonly _throwAnimation = this._register(new MutableDisposable());
+	private readonly _respawnEffectScheduler = this._register(new RunOnceScheduler(() => this._showRespawnEffect(), RESPAWN_EFFECT_DURATION));
 	private readonly _respawnFallScheduler = this._register(new RunOnceScheduler(() => this._beginRespawnFall(), RESPAWN_EFFECT_DURATION));
 	private readonly _hopController = this._register(new ChatPetHopController({
 		onDirectionChange: direction => this._button.element.dataset.hopDirection = direction < 0 ? 'left' : 'right',
@@ -605,13 +911,14 @@ export class ChatPetWidget extends Disposable {
 	private _contextMenuVisible = false;
 	private _lastClickInteraction: ChatPetClickInteraction | undefined;
 	private _fallLandsOnPlatform = false;
+	private _throwWallImpact: ChatPetWall | undefined;
+	private _throwGeometryDirty = false;
 	private _deathPosition: readonly [number, number] | undefined;
-	private _respawnPhase: 'none' | 'sign' | 'effect' | 'falling' = 'none';
+	private _respawnPhase: 'none' | 'despawning' | 'respawning' | 'falling' = 'none';
 	private _respawnPosition: readonly [number, number] | undefined;
 	private _platformTopProvider: (() => number | undefined) | undefined;
 	private readonly _resizeObserver: dom.DisposableResizeObserver;
 	private _variant: ChatPetVariant;
-	private _serviceEnabled: boolean;
 	private _scale = 1;
 
 	constructor(
@@ -629,7 +936,6 @@ export class ChatPetWidget extends Disposable {
 		super();
 
 		this._variant = this.chatPetService.variant.get();
-		this._serviceEnabled = this.chatPetService.enabled.get();
 		this._searchScheduler = this._register(new RunOnceScheduler(() => this._trySearch(), SEARCH_INTERVAL));
 		this.parent.classList.add('chat-pet-host');
 		this._overlay = dom.$('.chat-pet-overlay');
@@ -639,12 +945,8 @@ export class ChatPetWidget extends Disposable {
 			ariaLabel: this._getAriaLabel(false),
 		}));
 		this._button.element.classList.add('chat-pet-button');
+		this._button.element.dataset.facing = this._facingController.direction;
 		this._visual = dom.append(this._button.element, dom.$('.chat-pet-visual'));
-		this._reviveSign = dom.append(this._overlay, dom.$('.chat-pet-revive-sign.hidden'));
-		this._reviveSign.setAttribute('aria-hidden', 'true');
-		this._reviveImage = dom.append(this._reviveSign, dom.$('img.chat-pet-revive-image')) as HTMLImageElement;
-		this._reviveImage.alt = '';
-		this._reviveImage.setAttribute('aria-hidden', 'true');
 		const respawnEffectCanvas = dom.append(this._overlay, dom.$('canvas.chat-pet-canvas.chat-pet-respawn-effect.hidden')) as HTMLCanvasElement;
 		respawnEffectCanvas.width = CHAT_PET_SOURCE_SIZE;
 		respawnEffectCanvas.height = CHAT_PET_SOURCE_SIZE;
@@ -656,13 +958,15 @@ export class ChatPetWidget extends Disposable {
 		this._register(dom.addDisposableListener(respawnEffectImage, 'load', () => this._startRespawnEffectAnimation()));
 		this._resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => {
 			this._updateSpeechBubblePosition();
+			const isAirborne = this._isAirborne();
 			if (this._isDead.get()) {
-				if (this._respawnPhase === 'effect') {
-					this._updateRespawnEffectPosition();
-				} else {
-					this._updateRevivePosition();
+				this._updateRespawnEffectPosition();
+			} else if (isAirborne) {
+				if (this._button.element.classList.contains('throwing')) {
+					this._throwGeometryDirty = true;
 				}
-			} else if (this._fallLandsOnPlatform && !this._isDragging.get() && !this._button.element.classList.contains('falling')) {
+				return;
+			} else if (this._fallLandsOnPlatform && !this._isDragging.get()) {
 				if (this._hasCustomPosition) {
 					this._setPlatformPosition(this._getCurrentLeft());
 				} else {
@@ -670,9 +974,9 @@ export class ChatPetWidget extends Disposable {
 				}
 			} else {
 				this._updateVerticalPosition();
-				if (this._hasCustomPosition && !this._isDragging.get() && !this._button.element.classList.contains('falling')) {
+				if (this._hasCustomPosition && !this._isDragging.get()) {
 					this._setHorizontalPosition(this._getCurrentLeft());
-				} else if (!this._isDragging.get() && !this._button.element.classList.contains('falling')) {
+				} else if (!this._isDragging.get()) {
 					this._setDefaultHorizontalPosition();
 				}
 			}
@@ -811,13 +1115,15 @@ export class ChatPetWidget extends Disposable {
 
 		const motionReduced = observableFromEvent(this, this.accessibilityService.onDidChangeReducedMotion, () => this.accessibilityService.isMotionReduced());
 		this._register(autorun(reader => {
+			const wasMotionReduced = this._motionReduced;
 			this._motionReduced = motionReduced.read(reader);
+			if (!wasMotionReduced && this._motionReduced && this._button.element.classList.contains('throwing')) {
+				this._finishThrow();
+			}
 			const serviceEnabled = this.chatPetService.enabled.read(reader);
-			if (serviceEnabled !== this._serviceEnabled) {
-				this._serviceEnabled = serviceEnabled;
-				if (!serviceEnabled) {
-					this._setScale(1);
-				}
+			const scale = this.chatPetService.scale.read(reader);
+			if (scale !== this._scale) {
+				this._setScale(scale);
 			}
 			const enabled = isChatPetVisible(serviceEnabled, isLatestFocusedWidget.read(reader));
 			const variant = this.chatPetService.variant.read(reader);
@@ -830,6 +1136,16 @@ export class ChatPetWidget extends Disposable {
 			const chatModel = model.read(reader);
 			const request = chatModel?.lastRequestObs.read(reader);
 			const needsInput = !!request?.response?.isPendingConfirmation.read(reader);
+			let confirmationAttentionExpired = this._confirmationAttentionExpired.read(reader);
+			if (!needsInput) {
+				this._confirmationAttentionScheduler.cancel();
+				if (confirmationAttentionExpired) {
+					confirmationAttentionExpired = false;
+					this._confirmationAttentionExpired.set(false, undefined);
+				}
+			} else if (!confirmationAttentionExpired && !this._confirmationAttentionScheduler.isScheduled()) {
+				this._confirmationAttentionScheduler.schedule();
+			}
 			const hasActiveRequest = chatModel?.hasActiveRequest.read(reader) ?? false;
 			const inputHasContent = hasInput.read(reader);
 			this._busy = hasActiveRequest || needsInput;
@@ -843,7 +1159,7 @@ export class ChatPetWidget extends Disposable {
 				this._enabled = enabled;
 				if (enabled) {
 					if (isDead) {
-						this._showReviveSign();
+						this._showRespawnSequence();
 					} else {
 						this._startEnableAnimation();
 					}
@@ -873,10 +1189,9 @@ export class ChatPetWidget extends Disposable {
 				this._idleScheduler.cancel();
 				this._searchScheduler.cancel();
 				this._transientScheduler.cancel();
-				this._showReviveSign();
+				this._showRespawnSequence();
 				return;
 			}
-			this._hideReviveSign();
 
 			if (onTheRun) {
 				this._hopController.cancel();
@@ -901,7 +1216,7 @@ export class ChatPetWidget extends Disposable {
 				this._idleScheduler.schedule();
 			}
 
-			const baseState = getChatPetBaseState(hasActiveRequest, needsInput, inputHasContent, idleExpired);
+			const baseState = getChatPetBaseState(hasActiveRequest, needsInput, confirmationAttentionExpired, inputHasContent, idleExpired);
 			if (isChatPetYapState(transientState) && baseState !== 'idle') {
 				transientState = undefined;
 				this._transientState.set(undefined, undefined);
@@ -929,8 +1244,14 @@ export class ChatPetWidget extends Disposable {
 
 	setPlatformTopProvider(provider: () => number | undefined): void {
 		this._platformTopProvider = provider;
+		if (this._isAirborne()) {
+			if (this._button.element.classList.contains('throwing')) {
+				this._throwGeometryDirty = true;
+			}
+			return;
+		}
 		this._updateVerticalPosition();
-		if (this._fallLandsOnPlatform && !this._isDragging.get() && !this._button.element.classList.contains('falling')) {
+		if (this._fallLandsOnPlatform && !this._isDragging.get()) {
 			if (this._hasCustomPosition) {
 				this._setPlatformPosition(this._getCurrentLeft());
 			} else {
@@ -940,14 +1261,16 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _startDrag(event: PointerEvent): void {
-		if (!this._enabled || this._isDead.get() || this._isDragging.get() || this.chatPetService.onTheRun.get() || event.button !== 0) {
+		if (!this._enabled || this._isDead.get() || this._isDragging.get() || this._isAirborne() || this.chatPetService.onTheRun.get() || event.button !== 0) {
 			return;
 		}
 		this._wake();
 		dom.EventHelper.stop(event);
 		this._button.element.focus();
+		const targetWindow = dom.getWindow(this._button.element);
 		const startX = event.clientX;
 		const startY = event.clientY;
+		const pointerSamples: ChatPetPointerSample[] = [{ x: startX, y: startY, time: targetWindow.performance.now() }];
 		const buttonBounds = this._button.element.getBoundingClientRect();
 		const overlayBounds = this._overlay.getBoundingClientRect();
 		const startLeft = buttonBounds.left - overlayBounds.left;
@@ -957,6 +1280,11 @@ export class ChatPetWidget extends Disposable {
 		this._dragMonitor.startMonitoring(this._button.element, event.pointerId, event.buttons, moveEvent => {
 			const deltaX = moveEvent.clientX - startX;
 			const deltaY = moveEvent.clientY - startY;
+			const sampleTime = targetWindow.performance.now();
+			pointerSamples.push({ x: moveEvent.clientX, y: moveEvent.clientY, time: sampleTime });
+			while (pointerSamples.length > 2 && sampleTime - pointerSamples[0].time > THROW_VELOCITY_SAMPLE_DURATION) {
+				pointerSamples.shift();
+			}
 			if (!didDrag && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) {
 				return;
 			}
@@ -976,7 +1304,12 @@ export class ChatPetWidget extends Disposable {
 			if (didDrag) {
 				this._suppressNextPointerClick = true;
 				this._clickSuppressionScheduler.schedule();
-				this._beginFall();
+				const throwVelocity = getChatPetThrowVelocity(pointerSamples, targetWindow.performance.now());
+				if (!this._motionReduced && throwVelocity) {
+					this._beginThrow(throwVelocity);
+				} else {
+					this._beginFall();
+				}
 			}
 		});
 	}
@@ -1022,9 +1355,184 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.classList.toggle('resisting', !landsOnPlatform);
 	}
 
+	private _getThrowGeometry(): ChatPetThrowGeometry {
+		const overlayBounds = this._overlay.getBoundingClientRect();
+		const movementBounds = this.movementBounds.getBoundingClientRect();
+		const platformBounds = this._getPlatformBounds();
+		const displaySize = this._getDisplaySize();
+		return {
+			bounds: {
+				minimumLeft: movementBounds.left - overlayBounds.left,
+				maximumLeft: Math.max(movementBounds.left - overlayBounds.left, movementBounds.right - overlayBounds.left - displaySize),
+				minimumTop: movementBounds.top - overlayBounds.top,
+			},
+			displaySize,
+			overlayLeft: overlayBounds.left,
+			overlayTop: overlayBounds.top,
+			platformLeft: platformBounds.left - overlayBounds.left,
+			platformRight: platformBounds.right - overlayBounds.left,
+			platformTop: platformBounds.top - overlayBounds.top,
+			floorTop: movementBounds.bottom - overlayBounds.top - displaySize,
+		};
+	}
+
+	private _beginThrow(velocity: ChatPetThrowVelocity): void {
+		const targetWindow = dom.getWindow(this._button.element);
+		let geometry = this._getThrowGeometry();
+		const buttonBounds = this._button.element.getBoundingClientRect();
+		let motion: ChatPetThrowMotion = {
+			left: buttonBounds.left - geometry.overlayLeft,
+			top: buttonBounds.top - geometry.overlayTop,
+			x: velocity.x,
+			y: velocity.y,
+		};
+		let rotation = 0;
+		let wallImpact: { readonly wall: ChatPetWall; readonly endsAt: number } | undefined;
+		const startTime = targetWindow.performance.now();
+		let lastFrameTime = startTime;
+
+		if (velocity.x !== 0) {
+			this._setFacingDirection(velocity.x < 0 ? 'left' : 'right');
+		}
+		this._transientScheduler.cancel();
+		this._throwWallImpact = undefined;
+		this._throwGeometryDirty = false;
+		this._fallLandsOnPlatform = false;
+		this._setThrowPosition(motion.left, motion.top);
+		this._transientState.set('falling', undefined);
+		this._isDragging.set(false, undefined);
+		this._renderState('falling', true);
+		this._button.element.classList.add('throwing');
+
+		const animationDisposables = new DisposableStore();
+		const scheduledFrame = animationDisposables.add(new MutableDisposable<IDisposable>());
+		const scheduleFrame = () => {
+			scheduledFrame.value = dom.scheduleAtNextAnimationFrame(targetWindow, updateFrame);
+		};
+		const updateFrame = () => {
+			if (this._throwAnimation.value !== animationDisposables) {
+				return;
+			}
+
+			const now = targetWindow.performance.now();
+			if (this._throwGeometryDirty) {
+				geometry = this._getThrowGeometry();
+				this._throwGeometryDirty = false;
+				motion = {
+					...motion,
+					left: getChatPetHorizontalPosition(motion.left, geometry.bounds.minimumLeft, geometry.bounds.maximumLeft),
+				};
+				this._setThrowPosition(motion.left, motion.top);
+			}
+			if (shouldSettleChatPetThrow(startTime, now, motion.top, motion.y, geometry.floorTop)) {
+				this._finishThrow();
+				return;
+			}
+			if (wallImpact) {
+				if (now < wallImpact.endsAt) {
+					scheduleFrame();
+					return;
+				}
+
+				motion = {
+					...motion,
+					x: -motion.x * THROW_WALL_RESTITUTION,
+					y: -THROW_WALL_REBOUND_VELOCITY,
+				};
+				rotation = wallImpact.wall === 'left' ? -90 : 90;
+				wallImpact = undefined;
+				lastFrameTime = now;
+				this._transientState.set('falling', undefined);
+				scheduleFrame();
+				return;
+			}
+
+			const elapsed = Math.min(THROW_MAX_FRAME_DURATION, Math.max(0, now - lastFrameTime));
+			lastFrameTime = now;
+			const previousLeft = motion.left;
+			const previousTop = motion.top;
+			const step = advanceChatPetThrow(motion, elapsed, geometry.bounds);
+			motion = step;
+			rotation += (motion.left - previousLeft) * THROW_ROTATION_PER_PIXEL;
+			this._setThrowPosition(motion.left, motion.top);
+
+			const landing = getChatPetThrowLanding(previousLeft, previousTop, motion.left, motion.top, geometry.displaySize, geometry.displaySize, geometry.platformLeft, geometry.platformRight, geometry.platformTop, geometry.floorTop);
+			if (motion.y >= 0 && landing) {
+				motion = {
+					...motion,
+					left: landing.left,
+					top: landing.top,
+				};
+				this._setThrowPosition(motion.left, motion.top);
+				this._finishThrow(true, landing);
+				return;
+			}
+
+			if (step.wall) {
+				this._throwWallImpact = step.wall;
+				wallImpact = { wall: step.wall, endsAt: now + THROW_WALL_IMPACT_DURATION };
+				this._setFacingDirection(step.wall);
+				rotation = step.wall === 'left' ? -90 : 90;
+				this._button.element.style.transform = `rotate(${rotation}deg)`;
+				this._transientState.set('wallImpact', undefined);
+				scheduleFrame();
+				return;
+			}
+
+			this._button.element.style.transform = `rotate(${rotation}deg)`;
+			scheduleFrame();
+		};
+
+		this._throwAnimation.value = animationDisposables;
+		scheduleFrame();
+	}
+
+	private _setThrowPosition(left: number, top: number): void {
+		this._button.element.style.left = `${left}px`;
+		this._button.element.style.top = `${top}px`;
+		this._button.element.style.right = 'auto';
+		this._button.element.style.bottom = 'auto';
+		this._hasCustomPosition = true;
+	}
+
+	private _getThrowSettleTarget(): { readonly top: number; readonly landsOnPlatform: true } {
+		const geometry = this._getThrowGeometry();
+		return {
+			top: geometry.platformTop - geometry.displaySize,
+			landsOnPlatform: true,
+		};
+	}
+
+	private _finishThrow(announce = true, target?: { readonly top: number; readonly landsOnPlatform: boolean }): void {
+		if (!this._button.element.classList.contains('throwing')) {
+			return;
+		}
+
+		const resolvedTarget = target ?? this._getThrowSettleTarget();
+		const wallImpact = this._throwWallImpact;
+		this._throwWallImpact = undefined;
+		this._throwGeometryDirty = false;
+		this._throwAnimation.clear();
+		this._button.element.style.transform = '';
+		this._button.element.style.top = `${resolvedTarget.top}px`;
+		this._button.element.classList.remove('throwing');
+		this._fallLandsOnPlatform = resolvedTarget.landsOnPlatform;
+		this._completeFall(announce, wallImpact);
+	}
+
+	private _isAirborne(): boolean {
+		return this._button.element.classList.contains('falling') || this._button.element.classList.contains('throwing');
+	}
+
 	private _beginFall(): void {
 		const top = Number.parseFloat(this._button.element.style.top);
 		const target = this._getFallTarget();
+		this._transientScheduler.cancel();
+		this._throwAnimation.clear();
+		this._throwWallImpact = undefined;
+		this._throwGeometryDirty = false;
+		this._button.element.style.transform = '';
+		this._button.element.classList.remove('throwing');
 		this._button.element.classList.remove('resisting', 'soft-resisting');
 		this._fallLandsOnPlatform = target.landsOnPlatform;
 		this._transientState.set('falling', undefined);
@@ -1045,6 +1553,10 @@ export class ChatPetWidget extends Disposable {
 		}
 		this._button.element.classList.remove('falling');
 		this._button.element.style.transitionDuration = '';
+		this._completeFall(announce);
+	}
+
+	private _completeFall(announce: boolean, wallImpact?: ChatPetWall): void {
 		if (this._fallLandsOnPlatform) {
 			const respawned = this._respawnPhase === 'falling';
 			this._respawnPhase = 'none';
@@ -1053,19 +1565,36 @@ export class ChatPetWidget extends Disposable {
 			this._setPlatformPosition(left);
 			if (announce) {
 				this._showTransientState('splat');
-				status(respawned
-					? localize('chatPet.respawned', "The VS Code pet respawned")
-					: localize('chatPet.landed', "The VS Code pet landed on the chat input"));
+				if (respawned) {
+					status(localize('chatPet.respawned', "The VS Code pet respawned"));
+				} else if (wallImpact === 'left') {
+					status(localize('chatPet.bouncedOffLeftWall', "The VS Code pet bounced off the left wall and landed on the chat input"));
+				} else if (wallImpact === 'right') {
+					status(localize('chatPet.bouncedOffRightWall', "The VS Code pet bounced off the right wall and landed on the chat input"));
+				} else {
+					status(localize('chatPet.landed', "The VS Code pet landed on the chat input"));
+				}
 			}
 			return;
 		}
 
-		this._deathPosition = [this._button.element.offsetLeft, this._button.element.offsetTop];
+		this._deathPosition = [
+			Number.parseFloat(this._button.element.style.left),
+			Number.parseFloat(this._button.element.style.top),
+		];
 		this._respawnPhase = 'none';
 		this._respawnPosition = undefined;
+		this._button.element.classList.add('hidden');
+		this._button.element.tabIndex = -1;
 		this._isDead.set(true, undefined);
 		if (announce) {
-			status(localize('chatPet.fellOff', "The VS Code pet fell off and will respawn automatically"));
+			if (wallImpact === 'left') {
+				status(localize('chatPet.bouncedOffLeftWallAndFell', "The VS Code pet bounced off the left wall, fell off, and will respawn automatically"));
+			} else if (wallImpact === 'right') {
+				status(localize('chatPet.bouncedOffRightWallAndFell', "The VS Code pet bounced off the right wall, fell off, and will respawn automatically"));
+			} else {
+				status(localize('chatPet.fellOff', "The VS Code pet fell off and will respawn automatically"));
+			}
 		}
 	}
 
@@ -1079,12 +1608,14 @@ export class ChatPetWidget extends Disposable {
 		const insiders = actions.add(new Action('chat.pet.variant.insiders', localize('chatPet.variant.insiders.action', "Insiders Colors"), undefined, true, () => this.chatPetService.setVariant('insiders')));
 		insiders.checked = this.chatPetService.variant.get() === 'insiders';
 		const grow = actions.add(new Action('chat.pet.grow', localize('chatPet.grow.action', "Grow"), undefined, true, () => {
-			this._setScale(getChatPetScale(this._scale, CHAT_PET_SCALE_STEP));
-			status(localize('chatPet.grew', "VS Code pet size: {0} percent", Math.round(this._scale * 100)));
+			const scale = getChatPetScale(this._scale, CHAT_PET_SCALE_STEP);
+			this.chatPetService.setScale(scale);
+			status(localize('chatPet.grew', "VS Code pet size: {0} percent", Math.round(scale * 100)));
 		}));
 		const shrink = actions.add(new Action('chat.pet.shrink', localize('chatPet.shrink.action', "Shrink"), undefined, this._scale > CHAT_PET_MIN_SCALE, () => {
-			this._setScale(getChatPetScale(this._scale, -CHAT_PET_SCALE_STEP));
-			status(localize('chatPet.shrank', "VS Code pet size: {0} percent", Math.round(this._scale * 100)));
+			const scale = getChatPetScale(this._scale, -CHAT_PET_SCALE_STEP);
+			this.chatPetService.setScale(scale);
+			status(localize('chatPet.shrank', "VS Code pet size: {0} percent", Math.round(scale * 100)));
 		}));
 		const onTheRunAction = actions.add(new Action(
 			'chat.pet.onTheRun',
@@ -1119,18 +1650,23 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _onKeyDown(event: KeyboardEvent): void {
-		if (!this._enabled || this._isDead.get()) {
+		const hasPointerInteraction = this._isDragging.get() || this._dragMonitor.isMonitoring();
+		if (!isChatPetKeyboardInteractionEnabled(this._enabled, this._isDead.get(), hasPointerInteraction, this._isAirborne(), this.chatPetService.onTheRun.get())) {
 			return;
 		}
 		const keyboardEvent = new StandardKeyboardEvent(event);
 		let direction = 0;
-		let announcement: string;
-		if (keyboardEvent.equals(KeyCode.LeftArrow)) {
+		let throwRequested = false;
+		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.LeftArrow)) {
 			direction = -1;
-			announcement = localize('chatPet.movedLeft', "VS Code pet moved left");
+			throwRequested = true;
+		} else if (keyboardEvent.equals(KeyMod.Shift | KeyCode.RightArrow)) {
+			direction = 1;
+			throwRequested = true;
+		} else if (keyboardEvent.equals(KeyCode.LeftArrow)) {
+			direction = -1;
 		} else if (keyboardEvent.equals(KeyCode.RightArrow)) {
 			direction = 1;
-			announcement = localize('chatPet.movedRight', "VS Code pet moved right");
 		} else {
 			return;
 		}
@@ -1138,14 +1674,31 @@ export class ChatPetWidget extends Disposable {
 		this._wake();
 		keyboardEvent.preventDefault();
 		keyboardEvent.stopPropagation();
+		const facingDirection = direction < 0 ? 'left' : 'right';
+		if (this._transientState.get() === 'dizzy' || this._recordDirectionChange(facingDirection)) {
+			return;
+		}
+		this._setFacingDirection(facingDirection);
+		if (throwRequested && !this._motionReduced) {
+			this._beginThrow({
+				x: direction * THROW_KEYBOARD_HORIZONTAL_VELOCITY,
+				y: -THROW_MIN_UPWARD_VELOCITY,
+			});
+			status(direction < 0
+				? localize('chatPet.thrownLeft', "The VS Code pet was thrown toward the left wall")
+				: localize('chatPet.thrownRight', "The VS Code pet was thrown toward the right wall"));
+			return;
+		}
 		this._hopController.request(direction, this._motionReduced);
-		status(announcement);
+		status(direction < 0
+			? localize('chatPet.movedLeft', "VS Code pet moved left")
+			: localize('chatPet.movedRight', "VS Code pet moved right"));
 	}
 
 	private _getAriaLabel(onTheRun: boolean): string {
 		return onTheRun
 			? localize('chatPet.restore', "Bring back the VS Code pet")
-			: localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat with the mouse, or use the left and right arrow keys to make it hop. Use the context menu to put it on the run.");
+			: localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to put it on the run.");
 	}
 
 	private _getCurrentLeft(): number {
@@ -1162,7 +1715,10 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.style.width = `${displaySize}px`;
 		this._button.element.style.height = `${displaySize}px`;
 		this._visual.style.transform = `scale(${scale})`;
-		if (this._isDead.get() || this._isDragging.get() || this._button.element.classList.contains('falling')) {
+		if (this._button.element.classList.contains('throwing')) {
+			this._throwGeometryDirty = true;
+		}
+		if (this._isDead.get() || this._isDragging.get() || this._isAirborne()) {
 			return;
 		}
 		if (this._fallLandsOnPlatform) {
@@ -1237,81 +1793,68 @@ export class ChatPetWidget extends Disposable {
 		this._setDefaultHorizontalPosition();
 	}
 
-	private _updateReviveImage(): void {
-		const root = 'vs/workbench/contrib/chat/browser/widget/media/chatPet';
-		this._reviveImage.src = FileAccess.asBrowserUri(`${root}/buddy-revive-sign-${this._variant}-96.png`).toString(true);
-	}
-
-	private _showReviveSign(): void {
+	private _showRespawnSequence(): void {
 		this._button.element.classList.add('hidden');
 		this._button.element.tabIndex = -1;
-		if (this._respawnPhase === 'effect') {
-			this._hideReviveSign();
-			this._respawnEffect.container.classList.remove('hidden');
-			this._updateRespawnEffectPosition();
-			this._startRespawnEffectAnimation();
+		const startsDespawning = this._respawnPhase === 'none';
+		if (startsDespawning) {
+			this._respawnPhase = 'despawning';
+		}
+		if (this._respawnPhase !== 'despawning' && this._respawnPhase !== 'respawning') {
 			return;
 		}
-		this._updateReviveImage();
-		this._respawnEffect.container.classList.add('hidden');
-		this._respawnAnimation.clear();
-		this._reviveSign.classList.remove('hidden');
-		this._updateRevivePosition();
-		if (this._respawnPhase === 'none') {
-			this._respawnPhase = 'sign';
-			this._respawnEffectScheduler.schedule();
+		this._respawnEffect.container.classList.remove('hidden');
+		this._updateRespawnEffectPosition();
+		this._startRespawnEffectAnimation();
+		if (startsDespawning) {
+			this._respawnEffectScheduler.schedule(this._motionReduced ? RESPAWN_EFFECT_REDUCED_MOTION_DURATION : RESPAWN_EFFECT_DURATION);
 		}
 	}
 
-	private _hideReviveSign(): void {
-		this._reviveSign.classList.add('hidden');
-	}
-
-	private _updateRevivePosition(): void {
-		if (!this._deathPosition) {
-			return;
-		}
+	private _updateRespawnEffectPosition(): void {
 		const overlayBounds = this._overlay.getBoundingClientRect();
 		const movementBounds = this.movementBounds.getBoundingClientRect();
-		const minimumLeft = movementBounds.left - overlayBounds.left;
-		const maximumLeft = movementBounds.right - overlayBounds.left - CHAT_PET_SOURCE_SIZE / 2;
-		const minimumTop = movementBounds.top - overlayBounds.top;
-		const maximumTop = movementBounds.bottom - overlayBounds.top - CHAT_PET_SOURCE_SIZE / 2;
-		const [left, top] = getChatPetDragPosition(this._deathPosition[0], this._deathPosition[1], minimumLeft, maximumLeft, minimumTop, maximumTop);
-		this._deathPosition = [left, top];
-		this._reviveSign.style.left = `${left}px`;
-		this._reviveSign.style.top = `${top}px`;
+		const displaySize = this._getDisplaySize();
+		let left: number;
+		let top: number;
+		if (this._respawnPhase === 'despawning') {
+			if (!this._deathPosition) {
+				return;
+			}
+			const minimumLeft = movementBounds.left - overlayBounds.left;
+			const maximumLeft = movementBounds.right - overlayBounds.left - displaySize;
+			const minimumTop = movementBounds.top - overlayBounds.top;
+			const maximumTop = movementBounds.bottom - overlayBounds.top - displaySize;
+			[left, top] = getChatPetDragPosition(this._deathPosition[0], this._deathPosition[1], minimumLeft, maximumLeft, minimumTop, maximumTop);
+			this._deathPosition = [left, top];
+		} else if (this._respawnPhase === 'respawning') {
+			const inputBounds = this.dragBounds.getBoundingClientRect();
+			const minimumLeft = inputBounds.left - overlayBounds.left;
+			const maximumLeft = inputBounds.right - overlayBounds.left - displaySize;
+			left = getChatPetDefaultHorizontalPosition(minimumLeft, maximumLeft);
+			top = movementBounds.top - overlayBounds.top;
+			this._respawnPosition = [left, top];
+		} else {
+			return;
+		}
+		this._respawnEffect.container.style.left = `${left}px`;
+		this._respawnEffect.container.style.top = `${top}px`;
 	}
 
 	private _showRespawnEffect(): void {
-		if (!this._enabled || !this._isDead.get() || this._respawnPhase !== 'sign') {
+		if (!this._enabled || !this._isDead.get() || this._respawnPhase !== 'despawning') {
 			return;
 		}
-		this._respawnPhase = 'effect';
-		this._hideReviveSign();
-		this._respawnEffect.container.classList.remove('hidden');
+		this._respawnPhase = 'respawning';
+		this._respawnAnimation.clear();
 		this._updateRespawnEffectPosition();
 		this._startRespawnEffectAnimation();
 		this._respawnFallScheduler.schedule(this._motionReduced ? RESPAWN_EFFECT_REDUCED_MOTION_DURATION : RESPAWN_EFFECT_DURATION);
 		status(localize('chatPet.respawning', "The VS Code pet is respawning"));
 	}
 
-	private _updateRespawnEffectPosition(): void {
-		const overlayBounds = this._overlay.getBoundingClientRect();
-		const movementBounds = this.movementBounds.getBoundingClientRect();
-		const inputBounds = this.dragBounds.getBoundingClientRect();
-		const displaySize = this._getDisplaySize();
-		const minimumLeft = inputBounds.left - overlayBounds.left;
-		const maximumLeft = inputBounds.right - overlayBounds.left - displaySize;
-		const left = getChatPetDefaultHorizontalPosition(minimumLeft, maximumLeft);
-		const top = movementBounds.top - overlayBounds.top;
-		this._respawnPosition = [left, top];
-		this._respawnEffect.container.style.left = `${left}px`;
-		this._respawnEffect.container.style.top = `${top}px`;
-	}
-
 	private _startRespawnEffectAnimation(): void {
-		if (this._respawnPhase !== 'effect') {
+		if (this._respawnPhase !== 'despawning' && this._respawnPhase !== 'respawning') {
 			return;
 		}
 		const sources = getRespawnSpriteSources(this._variant);
@@ -1324,12 +1867,12 @@ export class ChatPetWidget extends Disposable {
 		}
 		if (this._respawnEffect.image.complete && this._respawnEffect.image.naturalWidth > 0) {
 			this._respawnAnimation.clear();
-			this._startSpriteAnimation(source, this._respawnEffect, this._respawnAnimation);
+			this._startSpriteAnimation(source, this._respawnEffect, this._respawnAnimation, undefined, this._respawnPhase === 'despawning');
 		}
 	}
 
 	private _beginRespawnFall(): void {
-		if (!this._enabled || !this._isDead.get() || this._respawnPhase !== 'effect') {
+		if (!this._enabled || !this._isDead.get() || this._respawnPhase !== 'respawning') {
 			return;
 		}
 		this._respawnPhase = 'falling';
@@ -1338,7 +1881,8 @@ export class ChatPetWidget extends Disposable {
 		this._deathPosition = undefined;
 		this._fallLandsOnPlatform = true;
 		this._transientState.set('falling', undefined);
-		this._button.element.classList.remove('falling', 'dragging', 'resisting', 'soft-resisting');
+		this._button.element.classList.remove('falling', 'throwing', 'dragging', 'resisting', 'soft-resisting');
+		this._button.element.style.transform = '';
 		this._button.element.classList.remove('hidden');
 		this._button.element.tabIndex = 0;
 		if (!this._respawnPosition) {
@@ -1366,10 +1910,13 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _updateSpeechBubblePosition(): void {
-		const buttonRight = this._button.element.getBoundingClientRect().right;
-		const inputRight = this.dragBounds.getBoundingClientRect().right;
-		this._button.element.classList.toggle('speech-bubble-left', shouldPlaceChatPetSpeechBubbleLeft(this._renderedState, buttonRight, inputRight, this._scale));
-		this._button.element.classList.toggle('wide-sprite-left', shouldFlipChatPetWideSprite(this._renderedState, buttonRight, inputRight, this._scale));
+		const buttonBounds = this._button.element.getBoundingClientRect();
+		const inputBounds = this.dragBounds.getBoundingClientRect();
+		this._button.element.classList.toggle('speech-bubble-left', shouldPlaceChatPetSpeechBubbleLeft(this._renderedState, buttonBounds.right, inputBounds.right, this._scale));
+		const wideSpriteOffset = getChatPetWideSpriteHorizontalOffset(this._renderedState, this._facingController.direction, buttonBounds.left, buttonBounds.right, inputBounds.left, inputBounds.right, this._scale);
+		if (this._activeSprite) {
+			this._activeSprite.container.style.transform = wideSpriteOffset === 0 ? '' : `translateX(${wideSpriteOffset}px)`;
+		}
 	}
 
 	private _updateGaze(): void {
@@ -1378,6 +1925,11 @@ export class ChatPetWidget extends Disposable {
 		}
 
 		const bounds = this._button.element.getBoundingClientRect();
+		const facingDirection = this._facingController.update(this._cursorPosition[0], bounds.left + bounds.width / 2);
+		if (this._button.element.dataset.facing !== facingDirection) {
+			this._button.element.dataset.facing = facingDirection;
+			this._recordDirectionChange(facingDirection);
+		}
 		const [x, y] = getChatPetGazeDirection(
 			this._cursorPosition[0],
 			this._cursorPosition[1],
@@ -1389,9 +1941,38 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
+	private _snapFacingToCursor(): void {
+		if (!this._cursorPosition) {
+			return;
+		}
+
+		const bounds = this._button.element.getBoundingClientRect();
+		this._setFacingDirection(this._facingController.snapToCursor(this._cursorPosition[0], bounds.left + bounds.width / 2));
+	}
+
+	private _setFacingDirection(direction: ChatPetFacingDirection): void {
+		this._facingController.setDirection(direction);
+		this._button.element.dataset.facing = direction;
+	}
+
+	private _recordDirectionChange(direction: ChatPetFacingDirection): boolean {
+		if (!this._enabled || this._isDead.get() || this.chatPetService.onTheRun.get() || this._transientState.get() === 'dizzy') {
+			return false;
+		}
+		if (!this._directionChangeController.record(direction, dom.getWindow(this._button.element).performance.now())) {
+			return false;
+		}
+
+		this._setFacingDirection(direction);
+		this._showTransientState('dizzy', false);
+		status(localize('chatPet.dizzy', "The VS Code pet got dizzy"));
+		return true;
+	}
+
 	private _startEnableAnimation(): void {
 		this._button.element.classList.remove('hidden', 'exiting', 'entering');
 		this._button.element.tabIndex = 0;
+		this._restoreHorizontalPosition();
 		this._button.element.getBoundingClientRect();
 		this._gazeScheduler.schedule();
 		if (!this._motionReduced) {
@@ -1399,7 +1980,21 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
+	private _restoreHorizontalPosition(): void {
+		const overlayBounds = this._overlay.getBoundingClientRect();
+		const inputBounds = this.dragBounds.getBoundingClientRect();
+		const minimumLeft = inputBounds.left - overlayBounds.left;
+		const maximumLeft = inputBounds.right - overlayBounds.left - this._getDisplaySize();
+		const previousLeft = this._hasCustomPosition ? this._getCurrentLeft() : undefined;
+		this._button.element.style.left = `${getChatPetRestoredHorizontalPosition(previousLeft, minimumLeft, maximumLeft)}px`;
+		this._button.element.style.right = 'auto';
+		this._updateSpeechBubblePosition();
+	}
+
 	private _startDisableAnimation(): void {
+		if (this._button.element.classList.contains('throwing')) {
+			this._finishThrow(false);
+		}
 		this._button.element.tabIndex = -1;
 		this._button.element.classList.remove('entering');
 		if (this._motionReduced || this._button.element.classList.contains('hidden')) {
@@ -1410,6 +2005,9 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _finishDisable(): void {
+		if (this._button.element.classList.contains('throwing')) {
+			this._finishThrow(false);
+		}
 		if (this._button.element.classList.contains('falling')) {
 			this._finishFall(false);
 		}
@@ -1417,10 +2015,12 @@ export class ChatPetWidget extends Disposable {
 		if (this._isDragging.get()) {
 			this._isDragging.set(false, undefined);
 		}
-		this._button.element.classList.remove('entering', 'exiting', 'falling', 'dragging', 'resisting', 'soft-resisting');
+		this._throwAnimation.clear();
+		this._throwGeometryDirty = false;
+		this._button.element.style.transform = '';
+		this._button.element.classList.remove('entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting');
 		this._button.element.style.transitionDuration = '';
 		this._button.element.classList.add('hidden');
-		this._hideReviveSign();
 		this._respawnEffectScheduler.cancel();
 		this._respawnFallScheduler.cancel();
 		this._respawnAnimation.clear();
@@ -1436,17 +2036,21 @@ export class ChatPetWidget extends Disposable {
 		this._pendingState = undefined;
 		this._activeSprite = undefined;
 		this._renderedState = undefined;
+		this._directionChangeController.reset();
 		for (const sprite of this._sprites) {
 			sprite.container.classList.add('hidden');
 			sprite.image.removeAttribute('src');
 		}
 	}
 
-	private _showTransientState(state: ChatPetState): void {
+	private _showTransientState(state: ChatPetState, snapFacingToCursor = true): void {
 		if (!this.chatPetService.enabled.get()) {
 			return;
 		}
 
+		if (snapFacingToCursor) {
+			this._snapFacingToCursor();
+		}
 		this._wake();
 		const renderedState = state === 'yapping' && this._motionReduced ? 'yappingMouthOpen' : state;
 		this._transientState.set(renderedState, undefined);
@@ -1497,6 +2101,9 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _renderState(state: ChatPetState, restart = false, useStaticSprite = false): void {
+		if (state !== 'idle' || useStaticSprite) {
+			this._facingController.setState(state, useStaticSprite);
+		}
 		const sources = getSpriteSources(this._variant)[state];
 		const source = this._motionReduced || useStaticSprite ? sources.reducedMotion : sources.animated;
 		if (!restart && this._activeSprite && isChatPetImageSource(this._activeSprite.image, source.url)) {
@@ -1505,7 +2112,8 @@ export class ChatPetWidget extends Disposable {
 			this._pendingState = undefined;
 			this._button.element.dataset.state = state;
 			this._renderedState = state;
-			this._eyes.classList.toggle('tracking', doesChatPetStateTrackCursor(state));
+			this._setRenderedFacingState(state, useStaticSprite);
+			this._updateEyes(state);
 			this._updateSpeechBubble(state, restart);
 			return;
 		}
@@ -1532,17 +2140,44 @@ export class ChatPetWidget extends Disposable {
 		sprite.container.classList.remove('hidden');
 		this._activeSprite = sprite;
 		const state = this._pendingState;
-		this._startSpriteAnimation(this._pendingSource, sprite, this._spriteAnimation, () => this._onSpriteAnimationComplete(sprite, state));
+		this._startSpriteAnimation(
+			this._pendingSource,
+			sprite,
+			this._spriteAnimation,
+			() => this._onSpriteAnimationComplete(sprite, state),
+			false,
+			frameIndex => {
+				if (sprite === this._activeSprite) {
+					this._updateEyes(state, frameIndex);
+				}
+			}
+		);
 		this._button.element.dataset.state = state;
 		this._renderedState = state;
-		this._eyes.classList.toggle('tracking', doesChatPetStateTrackCursor(state));
+		this._setRenderedFacingState(state, this._isDragging.get());
+		this._updateEyes(state);
 		this._updateSpeechBubble(state, true);
 		this._pendingSprite = undefined;
 		this._pendingSource = undefined;
 		this._pendingState = undefined;
 		this._restartEyeAnimation();
-		if (doesChatPetStateTrackCursor(this._renderedState)) {
+	}
+
+	private _setRenderedFacingState(state: ChatPetState, isDragging: boolean): void {
+		this._facingController.setState(state, isDragging);
+		if (!isDragging && doesChatPetStateTrackCursor(state)) {
 			this._gazeScheduler.schedule();
+		}
+	}
+
+	private _updateEyes(state: ChatPetState, frameIndex?: number): void {
+		const blinking = doesChatPetStateBlink(state, frameIndex);
+		this._eyes.classList.toggle('tracking', doesChatPetStateTrackCursor(state));
+		this._eyes.classList.toggle('blinking', blinking);
+		if (blinking) {
+			for (const pupil of this._pupils) {
+				pupil.style.transform = '';
+			}
 		}
 	}
 
@@ -1562,7 +2197,7 @@ export class ChatPetWidget extends Disposable {
 		this._renderedState = 'searchingDown';
 	}
 
-	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void): void {
+	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void, reverse = false, onFrame?: (frameIndex: number) => void): void {
 		const { frameDurations } = source;
 		const { image, canvas } = sprite;
 		const displaySize = sprite === this._speechBubble ? 72 : sprite === this._respawnEffect ? this._getDisplaySize() : 48;
@@ -1583,9 +2218,51 @@ export class ChatPetWidget extends Disposable {
 		context.imageSmoothingEnabled = false;
 		const drawFrame = (frameIndex: number) => {
 			context.clearRect(0, 0, source.frameWidth, frameHeight);
+			const sourceX = frameIndex * source.frameWidth;
+			if (source.fixedOrientationDecorations !== undefined && this._facingController.direction === 'left') {
+				context.clearRect(0, 0, source.frameWidth, frameHeight);
+				context.save();
+				context.translate(source.frameWidth, 0);
+				context.scale(-1, 1);
+				context.drawImage(
+					image,
+					sourceX,
+					0,
+					source.frameWidth,
+					frameHeight,
+					0,
+					0,
+					source.frameWidth,
+					frameHeight
+				);
+				context.restore();
+				for (let decorationIndex = 0; decorationIndex < source.fixedOrientationDecorations.length; decorationIndex++) {
+					const decoration = source.fixedOrientationDecorations[decorationIndex];
+					const currentBounds = decoration.frameBounds[frameIndex];
+					const canonicalBounds = decoration.frameBounds[decoration.sourceFrame];
+					const [currentLeft, currentTop, currentRight, currentBottom] = currentBounds;
+					const [canonicalLeft, canonicalTop, canonicalRight, canonicalBottom] = canonicalBounds;
+					const canonicalWidth = canonicalRight - canonicalLeft;
+					const canonicalHeight = canonicalBottom - canonicalTop;
+					context.clearRect(source.frameWidth - currentRight, currentTop, currentRight - currentLeft, currentBottom - currentTop);
+					context.drawImage(
+						image,
+						decoration.sourceFrame * source.frameWidth + canonicalLeft,
+						canonicalTop,
+						canonicalWidth,
+						canonicalHeight,
+						source.frameWidth - currentLeft - canonicalWidth,
+						currentTop,
+						canonicalWidth,
+						canonicalHeight
+					);
+				}
+				onFrame?.(frameIndex);
+				return;
+			}
 			context.drawImage(
 				image,
-				frameIndex * source.frameWidth,
+				sourceX,
 				0,
 				source.frameWidth,
 				frameHeight,
@@ -1594,8 +2271,10 @@ export class ChatPetWidget extends Disposable {
 				source.frameWidth,
 				frameHeight
 			);
+			onFrame?.(frameIndex);
 		};
-		drawFrame(0);
+		const initialFrameIndex = reverse && frameDurations.length > 0 ? frameDurations.length - 1 : 0;
+		drawFrame(initialFrameIndex);
 		if (frameDurations.length < 2) {
 			return;
 		}
@@ -1619,7 +2298,7 @@ export class ChatPetWidget extends Disposable {
 		};
 		const updateFrame = () => {
 			frameTimer = undefined;
-			const frame = getChatPetAnimationFrame(frameDurations, targetWindow.performance.now() - startTime, source.iterations);
+			const frame = getChatPetAnimationFrame(frameDurations, targetWindow.performance.now() - startTime, source.iterations, reverse);
 			if (frame.complete) {
 				drawFrame(frame.frameIndex);
 				animationDisposables.dispose();
@@ -1639,7 +2318,7 @@ export class ChatPetWidget extends Disposable {
 			}
 		}));
 		animationDisposables.add(toDisposable(clearFrameTimer));
-		scheduleFrame(frameDurations[0]);
+		scheduleFrame(frameDurations[initialFrameIndex]);
 		animationDisposable.value = animationDisposables;
 	}
 

@@ -27,6 +27,8 @@ import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 
 // The new-session input box styling lives in these stylesheets; `style.css`
 // provides the `--vscode-agentsChatInput-*` theme variables and the
@@ -39,6 +41,8 @@ import '../../../../browser/media/style.css';
 interface NewChatInputFixtureOptions {
 	readonly value?: string;
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+	/** Docks the sub-session tip above the composer. */
+	readonly subSessionTip?: boolean;
 }
 
 /**
@@ -49,7 +53,7 @@ interface NewChatInputFixtureOptions {
  */
 async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptions: NewChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { value, selection } = fixtureOptions;
+	const { value, selection, subSessionTip } = fixtureOptions;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -107,6 +111,7 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 				override readonly voiceState = observableValue<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('voiceState', 'idle');
 				override readonly targetSession = observableValue<URI | undefined>('targetSession', undefined);
 				override readonly hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
+				override readonly omniInputOpen = observableValue<boolean>('omniInputOpen', false);
 				override readonly transcriptTurns = observableValue<never[]>('transcriptTurns', []);
 			}());
 			reg.defineInstance(ITtsPlaybackService, new class extends mock<ITtsPlaybackService>() {
@@ -133,10 +138,26 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 
 	// `.new-chat-in-session` scopes the layout overrides and
 	// `.new-chat-widget-container.revealed` flips `.new-chat-input-container`
-	// from `display: none` to visible.
+	// from `display: none` to visible. The content element is the outer chat
+	// input stack, as it is in `NewChatInSessionWidget`.
 	const root = dom.append(container, dom.$('.new-chat-in-session.sessions-chat-widget'));
 	const widgetContainer = dom.append(root, dom.$('.new-chat-widget-container.revealed'));
-	const content = dom.append(widgetContainer, dom.$('.new-chat-widget-content'));
+	const content = dom.append(widgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+
+	// The sub-session tip, docked above the composer. The composer is a stack of
+	// its own, so this covers a notice reaching through a nested stack to square
+	// the input inside it.
+	if (subSessionTip) {
+		const tipSlot = dom.append(content, dom.$(`.sub-session-tip-container.${chatInputStackSlotClass}`));
+		const tip = disposableStore.add(new ChatInputNoticeWidget({
+			container: tipSlot,
+			variant: ChatInputNoticeVariant.Tip,
+			ariaLabel: 'Sub-session tip',
+		}));
+		dom.append(tip.domNode, dom.$('span.sub-session-tip-text')).textContent =
+			'Start a parallel conversation to build on all the changes made in this session.';
+		setChatInputStackSlot(tipSlot, ChatInputStackSlot.Docked);
+	}
 
 	const session = observableValue<IActiveSession | undefined>('session', undefined);
 	const widget = disposableStore.add(instantiationService.createInstance(NewChatInputWidget, {
@@ -182,4 +203,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
 	SlashCommand: defineComponentFixture({ render: context => renderNewChatInput(context, { value: '/models' }) }),
 	// A `#file:` reference is highlighted via `.sessions-variable-reference`.
 	VariableReference: defineComponentFixture({ render: context => renderNewChatInput(context, { value: 'Explain #file:src/app.ts to me' }) }),
+	// The sub-session tip docked above the composer: a notice in the outer stack
+	// squaring the input inside the composer's own nested stack.
+	WithSubSessionTip: defineComponentFixture({
+		render: context => renderNewChatInput(context, { value: 'What are you building?', subSessionTip: true })
+	}),
 });
