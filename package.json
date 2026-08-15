@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.134.0",
-  "distro": "384f3af0570f20635bd381ec1a6a49a833f6dc47",
+  "distro": "c125b2a2432ff78b2d1f7b8ed8b0c67cf3af6187",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -99,8 +99,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
-    "@github/copilot": "1.0.79",
-    "@github/copilot-sdk": "1.0.10-preview.0",
+    "@github/copilot": "1.0.81-0",
+    "@github/copilot-sdk": "1.0.11",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -108,7 +108,7 @@
     "@microsoft/dev-tunnels-management": "^1.3.41",
     "@microsoft/dev-tunnels-ssh": "^3.12.22",
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
-    "@microsoft/mxc-sdk": "0.6.1",
+    "@microsoft/mxc-sdk": "0.7.0",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
     "@vscode/codicons": "^0.0.46-36",
@@ -202,7 +202,7 @@
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vscode/component-explorer": "^0.2.1-94",
     "@vscode/component-explorer-cli": "^0.2.1-95",
-    "@vscode/gulp-electron": "^1.42.0",
+    "@vscode/gulp-electron": "^1.43.0",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.20.4",
     "@vscode/test-cli": "^0.0.6",

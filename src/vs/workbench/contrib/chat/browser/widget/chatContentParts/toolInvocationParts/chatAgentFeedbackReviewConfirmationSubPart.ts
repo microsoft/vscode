@@ -195,7 +195,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		actionBar.push(rowStore.add(new Action(
 			'agentFeedbackReview.delete',
 			localize('agentFeedback.delete', "Delete Comment"),
-			ThemeIcon.asClassName(Codicon.close),
+			ThemeIcon.asClassName(Codicon.closeSmall),
 			true,
 			() => this._delete(comment.id),
 		)), { icon: true, label: false });

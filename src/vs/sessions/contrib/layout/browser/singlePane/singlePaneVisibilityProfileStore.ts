@@ -20,16 +20,6 @@ export const enum SessionVisibilityProfile {
 	Existing,
 }
 
-/**
- * Tracks a pending auxiliary-bar reveal while it is waiting for the managed docked tabs to
- * populate the (initially empty) editor group with content, so the detail panel is never
- * revealed empty.
- */
-export const enum PendingAuxiliaryBarRestore {
-	WaitingForEmptyGroup,
-	WaitingForContent,
-}
-
 const SINGLE_PANE_VISIBILITY_STATE_KEY = 'sessions.singlePane.sidePaneVisibility';
 const DEFAULT_NEW_SESSION_VISIBILITY_STATE: ISidePaneVisibilityState = {
 	editorVisible: false,

@@ -52,14 +52,12 @@ suite('DefaultAccountProvider managed settings', () => {
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
-			editorVersion: requestService.requests[0].headers?.['Editor-Version'],
-			runtimeVersion: requestService.requests[0].headers?.['Copilot-Runtime-Version'],
+			requestQuery: new URL(requestService.requests[0].url!).search,
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
-			editorVersion: 'vscode/1.132.0',
-			runtimeVersion: 'copilot-runtime/0.0.344',
+			requestQuery: '?client_id=vscode&client_version=1.132.0&copilot_runtime_version=0.0.344',
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
@@ -178,7 +176,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			if (options.url?.endsWith('/copilot_internal/user')) {
 				return jsonResponse({ chat_enabled: true });
 			}
-			if (options.url?.endsWith('/copilot_internal/managed_settings')) {
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
 				return jsonResponse({});
 			}
 			throw new Error(`Unexpected request: ${options.url}`);

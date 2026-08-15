@@ -489,26 +489,6 @@ export class PromptTimelineModel extends Disposable {
 		}
 	}
 
-	/**
-	 * Reveals the prompt `delta` positions away from the one the header names, aligned to the top of the
-	 * transcript like the rail and the label activation. The header then follows scroll tracking, hiding
-	 * once the target prompt is at the top.
-	 */
-	navigate(delta: number): void {
-		const prompts = this._prompts.get();
-		if (prompts.length === 0) {
-			return;
-		}
-		const id = this._activePromptId.get();
-		const current = id ? prompts.findIndex(p => p.requestId === id) : 0;
-		const base = current < 0 ? 0 : current;
-		const target = Math.max(0, Math.min(prompts.length - 1, base + delta));
-		if (target === base) {
-			return;
-		}
-		this.reveal(prompts[target].requestId);
-	}
-
 	/** The changed files for a tick's prompts, aggregated per file (for the hover card / drill-down). */
 	getRequestFiles(tick: PromptTick): readonly PromptFileDiff[] {
 		const byPath = new Map<string, PromptFileDiff>();

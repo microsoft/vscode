@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CopilotClient, CopilotSession, ReasoningSummary, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
-import type { CopilotClient, CopilotSession, Verbosity } from '@github/copilot-sdk';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
-import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
-import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
-import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
+import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
+import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 
 const testRuntime: ICopilotSessionRuntime = {
 	handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
@@ -47,9 +47,9 @@ const testRuntime: ICopilotSessionRuntime = {
 
 const testWorkingDirectory = URI.file(process.cwd());
 
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions): CopilotSessionLauncher {
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}): CopilotSessionLauncher {
 	const configurationService = {
-		getRootValue: () => undefined,
+		getRootValue: (_schema: unknown, key: CopilotCliConfigKey) => rootValues[key],
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
 	return new CopilotSessionLauncher(
 		configurationService,
@@ -359,6 +359,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			format: PluginFormat.Copilot,
 			hooks: [],
 			mcpServers: [],
+			disabledMcpServers: ['azure', 'azure'],
 			agents: [],
 			skills: [{
 				uri: skillUri,
@@ -378,6 +379,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
 			snapshot: { tools: [], plugins: [plugin], mcpServers: {} },
+			disabledRootMcpServers: ['github', 'azure'],
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubToken: undefined,
@@ -404,6 +406,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createPluginDirectories: createConfigs[0].pluginDirectories,
 				createSkillDirectories: createConfigs[0].skillDirectories,
 				createInstructionDirectories: createConfigs[0].instructionDirectories,
+				createDisabledMcpServers: createConfigs[0].disabledMcpServers,
 				createHasExitPlanHandler: typeof createConfigs[0].onExitPlanModeRequest === 'function',
 				createLargeOutput: createConfigs[0].largeOutput,
 				createManagedSettings: createConfigs[0].managedSettings,
@@ -412,6 +415,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
 				resumeSkillDirectories: resumeConfigs[0].skillDirectories,
 				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
+				resumeDisabledMcpServers: resumeConfigs[0].disabledMcpServers,
 				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
 				resumeLargeOutput: resumeConfigs[0].largeOutput,
 				resumeManagedSettings: resumeConfigs[0].managedSettings,
@@ -421,6 +425,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createPluginDirectories: [pluginDir.fsPath],
 				createSkillDirectories: [],
 				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				createDisabledMcpServers: ['azure', 'github'],
 				createHasExitPlanHandler: true,
 				createLargeOutput: { maxSizeBytes: 8192 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
@@ -429,6 +434,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumePluginDirectories: [pluginDir.fsPath],
 				resumeSkillDirectories: [],
 				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				resumeDisabledMcpServers: ['azure', 'github'],
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
@@ -573,6 +579,111 @@ suite('CopilotSessionLauncher verbosity', () => {
 		await applyVerbosity('high');
 
 		assert.deepStrictEqual(updates, [{ verbosity: 'high' }]);
+	});
+});
+
+suite('CopilotSessionLauncher reasoning summary', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function applyReasoningSummary(reasoningSummary: ReasoningSummary): Promise<void> {
+		const launcher = createTestLauncher() as unknown as {
+			_applyReasoningSummary(session: CopilotSession, reasoningSummary: ReasoningSummary, sessionId: string): Promise<void>;
+		};
+		const session = {
+			rpc: {
+				options: {
+					update: async (options: unknown) => updates.push(options),
+				},
+			},
+		} as unknown as CopilotSession;
+		return launcher._applyReasoningSummary(session, reasoningSummary, 'session-1');
+	}
+
+	const updates: unknown[] = [];
+
+	setup(() => updates.length = 0);
+
+	test('forwards the requested reasoning summary', async () => {
+		await applyReasoningSummary('detailed');
+
+		assert.deepStrictEqual(updates, [{ reasoningSummary: 'detailed' }]);
+	});
+});
+
+suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('applies verbosity and concise reasoning summary when enabled by experiment', async () => {
+		const updates: unknown[] = [];
+		const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.ReasoningSummary]: true }) as unknown as {
+			_applyGpt56Customizations(session: CopilotSession, sessionId: string): Promise<void>;
+		};
+		const session = {
+			rpc: {
+				options: {
+					update: async (options: unknown) => updates.push(options),
+				},
+			},
+		} as unknown as CopilotSession;
+
+		await launcher._applyGpt56Customizations(session, 'session-1');
+
+		assert.deepStrictEqual(updates, [
+			{ verbosity: 'medium' },
+			{ reasoningSummary: 'concise' },
+		]);
+	});
+
+	test('does not apply reasoning summary when the experiment is unset or disabled', async () => {
+		for (const reasoningSummary of [undefined, false]) {
+			const updates: unknown[] = [];
+			const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.ReasoningSummary]: reasoningSummary }) as unknown as {
+				_applyGpt56Customizations(session: CopilotSession, sessionId: string): Promise<void>;
+			};
+			const session = {
+				rpc: { options: { update: async (options: unknown) => updates.push(options) } },
+			} as unknown as CopilotSession;
+
+			await launcher._applyGpt56Customizations(session, 'session-1');
+
+			assert.deepStrictEqual(updates, [{ verbosity: 'medium' }]);
+		}
+	});
+
+	test('applies GPT-5.6 customizations when resuming an existing session', async () => {
+		const updates: unknown[] = [];
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async (options: unknown) => updates.push(options) } },
+		} as unknown as CopilotSession;
+		const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.ReasoningSummary]: true });
+		const plan: CopilotSessionLaunchPlan = {
+			kind: 'resume',
+			client: { resumeSession: async () => session } as unknown as CopilotClient,
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubToken: undefined,
+			fallback: { model: { id: 'gpt-5.6-sol', config: {} } },
+		};
+
+		const wrapper = await launcher.launch(plan, testRuntime);
+		try {
+			assert.deepStrictEqual(updates, [
+				{ verbosity: 'medium' },
+				{ reasoningSummary: 'concise' },
+			]);
+		} finally {
+			wrapper.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
 	});
 });
 
