@@ -166,6 +166,93 @@ describe('byokCompletionModels', () => {
 		expect(getByokCompletionModels()).toEqual([]);
 	});
 
+	it('reconciles groups per resolution pass (hot swap of chatLanguageModels.json)', () => {
+		// Pass 1: two groups exist. The language models service calls the provider
+		// once without a group before the per-group calls.
+		updateByokCompletionModelConfig('customendpoint', undefined, undefined);
+		updateByokCompletionModelConfig('customendpoint', 'A', {
+			completionsUrl: 'https://a.example.com/v1/completions',
+			models: [
+				{
+					id: 'a-model',
+					name: 'Model A',
+					url: 'https://a.example.com/v1/chat/completions',
+				},
+			],
+		});
+		updateByokCompletionModelConfig('customendpoint', 'B', {
+			completionsUrl: 'https://b.example.com/v1/completions',
+			models: [
+				{
+					id: 'b-model',
+					name: 'Model B',
+					url: 'https://b.example.com/v1/chat/completions',
+				},
+			],
+		});
+		expect(getByokCompletionModels()).toHaveLength(2);
+
+		// Pass 2: group B was deleted from the file while the extension is running.
+		// The pass-start call drops every stale group for the vendor; only the
+		// groups that still exist are re-added.
+		updateByokCompletionModelConfig('customendpoint', undefined, undefined);
+		updateByokCompletionModelConfig('customendpoint', 'A', {
+			completionsUrl: 'https://a.example.com/v1/completions',
+			models: [
+				{
+					id: 'a-model',
+					name: 'Model A',
+					url: 'https://a.example.com/v1/chat/completions',
+				},
+			],
+		});
+		const models = getByokCompletionModels();
+		expect(models).toHaveLength(1);
+		expect(models[0].groupName).toBe('A');
+		expect(getByokCompletionModelById('b-model')).toBeUndefined();
+	});
+
+	it('pass-start reconciliation only affects the given vendor', () => {
+		updateByokCompletionModelConfig('customendpoint', 'A', {
+			completionsUrl: 'https://a.example.com/v1/completions',
+			models: [
+				{
+					id: 'a-model',
+					name: 'Model A',
+					url: 'https://a.example.com/v1/chat/completions',
+				},
+			],
+		});
+		updateByokCompletionModelConfig('customoai', 'B', {
+			completionsUrl: 'https://b.example.com/v1/completions',
+			models: [
+				{
+					id: 'b-model',
+					name: 'Model B',
+					url: 'https://b.example.com/v1/chat/completions',
+				},
+			],
+		});
+		expect(getByokCompletionModels()).toHaveLength(2);
+
+		// A resolution pass for customendpoint alone must not drop customoai groups.
+		updateByokCompletionModelConfig('customendpoint', undefined, undefined);
+		updateByokCompletionModelConfig('customendpoint', 'A', {
+			completionsUrl: 'https://a.example.com/v1/completions',
+			models: [
+				{
+					id: 'a-model',
+					name: 'Model A',
+					url: 'https://a.example.com/v1/chat/completions',
+				},
+			],
+		});
+
+		const models = getByokCompletionModels();
+		expect(models).toHaveLength(2);
+		expect(models.some(m => m.vendor === 'customoai' && m.model === 'b-model')).toBe(true);
+	});
+
 	it('clears all models', () => {
 		updateByokCompletionModelConfig('customendpoint', 'A', {
 			completionsUrl: 'https://a.example.com/v1/completions',

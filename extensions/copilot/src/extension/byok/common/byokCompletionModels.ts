@@ -54,14 +54,29 @@ export const onDidChangeByokCompletionModels: Event<void> = _onDidChange.event;
  * point secrets such as `${input:...}` api keys are already decoded, so this is the
  * only place where the completion pipeline can obtain them.
  *
- * Passing `undefined` configuration removes the group (e.g. group deleted in the file).
+ * `groupName === undefined` marks the start of a new resolution pass: the language
+ * models service invokes the provider once without a group before the per-group
+ * calls, so every group previously seen for this vendor is dropped and then
+ * re-added from the groups that still exist. This keeps the registry in sync when
+ * a group is deleted from the file while the extension is running (hot swap).
  */
 export function updateByokCompletionModelConfig(vendor: string, groupName: string | undefined, configuration: IStringDictionary<unknown> | undefined): void {
-	const key = `${vendor}/${groupName ?? ''}`;
+	if (groupName === undefined) {
+		// Start of a new resolution pass for this vendor: drop its stale groups so
+		// deleted groups do not linger in the registry and in the model picker.
+		for (const [key, config] of registeredGroupConfigs) {
+			if (config.vendor === vendor) {
+				registeredGroupConfigs.delete(key);
+			}
+		}
+		recomputeCompletionModels();
+		return;
+	}
+	const key = `${vendor}/${groupName}`;
 	if (!configuration) {
 		registeredGroupConfigs.delete(key);
 	} else {
-		registeredGroupConfigs.set(key, { vendor, groupName: groupName ?? '', configuration });
+		registeredGroupConfigs.set(key, { vendor, groupName, configuration });
 	}
 	recomputeCompletionModels();
 }
