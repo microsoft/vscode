@@ -3784,15 +3784,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 					return undefined;
 				}
 				const parentEntry = this._findSessionBySdkId(configurationId);
-				const workingDirectory = workingDirectories?.[0] ?? parentEntry?.workingDirectory
+				const persistedWorkingDirectory = workingDirectories?.[0] ?? parentEntry?.workingDirectory
 					?? this._provisionalSessions.get(configurationId)?.workingDirectory
 					?? (await this._readSessionMetadata(configurationResource)).workingDirectory;
-				if (!workingDirectory) {
+				if (!persistedWorkingDirectory) {
 					this._logService.warn(`[Copilot] Cannot resume chat ${chatKey}: missing working directory`);
 					return undefined;
 				}
+				const workingDirectory = await this._configurationService.resolveWorkingDirectoryForResume(configurationResource.toString(), persistedWorkingDirectory);
 				const client = await this._ensureClient();
 				const activeClient = this._getOrCreateActiveClient(configurationResource, workingDirectory);
+				activeClient.pluginController.reanchor(workingDirectory);
 				const snapshot = await activeClient.snapshot(chatKey);
 				const shellManager = this._instantiationService.createInstance(ShellManager, chat, workingDirectory);
 				const launchPlan: CopilotSessionLaunchPlan = {

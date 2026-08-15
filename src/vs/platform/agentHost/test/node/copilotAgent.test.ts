@@ -7605,6 +7605,52 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('sendMessage resolves the working directory before resuming an addressed backing', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'route-resolved-peer');
+				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
+				const persistedWorkingDirectory = URI.file('/missing-worktree');
+				const resolvedWorkingDirectory = URI.file('/repository');
+				const resolveCalls: { session: string; workingDirectory: string }[] = [];
+				configurationService.resolveWorkingDirectoryForResume = async (session, workingDirectory) => {
+					resolveCalls.push({ session, workingDirectory: workingDirectory.toString() });
+					return resolvedWorkingDirectory;
+				};
+				await provisionSession(agent, { session, workingDirectories: [persistedWorkingDirectory] });
+				await agent.materializeChat(chatUri, session, JSON.stringify({ sdkSessionId: 'peer-sdk-id' }));
+
+				const internals = agent as unknown as ChatInternals;
+				const launches: { workingDirectory: string | undefined; customizationDirectory: string | undefined }[] = [];
+				internals._createAgentSession = (launchPlan, customizationDirectory, _activeClient, identity) => {
+					launches.push({
+						workingDirectory: launchPlan.workingDirectory?.toString(),
+						customizationDirectory: customizationDirectory?.toString(),
+					});
+					const built = makeFakeChatSession(session, launchPlan.sessionId, undefined, launchPlan.shellManager);
+					(built.fake as { chatChannelUri?: URI }).chatChannelUri = identity?.chatChannelUri;
+					return built.fake;
+				};
+
+				await agent.chats.sendMessage(chatUri, 'hello peer', undefined, undefined, undefined, undefined, exactChatContext(session, chatUri));
+
+				assert.deepStrictEqual({
+					resolveCalls,
+					launches,
+				}, {
+					resolveCalls: [{ session: session.toString(), workingDirectory: persistedWorkingDirectory.toString() }],
+					launches: [{
+						workingDirectory: resolvedWorkingDirectory.toString(),
+						customizationDirectory: resolvedWorkingDirectory.toString(),
+					}],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('sendMessage throws for a chat with no backing chat', async () => {
 			const agent = createTestAgent(disposables);
 			try {
