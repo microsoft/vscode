@@ -114,7 +114,33 @@ describe('cacheAwareHistoryManager', () => {
 		// The token count fits within the budget.
 		expect(approximateTokenCount(result.messagesToSend)).toBeLessThanOrEqual(100);
 	});
+	test('grows history up to the ceiling then truncates back to the floor (sawtooth)', () => {
+		const first = [system('sys'), user('first')];
+		const firstResult = prepareMessagesForRequest(first, undefined, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
 
+		// A medium history fits within the ceiling (maxUtilization = 100% of budget).
+		const mediumHistory = [system('sys'), user('first')];
+		for (let i = 0; i < 20; i++) {
+			mediumHistory.push(assistant(`assistant reply ${i}`));
+			mediumHistory.push(user(`user message ${i}`));
+		}
+		const mediumResult = prepareMessagesForRequest(mediumHistory, firstResult.newState, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+		expect(mediumResult.truncated).toBe(false);
+		expect(approximateTokenCount(mediumResult.messagesToSend)).toBeLessThanOrEqual(1000);
+
+		// A long history exceeds the ceiling and is truncated back to the floor (minUtilization = 50% of budget).
+		const longHistory = [system('sys'), user('first')];
+		for (let i = 0; i < 200; i++) {
+			longHistory.push(assistant(`assistant reply ${i}`));
+			longHistory.push(user(`user message ${i}`));
+		}
+		const longResult = prepareMessagesForRequest(longHistory, firstResult.newState, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+		expect(longResult.truncated).toBe(true);
+		expect(approximateTokenCount(longResult.messagesToSend)).toBeLessThanOrEqual(500);
+		// The most recent turns are kept.
+		const sent = texts(longResult.messagesToSend);
+		expect(sent[sent.length - 1]).toBe('user message 199');
+	});
 	test('disabled config sends the full history unchanged', () => {
 		const history = [system('sys'), user('first'), assistant('a1'), user('second')];
 		const config = { ...DefaultCacheAwareHistoryConfig, enabled: false };
@@ -191,12 +217,16 @@ describe('cacheAwareHistoryManager', () => {
 		const result = prepareMessagesForRequest(longHistory, firstResult.newState, 100, approximateTokenCount, config);
 
 		expect(result.truncated).toBe(true);
-		// The summary is appended as a system message so it reaches the model.
-		const last = result.messagesToSend[result.messagesToSend.length - 1];
-		expect(last.role).toBe(LanguageModelChatMessageRole.System);
-		expect(texts([last])[0]).toContain('dropped');
-	});
-
+	// The summary is injected as a stable early system message, immediately
+	// after the existing system messages, so it reaches the model without
+	// breaking the immutable prefix for subsequent requests.
+	const systemMessages = result.messagesToSend.filter(m => m.role === LanguageModelChatMessageRole.System);
+	expect(systemMessages.length).toBeGreaterThan(1);
+	const summaryMessage = systemMessages[systemMessages.length - 1];
+	expect(texts([summaryMessage])[0]).toContain('dropped');
+	// The summary must not be the last message (that would put a changing
+	// system message at the end and poison the prefix for the next request).
+	expect(result.messagesToSend[result.messagesToSend.length - 1].role).not.toBe(LanguageModelChatMessageRole.System);    });
 	test('extendsLastSent is true when the candidate extends the last-sent prefix', () => {
 		const first = [system('sys'), user('first')];
 		const firstResult = prepareMessagesForRequest(first, undefined, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);

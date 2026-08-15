@@ -172,6 +172,14 @@ export class ExternalIngestIndex extends Disposable {
 			dbPath = ':memory:';
 		} else {
 			dbPath = URI.joinPath(this._vsExtensionContext.storageUri, 'codebase-external.sqlite').fsPath;
+			// The extension's storage directory may not exist yet (VS Code creates
+			// it lazily). SQLite cannot create a file in a non-existent directory,
+			// so ensure the parent directory exists before opening the database.
+			try {
+				fs.mkdirSync(this._vsExtensionContext.storageUri.fsPath, { recursive: true });
+			} catch (error) {
+				this._logService.warn(`ExternalIngestIndex: Failed to create storage directory: ${error}`);
+			}
 		}
 
 		try {

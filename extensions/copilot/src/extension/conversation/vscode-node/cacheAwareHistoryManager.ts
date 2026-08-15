@@ -50,24 +50,40 @@ export interface CacheAwareHistoryConfig {
 	readonly truncationPolicy: 'conservative' | 'aggressive';
 	/** Whether to insert a short summary of dropped turns. */
 	readonly summarizeDroppedTurns: boolean;
-	/** Fraction of `maxInputTokens` we aim to stay under (0 < value <= 1). */
-	readonly targetUtilization: number;
-	/** Minimum number of recent turns to always keep (excluding system). */
-	readonly minRecentTurns: number;
+  /**
+   * Fraction of `maxInputTokens` that is the "floor": the target size we
+   * truncate back to when the history exceeds the ceiling (0 < value <= 1).
+   */
+  readonly minUtilization: number;
+  /**
+   * Fraction of `maxInputTokens` that is the "ceiling": the maximum size we
+   * allow the history to grow to before truncating back to the floor
+   * (0 < value <= 1, >= `minUtilization`).
+   */
+  readonly maxUtilization: number;
+  /** Minimum number of recent turns to always keep (excluding system). */
+  readonly minRecentTurns: number;
 }
 
 export const DefaultCacheAwareHistoryConfig: CacheAwareHistoryConfig = {
-	enabled: true,
-	truncationPolicy: 'conservative',
-	summarizeDroppedTurns: false,
-	targetUtilization: 0.9,
-	minRecentTurns: 2,
+  enabled: true,
+  truncationPolicy: 'conservative',
+  summarizeDroppedTurns: false,
+  minUtilization: 0.5,
+  maxUtilization: 1.0,
+  minRecentTurns: 2,
 };
 
 /**
  * Per-conversation state. Keyed by a stable conversation id derived from the
  * system prompt + first user message, so it survives across requests within a
  * single VS Code session.
+ *
+ * Lifetime: this state lives only in memory (a bounded LRU map in
+ * `languageModelAccess.ts`) and is intentionally not persisted across VS Code
+ * reloads. On a fresh session the first request of a conversation is treated as
+ * a new prefill, which is correct for the cache-aware goal — there is no server
+ * KV cache to reuse across process restarts anyway.
  */
 export interface ConversationState {
 	/** The exact messages we last sent to the server. */
@@ -108,6 +124,13 @@ export interface PreparedMessages {
  * This is the identity that lets us correlate successive requests of the same
  * conversation even though `ProvideLanguageModelChatResponseOptions` does not
  * expose a session id.
+ *
+ * Limitation: the id is derived from the system prompt + first user message, so
+ * if the system prompt is rewritten mid-conversation (common with dynamic
+ * context / tools / instructions), the id changes and the per-conversation
+ * state is lost. This is a deliberate trade-off given the API exposes no stable
+ * session id; `prepareMessagesForRequest` additionally guards against a
+ * rewritten system prompt by resetting state rather than reusing stale state.
  */
 export function deriveConversationId(messages: readonly CacheAwareChatMessage[]): string {
 	const systemText = messages
@@ -180,66 +203,100 @@ export function prepareMessagesForRequest(
 		};
 	}
 
-	const budget = Math.floor(maxInputTokens * config.targetUtilization);
+// The "ceiling" is the maximum size the history may grow to before we
+  // truncate; the "floor" is the target size we truncate back to. This
+  // sawtooth keeps the prefix stable: the history grows by appending turns up
+  // to the ceiling, then drops back to the floor, so the server's KV cache
+  // keeps hitting the same long prefix.
+  const ceiling = Math.floor(maxInputTokens * config.maxUtilization);
+  const floor = Math.floor(maxInputTokens * config.minUtilization);
 
-	// 1. First request of a conversation -> small prefill: system + latest user.
-	if (!state) {
-		const prefill = buildPrefill(fullHistory);
-		const tokenCount = tokenCounter(prefill);
-		return {
-			messagesToSend: prefill,
-			newState: { lastSentMessages: prefill, lastTokenCount: tokenCount },
-			truncated: false,
-			tokenCount,
-			extendsLastSent: false,
-		};
-	}
+  // 1. First request of a conversation -> small prefill: system + latest user.
+  if (!state) {
+    const prefill = buildPrefill(fullHistory);
+    const tokenCount = tokenCounter(prefill);
+    return {
+      messagesToSend: prefill,
+      newState: { lastSentMessages: prefill, lastTokenCount: tokenCount },
+      truncated: false,
+      tokenCount,
+      extendsLastSent: false,
+    };
+  }
 
-	// 2. If the full history fits within the budget, send it. Because the
-	//    history grows by appending new turns, this naturally shares a long
-	//    common prefix with the previous request, which the server's KV cache
-	//    can hit.
-	const candidate = fullHistory;
-	const candidateTokens = tokenCounter(candidate);
+  // 1b. If the system prompt was rewritten since the last request (common
+  //     with dynamic context / tools / instructions), the previously cached
+  //     prefix is invalid. Deliberately reset state and start a fresh prefill
+  //     rather than silently reusing stale state that no longer matches the
+  //     incoming history.
+  if (!systemMessagesEqual(state.lastSentMessages, fullHistory)) {
+    const prefill = buildPrefill(fullHistory);
+    const tokenCount = tokenCounter(prefill);
+    return {
+      messagesToSend: prefill,
+      newState: { lastSentMessages: prefill, lastTokenCount: tokenCount },
+      truncated: false,
+      tokenCount,
+      extendsLastSent: false,
+    };
+  }
 
-	if (candidateTokens <= budget) {
-		// Only claim the cache can be reused if the candidate actually extends
-		// the exact prefix we last sent. If an earlier system/context/history
-		// message was rewritten, the prefix diverges and the cache is invalid.
-		const extendsLastSent = extendsPrefix(state.lastSentMessages, candidate);
-		return {
-			messagesToSend: candidate,
-			newState: { lastSentMessages: candidate, lastTokenCount: candidateTokens },
-			truncated: false,
-			tokenCount: candidateTokens,
-			extendsLastSent,
-		};
-	}
+  // 2. If the full history fits within the ceiling, send it. Because the
+  //    history grows by appending new turns, this naturally shares a long
+  //    common prefix with the previous request, which the server's KV cache
+  //    can hit.
+  const candidate = fullHistory;
+  const candidateTokens = tokenCounter(candidate);
 
-	// 3. Over budget: drop the oldest non-system turns until it fits, keeping
-	//    the system prompt + as many recent turns as possible. Prefer keeping a
-	//    prefix that overlaps with what we last sent so the cache still hits.
-	const { messagesToSend, dropped } = truncateToBudget(fullHistory, budget, tokenCounter, config);
+  if (candidateTokens <= ceiling) {
+    // Only claim the cache can be reused if the candidate actually extends
+    // the exact prefix we last sent. If an earlier system/context/history
+    // message was rewritten, the prefix diverges and the cache is invalid.
+    const extendsLastSent = extendsPrefix(state.lastSentMessages, candidate);
+    return {
+      messagesToSend: candidate,
+      newState: { lastSentMessages: candidate, lastTokenCount: candidateTokens },
+      truncated: false,
+      tokenCount: candidateTokens,
+      extendsLastSent,
+    };
+  }
 
-	let summary: string | undefined;
-	if (config.summarizeDroppedTurns && dropped.length > 0) {
-		summary = summarizeDropped(dropped, state.summary);
-	}
+  // 3. Over the ceiling: drop the oldest non-system turns until we reach the
+  //    floor, keeping the system prompt + as many recent turns as possible.
+  //    Prefer keeping a prefix that overlaps with what we last sent so the
+  //    cache still hits.
+  const { messagesToSend, dropped } = truncateToBudget(fullHistory, floor, tokenCounter, config);
 
-	// When summarising dropped turns, inject the running summary as a system
-	// message so it actually reaches the model instead of living only in state.
-	let messagesToSendWithSummary = messagesToSend;
-	if (summary) {
-		messagesToSendWithSummary = [...messagesToSend, new vscode.LanguageModelChatMessage(LanguageModelChatMessageRole.System, summary)];
-	}
+  let summary: string | undefined;
+  if (config.summarizeDroppedTurns && dropped.length > 0) {
+    summary = summarizeDropped(dropped, state.summary);
+  }
 
-	return {
-		messagesToSend: messagesToSendWithSummary,
-		newState: { lastSentMessages: messagesToSendWithSummary, lastTokenCount: tokenCounter(messagesToSendWithSummary), summary },
-		truncated: dropped.length > 0,
-		tokenCount: tokenCounter(messagesToSendWithSummary),
-		extendsLastSent: false,
-	};
+  // When summarising dropped turns, inject the running summary as a stable
+  // early system message, immediately after the existing system messages.
+  // Placing it here (rather than appending a changing system message at the
+  // end) keeps the summary inside the immutable prefix, so subsequent requests
+  // still share a long stable prefix with the server's KV cache.
+  let messagesToSendWithSummary = messagesToSend;
+  if (summary) {
+    const system = messagesToSend.filter(m => m.role === LanguageModelChatMessageRole.System);
+    const nonSystem = messagesToSend.filter(m => m.role !== LanguageModelChatMessageRole.System);
+    messagesToSendWithSummary = [
+      ...system,
+      new vscode.LanguageModelChatMessage(LanguageModelChatMessageRole.System, summary),
+      ...nonSystem,
+    ];
+  }
+  const finalTokenCount = tokenCounter(messagesToSendWithSummary);
+
+  return {
+    messagesToSend: messagesToSendWithSummary,
+    newState: { lastSentMessages: messagesToSendWithSummary, lastTokenCount: finalTokenCount, summary },
+    truncated: dropped.length > 0,
+    tokenCount: finalTokenCount,
+    extendsLastSent: false,
+  };
 }
 
 /**
@@ -392,59 +449,65 @@ function textOf(message: CacheAwareChatMessage): string {
 }
 
 /**
- * Serializes the full content of a message to a string for token estimation,
- * including non-text parts (tool-call arguments, tool results, thinking
- * payloads, data parts, prompt-tsx). This mirrors what the renderer actually
- * sends to the endpoint, so the token estimate is not biased toward text-only
- * transcripts.
+ * Serializes the full content of a message to a canonical string, including
+ * non-text parts (tool-call arguments, tool results, thinking payloads, data
+ * parts, prompt-tsx). This mirrors what the renderer actually sends to the
+ * endpoint, so both token estimation and equality checks are not biased toward
+ * text-only transcripts.
+ */
+function serializeMessage(message: CacheAwareChatMessage): string {
+        const content = message.content;
+        if (typeof content === 'string') {
+                return content;
+        }
+        const parts: string[] = [];
+        for (const part of content) {
+                if (part instanceof LanguageModelTextPart) {
+                        parts.push((part as LanguageModelTextPart).value);
+                } else if (part instanceof LanguageModelToolCallPart) {
+                        const toolCall = part as LanguageModelToolCallPart;
+                        try {
+                                parts.push(`tool:${toolCall.name}:${JSON.stringify(toolCall.input ?? {})}`);
+                        } catch {
+                                // Non-serializable input — fall back to the name only.
+                                parts.push(`tool:${toolCall.name}`);
+                        }
+                } else if (part instanceof LanguageModelToolResultPart) {
+                        const toolResult = part as LanguageModelToolResultPart;
+                        const inner: string[] = [];
+                        for (const contentPart of toolResult.content) {
+                                if (contentPart instanceof LanguageModelTextPart) {
+                                        inner.push((contentPart as LanguageModelTextPart).value);
+                                } else if (contentPart instanceof LanguageModelPromptTsxPart) {
+                                        try {
+                                                inner.push(JSON.stringify((contentPart as LanguageModelPromptTsxPart).value));
+                                        } catch {
+                                                // Non-serializable value — ignore.
+                                        }
+                                } else if (typeof contentPart === 'string') {
+                                        inner.push(contentPart);
+                                }
+                        }
+                        parts.push(`result:${inner.join('')}`);
+                } else if (part instanceof LanguageModelThinkingPart) {
+                        const thinking = part as LanguageModelThinkingPart;
+                        const value = thinking.value;
+                        parts.push(`thinking:${typeof value === 'string' ? value : value.join('')}`);
+                } else if (part instanceof LanguageModelDataPart) {
+                        const data = part as LanguageModelDataPart;
+                        // Approximate binary data by its byte length (base64 inflates ~4/3).
+                        parts.push(`data:${data.mimeType}:${data.data ? data.data.byteLength : 0}`);
+                }
+        }
+        return parts.join('\u0000');
+}
+
+/**
+ * Returns the serialized length of a message's full content, used for token
+ * estimation. See {@link serializeMessage}.
  */
 function serializedLength(message: CacheAwareChatMessage): number {
-	const content = message.content;
-	let chars = 0;
-	for (const part of content) {
-		if (part instanceof LanguageModelTextPart) {
-			chars += (part as LanguageModelTextPart).value.length;
-		} else if (part instanceof LanguageModelToolCallPart) {
-			const toolCall = part as LanguageModelToolCallPart;
-			chars += toolCall.name.length;
-			try {
-				chars += JSON.stringify(toolCall.input ?? {}).length;
-			} catch {
-				// Non-serializable input — fall back to the name only.
-			}
-		} else if (part instanceof LanguageModelToolResultPart) {
-			const toolResult = part as LanguageModelToolResultPart;
-			for (const contentPart of toolResult.content) {
-				if (contentPart instanceof LanguageModelTextPart) {
-					chars += (contentPart as LanguageModelTextPart).value.length;
-				} else if (contentPart instanceof LanguageModelPromptTsxPart) {
-					try {
-						chars += JSON.stringify((contentPart as LanguageModelPromptTsxPart).value).length;
-					} catch {
-						// Non-serializable value — ignore.
-					}
-				} else if (typeof contentPart === 'string') {
-					chars += contentPart.length;
-				}
-			}
-		} else if (part instanceof LanguageModelThinkingPart) {
-			const thinking = part as LanguageModelThinkingPart;
-			const value = thinking.value;
-			if (typeof value === 'string') {
-				chars += value.length;
-			} else {
-				chars += value.join('').length;
-			}
-		} else if (part instanceof LanguageModelDataPart) {
-			const data = part as LanguageModelDataPart;
-			chars += data.mimeType.length;
-			// Approximate binary data by its byte length (base64 inflates ~4/3).
-			if (data.data) {
-				chars += data.data.byteLength;
-			}
-		}
-	}
-	return chars;
+        return serializeMessage(message).length;
 }
 
 function containsToolCall(message: CacheAwareChatMessage): boolean {
@@ -484,7 +547,31 @@ function messagesEqual(a: CacheAwareChatMessage, b: CacheAwareChatMessage): bool
 	if (a.role !== b.role) {
 		return false;
 	}
-	return textOf(a) === textOf(b);
+        // Compare the full serialized content, not just text. Two messages that
+        // differ only in non-text parts (tool-call IDs, tool results, thinking,
+        // data parts) produce a different token stream, so they must not be treated
+        // as equal — otherwise `extendsLastSent` could claim a cache hit that the
+        // server would actually miss.
+        return serializeMessage(a) === serializeMessage(b);
+}
+
+/**
+ * Returns true if the system messages of two message lists are identical
+ * (same count, same order, same full content). Used to detect a rewritten
+ * system prompt so state can be deliberately reset instead of silently reused.
+ */
+function systemMessagesEqual(a: readonly CacheAwareChatMessage[], b: readonly CacheAwareChatMessage[]): boolean {
+        const aSystem = a.filter(m => m.role === LanguageModelChatMessageRole.System);
+        const bSystem = b.filter(m => m.role === LanguageModelChatMessageRole.System);
+        if (aSystem.length !== bSystem.length) {
+                return false;
+        }
+        for (let i = 0; i < aSystem.length; i++) {
+                if (!messagesEqual(aSystem[i], bSystem[i])) {
+                        return false;
+                }
+        }
+        return true;
 }
 
 /**

@@ -1070,7 +1070,8 @@ export namespace ConfigKey {
 	export const CacheAwareHistoryEnabled = defineSetting<boolean>('chat.cacheAwareHistory.enabled', ConfigType.Simple, true);
 	export const CacheAwareHistoryTruncationPolicy = defineSetting<'conservative' | 'aggressive'>('chat.cacheAwareHistory.truncationPolicy', ConfigType.Simple, 'conservative');
 	export const CacheAwareHistorySummarizeDroppedTurns = defineSetting<boolean>('chat.cacheAwareHistory.summarizeDroppedTurns', ConfigType.Simple, false);
-	export const CacheAwareHistoryTargetUtilization = defineSetting<number>('chat.cacheAwareHistory.targetUtilization', ConfigType.Simple, 0.9);
+	export const CacheAwareHistoryMinUtilization = defineSetting<number>('chat.cacheAwareHistory.minUtilization', ConfigType.Simple, 0.5);
+	export const CacheAwareHistoryMaxUtilization = defineSetting<number>('chat.cacheAwareHistory.maxUtilization', ConfigType.Simple, 1.0);
 	export const CacheAwareHistoryMinRecentTurns = defineSetting<number>('chat.cacheAwareHistory.minRecentTurns', ConfigType.Simple, 2);
 	export const NotebookFollowCellExecution = defineSetting<boolean>('chat.notebook.followCellExecution.enabled', ConfigType.Simple, false);
 	export const UseAlternativeNESNotebookFormat = defineSetting<boolean>('chat.notebook.enhancedNextEditSuggestions.enabled', ConfigType.ExperimentBased, false);

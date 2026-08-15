@@ -746,7 +746,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		this._setCacheAwareConversationState(conversationId, newState);
 
 		if (truncated) {
-			this._logService.info(`[LanguageModelAccess] Cache-aware history manager truncated conversation '${conversationId}' to ${tokenCount} tokens (budget ${Math.floor(tokenLimit * config.targetUtilization)}).`);
+			this._logService.info(`[LanguageModelAccess] Cache-aware history manager truncated conversation '${conversationId}' to ${tokenCount} tokens (floor ${Math.floor(tokenLimit * config.minUtilization)}, ceiling ${Math.floor(tokenLimit * config.maxUtilization)}).`);
 		}
 
 		return messagesToSend as Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>;
@@ -773,7 +773,8 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			enabled: this._configurationService.getConfig(ConfigKey.CacheAwareHistoryEnabled),
 			truncationPolicy: this._configurationService.getConfig(ConfigKey.CacheAwareHistoryTruncationPolicy),
 			summarizeDroppedTurns: this._configurationService.getConfig(ConfigKey.CacheAwareHistorySummarizeDroppedTurns),
-			targetUtilization: this._configurationService.getConfig(ConfigKey.CacheAwareHistoryTargetUtilization),
+			minUtilization: this._configurationService.getConfig(ConfigKey.CacheAwareHistoryMinUtilization),
+			maxUtilization: this._configurationService.getConfig(ConfigKey.CacheAwareHistoryMaxUtilization),
 			minRecentTurns: this._configurationService.getConfig(ConfigKey.CacheAwareHistoryMinRecentTurns),
 		};
 	}
