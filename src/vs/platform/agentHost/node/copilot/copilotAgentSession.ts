@@ -1252,6 +1252,19 @@ export class CopilotAgentSession extends Disposable {
 		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext);
 	}
 
+	async hasRunningDetachedShells(): Promise<boolean> {
+		try {
+			await this._wrapper.session.rpc.tasks.refresh();
+			const tasks = await this._wrapper.session.rpc.tasks.list();
+			return tasks.tasks.some(task => task.type === 'shell'
+				&& task.attachmentMode === 'detached'
+				&& (task.status === 'running' || task.status === 'idle'));
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read detached shell state; deferring release: ${getErrorMessage(err)}`);
+			return true;
+		}
+	}
+
 	/** Refreshes prompt-cache state and the session-wide nano-AIU total from the SDK's authoritative usage metrics. */
 	private async _refreshSessionUsageMetrics(): Promise<boolean> {
 		try {
