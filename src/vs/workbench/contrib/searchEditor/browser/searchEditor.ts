@@ -709,6 +709,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		if (token.isCancellationRequested) {
 			return;
 		}
+		// A new input can replace the current one without clearInput being called first.
 		this.inputDisposables.clear();
 
 		const { configurationModel, resultsModel } = await newInput.resolveModels();
@@ -746,6 +747,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	override clearInput(): void {
+		// An input can be cleared without another input being set.
 		this.inputDisposables.clear();
 		super.clearInput();
 	}
