@@ -104,7 +104,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -169,11 +169,6 @@ type AgentHostInvocationFailedClassification = {
  * - {@link sink} routes emitted progress to either the agent invoke
  *   callback (live) or `chatSession.appendProgress` (reconnect /
  *   server-initiated).
- * - {@link adoptInvocations} carries `ChatToolInvocation` instances that
- *   `activeTurnToProgress` already produced so per-tool setup adopts them
- *   rather than recreating UI handles.
- * - {@link seedEmittedLengths} prevents the always-on graph from re-emitting
- *   markdown / reasoning prefixes already covered by the snapshot.
  * - {@link onTurnEnded} fires once when the turn reaches a terminal state.
  */
 interface IObserveTurnOptions {
@@ -190,9 +185,6 @@ interface IObserveTurnOptions {
 	readonly turnId: string;
 	readonly sink: (parts: IChatProgress[]) => void;
 	readonly cancellationToken: CancellationToken;
-	readonly adoptInvocations?: ReadonlyMap<string, ChatToolInvocation>;
-	readonly seedEmittedLengths?: ReadonlyMap<string, number>;
-	readonly initialResponsePartCount?: number;
 	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
 	readonly onFileEdits?: (tc: ToolCallState, fileEdits: IToolCallFileEdit[]) => void;
 	/**
@@ -612,7 +604,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
 		private readonly _renameSession: ((title: string, token: CancellationToken) => Promise<void>),
 		inputState: ISerializableChatModelInputState | undefined,
-		initialProgress: IChatProgress[] | undefined,
+		hasActiveTurn: boolean,
 		historySubagentObservations: IDisposable,
 		onDispose: () => void,
 		interruptActiveResponse: () => boolean,
@@ -626,11 +618,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			return isChatReadOnly(this._chatState.read(reader).read(reader)?.interactivity, sessionArchived);
 		});
 
-		const hasActiveTurn = initialProgress !== undefined;
 		this.transferredState = inputState ? { editingSession: undefined, inputState } : undefined;
 		if (hasActiveTurn) {
 			this.isCompleteObs.set(false, undefined);
-			this.progressObs.set(initialProgress, undefined);
 		}
 
 		this._register(historySubagentObservations);
@@ -1250,8 +1240,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// been created on the backend.
 		const isNewSession = this._isNewSessionResource(sessionResource);
 		const history: IChatSessionHistoryItem[] = [];
-		let initialProgress: IChatProgress[] | undefined;
-		let initialResponsePartCount = 0;
 		let activeTurnId: string | undefined;
 		let sessionTitle: string | undefined;
 		let draftInputState: ISerializableChatModelInputState | undefined;
@@ -1348,26 +1336,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								participant: this._config.agentId,
 								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
 							});
-							initialProgress = activeTurnToProgress(
-								resolvedSession,
-								sessionState.activeTurn,
-								this._config.connectionAuthority,
-								sessionResource.authority,
-								this._otherClientToolInvocationOptions(resolvedSession, chatURI, sessionState.activeTurn.id),
-								lookup,
-							);
-							initialResponsePartCount = sessionState.activeTurn.responseParts.length;
-							// Enrich usage entries with the actual model so the
-							// context-usage widget resolves the right context window
-							// on reconnection (same enrichment as _observeTurn).
-							const actualModelId = this._toLanguageModelId(sessionResource, sessionState.activeTurn.usage?.model);
-							if (actualModelId) {
-								for (const p of initialProgress) {
-									if (p.kind === 'usage') {
-										p.actualModelId = actualModelId;
-									}
-								}
-							}
 							this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
 						}
 					}
@@ -1432,7 +1400,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return Promise.resolve();
 				},
 				draftInputState,
-				initialProgress,
+				activeTurnId !== undefined,
 				historySubagentObservations,
 				() => {
 					this._activeSessions.delete(sessionResource);
@@ -1512,8 +1480,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// If reconnecting to an active turn, wire up an ongoing state listener
 			// to stream new progress into the session's progressObs.
-			if (activeTurnId && initialProgress !== undefined) {
-				this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress, initialResponsePartCount);
+			if (activeTurnId) {
+				this._reconnectToActiveTurn(resolvedSession, activeTurnId, session);
 			}
 
 			// For existing sessions, start watching for server-initiated turns
@@ -2899,10 +2867,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 *   - reconnect to an in-flight turn from {@link provideChatSessionContent},
 	 *   - server-initiated turns detected by {@link _watchForServerInitiatedTurns}.
 	 *
-	 * Differences are captured in {@link IObserveTurnOptions.sink} (where
-	 * progress is delivered) and {@link IObserveTurnOptions.adoptInvocations} /
-	 * {@link IObserveTurnOptions.seedEmittedLengths} (snapshot continuity for
-	 * the reconnect case).
+	 * The caller-provided {@link IObserveTurnOptions.sink} controls where
+	 * progress is delivered.
 	 *
 	 * The returned disposable owns the entire per-turn graph, including the
 	 * underlying session subscription reference.
@@ -2963,6 +2929,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					name: server.name,
 				}));
 		});
+		const modelLookup = this._createTurnModelLookup(opts.sessionResource, undefined);
+		if (opts.subAgentInvocationId === undefined) {
+			let lastAutoModeResolution: IChatAutoModeResolutionPart | undefined;
+			store.add(autorun(reader => {
+				const resolution = modelLookup.toAutoModeResolution?.(usage$.read(reader));
+				if (!resolution || equals(lastAutoModeResolution, resolution)) {
+					return;
+				}
+				lastAutoModeResolution = resolution;
+				opts.sink([resolution]);
+			}));
+		}
 
 		// Subagent observation context: dedups subagent tool calls so each is
 		// observed once.
@@ -3004,23 +2982,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						}
 						this._setupReasoningPart(part$ as IObservable<ReasoningResponsePart>, partStore, opts);
 						break;
-					case ResponsePartKind.ToolCall: {
-						const responsePartIndex = responseParts$.get().indexOf(initial);
-						const wasSerializedInSnapshot = responsePartIndex >= 0
-							&& responsePartIndex < (opts.initialResponsePartCount ?? 0)
-							&& !opts.adoptInvocations?.has(initial.toolCall.toolCallId)
-							&& (initial.toolCall.status === ToolCallStatus.Completed || initial.toolCall.status === ToolCallStatus.Cancelled);
-						this._setupToolCallPart(part$ as IObservable<ToolCallResponsePart>, partStore, opts, subagentContext, !wasSerializedInSnapshot);
+					case ResponsePartKind.ToolCall:
+						this._setupToolCallPart(part$ as IObservable<ToolCallResponsePart>, partStore, opts, subagentContext);
 						break;
-					}
 					case ResponsePartKind.InputRequest:
 						if (opts.subAgentInvocationId === undefined) {
 							this._setupInputRequestPart(part$ as IObservable<InputRequestResponsePart>, partStore, opts);
 						}
 						break;
 					case ResponsePartKind.SystemNotification:
-						// System notifications don't have an id, so we have to identify it by index
-						if (responseParts$.get().indexOf(initial) >= (opts.initialResponsePartCount ?? 0) && opts.subAgentInvocationId === undefined) {
+						if (opts.subAgentInvocationId === undefined) {
 							const progress = systemNotificationToChatPart(initial.content, this._config.connectionAuthority, initial._meta);
 							if (progress) {
 								opts.sink([progress]);
@@ -3034,8 +3005,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Per-turn adjuncts skipped for subagent observers.
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
-			let lastAutoModeResolution: IChatAutoModeResolutionPart | undefined;
-			const modelLookup = this._createTurnModelLookup(opts.sessionResource, undefined);
 
 			this._setupMcpAuthPrompt(mcpAuthRequired$, store, opts);
 
@@ -3058,15 +3027,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					content: new MarkdownString().appendText(activity),
 					shimmer: true,
 				}]);
-			}));
-
-			store.add(autorun(reader => {
-				const resolution = modelLookup.toAutoModeResolution?.(usage$.read(reader));
-				if (!resolution || equals(lastAutoModeResolution, resolution)) {
-					return;
-				}
-				lastAutoModeResolution = resolution;
-				opts.sink([resolution]);
 			}));
 
 			// Surface a "Starting MCP servers …" progress hint when servers
@@ -3434,10 +3394,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 	): void {
-		// Seed from the snapshot length so the always-on graph does not
-		// re-emit content already covered by `activeTurnToProgress` on
-		// reconnect.
-		let lastEmitted = opts.seedEmittedLengths?.get(part$.get().id) ?? 0;
+		let lastEmitted = 0;
 		store.add(autorun(reader => {
 			const content = part$.read(reader).content;
 			if (content.length <= lastEmitted) {
@@ -3455,7 +3412,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		opts: IObserveTurnOptions,
 	): void {
 		const partId = part$.get().id;
-		let lastEmitted = opts.seedEmittedLengths?.get(partId) ?? 0;
+		let lastEmitted = 0;
 		store.add(autorun(reader => {
 			const content = part$.read(reader).content;
 			if (content.length <= lastEmitted) {
@@ -3472,7 +3429,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 		subagentContext: ISubagentContext,
-		shouldEmitInvocation: boolean,
 	): void {
 		const initial = part$.get().toolCall;
 		const contributor = initial.contributor;
@@ -3480,13 +3436,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// Set up before claiming: the claim is what tells the session-level
 			// watcher it may execute this call, and it must find the shared
 			// invocation already created when it does.
-			this._setupClientToolCall(initial, part$, store, opts, subagentContext, shouldEmitInvocation);
+			this._setupClientToolCall(initial, part$, store, opts, subagentContext);
 			store.add(this._markToolCallRendered(opts.chatURI, opts.turnId, initial.toolCallId, opts.sessionResource));
 		} else if (contributor?.kind === ToolCallContributorKind.Client) {
-			this._setupOtherClientToolCall(initial, part$, store, opts, shouldEmitInvocation);
+			this._setupOtherClientToolCall(initial, part$, store, opts);
 		} else {
 			store.add(this._markToolCallRendered(opts.chatURI, opts.turnId, initial.toolCallId, opts.sessionResource));
-			this._setupServerToolCall(initial, part$, store, opts, subagentContext, shouldEmitInvocation);
+			this._setupServerToolCall(initial, part$, store, opts, subagentContext);
 		}
 	}
 
@@ -3560,11 +3516,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		part$: IObservable<ToolCallResponsePart>,
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
-		shouldEmitInvocation: boolean,
 	): void {
-		const toolCallId = initial.toolCallId;
-		const adopted = opts.adoptInvocations?.get(toolCallId);
-		const invocation = adopted ?? toolCallStateToInvocation(
+		const invocation = toolCallStateToInvocation(
 			initial,
 			opts.subAgentInvocationId,
 			opts.backendSession,
@@ -3572,9 +3525,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			opts.sessionResource.authority,
 			this._otherClientToolInvocationOptions(opts.backendSession, opts.chatURI, opts.turnId),
 		);
-		if (!adopted && shouldEmitInvocation) {
-			opts.sink([invocation]);
-		}
+		opts.sink([invocation]);
 
 		store.add(autorun(reader => {
 			const toolCall = part$.read(reader).toolCall;
@@ -3633,11 +3584,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 		subagentContext: ISubagentContext,
-		shouldEmitInvocation: boolean,
 	): void {
 		const toolCallId = initial.toolCallId;
 		const subAgentInvocationId = opts.subAgentInvocationId;
-		const adopted = opts.adoptInvocations?.get(toolCallId);
 		let confirmationOptions = initial.status === ToolCallStatus.PendingConfirmation ? initial.options : undefined;
 		// Tools that stream their arguments (reliably: terminal/bash commands)
 		// are first observed in `Streaming`. Represent them with a native
@@ -3645,17 +3594,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// `transitionFromStreaming` (see the autorun below), so a single card
 		// spans the whole lifecycle instead of a settled placeholder plus a
 		// separate confirmation card (#314858).
-		let invocation: ChatToolInvocation;
-		if (adopted) {
-			invocation = adopted;
-		} else {
-			invocation = initial.status === ToolCallStatus.Streaming
-				? toolCallStateToStreamingInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority)
-				: toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
-			if (shouldEmitInvocation) {
-				opts.sink([invocation]);
-			}
-		}
+		const invocation = initial.status === ToolCallStatus.Streaming
+			? toolCallStateToStreamingInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority)
+			: toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
+		opts.sink([invocation]);
 
 		// Hook up a tool first observed after it already entered confirmation.
 		if (initial.status === ToolCallStatus.PendingConfirmation && !IChatToolInvocation.isComplete(invocation)) {
@@ -3863,18 +3805,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 		subagentContext: ISubagentContext,
-		shouldEmitInvocation: boolean,
 	): void {
 		const toolCallId = initial.toolCallId;
 		const toolName = initial.toolName;
-
-		// Reconnect adoption: settle any snapshot invocation so the shared
-		// invocation can take over the UI slot rather than leaving the old
-		// instance orphaned.
-		const adopted = opts.adoptInvocations?.get(toolCallId);
-		if (adopted && !IChatToolInvocation.isComplete(adopted)) {
-			adopted.didExecuteTool(undefined);
-		}
 
 		const clientToolName = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME ? CLIENT_TOOL_SEARCH_REFERENCE_NAME : toolName;
 		const toolData = this._toolsService.getToolByName(clientToolName);
@@ -3920,9 +3853,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// The shared invocation is created with no `sessionResource`, so it
 		// does not `appendProgress` into a chat model. Emit it explicitly so it
 		// renders in this chat / subagent group (mirrors `_setupServerToolCall`).
-		if (shouldEmitInvocation) {
-			opts.sink([invocation]);
-		}
+		opts.sink([invocation]);
 
 		let confirmationDispatched = false;
 
@@ -4722,31 +4653,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		backendSession: URI,
 		turnId: string,
 		chatSession: AgentHostChatSession,
-		initialProgress: IChatProgress[],
-		initialResponsePartCount: number,
 	): void {
-		const sessionKey = backendSession.toString();
 		const chatURI = this._getChatURI(chatSession.sessionResource);
-
-		const adoptInvocations = new Map<string, ChatToolInvocation>();
-		for (const item of initialProgress) {
-			if (item instanceof ChatToolInvocation) {
-				adoptInvocations.set(item.toolCallId, item);
-			}
-		}
-
-		// Seed last-emitted markdown/reasoning lengths from the snapshot so
-		// per-part setup only emits content beyond what `activeTurnToProgress`
-		// already produced.
-		const seedEmittedLengths = new Map<string, number>();
-		const currentState = this._getSessionState(sessionKey, chatURI);
-		if (currentState?.activeTurn) {
-			for (const rp of currentState.activeTurn.responseParts) {
-				if (rp.kind === ResponsePartKind.Markdown || rp.kind === ResponsePartKind.Reasoning) {
-					seedEmittedLengths.set(rp.id, rp.content.length);
-				}
-			}
-		}
 
 		const cts = new CancellationTokenSource();
 		const reconnectStore = chatSession.registerDisposable(new DisposableStore());
@@ -4758,9 +4666,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnId,
 			sink: parts => chatSession.appendProgress(parts),
 			cancellationToken: cts.token,
-			adoptInvocations,
-			seedEmittedLengths,
-			initialResponsePartCount,
 			onTurnEnded: () => {
 				chatSession.complete();
 				reconnectStore.dispose();

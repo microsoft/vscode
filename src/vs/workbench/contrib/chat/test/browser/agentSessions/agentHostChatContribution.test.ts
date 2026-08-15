@@ -9391,6 +9391,34 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(markdownPart!.content.value, 'Partial response so far');
 		});
 
+		test('restores Auto model routing metadata before active turn response parts', async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+			]);
+			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-auto-resolution');
+			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
+			sessionState.activeTurn!.usage = {
+				model: 'gpt-5.4-mini',
+				_meta: {
+					autoModeResolved: {
+						chosenModel: 'gpt-5.4-mini',
+						predictedLabel: 'no_reasoning',
+						confidence: 0.98,
+					},
+				},
+			};
+			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-auto-resolution' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.deepStrictEqual((session.progressObs?.get() ?? [])
+				.filter(part => part.kind === 'autoModeResolution' || part.kind === 'markdownContent')
+				.map(part => part.kind), ['autoModeResolution', 'markdownContent']);
+		});
+
 		test('does not duplicate system notification progress when reconnecting', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-system-notification');
@@ -9473,7 +9501,7 @@ suite('AgentHostChatContribution', () => {
 
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-completed-tool');
 			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString(), { streamingText: 'The real fix is' });
-			// A settled tool call ahead of the partial trailing markdown, which the snapshot renders as serialized progress.
+			// A settled tool call ahead of the partial trailing markdown.
 			sessionState.activeTurn!.responseParts.unshift({
 				kind: ResponsePartKind.ToolCall,
 				toolCall: {
@@ -9514,7 +9542,7 @@ suite('AgentHostChatContribution', () => {
 						return { kind: part.kind, value: undefined };
 				}
 			}), [
-				{ kind: 'toolInvocationSerialized', value: 'tc-completed' },
+				{ kind: 'toolInvocation', value: 'tc-completed' },
 				{ kind: 'markdownContent', value: 'The real fix is' },
 				{ kind: 'markdownContent', value: ' to stop guessing.' },
 			]);
@@ -9572,7 +9600,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(toolInvocation!.toolCallId, 'tc-running');
 		});
 
-		test('adopts and updates an active streaming tool call after reconnect', async () => {
+		test('restores and updates an active streaming tool call after reconnect', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-streaming-tool');
 			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
@@ -9658,12 +9686,7 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('reconnect during streaming then confirmation renders exactly one card (#314858)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			// Reload/reconnect while a terminal tool is still streaming its
-			// arguments, then the tool requests confirmation. The reconnect
-			// snapshot must adopt a native streaming invocation so the live
-			// observer drives it in place through `transitionFromStreaming` —
-			// not an Executing placeholder that would trigger the duplicate
-			// confirmation card on `Streaming → PendingConfirmation`.
+			// The observer must restore a streaming invocation and drive it through confirmation in place.
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-stream-confirm');
