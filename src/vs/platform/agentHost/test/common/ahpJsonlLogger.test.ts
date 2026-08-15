@@ -113,6 +113,28 @@ suite('AhpJsonlLogger', () => {
 		}
 	});
 
+	test('redacts client telemetry identity metadata', () => {
+		assert.deepStrictEqual(JSON.parse(stringifyAhpLogEntry({
+			method: 'initialize',
+			params: {
+				_meta: {
+					'vscode.clientConnectionKind': 'dev_tunnel',
+					'vscode.clientMachineId': 'client-machine-id',
+					'vscode.clientDevDeviceId': 'client-dev-device-id',
+				},
+			},
+		})), {
+			method: 'initialize',
+			params: {
+				_meta: {
+					'vscode.clientConnectionKind': 'dev_tunnel',
+					'vscode.clientMachineId': '[redacted]',
+					'vscode.clientDevDeviceId': '[redacted]',
+				},
+			},
+		});
+	});
+
 	test('rotates JSONL files and keeps bounded history', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));

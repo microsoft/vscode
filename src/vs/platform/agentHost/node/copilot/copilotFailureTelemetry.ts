@@ -9,21 +9,23 @@ import type { URI } from '../../../../base/common/uri.js';
 import { packErrorForTelemetry } from '../../../telemetry/common/errorTelemetry.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
+import { toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
 
 export type CopilotClientFailureOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage' | 'startClient';
 export type CopilotClientFailureKind = 'clientNotConnected' | 'connectionClosed' | 'connectionDisposed' | 'runtimeConnectionClosed' | 'startupFailed';
 type CopilotStartupFailureCause = 'nativeModuleProcedureNotFound' | 'nativeModuleInitializationFailed' | 'nativeModuleNotFound' | 'permissionDenied' | 'timeout' | 'spawnFailed' | 'processExitedUnexpectedly' | 'processExited';
 type CopilotStartupFailureResource = 'runtime' | 'cliNative' | 'conpty' | 'sandbox' | 'other';
 
-export interface ICopilotFailureCorrelation {
+export interface ICopilotFailureCorrelation extends IAgentHostInitiatorTelemetry {
 	readonly agentSessionId?: string;
 	readonly chatSessionId?: string;
 	readonly turnId?: string;
 	readonly sdkSessionId?: string;
 }
 
-type CopilotSessionFailureCorrelation = {
+type CopilotSessionFailureCorrelation = IAgentHostInitiatorTelemetry & {
 	readonly agentSessionId: string;
 	readonly chatSessionId: string;
 	readonly turnId: string | undefined;
@@ -62,8 +64,9 @@ export function normalizeCopilotApiEndpoint(endpoint: string | undefined): Copil
 	return 'other';
 }
 
-export function createCopilotFailureCorrelation(sessionUri: URI, chatUri: URI, turnId: string | undefined, sdkSessionId: string): CopilotSessionFailureCorrelation {
+export function createCopilotFailureCorrelation(sessionUri: URI, chatUri: URI, turnId: string | undefined, sdkSessionId: string, clientContext?: IAgentHostClientTelemetryContext): CopilotSessionFailureCorrelation {
 	return {
+		...toInitiatorTelemetry(clientContext),
 		agentSessionId: AgentSession.id(sessionUri),
 		chatSessionId: getTelemetryChatSessionId(chatUri),
 		turnId: turnId || undefined,
@@ -108,7 +111,7 @@ type CopilotClientFailureEvent = ICopilotFailureCorrelation & {
 	callstack: string | undefined;
 };
 
-type CopilotClientFailureClassification = {
+type CopilotClientFailureClassification = IAgentHostInitiatorClassification & {
 	clientFailureId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier shared by detections and recovery telemetry for one Copilot client failure episode.' };
 	failureKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded category of Copilot client failure that was detected.' };
 	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Copilot provider operation that detected the client failure.' };
@@ -242,7 +245,7 @@ type CopilotClientRecoveryTurnEvent = CopilotSessionFailureCorrelation & {
 	clientFailureId: string;
 };
 
-type CopilotClientRecoveryTurnClassification = {
+type CopilotClientRecoveryTurnClassification = IAgentHostInitiatorClassification & {
 	clientFailureId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier shared by all telemetry for one Copilot client failure episode.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host chat identifier.' };
@@ -273,7 +276,7 @@ type CopilotSdkSessionErrorEvent = CopilotSessionFailureCorrelation & {
 	callstack: string | undefined;
 };
 
-type CopilotSdkSessionErrorClassification = {
+type CopilotSdkSessionErrorClassification = IAgentHostInitiatorClassification & {
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host chat identifier.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host turn identifier, when available.' };
@@ -337,7 +340,7 @@ type CopilotModelCallFailureEvent = CopilotSessionFailureCorrelation & {
 	imagePartsMissingMediaType: number | undefined;
 };
 
-type CopilotModelCallFailureClassification = {
+type CopilotModelCallFailureClassification = IAgentHostInitiatorClassification & {
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host chat identifier.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host turn identifier, when available.' };

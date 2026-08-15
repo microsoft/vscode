@@ -35,6 +35,8 @@ export interface IAgentHostClientTelemetryContext {
 	readonly connectionKind: AgentHostClientConnectionKind;
 	readonly transportKind: AgentHostTransportKind;
 	readonly hostLaunchKind: AgentHostLaunchKind;
+	readonly machineId?: string;
+	readonly devDeviceId?: string;
 }
 
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {
@@ -47,11 +49,25 @@ export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHo
 }
 
 const CLIENT_CONNECTION_KIND_META_KEY = 'vscode.clientConnectionKind';
+const CLIENT_MACHINE_ID_META_KEY = 'vscode.clientMachineId';
+const CLIENT_DEV_DEVICE_ID_META_KEY = 'vscode.clientDevDeviceId';
 
-export function toClientConnectionTelemetryMeta(connectionKind: AgentHostClientConnectionKind | undefined): Record<string, unknown> | undefined {
-	return connectionKind === undefined || connectionKind === AgentHostClientConnectionKind.Unknown
-		? undefined
-		: { [CLIENT_CONNECTION_KIND_META_KEY]: connectionKind };
+export function isClientTelemetryIdentityMetaKey(key: string): boolean {
+	return key === CLIENT_MACHINE_ID_META_KEY || key === CLIENT_DEV_DEVICE_ID_META_KEY;
+}
+
+export function toClientTelemetryMeta(connectionKind: AgentHostClientConnectionKind | undefined, machineId: string | undefined, devDeviceId: string | undefined): Record<string, unknown> | undefined {
+	const meta: Record<string, unknown> = {};
+	if (connectionKind !== undefined && connectionKind !== AgentHostClientConnectionKind.Unknown) {
+		meta[CLIENT_CONNECTION_KIND_META_KEY] = connectionKind;
+	}
+	if (machineId) {
+		meta[CLIENT_MACHINE_ID_META_KEY] = machineId;
+	}
+	if (devDeviceId) {
+		meta[CLIENT_DEV_DEVICE_ID_META_KEY] = devDeviceId;
+	}
+	return Object.keys(meta).length > 0 ? meta : undefined;
 }
 
 export function readClientConnectionKind(meta: Record<string, unknown> | undefined): AgentHostClientConnectionKind {
@@ -68,6 +84,19 @@ export function readClientConnectionKind(meta: Record<string, unknown> | undefin
 		default:
 			return AgentHostClientConnectionKind.Unknown;
 	}
+}
+
+export function readClientMachineId(meta: Record<string, unknown> | undefined): string | undefined {
+	return readClientTelemetryIdentity(meta, CLIENT_MACHINE_ID_META_KEY);
+}
+
+export function readClientDevDeviceId(meta: Record<string, unknown> | undefined): string | undefined {
+	return readClientTelemetryIdentity(meta, CLIENT_DEV_DEVICE_ID_META_KEY);
+}
+
+function readClientTelemetryIdentity(meta: Record<string, unknown> | undefined, key: string): string | undefined {
+	const value = meta?.[key];
+	return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 export function readAgentHostLaunchKind(value: string | undefined): AgentHostLaunchKind {
