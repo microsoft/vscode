@@ -410,10 +410,14 @@ export class SCMInputWidget {
 		const textModel = input.repository.provider.inputBoxTextModel;
 		this.inputEditor.setModel(textModel);
 
-		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: textModel.uri }) !== 'off') {
-			void this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', { resource: textModel.uri }, ConfigurationTarget.MEMORY);
+		const wordBasedSuggestionsOverrides = { resource: textModel.uri };
+		if (this.configurationService.getValue('editor.wordBasedSuggestions', wordBasedSuggestionsOverrides) !== 'off') {
+			const previousWordBasedSuggestions = this.configurationService.inspect('editor.wordBasedSuggestions', wordBasedSuggestionsOverrides).memoryValue;
+			void this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', wordBasedSuggestionsOverrides, ConfigurationTarget.MEMORY);
 			this.repositoryDisposables.add(toDisposable(() => {
-				void this.configurationService.updateValue('editor.wordBasedSuggestions', undefined, { resource: textModel.uri }, ConfigurationTarget.MEMORY);
+				if (this.configurationService.inspect('editor.wordBasedSuggestions', wordBasedSuggestionsOverrides).memoryValue === 'off') {
+					void this.configurationService.updateValue('editor.wordBasedSuggestions', previousWordBasedSuggestions, wordBasedSuggestionsOverrides, ConfigurationTarget.MEMORY);
+				}
 			}));
 		}
 
