@@ -1,4 +1,4 @@
-# Copilot Agent Runtime — Customization Surface Spec
+# Copilot Agent Runtime â Customization Surface Spec
 
 > **Purpose:** Definitive reference for every customization mechanism that affects agent behavior when a user sends a message. Intended for building a UI that collects all customizations into a single view.
 >
@@ -20,7 +20,7 @@ System-prompt additions that shape how the agent responds. Multiple sources are 
 
 ### 1.1 Repo-Level Instruction Files
 
-Each pattern is defined in `src/helpers/repo-helpers.ts` → `instructionPatterns`:
+Each pattern is defined in `src/helpers/repo-helpers.ts` â `instructionPatterns`:
 
 | Convention | File Pattern | Notes |
 |------------|-------------|-------|
@@ -66,8 +66,8 @@ Feature-gated via `enableChildInstructions` option.
 
 | Source | Mechanism |
 |--------|-----------|
-| Env var | `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` — comma-separated list of additional directories to scan |
-| Organization | `RuntimeContext.organizationCustomInstructions` — injected at runtime via API (not file-based) |
+| Env var | `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` â comma-separated list of additional directories to scan |
+| Organization | `RuntimeContext.organizationCustomInstructions` â injected at runtime via API (not file-based) |
 
 ### 1.7 Merge Order
 
@@ -76,7 +76,7 @@ Instructions are concatenated in this order (all additive):
 1. User global (`~/.copilot/copilot-instructions.md`)
 2. Repo-level instruction files (all patterns above)
 3. VSCode-style instruction files (repo, then user)
-4. CWD-specific overrides (when cwd ≠ repo root)
+4. CWD-specific overrides (when cwd â  repo root)
 5. Child/nested instructions
 6. Organization instructions (API-injected)
 
@@ -107,7 +107,7 @@ Each skill is a directory containing a `SKILL.md` file with YAML frontmatter:
 ```
 .github/skills/
   my-skill/
-    SKILL.md       ← markdown with frontmatter
+    SKILL.md       â markdown with frontmatter
 ```
 
 Or a flat `SKILL.md` directly in the skills directory (single-skill mode).
@@ -118,7 +118,7 @@ Or a flat `SKILL.md` directly in the skills directory (single-skill mode).
 ---
 name: skill-name                      # Optional; derived from folder name if absent
 description: "What this skill does"   # Optional; derived from first 3 lines of body
-allowed-tools: grep,view              # Comma-separated tool whitelist (optional)
+allowed-tools: grep,view              # Comma-separated tool allowlist (optional)
 user-invocable: true                  # Whether user can invoke via slash command (default: true)
 disable-model-invocation: false       # Whether model can invoke autonomously (default: false)
 ---
@@ -137,7 +137,7 @@ A variant of skills, loaded from `.claude/commands/` only.
 | Project | `{repo}/.claude/commands/*.md` | `loader.ts` getCommandDirectories |
 | User | `~/.claude/commands/*.md` | `loader.ts` getCommandDirectories |
 
-**Note:** Commands use only the `.claude/` convention — not `.github/` or `.agents/`.
+**Note:** Commands use only the `.claude/` convention â not `.github/` or `.agents/`.
 
 Any `.md` file in the directory is treated as a command. Same frontmatter schema as skills. Treated internally as skills with `isCommand: true`. Skills take priority over commands on name conflicts.
 
@@ -170,7 +170,7 @@ Sub-agent definitions available via the task tool or direct user selection.
 name: agent-name
 displayName: "Human-Readable Name"
 description: "What this agent does"
-tools: ["*"]                          # or ["tool1", "tool2"] — required
+tools: ["*"]                          # or ["tool1", "tool2"] â required
 model: claude-sonnet-4-20250514                  # Optional model override
 disableModelInvocation: false         # Cannot be auto-invoked as a tool
 userInvocable: true                   # User can select it
@@ -244,7 +244,7 @@ Scripts that execute at specific agent lifecycle events, with the ability to app
 | Config dirs | `{configDir}/**/*.json` | `hookConfigLoader.ts` |
 | Plugins | `{pluginRoot}/hooks.json` | `hooks.ts` |
 | Plugins (alt) | `{pluginRoot}/hooks/hooks.json` | `hooks.ts` |
-| Plugin manifest | Inline in `plugin.json` → `hooks` field (object) | `hooks.ts` |
+| Plugin manifest | Inline in `plugin.json` â `hooks` field (object) | `hooks.ts` |
 
 ### 6.2 Hook Events
 
@@ -317,40 +317,40 @@ The base directory name is always `.copilot` (`APP_DIRECTORY` in `path-helpers.t
 
 ```
 Message received
- │
- ├─ Feature flags resolved
- │   ├─ Tier defaults
- │   ├─ config.json → feature_flags.enabled
- │   └─ Env vars (COPILOT_CLI_ENABLED_FEATURE_FLAGS, individual)
- │
- ├─ System prompt assembled
- │   ├─ Base agent prompt
- │   ├─ User instructions      ~/.copilot/copilot-instructions.md
- │   ├─ Repo instructions       .github/copilot-instructions.md, AGENTS.md, CLAUDE.md, GEMINI.md
- │   ├─ VSCode instructions     .github/instructions/**/*.instructions.md
- │   ├─ CWD instructions        (when cwd ≠ repo root)
- │   ├─ Child instructions      (depth=2 traversal)
- │   └─ Org instructions        (API-injected)
- │
- ├─ Tools assembled
- │   ├─ Built-in tools
- │   ├─ MCP servers             ~/.copilot/mcp-config.json + .mcp.json + .vscode/mcp.json + plugins
- │   └─ Content exclusion       (org API restrictions applied)
- │
- ├─ Skills listed               .github/skills/ + .agents/skills/ + .claude/skills/ + personal + plugins
- ├─ Commands listed             .claude/commands/ + personal
- ├─ Custom agents listed        .github/agents/ + .claude/agents/ + personal + plugins
- │
- ├─ userPromptSubmitted hooks fire
- │
- ├─ Model selected              config.json → model, agent override, or default
- │
- ├─ For each tool call:
- │   ├─ preToolUse hooks        (allow / deny / modify)
- │   ├─ Permission check
- │   ├─ Firewall policy
- │   ├─ Tool executes
- │   └─ postToolUse hooks       (modify result)
- │
- └─ Session telemetry emitted
+ â
+ ââ Feature flags resolved
+ â   ââ Tier defaults
+ â   ââ config.json â feature_flags.enabled
+ â   ââ Env vars (COPILOT_CLI_ENABLED_FEATURE_FLAGS, individual)
+ â
+ ââ System prompt assembled
+ â   ââ Base agent prompt
+ â   ââ User instructions      ~/.copilot/copilot-instructions.md
+ â   ââ Repo instructions       .github/copilot-instructions.md, AGENTS.md, CLAUDE.md, GEMINI.md
+ â   ââ VSCode instructions     .github/instructions/**/*.instructions.md
+ â   ââ CWD instructions        (when cwd â  repo root)
+ â   ââ Child instructions      (depth=2 traversal)
+ â   ââ Org instructions        (API-injected)
+ â
+ ââ Tools assembled
+ â   ââ Built-in tools
+ â   ââ MCP servers             ~/.copilot/mcp-config.json + .mcp.json + .vscode/mcp.json + plugins
+ â   ââ Content exclusion       (org API restrictions applied)
+ â
+ ââ Skills listed               .github/skills/ + .agents/skills/ + .claude/skills/ + personal + plugins
+ ââ Commands listed             .claude/commands/ + personal
+ ââ Custom agents listed        .github/agents/ + .claude/agents/ + personal + plugins
+ â
+ ââ userPromptSubmitted hooks fire
+ â
+ ââ Model selected              config.json â model, agent override, or default
+ â
+ ââ For each tool call:
+ â   ââ preToolUse hooks        (allow / deny / modify)
+ â   ââ Permission check
+ â   ââ Firewall policy
+ â   ââ Tool executes
+ â   ââ postToolUse hooks       (modify result)
+ â
+ ââ Session telemetry emitted
 ```
