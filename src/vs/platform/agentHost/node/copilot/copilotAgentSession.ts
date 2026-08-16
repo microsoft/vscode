@@ -625,16 +625,12 @@ export class CopilotAgentSession extends Disposable {
 	get ownerSessionUri(): URI { return this._ownerSessionUri; }
 	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
 	get sessionUri(): URI { return this.resourceUri; }
-	private _chatChannelUri: URI;
+	private readonly _chatChannelUri: URI;
 	/** Fixed persistence scope for this chat; never re-derived from the mutable routing channel. Config reads/writes must use {@link _ownerSessionUri} instead — peer chats share that scope but have distinct storage. */
 	private readonly _storageUri: URI;
 
 	get chatChannelUri(): URI {
 		return this._chatChannelUri;
-	}
-
-	bindChatChannel(chatChannelUri: URI): void {
-		this._chatChannelUri = chatChannelUri;
 	}
 
 	/** Working directory this session operates in, if any. */
@@ -954,9 +950,7 @@ export class CopilotAgentSession extends Disposable {
 			return sourceUri === undefined ? [] : plugin.mcpServers.map(server => [server.name, sourceUri.toString()] as const);
 		}));
 		this._mcpCustomizations = this._register(this._instantiationService.createInstance(McpCustomizationController, {
-			providerId: this.resourceUri.scheme,
-			sessionId: this.sessionId,
-			sessionUri: this.resourceUri,
+			chatUri: this._chatChannelUri,
 			emit: action => this._emitAction(action),
 			pluginMcpServerSources: () => pluginMcpServerSources,
 			resolveEnablement: (server, owningPluginUri) => {
@@ -2440,7 +2434,7 @@ export class CopilotAgentSession extends Disposable {
 		} catch {
 			// Database may not exist yet — that's fine
 		}
-		const result = await mapSessionEvents(this._storageUri, db, events, {
+		const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, {
 			workingDirectory: this._workingDirectory,
 			model: this._launchPlan.kind === 'create'
 				? this._launchPlan.model

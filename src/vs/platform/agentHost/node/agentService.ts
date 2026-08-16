@@ -959,8 +959,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider || !provider.handleMcpRequest) {
 			throw new Error(`Method not found: no provider for mcp:// channel ${channel}`);
 		}
-		const sessionUri = AgentSession.uri(route.providerId, route.sessionId);
-		return provider.handleMcpRequest(sessionUri, route.serverName, method, params);
+		return provider.handleMcpRequest(route.chatUri, route.serverName, method, params);
 	}
 
 	// ---- session management -------------------------------------------------

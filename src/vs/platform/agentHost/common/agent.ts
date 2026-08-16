@@ -1145,8 +1145,8 @@ export interface IAgent {
 	/** Optional lifecycle operation paired with {@link startMcpServer}. */
 	stopMcpServer?(session: URI, id: string): Promise<void>;
 
-	/** Optional `mcp://` router for providers that advertise MCP side-channel resources. */
-	handleMcpRequest?(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+	/** Optional `mcp://` router for providers that advertise chat-scoped MCP side-channel resources. */
+	handleMcpRequest?(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	/** Optional notification stream paired with {@link handleMcpRequest}. */
 	readonly onMcpNotification?: Event<IMcpNotification>;

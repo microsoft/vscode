@@ -6808,7 +6808,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					mcpCalls,
-					mcpRequest: await agent.handleMcpRequest(session, 'srv', 'tools/list', undefined),
+					mcpRequest: await agent.handleMcpRequest(defaultChatUri(session), 'srv', 'tools/list', undefined),
 					customizations: await getDefaultChatCustomizations(agent, session),
 					// Constructing the agent never touched the state manager.
 					sessions: stateManager.getSessionUris().length,
@@ -6823,15 +6823,11 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('session-addressed lookups resolve the session-backed chat by its host-chosen scope, not a rebuilt default-chat URI', async () => {
+		test('MCP requests route to the exact host chat instead of the owning session', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'scope-resolved-session');
-				// Bound to a NON-default chat URI with an SDK id unrelated to
-				// the AH session id: neither `buildDefaultChatUri(session)` nor
-				// an `AgentSession.id(session)` SDK lookup would find it. Only
-				// the host-chosen persistence scope (`resourceUri === session`)
-				// identifies it as the session-backed chat.
+				// The Agent Host session id, chat id, and SDK id intentionally differ.
 				const boundChat = URI.parse(buildChatUri(session, 'host-picked'));
 				setLiveChatStub(agent, 'unrelated-sdk-id', {
 					sessionId: 'unrelated-sdk-id',
@@ -6844,19 +6840,19 @@ suite('CopilotAgent', () => {
 					dispose: () => { },
 				}, boundChat);
 
-				assert.strictEqual(await agent.handleMcpRequest(session, 'srv', 'tools/call', undefined), 'srv/tools/call');
+				assert.strictEqual(await agent.handleMcpRequest(boundChat, 'srv', 'tools/call', undefined), 'srv/tools/call');
 			} finally {
 				await disposeAgent(agent);
 			}
 		});
 
-		test('handleMcpRequest rejects when the session has no live session-backed chat', async () => {
+		test('handleMcpRequest rejects when the exact chat has no live runtime', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'no-live-chat');
 				await assert.rejects(
-					() => agent.handleMcpRequest(session, 'srv', 'tools/list', undefined),
-					/Method not found: no active session no-live-chat/,
+					() => agent.handleMcpRequest(defaultChatUri(session), 'srv', 'tools/list', undefined),
+					/Method not found: no active chat/,
 				);
 			} finally {
 				await disposeAgent(agent);
@@ -9196,7 +9192,7 @@ suite('CopilotAgent', () => {
 			const sharedTool: ToolDefinition = { name: 'shared', description: 'Shared tool', inputSchema: { type: 'object', properties: {} } };
 			// Both clients provide the tool; the host fans A out to this chat
 			// and B out to a different one only.
-			agent.getOrCreateActiveClient(session, session, { clientId: 'client-A' }).tools = [sharedTool];
+			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-A' }).tools = [sharedTool];
 			agent.getOrCreateActiveClient(otherChat, session, { clientId: 'client-B' }).tools = [sharedTool];
 
 			const mockSession = new MockCopilotSession();

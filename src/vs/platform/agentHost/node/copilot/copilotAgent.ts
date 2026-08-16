@@ -1283,10 +1283,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return applyMcpServerEnablement(customizations, this._retainedHostCustomizations(session));
 	}
 
-	async handleMcpRequest(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
-		const entry = this._findSessionChat(session);
+	async handleMcpRequest(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const entry = this._findChatByUri(chat);
 		if (!entry) {
-			throw new Error(`Method not found: no active session ${AgentSession.id(session)}`);
+			throw new Error(`Method not found: no active chat ${chat.toString()}`);
 		}
 		return entry.handleMcpRequest(serverName, method, params);
 	}
@@ -2925,7 +2925,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
 				workspaceless: provisional.workspaceless,
 			};
-			const chatChannelUri = this._findBoundSessionChatUri(sdkSessionId) ?? sessionUri;
+			const chatChannelUri = this._findBoundSessionChatUri(sdkSessionId) ?? URI.parse(buildDefaultChatUri(sessionUri));
 			agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient, {
 				sessionUri,
 				chatChannelUri,
@@ -4134,7 +4134,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Instantiates a session; the caller must initialize and register it on success. */
 	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity?: ICopilotAgentSessionIdentity): CopilotAgentSession {
 		const sessionUri = identity?.sessionUri ?? AgentSession.uri(this.id, launchPlan.sessionId);
-		const chatChannelUri = identity?.chatChannelUri ?? this._findBoundSessionChatUri(launchPlan.sessionId) ?? sessionUri;
+		const chatChannelUri = identity?.chatChannelUri ?? this._findBoundSessionChatUri(launchPlan.sessionId) ?? URI.parse(buildDefaultChatUri(sessionUri));
 
 		const agentSession = this._instantiationService.createInstance(
 			CopilotAgentSession,
@@ -4151,7 +4151,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
 				activeClientToolSet: launchPlan.activeClientToolSet,
-				// Evaluate membership against the session's current chat channel; `bindChatChannel` can move it later.
+				// Evaluate membership against the session's chat channel.
 				clientReachesChat: (clientId, chat) => activeClient.contributesTo(clientId, chat.toString()),
 				// MCP reconcile has no host call of its own, so read the retained host snapshot lazily.
 				hostCustomizations: () => this._retainedHostCustomizations(sessionUri),
@@ -4211,7 +4211,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._throwIfClientReplaced(client, agentSession);
 		const boundChat = this._findBoundSessionChatUri(sessionId);
 		if (boundChat) {
-			agentSession.bindChatChannel?.(boundChat);
 			this._registerLiveChat(boundChat, agentSession, activeClient);
 			return;
 		}
