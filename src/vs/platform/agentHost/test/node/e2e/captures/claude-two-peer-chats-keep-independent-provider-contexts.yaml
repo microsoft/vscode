@@ -1,0 +1,59 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word ALPHA_PEER. Reply exactly "ready".
+    response:
+      content: |-
+        I'll remember the code word ALPHA_PEER.
+
+        ready
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word BETA_PEER. Reply exactly "ready".
+    response:
+      content: |-
+        I'll remember the code word BETA_PEER.
+
+        ready
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word ALPHA_PEER. Reply exactly "ready".
+        - role: assistant
+          content: |-
+            I'll remember the code word ALPHA_PEER.
+
+            ready
+        - role: user
+          content: Reply exactly "first".
+    response:
+      content: first
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word BETA_PEER. Reply exactly "ready".
+        - role: assistant
+          content: |-
+            I'll remember the code word BETA_PEER.
+
+            ready
+        - role: user
+          content: Reply exactly "second".
+    response:
+      content: second
+      stopReason: end_turn

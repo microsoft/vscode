@@ -1519,13 +1519,30 @@ export class DebugModel extends Disposable implements IDebugModel {
 		return this.sessions.filter(s => includeInactive || s.state !== State.Inactive);
 	}
 
+	private shouldDisposeSession(session: IDebugSession, newSession: IDebugSession): boolean {
+		if (session.state !== State.Inactive) {
+			return false;
+		}
+		if (session.configuration.name === newSession.configuration.name) {
+			return true;
+		}
+		if (newSession.parentSession) {
+			return false;
+		}
+		let rootSession = session;
+		while (rootSession.parentSession) {
+			rootSession = rootSession.parentSession;
+		}
+		return rootSession.state === State.Inactive && rootSession.configuration.name === newSession.configuration.name;
+	}
+
 	addSession(session: IDebugSession): void {
 		this.sessions = this.sessions.filter(s => {
 			if (s.getId() === session.getId()) {
 				// Make sure to de-dupe if a session is re-initialized. In case of EH debugging we are adding a session again after an attach.
 				return false;
 			}
-			if (s.state === State.Inactive && s.configuration.name === session.configuration.name) {
+			if (this.shouldDisposeSession(s, session)) {
 				// Make sure to remove all inactive sessions that are using the same configuration as the new session
 				s.dispose();
 				return false;

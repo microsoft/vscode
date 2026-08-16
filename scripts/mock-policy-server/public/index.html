@@ -1,0 +1,128 @@
+<!--
+	Copyright (c) Microsoft Corporation. All rights reserved.
+	Licensed under the MIT License. See License.txt in the project root for license information.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Mock Policy Server</title>
+	<link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+	<header>
+		<div class="header-content">
+			<h1>Mock Policy Server</h1>
+			<button id="clear-cache" type="button" class="btn-warn">Clear Policy Cache</button>
+		</div>
+	</header>
+
+	<main>
+		<section class="editor-panel">
+			<div class="tabs-header">
+				<nav id="tabs" class="tabs" aria-label="Policy endpoints"></nav>
+			</div>
+
+			<div class="content-section">
+				<p id="endpoint-meta" class="endpoint-meta"></p>
+
+				<div class="form-group">
+					<label for="preset">Preset</label>
+					<select id="preset"></select>
+				</div>
+
+				<div class="form-group">
+					<label for="response-status">HTTP status code</label>
+					<input id="response-status" class="status-code-input" type="number" min="200" max="599" step="1"
+						inputmode="numeric" aria-describedby="response-status-validation">
+					<p id="response-status-validation" class="status" aria-live="polite"></p>
+				</div>
+
+				<div id="schema-section" class="section-block" hidden>
+					<h2 class="schema-heading">
+						<button type="button" class="section-header section-header-toggle" id="schema-toggle"
+							aria-expanded="false" aria-controls="schema-details">
+							<span class="chevron" id="schema-chevron" aria-hidden="true">&#9654;</span>
+							<span>Schema</span>
+							<span id="schema-badge" class="schema-badge" data-tooltip="">&hellip;</span>
+						</button>
+					</h2>
+					<div id="schema-details" class="schema-details" hidden>
+						<span class="label-small">Schema source</span>
+						<code id="schema-source" class="block"></code>
+						<button id="hydrate-schema" type="button" class="btn-secondary">Generate Example</button>
+					</div>
+				</div>
+
+				<div class="form-group">
+					<div class="label-row">
+						<label for="editor">Response body (JSON)</label>
+						<span id="save-state" class="save-state" aria-live="polite"></span>
+					</div>
+					<textarea id="editor" spellcheck="false" autocomplete="off"
+						aria-describedby="editor-status"></textarea>
+					<p id="editor-status" class="status" aria-live="polite"></p>
+					<div id="validation-results" hidden></div>
+				</div>
+			</div>
+		</section>
+
+		<aside class="sidebar-panel">
+			<div class="section-block">
+				<div class="section-header">
+					<h2>Live requests</h2>
+					<button id="clear-log" type="button" class="btn-link">Clear</button>
+				</div>
+				<p id="log-empty" class="helper-text">No requests yet.</p>
+				<ul id="log" class="log"></ul>
+			</div>
+
+			<div class="section-block">
+				<div class="section-header">
+					<h2>Code OSS Overrides</h2>
+					<button type="button" class="info-button"
+						aria-label="About Code OSS overrides"
+						data-tooltip="Code OSS from sources only. Writes product.overrides.json; reload after applying or restoring. Does not redirect the independent Agent Runtime Resolution probe.">&#9432;</button>
+				</div>
+				<div class="status-box">
+					<span class="label-small">Status</span>
+					<strong id="wired-status">&hellip;</strong>
+				</div>
+				<button id="overrides-action" type="button" class="btn-primary btn-full">Apply Overrides</button>
+			</div>
+
+			<div class="section-block">
+				<div class="section-header">
+					<h2>System Proxy</h2>
+					<button type="button" class="info-button"
+						aria-label="About system proxy setup"
+						data-tooltip="Redirects policy requests for VS Code, Copilot SDK sessions, and Agent Runtime Resolution. After clearing the policy cache, run Developer: Restart Local Agent Host.">&#9432;</button>
+				</div>
+				<div class="kv">
+					<span class="label-small">Map from</span>
+					<code id="map-from" class="block"></code>
+				</div>
+				<div class="kv">
+					<span class="label-small">Map to</span>
+					<code id="map-to" class="block"></code>
+				</div>
+				<button id="copy-map" type="button" class="btn-secondary btn-full">Copy Mapping</button>
+				<div class="kv">
+					<span class="label-small">VS Code settings.json</span>
+					<code id="proxy-settings" class="block settings-json"></code>
+				</div>
+				<button id="copy-proxy-settings" type="button" class="btn-secondary btn-full">Copy VS Code Setting</button>
+			</div>
+		</aside>
+	</main>
+
+	<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+	<script src="./endpoints.js"></script>
+	<script src="./app.js"></script>
+</body>
+
+</html>

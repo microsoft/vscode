@@ -106,7 +106,8 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			this.provideScreenReaderStatus(content);
 		}
 
-		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon(), this.toolInvocation, shouldShimmerForTool(this.toolInvocation));
+		const shouldShimmer = shouldShimmerForTool(this.toolInvocation, content);
+		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, shouldShimmer ? true : undefined, true, this.getProgressIcon(), this.toolInvocation, shouldShimmer);
 	}
 
 	private getAnnouncementKey(kind: 'progress' | 'complete'): string {

@@ -16,7 +16,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
-import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, getContentWidth } from '../../../base/browser/dom.js';
+import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -83,14 +83,12 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
+	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
 
 	get leftContainer(): HTMLElement { return this.leftContent; }
 	get rightContainer(): HTMLElement { return this.rightContent; }
 	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
 
-	private sideBarPartResizeObserver: ResizeObserver | undefined;
-	private leftToolbarContentWidth: number = 0;
-	private lastSideBarWidth: number = 0;
 	private leftSpacerWidth: number = 0;
 
 	private readonly titleBarStyle: TitlebarStyle;
@@ -181,7 +179,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				this._register(onDidChangeFullscreen(windowId => {
 					if (windowId === getWindowId(mainWindow)) {
 						updateSpacerVisibility();
-						this.updateLeftContentWidth();
 					}
 				}));
 			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
@@ -200,17 +197,23 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Left toolbar (driven by Menus.TitleBarLeft, rendered after window controls via CSS order)
 		this.leftToolbarContainer = append(this.leftContent, $('div.left-toolbar-container'));
-		const leftToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.leftToolbarContainer, Menus.TitleBarLeftLayout, {
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.leftToolbarContainer, Menus.TitleBarLeftLayout, {
 			contextMenu: Menus.TitleBarContext,
 			telemetrySource: 'titlePart.left',
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
 		}));
-		this.leftToolbarContentWidth = getContentWidth(this.leftToolbarContainer);
-		this.updateLeftContentWidth();
-		this._register(leftToolbar.onDidChangeMenuItems(() => {
-			this.leftToolbarContentWidth = getContentWidth(this.leftToolbarContainer);
-			this.updateLeftContentWidth();
+
+		// Center section: [nav toolbar] [command center box] [actions toolbar]
+		// All live inside .titlebar-center so the cluster is window-centered.
+
+		// Navigation toolbar (Back/Forward), rendered left of the command center.
+		const centerNavContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-nav-container'));
+		const centerNavToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerNavContainer, Menus.TitleBarCenterLeft, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.centerLeft',
+			toolbarOptions: { primaryGroup: () => true },
 		}));
 
 		// Center toolbar - command center (renders session picker via IActionViewItemService)
@@ -229,9 +232,18 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			}
 		}));
 
+		// Actions toolbar (Open in VS Code), rendered right of the command center.
+		const centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
+		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.centerRight',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
 		// Right toolbar (driven by Menus.TitleBarRightLayout - includes layout actions)
 		const rightToolbarContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-right-layout-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRightLayout, {
+		const rightToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRightLayout, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.right',
@@ -240,12 +252,27 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Session title actions toolbar (before right toolbar)
 		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
+		const sessionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.sessionActions',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
+
+		// Update toolbar (leftmost in the right-side controls)
+		const updateToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-update-container'));
+		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.update',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
+		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
+		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
+		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
+		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
+		this.registerOverflowManagedToolBar(updateToolBarElement, updateToolBar);
 
 		// Context menu on the titlebar
 		this._register(addDisposableListener(this.rootContainer, EventType.CONTEXT_MENU, e => {
@@ -296,36 +323,37 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	override layout(width: number, height: number): void {
 		this.updateLayout();
 		super.layoutContents(width, height);
-		this.installSideBarPartResizeObserver();
+		this.updateTitleBarToolBarOverflow();
 	}
 
-	private installSideBarPartResizeObserver(): void {
-		if (this.sideBarPartResizeObserver) {
+	private registerOverflowManagedToolBar(element: HTMLElement, toolBar: MenuWorkbenchToolBar): void {
+		this.overflowManagedToolBarElements.push(element);
+		this._register(toolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
+	}
+
+	private updateTitleBarToolBarOverflow(): void {
+		for (const element of this.overflowManagedToolBarElements) {
+			element.classList.remove('overflowing');
+		}
+
+		if (this.rootContainer.clientWidth === 0) {
 			return;
 		}
 
-		const sideBarContainer = this.layoutService.getContainer(getWindow(this.element), Parts.SIDEBAR_PART);
-		if (!sideBarContainer) {
-			return;
-		}
+		for (const element of this.overflowManagedToolBarElements) {
+			if (!this.isTitleBarOverflowing()) {
+				return;
+			}
 
-		this.sideBarPartResizeObserver = new ResizeObserver(entries => {
-			this.lastSideBarWidth = entries[0].contentRect.width;
-			this.updateLeftContentWidth();
-		});
-		this.sideBarPartResizeObserver.observe(sideBarContainer);
-		this._register({ dispose: () => this.sideBarPartResizeObserver?.disconnect() });
+			if (!element.classList.contains('has-no-actions')) {
+				element.classList.add('overflowing');
+			}
+		}
 	}
 
-	private getLeftContentWidth(): number {
-		if (this.leftToolbarContentWidth === 0) {
-			this.leftToolbarContentWidth = getContentWidth(this.leftToolbarContainer);
-		}
-		return this.leftToolbarContentWidth + this.leftSpacerWidth;
-	}
-
-	private updateLeftContentWidth(): void {
-		this.leftContent.style.width = `${Math.max(this.getLeftContentWidth(), this.lastSideBarWidth)}px`;
+	private isTitleBarOverflowing(): boolean {
+		return [this.rootContainer, this.leftContent, this.centerContent, this.rightContent]
+			.some(element => element.scrollWidth > element.clientWidth);
 	}
 
 	private updateLayout(): void {

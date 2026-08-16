@@ -14,6 +14,7 @@ import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { CopilotToken, ExtendedTokenInfo, TokenErrorNotificationId, TokenInfoOrError } from '../common/copilotToken';
+import { ErrorNoTelemetry } from '../../../util/vs/base/common/errors';
 import { nowSeconds } from '../common/copilotTokenManager';
 import { BaseCopilotTokenManager } from '../node/copilotTokenManager';
 import { getAnyAuthSession } from './session';
@@ -27,7 +28,7 @@ export class ContactSupportError extends Error { }
 export class EnterpriseManagedError extends Error { }
 export class InvalidTokenError extends Error { }
 export class RateLimitedError extends Error { }
-export class GitHubLoginFailedError extends Error { }
+export class GitHubLoginFailedError extends ErrorNoTelemetry { }
 
 export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
 	private _taskSingler = new TaskSingler<TokenInfoOrError>();

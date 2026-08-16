@@ -718,7 +718,7 @@ _All Open Questions resolved during the grilling pass and the second council rev
 - Unit: `./scripts/test.sh --run src/vs/platform/agentHost/test/node/claudeJsonSchemaToZod.test.ts`
 - Unit: `./scripts/test.sh --run src/vs/platform/agentHost/test/node/claudeToolUseIdBridge.test.ts`
 - Integration (test runner): `./scripts/test.sh --run src/vs/platform/agentHost/test/node/claudeAgent.test.ts`
-- Type-check: `npm run compile-check-ts-native`
+- Type-check: `npm run typecheck-client`
 - Layer check: `npm run valid-layers-check`
 
 ### E2E

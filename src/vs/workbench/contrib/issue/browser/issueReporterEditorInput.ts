@@ -8,6 +8,7 @@ import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorI
 import { EditorInputCapabilities } from '../../../common/editor.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IssueReporterData } from '../common/issue.js';
+import { IScreenshot } from './issueReporterOverlay.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -24,6 +25,14 @@ export class IssueReporterEditorInput extends EditorInput {
 
 	/** Set by the editor pane to check if user has entered data */
 	hasUserInputFn: (() => boolean) | undefined;
+
+	/**
+	 * Captured screenshots/recordings mirrored from the wizard so they survive the
+	 * editor moving between the main editor area and a modal editor part in the
+	 * Agents Window (which rebuilds the wizard).
+	 */
+	savedScreenshots: readonly IScreenshot[] | undefined;
+	savedRecordings: readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] | undefined;
 
 	override readonly closeHandler: IEditorCloseHandler;
 

@@ -278,15 +278,23 @@ export function fromVsix(vsixPath: string, { name: extensionName, version, sha25
 }
 
 
-export function fromGithub({ name, version, repo, sha256, metadata }: IExtensionDefinition): Stream {
-	fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
+export function fromGithub({ name, version, repo, sha256, metadata }: IExtensionDefinition, options?: { asset?: { assetName: string; sha256: string }; latest?: boolean }): Stream {
+	const asset = options?.asset;
+	const latest = options?.latest ?? false;
+	fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${latest ? 'latest' : version}`), asset ? ansiColors.gray(`(${asset.assetName})`) : '', '...');
+	if (latest) {
+		fancyLog(ansiColors.yellow(`Warning: skipping checksum validation for ${name} (downloading latest release, no pinned checksum available)`));
+	}
 
 	const packageJsonFilter = filter('package.json', { restore: true });
 
 	return fetchGithub(new URL(repo).pathname, {
 		version,
-		name: name => name.endsWith('.vsix'),
-		checksumSha256: sha256
+		name: asset ? asset.assetName : name => name.endsWith('.vsix'),
+		// The checksum is tied to a specific version; when resolving the latest release the
+		// downloaded asset differs, so it cannot be validated against the pinned checksum.
+		checksumSha256: latest ? undefined : (asset ? asset.sha256 : sha256),
+		latest
 	})
 		.pipe(buffer())
 		.pipe(vinylZip.src())
@@ -622,6 +630,7 @@ const esbuildMediaScripts: { script: string; tsconfig: string }[] = [
 	{ script: 'ipynb/esbuild.notebook.mts', tsconfig: 'ipynb/notebook-src/tsconfig.json' },
 	{ script: 'markdown-language-features/esbuild.notebook.mts', tsconfig: 'markdown-language-features/notebook/tsconfig.json' },
 	{ script: 'markdown-language-features/esbuild.webview.mts', tsconfig: 'markdown-language-features/preview-src/tsconfig.json' },
+	{ script: 'markdown-language-features/esbuild.markdownEditor.mts', tsconfig: 'markdown-language-features/markdown-editor-src/tsconfig.json' },
 	{ script: 'markdown-math/esbuild.notebook.mts', tsconfig: 'markdown-math/notebook/tsconfig.json' },
 	{ script: 'mermaid-markdown-features/esbuild.webview.mts', tsconfig: 'mermaid-markdown-features/preview-src/tsconfig.json' },
 	{ script: 'notebook-renderers/esbuild.notebook.mts', tsconfig: 'notebook-renderers/tsconfig.json' },

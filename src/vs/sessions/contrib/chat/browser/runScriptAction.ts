@@ -30,7 +30,8 @@ import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ActiveSessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
@@ -130,6 +131,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionsTasksService private readonly _sessionsConfigService: ISessionsTasksService,
@@ -157,7 +159,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						&& t1.task.runOptions?.runOn === t2.task.runOptions?.runOn);
 			}
 		}, reader => {
-			const activeSession = this._sessionManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}
@@ -177,7 +179,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	private _registerActionViewItemProvider(): void {
 		const that = this;
 		this._register(this._actionViewItemService.register(
-			Menus.TitleBarSessionMenu,
+			Menus.TitleBarCenterRight,
 			RunScriptDropdownMenuId,
 			(action, options, instantiationService) => {
 				if (!(action instanceof SubmenuItemAction)) {
@@ -282,7 +284,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						id: GENERATE_RUN_ACTION_ID,
 						title: localize2('generateRunAction', "Generate New Task..."),
 						category: SessionsCategories.Sessions,
-						precondition: ActiveSessionWorkspaceIsVirtualContext.toNegated(),
+						precondition: SessionWorkspaceIsVirtualContext.toNegated(),
 						menu: [{
 							id: RunScriptDropdownMenuId,
 							group: tasks.length === 0 ? 'navigation' : '1_configure',
@@ -575,6 +577,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			{
 				actionProvider: { getActions: () => this._getDropdownActions() },
 				showItemKeybindings: true,
+				listOptions: { className: 'compact-icons' },
 			},
 			this._actionWidgetService,
 			this._keybindingService,
@@ -720,7 +723,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 				hover: {
 					content: localize('runActionTooltip', "Run '{0}' in terminal", getTaskDisplayLabel(task)),
 				},
-				icon: Codicon.play,
+				icon: Codicon.runCompact,
 				enabled: true,
 				class: undefined,
 				category: isWorktreeTask ? worktreeCategory : defaultCategory,
@@ -742,7 +745,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					? localize('addActionTooltip', "Add a new task")
 					: localize('addActionTooltipDisabled', "Cannot add tasks to this session because workspace storage is unavailable"),
 			},
-			icon: Codicon.add,
+			icon: Codicon.addCompact,
 			enabled: canConfigure,
 			class: undefined,
 			category: tasksCategory,
@@ -763,7 +766,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			hover: {
 				content: localize('generateRunActionTooltip', "Generate a new workspace task"),
 			},
-			icon: Codicon.sparkle,
+			icon: Codicon.sparkleCompact,
 			enabled: true,
 			class: undefined,
 			category: tasksCategory,
@@ -789,7 +792,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					? localize('openBrowserActionTooltip', "Open '{0}' in the integrated browser", browserUrl)
 					: localize('openBrowserActionTooltipUnconfigured', "Open the integrated browser"),
 			},
-			icon: Codicon.browser,
+			icon: Codicon.windowCompact,
 			enabled: true,
 			class: undefined,
 			category: browserCategory,
@@ -837,15 +840,16 @@ class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 	}
 }
 
-// Register the Run split button submenu on the workbench title bar (background sessions only)
-MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
+// Register the Run split button submenu on the workbench title bar (background sessions only).
+// Placed in the center-right toolbar, immediately before the "Open in VS Code" action (order 7).
+MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,
 	title: localize2('run', "Run"),
 	icon: Codicon.play,
 	group: 'navigation',
-	order: 8,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext.toNegated())
+	order: 6,
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext.toNegated())
 });
 
 // Disabled placeholder shown in the titlebar when the active session does not support running scripts
@@ -858,10 +862,10 @@ class RunScriptNotAvailableAction extends Action2 {
 			icon: Codicon.play,
 			precondition: ContextKeyExpr.false(),
 			menu: [{
-				id: Menus.TitleBarSessionMenu,
+				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
-				order: 8,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext)
+				order: 6,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext)
 			}]
 		});
 	}

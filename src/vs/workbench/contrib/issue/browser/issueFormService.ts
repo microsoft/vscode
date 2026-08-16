@@ -41,6 +41,45 @@ const ISSUE_DATA_ATTACHMENT_NAME = 'issue-data.md';
 type IssueUploadFile = { key: string; name: string; bytes: Uint8Array; contentType: string };
 type ExtractedIssueData = { body: string; fileContent: string };
 
+export function extractIssueData(issueBody: string): ExtractedIssueData | undefined {
+	const detailsBlocks: string[] = [];
+	const bodyParts: string[] = [];
+	const detailsTag = /<details\b[^>]*>|<\/details\s*>/gi;
+	let depth = 0;
+	let blockStart = 0;
+	let bodyStart = 0;
+	let match: RegExpExecArray | null;
+
+	while ((match = detailsTag.exec(issueBody))) {
+		if (match[0].startsWith('</')) {
+			if (depth === 0) {
+				continue;
+			}
+			depth--;
+			if (depth === 0) {
+				detailsBlocks.push(issueBody.slice(blockStart, detailsTag.lastIndex).trim());
+				bodyParts.push(issueBody.slice(bodyStart, blockStart));
+				bodyStart = detailsTag.lastIndex;
+			}
+		} else {
+			if (depth === 0) {
+				blockStart = match.index;
+			}
+			depth++;
+		}
+	}
+
+	if (!detailsBlocks.length) {
+		return undefined;
+	}
+
+	bodyParts.push(issueBody.slice(bodyStart));
+	return {
+		body: bodyParts.join('\n\n').replace(/\n{3,}/g, '\n\n').trimEnd(),
+		fileContent: `# ${localize('issueData', "Issue Data")}\n\n${detailsBlocks.join('\n\n')}\n`,
+	};
+}
+
 export class IssueFormService extends Disposable implements IIssueFormService {
 
 	readonly _serviceBrand: undefined;
@@ -191,7 +230,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 
 		const issueBody = body + mediaMarkdown;
 
-		const baseUrl = this.getIssueUrlWithTitle(title, issueTarget.url, data.issueSource === IssueSource.Extension);
+		const baseUrl = this.getIssueUrlWithTitle(title, issueTarget.url);
 		let previewBody = issueBody;
 		let url = this.createIssuePreviewUrl(baseUrl, previewBody, gitHubDetails, data.issueSource);
 
@@ -241,7 +280,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		githubAccessToken: string,
 		resolveRepoId: () => Promise<string | undefined>
 	): Promise<string | undefined> {
-		const extracted = this.extractIssueData(issueBody);
+		const extracted = extractIssueData(issueBody);
 		if (!extracted) {
 			return undefined;
 		}
@@ -285,23 +324,6 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		}
 		this.uploadCache.set(key, result);
 		return result;
-	}
-
-	private extractIssueData(issueBody: string): ExtractedIssueData | undefined {
-		const detailsBlocks: string[] = [];
-		const body = issueBody.replace(/\n*<details\b[\s\S]*?<\/details>\n*/gi, match => {
-			detailsBlocks.push(match.trim());
-			return '\n\n';
-		}).replace(/\n{3,}/g, '\n\n').trimEnd();
-
-		if (!detailsBlocks.length) {
-			return undefined;
-		}
-
-		return {
-			body,
-			fileContent: `# ${localize('issueData', "Issue Data")}\n\n${detailsBlocks.join('\n\n')}\n`,
-		};
 	}
 
 	private createBodyWithIssueDataLink(body: string, issueDataUrl: string): string {
@@ -378,8 +400,14 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		return { owner: match[1], repositoryName: match[2] };
 	}
 
-	private getIssueUrlWithTitle(issueTitle: string, issueUrl: string, fileOnExtension: boolean): string {
-		if (fileOnExtension && !/\/issues\/new(?:[?#].*)?$/i.test(issueUrl)) {
+	private getIssueUrlWithTitle(issueTitle: string, issueUrl: string): string {
+		// Point any GitHub target at the new-issue form, not just extensions. The
+		// VS Code / Marketplace targets can be a bare repo URL (e.g. a `data.uri`
+		// override or a `reportIssueUrl` without the `/issues/new` suffix), which
+		// would otherwise open the repo landing page instead of the pre-filled
+		// issue form. The `isGitHubUrl` guard leaves non-GitHub issue trackers
+		// (which open directly as external links) untouched.
+		if (this.isGitHubUrl(issueUrl) && !/\/issues\/new(?:[?#].*)?$/i.test(issueUrl)) {
 			issueUrl = `${normalizeGitHubUrl(issueUrl)}/issues/new`;
 		}
 		const queryStringPrefix = issueUrl.indexOf('?') === -1 ? '?' : '&';
@@ -387,7 +415,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	}
 
 	private addTemplateToUrl(baseUrl: string, owner?: string, repositoryName?: string, issueSource?: IssueSource): string {
-		const needsTemplate = issueSource === IssueSource.VSCode || (owner?.toLowerCase() === 'microsoft' && repositoryName?.toLowerCase() === 'vscode');
+		const needsTemplate = issueSource === IssueSource.VSCode || issueSource === IssueSource.AgentsWindow || (owner?.toLowerCase() === 'microsoft' && repositoryName?.toLowerCase() === 'vscode');
 		if (!needsTemplate) {
 			return baseUrl;
 		}

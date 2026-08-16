@@ -5,7 +5,7 @@
 
 import type { SessionEvent, ToolExecutionCompleteEvent, ToolExecutionStartEvent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
-import type { CancellationToken, ChatParticipantToolToken, ChatPromptReference, ChatSimpleToolResultData, ChatTerminalToolInvocationData, ExtendedChatResponsePart, LanguageModelToolDefinition, LanguageModelToolInformation, LanguageModelToolInvocationOptions, LanguageModelToolResult2 } from 'vscode';
+import type { CancellationToken, ChatParticipantToolToken, ChatPromptReference, ChatSimpleToolResultData, ChatTerminalToolInvocationData, LanguageModelToolDefinition, LanguageModelToolInformation, LanguageModelToolInvocationOptions, LanguageModelToolResult2 } from 'vscode';
 import { ILogger } from '../../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { isLocation } from '../../../../util/common/types';
@@ -16,7 +16,7 @@ import { ResourceMap } from '../../../../util/vs/base/common/map';
 import { constObservable, IObservable } from '../../../../util/vs/base/common/observable';
 import { isAbsolutePath, isEqual } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
-import { ChatMcpToolInvocationData, ChatReferenceBinaryData, ChatRequestTurn2, ChatResponseCodeblockUriPart, ChatResponseMarkdownPart, ChatResponsePullRequestPart, ChatResponseTextEditPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatSubagentToolInvocationData, ChatToolInvocationPart, LanguageModelTextPart, Location, MarkdownString, McpToolInvocationContentData, Range, Uri } from '../../../../vscodeTypes';
+import { ChatMcpToolInvocationData, ChatReferenceBinaryData, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatSubagentToolInvocationData, ChatToolInvocationPart, LanguageModelTextPart, Location, MarkdownString, McpToolInvocationContentData, Range, Uri } from '../../../../vscodeTypes';
 import type { MCP } from '../../../common/modelContextProtocol';
 import { ToolName } from '../../../tools/common/toolNames';
 import { ICopilotTool } from '../../../tools/common/toolsRegistry';
@@ -24,6 +24,7 @@ import { IOnWillInvokeToolEvent, IToolsService, IToolValidationResult } from '..
 import { formatUriForFileWidget } from '../../../tools/common/toolUtils';
 import { StoredModeInstructions } from '../../common/chatSessionMetadataStore';
 import { formatModelDetails, ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
+import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage, ResponseEventRenderContext, ToolEventHandlers } from '../../common/sessionEventRenderer';
 import { extractChatPromptReferences, getFolderAttachmentPath } from './copilotCLIPrompt';
 import { IChatDelegationSummaryService } from './delegationSummaryService';
 
@@ -483,44 +484,13 @@ export function stripReminders(text: string): string {
 		.trim();
 }
 
-/**
- * Extract PR metadata from assistant message content
- */
-function extractPRMetadata(content: string): { cleanedContent: string; prPart?: ChatResponsePullRequestPart } {
-	const prMetadataRegex = /<pr_metadata\s+uri="(?<uri>[^"]+)"\s+title="(?<title>[^"]+)"\s+description="(?<description>[^"]+)"\s+author="(?<author>[^"]+)"\s+linkTag="(?<linkTag>[^"]+)"\s*\/?>/;
-	const match = content.match(prMetadataRegex);
-
-	if (match?.groups) {
-		const { title, description, author, linkTag } = match.groups;
-		// Unescape XML entities
-		const unescapeXml = (text: string) => text
-			.replace(/&apos;/g, `'`)
-			.replace(/&quot;/g, '"')
-			.replace(/&gt;/g, '>')
-			.replace(/&lt;/g, '<')
-			.replace(/&amp;/g, '&');
-
-		const prPart = new ChatResponsePullRequestPart(
-			{ command: 'github.copilot.chat.openPullRequestReroute', title: l10n.t('View Pull Request {0}', linkTag), arguments: [Number(linkTag.substring(1))] },
-			unescapeXml(title),
-			unescapeXml(description),
-			unescapeXml(author),
-			unescapeXml(linkTag)
-		);
-
-		const cleanedContent = content.replace(match[0], '').trim();
-		return { cleanedContent, prPart };
-	}
-
-	return { cleanedContent: content };
-}
-
 export interface RequestIdDetails {
 	readonly requestId: string;
 	readonly toolIdEditMap: Record<string, string>;
 	readonly modeInstructions?: StoredModeInstructions;
 	readonly responseModelId?: string;
 	readonly creditsUsed?: number;
+	readonly isUsingAutoModel?: boolean;
 }
 
 /**
@@ -529,8 +499,6 @@ export interface RequestIdDetails {
  */
 export function buildChatHistoryFromEvents(sessionId: string, modelId: string | undefined, events: readonly SessionEvent[], getVSCodeRequestId: (sdkRequestId: string) => RequestIdDetails | undefined, delegationSummaryService: IChatDelegationSummaryService, logger: ILogger, workingDirectory?: URI, defaultModeInstructionsForLastRequest?: StoredModeInstructions, modelDetailsById?: ReadonlyMap<string, ModelDetailsInfo>): (ChatRequestTurn2 | ChatResponseTurn2)[] {
 	const turns: (ChatRequestTurn2 | ChatResponseTurn2)[] = [];
-	let currentResponseParts: ExtendedChatResponsePart[] = [];
-	const pendingToolInvocations = new Map<string, [ChatToolInvocationPart | ChatResponseMarkdownPart | ChatResponseThinkingProgressPart, toolData: ToolCall, parentToolCallId: string | undefined]>();
 
 	let details: RequestIdDetails | undefined;
 	let isFirstUserMessage = true;
@@ -538,8 +506,17 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 	let currentResponseModelId: string | undefined;
 	let currentCreditsUsed: number | undefined;
 	let currentRequestTurnIndex: number | undefined;
-	const currentAssistantMessage: { chunks: string[] } = { chunks: [] };
-	const processedMessages = new Set<string>();
+
+	// `ctx` owns the in-flight tool invocations, streamed assistant text buffer,
+	// processed message ids, and the response parts being accumulated for the
+	// current response turn. The shared renderer reads/writes these in place;
+	// `flushResponseParts` drains `currentResponseParts` between turns.
+	const ctx: ResponseEventRenderContext<ToolCall> = createResponseEventRenderContext(
+		logger,
+		CLI_TOOL_EVENT_HANDLERS,
+		workingDirectory,
+		toolCallId => details?.toolIdEditMap?.[toolCallId],
+	);
 
 	function getModelInfo(modelId: string | undefined): ModelDetailsInfo | undefined {
 		if (!modelId || !modelDetailsById) {
@@ -557,9 +534,9 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 	}
 
 	function flushResponseParts() {
-		if (currentResponseParts.length > 0) {
-			turns.push(new ChatResponseTurn2(currentResponseParts, createResultForModel(currentResponseModelId ?? currentModelId, currentCreditsUsed), ''));
-			currentResponseParts = [];
+		if (ctx.currentResponseParts.length > 0) {
+			turns.push(new ChatResponseTurn2([...ctx.currentResponseParts], createResultForModel(currentResponseModelId ?? currentModelId, currentCreditsUsed), ''));
+			ctx.currentResponseParts.length = 0;
 		}
 		currentResponseModelId = undefined;
 		currentCreditsUsed = undefined;
@@ -576,46 +553,29 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 		}
 	}
 
-	function processAssistantMessage(content: string) {
-		// Extract PR metadata if present
-		const { cleanedContent, prPart } = extractPRMetadata(content);
-		// Add PR part first if it exists
-		if (prPart) {
-			currentResponseParts.push(prPart);
-		}
-		if (cleanedContent) {
-			currentResponseParts.push(
-				new ChatResponseMarkdownPart(new MarkdownString(cleanedContent))
-			);
-		}
-	}
-
-	function flushPendingAssistantMessage() {
-		if (currentAssistantMessage.chunks.length > 0) {
-			const content = currentAssistantMessage.chunks.join('');
-			currentAssistantMessage.chunks = [];
-			processAssistantMessage(content);
-		}
-	}
 	const lastUserMessageId = findLast(events, event => event.type === 'user.message' && !isSyntheticUserMessage(event))?.id;
 	for (const event of events) {
+		// Flush buffered `assistant.message_delta` chunks before any non-message
+		// event runs so lifecycle guards like `ctx.currentResponseParts.length === 0`
+		// (used by `session.model_change`) see the streamed text that has already
+		// been produced. Mirrors the pre-extraction behavior in the CLI builder.
 		if (event.type !== 'assistant.message') {
-			flushPendingAssistantMessage();
+			flushPendingAssistantMessage(ctx);
 		}
 
 		switch (event.type) {
 			case 'session.start':
 			case 'session.resume': {
 				currentModelId = event.data.selectedModel ?? currentModelId;
-				break;
+				continue;
 			}
 			case 'session.model_change': {
 				currentModelId = event.data.newModel;
-				if (currentRequestTurnIndex !== undefined && currentResponseParts.length === 0) {
+				if (currentRequestTurnIndex !== undefined && ctx.currentResponseParts.length === 0) {
 					currentResponseModelId = currentModelId;
 					updateCurrentRequestModelId(currentModelId);
 				}
-				break;
+				continue;
 			}
 			case 'assistant.usage': {
 				currentModelId = event.data.model ?? currentModelId;
@@ -623,13 +583,14 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 					currentResponseModelId = currentModelId;
 					updateCurrentRequestModelId(currentModelId);
 				}
-				break;
+				continue;
 			}
 			case 'user.message': {
 				if (isSyntheticUserMessage(event)) {
 					continue;
 				}
 				details = getVSCodeRequestId(event.id);
+				flushPendingAssistantMessage(ctx);
 				flushResponseParts();
 				// Filter out vscode instruction files from references when building session history
 				// TODO@rebornix filter instructions should be rendered as "references" in chat response like normal chat.
@@ -649,7 +610,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 					}
 				});
 				((event.data.attachments || []))
-					.filter(attachment => attachment.type === 'selection' || attachment.type === 'github_reference' || attachment.type === 'blob' ? true : !isInstructionAttachmentPath(attachment.path))
+					.filter(attachment => attachment.type === 'selection' || attachment.type === 'github_reference' || attachment.type === 'blob' || attachment.type === 'github_actions_job' || attachment.type === 'github_url' || attachment.type === 'github_tree_comparison' || attachment.type === 'github_release' || attachment.type === 'github_repository' || attachment.type === 'github_file_diff' || attachment.type === 'github_commit' || attachment.type === 'github_file' || attachment.type === 'extension_context' ? true : !isInstructionAttachmentPath(attachment.path))
 					.forEach(attachment => {
 						if (attachment.type === 'github_reference') {
 							return;
@@ -682,9 +643,13 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 								range
 							});
 						} else if (attachment.type === 'blob') {
+							if (typeof attachment.data !== 'string') {
+								return;
+							}
+							const data = attachment.data;
 							const binaryDataSupplier = async () => {
 								try {
-									return decodeBase64(attachment.data).buffer;
+									return decodeBase64(data).buffer;
 								} catch (error) {
 									logger.error(error, `Failed to decode blob attachment ${attachment.displayName || ''}`);
 									throw error;
@@ -740,77 +705,16 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 				const resolvedRequestModelId = details?.responseModelId ?? currentModelId;
 				currentResponseModelId = resolvedRequestModelId;
 				currentCreditsUsed = details?.creditsUsed;
-				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, resolvedRequestModelId, modeInstructions2));
+				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, details?.isUsingAutoModel ? 'auto' : resolvedRequestModelId, modeInstructions2));
 				currentRequestTurnIndex = turns.length - 1;
-				break;
-			}
-			case 'assistant.message_delta': {
-				if (typeof event.data.deltaContent === 'string') {
-					// Skip sub-agent markdown — it will be captured in the subagent tool's result
-					if (!event.data.parentToolCallId) {
-						processedMessages.add(event.data.messageId);
-						currentAssistantMessage.chunks.push(event.data.deltaContent);
-					}
-				}
-				break;
-			}
-			case 'session.error': {
-				currentResponseParts.push(new ChatResponseMarkdownPart(`\n\n❌ Error: (${event.data.errorType}) ${event.data.message}`));
-				break;
-			}
-			case 'assistant.message': {
-				// Skip sub-agent markdown — it will be captured in the subagent tool's result
-				if (event.data.content && !processedMessages.has(event.data.messageId) && !event.data.parentToolCallId) {
-					processAssistantMessage(event.data.content);
-				}
-				break;
-			}
-			case 'tool.execution_start': {
-				const responsePart = processToolExecutionStart(event, pendingToolInvocations, workingDirectory);
-				if (responsePart instanceof ChatResponseThinkingProgressPart) {
-					currentResponseParts.push(responsePart);
-				}
-				break;
-			}
-			case 'subagent.started': {
-				enrichToolInvocationWithSubagentMetadata(
-					event.data.toolCallId,
-					event.data.agentDisplayName,
-					event.data.agentDescription,
-					pendingToolInvocations
-				);
-				break;
-			}
-			case 'subagent.completed':
-			case 'subagent.failed': {
-				// Completion is already handled by tool.execution_complete for the task tool
-				break;
-			}
-			case 'tool.execution_complete': {
-				const [responsePart, toolCall] = processToolExecutionComplete(event, pendingToolInvocations, logger, workingDirectory) ?? [undefined, undefined];
-				if (responsePart && toolCall && !(responsePart instanceof ChatResponseThinkingProgressPart)) {
-					const editId = details?.toolIdEditMap ? details.toolIdEditMap[toolCall.toolCallId] : undefined;
-					const editedUris = getAffectedUrisForEditTool(toolCall);
-					if (!(responsePart instanceof ChatResponseMarkdownPart) && isCopilotCliEditToolCall(toolCall) && editId && editedUris.length > 0) {
-						responsePart.presentation = 'hidden';
-						currentResponseParts.push(responsePart);
-						for (const uri of editedUris) {
-							currentResponseParts.push(new ChatResponseMarkdownPart('\n````\n'));
-							currentResponseParts.push(new ChatResponseCodeblockUriPart(uri, true, editId));
-							currentResponseParts.push(new ChatResponseTextEditPart(uri, []));
-							currentResponseParts.push(new ChatResponseTextEditPart(uri, true));
-							currentResponseParts.push(new ChatResponseMarkdownPart('\n````\n'));
-						}
-					} else {
-						currentResponseParts.push(responsePart);
-					}
-				}
-				break;
+				continue;
 			}
 		}
+
+		appendResponsePartsForEvent(event, ctx);
 	}
 
-	flushPendingAssistantMessage();
+	flushPendingAssistantMessage(ctx);
 	flushResponseParts();
 
 	return turns;
@@ -1038,6 +942,19 @@ export function processToolExecutionComplete(event: ToolExecutionCompleteEvent, 
 
 	return invocation;
 }
+
+/**
+ * CLI tool-event handlers bundle for the shared session-event renderer. The
+ * cloud Task API renderer reuses the same bundle since both providers emit
+ * the same CMC tool event payloads.
+ */
+export const CLI_TOOL_EVENT_HANDLERS: ToolEventHandlers<ToolCall> = {
+	processStart: processToolExecutionStart,
+	processComplete: processToolExecutionComplete,
+	enrichSubagent: enrichToolInvocationWithSubagentMetadata,
+	isEditToolCall: isCopilotCliEditToolCall,
+	getEditedUris: getAffectedUrisForEditTool,
+};
 
 /**
  * Creates a formatted tool invocation part for CopilotCLI tools
@@ -1347,6 +1264,9 @@ function formatSearchToolInvocationCompleted(invocation: ChatToolInvocationPart,
 		}
 		const searchInPath = toolCall.arguments.path ? ` in \`${toolCall.arguments.path}\`` : '';
 		let files: string[] = [];
+		// TODO: Revisit this legacy SDK terminal content usage. SDK `terminal`
+		// content is deprecated for shell command exit metadata; this search
+		// result parsing should not rely on it long term.
 		if (Array.isArray(result.result?.contents) && result.result.contents.length > 0 && result.result.contents[0].type === 'terminal' && typeof result.result.contents[0].text === 'string') {
 			const matches = result.result.contents[0].text.trim();
 			const noMatches = matches.length === 0;

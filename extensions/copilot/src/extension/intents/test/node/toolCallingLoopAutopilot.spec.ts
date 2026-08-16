@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatRequest, LanguageModelToolInformation } from 'vscode';
+import type { ChatRequest, ChatResponseStream, LanguageModelToolInformation } from 'vscode';
 import { IChatHookService } from '../../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
-import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
+import { SpyChatResponseStream } from '../../../../util/common/test/mockChatResponseStream';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { Conversation, Turn } from '../../../prompt/common/conversation';
-import { IBuildPromptContext, IToolCallRound } from '../../../prompt/common/intents';
+import { IBuildPromptContext, IToolCall, IToolCallRound } from '../../../prompt/common/intents';
 import { IBuildPromptResult, nullRenderPromptResult } from '../../../prompt/node/intents';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { TestToolsService } from '../../../tools/node/test/testToolsService';
+import { LanguageModelTextPart, LanguageModelToolResult2 } from '../../../../vscodeTypes';
 import { IToolCallingLoopOptions, IToolCallSingleResult, ToolCallingLoop } from '../../node/toolCallingLoop';
 import { MockChatHookService } from './mockChatHookService';
 
@@ -36,8 +39,8 @@ class AutopilotTestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptio
 		throw new Error('fetch should not be called in these tests');
 	}
 
-	public testShouldAutopilotContinue(result: IToolCallSingleResult): string | undefined {
-		return this.shouldAutopilotContinue(result);
+	public testShouldAutopilotContinue(result: IToolCallSingleResult, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
+		return this.shouldAutopilotContinue(result, token);
 	}
 
 	public testShouldAutoRetry(response: ChatResponse): boolean {
@@ -68,6 +71,34 @@ class AutopilotTestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptio
 	 */
 	public testEnsureAutopilotTools(tools: LanguageModelToolInformation[]): LanguageModelToolInformation[] {
 		return this.ensureAutopilotTools(tools);
+	}
+
+	public testReportVoiceProgress(stream: ChatResponseStream, phase: 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering'): void {
+		this.reportVoiceProgress(stream, phase);
+	}
+
+	public testReportVoiceProgressForRound(stream: ChatResponseStream, round: IToolCallRound): void {
+		this.reportVoiceProgressForRound(stream, round);
+	}
+
+	public testEnsureVoiceProgressTool(tools: LanguageModelToolInformation[]): LanguageModelToolInformation[] {
+		return this.ensureVoiceProgressTool(tools);
+	}
+
+	public testProcessVoiceProgressToolCalls(stream: ChatResponseStream, toolCalls: readonly IToolCall[]): void {
+		this.processVoiceProgressToolCalls(stream, toolCalls);
+	}
+
+	public testGetToolCallResult(toolCallId: string): LanguageModelToolResult2 | undefined {
+		return this.createPromptContext([], undefined).toolCallResults?.[toolCallId];
+	}
+
+	public testGetPersistableToolCallingState(): { toolCallRounds: IToolCallRound[]; toolCallResults: Record<string, LanguageModelToolResult2> } {
+		return this.getPersistableToolCallingState();
+	}
+
+	public testHasProductiveToolCalls(round: IToolCallRound): boolean {
+		return this.hasProductiveToolCalls(round);
 	}
 }
 
@@ -102,7 +133,7 @@ function createTestConversation(turnCount: number = 1): Conversation {
 	return new Conversation(generateUuid(), turns);
 }
 
-function createMockRound(toolCallNames: string[] = [], response: string = ''): IToolCallRound {
+function createMockRound(toolCallNames: string[] = [], response: string = '', toolArguments = '{}'): IToolCallRound {
 	return {
 		id: generateUuid(),
 		response,
@@ -110,7 +141,7 @@ function createMockRound(toolCallNames: string[] = [], response: string = ''): I
 		toolCalls: toolCallNames.map(name => ({
 			id: generateUuid(),
 			name,
-			arguments: '{}',
+			arguments: toolArguments,
 		})),
 	};
 }
@@ -150,7 +181,7 @@ describe('ToolCallingLoop autopilot', () => {
 		vi.restoreAllMocks();
 	});
 
-	function createLoop(permissionLevel?: string, requestOverrides: Partial<ChatRequest> = {}): AutopilotTestToolCallingLoop {
+	function createLoop(permissionLevel?: string, requestOverrides: Partial<ChatRequest> = {}, enableVoiceProgress = true): AutopilotTestToolCallingLoop {
 		const conversation = createTestConversation(1);
 		const request = createMockChatRequest({
 			permissionLevel,
@@ -162,42 +193,255 @@ describe('ToolCallingLoop autopilot', () => {
 				conversation,
 				toolCallLimit: 10,
 				request,
+				enableVoiceProgress,
 			}
 		);
 		disposables.add(loop);
 		return loop;
 	}
 
+	describe('voice progress', () => {
+		it('classifies read and planning tools as semantic progress', () => {
+			const loop = createLoop(undefined, { id: 'voice-request', isVoiceModeInput: true });
+			const stream = new SpyChatResponseStream();
+
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.ReadFile]));
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.CoreManageTodoList]));
+
+			expect(stream.items).toEqual([
+				expect.objectContaining({ id: 'investigating' }),
+				expect.objectContaining({ id: 'planning' }),
+			]);
+		});
+
+		it('selects phrase variants deterministically per request', () => {
+			const firstLoop = createLoop(undefined, { id: 'stable-request', isVoiceModeInput: true });
+			const secondLoop = createLoop(undefined, { id: 'stable-request', isVoiceModeInput: true });
+			const firstStream = new SpyChatResponseStream();
+			const secondStream = new SpyChatResponseStream();
+
+			firstLoop.testReportVoiceProgress(firstStream, 'editing');
+			secondLoop.testReportVoiceProgress(secondStream, 'editing');
+
+			expect(firstStream.items).toEqual(secondStream.items);
+		});
+
+		it('does not emit for typed or subagent requests', () => {
+			const typedLoop = createLoop();
+			const subagentLoop = createLoop(undefined, { isVoiceModeInput: true, subAgentInvocationId: 'subagent' });
+			const disabledLoop = createLoop(undefined, { isVoiceModeInput: true }, false);
+			const stream = new SpyChatResponseStream();
+
+			typedLoop.testReportVoiceProgress(stream, 'editing');
+			subagentLoop.testReportVoiceProgress(stream, 'editing');
+			disabledLoop.testReportVoiceProgress(stream, 'editing');
+
+			expect(stream.items).toEqual([]);
+		});
+
+		it('emits each significant phase once in order', () => {
+			const loop = createLoop(undefined, { isVoiceModeInput: true });
+			const stream = new SpyChatResponseStream();
+
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.ReadFile]));
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.CoreManageTodoList]));
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.EditFile]));
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.CoreRunInTerminal], '', '{"command":"npm test"}'));
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.EditFile]));
+
+			expect(stream.items).toEqual([
+				expect.objectContaining({ id: 'investigating' }),
+				expect.objectContaining({ id: 'planning' }),
+				expect.objectContaining({ id: 'editing' }),
+				expect.objectContaining({ id: 'validating' }),
+				expect.objectContaining({ id: 'recovering' }),
+			]);
+		});
+
+		it('offers the progress tool only to a top-level voice Agent loop', () => {
+			const voiceLoop = createLoop(undefined, { isVoiceModeInput: true });
+			const typedLoop = createLoop();
+			const subagentLoop = createLoop(undefined, { isVoiceModeInput: true, subAgentInvocationId: 'subagent' });
+			const nonAgentLoop = createLoop(undefined, { isVoiceModeInput: true }, false);
+
+			expect({
+				voiceTools: voiceLoop.testEnsureVoiceProgressTool([]).map(tool => ({
+					name: tool.name,
+					inputSchema: tool.inputSchema,
+				})),
+				typedTools: typedLoop.testEnsureVoiceProgressTool([]),
+				subagentTools: subagentLoop.testEnsureVoiceProgressTool([]),
+				nonAgentTools: nonAgentLoop.testEnsureVoiceProgressTool([]),
+			}).toEqual({
+				voiceTools: [{
+					name: 'report_voice_progress',
+					inputSchema: expect.objectContaining({
+						required: ['stage', 'summary'],
+						additionalProperties: false,
+					}),
+				}],
+				typedTools: [],
+				subagentTools: [],
+				nonAgentTools: [],
+			});
+		});
+
+		it('turns a valid model progress call into a hidden progress part and local result', () => {
+			const loop = createLoop(undefined, { isVoiceModeInput: true });
+			const stream = new SpyChatResponseStream();
+
+			loop.testProcessVoiceProgressToolCalls(stream, [{
+				id: 'progress-call',
+				name: 'report_voice_progress',
+				arguments: JSON.stringify({
+					stage: 'investigating',
+					summary: 'I am tracing   the request flow now.',
+				}),
+			}]);
+
+			const result = loop.testGetToolCallResult('progress-call');
+			expect({
+				streamItems: stream.items,
+				resultText: result?.content[0] instanceof LanguageModelTextPart ? result.content[0].value : undefined,
+			}).toEqual({
+				streamItems: [expect.objectContaining({
+					id: 'investigating',
+					value: 'I am tracing the request flow now.',
+				})],
+				resultText: 'Voice progress reported.',
+			});
+		});
+
+		it('rejects unsafe or out-of-bounds model progress summaries', () => {
+			const loop = createLoop(undefined, { isVoiceModeInput: true });
+			const stream = new SpyChatResponseStream();
+			const calls = [
+				{ id: 'bad-stage', stage: 'done', summary: 'Finished.' },
+				{ id: 'too-long', stage: 'editing', summary: 'x'.repeat(241) },
+				{ id: 'markdown', stage: 'editing', summary: 'Editing **src/secret.ts** now.' },
+			];
+
+			loop.testProcessVoiceProgressToolCalls(stream, calls.map(call => ({
+				id: call.id,
+				name: 'report_voice_progress',
+				arguments: JSON.stringify({ stage: call.stage, summary: call.summary }),
+			})));
+
+			expect({
+				streamItems: stream.items,
+				results: calls.map(call => {
+					const result = loop.testGetToolCallResult(call.id);
+					return result?.content[0] instanceof LanguageModelTextPart ? result.content[0].value : undefined;
+				}),
+			}).toEqual({
+				streamItems: [],
+				results: [
+					'Voice progress was not reported because stage must be investigating, planning, editing, validating, or recovering.',
+					'Voice progress was not reported because summary must be at most 240 characters.',
+					'Voice progress was not reported because summary must use plain speech without markdown, paths, commands, identifiers, URLs, or secrets.',
+				],
+			});
+		});
+
+		it('model progress suppresses the same-stage deterministic fallback', () => {
+			const loop = createLoop(undefined, { isVoiceModeInput: true });
+			const stream = new SpyChatResponseStream();
+
+			loop.testProcessVoiceProgressToolCalls(stream, [{
+				id: 'editing-progress',
+				name: 'report_voice_progress',
+				arguments: '{"stage":"editing","summary":"I found the change point and I am updating it."}',
+			}]);
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.EditFile]));
+
+			expect(stream.items).toEqual([expect.objectContaining({
+				id: 'editing',
+				value: 'I found the change point and I am updating it.',
+			})]);
+		});
+
+		it('removes the internal progress call and summary from persisted tool history', () => {
+			const loop = createLoop(undefined, { isVoiceModeInput: true });
+			const stream = new SpyChatResponseStream();
+			const progressCall: IToolCall = {
+				id: 'progress-call',
+				name: 'report_voice_progress',
+				arguments: '{"stage":"editing","summary":"I found the change point."}',
+			};
+			loop.testProcessVoiceProgressToolCalls(stream, [progressCall]);
+			loop.addToolCallRound({
+				id: 'mixed-round',
+				response: '',
+				toolInputRetry: 0,
+				toolCalls: [
+					progressCall,
+					{ id: 'edit-call', name: ToolName.EditFile, arguments: '{}' },
+				],
+			});
+
+			const state = loop.testGetPersistableToolCallingState();
+			expect({
+				state,
+				leaksProgress: JSON.stringify(state).includes('report_voice_progress') || JSON.stringify(state).includes('I found the change point.'),
+			}).toEqual({
+				state: {
+					toolCallRounds: [{
+						id: 'mixed-round',
+						response: '',
+						toolInputRetry: 0,
+						toolCalls: [{ id: 'edit-call', name: ToolName.EditFile, arguments: '{}' }],
+					}],
+					toolCallResults: {},
+				},
+				leaksProgress: false,
+			});
+		});
+
+		it('does not treat voice progress as productive autopilot work', () => {
+			const loop = createLoop('autopilot', { isVoiceModeInput: true });
+
+			expect({
+				progressOnly: loop.testHasProductiveToolCalls(createMockRound(['report_voice_progress'])),
+				taskCompleteOnly: loop.testHasProductiveToolCalls(createMockRound(['task_complete'])),
+				progressAndEdit: loop.testHasProductiveToolCalls(createMockRound(['report_voice_progress', ToolName.EditFile])),
+			}).toEqual({
+				progressOnly: false,
+				taskCompleteOnly: false,
+				progressAndEdit: true,
+			});
+		});
+	});
+
 	describe('shouldAutopilotContinue', () => {
-		it('should return a nudge message when task_complete was not called', () => {
+		it('should return a nudge message when task_complete was not called', async () => {
 			const loop = createLoop('autopilot');
-			const result = loop.testShouldAutopilotContinue(createMockSingleResult());
+			const result = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(result).toContain('task_complete');
 		});
 
-		it('should return undefined when task_complete was called in a previous round', () => {
+		it('should return undefined when task_complete was called in a previous round', async () => {
 			const loop = createLoop('autopilot');
 			loop.addToolCallRound(createMockRound(['task_complete']));
 
-			const result = loop.testShouldAutopilotContinue(createMockSingleResult());
+			const result = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(result).toBeUndefined();
 		});
 
-		it('should stop after MAX_AUTOPILOT_ITERATIONS', () => {
+		it('should stop after MAX_AUTOPILOT_ITERATIONS', async () => {
 			const loop = createLoop('autopilot');
 
-			// Iterate 5 times (MAX_AUTOPILOT_ITERATIONS = 5)
-			for (let i = 0; i < 5; i++) {
-				const msg = loop.testShouldAutopilotContinue(createMockSingleResult());
+			// Iterate 3 times (MAX_AUTOPILOT_ITERATIONS = 3)
+			for (let i = 0; i < 3; i++) {
+				const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
 				expect(msg).toContain('task_complete');
 			}
 
-			// 6th call should return undefined — hit the cap
-			const msg = loop.testShouldAutopilotContinue(createMockSingleResult());
+			// 4th call should return undefined — hit the cap
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(msg).toBeUndefined();
 		});
 
-		it('should bail when prior nudge produced no tool calls', () => {
+		it('should bail when prior nudge produced no tool calls', async () => {
 			const loop = createLoop('autopilot');
 
 			// Simulate that we already nudged once and set the flag
@@ -205,23 +449,23 @@ describe('ToolCallingLoop autopilot', () => {
 
 			// Should bail — the previous nudge produced no tool calls, so further nudges
 			// would just waste tokens (the model is effectively done).
-			const result = loop.testShouldAutopilotContinue(createMockSingleResult());
+			const result = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(result).toBeUndefined();
 		});
 
-		it('should skip the nudge when the model returned a text-only response (no tool calls)', () => {
+		it('should skip the nudge when the model returned a text-only response (no tool calls)', async () => {
 			const loop = createLoop('autopilot');
-			const result = loop.testShouldAutopilotContinue(createMockSingleResult({
+			const result = await loop.testShouldAutopilotContinue(createMockSingleResult({
 				round: createMockRound([], 'Here is a summary of what I did.'),
 			}));
 			expect(result).toBeUndefined();
 		});
 
-		it('should allow another nudge after autopilotStopHookActive is reset', () => {
+		it('should allow another nudge after autopilotStopHookActive is reset', async () => {
 			const loop = createLoop('autopilot');
 
 			// First nudge
-			const msg1 = loop.testShouldAutopilotContinue(createMockSingleResult());
+			const msg1 = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(msg1).toContain('task_complete');
 
 			// Simulate the run() loop setting the flag then the model making progress
@@ -230,8 +474,75 @@ describe('ToolCallingLoop autopilot', () => {
 			loop.setAutopilotStopHookActive(false);
 
 			// Second nudge should work
-			const msg2 = loop.testShouldAutopilotContinue(createMockSingleResult());
+			const msg2 = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(msg2).toContain('task_complete');
+		});
+	});
+
+	describe('shouldAutopilotContinue with advanced autopilot', () => {
+		function enableAdvancedAutopilot(loop: AutopilotTestToolCallingLoop): void {
+			const cfg = (loop as any)._configurationService;
+			vi.spyOn(cfg, 'getNonExtensionConfig').mockImplementation((key: unknown) =>
+				key === 'chat.autopilot.advanced.enabled' ? true : undefined
+			);
+		}
+
+		function stubClassifier(loop: AutopilotTestToolCallingLoop, result: { done: boolean; impossible?: boolean; reason: string } | undefined): void {
+			vi.spyOn(loop as any, '_runAutopilotGoalClassifier').mockResolvedValue(result);
+		}
+
+		it('returns undefined when the classifier reports the goal is complete', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			stubClassifier(loop, { done: true, reason: 'all done' });
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(msg).toBeUndefined();
+		});
+
+		it('returns undefined when the classifier reports the goal is impossible', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			stubClassifier(loop, { done: false, impossible: true, reason: 'requires unavailable API' });
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(msg).toBeUndefined();
+		});
+
+		it('returns a nudge with the classifier reason when the goal is incomplete', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			stubClassifier(loop, { done: false, reason: 'tests are missing' });
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(msg).toContain('tests are missing');
+			expect(msg).toContain('not yet complete');
+		});
+
+		it('ignores task_complete as a stop signal — the classifier still decides', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			// Even though task_complete was called, advanced autopilot defers to the classifier.
+			loop.addToolCallRound(createMockRound(['task_complete']));
+			stubClassifier(loop, { done: false, reason: 'still missing tests' });
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(msg).toContain('still missing tests');
+		});
+
+		it('falls back to a generic nudge (not task_complete) when the classifier fails', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			stubClassifier(loop, undefined);
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(msg).toContain('Keep working autonomously');
+			expect(msg).not.toContain('task_complete');
+		});
+
+		it('overrides the text-only completion shortcut so the classifier decides', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			stubClassifier(loop, { done: false, reason: 'still incomplete' });
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult({
+				round: createMockRound([], 'Here is a summary.'),
+			}));
+			expect(msg).toContain('still incomplete');
 		});
 	});
 

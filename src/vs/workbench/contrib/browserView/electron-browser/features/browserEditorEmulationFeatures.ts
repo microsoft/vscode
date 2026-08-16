@@ -24,13 +24,11 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
-import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride } from '../browserEditor.js';
-import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserEditor.js';
 
 const CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE = new RawContextKey<boolean>(
 	'browserEmulationToolbarVisible',
@@ -708,69 +706,39 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 BrowserEditor.registerContribution(BrowserEditorEmulationSupport);
 
 /**
- * Show the emulation toolbar (engages device emulation). Mirrors the
- * find-widget pattern: show command on the main action bar / F1, and the
- * toolbar is dismissed via its own close button or the Escape keybinding.
+ * Toggle the emulation toolbar (engages or disables device emulation).
  */
-class ShowBrowserEmulationToolbarAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.showEmulationToolbar';
+class ToggleBrowserEmulationAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.toggleDeviceEmulation';
 
 	constructor() {
 		super({
-			id: ShowBrowserEmulationToolbarAction.ID,
-			title: localize2('browser.showEmulationToolbar', 'Show Emulation Toolbar'),
+			id: ToggleBrowserEmulationAction.ID,
+			title: localize2('browser.toggleDeviceEmulation', 'Device Emulation'),
 			category: BrowserActionCategory,
 			icon: Codicon.deviceMobile,
 			f1: true,
+			toggled: CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE,
 			precondition: BROWSER_EDITOR_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Developer,
-				order: 10,
+				group: BrowserActionGroup.Tools,
+				order: 3,
+				isHiddenByDefault: true,
 			},
 		});
 	}
 
 	override run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
 		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.getContribution(BrowserEditorEmulationSupport)?.setVisible(true);
-		}
-	}
-}
-
-/**
- * Hide the emulation toolbar (disables emulation). Available via F1 and bound
- * to Escape while the toolbar is visible; also surfaced as the toolbar's
- * close button.
- */
-class HideBrowserEmulationToolbarAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.hideEmulationToolbar';
-
-	constructor() {
-		super({
-			id: HideBrowserEmulationToolbarAction.ID,
-			title: localize2('browser.hideEmulationToolbar', 'Hide Emulation Toolbar'),
-			category: BrowserActionCategory,
-			icon: Codicon.close,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE),
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Escape,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE),
-			},
-		});
-	}
-
-	override run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
-		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.getContribution(BrowserEditorEmulationSupport)?.setVisible(false);
+			const support = browserEditor.getContribution(BrowserEditorEmulationSupport);
+			support?.setVisible(!support.isVisible);
 		}
 	}
 }
 MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 	command: {
-		id: HideBrowserEmulationToolbarAction.ID,
+		id: ToggleBrowserEmulationAction.ID,
 		title: localize('browser.emulationToolbar.close', "Close"),
 		icon: Codicon.close,
 	},
@@ -951,8 +919,7 @@ MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 	order: 90,
 });
 
-registerAction2(ShowBrowserEmulationToolbarAction);
-registerAction2(HideBrowserEmulationToolbarAction);
+registerAction2(ToggleBrowserEmulationAction);
 registerAction2(PickBrowserDevicePresetAction);
 registerAction2(SetBrowserUserAgentAction);
 registerAction2(ToggleBrowserMobileEmulationAction);

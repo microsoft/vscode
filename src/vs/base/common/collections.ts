@@ -62,6 +62,28 @@ export function diffSets<T>(before: ReadonlySet<T>, after: ReadonlySet<T>): { re
 	return { removed, added };
 }
 
+/**
+ * Checks whether two sets contain exactly the same elements.
+ *
+ * @param a - The first set.
+ * @param b - The second set.
+ * @returns `true` if both sets have the same size and every element of `a` is also in `b`.
+ */
+export function equalSets<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (a.size !== b.size) {
+		return false;
+	}
+	for (const element of a) {
+		if (!b.has(element)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 export function diffMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: V[]; added: V[] } {
 	const removed: V[] = [];
 	const added: V[] = [];

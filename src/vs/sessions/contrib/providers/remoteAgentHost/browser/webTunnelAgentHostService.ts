@@ -6,7 +6,10 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
-import { RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import type { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcResponse } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../../../../platform/agentHost/common/transportConstants.js';
@@ -153,19 +156,37 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		const transport = new TunnelConnectionTransport(connection, this._logService);
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 		const protocolClient = this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, address, transport, undefined,
+			RemoteAgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
 		);
 
+		// Keep an incompatible handshake from tearing down the relay: the
+		// protocol client must remain registered with IRemoteAgentHostService
+		// so `triggerServerUpgrade` can locate it and send `_vscodeUpgrade`
+		// over the still-open transport.
+		let status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected;
+		let connectError: unknown;
 		try {
 			await protocolClient.connect();
 			this._logService.info(`${LOG_PREFIX} Protocol handshake completed with ${address}`);
+		} catch (err) {
+			const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+			if (!RemoteAgentHostConnectionStatus.isIncompatible(incompatible)) {
+				protocolClient.dispose();
+				this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);
+				throw err;
+			}
+			this._logService.warn(`${LOG_PREFIX} Incompatible with ${address}: ${incompatible.message}`);
+			status = incompatible;
+			connectError = err;
+		}
 
-			// Cache before announcing the live connection so the contribution's
-			// `onDidChangeTunnels` handler has created the provider by the time
-			// `onDidChangeConnections` fires from `addManagedConnection` and
-			// wires the connection. Also fires `onDidChangeTunnels`.
-			this.cacheTunnel(tunnel, authProvider);
+		// Cache before announcing the live connection so the contribution's
+		// `onDidChangeTunnels` handler has created the provider by the time
+		// `onDidChangeConnections` fires from `addManagedConnection` and
+		// wires the connection. Also fires `onDidChangeTunnels`.
+		this.cacheTunnel(tunnel, authProvider);
 
+		try {
 			await this._remoteAgentHostService.addManagedConnection({
 				name: tunnel.name,
 				connectionToken,
@@ -176,12 +197,30 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 					label: tunnel.name,
 					authProvider,
 				},
-			}, protocolClient);
+			}, protocolClient, undefined, status);
 		} catch (err) {
 			protocolClient.dispose();
-			this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);
+			this._logService.error(`${LOG_PREFIX} addManagedConnection failed`, err);
 			throw err;
 		}
+
+		if (connectError) {
+			throw connectError;
+		}
+	}
+
+	get canDeleteTunnels(): boolean {
+		return !!this._discoveryProvider?.deleteTunnel;
+	}
+
+	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
+		const provider = this._discoveryProvider;
+		if (!provider?.deleteTunnel) {
+			throw new Error('Deleting dev tunnels is not supported by the tunnel discovery provider.');
+		}
+
+		await provider.deleteTunnel(tunnel.tunnelId, tunnel.clusterId);
+		this.removeCachedTunnel(tunnel.tunnelId);
 	}
 
 	async disconnect(address: string): Promise<void> {
@@ -295,6 +334,8 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
  * so there is no `connect()` method — the protocol client skips that step.
  */
 class TunnelConnectionTransport extends Disposable implements IProtocolTransport {
+	readonly clientConnectionKind = AgentHostClientConnectionKind.DevTunnel;
+
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 

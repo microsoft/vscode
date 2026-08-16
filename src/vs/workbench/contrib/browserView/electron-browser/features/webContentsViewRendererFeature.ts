@@ -89,7 +89,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	override beforeContainerLayout(): IContainerLayoutOverride {
 		return {
-			padding: { right: 3, bottom: 3, left: 3 },
+			padding: { top: 3, right: 3, bottom: 3, left: 3 },
 
 			// Snap CSS-pixel values down so `v × hostZoom` is an exact integer:
 			// main places the WCV at `round(v × hostZoom) × systemDPR` physical
@@ -120,14 +120,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	override onContainerCreated(container: HTMLElement): void {
 		this._container = container;
 
-		this._register(addDisposableListener(container, EventType.FOCUS, (event: FocusEvent) => {
-			// When the browser container gets focus, make sure the browser view also gets focused —
-			// but only if focus was already in the workbench (and not e.g. clicking back into the
-			// workbench from the browser view itself).
-			if (event.relatedTarget && this._model && this._shouldShowPage()) {
-				this.focusPage();
-			}
-		}));
+		this._register(addDisposableListener(container, EventType.FOCUS, () => this.tryFocus()));
 		this._register(addDisposableListener(container, EventType.BLUR, () => this._cancelFocusTimeout()));
 
 		// Cross-window focus logic uses this checker because the WCV lives
@@ -157,17 +150,27 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		this._refreshOverlayObscured();
 	}
 
-	override focusPage(): void {
-		this.editor.ensureBrowserFocus();
+	override tryFocus(): boolean {
+		if (!this.editor.input?.url) {
+			return false;
+		}
+		this._container?.focus();
 		if (this._focusTimeout || !this._model) {
-			return;
+			return true;
 		}
 		this._focusTimeout = setTimeout(() => {
 			this._focusTimeout = undefined;
-			if (this._model) {
-				void this._model.focus();
+			const doc = this._container?.ownerDocument;
+			if (!doc?.hasFocus() || doc.activeElement !== this._container) {
+				return;
 			}
-		}, 0);
+			if (this._model?.visible) {
+				void this._model.focus();
+			} else {
+				this.editor.ensureBrowserFocus();
+			}
+		}, 10);
+		return true;
 	}
 
 	// -- Model lifecycle ----------------------------------------------------
@@ -178,14 +181,6 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 		store.add(model.onDidChangeVisibility(() => void this._doScreenshot()));
 		store.add(model.onDidKeyCommand(keyEvent => void this._handleKeyEvent(keyEvent)));
-		store.add(model.onDidChangeFocus(({ focused }) => {
-			if (focused) {
-				// The WCV lives outside the DOM focus tracker, so the editor
-				// pane won't otherwise observe page focus. Notify it directly.
-				this.editor.notifyPageFocused();
-				this.editor.ensureBrowserFocus();
-			}
-		}));
 		store.add(model.onDidNavigate(() => this._refresh()));
 		store.add(model.onDidChangeLoadingState(() => this._refresh()));
 
@@ -244,12 +239,17 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			// If the editor container is focused, ensure the WCV gets focus too.
 			const ownerDoc = this._container?.ownerDocument;
 			if (ownerDoc?.hasFocus() && ownerDoc.activeElement === this._container) {
-				this.focusPage();
+				this.tryFocus();
 			}
 		} else {
 			void this._doScreenshot();
 			// Defer the hide one frame so the latest screenshot has a chance to paint first.
-			this.editor.window.requestAnimationFrame(() => void this._model?.setVisible(false));
+			this.editor.window.requestAnimationFrame(() => {
+				// Double check that we should still hide the page.
+				if (this._model && !this._shouldShowPage()) {
+					void this._model.setVisible(false);
+				}
+			});
 		}
 	}
 

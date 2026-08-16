@@ -7,8 +7,8 @@ import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
+import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -43,6 +43,29 @@ const createTestOptions = (messages: Raw.ChatMessage[]): ICreateEndpointBodyOpti
 	finishedCb: undefined,
 	location: undefined as any
 });
+
+const createParameterlessToolOptions = (): ICreateEndpointBodyOptions => {
+	const tools = [{
+		type: 'function' as const,
+		function: {
+			name: 'terminal_last_command',
+			description: 'Get the last command run in the active terminal.',
+			parameters: undefined,
+		}
+	}];
+	return {
+		...createTestOptions([{
+			role: Raw.ChatRole.User,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+		}]),
+		postOptions: {
+			tools
+		},
+		requestOptions: {
+			tools
+		}
+	};
+};
 
 const createMakeRequestOptions = (messages: Raw.ChatMessage[], ignoreStatefulMarker?: boolean): IMakeChatRequestOptions => ({
 	debugName: 'test',
@@ -109,6 +132,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 	afterEach(() => {
 		disposables.clear();
+		vi.restoreAllMocks();
 	});
 
 	describe('ownsAuthorization', () => {
@@ -126,6 +150,35 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('CAPI mode (useResponsesApi = false)', () => {
+		it('adds an empty object schema to a parameterless tool', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: {
+							...modelMetadata.capabilities.supports,
+							tool_calls: true,
+						}
+					}
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const body = endpoint.createRequestBody(createParameterlessToolOptions());
+			endpoint.interceptBody(body);
+
+			expect(body.tools).toStrictEqual([{
+				type: 'function',
+				function: {
+					name: 'terminal_last_command',
+					description: 'Get the last command run in the active terminal.',
+					parameters: { type: 'object', properties: {} },
+				}
+			}]);
+		});
+
 		it('should set cot_id and cot_summary properties when processing thinking content', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
@@ -145,6 +198,70 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(messages).toHaveLength(1);
 			expect(messages[0].cot_id).toBe('test-thinking-123');
 			expect(messages[0].cot_summary).toBe('this is my reasoning');
+		});
+
+		// Regression for https://github.com/microsoft/vscode/issues/312746
+		//
+		// When DeepSeek / Moonshot (Kimi) / Minimax reasoning models are used via BYOK
+		// (either directly through the OpenAI-compatible API or proxied through OpenRouter),
+		// the *next* turn after a tool call previously failed with HTTP 400 and an error such as:
+		//
+		//   "thinking is enabled but reasoning_content is missing in assistant tool call
+		//    message at index N"
+		//
+		// These providers require the assistant tool-call message in the request history to
+		// echo back the reasoning text under the field name `reasoning_content`. The OpenAI
+		// Chat Completions BYOK path in `OpenAIEndpoint.createRequestBody` must therefore
+		// emit `reasoning_content` alongside the CAPI-specific `cot_id` / `cot_summary` keys.
+		it('issue #312746: emits reasoning_content on assistant tool-call message for BYOK Chat Completions (DeepSeek/Kimi/Moonshot)', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
+				'test-api-key',
+				'https://openrouter.ai/api/v1/chat/completions');
+
+			const thinkingMessage = createThinkingMessage(
+				'reasoning-deepseek-1',
+				'The user asked me to analyze the project. I should call the read_file tool.'
+			);
+			const body = endpoint.createRequestBody(createTestOptions([thinkingMessage]));
+			const messages = body.messages as any[];
+
+			// CAPI-compatible keys are still emitted so the same payload also works with CAPI.
+			expect(messages[0].cot_id).toBe('reasoning-deepseek-1');
+			expect(messages[0].cot_summary).toBe('The user asked me to analyze the project. I should call the read_file tool.');
+
+			// And the DeepSeek/Kimi/Moonshot-required field is now present.
+			expect(messages[0].reasoning_content).toBe('The user asked me to analyze the project. I should call the read_file tool.');
+
+			// OpenRouter expects the reasoning echoed back under `reasoning`.
+			expect(messages[0].reasoning).toBe('The user asked me to analyze the project. I should call the read_file tool.');
+		});
+
+		it('issue #312746: does not emit reasoning_content / reasoning when the model does not support thinking', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: { ...modelMetadata.capabilities.supports, thinking: false }
+					}
+				},
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+
+			const thinkingMessage = createThinkingMessage('reasoning-1', 'some reasoning');
+			const body = endpoint.createRequestBody(createTestOptions([thinkingMessage]));
+			const messages = body.messages as any[];
+
+			// CAPI-compatible keys remain, but the reasoning-model fields are omitted.
+			expect(messages[0].cot_id).toBe('reasoning-1');
+			expect(messages[0].cot_summary).toBe('some reasoning');
+			expect(messages[0].reasoning_content).toBeUndefined();
+			expect(messages[0].reasoning).toBeUndefined();
 		});
 
 		it('should handle multiple messages with thinking content', () => {
@@ -180,10 +297,47 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
-		it('should preserve reasoning object when thinking is supported', () => {
-			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiReasoningSummary, 'detailed');
+		it('adds an empty object schema to a parameterless tool', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
-				modelMetadata,
+				{
+					...modelMetadata,
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: {
+							...modelMetadata.capabilities.supports,
+							tool_calls: true,
+						}
+					}
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+
+			const body = endpoint.createRequestBody(createParameterlessToolOptions());
+			endpoint.interceptBody(body);
+
+			expect(body.tools).toStrictEqual([{
+				type: 'function',
+				name: 'terminal_last_command',
+				description: 'Get the last command run in the active terminal.',
+				parameters: { type: 'object', properties: {} },
+				strict: false,
+			}]);
+		});
+
+		it('should preserve reasoning object when thinking is supported', () => {
+			const modelWithReasoningEffort = {
+				...modelMetadata,
+				capabilities: {
+					...modelMetadata.capabilities,
+					supports: {
+						...modelMetadata.capabilities.supports,
+						reasoning_effort: ['low', 'medium', 'high']
+					}
+				}
+			};
+
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelWithReasoningEffort,
 				'test-api-key',
 				'https://api.openai.com/v1/chat/completions');
 
@@ -210,7 +364,6 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				}
 			};
 
-			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiReasoningSummary, 'detailed');
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				modelWithoutThinking,
 				'test-api-key',
@@ -451,6 +604,48 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 			expect(body.reasoning_effort).toBe('high');
 			expect(body.reasoning?.effort).toBeUndefined();
+		});
+
+		it('places `output_config.effort` on the Messages API path when the model supports the requested level', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({ supported_endpoints: [ModelSupportedEndpoint.Messages] }),
+				'test-api-key',
+				'https://api.anthropic.com/v1/messages');
+
+			const body = endpoint.createRequestBody(buildOptions('high'));
+
+			expect(body.output_config).toEqual({ effort: 'high' });
+			expect(body.reasoning_effort).toBeUndefined();
+			expect(body.reasoning).toBeUndefined();
+		});
+
+		it('emits top-level `reasoning_effort` instead of `output_config.effort` when `reasoningEffortFormat` is `chat-completions` on a Messages URL', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({
+					reasoningEffortFormat: 'chat-completions',
+					supported_endpoints: [ModelSupportedEndpoint.Messages],
+				}),
+				'test-api-key',
+				'https://api.anthropic.com/v1/messages');
+
+			const body = endpoint.createRequestBody(buildOptions('high'));
+
+			expect(body.reasoning_effort).toBe('high');
+			expect(body.output_config).toBeUndefined();
+		});
+
+		it('scrubs `output_config.effort` while preserving other `output_config` fields', () => {
+			// `output_config` also carries structured-output fields (e.g. `format`); only the effort may be rewritten
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({ supported_endpoints: [ModelSupportedEndpoint.Messages] }),
+				'test-api-key',
+				'https://api.anthropic.com/v1/messages');
+			const apply = (endpoint as unknown as { _applyReasoningEffort: (body: IEndpointBody, options: ICreateEndpointBodyOptions) => void })._applyReasoningEffort.bind(endpoint);
+
+			const body: IEndpointBody = { output_config: { effort: 'unsupported-level', format: { type: 'json_schema', schema: {} } } as IEndpointBody['output_config'] };
+			apply(body, buildOptions('high'));
+
+			expect(body.output_config).toEqual({ format: { type: 'json_schema', schema: {} }, effort: 'high' });
 		});
 
 		it('does not emit a reasoning field when the model declares no reasoning support', () => {

@@ -12,7 +12,6 @@ import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { ExplorerDecorationsProvider } from './explorerDecorationsProvider.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -21,7 +20,6 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { DelayedDragHandler } from '../../../../../base/browser/dnd.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -183,7 +181,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private dragHandler!: DelayedDragHandler;
 	private _autoReveal: boolean | 'force' | 'focusNoScroll' = false;
-	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 	private readonly delegate: IExplorerViewContainerDelegate | undefined;
 
 	override get singleViewPaneContainerTitle(): string {
@@ -203,7 +200,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IDecorationsService private readonly decorationService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService themeService: IWorkbenchThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -561,7 +557,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		this._register(this.tree.onDidScroll(async e => {
 			const editable = this.explorerService.getEditable();
-			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
+			if (e.scrollTopChanged && editable && this.tryGetRelativeTop(editable.stat) === null) {
 				await editable.data.onFinish('', false);
 			}
 		}));
@@ -711,6 +707,34 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	// General methods
 
 	/**
+	 * Safely queries the file explorer tree for the relative top of an element.
+	 *
+	 * `hasNode()` and `getRelativeTop()` consult different internal maps in the
+	 * compressible async data tree. During an async refresh (e.g. when the
+	 * underlying file system provider changes, or file nesting settings update)
+	 * there is a microtask gap where one map has been updated but the other has
+	 * not. In that window `getRelativeTop()` can throw
+	 * `TreeError [FileExplorer] Tree element not found` (issue #188365) even
+	 * though the caller reasonably believed the element was still present.
+	 *
+	 * Treat such a failure as "not currently visible" so that callers fall back
+	 * to their not-visible branch (e.g. finishing editable state, or calling
+	 * `reveal()`), which is safe when the element is still in the data source
+	 * even if the view has not caught up yet.
+	 */
+	private tryGetRelativeTop(element: ExplorerItem): number | null {
+		if (!this.tree) {
+			return null;
+		}
+
+		try {
+			return this.tree.getRelativeTop(element);
+		} catch {
+			return null;
+		}
+	}
+
+	/**
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
@@ -808,10 +832,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}, _progress => promise);
 
 		await promise;
-		if (!this.decorationsProvider) {
-			this.decorationsProvider = new ExplorerDecorationsProvider(this.explorerService, this.contextService);
-			this._register(this.decorationService.registerDecorationsProvider(this.decorationsProvider));
-		}
 	}
 
 	public async selectResource(resource: URI | undefined, reveal = this._autoReveal, retry = 0): Promise<void> {

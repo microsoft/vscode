@@ -15,11 +15,13 @@ import {
 	getOptionalConfigDefaultForKey,
 	ICompletionsConfigProvider,
 	ICompletionsEditorAndPluginInfo,
-	packageJson
+	packageJson,
+	userScopeOnlyKeys
 } from '../../lib/src/config';
 import { CopilotConfigPrefix } from '../../lib/src/constants';
 import { Logger } from '../../lib/src/logger';
 import { transformEvent } from '../../lib/src/util/event';
+import { Schemas } from '../../../../../util/vs/base/common/network';
 
 const logger = new Logger('extensionConfig');
 
@@ -44,11 +46,36 @@ export class VSCodeConfigProvider extends ConfigProvider implements IDisposable 
 	}
 
 	override getConfig<T>(key: ConfigKeyType): T {
+		if (userScopeOnlyKeys.has(key)) {
+			return this._getUserScopeValue<T>(key) ?? getConfigDefaultForKey(key);
+		}
 		return getConfigKeyRecursively<T>(this.config, key) ?? getConfigDefaultForKey(key);
 	}
 
 	override getOptionalConfig<T>(key: ConfigKeyType): T | undefined {
+		if (userScopeOnlyKeys.has(key)) {
+			return this._getUserScopeValue<T>(key) ?? getOptionalConfigDefaultForKey(key);
+		}
 		return getConfigKeyRecursively<T>(this.config, key) ?? getOptionalConfigDefaultForKey(key);
+	}
+
+	private _getUserScopeValue<T>(key: ConfigKeyType): T | undefined {
+		// Try the flat key path directly
+		const inspected = this.config.inspect<T>(key);
+		if (inspected?.globalValue !== undefined) {
+			return inspected.globalValue;
+		}
+		// Handle object-style settings (e.g., "advanced": { "debug.overrideCapiUrl": "..." })
+		const firstDot = key.indexOf('.');
+		if (firstDot > 0) {
+			const parentKey = key.substring(0, firstDot);
+			const subKey = key.substring(firstDot + 1);
+			const parentInspect = this.config.inspect<Record<string, unknown>>(parentKey);
+			if (parentInspect?.globalValue && typeof parentInspect.globalValue === 'object') {
+				return getConfigKeyRecursively<T>(parentInspect.globalValue as Record<string, unknown>, subKey);
+			}
+		}
+		return undefined;
 	}
 
 	// Dumps config settings defined in the extension json
@@ -155,6 +182,9 @@ export function isCompletionEnabled(accessor: ServicesAccessor): boolean | undef
 }
 
 export function isCompletionEnabledForDocument(accessor: ServicesAccessor, document: vscode.TextDocument): boolean {
+	if (document.uri.scheme === Schemas.vscodeChatInput) {
+		return vscode.workspace.getConfiguration(CopilotConfigPrefix).get<boolean>('completions.chat.enabled', false);
+	}
 	return getEnabledConfig(accessor, document.languageId);
 }
 

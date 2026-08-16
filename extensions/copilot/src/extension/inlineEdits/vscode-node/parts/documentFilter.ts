@@ -26,7 +26,7 @@ export class DocumentFilter {
 		if (!['file', 'untitled'].includes(document.uri.scheme) && !isNotebookCellOrNotebookChatInput(document.uri)) {
 			return false;
 		}
-		if (isTextDocument(document) && !this._isGhostTextEnabled(document.languageId)) {
+		if (isTextDocument(document) && !this.isLanguageEnabled(document.languageId)) {
 			return false;
 		}
 		if (await this._ignoreService.isCopilotIgnored(document.uri)) {
@@ -35,7 +35,11 @@ export class DocumentFilter {
 		return true;
 	}
 
-	private _isGhostTextEnabled(languageId: string): boolean {
+	/**
+	 * Whether Copilot inline suggestions (inline completions and next edit suggestions) are
+	 * enabled for the given language according to the per-language `github.copilot.enable` setting.
+	 */
+	public isLanguageEnabled(languageId: string): boolean {
 		const enabledLanguages = this._enabledLanguages.get();
 		return enabledLanguages.get(languageId) ?? (
 			enabledLanguages.get('*')! ||

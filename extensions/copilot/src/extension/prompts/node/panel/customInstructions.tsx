@@ -87,7 +87,7 @@ export class CustomInstructions extends PromptElement<CustomInstructionsProps> {
 			const hasSeen = new ResourceSet();
 			const hasSeenContent = new Set();
 
-			const liveIndexVariable = this.props.chatVariables?.find(isCustomizationsIndex);
+			const liveIndexVariable = this.props.chatVariables?.find(v => isCustomizationsIndex(v.reference));
 			const overrideActive = this.props.customizationsIndexOverride !== undefined;
 			const indexValue = overrideActive
 				? this.props.customizationsIndexOverride!
@@ -105,10 +105,10 @@ export class CustomInstructions extends PromptElement<CustomInstructionsProps> {
 
 			if (this.props.chatVariables) {
 				for (const variable of this.props.chatVariables) {
-					if (isCustomizationsIndex(variable)) {
+					if (isCustomizationsIndex(variable.reference)) {
 						continue;
-					} else if (isInstructionFile(variable)) {
-						const value = variable.value;
+					} else if (isInstructionFile(variable.reference)) {
+						const value = variable.reference.value;
 						if (!hasSeen.has(value)) {
 							hasSeen.add(value);
 							const element = await this.createElementFromURI(value, variable.reference.toolReferences);
