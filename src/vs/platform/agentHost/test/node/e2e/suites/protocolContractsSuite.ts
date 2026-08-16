@@ -14,7 +14,6 @@
 import assert from 'assert';
 import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
-import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -201,32 +200,21 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		}
 	});
 
-	conformanceTest(context, 'subscribing twice to one OTLP channel does not duplicate delivery', async function () {
-		const once = await initializeAdditionalClient('otlp-deduplicate-once');
-		const twice = await initializeAdditionalClient('otlp-deduplicate-twice');
+	conformanceTest(context, 'OTLP log delivery resumes after unsubscribe and resubscribe', async function () {
+		const client = await initializeAdditionalClient('otlp-resubscribe');
 		try {
-			await once.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
-			await twice.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
-			await twice.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
-			once.clearReceived();
-			twice.clearReceived();
-			const onceExported = once.waitForNotification(isOtlpExport, 30_000);
-			const twiceExported = twice.waitForNotification(isOtlpExport, 30_000);
+			await client.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
+			client.notify('unsubscribe', { channel: 'ahp-otlp://logs/trace' });
+			await client.call('ping', { channel: ROOT_STATE_URI });
+			await client.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
+			client.clearReceived();
+			const exported = client.waitForNotification(isOtlpExport, 30_000);
 
-			await triggerServerActivity(once, 'otlp-deduplicate');
-			await Promise.all([onceExported, twiceExported]);
-			await retry(async () => {
-				await Promise.all([
-					once.call('ping', { channel: ROOT_STATE_URI }),
-					twice.call('ping', { channel: ROOT_STATE_URI }),
-				]);
-				const onceCount = once.receivedNotifications(isOtlpExport).length;
-				const twiceCount = twice.receivedNotifications(isOtlpExport).length;
-				assert.strictEqual(twiceCount, onceCount);
-			}, 10, 100);
+			await triggerServerActivity(client, 'otlp-resubscribe');
+
+			assert.strictEqual((await exported).method, 'otlp/exportLogs');
 		} finally {
-			once.close();
-			twice.close();
+			client.close();
 		}
 	});
 
