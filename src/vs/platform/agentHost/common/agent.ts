@@ -1068,6 +1068,9 @@ export interface IAgent {
 	/** Select provider-owned configuration inherited by a newly created chat. */
 	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
 
+	/** Select provider-owned configuration for an unattended autonomous turn. */
+	getAutonomousSessionConfig?(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
+
 	/** Return dynamic completions for a provider-owned chat configuration property. */
 	chatConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
