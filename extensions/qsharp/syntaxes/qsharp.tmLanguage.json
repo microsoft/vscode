@@ -1,0 +1,1451 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/qsharp-community/qsharp-tmLanguage/blob/master/grammars/qsharp.tmLanguage.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/qsharp-community/qsharp-tmLanguage/commit/5b57dc8feb85ab2659e0b14c8e01f6b49cbfac94",
+	"name": "qsharp",
+	"scopeName": "source.qsharp",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#attributes"
+		},
+		{
+			"include": "#namespace-declaration"
+		},
+		{
+			"include": "#import-export-directive"
+		},
+		{
+			"include": "#new-expression"
+		},
+		{
+			"include": "#struct-declaration"
+		},
+		{
+			"include": "#member-access"
+		},
+		{
+			"include": "#tuple-binding"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#library-invocation"
+		},
+		{
+			"include": "#library"
+		},
+		{
+			"include": "#operations"
+		},
+		{
+			"include": "#types"
+		},
+		{
+			"include": "#literals"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#callable-invocation"
+		},
+		{
+			"include": "#callable-declaration"
+		},
+		{
+			"include": "#udt-declaration"
+		},
+		{
+			"include": "#array-creation-expression"
+		},
+		{
+			"include": "#local-declaration"
+		},
+		{
+			"include": "#array-assignment"
+		},
+		{
+			"include": "#local-assignment"
+		},
+		{
+			"include": "#quantum-declaration"
+		},
+		{
+			"include": "#if-statement"
+		},
+		{
+			"include": "#parenthesized-expression"
+		},
+		{
+			"include": "#expression-operators"
+		},
+		{
+			"include": "#declaration-keywords"
+		},
+		{
+			"include": "#identifier"
+		}
+	],
+	"repository": {
+		"literals": {
+			"patterns": [
+				{
+					"include": "#boolean-literal"
+				},
+				{
+					"include": "#result-literal"
+				},
+				{
+					"include": "#pauli-literal"
+				},
+				{
+					"include": "#numeric-literal"
+				}
+			]
+		},
+		"comments": {
+			"patterns": [
+				{
+					"begin": "(^\\s+)?(?=//)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.whitespace.comment.leading.qsharp"
+						}
+					},
+					"end": "(?=$)",
+					"patterns": [
+						{
+							"name": "comment.block.documentation.qsharp",
+							"begin": "(?<!/)///(?!/)",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.qsharp"
+								}
+							},
+							"end": "(?=$)"
+						},
+						{
+							"name": "comment.line.double-slash.qsharp",
+							"begin": "(?<!/)//(?:(?!/))",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.qsharp"
+								}
+							},
+							"end": "(?=$)"
+						}
+					]
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.qsharp",
+					"match": "\\b(elif|else|repeat|until|fixup|for|in|while|return|fail|within|apply)\\b"
+				},
+				{
+					"comment": "legacy allocation keywords (QDK <1.0)",
+					"name": "keyword.other.qsharp",
+					"match": "\\b(using|borrowing)\\b"
+				},
+				{
+					"name": "keyword.other.qsharp",
+					"match": "\\b(new)\\b"
+				}
+			]
+		},
+		"declaration-keywords": {
+			"patterns": [
+				{
+					"name": "keyword.other.callable.qsharp",
+					"match": "\\b(operation|function)\\b"
+				},
+				{
+					"name": "keyword.other.let.qsharp",
+					"match": "\\b(let)\\b"
+				},
+				{
+					"name": "keyword.other.mutable.qsharp",
+					"match": "\\b(mutable)\\b"
+				},
+				{
+					"name": "keyword.other.set.qsharp",
+					"match": "\\b(set)\\b"
+				},
+				{
+					"name": "keyword.other.use.qsharp",
+					"match": "\\b(use)\\b"
+				},
+				{
+					"name": "keyword.other.borrow.qsharp",
+					"match": "\\b(borrow)\\b"
+				}
+			]
+		},
+		"operations": {
+			"patterns": [
+				{
+					"name": "keyword.other.qsharp",
+					"match": "\\b(as|internal|body|(a|A)djoint|(c|C)ontrolled|self|auto|distribute|invert|intrinsic|is)\\b"
+				}
+			]
+		},
+		"types": {
+			"patterns": [
+				{
+					"include": "#type-parameter"
+				},
+				{
+					"name": "storage.type.qsharp",
+					"match": "\\b(Int|BigInt|Double|Bool|Qubit|Pauli|Result|Range|String|Unit|Ctl|Adj)\\b"
+				},
+				{
+					"include": "#type-array-suffix"
+				}
+			]
+		},
+		"type-parameter": {
+			"name": "entity.name.type.type-parameter.qsharp",
+			"match": "'[_[:alpha:]][_[:alnum:]]*"
+		},
+		"library": {
+			"patterns": [
+				{
+					"name": "support.function.quantum.qsharp",
+					"match": "\\b(CCNOT|CNOT|CX|CY|CZ|SWAP|SX|H|S|T|I|X|Y|Z|Rxx|Ryy|Rzz|Rx|Ry|Rz|R1Frac|R1|RFrac|R|ExpFrac|Exp|MResetEachZ|MResetX|MResetY|MResetZ|MeasureEachZ|MeasureAllZ|Measure|M|ResetAll|Reset)\\b"
+				}
+			]
+		},
+		"library-invocation": {
+			"begin": "(?x)\n\\b(CCNOT|CNOT|CX|CY|CZ|SWAP|SX|H|S|T|I|X|Y|Z|Rxx|Ryy|Rzz|Rx|Ry|Rz|R1Frac|R1|RFrac|R|ExpFrac|Exp|MResetEachZ|MResetX|MResetY|MResetZ|MeasureEachZ|MeasureAllZ|Measure|M|ResetAll|Reset)\\b\\s*\n(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.quantum.qsharp"
+				}
+			},
+			"end": "(?<=\\))",
+			"patterns": [
+				{
+					"include": "#argument-list"
+				}
+			]
+		},
+		"parenthesized-expression": {
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.open.qsharp"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.close.qsharp"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#expression"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"strings": {
+			"patterns": [
+				{
+					"name": "string.quoted.double.interpolated.qsharp",
+					"begin": "\\$\"",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.qsharp"
+						}
+					},
+					"end": "\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.qsharp"
+						}
+					},
+					"patterns": [
+						{
+							"name": "constant.character.escape.qsharp",
+							"match": "\\\\."
+						},
+						{
+							"name": "meta.interpolation.qsharp",
+							"begin": "\\{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.interpolation.begin.qsharp"
+								}
+							},
+							"end": "\\}",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.section.interpolation.end.qsharp"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#expression"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "string.quoted.double.qsharp",
+					"begin": "\"",
+					"end": "\"",
+					"patterns": [
+						{
+							"name": "constant.character.escape.qsharp",
+							"match": "\\\\."
+						}
+					]
+				}
+			]
+		},
+		"namespace-declaration": {
+			"begin": "\\b(namespace)\\s+",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.namespace.qsharp"
+				}
+			},
+			"end": "(?<=\\})",
+			"patterns": [
+				{
+					"name": "entity.name.type.namespace.qsharp",
+					"match": "[_[:alpha:]][_[:alnum:]]*"
+				},
+				{
+					"include": "#punctuation-accessor"
+				},
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.open.qsharp"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.close.qsharp"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#comments"
+						},
+						{
+							"include": "#attributes"
+						},
+						{
+							"include": "#import-export-directive"
+						},
+						{
+							"include": "#new-expression"
+						},
+						{
+							"include": "#struct-declaration"
+						},
+						{
+							"include": "#member-access"
+						},
+						{
+							"include": "#tuple-binding"
+						},
+						{
+							"include": "#keywords"
+						},
+						{
+							"include": "#library-invocation"
+						},
+						{
+							"include": "#library"
+						},
+						{
+							"include": "#operations"
+						},
+						{
+							"include": "#types"
+						},
+						{
+							"include": "#literals"
+						},
+						{
+							"include": "#strings"
+						},
+						{
+							"include": "#callable-invocation"
+						},
+						{
+							"include": "#callable-declaration"
+						},
+						{
+							"include": "#udt-declaration"
+						},
+						{
+							"include": "#open-directive"
+						},
+						{
+							"include": "#array-creation-expression"
+						},
+						{
+							"include": "#local-declaration"
+						},
+						{
+							"include": "#array-assignment"
+						},
+						{
+							"include": "#local-assignment"
+						},
+						{
+							"include": "#quantum-declaration"
+						},
+						{
+							"include": "#if-statement"
+						},
+						{
+							"include": "#parenthesized-expression"
+						},
+						{
+							"include": "#expression-operators"
+						},
+						{
+							"include": "#declaration-keywords"
+						},
+						{
+							"include": "#identifier"
+						}
+					]
+				}
+			]
+		},
+		"callable-invocation": {
+			"begin": "(?x)\n(?:(\\:\\:|\\.)\\s*)?                                   # preceding member access (:: or .)\n(?!(?:let|mutable|set|use|borrow|new|fixup|for|in|while|repeat|until|return|fail|within|apply|if|elif|else|not|and|or|namespace|import|export|open|operation|function|struct|newtype|internal|is)\\b)\n([_[:alpha:]][_[:alnum:]]*)\\s*                      # callable name (not a keyword)\n(?<type_args>\\s*<([^<>]|\\g<type_args>)+>\\s*)?\\s*    # type arguments\n(?=\\()                                              # open parentheses of argument list",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.accessor.qsharp"
+				},
+				"2": {
+					"name": "entity.name.function.qsharp"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "#type-parameter-list"
+						}
+					]
+				}
+			},
+			"end": "(?<=\\))",
+			"patterns": [
+				{
+					"include": "#argument-list"
+				}
+			]
+		},
+		"callable-declaration": {
+			"begin": "(?x)\n\\b(operation|function)\\b\\s+\n([_[:alpha:]][_[:alnum:]]*)\\s*                      # callable name\n(?<type_args>\\s*<([^<>]|\\g<type_args>)+>\\s*)?\\s*    # type arguments\n(?=\\()                                              # open parentheses of argument list",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.callable.qsharp"
+				},
+				"2": {
+					"name": "entity.name.function.qsharp"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "#type-parameter-list"
+						}
+					]
+				}
+			},
+			"end": "(?<=\\))",
+			"patterns": [
+				{
+					"include": "#parameter-list"
+				}
+			]
+		},
+		"type-parameter-list": {
+			"begin": "\\<",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.typeparameters.begin.qsharp"
+				}
+			},
+			"end": "\\>",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.typeparameters.end.qsharp"
+				}
+			},
+			"patterns": [
+				{
+					"match": "('[_[:alpha:]][_[:alnum:]]*)\\b",
+					"captures": {
+						"1": {
+							"name": "entity.name.type.type-parameter.qsharp"
+						}
+					}
+				},
+				{
+					"name": "punctuation.separator.colon.qsharp",
+					"match": ":"
+				},
+				{
+					"name": "keyword.operator.qsharp",
+					"match": "\\+"
+				},
+				{
+					"name": "support.type.constraint.qsharp",
+					"match": "\\b(Eq|Add|Sub|Mul|Div|Mod|Signed|Ord|Show|Integral|Iterable|Exp)\\b"
+				},
+				{
+					"name": "punctuation.squarebracket.open.qsharp",
+					"match": "\\["
+				},
+				{
+					"name": "punctuation.squarebracket.close.qsharp",
+					"match": "\\]"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"argument-list": {
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.open.qsharp"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.close.qsharp"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#argument"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"parameter-list": {
+			"begin": "(\\()",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.open.qsharp"
+				}
+			},
+			"end": "(\\))",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.close.qsharp"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#parameter"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"punctuation-comma": {
+			"name": "punctuation.separator.comma.qsharp",
+			"match": ","
+		},
+		"identifier": {
+			"patterns": [
+				{
+					"name": "variable.other.readwrite.qsharp",
+					"match": "\\b[_[:alpha:]][_[:alnum:]]*\\b"
+				}
+			]
+		},
+		"argument": {
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"parameter": {
+			"begin": "([_[:alpha:]][_[:alnum:]]*)\\s*(:)",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.variable.parameter.qsharp"
+				},
+				"2": {
+					"name": "punctuation.separator.colon.qsharp"
+				}
+			},
+			"end": "(?=(,|\\)|\\]))",
+			"patterns": [
+				{
+					"include": "#literals"
+				},
+				{
+					"include": "#types"
+				},
+				{
+					"include": "#library"
+				},
+				{
+					"include": "#expression-operators"
+				}
+			]
+		},
+		"type-array-suffix": {
+			"begin": "\\b\\[",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.squarebracket.open.qsharp"
+				}
+			},
+			"end": "\\]",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.squarebracket.close.qsharp"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#punctuation-comma"
+				},
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"udt-declaration": {
+			"begin": "(?=\\bnewtype\\b)",
+			"end": "(?<=\\)|;)",
+			"patterns": [
+				{
+					"begin": "(?x)\n(newtype)\\b\\s+\n([_[:alpha:]][_[:alnum:]]*)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.udt.qsharp"
+						},
+						"2": {
+							"name": "entity.name.type.udt.qsharp"
+						}
+					},
+					"end": "(?=\\s*=)"
+				},
+				{
+					"begin": "(?:\\s*=\\s*)(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.parenthesis.open.qsharp"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.close.qsharp"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#literals"
+						},
+						{
+							"include": "#punctuation-comma"
+						},
+						{
+							"include": "#types"
+						},
+						{
+							"include": "#library"
+						}
+					]
+				},
+				{
+					"begin": "(?:\\s*=\\s*)",
+					"end": "(?=;)",
+					"patterns": [
+						{
+							"include": "#literals"
+						},
+						{
+							"include": "#punctuation-comma"
+						},
+						{
+							"include": "#types"
+						},
+						{
+							"include": "#library"
+						}
+					]
+				}
+			]
+		},
+		"struct-declaration": {
+			"begin": "(?x)\n\\b(struct)\\b\\s+\n([_[:alpha:]][_[:alnum:]]*)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.struct.qsharp"
+				},
+				"2": {
+					"name": "entity.name.type.struct.qsharp"
+				}
+			},
+			"end": "(?<=\\})",
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.open.qsharp"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.close.qsharp"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#comments"
+						},
+						{
+							"include": "#struct-field"
+						},
+						{
+							"include": "#punctuation-comma"
+						},
+						{
+							"include": "#types"
+						},
+						{
+							"include": "#library"
+						}
+					]
+				}
+			]
+		},
+		"struct-field": {
+			"begin": "([_[:alpha:]][_[:alnum:]]*)\\s*(:)",
+			"beginCaptures": {
+				"1": {
+					"name": "variable.other.property.qsharp"
+				},
+				"2": {
+					"name": "punctuation.separator.colon.qsharp"
+				}
+			},
+			"end": "(?=(,|\\}))",
+			"patterns": [
+				{
+					"include": "#type-parameter"
+				},
+				{
+					"include": "#types"
+				},
+				{
+					"include": "#library"
+				}
+			]
+		},
+		"new-expression": {
+			"begin": "(?x)\n\\b(new)\\b\\s+\n([_[:alpha:]][_[:alnum:]]*)\\s*\n(?=\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.new.qsharp"
+				},
+				"2": {
+					"name": "entity.name.type.struct.qsharp"
+				}
+			},
+			"end": "(?<=\\})",
+			"patterns": [
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.open.qsharp"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.close.qsharp"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#comments"
+						},
+						{
+							"include": "#spread-operator"
+						},
+						{
+							"include": "#field-initializer"
+						},
+						{
+							"include": "#punctuation-comma"
+						},
+						{
+							"include": "#expression"
+						}
+					]
+				}
+			]
+		},
+		"field-initializer": {
+			"begin": "([_[:alpha:]][_[:alnum:]]*)\\s*(=)(?![=>])",
+			"beginCaptures": {
+				"1": {
+					"name": "variable.other.property.qsharp"
+				},
+				"2": {
+					"name": "keyword.operator.assignment.qsharp"
+				}
+			},
+			"end": "(?=(,|\\}))",
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"spread-operator": {
+			"name": "keyword.operator.spread.qsharp",
+			"match": "\\.\\.\\."
+		},
+		"statements": {
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#attributes"
+				},
+				{
+					"include": "#import-export-directive"
+				},
+				{
+					"include": "#open-directive"
+				},
+				{
+					"include": "#new-expression"
+				},
+				{
+					"include": "#struct-declaration"
+				},
+				{
+					"include": "#member-access"
+				},
+				{
+					"include": "#tuple-binding"
+				},
+				{
+					"include": "#keywords"
+				},
+				{
+					"include": "#library-invocation"
+				},
+				{
+					"include": "#library"
+				},
+				{
+					"include": "#operations"
+				},
+				{
+					"include": "#types"
+				},
+				{
+					"include": "#literals"
+				},
+				{
+					"include": "#strings"
+				},
+				{
+					"include": "#callable-invocation"
+				},
+				{
+					"include": "#callable-declaration"
+				},
+				{
+					"include": "#udt-declaration"
+				},
+				{
+					"include": "#array-creation-expression"
+				},
+				{
+					"include": "#local-declaration"
+				},
+				{
+					"include": "#array-assignment"
+				},
+				{
+					"include": "#local-assignment"
+				},
+				{
+					"include": "#quantum-declaration"
+				},
+				{
+					"include": "#if-statement"
+				},
+				{
+					"include": "#parenthesized-expression"
+				},
+				{
+					"include": "#expression-operators"
+				},
+				{
+					"include": "#declaration-keywords"
+				},
+				{
+					"include": "#identifier"
+				}
+			]
+		},
+		"expression": {
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"include": "#if-statement"
+				},
+				{
+					"include": "#new-expression"
+				},
+				{
+					"include": "#strings"
+				},
+				{
+					"include": "#member-access"
+				},
+				{
+					"include": "#library-invocation"
+				},
+				{
+					"include": "#callable-invocation"
+				},
+				{
+					"include": "#library"
+				},
+				{
+					"include": "#types"
+				},
+				{
+					"include": "#literals"
+				},
+				{
+					"include": "#parenthesized-expression"
+				},
+				{
+					"include": "#array-creation-expression"
+				},
+				{
+					"include": "#expression-operators"
+				},
+				{
+					"include": "#identifier"
+				}
+			]
+		},
+		"member-access": {
+			"match": "(?x)\n(\\.)\\s*\n([_[:alpha:]][_[:alnum:]]*)\\b\n(?!\\s*\\()",
+			"captures": {
+				"1": {
+					"name": "punctuation.accessor.qsharp"
+				},
+				"2": {
+					"name": "variable.other.property.qsharp"
+				}
+			}
+		},
+		"attributes": {
+			"patterns": [
+				{
+					"begin": "(@)([_[:alpha:]][_[:alnum:]]*)\\s*(?=\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.attribute.qsharp"
+						},
+						"2": {
+							"name": "entity.name.function.attribute.qsharp"
+						}
+					},
+					"end": "(?<=\\))",
+					"patterns": [
+						{
+							"include": "#argument-list"
+						}
+					]
+				},
+				{
+					"match": "(@)([_[:alpha:]][_[:alnum:]]*)",
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.attribute.qsharp"
+						},
+						"2": {
+							"name": "entity.name.function.attribute.qsharp"
+						}
+					}
+				}
+			]
+		},
+		"import-export-directive": {
+			"begin": "\\b(import|export)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.import.qsharp"
+				}
+			},
+			"end": "(?=;)|$",
+			"patterns": [
+				{
+					"begin": "\\b(as)\\b\\s*",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.qsharp"
+						}
+					},
+					"end": "(?=(,|;)|$)",
+					"patterns": [
+						{
+							"name": "entity.name.type.alias.qsharp",
+							"match": "[_[:alpha:]][_[:alnum:]]*"
+						}
+					]
+				},
+				{
+					"name": "keyword.operator.wildcard.qsharp",
+					"match": "\\*"
+				},
+				{
+					"name": "entity.name.namespace.qsharp",
+					"match": "[_[:alpha:]][_[:alnum:]]*"
+				},
+				{
+					"include": "#punctuation-accessor"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"boolean-literal": {
+			"patterns": [
+				{
+					"name": "constant.language.boolean.true.qsharp",
+					"match": "(?<!\\.)\\btrue\\b"
+				},
+				{
+					"name": "constant.language.boolean.false.qsharp",
+					"match": "(?<!\\.)\\bfalse\\b"
+				}
+			]
+		},
+		"result-literal": {
+			"patterns": [
+				{
+					"name": "constant.language.result.zero.qsharp",
+					"match": "(?<!\\.)\\bZero\\b"
+				},
+				{
+					"name": "constant.language.result.one.qsharp",
+					"match": "(?<!\\.)\\bOne\\b"
+				}
+			]
+		},
+		"pauli-literal": {
+			"patterns": [
+				{
+					"name": "constant.language.pauli.qsharp",
+					"match": "\\b(Pauli(I|X|Y|Z))\\b"
+				}
+			]
+		},
+		"punctuation-accessor": {
+			"name": "punctuation.accessor.qsharp",
+			"match": "\\."
+		},
+		"open-directive": {
+			"patterns": [
+				{
+					"begin": "\\b(open)\\s*",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.open.qsharp"
+						}
+					},
+					"end": "(?=;)",
+					"patterns": [
+						{
+							"begin": "\\b(as)\\s+(?<alias>[_[:alpha:]][_[:alnum:]]*)",
+							"beginCaptures": {
+								"1": {
+									"name": "keyword.other.alias.qsharp"
+								},
+								"2": {
+									"name": "entity.name.type.alias.qsharp"
+								}
+							},
+							"end": "(?=;)"
+						},
+						{
+							"name": "entity.name.type.namespace.qsharp",
+							"match": "[_[:alpha:]][_[:alnum:]]*"
+						},
+						{
+							"include": "#punctuation-accessor"
+						}
+					]
+				}
+			]
+		},
+		"numeric-literal": {
+			"patterns": [
+				{
+					"name": "constant.numeric.hexadecimal.qsharp",
+					"match": "\\b0[xX][0-9a-fA-F][0-9a-fA-F_]*[lL]?\\b"
+				},
+				{
+					"name": "constant.numeric.binary.qsharp",
+					"match": "\\b0[bB][01][01_]*[lL]?\\b"
+				},
+				{
+					"name": "constant.numeric.octal.qsharp",
+					"match": "\\b0[oO][0-7][0-7_]*[lL]?\\b"
+				},
+				{
+					"name": "constant.numeric.decimal.qsharp",
+					"match": "(?x)\n\\b\\d[\\d_]* \\. \\d[\\d_]* (?:[eE][+-]?\\d+)?    # 1.0   3.14   1.0e-3\n| \\b\\d[\\d_]* [eE][+-]?\\d+                    # 1e10\n| \\b\\d[\\d_]* [lL]?                           # 42   42L   1_000"
+				}
+			]
+		},
+		"array-creation-expression": {
+			"begin": "(?<!\\w)\\[",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.squarebracket.open.qsharp"
+				}
+			},
+			"end": "\\]",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.squarebracket.close.qsharp"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "\\b(size)\\s*(?=\\=)",
+					"end": "(?=\\])",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.size.qsharp"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#expression"
+						}
+					]
+				},
+				{
+					"include": "#argument"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"local-declaration": {
+			"begin": "(?x)\n(?:\\b(?:(let)|(mutable))\\b\\s*)\n([_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?=;|=|\\))",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.let.qsharp"
+				},
+				"2": {
+					"name": "keyword.other.mutable.qsharp"
+				},
+				"3": {
+					"name": "entity.name.variable.local.qsharp"
+				}
+			},
+			"end": "(?=;|\\))",
+			"patterns": [
+				{
+					"include": "#variable-initializer"
+				}
+			]
+		},
+		"tuple-binding": {
+			"begin": "(?x)\n\\b(?:(let)|(mutable)|(set)|(use)|(borrow))\\b\\s*\n(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.let.qsharp"
+				},
+				"2": {
+					"name": "keyword.other.mutable.qsharp"
+				},
+				"3": {
+					"name": "keyword.other.set.qsharp"
+				},
+				"4": {
+					"name": "keyword.other.use.qsharp"
+				},
+				"5": {
+					"name": "keyword.other.borrow.qsharp"
+				}
+			},
+			"end": "(?=;|\\bin\\b)",
+			"patterns": [
+				{
+					"include": "#tuple-pattern"
+				},
+				{
+					"include": "#variable-initializer"
+				},
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"tuple-pattern": {
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.open.qsharp"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.close.qsharp"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#tuple-pattern"
+				},
+				{
+					"name": "entity.name.variable.local.qsharp",
+					"match": "\\b[_[:alpha:]][_[:alnum:]]*\\b"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"array-assignment": {
+			"begin": "(?x)\n\\b(set)\\b\\s*\n([_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?:(=)\\s*([_[:alpha:]][_[:alnum:]]*)\\b\\s*(w\\/)|(w\\/=))",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.set.qsharp"
+				},
+				"2": {
+					"name": "entity.name.variable.local.qsharp"
+				},
+				"3": {
+					"name": "keyword.operator.assignment.qsharp"
+				},
+				"4": {
+					"name": "entity.name.variable.local.qsharp"
+				},
+				"5": {
+					"name": "keyword.operator.assignment.qsharp"
+				},
+				"6": {
+					"name": "keyword.operator.assignment.qsharp"
+				}
+			},
+			"end": "(?=;|\\))",
+			"patterns": [
+				{
+					"name": "keyword.operator.assignment.qsharp",
+					"match": "<-"
+				},
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"local-assignment": {
+			"begin": "(?x)\n(?:\\b(set)\\b\\s*)\n([_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?=;|\\+=|-=|=|\\))",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.set.qsharp"
+				},
+				"2": {
+					"name": "entity.name.variable.local.qsharp"
+				}
+			},
+			"end": "(?=;|\\))",
+			"patterns": [
+				{
+					"include": "#variable-initializer"
+				}
+			]
+		},
+		"variable-initializer": {
+			"begin": "(?<!=|!)(?:(\\+=)|(-=)|(=)|(<-))(?!=|>)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.operator.assignment.increment.qsharp"
+				},
+				"2": {
+					"name": "keyword.operator.assignment.decrement.qsharp"
+				},
+				"3": {
+					"name": "keyword.operator.assignment.qsharp"
+				}
+			},
+			"end": "(?=[,\\)\\];}])",
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"if-statement": {
+			"begin": "(?<!\\.)\\b(if)\\b\\s*(?=\\S)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.conditional.if.qsharp"
+				}
+			},
+			"end": "(?<=})(?!\\s*\\b(?:elif|else)\\b)|(?=;)",
+			"patterns": [
+				{
+					"name": "keyword.control.conditional.qsharp",
+					"match": "\\b(elif|else)\\b"
+				},
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.open.qsharp"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.close.qsharp"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#statements"
+						}
+					]
+				},
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"expression-operators": {
+			"patterns": [
+				{
+					"name": "keyword.operator.logical.qsharp",
+					"match": "\\b(not|and|or)\\b"
+				},
+				{
+					"name": "keyword.operator.lambda.qsharp",
+					"match": "(->|=>)"
+				},
+				{
+					"name": "keyword.operator.assignment.compound.qsharp",
+					"match": "(\\+=|-=|\\*=|/=|%=|\\^=|&&&=|\\|\\|\\|=|\\^\\^\\^=|<<<=|>>>=|\\bw/=)"
+				},
+				{
+					"name": "keyword.operator.copy-update.qsharp",
+					"match": "(\\bw/|<-)"
+				},
+				{
+					"name": "keyword.operator.assignment.qsharp",
+					"match": "(?<![=<>!+\\-*/%^&|~])=(?![=>])"
+				},
+				{
+					"name": "keyword.operator.range.qsharp",
+					"match": "(\\.\\.\\.|\\.\\.)"
+				},
+				{
+					"name": "keyword.operator.bitwise.qsharp",
+					"match": "(&&&|\\|\\|\\||\\^\\^\\^|~~~|<<<|>>>)"
+				},
+				{
+					"name": "keyword.operator.comparison.qsharp",
+					"match": "(==|!=|<=|>=|<|>)"
+				},
+				{
+					"name": "keyword.operator.arithmetic.qsharp",
+					"match": "(\\+|\\-|\\*|/|%|\\^)"
+				},
+				{
+					"name": "keyword.operator.ternary.qsharp",
+					"match": "(\\?|\\|)"
+				}
+			]
+		},
+		"quantum-declaration": {
+			"begin": "(?x)\n(?:\\b(?:(use)|(borrow))\\b\\s*)\n([_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?=;|=|\\))",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.use.qsharp"
+				},
+				"2": {
+					"name": "keyword.other.borrow.qsharp"
+				},
+				"3": {
+					"name": "entity.name.variable.local.qsharp"
+				}
+			},
+			"end": "(?=;|\\))",
+			"patterns": [
+				{
+					"include": "#quantum-initializer"
+				}
+			]
+		},
+		"quantum-initializer": {
+			"begin": "(?<!=|!)(=)(?!=|>)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.operator.assignment.qsharp"
+				}
+			},
+			"end": "(?=[,\\)\\];}])",
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
+		}
+	}
+}
