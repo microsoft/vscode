@@ -1606,8 +1606,17 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 		}
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
-		const visible = combined.filter(session => this._shouldIncludeSession(session, mode));
-		this._logHiddenSessions(combined.length - visible.length, combined.length, mode);
+		const visible: IAgentSessionMetadata[] = [];
+		// Adoptable-legacy rows are withheld by migrate-legacy, not by the external mode.
+		let hiddenByExternalMode = 0;
+		for (const session of combined) {
+			if (this._shouldIncludeSession(session, mode)) {
+				visible.push(session);
+			} else if (!readSessionEhcliAdoptable(session._meta)) {
+				hiddenByExternalMode++;
+			}
+		}
+		this._logHiddenSessions(hiddenByExternalMode, combined.length, mode);
 
 		this._logService.trace(`[AgentService] listSessions returned ${visible.length} sessions (${additions.length} state-manager fallback)`);
 		return visible;
@@ -1620,6 +1629,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Surfaces how many sessions the external-sessions setting is holding back.
 	 * Without this, a session that a provider discovered but the current mode
 	 * filters out is indistinguishable from one that was never discovered.
+	 * `hidden` counts only rows the mode itself excluded, never the
+	 * adoptable-legacy rows gated on the separate migrate-legacy setting.
 	 */
 	private _logHiddenSessions(hidden: number, total: number, mode: AgentHostExternalSessionsMode): void {
 		const signature = `${hidden}/${total}/${mode}`;

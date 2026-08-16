@@ -2196,6 +2196,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 *   home (the standalone CLI, the GitHub Copilot app, another editor) and
 	 *   is therefore `external: true`.
 	 *
+	 * A chat counts as already known when it has a per-session database, which
+	 * also keeps peer-chat backings out of the result. A chat the SDK reports
+	 * without a working directory is skipped: {@link _doResumeSession} requires
+	 * one and a discovered chat has no other source for it (Agent Host writes
+	 * no metadata for it beyond the read marker), so it would surface as a row
+	 * that throws on open.
+	 *
+	 * Classification is per-chat fallible — an unreadable session database
+	 * would otherwise withhold the whole catalog and fail every retry — so a
+	 * failing chat is logged and skipped while its siblings still surface.
+	 *
 	 * `undefined` means the catalog could not be enumerated yet — not an
 	 * authoritative empty result.
 	 */
@@ -2209,39 +2220,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
 		let known = 0;
 		let withoutWorkingDirectory = 0;
+		let failed = 0;
 		const mapped = await Promise.all(sessions.map(s => metadataLimiter.queue(async () => {
 			const session = AgentSession.uri(this.id, s.sessionId);
-			// A per-session database exists only for chats Agent Host created,
-			// adopted, or already surfaced — including peer-chat backings, which
-			// must never be re-surfaced as top-level sessions.
-			if (await this._readStoredSessionMetadata(session)) {
-				known++;
+			try {
+				if (await this._readStoredSessionMetadata(session)) {
+					known++;
+					return undefined;
+				}
+				if (typeof s.context?.workingDirectory !== 'string') {
+					withoutWorkingDirectory++;
+					return undefined;
+				}
+				const adoptable = await this._isExtensionHostCliSession(s.sessionId);
+				return {
+					chat: URI.parse(buildDefaultChatUri(session)),
+					startTime: s.startTime.getTime(),
+					modifiedTime: s.modifiedTime.getTime(),
+					project: await this._resolveSessionProject(s.context, projectLimiter, projectByContext),
+					summary: s.summary,
+					workingDirectories: [URI.file(s.context.workingDirectory)],
+					_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
+					external: !adoptable,
+				} satisfies IAgentDiscoveredChat;
+			} catch (err) {
+				failed++;
+				this._logService.warn(`[Copilot] Failed to classify discovered chat ${session.toString()}; skipping it`, err);
 				return undefined;
 			}
-			if (typeof s.context?.workingDirectory !== 'string') {
-				// `_doResumeSession` requires a working directory, and a discovered
-				// chat has no other source for one: Agent Host writes no metadata
-				// for it beyond the read marker, and the SDK context is what was
-				// missing here in the first place. Surfacing it would produce a row
-				// that throws on open, so drop it.
-				withoutWorkingDirectory++;
-				return undefined;
-			}
-			const adoptable = await this._isExtensionHostCliSession(s.sessionId);
-			return {
-				chat: URI.parse(buildDefaultChatUri(session)),
-				startTime: s.startTime.getTime(),
-				modifiedTime: s.modifiedTime.getTime(),
-				project: await this._resolveSessionProject(s.context, projectLimiter, projectByContext),
-				summary: s.summary,
-				workingDirectories: [URI.file(s.context.workingDirectory)],
-				_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
-				external: !adoptable,
-			} satisfies IAgentDiscoveredChat;
 		})));
 		const chats = mapped.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
 		const external = chats.filter(chat => chat.external).length;
-		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${chats.length - external} adoptable legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory`);
+		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${chats.length - external} adoptable legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${failed} failed to classify`);
 		return chats;
 	}
 
