@@ -182,7 +182,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			resolverResult = await this._resolveAuthorityInitial(remoteAuthority);
 		} catch (err) {
 			if (RemoteAuthorityResolverError.isHandled(err)) {
-				console.log(`Error handled: Not showing a notification for the error`);
+				this._logService.trace(`Error handled: Not showing a notification for the error`);
 			}
 			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 

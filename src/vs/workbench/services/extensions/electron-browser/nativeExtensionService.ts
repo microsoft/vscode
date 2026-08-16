@@ -404,7 +404,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 					err.isHandled = await this._handleNoResolverFound(remoteAuthority);
 				} else {
 					if (RemoteAuthorityResolverError.isHandled(err)) {
-						console.log(`Error handled: Not showing a notification for the error`);
+						this._logService.trace(`Error handled: Not showing a notification for the error`);
 					}
 				}
 				this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
