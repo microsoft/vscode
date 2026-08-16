@@ -1221,6 +1221,28 @@ interface CachedParsedExpression {
 	parsed: glob.ParsedExpression;
 }
 
+export async function findAncestorGitIgnoreResources(workspaceRoot: URI, exists: (resource: URI) => Promise<boolean>): Promise<URI[]> {
+	if (await exists(joinPath(workspaceRoot, '.git'))) {
+		return [];
+	}
+
+	const candidates: URI[] = [];
+	let current = dirname(workspaceRoot);
+
+	while (true) {
+		candidates.push(joinPath(current, '.gitignore'));
+		if (await exists(joinPath(current, '.git'))) {
+			return candidates.reverse();
+		}
+
+		const parent = dirname(current);
+		if (parent.toString() === current.toString()) {
+			return [];
+		}
+		current = parent;
+	}
+}
+
 /**
  * Respects files.exclude setting in filtering out content from the explorer.
  * Makes sure that visible editors are always shown in the explorer even if they are filtered out by settings.
@@ -1232,6 +1254,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private toDispose: IDisposable[] = [];
 	// List of ignoreFile resources. Used to detect changes to the ignoreFiles.
 	private ignoreFileResourcesPerRoot = new Map<string, ResourceSet>();
+	private ancestorIgnoreFileWatchesPerRoot = new Map<string, DisposableStore>();
+	private ancestorIgnoreFileInitializationsPerRoot = new Map<string, Promise<void>>();
 	// Ignore tree per root. Similar to `hiddenExpressionPerRoot`
 	// Note: URI in the ternary search tree is the URI of the folder containing the ignore file
 	// It is not the ignore file itself. This is because of the way the IgnoreFile works and nested paths
@@ -1253,15 +1277,13 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			}
 		}));
 		this.toDispose.push(this.fileService.onDidFilesChange(e => {
-			// Check to see if the update contains any of the ignoreFileResources
 			for (const [root, ignoreFileResourceSet] of this.ignoreFileResourcesPerRoot.entries()) {
 				ignoreFileResourceSet.forEach(async ignoreResource => {
-					if (e.contains(ignoreResource, FileChangeType.UPDATED)) {
+					if (e.contains(ignoreResource, FileChangeType.ADDED, FileChangeType.UPDATED)) {
 						await this.processIgnoreFile(root, ignoreResource, true);
 					}
 					if (e.contains(ignoreResource, FileChangeType.DELETED)) {
-						this.ignoreTreesPerRoot.get(root)?.delete(dirname(ignoreResource));
-						ignoreFileResourceSet.delete(ignoreResource);
+						this.ignoreTreesPerRoot.get(root)?.get(dirname(ignoreResource))?.updateContents('');
 						this._onDidChange.fire();
 					}
 				});
@@ -1307,7 +1329,19 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private updateConfiguration(): void {
 		let shouldFire = false;
 		let updatedGitIgnoreSetting = false;
-		this.contextService.getWorkspace().folders.forEach(folder => {
+		const folders = this.contextService.getWorkspace().folders;
+		const workspaceRoots = new Set(folders.map(folder => folder.uri.toString()));
+		for (const root of this.ignoreTreesPerRoot.keys()) {
+			if (!workspaceRoots.has(root)) {
+				this.ancestorIgnoreFileWatchesPerRoot.get(root)?.dispose();
+				this.ancestorIgnoreFileWatchesPerRoot.delete(root);
+				this.ancestorIgnoreFileInitializationsPerRoot.delete(root);
+				this.ignoreFileResourcesPerRoot.delete(root);
+				this.ignoreTreesPerRoot.delete(root);
+			}
+		}
+
+		folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
 			const parseIgnoreFile: boolean = configuration.explorer.excludeGitIgnore;
@@ -1317,11 +1351,24 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 				updatedGitIgnoreSetting = true;
 				this.ignoreFileResourcesPerRoot.set(folder.uri.toString(), new ResourceSet());
 				this.ignoreTreesPerRoot.set(folder.uri.toString(), TernarySearchTree.forUris((uri) => this.uriIdentityService.extUri.ignorePathCasing(uri)));
+				const watches = new DisposableStore();
+				this.ancestorIgnoreFileWatchesPerRoot.set(folder.uri.toString(), watches);
+				const initialization = this.initializeAncestorIgnoreFiles(folder.uri, watches);
+				this.ancestorIgnoreFileInitializationsPerRoot.set(folder.uri.toString(), initialization);
+				const clearInitialization = () => {
+					if (this.ancestorIgnoreFileInitializationsPerRoot.get(folder.uri.toString()) === initialization) {
+						this.ancestorIgnoreFileInitializationsPerRoot.delete(folder.uri.toString());
+					}
+				};
+				initialization.then(clearInitialization, clearInitialization);
 			}
 
 			// If we shouldn't be parsing ignore files but have an ignore tree, clear the ignore tree
 			if (!parseIgnoreFile && this.ignoreTreesPerRoot.has(folder.uri.toString())) {
 				updatedGitIgnoreSetting = true;
+				this.ancestorIgnoreFileWatchesPerRoot.get(folder.uri.toString())?.dispose();
+				this.ancestorIgnoreFileWatchesPerRoot.delete(folder.uri.toString());
+				this.ancestorIgnoreFileInitializationsPerRoot.delete(folder.uri.toString());
 				this.ignoreFileResourcesPerRoot.delete(folder.uri.toString());
 				this.ignoreTreesPerRoot.delete(folder.uri.toString());
 			}
@@ -1342,51 +1389,83 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		}
 	}
 
+	private async initializeAncestorIgnoreFiles(workspaceRoot: URI, watches: DisposableStore): Promise<void> {
+		const root = workspaceRoot.toString();
+		const resources = await findAncestorGitIgnoreResources(workspaceRoot, resource => this.fileService.exists(resource));
+		if (!this.ignoreTreesPerRoot.has(root) || this.ancestorIgnoreFileWatchesPerRoot.get(root) !== watches) {
+			return;
+		}
+
+		for (const resource of resources) {
+			if (!this.ignoreTreesPerRoot.has(root) || this.ancestorIgnoreFileWatchesPerRoot.get(root) !== watches) {
+				return;
+			}
+			watches.add(this.fileService.watch(resource));
+			this.ignoreFileResourcesPerRoot.get(root)?.add(resource);
+			const dirUri = dirname(resource);
+			const ignoreTree = this.ignoreTreesPerRoot.get(root);
+			const ignoreParent = ignoreTree?.findSubstr(dirUri);
+			const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
+			ignoreTree?.set(dirUri, new IgnoreFile('', dirUri.path, ignoreParent, ignoreCase));
+			if (await this.fileService.exists(resource)) {
+				try {
+					ignoreTree?.get(dirUri)?.updateContents((await this.fileService.readFile(resource)).value.toString());
+				} catch (error) {
+					if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+						throw error;
+					}
+				}
+			}
+		}
+		if (this.ignoreTreesPerRoot.has(root) && this.ancestorIgnoreFileWatchesPerRoot.get(root) === watches) {
+			this._onDidChange.fire();
+		}
+	}
+
 	/**
 	 * Given a .gitignore file resource, processes the resource and adds it to the ignore tree which hides explorer items
 	 * @param root The root folder of the workspace as a string. Used for lookup key for ignore tree and resource list
 	 * @param ignoreFileResource The resource of the .gitignore file
-	 * @param update Whether or not we're updating an existing ignore file. If true it deletes the old entry
 	 */
-	private async processIgnoreFile(root: string, ignoreFileResource: URI, update?: boolean) {
-		// Get the name of the directory which the ignore file is in
+	private async processIgnoreFile(root: string, ignoreFileResource: URI, update = false, fireChange = true): Promise<void> {
+		await this.ancestorIgnoreFileInitializationsPerRoot.get(root);
 		const dirUri = dirname(ignoreFileResource);
 		const ignoreTree = this.ignoreTreesPerRoot.get(root);
-		if (!ignoreTree) {
+		const resources = this.ignoreFileResourcesPerRoot.get(root);
+		if (!ignoreTree || !resources) {
 			return;
 		}
-
-		// Don't process a directory if we already have it in the tree
 		if (!update && ignoreTree.has(dirUri)) {
 			return;
 		}
-		// Maybe we need a cancellation token here in case it's super long?
-		const content = await this.fileService.readFile(ignoreFileResource);
 
-		// If it's just an update we update the contents keeping all references the same
-		if (update) {
-			const ignoreFile = ignoreTree.get(dirUri);
-			ignoreFile?.updateContents(content.value.toString());
-		} else {
-			// Otherwise we create a new ignore file and add it to the tree
-			const ignoreParent = ignoreTree.findSubstr(dirUri);
-			const ignoreCase = !this.fileService.hasCapability(ignoreFileResource, FileSystemProviderCapabilities.PathCaseSensitive);
-			const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent, ignoreCase);
-			ignoreTree.set(dirUri, ignoreFile);
-			// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
-			if (!this.ignoreFileResourcesPerRoot.get(root)?.has(ignoreFileResource)) {
-				this.ignoreFileResourcesPerRoot.get(root)?.add(ignoreFileResource);
+		let contents = '';
+		try {
+			contents = (await this.fileService.readFile(ignoreFileResource)).value.toString();
+		} catch (error) {
+			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+				throw error;
 			}
 		}
 
-		// Notify the explorer of the change so we may ignore these files
-		this._onDidChange.fire();
+		const ignoreFile = ignoreTree.get(dirUri);
+		if (ignoreFile) {
+			ignoreFile.updateContents(contents);
+		} else {
+			const ignoreParent = ignoreTree.findSubstr(dirUri);
+			const ignoreCase = !this.fileService.hasCapability(ignoreFileResource, FileSystemProviderCapabilities.PathCaseSensitive);
+			ignoreTree.set(dirUri, new IgnoreFile(contents, dirUri.path, ignoreParent, ignoreCase));
+		}
+		resources.add(ignoreFileResource);
+		if (fireChange) {
+			this._onDidChange.fire();
+		}
 	}
 
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
 		// Add newly visited .gitignore files to the ignore tree
 		if (stat.name === '.gitignore' && this.ignoreTreesPerRoot.has(stat.root.resource.toString())) {
-			this.processIgnoreFile(stat.root.resource.toString(), stat.resource, false);
+			this.processIgnoreFile(stat.root.resource.toString(), stat.resource);
 			return true;
 		}
 
@@ -1432,6 +1511,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	dispose(): void {
+		for (const watches of this.ancestorIgnoreFileWatchesPerRoot.values()) {
+			watches.dispose();
+		}
 		dispose(this.toDispose);
 	}
 }

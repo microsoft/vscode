@@ -4,17 +4,45 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
 import { getContext } from '../../browser/views/explorerView.js';
 import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { CompressedNavigationController } from '../../browser/views/explorerViewer.js';
+import { CompressedNavigationController, FilesFilter, findAncestorGitIgnoreResources } from '../../browser/views/explorerViewer.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { NullFilesConfigurationService, TestContextService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
+import { Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IExplorerService } from '../../browser/files.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { FileChangesEvent, FileChangeType } from '../../../../../platform/files/common/files.js';
+
+class AncestorGitIgnoreTestFileService extends TestFileService {
+	private readonly contents = new ResourceMap<string>();
+
+	constructor(private readonly existing: ResourceSet) {
+		super();
+	}
+
+	override async exists(resource: URI): Promise<boolean> {
+		return this.existing.has(resource);
+	}
+
+	setResourceContent(resource: URI, content: string): void {
+		this.contents.set(resource, content);
+	}
+
+	override async readFile(resource: URI) {
+		this.setContent(this.contents.get(resource) ?? this.getContent());
+		return super.readFile(resource);
+	}
+}
 
 suite('Files - ExplorerView', () => {
 
@@ -43,6 +71,93 @@ suite('Files - ExplorerView', () => {
 		assert.deepStrictEqual(getContext([s1], [s3, s1, s4], false, noNavigationController), [s1]);
 		assert.deepStrictEqual(getContext([], [s3, s1, s4], false, noNavigationController), []);
 		assert.deepStrictEqual(getContext([], [s3, s1, s4], true, noNavigationController), [s3, s1, s4]);
+	});
+
+	test('find ancestor gitignore resources from repository root to workspace parent', async () => {
+		const existing = new Set([
+			URI.file('/repo/.git').toString(),
+		]);
+		const resources = await findAncestorGitIgnoreResources(URI.file('/repo/packages/app'), resource => Promise.resolve(existing.has(resource.toString())));
+
+		assert.deepStrictEqual(resources, [
+			URI.file('/repo/.gitignore'),
+			URI.file('/repo/packages/.gitignore'),
+		]);
+	});
+
+	test('find ancestor gitignore resources stops at nearest repository root', async () => {
+		const existing = new Set([
+			URI.file('/repo/.git').toString(),
+			URI.file('/repo/packages/.git').toString(),
+		]);
+		const resources = await findAncestorGitIgnoreResources(URI.file('/repo/packages/app'), resource => Promise.resolve(existing.has(resource.toString())));
+
+		assert.deepStrictEqual(resources, [URI.file('/repo/packages/.gitignore')]);
+	});
+
+	test('find ancestor gitignore resources stops when workspace is repository root', async () => {
+		const existing = new Set([
+			URI.file('/repo/.git').toString(),
+			URI.file('/repo/packages/app/.git').toString(),
+		]);
+		const resources = await findAncestorGitIgnoreResources(URI.file('/repo/packages/app'), resource => Promise.resolve(existing.has(resource.toString())));
+
+		assert.deepStrictEqual(resources, []);
+	});
+
+	test('find ancestor gitignore resources requires a repository boundary', async () => {
+		const resources = await findAncestorGitIgnoreResources(URI.file('/users/example/workspace'), () => Promise.resolve(false));
+
+		assert.deepStrictEqual(resources, []);
+	});
+
+	test('files filter applies gitignore from ancestor repository root', async () => {
+		const workspaceRoot = URI.file('/repo/packages/app');
+		const existing = new ResourceSet([
+			URI.file('/repo/.git'),
+			URI.file('/repo/.gitignore'),
+			URI.file('/repo/packages/app/.gitignore'),
+		]);
+		const ancestorFileService = new AncestorGitIgnoreTestFileService(existing);
+		ancestorFileService.setResourceContent(URI.file('/repo/.gitignore'), '*.log');
+		ancestorFileService.setResourceContent(URI.file('/repo/packages/app/.gitignore'), '!keep.log');
+		const contextService = new TestContextService(new Workspace('workspace', [new WorkspaceFolder({ uri: workspaceRoot, name: 'app', index: 0 })], false, null, () => false));
+		const configurationService = new TestConfigurationService({
+			files: { exclude: {} },
+			explorer: { excludeGitIgnore: true }
+		});
+		const filter = ds.add(new FilesFilter(
+			contextService,
+			configurationService,
+			{ getEditableData: () => undefined } as Partial<IExplorerService> as IExplorerService,
+			{ onDidVisibleEditorsChange: Event.None, visibleEditors: [] } as Partial<IEditorService> as IEditorService,
+			ds.add(new UriIdentityService(ancestorFileService)),
+			ancestorFileService
+		));
+		const processIgnoreFile = Reflect.get(filter, 'processIgnoreFile') as (root: string, resource: URI) => Promise<void>;
+		await processIgnoreFile.call(filter, workspaceRoot.toString(), URI.file('/repo/packages/app/.gitignore'));
+
+		assert.strictEqual(filter.isIgnored(URI.file('/repo/packages/app/output.log'), workspaceRoot, false), true);
+		assert.strictEqual(filter.isIgnored(URI.file('/repo/packages/app/keep.log'), workspaceRoot, false), false);
+		assert.deepStrictEqual(ancestorFileService.watches.map(resource => resource.toString()), [
+			URI.file('/repo/.gitignore').toString(),
+			URI.file('/repo/packages/.gitignore').toString(),
+		]);
+
+		ancestorFileService.setResourceContent(URI.file('/repo/.gitignore'), '*.tmp');
+		const updated = Event.toPromise(filter.onDidChange);
+		ancestorFileService.fireFileChanges(new FileChangesEvent([{ resource: URI.file('/repo/.gitignore'), type: FileChangeType.UPDATED }], false));
+		await updated;
+
+		assert.strictEqual(filter.isIgnored(URI.file('/repo/packages/app/output.log'), workspaceRoot, false), false);
+		assert.strictEqual(filter.isIgnored(URI.file('/repo/packages/app/output.tmp'), workspaceRoot, false), true);
+
+		existing.delete(URI.file('/repo/.gitignore'));
+		const deleted = Event.toPromise(filter.onDidChange);
+		ancestorFileService.fireFileChanges(new FileChangesEvent([{ resource: URI.file('/repo/.gitignore'), type: FileChangeType.DELETED }], false));
+		await deleted;
+
+		assert.strictEqual(filter.isIgnored(URI.file('/repo/packages/app/output.tmp'), workspaceRoot, false), false);
 	});
 
 	test('decoration provider', async function () {
