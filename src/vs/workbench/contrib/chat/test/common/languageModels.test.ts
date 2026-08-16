@@ -1395,6 +1395,122 @@ suite('LanguageModels - Per-Model Configuration with multiple same-vendor groups
 	});
 });
 
+suite('LanguageModels - Per-Model Configuration with same model id across groups (#325069)', function () {
+
+	let languageModelsService: LanguageModelsService;
+	let providerGroups: ILanguageModelsProviderGroup[];
+	const disposables = new DisposableStore();
+
+	function makeModel(group: string, id: string): { metadata: ILanguageModelChatMetadata; identifier: string } {
+		return {
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				name: id,
+				vendor: 'customendpoint',
+				family: id,
+				version: '1.0',
+				id,
+				maxInputTokens: 100,
+				maxOutputTokens: 100,
+				isDefaultForLocation: {},
+				configurationSchema: {
+					type: 'object',
+					properties: {
+						reasoningEffort: { type: 'string', default: 'medium' }
+					}
+				}
+			} satisfies ILanguageModelChatMetadata,
+			identifier: `customendpoint/${group}/${id}`
+		};
+	}
+
+	setup(async function () {
+		// Two groups sharing the same `vendor` AND the same bare model `id`.
+		providerGroups = [
+			{ vendor: 'customendpoint', name: 'ProviderA' },
+			{ vendor: 'customendpoint', name: 'ProviderB' }
+		];
+
+		languageModelsService = new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			new TestStorageService(),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return providerGroups;
+				}
+				override async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+					providerGroups = providerGroups.map(group => group === from ? to : group);
+					return to;
+				}
+				override async addLanguageModelsProviderGroup(group: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+					providerGroups = [...providerGroups, group];
+					return group;
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
+			NullTelemetryService,
+		);
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{
+				vendor: 'customendpoint',
+				displayName: 'Custom Endpoint',
+				configuration: { type: 'object', properties: {} } as unknown as undefined,
+				managementCommand: undefined,
+				when: undefined
+			}
+		], []);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('customendpoint', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async (options) => {
+				if (options.group === 'ProviderA' || options.group === 'ProviderB') {
+					return [makeModel(options.group, 'gpt-5.5')];
+				}
+				return [];
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		await languageModelsService.selectLanguageModels({});
+	});
+
+	teardown(function () {
+		languageModelsService.dispose();
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('configuring one group does not contaminate another group that exposes the same model id', async function () {
+		await languageModelsService.setModelConfiguration('customendpoint/ProviderA/gpt-5.5', { reasoningEffort: 'high' });
+		await languageModelsService.setModelConfiguration('customendpoint/ProviderB/gpt-5.5', { reasoningEffort: 'low' });
+
+		const providerA = providerGroups.find(g => g.name === 'ProviderA');
+		const providerB = providerGroups.find(g => g.name === 'ProviderB');
+		assert.deepStrictEqual(
+			{ providerA: providerA?.settings, providerB: providerB?.settings },
+			{
+				providerA: { 'gpt-5.5': { reasoningEffort: 'high' } },
+				providerB: { 'gpt-5.5': { reasoningEffort: 'low' } }
+			}
+		);
+	});
+});
+
 suite('LanguageModels - Provider Group Management', function () {
 
 	class TestInputBox extends mock<IInputBox>() {
