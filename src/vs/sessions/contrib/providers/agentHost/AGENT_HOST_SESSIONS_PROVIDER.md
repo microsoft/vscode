@@ -117,7 +117,7 @@ The **only** per-provider difference is the storage key: local uses the fixed `l
 
 ### External session visibility
 
-Provider-native sessions discovered outside the Agent Host carry `_meta.external`. `chat.agentSessions.showExternal` controls whether the catalog publishes none, all, the last 24 hours, or the last 7 days (the default). Configuration changes publish or unpublish matching summaries immediately, including restored sessions, while retaining live Agent Host state so a later settings change can surface them again.
+Provider-native sessions discovered outside the Agent Host carry `_meta.external`. `chat.agentSessions.showExternal` controls whether the catalog publishes none, all, the last 24 hours, or the last 7 days (the default). Configuration changes publish or unpublish matching summaries immediately, including restored sessions, while retaining live Agent Host state so a later settings change can surface them again. The state manager distinguishes a summary retained as the diff baseline from one actually published through `root/sessionAdded`; restoring a filtered session records the former without implying the latter.
 
 Both the regular VS Code agent sessions list and the Agents Window Sessions list expose this setting as an `External` submenu directly below their provider filters. The checked option follows the effective configuration value, and selecting an option writes the user setting.
 

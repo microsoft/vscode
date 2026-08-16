@@ -259,6 +259,8 @@ export class AgentHostStateManager extends Disposable {
 	 * since it closes over {@link _toSummary} and {@link _onDidEmitNotification}.
 	 */
 	private readonly _summaryNotifier: SessionSummaryNotifier;
+	/** Session summaries that clients have actually received through `root/sessionAdded`. */
+	private readonly _publishedSessionSummaries = new Set<string>();
 
 	private readonly _onDidEmitEnvelope = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidEmitEnvelope: Event<ActionEnvelope> = this._onDidEmitEnvelope.event;
@@ -708,6 +710,7 @@ export class AgentHostStateManager extends Disposable {
 			// `markSessionPersisted` a no-op. Provisional sessions
 			// intentionally skip both until they are persisted.
 			this._summaryNotifier.announce(key, summary);
+			this._publishedSessionSummaries.add(key);
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionAdded',
 				channel: ROOT_STATE_URI,
@@ -741,15 +744,7 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] markSessionPersisted: unknown session ${key}`);
 			return;
 		}
-		// The notifier records a session's announced summary whenever it has
-		// been surfaced to clients (either through `createSession` or here);
-		// using it as the idempotency check keeps us from firing `SessionAdded`
-		// twice for a session whose creation was not deferred. `force` overrides
-		// this for adopt, where `restoreSession` marks the summary announced
-		// without ever emitting, so clients (e.g. the workspace-scoped editor
-		// session list) that rely on the notification would otherwise miss it —
-		// a redundant re-announce is harmless (`SessionAdded` is idempotent).
-		if (!force && this._summaryNotifier.isAnnounced(key)) {
+		if (!force && this._publishedSessionSummaries.has(key)) {
 			return;
 		}
 		// Propagate the materialization-resolved fields so subscribers calling
@@ -762,6 +757,7 @@ export class AgentHostStateManager extends Disposable {
 		entry.changes = summary.changes;
 		const full = this._toSummary(key, entry);
 		this._summaryNotifier.announce(key, full);
+		this._publishedSessionSummaries.add(key);
 		this._onDidEmitNotification.fire({
 			type: 'root/sessionAdded',
 			channel: ROOT_STATE_URI,
@@ -782,11 +778,12 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already in state ${key}`);
 			return;
 		}
-		if (this._summaryNotifier.isAnnounced(key)) {
-			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already announced ${key}`);
+		if (this._publishedSessionSummaries.has(key)) {
+			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already published ${key}`);
 			return;
 		}
 		this._summaryNotifier.announce(key, summary);
+		this._publishedSessionSummaries.add(key);
 		this._onDidEmitNotification.fire({
 			type: 'root/sessionAdded',
 			channel: ROOT_STATE_URI,
@@ -799,6 +796,9 @@ export class AgentHostStateManager extends Disposable {
 		if (this._sessionStates.has(session)) {
 			return;
 		}
+		if (!this._publishedSessionSummaries.delete(session)) {
+			return;
+		}
 		this._summaryNotifier.remove(session);
 		this._onDidEmitNotification.fire({
 			type: 'root/sessionRemoved',
@@ -809,7 +809,7 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Publishes or unpublishes a live session summary without changing its session state. */
 	setSessionSummaryPublished(session: string, published: boolean): void {
-		if (published === this._summaryNotifier.isAnnounced(session)) {
+		if (published === this._publishedSessionSummaries.has(session)) {
 			return;
 		}
 
@@ -820,12 +820,14 @@ export class AgentHostStateManager extends Disposable {
 			}
 			const summary = this._toSummary(session, entry);
 			this._summaryNotifier.announce(session, summary);
+			this._publishedSessionSummaries.add(session);
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionAdded',
 				channel: ROOT_STATE_URI,
 				summary,
 			});
 		} else {
+			this._publishedSessionSummaries.delete(session);
 			this._summaryNotifier.remove(session);
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionRemoved',
@@ -1141,7 +1143,7 @@ export class AgentHostStateManager extends Disposable {
 	 * cause clients to drop a session URI they had eagerly subscribed to).
 	 */
 	deleteSession(session: URI): void {
-		const wasAnnounced = this._summaryNotifier.isAnnounced(session);
+		const wasPublished = this._publishedSessionSummaries.has(session.toString());
 		// Drop any pending summary diff: the forthcoming SessionRemoved notification
 		// supersedes it and we don't want to emit spurious SessionSummaryChanged
 		// events just before the session disappears from the client's view.
@@ -1154,7 +1156,8 @@ export class AgentHostStateManager extends Disposable {
 		this.disposeSessionChangesets(session);
 		this.disposeSessionAnnotations(session);
 		this.removeSession(session);
-		if (wasAnnounced) {
+		if (wasPublished) {
+			this._publishedSessionSummaries.delete(session.toString());
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionRemoved',
 				channel: ROOT_STATE_URI,
