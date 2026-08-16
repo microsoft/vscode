@@ -5385,7 +5385,11 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!gitService) {
 			return undefined;
 		}
-		const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, fields.sessionUri);
+		let workingDirectories = getEffectiveWorkingDirectories(this._stateManager, fields.sessionUri);
+		if (!workingDirectories) {
+			await this.restoreSession(URI.parse(fields.sessionUri));
+			workingDirectories = getEffectiveWorkingDirectories(this._stateManager, fields.sessionUri);
+		}
 		// Backwards-compat: no resolvable absolute path means we cannot match a
 		// repository root, so fall back to today's primary-directory behavior.
 		if (!fields.absolutePath) {

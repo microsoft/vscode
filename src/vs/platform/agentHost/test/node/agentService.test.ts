@@ -1087,6 +1087,33 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(result.data, 'blob:src/app.ts');
 		});
 
+		test('git-blob restores the session before resolving its working directory', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA]]), showBlobCalls);
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			agent.sessionMetadataOverrides = { workingDirectories: [repoA] };
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const { session } = await createAgentSession(agent);
+			const sessionRestoredBeforeRead = !!localService.stateManager.getSessionState(session.toString());
+
+			const result = await localService.resourceRead(URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'src/app.ts', '/workspace/repoA/src/app.ts')));
+
+			assert.deepStrictEqual({
+				sessionRestoredBeforeRead,
+				sessionRestored: !!localService.stateManager.getSessionState(session.toString()),
+				showBlobCalls,
+				data: result.data,
+			}, {
+				sessionRestoredBeforeRead: false,
+				sessionRestored: true,
+				showBlobCalls: [{ workingDirectory: repoA.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }],
+				data: 'blob:src/app.ts',
+			});
+		});
+
 		test('single-folder git-blob uses the primary directory even for a path outside the root (AC-1.1 unchanged)', async () => {
 			const repoA = URI.file('/workspace/repoA');
 			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
