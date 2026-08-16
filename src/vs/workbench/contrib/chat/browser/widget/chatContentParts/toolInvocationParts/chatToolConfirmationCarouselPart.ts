@@ -121,7 +121,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		this.dismissButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		this.dismissButton.element.classList.add('chat-tool-carousel-dismiss-button');
-		this.dismissButton.label = `$(${Codicon.close.id})`;
+		this.dismissButton.label = `$(${Codicon.closeSmall.id})`;
 		const dismissButtonLabel = this.items.length === 1
 			? localize('skip', "Skip")
 			: localize('skipAll', "Skip All");
