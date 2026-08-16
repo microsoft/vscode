@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ChatExternalSessionsMode } from '../../../../../../platform/chat/common/chatSettings.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpression, ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -65,9 +65,9 @@ suite('External Sessions Filter Menu', () => {
 
 	test('updates the external sessions setting from an option', async () => {
 		const updates: { key: string; value: unknown; target?: ConfigurationTarget }[] = [];
-		const configurationService = new class extends TestConfigurationService {
-			override updateValue(key: string, value: unknown, target?: ConfigurationTarget): Promise<void> {
-				updates.push({ key, value, target });
+		const configurationService = new class extends mock<IConfigurationService>() {
+			override updateValue(key: string, value: unknown, arg3?: ConfigurationTarget | IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void> {
+				updates.push({ key, value, target: typeof arg3 === 'number' ? arg3 : undefined });
 				return Promise.resolve();
 			}
 		}();
