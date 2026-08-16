@@ -16,6 +16,7 @@ import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ReconnectResultType, type FetchTurnsResult, type InitializeResult, type ListSessionsResult, type ReconnectResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import type { SessionSummaryChangedParams } from '../../../../common/state/protocol/channels-root/notifications.js';
 import type { OtlpExportLogsParams } from '../../../../common/state/protocol/channels-otlp/notifications.js';
@@ -23,7 +24,7 @@ import type { IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnostics
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
 import { TerminalClaimKind } from '../../../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, type ChatState, type SessionState, type Turn } from '../../../../common/state/sessionState.js';
-import { createRealSession, dispatchTurn } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, dispatchTurn, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../common/state/sessionProtocol.js';
 import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
@@ -71,6 +72,18 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		return client;
 	}
 
+	async function triggerServerActivity(client: TestProtocolClient, marker: string): Promise<void> {
+		await client.call('createSession', {
+			channel: `missing-provider:/${marker}`,
+			provider: 'missing-provider',
+		}).catch(() => undefined);
+		await client.call('ping', { channel: ROOT_STATE_URI });
+	}
+
+	function isOtlpExport(notification: { readonly method: string }): boolean {
+		return notification.method === 'otlp/exportLogs';
+	}
+
 	conformanceTest(context, 'ping answers while the connection is live', async function () {
 		// Liveness has no payload — the response itself is the signal, so the
 		// contract is that the call resolves rather than what it returns.
@@ -107,6 +120,193 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 			const notification = await exported;
 
 			assert.ok(Object.keys((notification.params as OtlpExportLogsParams).payload).length > 0);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize advertises the OTLP log channel template', async function () {
+		const client = await context.connectClient();
+		try {
+			const result = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `otlp-capability-${config.provider}`,
+			});
+
+			assert.deepStrictEqual(result.telemetry, { logs: 'ahp-otlp://logs/{level}' });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize ignores an unknown OTLP log level', async function () {
+		const client = await context.connectClient();
+		try {
+			const result = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `otlp-invalid-initial-${config.provider}`,
+				initialSubscriptions: ['ahp-otlp://logs/verbose'],
+			});
+			client.clearReceived();
+
+			await triggerServerActivity(client, 'otlp-invalid-initial');
+
+			assert.deepStrictEqual({
+				snapshots: result.snapshots,
+				receivedExports: client.receivedNotifications(isOtlpExport).length,
+			}, {
+				snapshots: [],
+				receivedExports: 0,
+			});
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'subscribe acknowledges an unknown OTLP log level without installing it', async function () {
+		const client = await initializeAdditionalClient('otlp-invalid-subscribe');
+		try {
+			const result = await client.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/verbose' });
+			client.clearReceived();
+
+			await triggerServerActivity(client, 'otlp-invalid-subscribe');
+
+			assert.deepStrictEqual({
+				result,
+				receivedExports: client.receivedNotifications(isOtlpExport).length,
+			}, {
+				result: {},
+				receivedExports: 0,
+			});
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'OTLP log subscriptions route exports on their canonical channel', async function () {
+		const client = await initializeAdditionalClient('otlp-canonical');
+		try {
+			await client.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
+			const exported = client.waitForNotification(isOtlpExport, 30_000);
+
+			await triggerServerActivity(client, 'otlp-canonical');
+			const notification = await exported;
+
+			assert.strictEqual((notification.params as OtlpExportLogsParams).channel, 'ahp-otlp://logs/trace');
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'OTLP log delivery resumes after unsubscribe and resubscribe', async function () {
+		const client = await initializeAdditionalClient('otlp-resubscribe');
+		try {
+			await client.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
+			client.notify('unsubscribe', { channel: 'ahp-otlp://logs/trace' });
+			await client.call('ping', { channel: ROOT_STATE_URI });
+			await client.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
+			client.clearReceived();
+			const exported = client.waitForNotification(isOtlpExport, 30_000);
+
+			await triggerServerActivity(client, 'otlp-resubscribe');
+
+			assert.strictEqual((await exported).method, 'otlp/exportLogs');
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'unsubscribing from OTLP logs stops delivery', async function () {
+		const client = await initializeAdditionalClient('otlp-unsubscribe');
+		try {
+			await client.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
+			client.notify('unsubscribe', { channel: 'ahp-otlp://logs/trace' });
+			await client.call('ping', { channel: ROOT_STATE_URI });
+			client.clearReceived();
+
+			await triggerServerActivity(client, 'otlp-unsubscribe');
+
+			assert.strictEqual(client.receivedNotifications(isOtlpExport).length, 0);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'info-level OTLP subscriptions receive server activity', async function () {
+		const client = await initializeAdditionalClient('otlp-info-level');
+		try {
+			await client.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/info' });
+			const exported = client.waitForNotification(isOtlpExport, 30_000);
+
+			await triggerServerActivity(client, 'otlp-info-level');
+
+			assert.strictEqual((await exported).method, 'otlp/exportLogs');
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'fatal-level OTLP subscriptions filter ordinary server activity', async function () {
+		const client = await initializeAdditionalClient('otlp-fatal-level');
+		try {
+			await client.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/fatal' });
+			client.clearReceived();
+
+			await triggerServerActivity(client, 'otlp-fatal-level');
+
+			assert.strictEqual(client.receivedNotifications(isOtlpExport).length, 0);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'OTLP logs fan out to every subscribed client', async function () {
+		const first = await initializeAdditionalClient('otlp-fanout-first');
+		const second = await initializeAdditionalClient('otlp-fanout-second');
+		try {
+			await second.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
+			await first.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
+			await Promise.all([
+				first.call('ping', { channel: ROOT_STATE_URI }),
+				second.call('ping', { channel: ROOT_STATE_URI }),
+			]);
+			first.clearReceived();
+			second.clearReceived();
+			const firstExport = first.waitForNotification(isOtlpExport, 30_000);
+			const secondExport = second.waitForNotification(isOtlpExport, 30_000);
+
+			await triggerServerActivity(first, 'otlp-fanout');
+
+			assert.deepStrictEqual([(await firstExport).method, (await secondExport).method], ['otlp/exportLogs', 'otlp/exportLogs']);
+		} finally {
+			first.close();
+			second.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize installs an OTLP log subscription without a snapshot', async function () {
+		const client = await context.connectClient();
+		try {
+			const initialized = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `otlp-initial-${config.provider}`,
+				initialSubscriptions: ['ahp-otlp://logs/trace'],
+			});
+			const exported = client.waitForNotification(n => n.method === 'otlp/exportLogs', 30_000);
+
+			await client.call('createSession', { channel: 'missing-provider:/otlp-initial', provider: 'missing-provider' }).catch(() => undefined);
+			const notification = await exported;
+
+			assert.deepStrictEqual({
+				snapshots: initialized.snapshots,
+				channel: (notification.params as OtlpExportLogsParams).channel,
+			}, {
+				snapshots: [],
+				channel: 'ahp-otlp://logs/trace',
+			});
 		} finally {
 			client.close();
 		}
@@ -204,6 +404,104 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 				clientId: `no-initial-subscriptions-${config.provider}`,
 			});
 			assert.deepStrictEqual(initialized.snapshots, []);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize reports the negotiated protocol and sequence', async function () {
+		const client = await context.connectClient();
+		try {
+			const initialized = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `server-identity-${config.provider}`,
+				clientInfo: { name: 'agent-host-e2e', version: '1.0.0' },
+			});
+
+			assert.deepStrictEqual({
+				protocolVersion: initialized.protocolVersion,
+				serverSeqIsNonNegative: initialized.serverSeq >= 0,
+			}, {
+				protocolVersion: PROTOCOL_VERSION,
+				serverSeqIsNonNegative: true,
+			});
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize selects a supported fallback protocol version', async function () {
+		const client = await context.connectClient();
+		try {
+			const result = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: ['999.0.0', PROTOCOL_VERSION],
+				clientId: `fallback-version-${config.provider}`,
+			});
+
+			assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize accepts informational client identity', async function () {
+		const client = await context.connectClient();
+		try {
+			const result = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `client-info-${config.provider}`,
+				clientInfo: { name: 'agent-host-e2e', version: '1.2.3', title: 'Agent Host E2E' },
+			});
+
+			assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize accepts locale metadata', async function () {
+		const client = await context.connectClient();
+		try {
+			const result = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `locale-${config.provider}`,
+				locale: 'ja-JP',
+			});
+
+			assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize accepts declared client capabilities', async function () {
+		const client = await context.connectClient();
+		try {
+			const result = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `capabilities-${config.provider}`,
+				capabilities: { mcpApps: {} },
+			});
+
+			assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize cannot be repeated after the handshake', async function () {
+		const client = await initializeAdditionalClient('repeat-initialize');
+		try {
+			await assert.rejects(client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `repeat-initialize-again-${config.provider}`,
+			}), { code: JsonRpcErrorCodes.MethodNotFound });
 		} finally {
 			client.close();
 		}
@@ -634,6 +932,172 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		}
 	});
 
+	conformanceTest(context, 'reconnect with no missed actions returns an empty replay', async function () {
+		const { sessionUri } = await createSession('reconnect-empty');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const droppedClientId = `reconnect-empty-${config.provider}`;
+		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
+			const subscribed = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
+			return subscribed.snapshot!.fromSeq;
+		});
+
+		try {
+			const result = await revived.call<ReconnectResult>('reconnect', {
+				channel: ROOT_STATE_URI,
+				clientId: droppedClientId,
+				lastSeenServerSeq: seenThrough,
+				subscriptions: [chatUri],
+			});
+
+			assert.deepStrictEqual(result, { type: ReconnectResultType.Replay, actions: [], missing: [] });
+		} finally {
+			revived.close();
+		}
+	});
+
+	conformanceTest(context, 'reconnect excludes actions from channels the client did not restore', async function () {
+		const firstSession = await createSession('reconnect-filter-first');
+		const secondWorkspace = mkdtempSync(join(tmpdir(), 'ahp-reconnect-filter-second-'));
+		tempDirs.push(secondWorkspace);
+		const secondSessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		await context.client.call('createSession', {
+			channel: secondSessionUri,
+			provider: config.provider,
+			workingDirectories: [URI.file(secondWorkspace).toString()],
+			config: { isolation: 'folder' },
+		});
+		createdSessions.push(secondSessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: secondSessionUri });
+		const firstChat = buildDefaultChatUri(firstSession.sessionUri);
+		const secondChat = buildDefaultChatUri(secondSessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: secondChat });
+		const droppedClientId = `reconnect-filter-${config.provider}`;
+
+		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
+			const subscribed = await first.call<SubscribeResult>('subscribe', { channel: firstChat });
+			return subscribed.snapshot!.fromSeq;
+		});
+
+		try {
+			await dispatchAndWaitOnShared(firstChat, { type: ActionType.ChatDraftChanged, draft: { text: 'included', origin: { kind: MessageKind.User } } });
+			await dispatchAndWaitOnShared(secondChat, { type: ActionType.ChatDraftChanged, draft: { text: 'excluded', origin: { kind: MessageKind.User } } });
+
+			const result = await revived.call<ReconnectResult>('reconnect', {
+				channel: ROOT_STATE_URI,
+				clientId: droppedClientId,
+				lastSeenServerSeq: seenThrough,
+				subscriptions: [firstChat],
+			});
+
+			assert.deepStrictEqual(result.type === ReconnectResultType.Replay
+				? result.actions.map(action => ({ channel: action.channel, type: action.action.type }))
+				: result.type, [{ channel: firstChat, type: ActionType.ChatDraftChanged }]);
+		} finally {
+			revived.close();
+		}
+	});
+
+	conformanceTest(context, 'reconnect restores an OTLP log subscription', async function () {
+		const droppedClientId = `reconnect-otlp-${config.provider}`;
+		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
+			const root = await first.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			await first.call<SubscribeResult>('subscribe', { channel: 'ahp-otlp://logs/trace' });
+			return root.snapshot!.fromSeq;
+		});
+
+		try {
+			await revived.call<ReconnectResult>('reconnect', {
+				channel: ROOT_STATE_URI,
+				clientId: droppedClientId,
+				lastSeenServerSeq: seenThrough,
+				subscriptions: ['ahp-otlp://logs/trace'],
+			});
+			const exported = revived.waitForNotification(n => n.method === 'otlp/exportLogs', 30_000);
+
+			await context.client.call('createSession', { channel: 'missing-provider:/otlp-reconnect', provider: 'missing-provider' }).catch(() => undefined);
+
+			assert.strictEqual((await exported).method, 'otlp/exportLogs');
+		} finally {
+			revived.close();
+		}
+	});
+
+	conformanceTest(context, 'reconnect replays missed session and chat actions together', async function () {
+		const { sessionUri } = await createSession('reconnect-state-snapshots');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const droppedClientId = `reconnect-state-snapshots-${config.provider}`;
+		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
+			const session = await first.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			const chat = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
+			return Math.max(session.snapshot!.fromSeq, chat.snapshot!.fromSeq);
+		});
+
+		try {
+			await dispatchAndWaitOnShared(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Replay Session' });
+			await dispatchAndWaitOnShared(chatUri, { type: ActionType.ChatDraftChanged, draft: { text: 'replay draft', origin: { kind: MessageKind.User } } });
+
+			const result = await revived.call<ReconnectResult>('reconnect', {
+				channel: ROOT_STATE_URI,
+				clientId: droppedClientId,
+				lastSeenServerSeq: seenThrough,
+				subscriptions: [sessionUri, chatUri],
+			});
+
+			assert.deepStrictEqual(result.type === ReconnectResultType.Replay
+				? result.actions.map(action => ({ channel: action.channel, type: action.action.type }))
+				: result.type, [
+				{ channel: sessionUri, type: ActionType.SessionTitleChanged },
+				{ channel: chatUri, type: ActionType.ChatDraftChanged },
+			]);
+		} finally {
+			revived.close();
+		}
+	});
+
+	conformanceTest(context, 'reconnected state subscriptions receive subsequent live actions', async function () {
+		const { sessionUri } = await createSession('reconnect-live');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const droppedClientId = `reconnect-live-${config.provider}`;
+		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
+			const session = await first.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			const chat = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
+			return Math.max(session.snapshot!.fromSeq, chat.snapshot!.fromSeq);
+		});
+
+		try {
+			await revived.call<ReconnectResult>('reconnect', {
+				channel: ROOT_STATE_URI,
+				clientId: droppedClientId,
+				lastSeenServerSeq: seenThrough,
+				subscriptions: [sessionUri, chatUri],
+			});
+			const sessionChanged = revived.waitForNotification(n =>
+				isActionNotification(n, 'session/titleChanged') && getActionEnvelope(n).channel === sessionUri,
+			);
+			const chatChanged = revived.waitForNotification(n =>
+				isActionNotification(n, 'chat/draftChanged') && getActionEnvelope(n).channel === chatUri,
+			);
+
+			context.client.dispatch({
+				channel: sessionUri,
+				clientSeq: nextClientSeq(),
+				action: { type: ActionType.SessionTitleChanged, title: 'Reconnected Live' },
+			});
+			context.client.dispatch({
+				channel: chatUri,
+				clientSeq: nextClientSeq(),
+				action: { type: ActionType.ChatDraftChanged, draft: { text: 'live', origin: { kind: MessageKind.User } } },
+			});
+
+			assert.deepStrictEqual([
+				getActionEnvelope(await sessionChanged).action.type,
+				getActionEnvelope(await chatChanged).action.type,
+			], [ActionType.SessionTitleChanged, ActionType.ChatDraftChanged]);
+		} finally {
+			revived.close();
+		}
+	});
+
 	conformanceTest(context, 'reconnect reports a subscription it cannot resume as missing', async function () {
 		const { sessionUri } = await createSession('reconnect-missing');
 		const chatUri = buildDefaultChatUri(sessionUri);
@@ -666,6 +1130,211 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		} finally {
 			revived.close();
 		}
+	});
+
+	conformanceTest(context, 'resource requests before initialize are rejected', async function () {
+		const client = await context.connectClient();
+		try {
+			await assert.rejects(client.call('resourceResolve', {
+				channel: ROOT_STATE_URI,
+				uri: URI.file(tmpdir()).toString(),
+			}), { code: JsonRpcErrorCodes.MethodNotFound });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'unknown requests after initialize are rejected', async function () {
+		const client = await initializeAdditionalClient('unknown-request');
+		try {
+			await assert.rejects(client.call('agentHostE2E/unknownRequest', {
+				channel: ROOT_STATE_URI,
+			}), { code: JsonRpcErrorCodes.MethodNotFound });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'reconnect rejects an unknown client', async function () {
+		const client = await context.connectClient();
+		try {
+			await assert.rejects(client.call('reconnect', {
+				channel: ROOT_STATE_URI,
+				clientId: `unknown-reconnect-${config.provider}`,
+				lastSeenServerSeq: 0,
+				subscriptions: [],
+			}), { code: AhpErrorCodes.NotFound });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'creating a session with an unknown provider is rejected', async function () {
+		const client = await initializeAdditionalClient('unknown-provider');
+		try {
+			await assert.rejects(client.call('createSession', {
+				channel: 'missing-provider:/session',
+				provider: 'missing-provider',
+			}), { code: AhpErrorCodes.ProviderNotFound });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'creating a duplicate session resource is rejected', async function () {
+		const { sessionUri, workspace } = await createSession('duplicate-session');
+
+		await assert.rejects(context.client.call('createSession', {
+			channel: sessionUri,
+			provider: config.provider,
+			workingDirectories: [URI.file(workspace).toString()],
+			config: { isolation: 'folder' },
+		}), { code: AhpErrorCodes.SessionAlreadyExists });
+	}, context.runHostOnlyKnownIssueTests);
+
+	conformanceTest(context, 'a session cannot fork onto its own resource', async function () {
+		const { sessionUri } = await createSession('self-fork');
+
+		await assert.rejects(context.client.call('createSession', {
+			channel: sessionUri,
+			provider: config.provider,
+			fork: { session: sessionUri, turnId: 'irrelevant' },
+		}), { code: AhpErrorCodes.SessionAlreadyExists });
+	});
+
+	conformanceTest(context, 'forking from a missing session is rejected', async function () {
+		const target = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		const missingSource = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		await context.client.call('initialize', {
+			channel: ROOT_STATE_URI,
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: `missing-fork-source-${config.provider}`,
+		});
+
+		await assert.rejects(context.client.call('createSession', {
+			channel: target,
+			provider: config.provider,
+			fork: { session: missingSource, turnId: 'missing-turn' },
+		}), { code: AhpErrorCodes.SessionNotFound });
+	});
+
+	conformanceTest(context, 'createSession rejects an active client owned by another connection', async function () {
+		const client = await context.connectClient();
+		try {
+			await client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `active-client-owner-${config.provider}`,
+			});
+			await assert.rejects(client.call('createSession', {
+				channel: URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString(),
+				provider: config.provider,
+				activeClient: { clientId: 'different-client', displayName: 'Different Client', tools: [] },
+			}), { code: JsonRpcErrorCodes.InvalidParams });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'createSession seeds a matching active client into session state', async function () {
+		const workspace = mkdtempSync(join(tmpdir(), 'ahp-active-client-create-'));
+		tempDirs.push(workspace);
+		const clientId = `active-client-create-${config.provider}`;
+		const client = await context.connectClient();
+		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		let created = false;
+		try {
+			await client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId,
+			});
+			await client.call('authenticate', {
+				channel: ROOT_STATE_URI,
+				resource: 'https://api.github.com',
+				token: config.githubToken ?? resolveGitHubToken(),
+			});
+			await client.call('createSession', {
+				channel: sessionUri,
+				provider: config.provider,
+				workingDirectories: [URI.file(workspace).toString()],
+				config: { isolation: 'folder' },
+				activeClient: { clientId, displayName: 'Creating Client', tools: [] },
+			});
+			created = true;
+
+			const subscribed = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			const state = subscribed.snapshot!.state as SessionState;
+			assert.deepStrictEqual(state.activeClients, [{
+				clientId,
+				displayName: 'Creating Client',
+				tools: [],
+			}]);
+		} finally {
+			if (created) {
+				await client.call('disposeSession', { channel: sessionUri });
+			}
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'creating a chat for a missing session is rejected', async function () {
+		const client = await initializeAdditionalClient('missing-chat-session');
+		const sessionUri = URI.from({ scheme: config.scheme, path: '/missing-chat-session' }).toString();
+		try {
+			await assert.rejects(client.call('createChat', {
+				channel: sessionUri,
+				chat: buildChatUri(sessionUri, 'peer'),
+			}), { code: AhpErrorCodes.SessionNotFound });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'subscribing twice does not duplicate action delivery', async function () {
+		const { sessionUri } = await createSession('duplicate-subscription');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+		context.client.clearReceived();
+
+		const clientSeq = nextClientSeq();
+		const action = { type: ActionType.ChatDraftChanged, draft: { text: 'single delivery', origin: { kind: MessageKind.User } } } as const;
+		context.client.dispatch({ channel: chatUri, clientSeq, action });
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, action.type)
+			&& getActionEnvelope(n).channel === chatUri
+			&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
+		);
+		await context.client.call('ping', { channel: ROOT_STATE_URI });
+		const deliveries = context.client.receivedNotifications(n =>
+			isActionNotification(n, action.type)
+			&& getActionEnvelope(n).channel === chatUri
+			&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
+		);
+
+		assert.strictEqual(deliveries.length, 1);
+	});
+
+	conformanceTest(context, 'resubscribing receives state changed while unsubscribed', async function () {
+		const { sessionUri } = await createSession('resubscribe-snapshot');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		context.client.notify('unsubscribe', { channel: chatUri });
+		const clientSeq = nextClientSeq();
+		context.client.dispatch({
+			channel: chatUri,
+			clientSeq,
+			action: {
+				type: ActionType.ChatDraftChanged,
+				draft: { text: 'changed while unsubscribed', origin: { kind: MessageKind.User } },
+			},
+		});
+		await context.client.call('ping', { channel: ROOT_STATE_URI });
+
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+		const state = subscribed.snapshot!.state as ChatState;
+
+		assert.strictEqual(state.draft?.text, 'changed while unsubscribed');
 	});
 
 	// The protocol declares working-directory mutation on both the session and

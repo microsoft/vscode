@@ -10,12 +10,15 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../base/common
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, type IAgentCreateChatOptions, type IAgentService, type IMcpNotification } from '../common/agentService.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
+import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { type IAgentService } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -46,6 +49,7 @@ import {
 } from '../common/state/sessionProtocol.js';
 import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
+import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
 	buildOtlpLogsChannelUri,
@@ -62,6 +66,7 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -353,6 +358,7 @@ export class ProtocolServerHandler extends Disposable {
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _connectionTelemetryTracker: AgentHostClientConnectionTelemetryTracker;
+	private readonly _managedSettingsOwnerId = generateUuid();
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -366,10 +372,11 @@ export class ProtocolServerHandler extends Disposable {
 		private readonly _config: IProtocolServerConfig,
 		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 	) {
 		super();
-		this._telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
+		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._connectionTelemetryTracker = this._config.connectionTelemetryTracker ?? this._register(new AgentHostClientConnectionTelemetryTracker());
 
 		this._register(this._server.onConnection(transport => {
@@ -445,7 +452,7 @@ export class ProtocolServerHandler extends Disposable {
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
 						client = result.client;
-						responsePromise = result.responsePromise;
+						responsePromise = this._trackRequest(result.responsePromise);
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
 						return;
@@ -473,6 +480,17 @@ export class ProtocolServerHandler extends Disposable {
 				this._handleRequest(client, msg.method, msg.params, msg.id);
 			} else if (isJsonRpcNotification(msg)) {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
+				if ((msg as { method: string }).method === 'setClientManagedSettingsPermissions') {
+					if (client) {
+						const permissions = ((msg as { params?: { permissions?: unknown } }).params)?.permissions;
+						if (isManagedSettingsPermissions(permissions)) {
+							this._managedSettingsService.setClientPermissions(this._managedSettingsContributionId(client.clientId), permissions);
+						} else {
+							this._logService.warn('[ProtocolServer] Ignoring invalid managed settings permissions contribution.');
+						}
+					}
+					return;
+				}
 				// Notification — fire-and-forget
 				switch (msg.method) {
 					case 'unsubscribe':
@@ -579,6 +597,7 @@ export class ProtocolServerHandler extends Disposable {
 		}
 
 		const previousRecord = this._clients.get(params.clientId);
+		this._applyClientTelemetryLevel(params._meta);
 		const telemetryTransportToken = {};
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
@@ -700,7 +719,7 @@ export class ProtocolServerHandler extends Disposable {
 			));
 			return;
 		}
-		requestAgentHostUpgrade(socketPath).then(
+		this._trackRequest(requestAgentHostUpgrade(socketPath)).then(
 			(result) => transport.send(jsonRpcSuccess(id, result)),
 			(err: unknown) => {
 				this._logService.warn(`[ProtocolServer] vscodeUpgrade signal failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -719,6 +738,7 @@ export class ProtocolServerHandler extends Disposable {
 		if (!existingRecord) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Reconnect client not found: ${params.clientId}`);
 		}
+		this._applyClientTelemetryLevel(params._meta);
 
 		// Synchronously install the client so messages arriving on this transport
 		// while we restore subscriptions can find a valid client object. The
@@ -904,6 +924,13 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _handleClientDisconnected(clientId: string): void {
+		const record = this._clients.get(clientId);
+		if (record?.state === 'grace') {
+			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
+				record.disconnectTimeouts.deleteAndDispose('managed-settings');
+				this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
+			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
+		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
 			const isActive = state ? this._isActiveClient(state, clientId) : false;
@@ -1158,12 +1185,23 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _createClientTelemetryContext(clientInfo: Implementation | undefined, meta: Record<string, unknown> | undefined, transport: IProtocolTransport, fallbackConnectionKind = AgentHostClientConnectionKind.Unknown): IAgentHostClientTelemetryContext {
 		const connectionKind = readClientConnectionKind(meta);
+		const machineId = readClientMachineId(meta);
+		const devDeviceId = readClientDevDeviceId(meta);
 		return {
 			clientType: getAgentHostClientType(clientInfo),
 			connectionKind: connectionKind === AgentHostClientConnectionKind.Unknown ? fallbackConnectionKind : connectionKind,
 			transportKind: transport.transportKind ?? AgentHostTransportKind.Unknown,
 			hostLaunchKind: this._config.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
+			...(machineId ? { machineId } : {}),
+			...(devDeviceId ? { devDeviceId } : {}),
 		};
+	}
+
+	private _applyClientTelemetryLevel(meta: Record<string, unknown> | undefined): void {
+		const telemetryLevel = readClientTelemetryLevel(meta);
+		if (telemetryLevel !== undefined && isAgentHostTelemetryService(this._telemetryService)) {
+			this._telemetryService.updateTelemetryLevel(telemetryLevel);
+		}
 	}
 
 	private _reportClientDisconnected(client: IConnectedClient, subscriptionCount: number): void {
@@ -1303,7 +1341,7 @@ export class ProtocolServerHandler extends Disposable {
 			let createdSession: URI;
 			// Resolve fork turnId to a 0-based index using the source session's
 			// turn list in the state manager.
-			let fork: { session: URI; turnIndex: number; turnId: string } | undefined;
+			let fork: { session: URI; chat: URI; turnIndex: number; turnId: string } | undefined;
 			if (params.fork) {
 				if (URI.parse(params.fork.session).toString() === URI.parse(params.channel).toString()) {
 					throw new ProtocolError(AhpErrorCodes.SessionAlreadyExists, `Fork target session must differ from source session: ${params.channel}`);
@@ -1316,7 +1354,8 @@ export class ProtocolServerHandler extends Disposable {
 				if (turnIndex < 0) {
 					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
 				}
-				fork = { session: URI.parse(params.fork.session), turnIndex, turnId: params.fork.turnId };
+				const sourceSession = URI.parse(params.fork.session);
+				fork = { session: sourceSession, chat: URI.parse(buildDefaultChatUri(sourceSession)), turnIndex, turnId: params.fork.turnId };
 			}
 			// If the client eagerly claimed the active client role, validate
 			// the clientId matches the connection before forwarding.
@@ -1418,9 +1457,8 @@ export class ProtocolServerHandler extends Disposable {
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					workingDirectories: s.workingDirectories?.map(d => d.toString()),
 					changes: s.changes,
-					// `_meta` carries the workspace-less marker, which seeds or
-					// promotes the client's session kind and cannot be
-					// re-derived from the (scratch) working directory.
+					// `_meta` carries durable host provenance, including session kind
+					// and provider-native discovery provenance.
 					...(s._meta !== undefined ? { _meta: s._meta } : {}),
 				} satisfies ListSessionsResult['items'][number];
 			});
@@ -1514,6 +1552,7 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _reverseRequestId = 0;
 	private readonly _pendingReverseRequests = new Map<number, { client: IConnectedClient; resolve: (value: unknown) => void; reject: (reason: unknown) => void }>();
+	private readonly _inflightRequests = new Set<Promise<unknown>>();
 
 	/**
 	 * Sends a JSON-RPC request to a connected client and waits for the response.
@@ -1549,7 +1588,7 @@ export class ProtocolServerHandler extends Disposable {
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
 		const handler = this._requestHandlers.hasOwnProperty(method) ? this._requestHandlers[method as RequestMethod] : undefined;
 		if (handler) {
-			(handler as (client: IConnectedClient, params: unknown) => Promise<unknown>)(client, params).then(result => {
+			this._trackRequest((handler as (client: IConnectedClient, params: unknown) => Promise<unknown>)(client, params)).then(result => {
 				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
@@ -1564,7 +1603,7 @@ export class ProtocolServerHandler extends Disposable {
 		// VS Code extension methods (not in the typed protocol maps yet)
 		const extensionResult = this._handleExtensionRequest(method, params);
 		if (extensionResult) {
-			extensionResult.then(result => {
+			this._trackRequest(extensionResult).then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
 				this._logService.error(`[ProtocolServer] Extension request '${method}' failed`, err);
@@ -1581,7 +1620,7 @@ export class ProtocolServerHandler extends Disposable {
 		const mcpChannel = readMcpChannel(params);
 		if (mcpChannel !== undefined) {
 			const paramsObj = isParamsObject(params) ? params : undefined;
-			this._agentService.handleMcpRequest(mcpChannel, method, paramsObj).then(result => {
+			this._trackRequest(this._agentService.handleMcpRequest(mcpChannel, method, paramsObj)).then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
 				if (err instanceof Error && err.message.startsWith('Method not found')) {
@@ -1595,6 +1634,19 @@ export class ProtocolServerHandler extends Disposable {
 		}
 
 		client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`));
+	}
+
+	async whenIdle(): Promise<void> {
+		while (this._inflightRequests.size > 0) {
+			await Promise.all([...this._inflightRequests].map(promise => promise.then(() => { }, () => { })));
+		}
+	}
+
+	private _trackRequest<T>(promise: Promise<T>): Promise<T> {
+		this._inflightRequests.add(promise);
+		const remove = () => this._inflightRequests.delete(promise);
+		void promise.then(remove, remove);
+		return promise;
 	}
 
 	/**
@@ -1754,8 +1806,13 @@ export class ProtocolServerHandler extends Disposable {
 		}
 	}
 
+	private _managedSettingsContributionId(clientId: string): string {
+		return `${this._managedSettingsOwnerId}:${clientId}`;
+	}
+
 	override dispose(): void {
-		for (const record of this._clients.values()) {
+		for (const [clientId, record] of this._clients) {
+			this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;

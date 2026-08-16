@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -15,16 +16,17 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, IAgent } from '../../common/agentService.js';
+import { AgentSession, IAgent } from '../../common/agent.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChatInputQuestionKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
+import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { TURN_ACTIVITY_NONE, TURN_HANG_THRESHOLD_MS } from '../../node/agentHostTurnTracker.js';
@@ -176,6 +178,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const telemetryService = disposables.add(new AgentHostTelemetryService(telemetry));
 		const sessionDataService = createNullSessionDataService();
+		const customizationEnablementService = { onDidChange: Event.None } as IAgentHostCustomizationEnablementService;
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
@@ -185,7 +188,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
 		), /*strict*/ true));
-		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, {
+		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService,
@@ -220,6 +223,8 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				hadAnyProgress: false,
 				lastActivityKind: TURN_ACTIVITY_NONE,
 				blockedOn: undefined,
+				toolId: undefined,
+				toolSourceKind: undefined,
 				inFlightToolCallCount: 0,
 				quietTimeMs: true,
 				turnElapsedMs: true,
@@ -248,7 +253,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hangReason: 'stalledAfterProgress',
 			isExpected: false,
 			hadAnyProgress: true,
-			lastActivityKind: ActionType.ChatDelta,
+			lastActivityKind: 'chat.delta',
 		}]);
 	});
 
@@ -293,11 +298,15 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hangReason: e.data.hangReason,
 			isExpected: e.data.isExpected,
 			blockedOn: e.data.blockedOn,
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
 			inFlightToolCallCount: e.data.inFlightToolCallCount,
 		})), [{
 			hangReason: 'waitingOnUser',
 			isExpected: true,
 			blockedOn: SessionInputRequestKind.ToolConfirmation,
+			toolId: 'write',
+			toolSourceKind: 'agentHost',
 			inFlightToolCallCount: 1,
 		}]);
 	});
@@ -331,10 +340,14 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			hangReason: e.data.hangReason,
 			isExpected: e.data.isExpected,
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
 			inFlightToolCallCount: e.data.inFlightToolCallCount,
 		})), [
-			{ hangReason: 'runningTool', isExpected: true, inFlightToolCallCount: 1 },
-			{ hangReason: 'stalledAfterProgress', isExpected: false, inFlightToolCallCount: 0 },
+			// The agent-host tool is named even though it never entered the
+			// session input queue, which is what `toolCallStalled` cannot see.
+			{ hangReason: 'runningTool', isExpected: true, toolId: 'bash', toolSourceKind: 'agentHost', inFlightToolCallCount: 1 },
+			{ hangReason: 'stalledAfterProgress', isExpected: false, toolId: undefined, toolSourceKind: undefined, inFlightToolCallCount: 0 },
 		]);
 	});
 
@@ -473,12 +486,173 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hangReason: e.data.hangReason,
 			isExpected: e.data.isExpected,
 			blockedOn: e.data.blockedOn,
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
 			inFlightToolCallCount: e.data.inFlightToolCallCount,
 		})), [{
 			hangReason: 'runningTool',
 			isExpected: true,
 			blockedOn: undefined,
+			toolId: 'run_tests',
+			toolSourceKind: 'client',
 			inFlightToolCallCount: 1,
+		}]);
+	});
+
+	test('names the longest-running tool when several are in flight', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-parallel');
+			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-parallel', toolCallId: 'tc-a', toolName: 'bash', displayName: 'bash' });
+			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-parallel', toolCallId: 'tc-b', toolName: 'read_file', displayName: 'read_file' });
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		// `toolId` is a best guess among parallel calls; `inFlightToolCallCount`
+		// above one is the signal that attribution is ambiguous.
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			toolId: e.data.toolId,
+			inFlightToolCallCount: e.data.inFlightToolCallCount,
+		})), [{ toolId: 'bash', inFlightToolCallCount: 2 }]);
+	});
+
+	test('refines the tool source kind when tool metadata arrives after the start', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-refined');
+			// The start signal carries no contributor; `ready` supplies it.
+			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-refined', toolCallId: 'tc-refined', toolName: 'lookup', displayName: 'lookup' });
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-refined',
+				toolCallId: 'tc-refined',
+				invocationMessage: 'Look up metadata',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'c1' },
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
+		})), [{ toolId: 'lookup', toolSourceKind: 'mcp' }]);
+	});
+
+	test('names the tool the blocker gates, not another tool that happens to be running', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-mixed');
+			// A long-running tool starts first, so it is the earliest entry in
+			// the in-flight set...
+			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-mixed', toolCallId: 'tc-running', toolName: 'bash', displayName: 'bash' });
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-mixed',
+				toolCallId: 'tc-running',
+				invocationMessage: 'Run build',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			// ...but a second tool is what actually blocks on the user, so that
+			// is the one the report must name.
+			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-mixed', toolCallId: 'tc-gated', toolName: 'write', displayName: 'write' });
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-mixed',
+				toolCallId: 'tc-gated',
+				invocationMessage: 'Write file',
+				confirmationTitle: 'Write file',
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			hangReason: e.data.hangReason,
+			toolId: e.data.toolId,
+			inFlightToolCallCount: e.data.inFlightToolCallCount,
+		})), [{
+			hangReason: 'waitingOnUser',
+			toolId: 'write',
+			inFlightToolCallCount: 2,
+		}]);
+	});
+
+	test('leaves the tool unnamed when the user is reviewing a completed result', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-result');
+			fire({
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-result',
+				toolCallId: 'tc-result',
+				toolName: 'write',
+				displayName: 'write',
+			});
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-result',
+				toolCallId: 'tc-result',
+				invocationMessage: 'Write file',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			// The tool ran to completion and is now awaiting *result* review, so
+			// it has left the in-flight set. The turn waits on the user reading
+			// a result, not on a tool — `toolId` is deliberately undefined.
+			fire({
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-result',
+				toolCallId: 'tc-result',
+				result: { success: true, pastTenseMessage: 'wrote file' },
+				requiresResultConfirmation: true,
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			hangReason: e.data.hangReason,
+			blockedOn: e.data.blockedOn,
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
+			inFlightToolCallCount: e.data.inFlightToolCallCount,
+		})), [{
+			hangReason: 'waitingOnUser',
+			blockedOn: SessionInputRequestKind.ToolConfirmation,
+			toolId: undefined,
+			toolSourceKind: undefined,
+			inFlightToolCallCount: 0,
+		}]);
+	});
+
+	test('leaves the tool unnamed when the turn is blocked on an elicitation', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-elicit');
+			// An elicitation is not attached to any tool call at all, and the
+			// action carries no `turnId` — the blocker resolves to the chat's
+			// active turn via the fallback in `_setSessionInputNeeded`.
+			fire({
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'req-1',
+					message: 'Which environment should I deploy to?',
+					questions: [{ id: 'q1', kind: ChatInputQuestionKind.Text, message: 'Environment' }],
+				},
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			hangReason: e.data.hangReason,
+			blockedOn: e.data.blockedOn,
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
+			inFlightToolCallCount: e.data.inFlightToolCallCount,
+		})), [{
+			hangReason: 'waitingOnUser',
+			blockedOn: SessionInputRequestKind.ChatInput,
+			toolId: undefined,
+			toolSourceKind: undefined,
+			inFlightToolCallCount: 0,
 		}]);
 	});
 

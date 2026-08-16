@@ -240,9 +240,11 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get hasGitRepository() { return this._session.hasGitRepository; }
 	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
+	get isAutomation() { return this._session.isAutomation; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
+	get completedStateIcon() { return this._session.completedStateIcon; }
 	get changesSummary() { return this._session.changesSummary; }
 	get changesets() { return this._session.changesets; }
 	get changes() { return this._session.changes; }
@@ -286,9 +288,11 @@ class ResourceOverrideSession implements ISession {
 	get hasGitRepository() { return this._session.hasGitRepository; }
 	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
+	get isAutomation() { return this._session.isAutomation; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
+	get completedStateIcon() { return this._session.completedStateIcon; }
 	get changesSummary() { return this._session.changesSummary; }
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }

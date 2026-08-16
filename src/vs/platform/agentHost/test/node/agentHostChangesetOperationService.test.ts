@@ -67,14 +67,18 @@ class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidRefreshSessionGitState = Event.None;
+	readonly onDidChangeSessionGitHubState = Event.None;
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 
 	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
 		return undefined;
 	}
 
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
+
+	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
 
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
 	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
@@ -90,6 +94,7 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
+	readonly onDidChangeWorkingDirectoryPending = Event.None;
 
 	constructor(private _workingDirectories: string[] | undefined) { }
 
@@ -175,6 +180,23 @@ suite('AgentHostChangesetOperationService', () => {
 		const operations = service.getOperations(sessionKey, buildTurnChangesetUri(sessionKey, 'turn-1'), sampleGitState);
 
 		assert.deepStrictEqual(operations, []);
+	});
+
+	test('preserves contribution order when pull-request and merge operations coexist', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new OperationsContribution([
+			{ id: 'create-pr', label: 'Create PR', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+			{ id: 'create-draft-pr', label: 'Create Draft PR', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+		])));
+		disposables.add(service.registerContribution(new OperationsContribution([
+			{ id: 'merge', label: 'Merge Changes', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+		])));
+
+		const operations = service.getOperations(sessionKey, buildBranchChangesetUri(sessionKey), sampleGitState);
+
+		assert.deepStrictEqual(operations.map(operation => operation.id), ['create-pr', 'create-draft-pr', 'merge']);
 	});
 
 	test('multi-folder session advertises no operations for a compare-turns changeset', () => {

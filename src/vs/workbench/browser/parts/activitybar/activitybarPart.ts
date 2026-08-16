@@ -98,7 +98,7 @@ export class ActivitybarPart extends Part {
 		}
 
 		return ActivitybarPart.FLOATING_MARGIN * 2
-			+ (this.layoutService.getSideBarPosition() === Position.RIGHT ? FLOATING_PANEL_INNER_MARGIN : 0);
+			+ (this.layoutService.getSideBarPosition() === Position.RIGHT ? FLOATING_PANEL_MARGIN : 0);
 	}
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
@@ -286,8 +286,8 @@ export class ActivitybarPart extends Part {
 	}
 
 	/**
-	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`. Each one
-	 * doubles on the window edge the activity bar faces.
+	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`.
+	 * The top is flush with title/banner chrome and doubles only at an exposed window edge.
 	 */
 	private getFloatingGutters(): { top: number; bottom: number } {
 		if (!this.layoutService.isFloatingPanelsEnabled()) {
@@ -295,7 +295,7 @@ export class ActivitybarPart extends Part {
 		}
 
 		return {
-			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN,
+			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
 			bottom: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
 		};
 	}

@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -181,6 +181,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-'));
 			const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot!, env, stdio: 'pipe' });
 			run('init', '-q', '-b', 'main');
+			run('config', 'commit.gpgSign', 'false');
 			run('commit', '-q', '--allow-empty', '-m', 'initial');
 			run('remote', 'add', 'origin', `https://github.com/owner/repo.git`);
 			// Use a separate "upload" remote pointing at the bare repo to populate
@@ -203,7 +204,12 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			assert.strictEqual(result.baseBranchName, 'main');
 			assert.strictEqual(result.upstreamBranchName, undefined);
 			assert.strictEqual(result.outgoingChanges, 2);
+			assert.strictEqual(result.hasBaseBranchChanges, true);
 			assert.strictEqual(result.uncommittedChanges, 0);
+
+			run('branch', '-D', 'main');
+			const remoteOnlyResult = await svc!.getSessionGitState(URI.file(tmpRoot!));
+			assert.strictEqual(remoteOnlyResult?.hasBaseBranchChanges, true);
 		} finally {
 			rmDirWithRetry(remoteDir);
 		}
@@ -512,6 +518,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		run('init', '-q', '-b', 'main');
 		run('config', 'user.name', 't');
 		run('config', 'user.email', 't@t');
+		run('config', 'commit.gpgSign', 'false');
 		run('commit', '-q', '--allow-empty', '-m', 'initial');
 		return tmpRoot!;
 	}
@@ -531,6 +538,26 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		cp.execFileSync('git', ['add', 'a.txt'], { cwd: dir, env, stdio: 'pipe' });
 		cp.execFileSync('git', ['commit', '-q', '-m', 'add a'], { cwd: dir, env, stdio: 'pipe' });
 		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);
+	});
+
+	(hasGit && !isWindows ? test : test.skip)('status probes do not acquire optional index locks', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		const trackedFile = join(dir, 'tracked.txt');
+		await fs.writeFile(trackedFile, 'tracked');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		const marker = join(dir, '.git', 'status-index-refreshed');
+		const hook = join(dir, '.git', 'hooks', 'post-index-change');
+		await fs.writeFile(hook, '#!/bin/sh\nprintf refreshed > .git/status-index-refreshed\n');
+		await fs.chmod(hook, 0o755);
+		const future = new Date(Date.now() + 10_000);
+		await fs.utimes(trackedFile, future, future);
+
+		const hasChanges = await svc!.hasUncommittedChanges(URI.file(dir));
+
+		assert.deepStrictEqual({ hasChanges, refreshedIndex: existsSync(marker) }, { hasChanges: false, refreshedIndex: false });
 	});
 
 	(hasGit ? test : test.skip)('commitAll stages tracked, staged and untracked changes and creates a commit', async () => {
@@ -555,6 +582,101 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			status: '',
 			lastMessage: 'commit all changes',
 			committedFiles: ['staged.txt', 'tracked.txt', 'untracked.txt'],
+		});
+	});
+
+	(hasGit ? test : test.skip)('mergeBranch merges into the current branch', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'session.txt'), 'session changes');
+		cp.execFileSync('git', ['add', 'session.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'session changes'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+
+		await svc!.mergeBranch(URI.file(dir), 'agents/session');
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const head = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const source = cp.execFileSync('git', ['rev-parse', 'agents/session'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		assert.deepStrictEqual({ status, headMatchesSource: head === source }, { status: '', headMatchesSource: true });
+	});
+
+	(hasGit ? test : test.skip)('mergeBranch aborts a conflicted merge', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'shared.txt'), 'base');
+		cp.execFileSync('git', ['add', 'shared.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add shared'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'shared.txt'), 'session');
+		cp.execFileSync('git', ['commit', '-q', '-am', 'session changes'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'shared.txt'), 'main');
+		cp.execFileSync('git', ['commit', '-q', '-am', 'main changes'], { cwd: dir, env, stdio: 'pipe' });
+
+		let mergeFailed = false;
+		try {
+			await svc!.mergeBranch(URI.file(dir), 'agents/session');
+		} catch {
+			mergeFailed = true;
+		}
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const contents = await fs.readFile(join(dir, 'shared.txt'), 'utf8');
+		let mergeHeadExists = true;
+		try {
+			cp.execFileSync('git', ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], { cwd: dir, env, stdio: 'ignore' });
+		} catch {
+			mergeHeadExists = false;
+		}
+		assert.deepStrictEqual({ mergeFailed, status, contents, mergeHeadExists }, {
+			mergeFailed: true,
+			status: '',
+			contents: 'main',
+			mergeHeadExists: false,
+		});
+	});
+
+	(hasGit ? test : test.skip)('mergeBranch preserves a pre-existing merge', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'shared.txt'), 'base');
+		cp.execFileSync('git', ['add', 'shared.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add shared'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'shared.txt'), 'session');
+		cp.execFileSync('git', ['commit', '-q', '-am', 'session changes'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'shared.txt'), 'main');
+		cp.execFileSync('git', ['commit', '-q', '-am', 'main changes'], { cwd: dir, env, stdio: 'pipe' });
+		try {
+			cp.execFileSync('git', ['merge', '--no-edit', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+		} catch {
+			// The conflict is the pre-existing merge state under test.
+		}
+
+		let errorMessage: string | undefined;
+		try {
+			await svc!.mergeBranch(URI.file(dir), 'agents/session');
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : String(error);
+		}
+		let mergeHeadExists = true;
+		try {
+			cp.execFileSync('git', ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], { cwd: dir, env, stdio: 'ignore' });
+		} catch {
+			mergeHeadExists = false;
+		} finally {
+			cp.execFileSync('git', ['merge', '--abort'], { cwd: dir, env, stdio: 'pipe' });
+		}
+
+		assert.deepStrictEqual({
+			rejectedExistingMerge: errorMessage?.includes('another merge is already in progress') === true,
+			mergeHeadExists,
+		}, {
+			rejectedExistingMerge: true,
+			mergeHeadExists: true,
 		});
 	});
 
@@ -635,28 +757,17 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	// Windows is excluded like the other chmod-based tests above: `chmod` does not
-	// convey POSIX directory permissions there, so prune's delete still succeeds
-	// and the masking scenario cannot be reproduced.
-	(hasGit && !isWindows ? test : test.skip)('removeWorktree rejects instead of falsely succeeding when the admin entry cannot be deleted', async function () {
-		// Root bypasses the directory permission that makes prune fail, so this
-		// masking scenario cannot be reproduced there.
-		if (typeof process.getuid === 'function' && process.getuid() === 0) {
-			this.skip();
-		}
+	(hasGit ? test : test.skip)('removeWorktree rejects instead of falsely succeeding when the admin entry cannot be deleted', async () => {
 		const dir = initRepo();
 		const suffix = `wt-leak-${Date.now()}`;
 		const wtPath = join(dir, '..', suffix);
-		const adminParent = join(dir, '.git', 'worktrees');
-		let adminDir: string | undefined;
+		let worktreeLocked = false;
 		try {
 			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/leak-worktree', 'main');
-			adminDir = join(adminParent, readdirSync(adminParent)[0]);
-			// Working tree gone → removeWorktree takes the prune path. Making the
-			// admin dir read-only forces prune's recursive delete to fail; git
-			// can exit 0 while leaving the entry registered (the masking bug).
+			cp.execFileSync('git', ['worktree', 'lock', wtPath], { cwd: dir, env, stdio: 'pipe' });
+			worktreeLocked = true;
+			// A locked missing worktree makes prune exit 0 while retaining the admin entry on every OS.
 			rmSync(wtPath, { recursive: true, force: true });
-			chmodSync(adminDir, 0o500);
 
 			await assert.rejects(
 				svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }),
@@ -666,13 +777,58 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			const listed = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
 			assert.ok(listed.includes(suffix), 'the still-registered worktree must surface as a leak, not be masked');
 		} finally {
-			if (adminDir) {
-				try { chmodSync(adminDir, 0o700); } catch { /* best-effort cleanup */ }
+			if (worktreeLocked) {
+				try { cp.execFileSync('git', ['worktree', 'unlock', wtPath], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 			}
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/leak-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
+	});
+
+	// Residual case of #329982: git can de-register a worktree (drop its
+	// `.git/worktrees/<id>` admin entry) while its directory still remains on
+	// disk. A later removal must still succeed because git no longer tracks the path.
+	(hasGit ? test : test.skip)('removeWorktree succeeds when git no longer tracks a still-present worktree directory', async () => {
+		const dir = initRepo();
+		const suffix = `wt-orphan-${Date.now()}`;
+		const wtPath = join(dir, '..', suffix);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/orphan-worktree', 'main');
+			// De-register the worktree (delete git's admin entries) while leaving the working-tree directory in place.
+			const adminRoot = join(dir, '.git', 'worktrees');
+			for (const entry of readdirSync(adminRoot)) {
+				rmSync(join(adminRoot, entry), { recursive: true, force: true });
+			}
+			// Pin the precondition so the test cannot silently rot into the prune/verify path.
+			const listed = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
+			assert.deepStrictEqual({
+				dirPresent: existsSync(wtPath),
+				stillRegistered: listed.includes(suffix),
+			}, {
+				dirPresent: true,
+				stillRegistered: false,
+			});
+
+			// Removal must treat an already-de-registered worktree as success.
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+		} finally {
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/orphan-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	// Fail-closed guard: when git cannot confirm the worktree is unregistered (e.g.
+	// the repository is gone), a failed removal must propagate rather than be
+	// silently reported as success.
+	(hasGit ? test : test.skip)('removeWorktree rethrows when git cannot confirm removal', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-nonrepo-'));
+		const wtPath = join(tmpRoot, 'wt');
+		mkdirSync(wtPath); // exists -> deterministic `git worktree remove` branch
+		await assert.rejects(
+			svc!.removeWorktree(URI.file(tmpRoot), URI.file(wtPath), { force: true }),
+			/exited with code 128/,
+		);
 	});
 
 	(hasGit ? test : test.skip)('addWorktree prefers origin start point when local branch is stale', async () => {

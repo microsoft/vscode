@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorInputWithDiffResources } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { getAvailableEditorTypes } from '../../../../browser/parts/editor/editorTypePicker.js';
-import { IEditorResolverService, IEditorResolverServiceGetEditorsOptions, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
+import { IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorsOptions, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
 
 suite('Editor Type Picker', () => {
 
@@ -45,9 +45,9 @@ suite('Editor Type Picker', () => {
 		const requestedResources: URI[] = [];
 		const requestedOptions: (IEditorResolverServiceGetEditorsOptions | undefined)[] = [];
 		const editorResolverService = new class extends mock<IEditorResolverService>() {
-			override getEditors(resource?: URI, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[] {
-				if (resource) {
-					requestedResources.push(resource);
+			override getEditors(resourceOrOptions?: URI | IEditorResolverServiceGetAllEditorsOptions, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[] {
+				if (URI.isUri(resourceOrOptions)) {
+					requestedResources.push(resourceOrOptions);
 				}
 				requestedOptions.push(options);
 				return registeredEditors;

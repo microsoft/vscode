@@ -15,15 +15,18 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
 import { ILogService } from '../../../log/common/log.js';
 import { IEditArcTelemetryClassification, IEditArcTelemetryEvent } from '../../../telemetry/common/editArcTelemetry.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostEditTelemetryEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTelemetryService, isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
+import { toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
 
 export interface IEditArcReporterLaunchParams {
+	readonly clientContext?: IAgentHostClientTelemetryContext;
 	readonly sessionUri: string;
 	readonly turnId: string;
 	readonly toolCallId: string;
@@ -313,7 +316,8 @@ class EditArcReporter extends Disposable {
 		const provider = AgentSession.provider(sessionUri) ?? 'unknown';
 		const originalLineCounts = new EditArcTracker(this._params.beforeText, this._params.initialEdit).getLineCountInfo();
 		const currentLineCounts = this._tracker.getLineCountInfo();
-		const event: IEditArcTelemetryEvent = {
+		const event: IEditArcTelemetryEvent & IAgentHostInitiatorTelemetry = {
+			...toInitiatorTelemetry(this._params.clientContext),
 			sourceKeyCleaned: 'source:Chat.applyEdits',
 			extensionId: undefined,
 			extensionVersion: undefined,
@@ -336,9 +340,25 @@ class EditArcReporter extends Disposable {
 			currentLineCount: currentLineCounts.insertedLineCounts,
 			currentDeletedLineCount: currentLineCounts.deletedLineCounts,
 		};
-		this._telemetryService.publicLog2<IEditArcTelemetryEvent, IEditArcTelemetryClassification>('editTelemetry.reportEditArc', event);
+		this._telemetryService.publicLog2<IEditArcTelemetryEvent & IAgentHostInitiatorTelemetry, IEditArcTelemetryClassification & IAgentHostInitiatorClassification>('editTelemetry.reportEditArc', event);
 		if (provider === 'copilotcli' && isAgentHostTelemetryService(this._telemetryService)) {
-			const { didBranchChange, timeDelayMs: delay, originalCharCount, originalLineCount, originalDeletedLineCount, arc, currentLineCount, currentDeletedLineCount, ...properties } = event;
+			const {
+				didBranchChange,
+				timeDelayMs: delay,
+				originalCharCount,
+				originalLineCount,
+				originalDeletedLineCount,
+				arc,
+				currentLineCount,
+				currentDeletedLineCount,
+				initiatorClientType: _,
+				initiatorConnectionKind: _2,
+				initiatorTransportKind: _3,
+				hostLaunchKind: _4,
+				initiatorMachineId: _5,
+				initiatorDevDeviceId: _6,
+				...properties
+			} = event;
 			const telemetry = this._telemetryService as IAgentHostTelemetryService;
 			telemetry.sendGHTelemetryEvent('vscode.editTelemetry.reportEditArc', withoutUndefined(properties), {
 				didBranchChange,

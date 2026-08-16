@@ -8,6 +8,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { isStringInSample } from '../../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
@@ -70,7 +71,7 @@ type ChatEditingSessionInfoEvent = {
 
 type ChatEditingSessionInfoClassification = {
 	owner: 'jrieken';
-	comment: 'Tracks the number and state of chat editing entries when a session is stored.';
+	comment: 'Tracks the number and state of chat editing entries when sessions are stored or restored. Events use stable 5% sampling by session.';
 	editSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed identifier of the chat session for correlation.' };
 	entryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of entries stored with the session.' };
 	modifiedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Modified state when storing.' };
@@ -333,10 +334,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public storeState(): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource);
 		const storedState = this._getStoredState();
-		this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionStore', {
-			editSessionId: getKeyForChatSessionResource(this.chatSessionResource),
-			...this._countEntryStates(this._entriesObs.get()),
-		});
+		this._reportSessionInfo('chatEditing/sessionStore', this._entriesObs.get());
 		return storage.storeState(storedState);
 	}
 
@@ -1015,10 +1013,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		this._entriesObs.set(entriesArr, undefined);
-		this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionRestore', {
-			editSessionId: getKeyForChatSessionResource(this.chatSessionResource),
-			...this._countEntryStates(entriesArr),
-		});
+		this._reportSessionInfo('chatEditing/sessionRestore', entriesArr);
 	}
 
 	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
@@ -1053,6 +1048,17 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				return undefined;
 			}
 		};
+	}
+
+	private _reportSessionInfo(eventName: 'chatEditing/sessionStore' | 'chatEditing/sessionRestore', entries: readonly AbstractChatEditingModifiedFileEntry[]): void {
+		const editSessionId = getKeyForChatSessionResource(this.chatSessionResource);
+		// Select 5% of edit sessions by ID, retaining all store and restore events for selected sessions and none for the rest.
+		if (isStringInSample(editSessionId, 5)) {
+			this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>(eventName, {
+				editSessionId,
+				...this._countEntryStates(entries),
+			});
+		}
 	}
 
 	private _countEntryStates(entries: readonly AbstractChatEditingModifiedFileEntry[]): { entryCount: number; modifiedCount: number; acceptedCount: number; rejectedCount: number } {

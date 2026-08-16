@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type * as vscode from 'vscode';
 import { IExperimentationService as ITASExperimentationService } from 'vscode-tas-client';
+import { mock } from '../../../../util/common/test/simpleMock';
+import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { IConfigurationService } from '../../../configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../extContext/common/extensionContext';
 import { ILogService } from '../../../log/common/logService';
+import { FetchOptions, HeadersImpl, IFetcherService, Response } from '../../../networking/common/fetcherService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
 import { TreatmentsChangeEvent } from '../../common/nullExperimentationService';
-import { BaseExperimentationService, TASClientDelegateFn, UserInfoStore } from '../../node/baseExperimentationService';
+import { createTasFetch } from '../../vscode-node/tasFetch';
+import { BaseExperimentationService, RevocationGate, TASClientDelegateFn, UserInfoStore } from '../../node/baseExperimentationService';
 
 
 function toExpectedTreatment(name: string, org: string | undefined, sku: string | undefined): string | undefined {
@@ -42,6 +47,31 @@ class TestExperimentationService extends BaseExperimentationService {
 			throw new Error('Mock TAS service not initialized');
 		}
 		return this._mockTasService;
+	}
+}
+
+/** Captures the memento + revocation gate handed to each delegate generation. */
+class RevocationTestExperimentationService extends BaseExperimentationService {
+	public readonly captured: { memento: vscode.Memento; gate: RevocationGate }[];
+
+	constructor(
+		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
+		@ICopilotTokenStore tokenStore: ICopilotTokenStore,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILogService logService: ILogService
+	) {
+		const captured: { memento: vscode.Memento; gate: RevocationGate }[] = [];
+		const delegateFn: TASClientDelegateFn = (memento, userInfoStore, gate) => {
+			captured.push({ memento, gate });
+			return new MockTASExperimentationService(userInfoStore);
+		};
+
+		super(delegateFn, extensionContext, tokenStore, configurationService, logService);
+		this.captured = captured;
+	}
+
+	recreate(): void {
+		this.recreateDelegate();
 	}
 }
 
@@ -168,6 +198,27 @@ describe('ExP Service Tests', () => {
 			});
 		});
 	};
+
+	it('revokes a superseded delegate so its late writes are dropped', async () => {
+		const svc = accessor.get(IInstantiationService).createInstance(RevocationTestExperimentationService);
+		const globalState = accessor.get(IVSCodeExtensionContext).globalState;
+
+		expect(svc.captured.length).toBe(1);
+		svc.recreate();
+		expect(svc.captured.length).toBe(2);
+
+		const [gen1, gen2] = svc.captured;
+		expect(gen1.gate.isRevoked).toBe(true);
+		expect(gen2.gate.isRevoked).toBe(false);
+
+		// A superseded (revoked) generation's writes are dropped; the current one's land.
+		await gen1.memento.update('exp.revoke.test', 'stale');
+		expect(globalState.get('exp.revoke.test')).toBeUndefined();
+		await gen2.memento.update('exp.revoke.test', 'fresh');
+		expect(globalState.get('exp.revoke.test')).toBe('fresh');
+
+		svc.dispose();
+	});
 
 	it('should return treatments based on copilot token', async () => {
 		await expService.hasTreatments();
@@ -772,5 +823,41 @@ describe('ExP Service delegate recreation', () => {
 		expect(service.getTreatmentVariable<string>('x')).toBe('v1');
 
 		service.dispose();
+	});
+});
+
+/**
+ * Records every request routed through the fetcher service so a test can assert that both TAS
+ * endpoints go through it (proxy-aware transport) with the expected method and call site.
+ */
+class RecordingFetcherService extends mock<IFetcherService>() {
+	public readonly calls: { url: string; method: string; callSite: string; body?: string }[] = [];
+
+	override readonly onDidFetch = Event.None;
+	override readonly onDidCompleteFetch = Event.None;
+
+	override getUserAgentLibrary(): string {
+		return 'test-fetcher';
+	}
+
+	override fetch(url: string, options: FetchOptions): Promise<Response> {
+		this.calls.push({ url, method: options.method ?? 'GET', callSite: options.callSite, body: options.body });
+		return Promise.resolve(Response.fromText(200, 'OK', new HeadersImpl({}), '{}', 'test-stub'));
+	}
+}
+
+describe('TAS proxy transport adapter', () => {
+
+	it('routes both the legacy GET and the assignments POST through the fetcher service with the expected call sites', async () => {
+		const fetcher = new RecordingFetcherService();
+		const tasFetch = createTasFetch(fetcher);
+
+		await tasFetch('https://default.exp-tas.com/vscode/ab', { method: 'GET', headers: { 'X-Legacy': '1' } });
+		await tasFetch('https://exp.example.test/vscode/api/v1/assignments', { method: 'POST', headers: { 'X-New': '1' }, body: '{"parameters":{}}' });
+
+		expect(fetcher.calls).toEqual([
+			{ url: 'https://default.exp-tas.com/vscode/ab', method: 'GET', callSite: 'exp.legacy', body: undefined },
+			{ url: 'https://exp.example.test/vscode/api/v1/assignments', method: 'POST', callSite: 'exp.assignments', body: '{"parameters":{}}' },
+		]);
 	});
 });

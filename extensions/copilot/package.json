@@ -2091,6 +2091,21 @@
                     "title": "API Type",
                     "markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: Chat Completions API (default).\n- `responses`: Responses API.\n- `messages`: Messages API.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
                   },
+                  "adaptiveThinking": {
+                    "type": "boolean",
+                    "default": false,
+                    "markdownDescription": "Whether the Messages API model supports adaptive thinking. When enabled, requests use `thinking.type: \"adaptive\"`."
+                  },
+                  "minThinkingBudget": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "markdownDescription": "Minimum thinking-token budget supported by a non-adaptive Messages API model. `maxThinkingBudget` must also be set."
+                  },
+                  "maxThinkingBudget": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "markdownDescription": "Maximum thinking-token budget supported by a non-adaptive Messages API model. `minThinkingBudget` must also be set."
+                  },
                   "toolCalling": {
                     "type": "boolean",
                     "description": "Whether the model supports tool calling"
@@ -3362,11 +3377,6 @@
             "default": true,
             "description": "%github.copilot.config.agent.currentEditorContext.enabled%"
           },
-          "github.copilot.chat.preferLongContext.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.preferLongContext.enabled%"
-          },
           "github.copilot.enable": {
             "type": "object",
             "scope": "window",
@@ -3572,23 +3582,6 @@
             "markdownDescription": "%github.copilot.config.githubMcpServer.channel%",
             "tags": [
               "experimental"
-            ]
-          },
-          "github.copilot.chat.cloudAgentBackend.version": {
-            "type": "string",
-            "default": "v1",
-            "enum": [
-              "v1",
-              "v2"
-            ],
-            "enumDescriptions": [
-              "%github.copilot.config.cloudAgentBackend.version.v1%",
-              "%github.copilot.config.cloudAgentBackend.version.v2%"
-            ],
-            "markdownDescription": "%github.copilot.config.cloudAgentBackend.version%",
-            "tags": [
-              "experimental",
-              "onExp"
             ]
           },
           "github.copilot.chat.switchAgent.enabled": {
@@ -5073,15 +5066,6 @@
             "markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
             "tags": [
               "advanced"
-            ]
-          },
-          "github.copilot.chat.autoMode.v2.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.chat.autoMode.v2.enabled%",
-            "tags": [
-              "advanced",
-              "onExp"
             ]
           },
           "github.copilot.chat.autoMode.tiers.enabled": {
@@ -7112,7 +7096,7 @@
     "markdown-it": "^14.2.0",
     "minimatch": "^10.2.1",
     "undici": "^7.24.1",
-    "vscode-tas-client": "^0.3.0",
+    "vscode-tas-client": "^0.3.1",
     "web-tree-sitter": "^0.23.0"
   },
   "overrides": {

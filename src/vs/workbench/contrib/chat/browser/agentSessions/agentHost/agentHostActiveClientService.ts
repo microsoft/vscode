@@ -3,20 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { Delayer } from '../../../../../../base/common/async.js';
+import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { hash } from '../../../../../../base/common/hash.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
-import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { autorun, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { AgentHostCopilotMultiRootEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -27,21 +31,35 @@ import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents, shouldSyncWorkspaceDotMcp } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
-import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
-/**
- * The exposed `syncProvider` is the same instance the service uses to resolve
- * customizations; the contribution wires it into its harness so opt-out toggles
- * propagate. The `bundler` is exposed so the contribution can recover the
- * original provenance of files flattened into the synthetic synced bundle (via
- * {@link SyncedCustomizationBundler.getOrigin}).
- */
+/** Identity a published customization set is resolved against. Refcounted; disposed by each holder. */
+export interface IAgentCustomizationScope extends IDisposable {
+	readonly customizations: IObservable<readonly ClientPluginCustomization[]>;
+	readonly customAgents: IObservable<readonly AgentCustomization[]>;
+	/** Tools available to this scope's active client. */
+	readonly tools: IObservable<readonly ToolDefinition[]>;
+	/** Composed active-client view for this scope. */
+	activeClient(clientId: string): IObservable<SessionActiveClient>;
+	/**
+	 * `false` until the initial customization resolution completes. Publishing an
+	 * unresolved scope would transiently wipe the host's customization state.
+	 */
+	readonly isResolved: IObservable<boolean>;
+	/** Resolves once the scope's initial customization resolution has completed. */
+	whenResolved(): Promise<void>;
+}
+
+/** Registration-level customization state for an agent harness. */
 export interface IAgentRegistration extends IDisposable {
 	readonly syncProvider: ICustomizationSyncProvider;
-	readonly bundler: SyncedCustomizationBundler;
+	/** Acquires (or shares) the scope for `roots`. Refcounted: torn down when the last holder disposes. */
+	acquireScope(roots: readonly URI[]): IAgentCustomizationScope;
+	/** Recovers provenance for a synced URI produced by any scope of this agent. */
+	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined;
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 }
 
 export type IAgentRegistrationOptions = ILocalCustomizationSyncOptions;
@@ -49,124 +67,195 @@ export type IAgentRegistrationOptions = ILocalCustomizationSyncOptions;
 export interface IAgentHostActiveClientService {
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * Constructs the per-sessionType {@link AgentCustomizationSyncProvider}
-	 * and {@link SyncedCustomizationBundler}, builds the `customizations`
-	 * observable from them, wires it to {@link IPromptsService} change events,
-	 * and resolves the initial value. Disposing the returned handle tears all
-	 * of that down. The created `syncProvider` is exposed on the returned
-	 * object so the contribution can pass the same instance to its
-	 * customization harness.
-	 */
+	/** Registers an agent harness and its registration-level customization sync provider. */
 	registerForAgent(sessionType: string, options?: IAgentRegistrationOptions): IAgentRegistration;
 
-	/** Returns a {@link SessionActiveClient} for `sessionType` using the caller-supplied `clientId`. Customizations are empty when `sessionType` has not been registered. */
-	getActiveClient(sessionType: string, clientId: string): SessionActiveClient;
-
-	getCustomizations(sessionType: string): IObservable<readonly ClientPluginCustomization[]>;
-
-	/** Selectable local agents available before the host has parsed the customization refs. */
-	getCustomAgents(sessionType: string): IObservable<readonly AgentCustomization[]>;
-
-	/**
-	 * Returns the tools this client advertises to the agent host for `sessionType`.
-	 *
-	 * Chat Customizations are the source of truth: a tool is advertised only when it is an enabled
-	 * member of a tool set surfaced in the Agents window Tools section (`deprecated !== true`).
-	 * Editor-only tool sets are not created in the Agents window. Enablement is tri-state per
-	 * {@link IAgentHostToolSetEnablementService}.
-	 */
-	getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]>;
+	/** Acquires a customization scope for a registered agent. Returns `undefined` when `sessionType` has no registration. */
+	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope | undefined;
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 }
 
-export class AgentHostActiveClientService extends Disposable implements IAgentHostActiveClientService {
-	declare readonly _serviceBrand: undefined;
+class AgentRegistration extends Disposable implements IAgentRegistration {
 
-	private readonly _customizationsByType: ISettableObservable<ReadonlyMap<string, IObservable<readonly ClientPluginCustomization[]>>>;
-	private readonly _customAgentsByType: ISettableObservable<ReadonlyMap<string, IObservable<readonly AgentCustomization[]>>>;
+	readonly syncProvider: ICustomizationSyncProvider;
 
-	private readonly _allToolsObs: IObservable<readonly IToolData[]>;
-	private readonly _allToolSetsObs: IObservable<Iterable<IToolSet>>;
-
-	/** Cached per-`sessionType` advertised-tools observable, so callers (e.g. autoruns) reuse one stable derived. */
-	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
+	private readonly _scopes = new Map<string, AgentCustomizationScope>();
+	private _isDisposed = false;
 
 	constructor(
-		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
+		private readonly _sessionType: string,
+		private readonly _options: IAgentRegistrationOptions | undefined,
+		private readonly _instantiationService: IInstantiationService,
+		storageService: IStorageService,
+		private readonly _getClientTools: (sessionType: string) => IObservable<readonly ToolDefinition[]>,
+		private readonly _onDispose: () => void,
+	) {
+		super();
+		this.syncProvider = this._register(new AgentCustomizationSyncProvider(_sessionType, storageService));
+	}
+
+	acquireScope(roots: readonly URI[]): IAgentCustomizationScope {
+		const normalizedRoots = normalizeRoots(roots);
+		const scopeKey = getScopeKey(normalizedRoots);
+		let scope = this._scopes.get(scopeKey);
+		if (!scope) {
+			// Referenced by the teardown callback below, which only runs once the
+			// scope has been constructed.
+			const createdScope: AgentCustomizationScope = this._instantiationService.createInstance(
+				AgentCustomizationScope,
+				this._sessionType,
+				normalizedRoots,
+				this.syncProvider,
+				this._options,
+				this._getClientTools,
+				() => this._removeScope(scopeKey, createdScope),
+			);
+			scope = createdScope;
+			this._scopes.set(scopeKey, scope);
+		}
+		return scope.acquire();
+	}
+
+	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
+		for (const scope of this._scopes.values()) {
+			const origin = scope.getOrigin(syncedUri);
+			if (origin) {
+				return origin;
+			}
+		}
+		return undefined;
+	}
+
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
+		return [...this._scopes.values()].some(scope => scope.isBundledMcpServer(pluginUri, serverName));
+	}
+
+	override dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		const scopes = [...this._scopes.values()];
+		this._scopes.clear();
+		for (const scope of scopes) {
+			scope.dispose();
+		}
+		super.dispose();
+		this._onDispose();
+	}
+
+	private _removeScope(scopeKey: string, scope: AgentCustomizationScope): void {
+		if (this._scopes.get(scopeKey) === scope) {
+			this._scopes.delete(scopeKey);
+		}
+	}
+}
+
+/** Owns the customization bundle and resolution lifecycle for one working-directory scope. */
+class AgentCustomizationScope extends Disposable {
+
+	private readonly _bundler: SyncedCustomizationBundler;
+	private readonly _updateDelayer: Delayer<void>;
+	private readonly _customizations = observableValue<readonly ClientPluginCustomization[]>('agentCustomizations', []);
+	private readonly _customAgents = observableValue<readonly AgentCustomization[]>('agentCustomAgents', []);
+	private readonly _isResolved = observableValue('agentCustomizationsResolved', false);
+	private readonly _initialResolution = new DeferredPromise<void>();
+	private readonly _activeClients = new Map<string, IObservable<SessionActiveClient>>();
+	private _refCount = 0;
+	private _updateSeq = 0;
+	private _isDisposed = false;
+
+	get customizations(): IObservable<readonly ClientPluginCustomization[]> {
+		return this._customizations;
+	}
+
+	get customAgents(): IObservable<readonly AgentCustomization[]> {
+		return this._customAgents;
+	}
+
+	get tools(): IObservable<readonly ToolDefinition[]> {
+		return this._getClientTools(this._sessionType);
+	}
+
+	get isResolved(): IObservable<boolean> {
+		return this._isResolved;
+	}
+
+	constructor(
+		private readonly _sessionType: string,
+		private readonly _roots: readonly URI[],
+		private readonly _syncProvider: ICustomizationSyncProvider,
+		private readonly _options: IAgentRegistrationOptions | undefined,
+		private readonly _getClientTools: (sessionType: string) => IObservable<readonly ToolDefinition[]>,
+		private readonly _onDispose: () => void,
+		@IFileService private readonly _fileService: IFileService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IFileService private readonly _fileService: IFileService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
-		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._customizationsByType = observableValue('agentHostCustomizationsByType', new Map());
-		this._customAgentsByType = observableValue('agentHostCustomAgentsByType', new Map());
+		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, _roots)));
+		this._updateDelayer = this._register(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
 
-		// Pass `undefined` for the model: agent-host sessions use server-side model selection.
-		this._allToolsObs = this._toolsService.observeTools(undefined);
-		this._allToolSetsObs = this._toolsService.toolSets;
-	}
-
-	registerForAgent(sessionType: string, options?: IAgentRegistrationOptions): IAgentRegistration {
-		const store = new DisposableStore();
-		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
-		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
-		const customizations = observableValue<readonly ClientPluginCustomization[]>('agentCustomizations', []);
-		const customAgents = observableValue<readonly AgentCustomization[]>('agentCustomAgents', []);
-		// Gate for seeding folder-root `.mcp.json` servers from every workspace
-		// folder (not just the session's primary). Evaluated fresh on each sync
-		// so folder/setting changes are reflected. See `shouldSyncWorkspaceDotMcp`.
-		const shouldIncludeWorkspaceDotMcp = () => shouldSyncWorkspaceDotMcp(
-			sessionType,
-			this._workspaceContextService.getWorkspace().folders.length,
-			this._configurationService.getValue(AgentHostCopilotMultiRootEnabledSettingId) === true,
-		);
-		let updateSeq = 0;
 		const updateCustomizations = async () => {
-			const seq = ++updateSeq;
+			const seq = ++this._updateSeq;
+			let completedInitialResolution = false;
 			try {
 				const [refs, agents] = await Promise.all([
-					resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType, shouldIncludeWorkspaceDotMcp(), options),
-					resolveLocalCustomAgents(this._fileService, this._promptsService, syncProvider, this._agentPluginService, sessionType, options),
+					resolveCustomizationRefs(
+						this._fileService,
+						this._promptsService,
+						this._syncProvider,
+						this._agentPluginService,
+						this._mcpService,
+						this._configurationResolverService,
+						this._bundler,
+						this._sessionType,
+						shouldSyncWorkspaceDotMcp(this._sessionType, this._roots, this._configurationService.getValue(AgentHostCopilotMultiRootEnabledSettingId) === true),
+						this._options,
+					),
+					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options),
 				]);
-				if (seq !== updateSeq) {
+				if (seq !== this._updateSeq) {
 					return;
 				}
-				if (!equals(customizations.get(), refs)) {
-					customizations.set(refs, undefined);
-				}
-				if (!equals(customAgents.get(), agents)) {
-					customAgents.set(agents, undefined);
-				}
+				transaction(tx => {
+					if (!equals(this._customizations.get(), refs)) {
+						this._customizations.set(refs, tx);
+					}
+					if (!equals(this._customAgents.get(), agents)) {
+						this._customAgents.set(agents, tx);
+					}
+					this._isResolved.set(true, tx);
+				});
+				completedInitialResolution = true;
 			} catch (err) {
 				onUnexpectedError(err);
+				if (seq === this._updateSeq) {
+					transaction(tx => this._isResolved.set(true, tx));
+					completedInitialResolution = true;
+				}
+			} finally {
+				if (completedInitialResolution && !this._initialResolution.isSettled) {
+					this._initialResolution.complete();
+				}
 			}
 		};
-		// Many of the events below can fire in quick succession (e.g. during
-		// initialization or when a config change touches several providers at
-		// once), so debounce the re-resolution into a single update.
-		const updateDelayer = store.add(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
 		const scheduleUpdate = () => {
-			updateDelayer.trigger(() => updateCustomizations()).catch(() => { /* delayer disposed */ });
+			this._updateDelayer.trigger(() => updateCustomizations()).catch(() => { /* delayer disposed */ });
 		};
-		store.add(syncProvider.onDidChange(() => scheduleUpdate()));
-		store.add(Event.any(
+
+		this._register(this._syncProvider.onDidChange(() => scheduleUpdate()));
+		this._register(Event.any(
 			this._promptsService.onDidChangeCustomAgents,
 			this._promptsService.onDidChangeSlashCommands,
 			this._promptsService.onDidChangeSkills,
 			this._promptsService.onDidChangeInstructions,
 		)(() => scheduleUpdate()));
-		// Plugin discovery completes asynchronously and may happen after the
-		// agent registration's initial customization resolution. Observe the
-		// plugin inventory and its mutable contributions so newly discovered,
-		// enabled, or updated plugins are published without restarting.
-		store.add(autorun(reader => {
+		this._register(autorun(reader => {
 			for (const plugin of this._agentPluginService.plugins.read(reader)) {
 				plugin.enablement.read(reader);
 				plugin.hooks.read(reader);
@@ -178,90 +267,139 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			}
 			scheduleUpdate();
 		}));
-		// Re-resolve when MCP servers configured in VS Code change (added,
-		// removed, enabled/disabled, or reconfigured) so they stay in sync.
-		store.add(autorun(reader => {
+		this._register(autorun(reader => {
 			for (const server of this._mcpService.servers.read(reader)) {
 				server.enablement.read(reader);
 				server.readDefinitions().read(reader);
 			}
 			scheduleUpdate();
 		}));
-		// Re-resolve when the multi-root gate inputs change so folder-root
-		// `.mcp.json` seeding stays correct without waiting for another trigger:
-		// workspace-folder add/remove (folder count / new folder's servers) and
-		// the multi-root setting toggle.
-		store.add(this._workspaceContextService.onDidChangeWorkspaceFolders(() => scheduleUpdate()));
-		store.add(this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AgentHostCopilotMultiRootEnabledSettingId)) {
 				scheduleUpdate();
 			}
 		}));
-		store.add(this._setCustomizations(sessionType, customizations));
-		store.add(this._setCustomAgents(sessionType, customAgents));
+	}
+
+	acquire(): IAgentCustomizationScope {
+		this._refCount++;
+		let released = false;
 		return {
-			syncProvider,
-			bundler,
-			dispose: () => store.dispose(),
+			customizations: this.customizations,
+			customAgents: this.customAgents,
+			tools: this.tools,
+			isResolved: this.isResolved,
+			whenResolved: () => this._initialResolution.p,
+			activeClient: clientId => this.activeClient(clientId),
+			dispose: () => {
+				if (!released) {
+					released = true;
+					this._release();
+				}
+			},
 		};
 	}
 
-	private _setCustomAgents(sessionType: string, customAgents: IObservable<readonly AgentCustomization[]>): IDisposable {
-		const next = new Map(this._customAgentsByType.get());
-		next.set(sessionType, customAgents);
-		this._customAgentsByType.set(next, undefined);
-		return toDisposable(() => {
-			const current = this._customAgentsByType.get();
-			if (current.get(sessionType) !== customAgents) {
-				return;
-			}
-			const removed = new Map(current);
-			removed.delete(sessionType);
-			this._customAgentsByType.set(removed, undefined);
-		});
+	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
+		return this._bundler.getOrigin(syncedUri);
 	}
 
-	private _setCustomizations(sessionType: string, customizations: IObservable<readonly ClientPluginCustomization[]>): IDisposable {
-		const next = new Map(this._customizationsByType.get());
-		next.set(sessionType, customizations);
-		this._customizationsByType.set(next, undefined);
-		return toDisposable(() => {
-			const current = this._customizationsByType.get();
-			if (current.get(sessionType) !== customizations) {
-				return;
-			}
-			const removed = new Map(current);
-			removed.delete(sessionType);
-			this._customizationsByType.set(removed, undefined);
-		});
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
+		return this._bundler.isBundledMcpServer(pluginUri, serverName);
 	}
 
-	getActiveClient(sessionType: string, clientId: string): SessionActiveClient {
-		return {
-			clientId,
-			tools: [...this.getClientTools(sessionType).get()],
-			customizations: [...(this._customizationsByType.get().get(sessionType)?.get() ?? [])],
-		};
+	activeClient(clientId: string): IObservable<SessionActiveClient> {
+		let activeClient = this._activeClients.get(clientId);
+		if (!activeClient) {
+			activeClient = derived(reader => {
+				// Keep changes to the complete scope picture in the composed view's
+				// dependency set so consumers can coalesce a customization burst.
+				this._customAgents.read(reader);
+				return {
+					clientId,
+					tools: [...this.tools.read(reader)],
+					customizations: [...this._customizations.read(reader)],
+				};
+			});
+			this._activeClients.set(clientId, activeClient);
+		}
+		return activeClient;
 	}
 
-	getCustomizations(sessionType: string): IObservable<readonly ClientPluginCustomization[]> {
-		return derived(reader => this._customizationsByType.read(reader).get(sessionType)?.read(reader) ?? EMPTY_CUSTOMIZATIONS);
+	override dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		this._updateSeq++;
+		if (!this._initialResolution.isSettled) {
+			this._initialResolution.complete();
+		}
+		super.dispose();
+		this._onDispose();
 	}
 
-	getCustomAgents(sessionType: string): IObservable<readonly AgentCustomization[]> {
-		return derived(reader => this._customAgentsByType.read(reader).get(sessionType)?.read(reader) ?? EMPTY_CUSTOM_AGENTS);
+	private _release(): void {
+		if (--this._refCount === 0) {
+			this.dispose();
+		}
+	}
+}
+
+export class AgentHostActiveClientService extends Disposable implements IAgentHostActiveClientService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _allToolsObs: IObservable<readonly IToolData[]>;
+	private readonly _allToolSetsObs: IObservable<Iterable<IToolSet>>;
+	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
+	private readonly _registrationsByType = new Map<string, AgentRegistration>();
+	private _isDisposed = false;
+
+	constructor(
+		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
+	) {
+		super();
+		this._allToolsObs = this._toolsService.observeTools(undefined);
+		this._allToolSetsObs = this._toolsService.toolSets;
 	}
 
-	getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]> {
+	registerForAgent(sessionType: string, options?: IAgentRegistrationOptions): IAgentRegistration {
+		// Referenced by the teardown callback below, which only runs once the
+		// registration has been constructed.
+		const registration: AgentRegistration = new AgentRegistration(
+			sessionType,
+			options,
+			this._instantiationService,
+			this._storageService,
+			type => this._getClientTools(type),
+			() => {
+				if (this._registrationsByType.get(sessionType) === registration) {
+					this._registrationsByType.delete(sessionType);
+				}
+			},
+		);
+		this._registrationsByType.set(sessionType, registration);
+		return registration;
+	}
+
+	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope | undefined {
+		return this._registrationsByType.get(sessionType)?.acquireScope(roots);
+	}
+
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
+		return [...this._registrationsByType.values()].some(registration => registration.isBundledMcpServer(pluginUri, serverName));
+	}
+
+	private _getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]> {
 		let obs = this._clientToolsByType.get(sessionType);
 		if (!obs) {
 			obs = derived(reader => {
 				const tools = this._allToolsObs.read(reader);
 				const toolSets = this._allToolSetsObs.read(reader);
 				const enablement = this._toolSetEnablementService.observe(sessionType).read(reader);
-
-				// Collect the ids of tools that are enabled members of at least one tool set surfaced in
-				// the Agents window Tools section (non-deprecated).
 				const enabledToolIds = new Set<string>();
 				for (const ts of toolSets) {
 					if (ts.deprecated) {
@@ -279,10 +417,50 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		}
 		return obs;
 	}
+
+	override dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		const registrations = [...this._registrationsByType.values()];
+		this._registrationsByType.clear();
+		for (const registration of registrations) {
+			registration.dispose();
+		}
+		super.dispose();
+	}
 }
 
-const EMPTY_CUSTOMIZATIONS: readonly ClientPluginCustomization[] = Object.freeze([]);
-const EMPTY_CUSTOM_AGENTS: readonly AgentCustomization[] = Object.freeze([]);
+function normalizeRoots(roots: readonly URI[]): readonly URI[] {
+	const rootsByUri = new ResourceMap<URI>(root => extUriBiasedIgnorePathCase.getComparisonKey(root));
+	for (const root of roots) {
+		rootsByUri.set(root, root);
+	}
+	// Ordinal (not locale) ordering: this order feeds `getScopeKey`, whose hash
+	// becomes an on-disk plugin cache directory name on the agent host side.
+	return [...rootsByUri.values()].sort((a, b) => {
+		const left = extUriBiasedIgnorePathCase.getComparisonKey(a);
+		const right = extUriBiasedIgnorePathCase.getComparisonKey(b);
+		return left < right ? -1 : left > right ? 1 : 0;
+	});
+}
+
+/** Returns whether two working-directory sets describe the same customization scope. */
+export function areCustomizationScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[]): boolean {
+	const toComparisonKey = (root: URI) => extUriBiasedIgnorePathCase.getComparisonKey(root);
+	const firstRoots = new ResourceSet(first ?? [], toComparisonKey);
+	const secondRoots = new ResourceSet(second, toComparisonKey);
+	return firstRoots.size === secondRoots.size && [...firstRoots].every(root => secondRoots.has(root));
+}
+
+function getScopeKey(roots: readonly URI[]): string {
+	return roots.map(root => extUriBiasedIgnorePathCase.getComparisonKey(root)).join('\n');
+}
+
+function createScopeAuthority(sessionType: string, roots: readonly URI[]): string {
+	return `${sessionType}-${hash(getScopeKey(roots))}`;
+}
 
 /** Debounce window (ms) used to coalesce bursts of customization change events into a single re-resolution. */
 const CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY = 50;

@@ -203,6 +203,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly voiceState = observableValue<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('voiceState', 'idle');
 				override readonly targetSession = observableValue<URI | undefined>('targetSession', undefined);
 				override readonly hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
+				override readonly omniInputOpen = observableValue<boolean>('omniInputOpen', false);
 				override readonly transcriptTurns = observableValue<never[]>('transcriptTurns', []);
 			}());
 			reg.defineInstance(ITtsPlaybackService, new class extends mock<ITtsPlaybackService>() {
@@ -411,7 +412,7 @@ function createStandardPromptOptions(): readonly INewSessionPromptOption[] {
 			id: 'standard:implementFeature',
 			title: 'Implement a feature',
 			description: 'Describe what you want to build',
-			prompt: 'Help me implement [describe the feature] in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks.',
+			prompt: 'Help me implement [describe the feature] in this project. Ask me questions if anything is unclear regarding the intended behaviour.',
 			placeholder: '[describe the feature]',
 			icon: Codicon.lightbulbSparkleAutofix,
 		},
@@ -419,7 +420,7 @@ function createStandardPromptOptions(): readonly INewSessionPromptOption[] {
 			id: 'standard:fixBug',
 			title: 'Fix a bug',
 			description: 'Describe the unexpected behavior',
-			prompt: 'Help me fix [describe the bug] in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks.',
+			prompt: 'Help me fix [describe the bug] in this project. Ask me questions if anything is unclear regarding the bug or the intended behaviour.',
 			placeholder: '[describe the bug]',
 			icon: Codicon.bug,
 		},
@@ -427,7 +428,7 @@ function createStandardPromptOptions(): readonly INewSessionPromptOption[] {
 			id: 'standard:fixCi',
 			title: 'Fix CI',
 			description: 'Describe a failing check or paste a link',
-			prompt: 'Help me fix the failing CI for [describe the CI failure or paste a link] in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution and run the most relevant checks.',
+			prompt: 'Help me fix the failing CI for [describe the CI failure or paste a link] in this project. Ask me questions if anything is unclear regarding the CI failure or how it should be fixed.',
 			placeholder: '[describe the CI failure or paste a link]',
 			icon: Codicon.runErrors,
 		},
