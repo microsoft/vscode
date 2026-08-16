@@ -434,7 +434,7 @@ Your goal is to deliver complete, working solutions. If your first approach does
 Respond concisely to the user, but be thorough in your work.
 ~~~
 
-### Tools (29)
+### Tools (30)
 
 #### bash
 Runs a Bash command.

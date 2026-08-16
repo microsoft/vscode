@@ -89,4 +89,37 @@ suite('SessionInputBannerWidget', () => {
 		await timeout(0);
 		assert.strictEqual(primaryButton.getAttribute('aria-disabled'), 'false');
 	}));
+
+	test('does not run a primary action whose readiness resolves after disposal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const ready = new DeferredPromise<boolean>();
+		let primaryRuns = 0;
+		const banner: ISessionInputBanner = {
+			icon: Codicon.commentDiscussion,
+			accent: false,
+			text: '1 comment',
+			ariaLabel: '1 comment',
+			actions: [{
+				label: 'Address Comments',
+				primary: true,
+				waitUntilReady: () => ready.p,
+				run: () => { primaryRuns++; },
+			}],
+		};
+		const hoverService = upcastPartial<IHoverService>({
+			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
+		});
+		const widget = new SessionInputBannerWidget(banner, hoverService);
+		const primaryButton = widget.domNode.querySelector<HTMLElement>('.session-input-banner-action')!;
+
+		primaryButton.click();
+		await timeout(0);
+
+		// The banner is replaced (e.g. its comments disappeared) while readiness
+		// is still pending; the continuation must not act on stale state.
+		widget.dispose();
+		ready.complete(true);
+		await timeout(0);
+
+		assert.strictEqual(primaryRuns, 0);
+	}));
 });

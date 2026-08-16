@@ -389,6 +389,30 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			// Comments written before any workspace was picked adopt this selection.
 			this._rebindNewSessionWorkspace();
 		}));
+
+		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._forgetSession(session.resource)));
+	}
+
+	/**
+	 * Drops this service's per-session bookkeeping for a deleted session. The
+	 * backend is left alone: its channel is already released with the session,
+	 * and clearing it would write to a store that no longer exists.
+	 */
+	private _forgetSession(sessionResource: URI): void {
+		const key = sessionResource.toString();
+		this._sessionUpdatedOrder.delete(key);
+		this._navigationAnchorBySession.delete(key);
+		this._visibleResolvedFeedbackIds.delete(sessionResource);
+		for (const [fileResource, mapped] of [...this._fileToSession]) {
+			if (isEqual(mapped, sessionResource)) {
+				this._fileToSession.delete(fileResource);
+			}
+		}
+		for (const [fileResource, mapped] of [...this._explicitResourceScopes]) {
+			if (isEqual(mapped, sessionResource)) {
+				this._explicitResourceScopes.delete(fileResource);
+			}
+		}
 	}
 
 	/**

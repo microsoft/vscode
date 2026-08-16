@@ -45,9 +45,11 @@ suite('AgentFeedbackService - Ordering', () => {
 	let fileA: URI;
 	let fileB: URI;
 	let fileC: URI;
+	let onDidDeleteSession: Emitter<ISession>;
 
 	setup(() => {
 		const instantiationService = store.add(new TestInstantiationService());
+		onDidDeleteSession = store.add(new Emitter<ISession>());
 
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -57,6 +59,7 @@ suite('AgentFeedbackService - Ordering', () => {
 			override openEditor(..._args: unknown[]): Promise<undefined> { return Promise.resolve(undefined); }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidDeleteSession = onDidDeleteSession.event;
 			override getSession(_resource: URI) { return undefined; }
 		});
 		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
@@ -336,6 +339,24 @@ suite('AgentFeedbackService - Ordering', () => {
 		const items = service.getFeedback(session);
 		assert.strictEqual(items[0].replies, undefined);
 	});
+
+	test('deleting a session drops its per-session bookkeeping', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'comment');
+		service.setNavigationAnchor(session, feedback.id);
+		service.setFeedbackResolved(session, feedback.id, true);
+		service.showFeedbackInEditor(session, [feedback.id]);
+		assert.deepStrictEqual([...service.getVisibleResolvedFeedbackIds(session)], [feedback.id]);
+
+		onDidDeleteSession.fire({ resource: session } as ISession);
+
+		assert.deepStrictEqual({
+			visibleResolved: [...service.getVisibleResolvedFeedbackIds(session)],
+			anchoredIdx: service.getNavigationBearing(session).activeIdx,
+		}, {
+			visibleResolved: [],
+			anchoredIdx: -1,
+		});
+	});
 });
 
 suite('AgentFeedbackService - getSessionForFile', () => {
@@ -405,6 +426,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 			override get visibleEditorPanes() { return visiblePanes; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidDeleteSession = Event.None;
 			override getSession(resource: URI) { return sessions.get(resource.toString()); }
 		});
 		instantiationService.stub(ISessionsService, { activeSession: activeSessionObs } as unknown as ISessionsService);

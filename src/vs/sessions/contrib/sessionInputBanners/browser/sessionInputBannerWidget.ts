@@ -61,6 +61,7 @@ export class SessionInputBannerWidget extends Disposable {
 	private readonly _showWorkingAnimation = this._register(new MutableDisposable());
 
 	private _runningPrimaryAction = false;
+	private _disposed = false;
 
 	constructor(
 		banner: ISessionInputBanner,
@@ -138,6 +139,12 @@ export class SessionInputBannerWidget extends Disposable {
 			if (action.waitUntilReady && !await this._waitUntilReady(action.waitUntilReady)) {
 				return;
 			}
+			// Readiness can resolve after the banner was replaced or torn down
+			// (e.g. the comments it acted on disappeared), and running then would
+			// act on state this banner no longer represents.
+			if (this._disposed) {
+				return;
+			}
 			await action.run();
 		} finally {
 			this._setPrimaryButtonsEnabled(true);
@@ -164,10 +171,18 @@ export class SessionInputBannerWidget extends Disposable {
 	}
 
 	private _setPrimaryButtonsEnabled(enabled: boolean): void {
+		if (this._disposed) {
+			return;
+		}
 		for (const { button, primary } of this._buttons) {
 			if (primary) {
 				button.enabled = enabled;
 			}
 		}
+	}
+
+	override dispose(): void {
+		this._disposed = true;
+		super.dispose();
 	}
 }
