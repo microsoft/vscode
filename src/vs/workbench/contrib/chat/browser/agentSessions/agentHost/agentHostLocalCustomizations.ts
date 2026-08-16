@@ -6,13 +6,12 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { basename, isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { parseRemoteAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
-import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -296,7 +295,7 @@ async function resolveConfigurationForSync(
  * extension's GitHub MCP provider is excluded because the SDK supplies its own
  * built-in GitHub server.
  */
-export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, roots: readonly URI[]): Promise<ISyncableMcpServer[]> {
+export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[]): Promise<ISyncableMcpServer[]> {
 	const result: ISyncableMcpServer[] = [];
 	for (const server of mcpService.servers.get()) {
 		if (server.collection.id.startsWith(MCP_PLUGIN_COLLECTION_ID_PREFIX)) {
@@ -309,15 +308,6 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
 			continue;
 		}
 		const collection = definitions.collection;
-		if (definition.defaultCwd && !roots.some(root => isEqual(root, definition.defaultCwd))) {
-			continue;
-		}
-		if (!definition.defaultCwd
-			&& collection?.configTarget === ConfigurationTarget.WORKSPACE_FOLDER
-			&& definition.roots?.length
-			&& !definition.roots.some(serverRoot => roots.some(root => isEqual(root, serverRoot)))) {
-			continue;
-		}
 		if (hasBuiltInGitHubMcpServer(sessionType)
 			&& collection?.id === COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID
 			&& collection.source instanceof ExtensionIdentifier
@@ -330,6 +320,10 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
 		}
 		if (collection && McpCollectionDefinition.isWorkspaceDiscovered(collection)) {
 			if (McpCollectionDefinition.isVscodeMcpJson(collection)) {
+				const origin = collection.presentation?.origin;
+				if (!origin || !workingDirectories.some(workingDirectory => isEqualOrParent(origin, workingDirectory))) {
+					continue;
+				}
 				const resolved = await resolveConfigurationForSync(configurationResolverService, definition.variableReplacement?.folder, configuration);
 				if (!resolved) {
 					continue;
@@ -371,7 +365,7 @@ export async function resolveCustomizationRefs(
 	bundler: SyncedCustomizationBundler,
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
-	roots: readonly URI[] = [],
+	workingDirectories: readonly URI[] = [],
 ): Promise<ClientPluginCustomization[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 	const enabled = enumerated.filter(e => !e.disabled);
@@ -442,7 +436,7 @@ export async function resolveCustomizationRefs(
 	}
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
-	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, roots);
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories);
 	if (looseFiles.length > 0 || mcpServers.length > 0) {
 		refs.push(bundler.bundle(looseFiles, mcpServers).then(r => r?.ref));
 	}

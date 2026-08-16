@@ -68,6 +68,7 @@ import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../..
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
@@ -8189,6 +8190,85 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
 		assert.deepStrictEqual(Object.keys(sdk.capturedStartupOptions[0].mcpServers ?? {}).sort(), ['enabled']);
+	});
+
+	test('workspace MCP enablement gates SDK startup and rebuilds after re-enable', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager, configService } = buildCtxWith(pm);
+		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: true });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const primary = URI.file('/primary');
+		const additional = URI.file('/additional');
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(primary, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+				'primary-enabled': { type: 'http', url: 'https://primary-enabled.example.com/mcp' },
+				'primary-disabled': { type: 'http', url: 'https://primary-disabled.example.com/mcp' },
+			}))),
+			fileService.writeFile(URI.joinPath(additional, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+				'additional-enabled': { type: 'http', url: 'https://additional-enabled.example.com/mcp' },
+				'additional-disabled': { type: 'http', url: 'https://additional-disabled.example.com/mcp' },
+			}))),
+		]);
+		const created = await createSession(agent, { workingDirectories: [primary, additional] });
+		const chat = defaultChatUri(created.session);
+		const initial = await agent.getChatCustomizations!(chat, chatContext(chat), hostCustomizations(stateManager, created.session));
+		const customizations = [
+			...initial,
+			makeMcpServerCustomization(URI.joinPath(additional, '.mcp.json'), 'additional-enabled'),
+			makeMcpServerCustomization(URI.joinPath(additional, '.mcp.json'), 'additional-disabled'),
+		];
+		publishReducerCustomizations(stateManager, created.session, customizations);
+		for (const name of ['primary-disabled', 'additional-disabled']) {
+			const server = customizations.find(customization => customization.type === CustomizationType.McpServer && customization.name === name);
+			assert.ok(server);
+			stateManager.dispatchServerAction(created.session.toString(), {
+				type: ActionType.SessionCustomizationToggled,
+				id: server.id,
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+			});
+		}
+
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [];
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(chat, 'first', [primary, additional], undefined, 'turn-1', undefined, undefined, chatContext(chat));
+
+		const options = sdk.capturedStartupOptions[0];
+		const settings = options.settings;
+		assert.ok(settings && typeof settings !== 'string');
+		assert.deepStrictEqual({
+			explicitServers: Object.keys(options.mcpServers ?? {}).sort(),
+			deniedServers: settings.deniedMcpServers,
+		}, {
+			explicitServers: ['additional-enabled'],
+			deniedServers: [{
+				serverName: 'primary-disabled',
+				serverUrl: 'https://primary-disabled.example.com/mcp',
+			}],
+		});
+
+		for (const name of ['primary-disabled', 'additional-disabled']) {
+			const server = customizations.find(customization => customization.type === CustomizationType.McpServer && customization.name === name);
+			assert.ok(server);
+			stateManager.dispatchServerAction(created.session.toString(), {
+				type: ActionType.SessionCustomizationToggled,
+				id: server.id,
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+			});
+		}
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(chat, 'second', [primary, additional], undefined, 'turn-2', undefined, undefined, chatContext(chat));
+
+		const rebuiltOptions = sdk.capturedStartupOptions[1];
+		assert.ok(rebuiltOptions);
+		assert.deepStrictEqual({
+			explicitServers: Object.keys(rebuiltOptions.mcpServers ?? {}).sort(),
+			deniedServers: typeof rebuiltOptions.settings === 'string' ? undefined : rebuiltOptions.settings?.deniedMcpServers,
+		}, {
+			explicitServers: ['additional-disabled', 'additional-enabled'],
+			deniedServers: undefined,
+		});
 	});
 
 	test('session MCP enablement persists across materialization and customization refreshes', async () => {

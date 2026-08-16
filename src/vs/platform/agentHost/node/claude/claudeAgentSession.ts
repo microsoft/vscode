@@ -29,7 +29,7 @@ import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKin
 import type { ClientPluginCustomization, CustomizationEnablement } from '../../common/state/protocol/channels-session/state.js';
 import { CustomizationType, parseRequiredSessionUriFromChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
-import { buildClientMcpServers, buildOptions, toClaudeMcpServers } from './claudeSdkOptions.js';
+import { buildClientMcpServers, buildOptions, toClaudeMcpServers, type ClaudeDeniedMcpServerSpec } from './claudeSdkOptions.js';
 import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
@@ -54,6 +54,7 @@ import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } f
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 
 // Re-export for callers that import IRematerializer from the session.
 export type { IRematerializer } from './claudeSdkPipeline.js';
@@ -118,6 +119,13 @@ function resolveCurrentPermissionMode(
 	permissionModeFallback: ClaudePermissionMode,
 ): ClaudePermissionMode {
 	return readClaudePermissionMode(configurationService, resource) ?? inheritedPermissionMode ?? permissionModeFallback;
+}
+
+function toClaudeDeniedMcpServer(definition: IMcpServerDefinition): ClaudeDeniedMcpServerSpec {
+	const configuration = definition.configuration;
+	return configuration.type === McpServerType.LOCAL
+		? { serverName: definition.name, serverCommand: [configuration.command, ...(configuration.args ?? [])] }
+		: { serverName: definition.name, serverUrl: configuration.url };
 }
 
 /**
@@ -206,6 +214,8 @@ export class ClaudeAgentSession extends Disposable {
 	}
 	private readonly _customizationWatcher = this._register(new MutableDisposable<DisposableStore>());
 	private _mcpDiscovery: SessionMcpDiscovery | undefined;
+	private _mcpLaunchEnablementRevision = 0;
+	private _appliedMcpLaunchEnablementRevision = 0;
 
 	/** Exposed for the materializer's MCP-server build closure. */
 	get pendingClientToolCalls(): PendingRequestRegistry<CallToolResult> { return this._pendingClientToolCalls; }
@@ -450,6 +460,7 @@ export class ClaudeAgentSession extends Disposable {
 			if (!event.sessions.includes(this._configurationResource.toString())) {
 				return;
 			}
+			this._mcpLaunchEnablementRevision++;
 			this._onDidCustomizationsChange.fire();
 			if (this._pipeline) {
 				this._reconcileMcpServerEnablement(true).catch(error => this._logService.error(error, `[Claude:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
@@ -585,7 +596,8 @@ export class ClaudeAgentSession extends Disposable {
 		const permissionMode = resolveCurrentPermissionMode(this._configurationService, ctx.configResource, this._inheritedPermissionMode, this._permissionModeFallback);
 		const plugins = this._desiredClientPluginConfigs();
 		this.clientCustomizationsDiff.consume(plugins.map(plugin => plugin.uri));
-		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
+		const mcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
+		const { mcpServers, deniedMcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, ctx.resource.toString());
@@ -603,6 +615,7 @@ export class ClaudeAgentSession extends Disposable {
 				isResume: ctx.isResume,
 				resumeSessionAt: this._pendingResumeSessionAt,
 				mcpServers,
+				deniedMcpServers,
 				allowedTools,
 				plugins,
 				agent: agentName,
@@ -658,6 +671,7 @@ export class ClaudeAgentSession extends Disposable {
 		// — clear it now so it isn't re-applied. A throw before this point (e.g.
 		// `startup` / pipeline-create) leaves it staged for the next retry.
 		this._pendingResumeSessionAt = undefined;
+		this._appliedMcpLaunchEnablementRevision = mcpLaunchEnablementRevision;
 
 		// Seed the pipeline's bijective config cache so a rebuild re-applies
 		// the user's last-chosen model / effort without losing the picker
@@ -699,7 +713,8 @@ export class ClaudeAgentSession extends Disposable {
 				this._watchCustomizations(this.workingDirectories);
 				const rebuildPlugins = this._desiredClientPluginConfigs();
 				this.clientCustomizationsDiff.consume(rebuildPlugins.map(plugin => plugin.uri));
-				const { mcpServers: rebuildMcp, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
+				const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
+				const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
 				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 				const rebuildOptions = await buildOptions(
 					{
@@ -714,6 +729,7 @@ export class ClaudeAgentSession extends Disposable {
 						isResume: true,
 						resumeSessionAt: this._pendingResumeSessionAt,
 						mcpServers: rebuildMcp,
+						deniedMcpServers: rebuildDeniedMcpServers,
 						allowedTools: rebuildAllowedTools,
 						plugins: rebuildPlugins,
 						agent: rebuildAgentName,
@@ -731,6 +747,7 @@ export class ClaudeAgentSession extends Disposable {
 				// catch alongside the tool/customization diffs) so the next send
 				// retries the truncation instead of dropping the restore.
 				this._pendingResumeSessionAt = undefined;
+				this._appliedMcpLaunchEnablementRevision = rebuildMcpLaunchEnablementRevision;
 				this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
 				// Commit the (possibly switched) transport now that the new
 				// subprocess is live, so credit enrichment tracks the running
@@ -788,16 +805,16 @@ export class ClaudeAgentSession extends Disposable {
 	private async _buildStartupToolWiring(
 		resource: URI,
 		serverToolHost: IAgentServerToolHost | undefined,
-	): Promise<{ mcpServers: Record<string, McpServerConfig> | undefined; allowedTools: readonly string[] | undefined }> {
+	): Promise<{ mcpServers: Record<string, McpServerConfig> | undefined; deniedMcpServers: readonly ClaudeDeniedMcpServerSpec[]; allowedTools: readonly string[] | undefined }> {
 		const externalServers = await this._buildExternalMcpServers();
 		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
 		const serverToolServer = serverToolHost
 			? await buildServerToolMcpServer(serverToolHost, resource.toString(), this._sdkService)
 			: undefined;
-		const mcpServers = (Object.keys(externalServers).length === 0 && !clientServers && !serverToolServer)
+		const mcpServers = (Object.keys(externalServers.servers).length === 0 && !clientServers && !serverToolServer)
 			? undefined
 			: {
-				...externalServers,
+				...externalServers.servers,
 				...(clientServers ?? {}),
 				...(serverToolServer ? { [CLAUDE_SERVER_TOOL_MCP_SERVER_NAME]: serverToolServer } : {}),
 			};
@@ -811,16 +828,31 @@ export class ClaudeAgentSession extends Disposable {
 		const autoApproveToolNames = serverToolHost
 			? serverToolHost.toolNames.filter(name => !serverToolHost.canRequireConfirmation(name))
 			: undefined;
-		return { mcpServers, allowedTools: autoApproveToolNames ? serverToolAllowList(autoApproveToolNames) : undefined };
+		return {
+			mcpServers,
+			deniedMcpServers: externalServers.deniedServers,
+			allowedTools: autoApproveToolNames ? serverToolAllowList(autoApproveToolNames) : undefined,
+		};
 	}
 
-	private async _buildExternalMcpServers(): Promise<Record<string, McpServerConfig>> {
+	private async _buildExternalMcpServers(): Promise<{ readonly servers: Record<string, McpServerConfig>; readonly deniedServers: readonly ClaudeDeniedMcpServerSpec[] }> {
 		const primaryCwd = this.workingDirectory;
 		if (!primaryCwd) {
-			return {};
+			return { servers: {}, deniedServers: [] };
 		}
 		const definitions = new Map<string, IMcpServerDefinition>();
-		for (const definition of await this._mcpDiscovery?.refresh() ?? []) {
+		const discoveredDefinitions = await this._mcpDiscovery?.refresh() ?? [];
+		const discoveredCandidates = discoveredDefinitions.map(definition => definition.customization);
+		const discoveredResolution = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, discoveredCandidates);
+		const discoveredEnablement = getSdkMcpServerEnablement(discoveredResolution);
+		const deniedServers: ClaudeDeniedMcpServerSpec[] = [];
+		for (const definition of discoveredDefinitions) {
+			if (discoveredEnablement.get(definition.customization.id) !== true) {
+				if (definition.defaultCwd && isEqual(definition.defaultCwd, primaryCwd)) {
+					deniedServers.push(toClaudeDeniedMcpServer(definition));
+				}
+				continue;
+			}
 			if (definition.defaultCwd && isEqual(definition.defaultCwd, primaryCwd)) {
 				continue;
 			}
@@ -855,7 +887,7 @@ export class ClaudeAgentSession extends Disposable {
 		for (const name of converted.skipped) {
 			this._logService.warn(`[Claude:${this.sessionId}] Skipping MCP server '${name}' because its stdio working directory cannot be represented by the Claude SDK`);
 		}
-		return converted.servers;
+		return { servers: converted.servers, deniedServers };
 	}
 
 	/** True once {@link materialize} has installed the SDK pipeline. */
@@ -955,6 +987,7 @@ export class ClaudeAgentSession extends Disposable {
 		this._currentTurnNanoAiu = 0;
 		if (this.toolDiff.hasDifference
 			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths())
+			|| this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision
 			|| this._pendingResumeSessionAt !== undefined
 			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
 			|| this._pendingTransportSwitch) {

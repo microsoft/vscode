@@ -20,22 +20,36 @@ import { SessionMcpDiscovery } from '../../../node/shared/sessionMcpDiscovery.js
 suite('SessionMcpDiscovery', () => {
 
 	class TestFileService extends FileService {
-		private readonly watchers = new Map<string, Emitter<FileChangesEvent>>();
+		private readonly watchers = new Map<string, Set<Emitter<FileChangesEvent>>>();
 
 		override createWatcher(resource: URI, _options: IWatchOptionsWithoutCorrelation & { recursive: false }): IFileSystemWatcher {
 			const emitter = new Emitter<FileChangesEvent>();
-			this.watchers.set(resource.toString(), emitter);
+			let emitters = this.watchers.get(resource.toString());
+			if (!emitters) {
+				emitters = new Set();
+				this.watchers.set(resource.toString(), emitters);
+			}
+			emitters.add(emitter);
 			return {
 				onDidChange: emitter.event,
 				dispose: () => {
-					this.watchers.delete(resource.toString());
+					emitters.delete(emitter);
+					if (emitters.size === 0) {
+						this.watchers.delete(resource.toString());
+					}
 					emitter.dispose();
 				},
 			};
 		}
 
 		fire(root: URI, resource: URI, type: FileChangeType): void {
-			this.watchers.get(root.toString())?.fire(new FileChangesEvent([{ resource, type }], false));
+			for (const emitter of this.watchers.get(root.toString()) ?? []) {
+				emitter.fire(new FileChangesEvent([{ resource, type }], false));
+			}
+		}
+
+		watcherCount(root: URI): number {
+			return this.watchers.get(root.toString())?.size ?? 0;
 		}
 	}
 
@@ -122,5 +136,22 @@ suite('SessionMcpDiscovery', () => {
 
 		assert.deepStrictEqual(await changed, []);
 		assert.deepStrictEqual(discovery.definitions, []);
+	});
+
+	test('shares one watcher and parsed snapshot per root across sessions', async () => {
+		await write(primary, { mcpServers: { server: { command: 'server' } } });
+		const firstStore = store.add(new DisposableStore());
+		const secondStore = store.add(new DisposableStore());
+		const first = firstStore.add(new SessionMcpDiscovery([primary], fileService));
+		const second = secondStore.add(new SessionMcpDiscovery([primary], fileService));
+
+		assert.strictEqual(fileService.watcherCount(primary), 1);
+		assert.deepStrictEqual((await first.refresh()).map(definition => definition.name), ['server']);
+		assert.deepStrictEqual((await second.refresh()).map(definition => definition.name), ['server']);
+
+		firstStore.dispose();
+		assert.strictEqual(fileService.watcherCount(primary), 1);
+		secondStore.dispose();
+		assert.strictEqual(fileService.watcherCount(primary), 0);
 	});
 });

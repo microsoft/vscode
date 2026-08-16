@@ -127,9 +127,9 @@ function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map
 	} as unknown as IFileService;
 }
 
-function makeMcpServer(options: { id: string; collectionId: string; label?: string; enabled?: boolean; enablement?: ContributionEnablementState; launch?: McpServerLaunch | undefined; defaultCwd?: URI; roots?: readonly URI[]; configTarget?: ConfigurationTarget; collectionSource?: ExtensionIdentifier }): IMcpServer {
-	const { id, collectionId, label = id, enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, launch, defaultCwd, roots, configTarget = ConfigurationTarget.USER, collectionSource } = options;
-	const collection = { id: collectionId, label: collectionId, order: 0, configTarget, source: collectionSource } as unknown as McpCollectionDefinition;
+function makeMcpServer(options: { id: string; collectionId: string; label?: string; enabled?: boolean; enablement?: ContributionEnablementState; launch?: McpServerLaunch | undefined; defaultCwd?: URI; roots?: readonly URI[]; configTarget?: ConfigurationTarget; collectionSource?: ExtensionIdentifier; collectionOrigin?: URI }): IMcpServer {
+	const { id, collectionId, label = id, enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, launch, defaultCwd, roots, configTarget = ConfigurationTarget.USER, collectionSource, collectionOrigin } = options;
+	const collection = { id: collectionId, label: collectionId, order: 0, configTarget, source: collectionSource, presentation: collectionOrigin ? { origin: collectionOrigin } : undefined } as unknown as McpCollectionDefinition;
 	const definitions = observableValue('definitions', { server: launch ? { launch, defaultCwd, roots } : undefined, collection });
 	return {
 		definition: { id, label },
@@ -732,7 +732,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		const bundler = new FakeBundler();
 		const defaultCwd = URI.parse('vscode-remote://ssh-remote+linux/home/test/workspace');
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.my-server', collectionId: 'mcp.config.ws0', label: 'my-server', launch: stdioLaunch, defaultCwd, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.my-server', collectionId: 'mcp.config.ws0', label: 'my-server', launch: stdioLaunch, defaultCwd, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, collectionOrigin: URI.joinPath(defaultCwd, '.vscode', 'mcp.json') }),
 		]);
 
 		const refs = await resolveCustomizationRefs(
@@ -767,6 +767,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 				launch: stdioLaunch,
 				defaultCwd: workspaceA,
 				configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
+				collectionOrigin: URI.joinPath(workspaceA, '.vscode', 'mcp.json'),
 			}),
 			makeMcpServer({
 				id: 'mcp.config.ws0.http-server',
@@ -775,6 +776,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://example.com/mcp'), headers: [] },
 				roots: [workspaceA],
 				configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
+				collectionOrigin: URI.joinPath(workspaceA, '.vscode', 'mcp.json'),
 			}),
 		]);
 
@@ -796,8 +798,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	test('excludes `.vscode/mcp.json` servers with variables that require interaction (e.g. ${input:…})', async () => {
 		const bundler = new FakeBundler();
+		const workingDirectory = URI.file('/ws');
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.needs-input', collectionId: 'mcp.config.ws0', label: 'needs-input', launch: stdioLaunchWithInput, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.needs-input', collectionId: 'mcp.config.ws0', label: 'needs-input', launch: stdioLaunchWithInput, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, collectionOrigin: URI.joinPath(workingDirectory, '.vscode', 'mcp.json') }),
 		]);
 
 		await resolveCustomizationRefs(
@@ -810,6 +813,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
+			[workingDirectory],
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -819,7 +823,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		const bundler = new FakeBundler();
 		const defaultCwd = URI.file('/ws');
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, defaultCwd, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, defaultCwd, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, collectionOrigin: URI.joinPath(defaultCwd, '.vscode', 'mcp.json') }),
 		]);
 
 		const refs = await resolveCustomizationRefs(
@@ -844,8 +848,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	test('excludes `.vscode/mcp.json` servers when variable resolution throws', async () => {
 		const bundler = new FakeBundler();
+		const workingDirectory = URI.file('/ws');
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, collectionOrigin: URI.joinPath(workingDirectory, '.vscode', 'mcp.json') }),
 		]);
 		const throwingResolver = {
 			async resolveAsync() { throw new Error('no workspace folder'); },
@@ -861,6 +866,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
+			[workingDirectory],
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -868,8 +874,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	test('still syncs extension-contributed servers (workspace scope, user config target)', async () => {
 		const bundler = new FakeBundler();
+		const extensionDefaultCwd = URI.file('/outside-session');
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'ext.foo.srv', collectionId: 'ext.foo', label: 'srv', launch: stdioLaunch, configTarget: ConfigurationTarget.USER }),
+			makeMcpServer({ id: 'ext.foo.srv', collectionId: 'ext.foo', label: 'srv', launch: stdioLaunch, defaultCwd: extensionDefaultCwd, configTarget: ConfigurationTarget.USER }),
 		]);
 
 		const refs = await resolveCustomizationRefs(
@@ -882,10 +889,16 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			undefined,
+			[URI.file('/workspace')],
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
-		assert.deepStrictEqual(bundler.receivedMcp[0].map(s => s.name), ['srv']);
+		assert.deepStrictEqual(bundler.receivedMcp[0], [{
+			name: 'srv',
+			configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined },
+			defaultCwd: extensionDefaultCwd,
+			enablement: globalEnablement(true),
+		}]);
 		assert.strictEqual(refs.length, 1);
 	});
 });

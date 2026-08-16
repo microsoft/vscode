@@ -280,6 +280,20 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 		assert.strictEqual(opts.plugins, undefined);
 	});
 
+	test('projects denied workspace MCP servers into startup settings', async () => {
+		const opts = await buildOptions({
+			...input(undefined),
+			deniedMcpServers: [
+				{ serverName: 'stdio-disabled', serverCommand: ['node', 'server.js'] },
+				{ serverName: 'http-disabled', serverUrl: 'https://disabled.example.com/mcp' },
+			],
+		}, proxyTransport, () => { });
+		assert.deepStrictEqual(typeof opts.settings === 'string' ? undefined : opts.settings?.deniedMcpServers, [
+			{ serverName: 'stdio-disabled', serverCommand: ['node', 'server.js'] },
+			{ serverName: 'http-disabled', serverUrl: 'https://disabled.example.com/mcp' },
+		]);
+	});
+
 	test('UserPromptSubmit adds transient host context', async () => {
 		const opts = await buildOptions({
 			...input(undefined),

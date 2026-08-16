@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpSdkServerConfigWithInstance, McpServerConfig, OnElicitation, Options } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, McpServerConfig, OnElicitation, Options, Settings } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { tmpdir } from 'os';
 import { delimiter, dirname, normalize } from '../../../../base/common/path.js';
@@ -24,6 +24,8 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
+
+export type ClaudeDeniedMcpServerSpec = NonNullable<Settings['deniedMcpServers']>[number];
 
 /**
  * Inputs to {@link buildOptions} that vary per startup. Pure-data: no
@@ -59,6 +61,8 @@ export interface IBuildOptionsInput {
 	 */
 	readonly resumeSessionAt?: string;
 	readonly mcpServers: Record<string, McpServerConfig> | undefined;
+	/** Workspace MCP servers that must be blocked before native project discovery runs. */
+	readonly deniedMcpServers?: readonly ClaudeDeniedMcpServerSpec[];
 	/**
 	 * SDK-prefixed tool names to auto-approve without prompting (projected
 	 * onto `Options.allowedTools`). Used for the agent host's feedback server
@@ -167,7 +171,12 @@ export async function buildOptions(
 			: {}),
 		...(input.agent ? { agent: input.agent } : {}),
 		settingSources: ['user', 'project', 'local'],
-		settings: { env: settingsEnv },
+		settings: {
+			env: settingsEnv,
+			...(input.deniedMcpServers?.length
+				? { deniedMcpServers: [...input.deniedMcpServers] }
+				: {}),
+		},
 		systemPrompt: { type: 'preset', preset: 'claude_code' },
 		...(input.getUserPromptAdditionalContext ? {
 			hooks: {
