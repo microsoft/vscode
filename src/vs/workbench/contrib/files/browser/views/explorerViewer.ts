@@ -58,7 +58,7 @@ import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { WebFileSystemAccess } from '../../../../../platform/files/browser/webFileSystemAccess.js';
 import { IgnoreFile } from '../../../../services/search/common/ignoreFile.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
 import { defaultCountBadgeStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -74,6 +74,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -1256,6 +1257,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private ignoreFileResourcesPerRoot = new Map<string, ResourceSet>();
 	private ancestorIgnoreFileWatchesPerRoot = new Map<string, DisposableStore>();
 	private ancestorIgnoreFileInitializationsPerRoot = new Map<string, Promise<void>>();
+	private ignoreFileOperations = new ResourceMap<Promise<void>>();
+	private ignoredWorkspaceRoots = new Set<string>();
 	// Ignore tree per root. Similar to `hiddenExpressionPerRoot`
 	// Note: URI in the ternary search tree is the URI of the folder containing the ignore file
 	// It is not the ignore file itself. This is because of the way the IgnoreFile works and nested paths
@@ -1267,7 +1270,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.toDispose.push(this._onDidChange);
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
@@ -1278,13 +1282,16 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		}));
 		this.toDispose.push(this.fileService.onDidFilesChange(e => {
 			for (const [root, ignoreFileResourceSet] of this.ignoreFileResourcesPerRoot.entries()) {
-				ignoreFileResourceSet.forEach(async ignoreResource => {
+				ignoreFileResourceSet.forEach(ignoreResource => {
 					if (e.contains(ignoreResource, FileChangeType.ADDED, FileChangeType.UPDATED)) {
-						await this.processIgnoreFile(root, ignoreResource, true);
+						this.queueIgnoreFileOperation(ignoreResource, () => this.processIgnoreFile(root, ignoreResource, true));
 					}
 					if (e.contains(ignoreResource, FileChangeType.DELETED)) {
-						this.ignoreTreesPerRoot.get(root)?.get(dirname(ignoreResource))?.updateContents('');
-						this._onDidChange.fire();
+						this.queueIgnoreFileOperation(ignoreResource, async () => {
+							this.ignoreTreesPerRoot.get(root)?.get(dirname(ignoreResource))?.updateContents('');
+							this.updateIgnoredWorkspaceRoot(root);
+							this._onDidChange.fire();
+						});
 					}
 				});
 			}
@@ -1338,6 +1345,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 				this.ancestorIgnoreFileInitializationsPerRoot.delete(root);
 				this.ignoreFileResourcesPerRoot.delete(root);
 				this.ignoreTreesPerRoot.delete(root);
+				this.ignoredWorkspaceRoots.delete(root);
 			}
 		}
 
@@ -1371,6 +1379,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 				this.ancestorIgnoreFileInitializationsPerRoot.delete(folder.uri.toString());
 				this.ignoreFileResourcesPerRoot.delete(folder.uri.toString());
 				this.ignoreTreesPerRoot.delete(folder.uri.toString());
+				this.ignoredWorkspaceRoots.delete(folder.uri.toString());
 			}
 
 			if (!shouldFire) {
@@ -1412,13 +1421,36 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 					ignoreTree?.get(dirUri)?.updateContents((await this.fileService.readFile(resource)).value.toString());
 				} catch (error) {
 					if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
-						throw error;
+						this.logService.warn(`Unable to read ancestor ignore file ${resource.toString()} for workspace root ${root}`, error);
 					}
 				}
 			}
 		}
 		if (this.ignoreTreesPerRoot.has(root) && this.ancestorIgnoreFileWatchesPerRoot.get(root) === watches) {
+			this.updateIgnoredWorkspaceRoot(root);
 			this._onDidChange.fire();
+		}
+	}
+
+	private queueIgnoreFileOperation(resource: URI, operation: () => Promise<void>): void {
+		const previous = this.ignoreFileOperations.get(resource) ?? Promise.resolve();
+		const current = previous.then(operation, operation);
+		this.ignoreFileOperations.set(resource, current);
+		const clearOperation = () => {
+			if (this.ignoreFileOperations.get(resource) === current) {
+				this.ignoreFileOperations.delete(resource);
+			}
+		};
+		current.then(clearOperation, clearOperation);
+	}
+
+	private updateIgnoredWorkspaceRoot(root: string): void {
+		const rootResource = URI.parse(root);
+		const ignoreFile = this.ignoreTreesPerRoot.get(root)?.findSubstr(rootResource);
+		if (ignoreFile?.isArbitraryPathIgnored(rootResource.path, true)) {
+			this.ignoredWorkspaceRoots.add(root);
+		} else {
+			this.ignoredWorkspaceRoots.delete(root);
 		}
 	}
 
@@ -1444,7 +1476,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			contents = (await this.fileService.readFile(ignoreFileResource)).value.toString();
 		} catch (error) {
 			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
-				throw error;
+				this.logService.warn(`Unable to read ignore file ${ignoreFileResource.toString()}`, error);
+				return;
 			}
 		}
 
@@ -1457,6 +1490,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			ignoreTree.set(dirUri, new IgnoreFile(contents, dirUri.path, ignoreParent, ignoreCase));
 		}
 		resources.add(ignoreFileResource);
+		this.updateIgnoredWorkspaceRoot(root);
 		if (fireChange) {
 			this._onDidChange.fire();
 		}
@@ -1503,6 +1537,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	isIgnored(resource: URI, rootResource: URI, isDirectory: boolean): boolean {
+		if (this.ignoredWorkspaceRoots.has(rootResource.toString())) {
+			return true;
+		}
 		const ignoreFile = this.ignoreTreesPerRoot.get(rootResource.toString())?.findSubstr(resource);
 		const isIncludedInTraversal = ignoreFile?.isPathIncludedInTraversal(resource.path, isDirectory);
 

@@ -22,9 +22,12 @@ import { UriIdentityService } from '../../../../../platform/uriIdentity/common/u
 import { IExplorerService } from '../../browser/files.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { FileChangesEvent, FileChangeType } from '../../../../../platform/files/common/files.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 
 class AncestorGitIgnoreTestFileService extends TestFileService {
 	private readonly contents = new ResourceMap<string>();
+	private readonly readErrors = new ResourceMap<Error>();
+	private readonly readBarriers = new ResourceMap<Promise<void>>();
 
 	constructor(private readonly existing: ResourceSet) {
 		super();
@@ -38,7 +41,29 @@ class AncestorGitIgnoreTestFileService extends TestFileService {
 		this.contents.set(resource, content);
 	}
 
+	setReadError(resource: URI, error: Error | undefined): void {
+		if (error) {
+			this.readErrors.set(resource, error);
+		} else {
+			this.readErrors.delete(resource);
+		}
+	}
+
+	delayRead(resource: URI): () => void {
+		let resolve!: () => void;
+		this.readBarriers.set(resource, new Promise<void>(r => resolve = r));
+		return () => {
+			this.readBarriers.delete(resource);
+			resolve();
+		};
+	}
+
 	override async readFile(resource: URI) {
+		await this.readBarriers.get(resource);
+		const error = this.readErrors.get(resource);
+		if (error) {
+			throw error;
+		}
 		this.setContent(this.contents.get(resource) ?? this.getContent());
 		return super.readFile(resource);
 	}
@@ -132,7 +157,8 @@ suite('Files - ExplorerView', () => {
 			{ getEditableData: () => undefined } as Partial<IExplorerService> as IExplorerService,
 			{ onDidVisibleEditorsChange: Event.None, visibleEditors: [] } as Partial<IEditorService> as IEditorService,
 			ds.add(new UriIdentityService(ancestorFileService)),
-			ancestorFileService
+			ancestorFileService,
+			new NullLogService()
 		));
 		const processIgnoreFile = Reflect.get(filter, 'processIgnoreFile') as (root: string, resource: URI) => Promise<void>;
 		await processIgnoreFile.call(filter, workspaceRoot.toString(), URI.file('/repo/packages/app/.gitignore'));
@@ -158,6 +184,81 @@ suite('Files - ExplorerView', () => {
 		await deleted;
 
 		assert.strictEqual(filter.isIgnored(URI.file('/repo/packages/app/output.tmp'), workspaceRoot, false), false);
+	});
+
+	test('files filter orders ancestor updates before deletion', async () => {
+		const workspaceRoot = URI.file('/repo/packages/app');
+		const rootIgnore = URI.file('/repo/.gitignore');
+		const existing = new ResourceSet([URI.file('/repo/.git'), rootIgnore]);
+		const ancestorFileService = new AncestorGitIgnoreTestFileService(existing);
+		ancestorFileService.setResourceContent(rootIgnore, '*.log');
+		const filter = ds.add(new FilesFilter(
+			new TestContextService(new Workspace('workspace', [new WorkspaceFolder({ uri: workspaceRoot, name: 'app', index: 0 })], false, null, () => false)),
+			new TestConfigurationService({ files: { exclude: {} }, explorer: { excludeGitIgnore: true } }),
+			{ getEditableData: () => undefined } as Partial<IExplorerService> as IExplorerService,
+			{ onDidVisibleEditorsChange: Event.None, visibleEditors: [] } as Partial<IEditorService> as IEditorService,
+			ds.add(new UriIdentityService(ancestorFileService)),
+			ancestorFileService,
+			new NullLogService()
+		));
+		await Event.toPromise(filter.onDidChange);
+
+		ancestorFileService.setResourceContent(rootIgnore, '*.tmp');
+		const releaseRead = ancestorFileService.delayRead(rootIgnore);
+		let changeCount = 0;
+		const changesComplete = new Promise<void>(resolve => ds.add(filter.onDidChange(() => {
+			if (++changeCount === 2) {
+				resolve();
+			}
+		})));
+		ancestorFileService.fireFileChanges(new FileChangesEvent([{ resource: rootIgnore, type: FileChangeType.UPDATED }], false));
+		existing.delete(rootIgnore);
+		ancestorFileService.fireFileChanges(new FileChangesEvent([{ resource: rootIgnore, type: FileChangeType.DELETED }], false));
+		releaseRead();
+		await changesComplete;
+
+		assert.strictEqual(filter.isIgnored(URI.file('/repo/packages/app/output.tmp'), workspaceRoot, false), false);
+	});
+
+	test('files filter continues after an unreadable ancestor gitignore', async () => {
+		const workspaceRoot = URI.file('/repo/packages/app');
+		const rootIgnore = URI.file('/repo/.gitignore');
+		const packageIgnore = URI.file('/repo/packages/.gitignore');
+		const existing = new ResourceSet([URI.file('/repo/.git'), rootIgnore, packageIgnore]);
+		const ancestorFileService = new AncestorGitIgnoreTestFileService(existing);
+		ancestorFileService.setReadError(rootIgnore, new Error('access denied'));
+		ancestorFileService.setResourceContent(packageIgnore, '*.tmp');
+		const filter = ds.add(new FilesFilter(
+			new TestContextService(new Workspace('workspace', [new WorkspaceFolder({ uri: workspaceRoot, name: 'app', index: 0 })], false, null, () => false)),
+			new TestConfigurationService({ files: { exclude: {} }, explorer: { excludeGitIgnore: true } }),
+			{ getEditableData: () => undefined } as Partial<IExplorerService> as IExplorerService,
+			{ onDidVisibleEditorsChange: Event.None, visibleEditors: [] } as Partial<IEditorService> as IEditorService,
+			ds.add(new UriIdentityService(ancestorFileService)),
+			ancestorFileService,
+			new NullLogService()
+		));
+		await Event.toPromise(filter.onDidChange);
+
+		assert.strictEqual(filter.isIgnored(URI.file('/repo/packages/app/output.tmp'), workspaceRoot, false), true);
+	});
+
+	test('files filter applies ancestor rules that ignore the workspace directory', async () => {
+		const workspaceRoot = URI.file('/repo/packages/app');
+		const rootIgnore = URI.file('/repo/.gitignore');
+		const ancestorFileService = new AncestorGitIgnoreTestFileService(new ResourceSet([URI.file('/repo/.git'), rootIgnore]));
+		ancestorFileService.setResourceContent(rootIgnore, 'packages/');
+		const filter = ds.add(new FilesFilter(
+			new TestContextService(new Workspace('workspace', [new WorkspaceFolder({ uri: workspaceRoot, name: 'app', index: 0 })], false, null, () => false)),
+			new TestConfigurationService({ files: { exclude: {} }, explorer: { excludeGitIgnore: true } }),
+			{ getEditableData: () => undefined } as Partial<IExplorerService> as IExplorerService,
+			{ onDidVisibleEditorsChange: Event.None, visibleEditors: [] } as Partial<IEditorService> as IEditorService,
+			ds.add(new UriIdentityService(ancestorFileService)),
+			ancestorFileService,
+			new NullLogService()
+		));
+		await Event.toPromise(filter.onDidChange);
+
+		assert.strictEqual(filter.isIgnored(URI.file('/repo/packages/app/visible.txt'), workspaceRoot, false), true);
 	});
 
 	test('decoration provider', async function () {
