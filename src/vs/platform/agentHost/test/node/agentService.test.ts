@@ -1114,6 +1114,41 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('git-blob temporarily restores the owning session for nested subagents', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const repoA = URI.file('/workspace/repoA');
+				const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+				const gitService = createBlobGitService(new Map([[repoA.toString(), repoA]]), showBlobCalls);
+				const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+				const agent = new MockAgent('copilot');
+				agent.sessionMetadataOverrides = { workingDirectories: [repoA] };
+				disposables.add(toDisposable(() => agent.dispose()));
+				localService.registerProvider(agent);
+				const { session } = await createAgentSession(agent);
+				const childSession = URI.parse(buildSubagentSessionUri(session, 'child'));
+				const nestedSession = URI.parse(buildSubagentSessionUri(childSession, 'nested'));
+
+				const result = await localService.resourceRead(URI.parse(buildGitBlobUri(nestedSession.toString(), 'baseSha', 'src/app.ts', '/workspace/repoA/src/app.ts')));
+				localService.addSubscriber(nestedSession, 'client');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				const retainedForSubscriber = !!localService.stateManager.getSessionState(session.toString());
+				localService.unsubscribe(nestedSession, 'client');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					showBlobCalls,
+					data: result.data,
+					retainedForSubscriber,
+					releasedAfterUnsubscribe: !localService.stateManager.getSessionState(session.toString()),
+				}, {
+					showBlobCalls: [{ workingDirectory: repoA.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }],
+					data: 'blob:src/app.ts',
+					retainedForSubscriber: true,
+					releasedAfterUnsubscribe: true,
+				});
+			});
+		});
+
 		test('single-folder git-blob uses the primary directory even for a path outside the root (AC-1.1 unchanged)', async () => {
 			const repoA = URI.file('/workspace/repoA');
 			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
