@@ -119,6 +119,8 @@ The **only** per-provider difference is the storage key: local uses the fixed `l
 
 Provider-native sessions discovered outside the Agent Host carry `_meta.external`. `chat.agentSessions.showExternal` controls whether the catalog publishes none, all, the last 24 hours, or the last 7 days (the default). Configuration changes publish or unpublish matching summaries immediately, including restored sessions, while retaining live Agent Host state so a later settings change can surface them again.
 
+Both the regular VS Code agent sessions list and the Agents Window Sessions list expose this setting as an `External` submenu directly below their provider filters. The checked option follows the effective configuration value, and selecting an option writes the user setting.
+
 The first external session opened in the Agents window shows a profile-scoped, one-time banner at the top of the chat. Its picker deliberately starts on a disabled placeholder rather than the effective seven-day default. Saving updates the setting; saving or closing records dismissal in profile storage. A setting that excludes the open session requires confirmation before the update is applied.
 
 ## How Chat Content Loads & Sends (no `IChatSessionItemController`)
