@@ -1285,7 +1285,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async handleMcpRequest(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
 		const entry = this._findChatByUri(chat);
-		if (!entry) {
+		if (!entry || !isEqual(entry.chatChannelUri, chat)) {
 			throw new Error(`Method not found: no active chat ${chat.toString()}`);
 		}
 		return entry.handleMcpRequest(serverName, method, params);
