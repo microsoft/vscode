@@ -16,6 +16,7 @@ suite('Session Details', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('lists exact working directories for non-archived user sessions', () => {
+		const localWorkingDirectory = URI.file('/repo.worktrees/feature');
 		const workspace: ISessionWorkspace = {
 			uri: URI.file('/repo'),
 			label: 'repo',
@@ -23,7 +24,7 @@ suite('Session Details', () => {
 			folders: [
 				{
 					root: URI.file('/repo'),
-					workingDirectory: URI.file('/repo.worktrees/feature'),
+					workingDirectory: localWorkingDirectory,
 					name: 'repo',
 					description: undefined,
 				},
@@ -52,13 +53,28 @@ suite('Session Details', () => {
 			'Session Details',
 			'',
 			'Session: Working',
-			'Working directory: /repo.worktrees/feature',
+			`Working directory: ${localWorkingDirectory.fsPath}`,
 			'Working directory: vscode-agent-host://host/home/user/repo',
 			'Resource: test-session://working',
 			'',
 			'Session: Quick Chat',
 			'Working directory: (none)',
 			'Resource: test-session://quick-chat',
+			'',
+		].join('\n'));
+	});
+
+	test('reports when there are no non-archived user sessions', () => {
+		const archived = createTestSession('Archived', { isArchived: true }).session;
+		const automation: ISession = {
+			...createTestSession('Automation').session,
+			isAutomation: constObservable(true),
+		};
+
+		assert.strictEqual(formatSessionDetails([archived, automation]), [
+			'Session Details',
+			'',
+			'No non-archived user sessions.',
 			'',
 		].join('\n'));
 	});

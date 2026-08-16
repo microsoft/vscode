@@ -6,6 +6,7 @@
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -23,7 +24,7 @@ class ShowSessionDetailsAction extends Action2 {
 	constructor() {
 		super({
 			id: ShowSessionDetailsAction.ID,
-			title: 'Show Session Details',
+			title: localize2('sessions.showSessionDetails', "Show Session Details"),
 			category: Categories.Developer,
 			f1: true,
 			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled),
@@ -34,7 +35,7 @@ class ShowSessionDetailsAction extends Action2 {
 		const contents = formatSessionDetails(accessor.get(ISessionsManagementService).getSessions());
 		const resource = URI.from({
 			scheme: Schemas.untitled,
-			path: 'Session Details',
+			path: localize('sessions.details.editorTitle', "Session Details"),
 			query: generateUuid(),
 		});
 		await accessor.get(IEditorService).openEditor({
@@ -53,7 +54,7 @@ export function formatSessionDetails(allSessions: readonly ISession[]): string {
 	const lines = ['Session Details', ''];
 
 	if (sessions.length === 0) {
-		lines.push('No non-archived sessions.');
+		lines.push('No non-archived user sessions.');
 		return `${lines.join('\n')}\n`;
 	}
 
