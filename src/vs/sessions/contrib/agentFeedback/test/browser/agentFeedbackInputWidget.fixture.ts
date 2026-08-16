@@ -143,8 +143,13 @@ function renderInEditor(context: ComponentFixtureContext): Promise<void> {
 	const session = createFixtureSession();
 	const agentFeedbackService = new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
+		override readonly onDidRevealSessionComment = Event.None;
+		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
+			return new Set();
+		}
 		override getSessionForFile(resourceUri: URI): ISession | undefined {
 			return isEqual(resourceUri, fileResource) ? session : undefined;
 		}
