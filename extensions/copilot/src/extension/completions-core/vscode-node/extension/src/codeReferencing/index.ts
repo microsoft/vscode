@@ -21,7 +21,7 @@ export class CodeReference implements IDisposable {
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICompletionsRuntimeModeService readonly _runtimeMode: ICompletionsRuntimeModeService,
+		@ICompletionsRuntimeModeService private readonly _runtimeMode: ICompletionsRuntimeModeService,
 		@ICompletionsLogTargetService private readonly _logTarget: ICompletionsLogTargetService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 	) { }

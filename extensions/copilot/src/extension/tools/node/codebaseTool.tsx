@@ -28,7 +28,6 @@ import { ToolCallResultWrapper } from '../../prompts/node/panel/toolCalling';
 import { WorkspaceContext, WorkspaceContextProps } from '../../prompts/node/panel/workspace/workspaceContext';
 import { ToolName } from '../common/toolNames';
 import { ToolRegistry } from '../common/toolsRegistry';
-import { checkCancellation } from './toolUtils';
 
 export interface ICodebaseToolParams {
 	query: string;
@@ -62,36 +61,40 @@ export class CodebaseTool implements vscode.LanguageModelTool<ICodebaseToolParam
 
 		const query = options.input.query.replace(/^\s*#codebase\s+/, '').trim();
 
-		const hasSemanticSearch = await this.workspaceChunkSearchService.isAvailable();
-		// If workspace chunk search is not available, return an empty result with this info
-		if (!hasSemanticSearch) {
-			const result = new ExtendedLanguageModelToolResult([]);
-			result.toolResultMessage = new MarkdownString(l10n.t`Semantic workspace search is not currently available`);
-			return result;
-		}
-
-		checkCancellation(token);
-
 		let references: PromptReference[] = [];
 		const id = generateUuid();
 		const sw = StopWatch.create();
 		const promptTsxResult = await raceTimeoutAndCancellationError(
-			searchToken => renderPromptElementJSON(this.instantiationService, WorkspaceContextWrapper, {
-				telemetryInfo: new TelemetryCorrelationId('codebaseTool', id),
-				query,
-				maxResults: 32,
-				scopedDirectories: options.input.scopedDirectories?.map(dir => URI.file(dir)),
-				referencesOut: references,
-				isToolCall: true,
-				lines1Indexed: true,
-				absolutePaths: true,
-				priority: 100,
-			}, undefined, searchToken),
+			async searchToken => {
+				const hasSemanticSearch = await this.workspaceChunkSearchService.isAvailable();
+				if (!hasSemanticSearch) {
+					return null; // Use null as undefined is treated as a timeout by raceTimeoutAndCancellationError
+				}
+
+				return renderPromptElementJSON(this.instantiationService, WorkspaceContextWrapper, {
+					telemetryInfo: new TelemetryCorrelationId('codebaseTool', id),
+					query,
+					maxResults: 32,
+					scopedDirectories: options.input.scopedDirectories?.map(dir => URI.file(dir)),
+					referencesOut: references,
+					isToolCall: true,
+					lines1Indexed: true,
+					absolutePaths: true,
+					priority: 100,
+				}, undefined, searchToken);
+			},
 			token,
 			20_000,
 			'Codebase search timed out, try a different search tool',
 		);
 		const durationMs = sw.elapsed();
+
+		// If workspace chunk search is not available, return an empty result with this info
+		if (!promptTsxResult) {
+			const result = new ExtendedLanguageModelToolResult([]);
+			result.toolResultMessage = new MarkdownString(l10n.t`Semantic workspace search is not currently available`);
+			return result;
+		}
 
 		const result = new ExtendedLanguageModelToolResult([
 			new LanguageModelPromptTsxPart(promptTsxResult)

@@ -6,11 +6,11 @@
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { AGENT_FILE_EXTENSION } from '../../../platform/customInstructions/common/promptTypes';
-import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
-import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
-import { ILogService } from '../../../platform/log/common/logService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { AgentConfig, AgentHandoff, buildAgentMarkdown, DEFAULT_READ_TOOLS } from './agentTypes';
+import { CachedAgentFileWriter } from './cachedAgentFileWriter';
 
 /**
  * Base Plan agent configuration - embedded from Plan.agent.md
@@ -22,10 +22,8 @@ const BASE_PLAN_AGENT_CONFIG: AgentConfig = {
 	argumentHint: 'Outline the goal or problem to research',
 	target: 'vscode',
 	disableModelInvocation: true,
-	agents: ['Explore'],
 	tools: [
 		...DEFAULT_READ_TOOLS,
-		'agent',
 	],
 	handoffs: [], // Handoffs are generated dynamically in buildCustomizedConfig
 	body: '' // Body is generated dynamically in buildCustomizedConfig
@@ -46,14 +44,15 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 
 	private readonly _onDidChangeCustomAgents = this._register(new vscode.EventEmitter<void>());
 	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
+	private readonly _cacheFileWriter: CachedAgentFileWriter;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
-		@IFileSystemService private readonly fileSystemService: IFileSystemService,
-		@ILogService private readonly logService: ILogService,
+		@IExperimentationService private readonly experimentationService: IExperimentationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._cacheFileWriter = instantiationService.createInstance(CachedAgentFileWriter, PlanAgentProvider.CACHE_DIR, PlanAgentProvider.AGENT_FILENAME, 'PlanAgentProvider');
 
 		// Listen for settings changes to refresh agents
 		// Note: When settings change, we fire onDidChangeCustomAgents which causes VS Code to re-fetch
@@ -63,7 +62,9 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 			if (e.affectsConfiguration(ConfigKey.PlanAgentAdditionalTools.fullyQualifiedId) ||
 				e.affectsConfiguration(ConfigKey.Deprecated.PlanAgentModel.fullyQualifiedId) ||
 				e.affectsConfiguration('chat.planAgent.defaultModel') ||
-				e.affectsConfiguration(ConfigKey.ImplementAgentModel.fullyQualifiedId)) {
+				e.affectsConfiguration(ConfigKey.ImplementAgentModel.fullyQualifiedId) ||
+				e.affectsConfiguration(ConfigKey.ExploreAgentEnabled.fullyQualifiedId) ||
+				e.affectsConfiguration(ConfigKey.Advanced.SearchSubagentToolEnabled.fullyQualifiedId)) {
 				this._onDidChangeCustomAgents.fire();
 			}
 		}));
@@ -80,35 +81,31 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 		const content = buildAgentMarkdown(config);
 
 		// Write to cache file and return URI
-		const fileUri = await this.writeCacheFile(content);
-		return [{ uri: fileUri }];
+		const fileUri = await this._cacheFileWriter.write(content);
+		return [{ uri: fileUri, sessionTypes: ['local'] }];
 	}
 
-	private async writeCacheFile(content: string): Promise<vscode.Uri> {
-		const cacheDir = vscode.Uri.joinPath(
-			this.extensionContext.globalStorageUri,
-			PlanAgentProvider.CACHE_DIR
-		);
-
-		// Ensure cache directory exists
-		try {
-			await this.fileSystemService.stat(cacheDir);
-		} catch {
-			await this.fileSystemService.createDirectory(cacheDir);
-		}
-
-		const fileUri = vscode.Uri.joinPath(cacheDir, PlanAgentProvider.AGENT_FILENAME);
-		await this.fileSystemService.writeFile(fileUri, new TextEncoder().encode(content));
-		this.logService.trace(`[PlanAgentProvider] Wrote agent file: ${fileUri.toString()}`);
-		return fileUri;
-	}
-
-	static buildAgentBody(): string {
-		const discoverySection = `## 1. Discovery
+	static buildAgentBody(exploreEnabled: boolean, searchSubagentEnabled: boolean): string {
+		let discoverySection: string;
+		if (exploreEnabled) {
+			discoverySection = `## 1. Discovery
 
 Run the *Explore* subagent to gather context, analogous existing features to use as implementation templates, and potential blockers or ambiguities. When the task spans multiple independent areas (e.g., frontend + backend, different features, separate repos), launch **2-3 *Explore* subagents in parallel** — one per area — to speed up discovery.
 
 Update the plan with your findings.`;
+		} else if (searchSubagentEnabled) {
+			discoverySection = `## 1. Discovery
+
+Use #tool:searchSubagent to gather context, analogous existing features to use as implementation templates, and potential blockers or ambiguities. When the task spans multiple independent areas (e.g., frontend + backend, different features, separate repos), launch **2-3 search subagents in parallel** — one per area — to speed up discovery.
+
+Update the plan with your findings.`;
+		} else {
+			discoverySection = `## 1. Discovery
+
+Search the codebase to gather context, analogous existing features to use as implementation templates, and potential blockers or ambiguities.
+
+Update the plan with your findings.`;
+		}
 
 		return `You are a PLANNING AGENT, pairing with the user to create a detailed, actionable plan.
 
@@ -197,6 +194,8 @@ Rules:
 
 	private buildCustomizedConfig(): AgentConfig {
 		const additionalTools = this.configurationService.getConfig(ConfigKey.PlanAgentAdditionalTools);
+		const isExploreEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, this.experimentationService);
+		const isSearchSubagentEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, this.experimentationService);
 		const coreDefaultModel = this.configurationService.getNonExtensionConfig<string>('chat.planAgent.defaultModel');
 		const modelOverride = coreDefaultModel || this.configurationService.getConfig(ConfigKey.Deprecated.PlanAgentModel);
 
@@ -225,6 +224,11 @@ Rules:
 		// Always include askQuestions tool (now provided by core)
 		toolsToAdd.push('vscode/askQuestions');
 
+		// When explore agent is enabled, include the 'agent' tool to allow sub-agent calls
+		if (isExploreEnabled) {
+			toolsToAdd.push('agent');
+		}
+
 		// Merge additional tools (deduplicated)
 		const tools = toolsToAdd.length > 0
 			? [...new Set([...BASE_PLAN_AGENT_CONFIG.tools, ...toolsToAdd])]
@@ -233,9 +237,11 @@ Rules:
 		// Start with base config
 		return {
 			...BASE_PLAN_AGENT_CONFIG,
+			// When explore agent is enabled, allow the Explore subagent
+			...(isExploreEnabled ? { agents: ['Explore'] } : {}),
 			tools,
 			handoffs: [startImplementationHandoff, openInEditorHandoff, ...(BASE_PLAN_AGENT_CONFIG.handoffs ?? [])],
-			body: PlanAgentProvider.buildAgentBody(),
+			body: PlanAgentProvider.buildAgentBody(isExploreEnabled, isSearchSubagentEnabled),
 			...(modelOverride ? { model: modelOverride } : {}),
 		};
 	}

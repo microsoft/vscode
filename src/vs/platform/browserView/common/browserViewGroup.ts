@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { IBrowserViewOwner } from './browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from './cdp/types.js';
 
 export const ipcBrowserViewGroupChannelName = 'browserViewGroup';
@@ -54,10 +55,10 @@ export interface IBrowserViewGroupService {
 
 	/**
 	 * Create a new browser view group.
-	 * @param windowId The ID of the primary window the group should be associated with.
+	 * @param owner The owner of the group's lifecycle.
 	 * @returns The id of the newly created group.
 	 */
-	createGroup(windowId: number): Promise<string>;
+	createGroup(owner: IBrowserViewOwner): Promise<string>;
 
 	/**
 	 * Destroy a browser view group.

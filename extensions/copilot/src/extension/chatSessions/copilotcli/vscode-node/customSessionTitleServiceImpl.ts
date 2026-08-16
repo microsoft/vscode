@@ -58,11 +58,6 @@ export class CustomSessionTitleService implements ICustomSessionTitleService {
 	}
 
 	public async generateSessionTitle(sessionId: string, request: { prompt?: string; command?: string }, token: CancellationToken): Promise<string | undefined> {
-		const title = await this.getCustomSessionTitle(sessionId);
-		if (title) {
-			return title;
-		}
-
 		return this._keyedSessionGenerator.queue(sessionId, () => this.generateSessionTitleImpl(sessionId, request, token));
 	}
 
@@ -80,7 +75,6 @@ export class CustomSessionTitleService implements ICustomSessionTitleService {
 			};
 			const title = await titleProvider.provideChatTitle(fakeContext, token);
 			if (title) {
-				await this.setCustomSessionTitle(sessionId, title);
 				return title;
 			}
 		} catch (error) {

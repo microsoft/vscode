@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // Allow importing vscode here. eslint does not let us exclude this path: https://github.com/import-js/eslint-plugin-import/issues/2800
-/* eslint-disable local/no-runtime-import */
+/* eslint-disable copilot-local/no-runtime-import */
 
 import { writeFileSync } from 'fs';
 import * as vscode from 'vscode';

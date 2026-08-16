@@ -12,6 +12,7 @@ import { IRemoteRepositoriesService } from '../../../../platform/remoteRepositor
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { ExtensionTextDocumentManager } from '../../../../platform/workspace/vscode/workspaceServiceImpl';
 import { inputGlobToPattern } from '../../node/toolUtils';
+import { WorkingDirectory } from '../../../../platform/workspace/common/workingDirectory';
 
 suite('inputGlobToPattern - integration', () => {
 	let service: ExtensionTextDocumentManager;
@@ -56,7 +57,7 @@ suite('inputGlobToPattern - integration', () => {
 	});
 
 	test('absolute path to workspace folder root resolves to RelativePattern', function () {
-		const result = inputGlobToPattern(testFolder.uri.fsPath, service, undefined);
+		const result = inputGlobToPattern(testFolder.uri.fsPath, new WorkingDirectory(undefined, service), undefined);
 
 		assert.strictEqual(result.patterns.length, 1);
 		const pattern = result.patterns[0] as RelativePattern;
@@ -66,7 +67,7 @@ suite('inputGlobToPattern - integration', () => {
 
 	test('absolute path to subfolder within workspace', function () {
 		const subPath = `${testFolder.uri.fsPath}/src`;
-		const result = inputGlobToPattern(subPath, service, undefined);
+		const result = inputGlobToPattern(subPath, new WorkingDirectory(undefined, service), undefined);
 
 		assert.strictEqual(result.patterns.length, 1);
 		const pattern = result.patterns[0] as RelativePattern;
@@ -76,7 +77,7 @@ suite('inputGlobToPattern - integration', () => {
 
 	test('absolute path with glob pattern within workspace', function () {
 		const globPath = `${testFolder.uri.fsPath}/src/**/*.ts`;
-		const result = inputGlobToPattern(globPath, service, undefined);
+		const result = inputGlobToPattern(globPath, new WorkingDirectory(undefined, service), undefined);
 
 		assert.strictEqual(result.patterns.length, 1);
 		const pattern = result.patterns[0] as RelativePattern;
@@ -85,7 +86,7 @@ suite('inputGlobToPattern - integration', () => {
 	});
 
 	test('absolute path outside workspace is not rewritten', function () {
-		const result = inputGlobToPattern('/tmp/nonexistent/path', service, undefined);
+		const result = inputGlobToPattern('/tmp/nonexistent/path', new WorkingDirectory(undefined, service), undefined);
 
 		assert.strictEqual(result.patterns.length, 1);
 		assert.strictEqual(result.patterns[0], '/tmp/nonexistent/path');

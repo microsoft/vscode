@@ -3129,7 +3129,7 @@ declare namespace monaco.editor {
 		 */
 		readonly reason: CursorChangeReason;
 		/**
-		 * Source of the call that caused the event.
+		 * Source of the call that caused the event. Possible sources include `'mouse'`, `'keyboard'`, and `'api'`.
 		 */
 		readonly source: string;
 	}
@@ -3159,7 +3159,7 @@ declare namespace monaco.editor {
 		 */
 		readonly oldModelVersionId: number;
 		/**
-		 * Source of the call that caused the event.
+		 * Source of the call that caused the event. Possible sources include `'mouse'`, `'keyboard'`, and `'api'`.
 		 */
 		readonly source: string;
 		/**
@@ -4085,7 +4085,7 @@ declare namespace monaco.editor {
 		/**
 		 * Diff Algorithm
 		*/
-		diffAlgorithm?: 'legacy' | 'advanced';
+		diffAlgorithm?: 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
 		/**
 		 * Whether the diff editor aria label should be verbose.
 		 */
@@ -7066,7 +7066,6 @@ declare namespace monaco.languages {
 	 * Describes language specific folding markers such as '#region' and '#endregion'.
 	 * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
 	 * - the regex should start with '^'
-	 * - regexp flags (i, g) are ignored
 	 */
 	export interface FoldingMarkers {
 		start: RegExp;
@@ -7795,6 +7794,7 @@ declare namespace monaco.languages {
 		editKind: string | undefined;
 		longDistanceHintVisible?: boolean;
 		longDistanceHintDistance?: number;
+		isForAnotherDocument?: boolean;
 	};
 
 	export interface CodeAction {

@@ -1,0 +1,40 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "console.log(require(''fs'').readdirSync(''.'').join('' ''))"`. Then reply with the filenames it printed and nothing else.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Bash
+          input:
+            command: node -e "console.log(require('fs').readdirSync('.').join(' '))"
+            description: List files in current directory via node
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "console.log(require(''fs'').readdirSync(''.'').join('' ''))"`. Then reply with the filenames it printed and nothing else.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Bash
+              input:
+                command: node -e "console.log(require('fs').readdirSync('.').join(' '))"
+                description: List files in current directory via node
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: first.txt second.md
+    response:
+      content: first.txt second.md
+      stopReason: end_turn

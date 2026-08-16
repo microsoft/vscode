@@ -80,6 +80,13 @@ export class ChatResponseHookPart {
 	}
 }
 
+export class ChatResponseVoiceProgressPart {
+	constructor(
+		readonly id: vscode.ChatResponseVoiceProgressStage,
+		readonly value: string,
+	) { }
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -104,6 +111,13 @@ export class ChatResponseProgressPart2 {
 }
 
 export class ChatResponseWarningPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
+export class ChatResponseInfoPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
 		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
@@ -175,6 +189,20 @@ export class ChatResponsePullRequestPart {
 		this.description = description;
 		this.author = author;
 		this.linkTag = linkTag;
+	}
+}
+
+
+export class ChatResponseAutoModeResolutionPart {
+	resolvedModel: string;
+	resolvedModelName: string;
+	predictedLabel: string;
+	confidence: number;
+	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+		this.resolvedModel = resolvedModel;
+		this.resolvedModelName = resolvedModelName;
+		this.predictedLabel = predictedLabel;
+		this.confidence = confidence;
 	}
 }
 
@@ -478,6 +506,12 @@ export enum ChatErrorLevel {
 	Error = 2
 }
 
+export enum ChatInputNotificationSeverity {
+	Info = 0,
+	Warning = 1,
+	Error = 2,
+}
+
 export enum ChatRequestEditedFileEventKind {
 	Keep = 1,
 	Undo = 2,
@@ -606,6 +640,7 @@ export class ChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	modelName?: string;
 	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
 		this.description = description;
 		this.agentName = agentName;

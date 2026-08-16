@@ -1,10 +1,10 @@
-[CustomMessages]
+ï»¿[CustomMessages]
 AddContextMenuFiles=Ajouter l'action "Ouvrir avec %1" au menu contextuel de fichier de l'Explorateur Windows
-AddContextMenuFolders=Ajouter l'action "Ouvrir avec %1" au menu contextuel de répertoire de l'Explorateur Windows
-AssociateWithFiles=Inscrire %1 en tant qu'éditeur pour les types de fichier pris en charge
-AddToPath=Ajouter à PATH (disponible après le redémarrage)
-RunAfter=Exécuter %1 après l'installation
-Other=Autre :
+AddContextMenuFolders=Ajouter l'action "Ouvrir avec %1" au menu contextuel de rÃ©pertoire de l'Explorateur Windows
+AssociateWithFiles=Inscrire %1 en tant qu'Ã©diteur pour les types de fichier pris en charge
+AddToPath=Ajouter Ã  PATH (disponible aprÃ¨s le redÃ©marrage)
+RunAfter=ExÃ©cuter %1 aprÃ¨s l'installation
+Other=AutreÂ :
 SourceFile=Fichier source %1
 OpenWithCodeContextMenu=Ouvrir avec %1
-UpdatingVisualStudioCode=Mise à jour de Visual Studio Code...
+UpdatingVisualStudioCode=Mise Ã  jour de Visual Studio Code...

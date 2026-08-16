@@ -6,31 +6,32 @@ use std::cmp::Ordering;
 
 use crate::constants::QUALITYLESS_SERVER_NAME;
 use crate::update_service::Platform;
-use lazy_static::lazy_static;
 use regex::bytes::Regex as BinRegex;
 use regex::Regex;
+use std::sync::LazyLock;
 use tokio::fs;
 
 use super::errors::CodeError;
 
-lazy_static! {
-	static ref LDCONFIG_STDC_RE: Regex = Regex::new(r"libstdc\+\+.* => (.+)").unwrap();
-	static ref LDD_VERSION_RE: BinRegex = BinRegex::new(r"^ldd.*\s(\d+)\.(\d+)(?:\.(\d+))?\s").unwrap();
-	static ref GENERIC_VERSION_RE: Regex = Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap();
-	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
-		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
-	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 28, 0);
-}
+static LDCONFIG_STDC_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"libstdc\+\+.* => (.+)").unwrap());
+static LDD_VERSION_RE: LazyLock<BinRegex> =
+	LazyLock::new(|| BinRegex::new(r"^ldd.*\s(\d+)\.(\d+)(?:\.(\d+))?\s").unwrap());
+static GENERIC_VERSION_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap());
+#[cfg(target_os = "linux")]
+static LIBSTD_CXX_VERSION_RE: LazyLock<BinRegex> =
+	LazyLock::new(|| BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap());
+#[cfg(target_os = "linux")]
+static MIN_LDD_VERSION: LazyLock<SimpleSemver> = LazyLock::new(|| SimpleSemver::new(2, 28, 0));
 
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "arm")]
-lazy_static! {
-	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 26);
-}
+static MIN_CXX_VERSION: LazyLock<SimpleSemver> = LazyLock::new(|| SimpleSemver::new(3, 4, 26));
 
+#[cfg(target_os = "linux")]
 #[cfg(not(target_arch = "arm"))]
-lazy_static! {
-	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 25);
-}
+static MIN_CXX_VERSION: LazyLock<SimpleSemver> = LazyLock::new(|| SimpleSemver::new(3, 4, 25));
 
 const NIXOS_TEST_PATH: &str = "/etc/NIXOS";
 
@@ -187,10 +188,10 @@ async fn check_is_nixos() -> bool {
 ///    minimum requirements.
 #[cfg(not(windows))]
 pub async fn skip_requirements_check() -> bool {
-	std::env::var("VSCODE_SERVER_CUSTOM_GLIBC_LINKER").is_ok() ||
-	fs::metadata("/tmp/vscode-skip-server-requirements-check")
-		.await
-		.is_ok()
+	std::env::var("VSCODE_SERVER_CUSTOM_GLIBC_LINKER").is_ok()
+		|| fs::metadata("/tmp/vscode-skip-server-requirements-check")
+			.await
+			.is_ok()
 }
 
 #[cfg(windows)]
@@ -402,5 +403,4 @@ mod tests {
 			Some(SimpleSemver::new(2, 40, 0)),
 		);
 	}
-
 }

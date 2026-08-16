@@ -72,7 +72,7 @@ After creating:
 
 **Skill vs Custom Agent?** Same capabilities for all steps → Skill. Need context isolation (subagent returns single output) or different tool restrictions per stage → Custom Agent.
 
-**Hooks vs Instructions?** Instructions *guide* agent behavior (non-deterministic). Hooks *enforce* behavior via shell commands at lifecycle events like `PreToolUse` or `PostToolUse` — they can block operations, require approval, or run formatters deterministically. See [hooks reference](./references/hooks.md).
+**Hooks vs Instructions?** Instructions *guide* agent behavior (non-deterministic). Hooks *enforce* behavior via shell commands at lifecycle events like `PreToolUse` or `PostToolUse` — they can block operations, require approval, or run formatters deterministically. Hooks can be defined in standalone `.json` files (see [hooks reference](./references/hooks.md)) or inline in custom agent frontmatter via the `hooks` attribute (see [agents reference](./references/agents.md)).
 
 ## Common Pitfalls
 

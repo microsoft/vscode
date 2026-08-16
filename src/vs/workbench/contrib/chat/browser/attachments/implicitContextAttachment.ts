@@ -30,12 +30,16 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IChatRequestStringVariableEntry, isStringImplicitContextValue } from '../../common/attachments/chatVariableEntries.js';
+import { ChatContextIconPath, IChatRequestStringVariableEntry, isStringImplicitContextValue, resolveChatContextIcon } from '../../common/attachments/chatVariableEntries.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IChatWidget } from '../chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { ChatImplicitContext, ChatImplicitContexts } from './chatImplicitContext.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
+import { IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
+import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 
@@ -59,10 +63,26 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@IChatContextService private readonly chatContextService: IChatContextService,
+		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
 		this.render();
+
+		// A light/dark icon must be reapplied when the color theme changes so the correct uri is used
+		this._register(this.themeService.onDidColorThemeChange(() => {
+			if (this._hasDualPathIcon()) {
+				this.render();
+			}
+		}));
+	}
+
+	private _hasDualPathIcon(): boolean {
+		return this.attachment.values.some(context => {
+			const iconPath = context.iconPath;
+			return !!iconPath && !ThemeIcon.isThemeIcon(iconPath) && !URI.isUri(iconPath);
+		});
 	}
 
 	private render() {
@@ -104,7 +124,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 					? localize('disableImplicitContext', "Disable {0} context {1}", attachmentTypeName, contextLabel)
 					: localize('addToContext', "Add {0} to context", contextLabel);
 				const toggleButton = this.renderDisposables.add(new Button(contextNode, { supportIcons: true, title: buttonMsg }));
-				toggleButton.icon = context.enabled ? Codicon.x : Codicon.plus;
+				toggleButton.icon = context.enabled ? Codicon.closeCompact : Codicon.addCompact;
 				this.renderDisposables.add(toggleButton.onDidClick(async (e) => {
 					e.stopPropagation();
 					e.preventDefault();
@@ -154,13 +174,13 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			}));
 		}
 
-		const label = this.resourceLabels.create(contextNode, { supportIcons: true });
+		const label = this.renderDisposables.add(this.resourceLabels.create(contextNode, { supportIcons: true }));
 
 		let title: string | undefined;
 		let markdownTooltip: IMarkdownString | undefined;
 		if (isStringImplicitContextValue(context.value)) {
 			markdownTooltip = context.value.tooltip;
-			title = this.renderString(label, context.name, context.icon, context.value.resourceUri, markdownTooltip, localize('openFile', "Current file context"));
+			title = this.renderString(label, context.name, context.iconPath, context.value.resourceUri, markdownTooltip, localize('openFile', "Current file context"));
 			contextNode.ariaLabel = localize('chat.implicitStringContext', "Suggested context, {0}", context.name);
 		} else {
 			title = this.renderResource(context.value, context.isSelection, context.enabled, label, contextNode);
@@ -194,24 +214,29 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		}));
 	}
 
-	private renderString(resourceLabel: IResourceLabel, name: string, icon: ThemeIcon | undefined, resourceUri: URI | undefined, markdownTooltip: IMarkdownString | undefined, defaultTitle: string): string | undefined {
+	private renderString(resourceLabel: IResourceLabel, name: string, iconPath: ChatContextIconPath | undefined, resourceUri: URI | undefined, markdownTooltip: IMarkdownString | undefined, defaultTitle: string): string | undefined {
 		// Don't set title if we have a markdown tooltip - the hover service will handle it
 		const title = markdownTooltip ? undefined : defaultTitle;
 
-		// Derive icon classes from resourceUri for file/folder icons
-		if (icon && (ThemeIcon.isFile(icon) || ThemeIcon.isFolder(icon)) && resourceUri) {
-			const fileKind = ThemeIcon.isFolder(icon) ? FileKind.FOLDER : FileKind.FILE;
+		// Derive icon classes from resourceUri for file/folder theme icons
+		if (iconPath && ThemeIcon.isThemeIcon(iconPath) && (ThemeIcon.isFile(iconPath) || ThemeIcon.isFolder(iconPath)) && resourceUri) {
+			const fileKind = ThemeIcon.isFolder(iconPath) ? FileKind.FOLDER : FileKind.FILE;
 			const iconClasses = getIconClasses(this.modelService, this.languageService, resourceUri, fileKind);
 			resourceLabel.setLabel(name, undefined, { extraClasses: iconClasses, title });
 		} else {
-			resourceLabel.setLabel(name, undefined, { iconPath: icon, title });
+			const resolvedIcon = iconPath ? resolveChatContextIcon(iconPath, isDark(this.themeService.getColorTheme().type)) : undefined;
+			resourceLabel.setLabel(name, undefined, { iconPath: resolvedIcon, title });
 		}
 		return title;
 	}
 
-	private renderResource(attachmentValue: Location | URI | undefined, isSelection: boolean, enabled: boolean, label: IResourceLabel, contextNode: HTMLElement): string {
+	private renderResource(attachmentValue: Location | URI | undefined, isSelection: boolean, enabled: boolean, label: IResourceLabel, contextNode: HTMLElement): string | undefined {
 		const file = URI.isUri(attachmentValue) ? attachmentValue : attachmentValue!.uri;
 		const range = URI.isUri(attachmentValue) || !isSelection ? undefined : attachmentValue!.range;
+
+		if (file.scheme === Schemas.vscodeBrowser) {
+			return this.renderBrowserResource(file, label, contextNode);
+		}
 
 		const attachmentTypeName = file.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
 
@@ -239,6 +264,25 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		return title;
 	}
 
+	private renderBrowserResource(browserUri: URI, label: IResourceLabel, contextNode: HTMLElement): string | undefined {
+		const id = BrowserViewUri.getId(browserUri);
+		const input = id && this.browserViewService.getKnownBrowserViews().get(id);
+		if (!input) {
+			return undefined;
+		}
+
+		const update = () => {
+			label.setLabel(input.getName(), undefined, { iconPath: Codicon.globe });
+			contextNode.ariaLabel = localize('chat.implicitBrowserContext', "Suggested browser context, {0}", input.getName());
+		};
+		update();
+
+		// Keep label in sync as the user navigates
+		this.renderDisposables.add(input.onDidChangeLabel(() => update()));
+
+		return input.getTitle();
+	}
+
 	private async convertToRegularAttachment(attachment: ChatImplicitContext): Promise<void> {
 		if (!attachment.value) {
 			return;
@@ -252,7 +296,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				value: attachment.value.value,
 				id: attachment.id,
 				name: attachment.name,
-				icon: attachment.value.icon,
+				iconPath: attachment.value.iconPath,
 				modelDescription: attachment.modelDescription,
 				uri: attachment.value.uri,
 				resourceUri: attachment.value.resourceUri,

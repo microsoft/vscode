@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChatCustomAgent, ChatHook, ChatInstruction, ChatPlugin, ChatSkill } from 'vscode';
+import type { ChatCustomAgent, ChatHook, ChatInstruction, ChatPlugin, ChatSkill, ChatSlashCommand } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Event } from '../../../util/vs/base/common/event';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -18,6 +18,45 @@ export namespace PromptFileLangageId {
 	export const prompt = 'prompt';
 	export const instructions = 'instructions';
 	export const agent = 'chatagent';
+}
+
+/**
+ * Type of agent instruction file.
+ */
+export enum AgentInstructionFileType {
+	agentsMd = 'agentsMd',
+	claudeMd = 'claudeMd',
+	copilotInstructionsMd = 'copilotInstructionsMd',
+}
+
+export namespace PromptConfig {
+	// Configuration keys (non-extension settings — read via getNonExtensionConfig).
+	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
+	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
+	export const USE_CLAUDE_MD = 'chat.useClaudeMdFile';
+	export const USE_CUSTOMIZATIONS_IN_PARENT_REPOS = 'chat.useCustomizationsInParentRepositories';
+	export const INCLUDE_APPLYING_INSTRUCTIONS = 'chat.includeApplyingInstructions';
+	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
+	export const USE_SKILL_ADHERENCE_PROMPT = 'chat.experimental.useSkillAdherencePrompt';
+	export const COLLECT_INSTRUCTIONS_IN_EXTENSION = 'chat.experimental.collectInstructionsInExtension';
+}
+
+/**
+ * Represents a discovered agent instruction file.
+ */
+export interface IAgentInstructionFile {
+	readonly uri: URI;
+	/** Real path when the file is a symlink, used for duplicate detection. */
+	readonly realPath?: URI;
+	readonly type: AgentInstructionFileType;
+}
+
+/**
+ * Optional logger passed by callers of {@link IPromptsService.listAgentInstructions}
+ * for diagnostic information.
+ */
+export interface AgentInstructionsLogger {
+	logInfo(message: string): void;
 }
 
 /**
@@ -46,7 +85,7 @@ export interface IPromptsService {
 	 * Returns the slash command prompt files. These are prompts and skills
 	 * from all sources (workspace, user, and extension-provided).
 	 */
-	getSlashCommands(token: CancellationToken): Promise<readonly ParsedPromptFile[]>;
+	getSlashCommands(token: CancellationToken): Promise<readonly ChatSlashCommand[]>;
 
 	/**
 	 * An event that fires when the list of {@link instructions instructions} changes.
@@ -91,6 +130,23 @@ export interface IPromptsService {
 	 * The list of currently installed agent plugins.
 	 */
 	getPlugins(token: CancellationToken): Promise<readonly ChatPlugin[]>;
+
+	/**
+	 * Gets the combined list of agent instruction files (`AGENTS.md`,
+	 * `CLAUDE.md`, `copilot-instructions.md`) that apply to the current
+	 * workspace. Honors the related `chat.useAgentsMdFile`,
+	 * `chat.useClaudeMdFile` and
+	 * `github.copilot.chat.codeGeneration.useInstructionFiles` settings as
+	 * well as `chat.useCustomizationsInParentRepositories`.
+	 */
+	listAgentInstructions(token: CancellationToken, logger?: AgentInstructionsLogger): Promise<IAgentInstructionFile[]>;
+
+	/**
+	 * Gets the list of nested `AGENTS.md` files in the workspace, when the
+	 * `chat.useNestedAgentsMdFiles` setting is enabled. Returns an empty
+	 * array otherwise.
+	 */
+	listNestedAgentMDs(token: CancellationToken): Promise<IAgentInstructionFile[]>;
 
 
 }

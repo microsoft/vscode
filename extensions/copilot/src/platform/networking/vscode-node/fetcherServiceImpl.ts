@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { Config, ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService } from '../../configuration/common/configurationService';
+import { INTEGRATION_ID } from '../../endpoint/common/licenseAgreement';
 import { IEnvService } from '../../env/common/envService';
+import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
 import { ILogService } from '../../log/common/logService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
@@ -14,7 +17,7 @@ import { FetchEvent, FetchOptions, FetchTelemetryEvent, IAbortController, IFetch
 import { IFetcher } from '../common/networking';
 import { fetchWithFallbacks } from '../node/fetcherFallback';
 import { NodeFetcher } from '../node/nodeFetcher';
-import { createWebSocket, NodeFetchFetcher } from '../node/nodeFetchFetcher';
+import { createWebSocket, NodeFetchCacheMode, NodeFetchCacheOptions, NodeFetchFetcher } from '../node/nodeFetchFetcher';
 import { ElectronFetcher } from './electronFetcher';
 
 export class FetcherService extends Disposable implements IFetcherService {
@@ -34,6 +37,7 @@ export class FetcherService extends Disposable implements IFetcherService {
 		@ILogService private readonly _logService: ILogService,
 		@IEnvService private readonly _envService: IEnvService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
 	) {
 		super();
 		this._availableFetchers = fetcher ? [fetcher] : undefined;
@@ -105,7 +109,7 @@ export class FetcherService extends Disposable implements IFetcherService {
 		}
 
 		// Node fetch preferred over Node https in fallbacks. (HTTP2 support)
-		const nodeFetchFetcher = new NodeFetchFetcher(envService, reportEvent);
+		const nodeFetchFetcher = new NodeFetchFetcher(envService, reportEvent, undefined, this._resolveNodeFetchCacheOptions(configurationService));
 		if (useNodeFetchFetcher) {
 			this._logService.info(`Using the Node fetch fetcher.`);
 			fetchers.unshift(nodeFetchFetcher);
@@ -124,6 +128,23 @@ export class FetcherService extends Disposable implements IFetcherService {
 		return fetchers;
 	}
 
+	private _resolveNodeFetchCacheOptions(configurationService: IConfigurationService): NodeFetchCacheOptions {
+		const mode = configurationService.getConfig(ConfigKey.Shared.DebugNodeFetchCache) as NodeFetchCacheMode;
+		if (mode === 'off') {
+			return { mode: 'off' };
+		}
+		if (mode === 'persistent') {
+			const storageUri = this._extensionContext.globalStorageUri;
+			if (storageUri && storageUri.scheme === 'file') {
+				return {
+					mode: 'persistent',
+					storeLocation: path.join(storageUri.fsPath, 'undici-cache.v1.sqlite'),
+				};
+			}
+		}
+		return { mode: 'memory' };
+	}
+
 	getUserAgentLibrary(): string {
 		return this._getAvailableFetchers()[0].getUserAgentLibrary();
 	}
@@ -131,7 +152,7 @@ export class FetcherService extends Disposable implements IFetcherService {
 	createWebSocket(url: string, options?: WebSocketConnectOptions): WebSocketConnection {
 		if (options?.headers) {
 			delete options.headers['Request-Hmac'];
-			options.headers['Copilot-Integration-Id'] = 'vscode-chat';
+			options.headers['Copilot-Integration-Id'] = INTEGRATION_ID;
 		}
 		return createWebSocket(url, options);
 	}
@@ -153,6 +174,7 @@ export class FetcherService extends Disposable implements IFetcherService {
 					latencyMs: Date.now() - start,
 					statusCode: res.status,
 					success: res.ok,
+					cacheStatus: res.cacheStatus,
 				});
 			}
 			return res;

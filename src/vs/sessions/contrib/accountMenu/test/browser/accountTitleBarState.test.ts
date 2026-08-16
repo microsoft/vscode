@@ -4,9 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { FileAccess } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { ChatEntitlement } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarStateContext } from '../../browser/accountTitleBarState.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarStateContext, resolveAccountInfo } from '../../../../browser/accountTitleBarState.js';
 
 suite('Sessions - Account Title Bar State', () => {
 
@@ -20,6 +26,7 @@ suite('Sessions - Account Title Bar State', () => {
 			entitlement: ChatEntitlement.Pro,
 			sentiment: {},
 			quotas: {},
+			allowSignedOutWhenUsable: false,
 			...overrides,
 		};
 	}
@@ -27,7 +34,7 @@ suite('Sessions - Account Title Bar State', () => {
 	test('shows low token badge for Copilot Free users', () => {
 		const state = getAccountTitleBarState(createState({
 			entitlement: ChatEntitlement.Free,
-			quotas: { chat: { total: 100, remaining: 10, percentRemaining: 10, overageEnabled: false, overageCount: 0, unlimited: false } },
+			quotas: { chat: { percentRemaining: 10, unlimited: false } },
 		}));
 
 		assert.deepStrictEqual({
@@ -50,7 +57,7 @@ suite('Sessions - Account Title Bar State', () => {
 	test('shows warning dot badge for low but non-critical tokens', () => {
 		const state = getAccountTitleBarState(createState({
 			entitlement: ChatEntitlement.Free,
-			quotas: { chat: { total: 100, remaining: 20, percentRemaining: 20, overageEnabled: false, overageCount: 0, unlimited: false } },
+			quotas: { chat: { percentRemaining: 20, unlimited: false } },
 		}));
 
 		assert.deepStrictEqual({
@@ -71,7 +78,7 @@ suite('Sessions - Account Title Bar State', () => {
 	test('shows quota reached warning when free quota is exhausted', () => {
 		const state = getAccountTitleBarState(createState({
 			entitlement: ChatEntitlement.Free,
-			quotas: { completions: { total: 100, remaining: 0, percentRemaining: 0, overageEnabled: false, overageCount: 0, unlimited: false } },
+			quotas: { completions: { percentRemaining: 0, unlimited: false } },
 		}));
 
 		assert.deepStrictEqual({
@@ -144,6 +151,25 @@ suite('Sessions - Account Title Bar State', () => {
 		});
 	});
 
+	test('offers a calm opt-in sign-in when signed-out operation is enabled', () => {
+		const state = getAccountTitleBarState(createState({
+			accountName: undefined,
+			accountProviderLabel: undefined,
+			entitlement: ChatEntitlement.Unknown,
+			allowSignedOutWhenUsable: true,
+		}));
+
+		assert.deepStrictEqual({
+			source: state.source,
+			label: state.label,
+			kind: state.kind,
+		}, {
+			source: 'copilot',
+			label: 'Sign In',
+			kind: 'default',
+		});
+	});
+
 	test('returns a GitHub profile image URL for GitHub accounts', () => {
 		assert.strictEqual(
 			getAccountProfileImageUrl('github', 'mona lisa'),
@@ -151,9 +177,61 @@ suite('Sessions - Account Title Bar State', () => {
 		);
 	});
 
+	test('prefers the account icon supplied by the authentication provider', () => {
+		assert.strictEqual(
+			getAccountProfileImageUrl('github', 'mona lisa', URI.parse('https://avatars.githubusercontent.com/u/1?v=4')),
+			'https://avatars.githubusercontent.com/u/1?v=4'
+		);
+		assert.strictEqual(
+			getAccountProfileImageUrl('github-enterprise', 'octocat', URI.parse('https://example.com/avatar.png')),
+			'https://example.com/avatar.png'
+		);
+	});
+
+	test('converts a provider supplied file icon into a browser safe URL', () => {
+		const icon = URI.file('/home/octocat/avatar.png');
+
+		assert.strictEqual(
+			getAccountProfileImageUrl('github', 'octocat', icon),
+			FileAccess.uriToBrowserUri(icon).toString(true)
+		);
+	});
+
 	test('falls back to the codicon when no GitHub profile image URL is available', () => {
 		assert.strictEqual(getAccountProfileImageUrl(undefined, 'octocat'), undefined);
 		assert.strictEqual(getAccountProfileImageUrl('github-enterprise', 'octocat'), undefined);
 		assert.strictEqual(getAccountProfileImageUrl('github', undefined), undefined);
+	});
+
+	test('resolves the default account icon by session id, not by label', async () => {
+		const sessions: AuthenticationSession[] = [
+			{ id: 'stale-session', accessToken: 'token', scopes: ['scope'], account: { id: 'account', label: 'octocat', icon: URI.parse('https://example.com/stale.png') } },
+			{ id: 'default-session', accessToken: 'token', scopes: ['scope'], account: { id: 'account', label: 'octocat', icon: URI.parse('https://example.com/default.png') } },
+		];
+		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+			override async getDefaultAccount(): Promise<IDefaultAccount> {
+				return {
+					authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+					accountName: 'octocat',
+					sessionId: 'default-session',
+					enterprise: false,
+				};
+			}
+		};
+		const authenticationService = new class extends mock<IAuthenticationService>() {
+			override async getSessions(): Promise<ReadonlyArray<AuthenticationSession>> {
+				return sessions;
+			}
+		};
+
+		assert.deepStrictEqual(
+			await resolveAccountInfo(defaultAccountService, authenticationService),
+			{
+				accountName: 'octocat',
+				accountProviderId: 'github',
+				accountProviderLabel: 'GitHub',
+				accountIcon: URI.parse('https://example.com/default.png'),
+			}
+		);
 	});
 });

@@ -18,8 +18,8 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
-import { isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
+import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { isLocation, Location } from '../../../../../editor/common/languages.js';
@@ -60,7 +60,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 	}
 }
 
-type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
+type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
 
 export const CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY = 'chat.accessibleView.includeThinking';
@@ -152,6 +152,10 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 				return revivedUri.fsPath || revivedUri.path;
 			}).join(', '));
 		}
+		case 'automationConfigured':
+			return toolSpecificData.operation === 'created'
+				? localize('automationConfigured.created', "Created an automation: {0}", toolSpecificData.automationName)
+				: localize('automationConfigured.updated', "Edited an automation: {0}", toolSpecificData.automationName);
 		default:
 			return '';
 	}
@@ -264,135 +268,13 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		}
 	}
 
-	private _renderMessageAsPlaintext(message: string | IMarkdownString): string {
-		return typeof message === 'string' ? message : stripIcons(renderAsPlaintext(message, { useLinkFormatter: true }));
-	}
-
 	private _getContent(item: ChatTreeItem): string {
-		const contentParts: string[] = [];
-
 		if (!isResponseVM(item)) {
 			return '';
 		}
 
-		if ('errorDetails' in item && item.errorDetails) {
-			contentParts.push(item.errorDetails.message);
-		}
-
-		// Process all parts in order to maintain the natural flow
-		for (const part of item.response.value) {
-			switch (part.kind) {
-				case 'thinking': {
-					if (!this._shouldIncludeThinkingContent()) {
-						break;
-					}
-					const thinkingValue = Array.isArray(part.value) ? part.value.join('') : (part.value || '');
-					const trimmed = thinkingValue.trim();
-					if (trimmed) {
-						contentParts.push(localize('thinkingContent', "Thinking: {0}", trimmed));
-					}
-					break;
-				}
-				case 'markdownContent': {
-					const text = renderAsPlaintext(part.content, { includeCodeBlocksFences: true, useLinkFormatter: true });
-					if (text.trim()) {
-						contentParts.push(text);
-					}
-					break;
-				}
-				case 'inlineReference': {
-					const ref = part.inlineReference;
-					let text: string;
-					if (URI.isUri(ref)) {
-						const name = part.name || basename(ref);
-						const path = ref.scheme === 'file' ? ref.path : ref.toString(true);
-						text = name !== path ? `${name} (${path})` : path;
-					} else if (isLocation(ref)) {
-						const name = part.name || basename(ref.uri);
-						const path = ref.uri.scheme === 'file' ? ref.uri.path : ref.uri.toString(true);
-						text = `${name} (${path}:${ref.range.startLineNumber})`;
-					} else {
-						// IWorkspaceSymbol
-						const path = ref.location.uri.scheme === 'file' ? (ref.location.uri.fsPath || ref.location.uri.path) : ref.location.uri.toString(true);
-						text = `${ref.name} (${path}:${ref.location.range.startLineNumber})`;
-					}
-					contentParts.push(text);
-					break;
-				}
-				case 'elicitation2':
-				case 'elicitationSerialized': {
-					const title = part.title;
-					let elicitationContent = '';
-					if (typeof title === 'string') {
-						elicitationContent += `${title}\n`;
-					} else if (isMarkdownString(title)) {
-						elicitationContent += renderAsPlaintext(title, { includeCodeBlocksFences: true }) + '\n';
-					}
-					const message = part.message;
-					if (isMarkdownString(message)) {
-						elicitationContent += renderAsPlaintext(message, { includeCodeBlocksFences: true });
-					} else {
-						elicitationContent += message;
-					}
-					if (elicitationContent.trim()) {
-						contentParts.push(elicitationContent);
-					}
-					break;
-				}
-				case 'toolInvocation': {
-					const state = part.state.get();
-					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
-						const title = this._renderMessageAsPlaintext(state.confirmationMessages.title);
-						const message = state.confirmationMessages.message ? this._renderMessageAsPlaintext(state.confirmationMessages.message) : '';
-						const toolDataDesc = getToolSpecificDataDescription(part.toolSpecificData);
-						let toolContent = title;
-						if (toolDataDesc) {
-							toolContent += `: ${toolDataDesc}`;
-						}
-						if (message) {
-							toolContent += `\n${message}`;
-						}
-						contentParts.push(toolContent);
-					} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-						const postApprovalDetails = isToolResultInputOutputDetails(state.resultDetails)
-							? state.resultDetails.input
-							: isToolResultOutputDetails(state.resultDetails)
-								? undefined
-								: toolContentToA11yString(state.contentForModel);
-						contentParts.push(localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", part.toolId) + (postApprovalDetails ?? ''));
-					} else {
-						const resultDetails = IChatToolInvocation.resultDetails(part);
-						const isComplete = IChatToolInvocation.isComplete(part);
-						const description = getToolInvocationA11yDescription(
-							this._renderMessageAsPlaintext(part.invocationMessage),
-							part.pastTenseMessage ? this._renderMessageAsPlaintext(part.pastTenseMessage) : undefined,
-							part.toolSpecificData,
-							resultDetails,
-							isComplete
-						);
-						if (description) {
-							contentParts.push(description);
-						}
-					}
-					break;
-				}
-				case 'toolInvocationSerialized': {
-					const description = getToolInvocationA11yDescription(
-						this._renderMessageAsPlaintext(part.invocationMessage),
-						part.pastTenseMessage ? this._renderMessageAsPlaintext(part.pastTenseMessage) : undefined,
-						part.toolSpecificData,
-						part.resultDetails,
-						part.isComplete
-					);
-					if (description) {
-						contentParts.push(description);
-					}
-					break;
-				}
-			}
-		}
-
-		return this._normalizeWhitespace(contentParts.join('\n'));
+		const parts = getChatResponsePlaintextParts(item, this._shouldIncludeThinkingContent());
+		return this._normalizeWhitespace(parts.map(part => part.text).join('\n'));
 	}
 
 	private _normalizeWhitespace(content: string): string {
@@ -437,4 +319,171 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		}
 		return;
 	}
+}
+
+/**
+ * A single unit of plaintext extracted from a chat response, keyed to its
+ * originating content part so callers (accessible view, transcript Find) can
+ * both render and locate it. `partIndex` is the index into
+ * {@link IChatResponseViewModel.response.value}, or `-1` for the synthetic
+ * error-details part that has no corresponding content part.
+ */
+export interface IChatResponsePlaintextPart {
+	readonly partIndex: number;
+	readonly text: string;
+}
+
+/**
+ * Renders a chat message (markdown or plain string) as plaintext, stripping
+ * icons. Shared by the accessible view and chat transcript Find so both
+ * present the exact same text for a given message.
+ */
+export function renderChatMessageAsPlaintext(message: string | IMarkdownString): string {
+	return typeof message === 'string' ? message : stripIcons(renderAsPlaintext(message, { useLinkFormatter: true }));
+}
+
+/**
+ * Extracts the ordered, human-readable plaintext content of a chat response
+ * item as a list of parts (markdown, reasoning/thinking, tool invocations,
+ * confirmations, references, etc.), one entry per rendered content part.
+ *
+ * This is the single source of truth for "what text does this response
+ * contain" outside of the DOM: it backs both the Chat accessible view and
+ * the transcript Find feature, so collapsed/virtualized content remains
+ * fully searchable and both features stay in sync.
+ */
+export function getChatResponsePlaintextParts(item: IChatResponseViewModel, includeThinking: boolean): IChatResponsePlaintextPart[] {
+	const contentParts: IChatResponsePlaintextPart[] = [];
+
+	if ('errorDetails' in item && item.errorDetails) {
+		contentParts.push({ partIndex: -1, text: item.errorDetails.message });
+	}
+
+	// Process all parts in order to maintain the natural flow
+	item.response.value.forEach((part, partIndex) => {
+		switch (part.kind) {
+			case 'thinking': {
+				if (!includeThinking) {
+					break;
+				}
+				const thinkingValue = Array.isArray(part.value) ? part.value.join('') : (part.value || '');
+				const trimmed = thinkingValue.trim();
+				if (trimmed) {
+					contentParts.push({ partIndex, text: localize('thinkingContent', "Thinking: {0}", trimmed) });
+				}
+				break;
+			}
+			case 'markdownContent': {
+				const text = renderAsPlaintext(part.content, { includeCodeBlocksFences: true, useLinkFormatter: true });
+				if (text.trim()) {
+					contentParts.push({ partIndex, text });
+				}
+				break;
+			}
+			case 'inlineReference': {
+				const ref = part.inlineReference;
+				let text: string;
+				if (URI.isUri(ref)) {
+					const name = part.name || basename(ref);
+					const path = ref.scheme === 'file' ? ref.path : ref.toString(true);
+					text = name !== path ? `${name} (${path})` : path;
+				} else if (isLocation(ref)) {
+					const name = part.name || basename(ref.uri);
+					const path = ref.uri.scheme === 'file' ? ref.uri.path : ref.uri.toString(true);
+					text = `${name} (${path}:${ref.range.startLineNumber})`;
+				} else {
+					// IWorkspaceSymbol
+					const path = ref.location.uri.scheme === 'file' ? (ref.location.uri.fsPath || ref.location.uri.path) : ref.location.uri.toString(true);
+					text = `${ref.name} (${path}:${ref.location.range.startLineNumber})`;
+				}
+				contentParts.push({ partIndex, text });
+				break;
+			}
+			case 'elicitation2':
+			case 'elicitationSerialized': {
+				const title = part.title;
+				let elicitationContent = '';
+				if (typeof title === 'string') {
+					elicitationContent += `${title}\n`;
+				} else if (isMarkdownString(title)) {
+					elicitationContent += renderAsPlaintext(title, { includeCodeBlocksFences: true }) + '\n';
+				}
+				const message = part.message;
+				if (isMarkdownString(message)) {
+					elicitationContent += renderAsPlaintext(message, { includeCodeBlocksFences: true });
+				} else {
+					elicitationContent += message;
+				}
+				if (elicitationContent.trim()) {
+					contentParts.push({ partIndex, text: elicitationContent });
+				}
+				break;
+			}
+			case 'toolInvocation': {
+				const state = part.state.get();
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
+					const title = renderChatMessageAsPlaintext(state.confirmationMessages.title);
+					const message = state.confirmationMessages.message ? renderChatMessageAsPlaintext(state.confirmationMessages.message) : '';
+					const toolDataDesc = getToolSpecificDataDescription(part.toolSpecificData);
+					let toolContent = title;
+					if (toolDataDesc) {
+						toolContent += `: ${toolDataDesc}`;
+					}
+					if (message) {
+						toolContent += `\n${message}`;
+					}
+					contentParts.push({ partIndex, text: toolContent });
+				} else if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+					contentParts.push({ partIndex, text: localize('toolAuthenticationA11yView', "MCP authentication required for {0} to continue {1}.", state.server.name, part.toolId) });
+				} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+					const postApprovalDetails = isToolResultInputOutputDetails(state.resultDetails)
+						? state.resultDetails.input
+						: isToolResultOutputDetails(state.resultDetails)
+							? undefined
+							: toolContentToA11yString(state.contentForModel);
+					contentParts.push({ partIndex, text: localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", part.toolId) + (postApprovalDetails ?? '') });
+				} else {
+					const resultDetails = IChatToolInvocation.resultDetails(part);
+					const isComplete = IChatToolInvocation.isComplete(part);
+					const description = getToolInvocationA11yDescription(
+						renderChatMessageAsPlaintext(part.invocationMessage),
+						part.pastTenseMessage ? renderChatMessageAsPlaintext(part.pastTenseMessage) : undefined,
+						part.toolSpecificData,
+						resultDetails,
+						isComplete
+					);
+					if (description) {
+						contentParts.push({ partIndex, text: description });
+					}
+				}
+				break;
+			}
+			case 'toolInvocationSerialized': {
+				const description = getToolInvocationA11yDescription(
+					renderChatMessageAsPlaintext(part.invocationMessage),
+					part.pastTenseMessage ? renderChatMessageAsPlaintext(part.pastTenseMessage) : undefined,
+					part.toolSpecificData,
+					part.resultDetails,
+					part.isComplete
+				);
+				if (description) {
+					contentParts.push({ partIndex, text: description });
+				}
+				break;
+			}
+			case 'autoModeResolution': {
+				if (part.predictedLabel === 'fallback') {
+					contentParts.push({ partIndex, text: localize('autoModeResolutionA11yFallback', "Routed to {0}. Unable to resolve.", part.resolvedModelName) });
+				} else {
+					const label = part.predictedLabel === 'needs_reasoning'
+						? localize('autoModeResolutionA11yReasoning', "Reasoning")
+						: localize('autoModeResolutionA11yNonReasoning', "Non-reasoning");
+					contentParts.push({ partIndex, text: localize('autoModeResolutionA11y', "Routed to {0}. {1} - Confidence {2}%", part.resolvedModelName, label, (part.confidence * 100).toFixed(0)) });
+				}
+				break;
+			}
+		}
+	});
+
+	return contentParts;
 }

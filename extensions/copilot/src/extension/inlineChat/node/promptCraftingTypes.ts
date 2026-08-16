@@ -6,13 +6,11 @@
 import type * as vscode from 'vscode';
 import { IEditSurvivalTrackingSession } from '../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
-import { ILanguage } from '../../../util/common/languages';
 import { ResourceSet } from '../../../util/vs/base/common/map';
 import { ChatResponseMarkdownPart, ChatResponseNotebookEditPart, ChatResponseTextEditPart } from '../../../vscodeTypes';
 import { ChatTelemetry } from '../../prompt/node/chatParticipantTelemetry';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IIntent } from '../../prompt/node/intents';
-import { CodeContextRegion } from './codeContextRegion';
 
 //#region interpreting copilot response
 
@@ -131,13 +129,6 @@ export interface ISessionTurnStorage {
 export interface PromptQuery extends IDocumentContext {
 	query: string;
 	intent?: IIntent;
-}
-
-export interface ICodeContextInfo {
-	language: ILanguage;
-	above: CodeContextRegion;
-	range: CodeContextRegion;
-	below: CodeContextRegion;
 }
 
 export class CopilotInteractiveEditorResponse {

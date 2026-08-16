@@ -23,7 +23,7 @@ export type NotebookEditGenerationTelemtryOptions = {
 	model: Promise<string> | string | undefined;
 	requestId: string | undefined;
 	source: NotebookEditGenrationSource;
-}
+};
 
 export enum NotebookEditGenrationSource {
 	codeMapperEditNotebook = 'codeMapperEditNotebook',

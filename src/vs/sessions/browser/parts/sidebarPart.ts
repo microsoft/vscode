@@ -38,7 +38,10 @@ import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/brows
 import { mainWindow } from '../../../base/browser/window.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
-import { isMacintosh, isNative } from '../../../base/common/platform.js';
+import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
+
+/** Sessions list minimum width; shared with the docked details panel so both snap closed alike. */
+export const SESSIONS_LIST_MINIMUM_WIDTH = isWeb ? 270 : 170;
 
 /**
  * Sidebar part specifically for agent sessions workbench.
@@ -68,7 +71,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	//#region IView
 
-	readonly minimumWidth: number = 170;
+	readonly minimumWidth: number = SESSIONS_LIST_MINIMUM_WIDTH;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
@@ -106,7 +109,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -133,6 +136,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
+			configurationService,
 		);
 	}
 

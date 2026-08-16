@@ -49,7 +49,7 @@ export class DevContainerConfigGenerator {
 
 		const startTime = Date.now();
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 		const charLimit = Math.floor((endpoint.modelMaxPromptTokens * 4) / 3);
 
 		const processedFilenames = this.processFilenames(filenames, charLimit);

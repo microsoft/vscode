@@ -63,7 +63,9 @@ export interface IChatDebugModelTurnEvent extends IChatDebugEventCommon {
 	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly copilotUsageNanoAiu?: number;
 	readonly durationInMillis?: number;
 }
 
@@ -141,6 +143,12 @@ export interface IChatDebugService extends IDisposable {
 	 * Fired when provider events are cleared for a session (before re-invoking providers).
 	 */
 	readonly onDidClearProviderEvents: Event<URI>;
+
+	/**
+	 * Fired when a debug session ends (see {@link endSession}), so providers
+	 * can release any per-session resources (e.g. live file watchers).
+	 */
+	readonly onDidEndSession: Event<URI>;
 
 	/**
 	 * Log a generic event to the debug service.
@@ -256,9 +264,11 @@ export interface IChatDebugService extends IDisposable {
 
 	/**
 	 * Register a callback that fetches available session resources from a provider.
-	 * Called lazily when `getAvailableSessionResources()` is first invoked.
+	 * Called lazily when `getAvailableSessionResources()` is first invoked. Multiple
+	 * fetchers may be registered (e.g. the extension host and local agent-host
+	 * discovery); each is invoked at most once. Dispose to unregister.
 	 */
-	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): void;
+	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): IDisposable;
 
 	/**
 	 * Get the stored title for a historical session discovered from disk.
@@ -349,12 +359,14 @@ export interface IChatDebugEventModelTurnContent {
 	readonly status?: string;
 	readonly durationInMillis?: number;
 	readonly timeToFirstTokenInMillis?: number;
+	readonly requestId?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly requestOptions?: string;
 	readonly errorMessage?: string;
 	readonly sections?: readonly IChatDebugMessageSection[];
 }

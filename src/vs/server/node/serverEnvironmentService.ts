@@ -87,6 +87,10 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	'agent-host-port': { type: 'string', cat: 'o', args: 'port', description: nls.localize('agent-host-port', "The port the agent host WebSocket server should listen on.") },
 	'agent-host-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('agent-host-path', "The path to a socket file for the agent host WebSocket server to listen on.") },
+	'agent-host-bridge-port': { type: 'string', cat: 'o', args: 'port', description: nls.localize('agent-host-bridge-port', "Bridge renderer agent-host traffic to an already-running agent host listening on this port. Does not spawn an agent host.") },
+	'agent-host-bridge-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('agent-host-bridge-path', "Bridge renderer agent-host traffic to an already-running agent host listening on this socket path. Does not spawn an agent host.") },
+	'agent-host-bridge-host': { type: 'string', cat: 'o', args: 'host', description: nls.localize('agent-host-bridge-host', "Host the externally-running agent host is reachable at when used with --agent-host-bridge-port. Defaults to localhost.") },
+	'agent-host-bridge-connection-token': { type: 'string', cat: 'o', args: 'token', description: nls.localize('agent-host-bridge-connection-token', "Connection token required by the externally-running agent host when used with --agent-host-bridge-port.") },
 
 	'use-host-proxy': { type: 'boolean' },
 	'without-browser-env-var': { type: 'boolean' },
@@ -220,6 +224,10 @@ export interface ServerParsedArgs {
 
 	'agent-host-port'?: string;
 	'agent-host-path'?: string;
+	'agent-host-bridge-port'?: string;
+	'agent-host-bridge-path'?: string;
+	'agent-host-bridge-host'?: string;
+	'agent-host-bridge-connection-token'?: string;
 
 	'use-host-proxy'?: boolean;
 	'without-browser-env-var'?: boolean;

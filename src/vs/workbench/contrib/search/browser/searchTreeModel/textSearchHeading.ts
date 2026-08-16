@@ -335,12 +335,12 @@ export class PlainTextSearchHeadingImpl extends TextSearchHeadingImpl<ITextQuery
 	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): ISearchTreeFolderMatch {
 		let folderMatch: ISearchTreeFolderMatch;
 		if (resource) {
-			folderMatch = this._register(this.createWorkspaceRootWithResourceImpl(resource, id, index, query));
+			folderMatch = this.createWorkspaceRootWithResourceImpl(resource, id, index, query);
 		} else {
-			folderMatch = this._register(this.createNoRootWorkspaceImpl(id, index, query));
+			folderMatch = this.createNoRootWorkspaceImpl(id, index, query);
 		}
 		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
-		this._register(folderMatch.onDispose(() => disposable.dispose()));
+		Event.once(folderMatch.onDispose)(() => disposable.dispose());
 		return folderMatch;
 	}
 
@@ -349,6 +349,6 @@ export class PlainTextSearchHeadingImpl extends TextSearchHeadingImpl<ITextQuery
 	}
 
 	private createNoRootWorkspaceImpl(id: string, index: number, query: ITextQuery): ISearchTreeFolderMatchNoRoot {
-		return this._register(this.instantiationService.createInstance(FolderMatchNoRootImpl, id, index, query, this));
+		return this.instantiationService.createInstance(FolderMatchNoRootImpl, id, index, query, this);
 	}
 }

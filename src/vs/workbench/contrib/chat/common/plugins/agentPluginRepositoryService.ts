@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceType, PluginSourceKind } from './pluginMarketplaceService.js';
@@ -20,6 +21,15 @@ export interface IEnsureRepositoryOptions {
 	readonly failureLabel?: string;
 	/** Marketplace type metadata to persist in the marketplace index. */
 	readonly marketplaceType?: MarketplaceType;
+	/**
+	 * When set, an already-cloned repository whose last refresh is older than
+	 * this many milliseconds is silently pulled before being returned. `0`
+	 * forces a refresh. Refresh failures are logged and non-fatal — the
+	 * existing clone is still returned.
+	 */
+	readonly refreshIfOlderThanMs?: number;
+	/** Cancels an in-flight stale refresh triggered by {@link refreshIfOlderThanMs}. */
+	readonly token?: CancellationToken;
 }
 
 /**
@@ -64,6 +74,7 @@ export interface IAgentPluginRepositoryService {
 
 	/**
 	 * Ensures a marketplace repository is cloned locally and returns its cache URI.
+	 * Optionally refreshes an existing clone when it is stale.
 	 */
 	ensureRepository(marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI>;
 

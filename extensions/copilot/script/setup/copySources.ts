@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { join } from 'path';
 import * as ts from 'typescript';
-const VS_ROOT = join(__dirname, '../../../vscode/src');
+const VS_ROOT = join(__dirname, '../../../../src');
 const TARGET = join(__dirname, '../../src/util/vs');
 
 /**

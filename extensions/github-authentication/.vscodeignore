@@ -6,4 +6,5 @@ build/**
 esbuild.mts
 esbuild.browser.mts
 tsconfig*.json
+**/*.tsbuildinfo
 package-lock.json

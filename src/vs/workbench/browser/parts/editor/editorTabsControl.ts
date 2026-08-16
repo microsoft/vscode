@@ -6,14 +6,14 @@
 import './media/editortabscontrol.css';
 import { localize } from '../../../../nls.js';
 import { DataTransfers } from '../../../../base/browser/dnd.js';
-import { $, Dimension, getActiveWindow, getWindow, isMouseEvent } from '../../../../base/browser/dom.js';
+import { $, Dimension, getActiveWindow, getWindow, isMouseEvent, setVisibility } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IAction, ActionRunner } from '../../../../base/common/actions.js';
+import { IAction, ActionRunner, toAction } from '../../../../base/common/actions.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { createActionViewItem, getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -23,16 +23,16 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, isWindowDraggedOver } from '../../dnd.js';
 import { EditorPane } from './editorPane.js';
-import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
+import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext } from '../../../common/contextkeys.js';
+import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { isFirefox } from '../../../../base/browser/browser.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
-import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { WorkbenchToolBar, HiddenItemStrategy } from '../../../../platform/actions/browser/toolbar.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
@@ -47,6 +47,9 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -88,6 +91,7 @@ export interface IEditorTabsControl extends IDisposable {
 	setActive(isActive: boolean): void;
 	updateEditorSelections(): void;
 	updateEditorLabel(editor: EditorInput): void;
+	updateEditorCapabilities(editor: EditorInput): void;
 	updateEditorDirty(editor: EditorInput): void;
 	layout(dimensions: IEditorTitleControlDimensions): Dimension;
 	getHeight(): number;
@@ -101,13 +105,29 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private static readonly EDITOR_TAB_HEIGHT = {
 		normal: 35 as const,
-		compact: 22 as const
+		compact: 22 as const,
+		// Modern UI multi-tab mode adds 4px top + 4px bottom padding to
+		// the tabs-and-actions-container (tabs.css), so the total title-bar height is the
+		// --editor-group-tab-height CSS value (24px / 20px) plus that 8px padding.
+		modernUI: 32 as const,        // 24px tab  + 4px top + 4px bottom padding
+		modernUICompact: 28 as const, // 20px tab  + 4px top + 4px bottom padding (20px = minimum to fit 16px icon + 2px padding)
 	};
 
 	protected editorActionsToolbarContainer: HTMLElement | undefined;
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
 	private readonly editorActionsToolbarDisposables = this._register(new DisposableStore());
 	private readonly editorActionsDisposables = this._register(new DisposableStore());
+	/** Whether the editor-actions toolbar currently has any actions (drives the layout-actions separator). */
+	private editorActionsToolbarHasActions = false;
+	private editorActionsToolbarHasTrailingSeparator = false;
+	private addTabControlHasActions = false;
+	private addTabControlHasTrailingSeparator = false;
+
+	protected editorLayoutActionsSeparator: HTMLElement | undefined;
+	protected editorLayoutActionsToolbarContainer: HTMLElement | undefined;
+	private editorLayoutActionsToolbar: WorkbenchToolBar | undefined;
+	private readonly editorLayoutActionsToolbarDisposables = this._register(new DisposableStore());
+	private readonly editorLayoutActionsDisposables = this._register(new DisposableStore());
 
 	private readonly contextMenuContextKeyService: IContextKeyService;
 	private resourceContext: ResourceContextKey;
@@ -116,7 +136,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private editorIsFirstContext: IContextKey<boolean>;
 	private editorIsLastContext: IContextKey<boolean>;
 	private editorStickyContext: IContextKey<boolean>;
+	private editorDirtyContext: IContextKey<boolean>;
 	private editorAvailableEditorIds: IContextKey<string>;
+	private editorCannotCloseContext: IContextKey<boolean>;
 
 	private editorCanSplitInGroupContext: IContextKey<boolean>;
 	private sideBySideEditorContext: IContextKey<boolean>;
@@ -131,6 +153,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		protected readonly groupsView: IEditorGroupsView,
 		protected readonly groupView: IEditorGroupView,
 		protected readonly tabsModel: IReadonlyEditorGroupModel,
+		protected readonly menuIds: IEditorGroupMenuIds | undefined,
+		protected readonly breadcrumbsInHeader: boolean,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
@@ -140,6 +164,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IHostService private readonly hostService: IHostService,
+		@IMenuService protected readonly menuService: IMenuService,
 	) {
 		super(themeService);
 
@@ -159,7 +184,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorIsFirstContext = ActiveEditorFirstInGroupContext.bindTo(this.contextMenuContextKeyService);
 		this.editorIsLastContext = ActiveEditorLastInGroupContext.bindTo(this.contextMenuContextKeyService);
 		this.editorStickyContext = ActiveEditorStickyContext.bindTo(this.contextMenuContextKeyService);
+		this.editorDirtyContext = ActiveEditorDirtyContext.bindTo(this.contextMenuContextKeyService);
 		this.editorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.contextMenuContextKeyService);
+		this.editorCannotCloseContext = ActiveEditorCannotCloseContext.bindTo(this.contextMenuContextKeyService);
 
 		this.editorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(this.contextMenuContextKeyService);
 		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.contextMenuContextKeyService);
@@ -169,6 +196,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected create(parent: HTMLElement): HTMLElement {
 		this.updateTabHeight();
+		this.updateTabActionSpaceReservation();
 		return parent;
 	}
 
@@ -176,12 +204,66 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return this.groupsView.partOptions.editorActionsLocation === 'default' && this.groupsView.partOptions.showTabs !== 'none';
 	}
 
-	protected createEditorActionsToolBar(parent: HTMLElement, classes: string[]): void {
+	protected createEditorActionsToolBar(parent: HTMLElement, classes: string[], trailingSeparator = false): void {
 		this.editorActionsToolbarContainer = $('div');
 		this.editorActionsToolbarContainer.classList.add(...classes);
 		parent.appendChild(this.editorActionsToolbarContainer);
+		this.editorActionsToolbarHasTrailingSeparator = trailingSeparator;
 
 		this.handleEditorActionToolBarVisibility(this.editorActionsToolbarContainer);
+
+		this.editorLayoutActionsSeparator = $('div.editor-actions-separator');
+		parent.appendChild(this.editorLayoutActionsSeparator);
+
+		this.editorLayoutActionsToolbarContainer = $('div.editor-layout-actions');
+		parent.appendChild(this.editorLayoutActionsToolbarContainer);
+
+		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
+	}
+
+	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, trailingSeparator = false): HTMLElement {
+		const container = $('.tabs-bar-add-tab');
+		parent.insertBefore(container, before ?? null);
+		this.addTabControlHasTrailingSeparator = trailingSeparator;
+
+		const menu = this._register(this.menuService.createMenu(menuId, this.contextKeyService));
+		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+		const addTabAction = toAction({
+			id: 'editor.tabs.addTab',
+			label: localize('addTab', "Add Tab"),
+			class: ThemeIcon.asClassName(Codicon.add),
+			run: () => { }
+		});
+		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, this.contextMenuService, {
+			classNames: ThemeIcon.asClassNameArray(Codicon.add),
+			keybindingProvider: action => this.getKeybinding(action)
+		}));
+		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+			ariaLabel: localize('ariaLabelAddTab', "Add Tab"),
+			trailingSeparator,
+			actionViewItemProvider: action => action === addTabAction ? dropdown : undefined
+		}));
+		toolbar.setActions([addTabAction]);
+
+		const updateVisibility = () => {
+			this.addTabControlHasActions = getActions().length > 0;
+			container.classList.toggle('hidden', !this.addTabControlHasActions);
+			this.updateEditorLayoutActionsSeparator();
+		};
+		updateVisibility();
+		this._register(menu.onDidChange(updateVisibility));
+
+		return container;
+	}
+
+	private updateEditorLayoutActionsSeparator(): void {
+		const hasLayoutActions = (this.editorLayoutActionsToolbar?.getItemsLength() ?? 0) > 0;
+		if (this.editorLayoutActionsSeparator) {
+			setVisibility(hasLayoutActions
+				&& !this.editorActionsToolbarHasTrailingSeparator
+				&& !this.addTabControlHasTrailingSeparator
+				&& (this.editorActionsToolbarHasActions || this.addTabControlHasActions), this.editorLayoutActionsSeparator);
+		}
 	}
 
 	private handleEditorActionToolBarVisibility(container: HTMLElement): void {
@@ -203,8 +285,35 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		container.classList.toggle('hidden', !editorActionsEnabled);
 	}
 
+	private handleEditorLayoutActionsToolBarVisibility(container: HTMLElement): void {
+		const editorActionsEnabled = this.editorActionsEnabled;
+		const editorActionsVisible = !!this.editorLayoutActionsToolbar;
+
+		// Create toolbar if it is enabled (and not yet created)
+		if (editorActionsEnabled && !editorActionsVisible) {
+			this.doCreateEditorLayoutActionsToolBar(container);
+		}
+		// Remove toolbar if it is not enabled (and is visible)
+		else if (!editorActionsEnabled && editorActionsVisible) {
+			this.editorLayoutActionsToolbar?.getElement().remove();
+			this.editorLayoutActionsToolbar = undefined;
+			this.editorLayoutActionsToolbarDisposables.clear();
+			this.editorLayoutActionsDisposables.clear();
+		}
+
+		container.classList.toggle('hidden', !editorActionsEnabled);
+
+		// Keep the sibling separator in sync with the toolbar. The separator lives outside
+		// the hidden containers so it must be explicitly hidden whenever the layout toolbar
+		// is disabled/removed; otherwise it would remain visible as an orphan line.
+		if (this.editorLayoutActionsSeparator && !editorActionsEnabled) {
+			setVisibility(false, this.editorLayoutActionsSeparator);
+		}
+	}
+
 	private doCreateEditorActionsToolBar(container: HTMLElement): void {
 		const context: IEditorCommandsContext = { groupId: this.groupView.id };
+		const editorActionsMenuId = this.menuIds?.editorActions ?? MenuId.EditorTitle;
 
 		// Toolbar Widget
 		this.editorActionsToolbar = this.editorActionsToolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
@@ -216,8 +325,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPart',
-			resetMenu: MenuId.EditorTitle,
+			resetMenu: editorActionsMenuId,
 			overflowBehavior: { maxItems: 9, exempted: EDITOR_CORE_NAVIGATION_COMMANDS },
+			trailingSeparator: this.editorActionsToolbarHasTrailingSeparator,
 			highlightToggledItems: true
 		}));
 
@@ -226,6 +336,38 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		// Action Run Handling
 		this.editorActionsToolbarDisposables.add(this.editorActionsToolbar.actionRunner.onDidRun(e => {
+
+			// Notify for Error
+			if (e.error && !isCancellationError(e.error)) {
+				this.notificationService.error(e.error);
+			}
+		}));
+	}
+
+	private doCreateEditorLayoutActionsToolBar(container: HTMLElement): void {
+		const context: IEditorCommandsContext = { groupId: this.groupView.id };
+
+		// Toolbar Widget (no overflow, no hidden-item "..." button so layout actions
+		// are always rendered inline after the primary toolbar's own overflow).
+		this.editorLayoutActionsToolbar = this.editorLayoutActionsToolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: localize('ariaLabelEditorActionsLayout', "Editor layout actions"),
+			getKeyBinding: action => this.getKeybinding(action),
+			actionRunner: this.editorLayoutActionsToolbarDisposables.add(new EditorCommandsContextActionRunner(context)),
+			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
+			telemetrySource: 'editorPartTrailing',
+			resetMenu: MenuId.EditorTitleLayout,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			highlightToggledItems: true
+		}));
+
+		// Context
+		this.editorLayoutActionsToolbar.context = context;
+
+		// Action Run Handling
+		this.editorLayoutActionsToolbarDisposables.add(this.editorLayoutActionsToolbar.actionRunner.onDidRun(e => {
 
 			// Notify for Error
 			if (e.error && !isCancellationError(e.error)) {
@@ -257,15 +399,47 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		this.editorActionsDisposables.clear();
 
-		const editorActions = this.groupView.createEditorActions(this.editorActionsDisposables);
+		const editorActions = this.groupView.createEditorActions(this.editorActionsDisposables, this.menuIds?.editorActions ?? MenuId.EditorTitle);
 		this.editorActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorActionsToolbar()));
 
 		const editorActionsToolbar = assertReturnsDefined(this.editorActionsToolbar);
 		const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
 		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
+		this.editorActionsToolbarHasActions = primary.length > 0 || secondary.length > 0;
+
+		this.updateEditorLayoutActionsToolbar();
+	}
+
+	private updateEditorLayoutActionsToolbar(): void {
+		if (
+			!this.editorActionsEnabled ||
+			!this.editorLayoutActionsToolbarContainer ||
+			!this.editorLayoutActionsToolbar
+		) {
+			return;
+		}
+
+		this.editorLayoutActionsDisposables.clear();
+
+		const editorActions = this.groupView.createEditorActions(this.editorLayoutActionsDisposables, MenuId.EditorTitleLayout);
+		this.editorLayoutActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorLayoutActionsToolbar()));
+
+		const { primary, secondary } = this.prepareEditorLayoutActions(editorActions.actions);
+		this.editorLayoutActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
+
+		const hasLayoutActions = primary.length > 0 || secondary.length > 0;
+
+		// Only show the separator and the toolbar container when the layout toolbar
+		// has actions AND there are editor actions to its left to separate from.
+		this.updateEditorLayoutActionsSeparator();
+
+		setVisibility(hasLayoutActions, this.editorLayoutActionsToolbarContainer);
 	}
 
 	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;
+
+	protected abstract prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions;
+
 	private getEditorPaneAwareContextKeyService(): IContextKeyService {
 		return this.groupView.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
 	}
@@ -277,6 +451,15 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		const editorActionsToolbar = assertReturnsDefined(this.editorActionsToolbar);
 		editorActionsToolbar.setActions([], []);
+		this.editorActionsToolbarHasActions = false;
+
+		this.editorLayoutActionsToolbar?.setActions([], []);
+		if (this.editorLayoutActionsSeparator) {
+			setVisibility(false, this.editorLayoutActionsSeparator);
+		}
+		if (this.editorLayoutActionsToolbarContainer) {
+			setVisibility(false, this.editorLayoutActionsToolbarContainer);
+		}
 	}
 
 	protected onGroupDragStart(e: DragEvent, element: HTMLElement): boolean {
@@ -413,6 +596,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorIsFirstContext.set(this.tabsModel.isFirst(editor));
 		this.editorIsLastContext.set(this.tabsModel.isLast(editor));
 		this.editorStickyContext.set(this.tabsModel.isSticky(editor));
+		this.editorDirtyContext.set(editor.isDirty() && !editor.isSaving());
+		this.editorCannotCloseContext.set(editor.hasCapability(EditorInputCapabilities.CannotClose));
 		this.groupLockedContext.set(this.tabsModel.isLocked);
 		this.editorCanSplitInGroupContext.set(editor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
 		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
@@ -447,7 +632,15 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected get tabHeight() {
-		return this.groupsView.partOptions.tabHeight !== 'compact' ? EditorTabsControl.EDITOR_TAB_HEIGHT.normal : EditorTabsControl.EDITOR_TAB_HEIGHT.compact;
+		const isCompact = this.groupsView.partOptions.tabHeight === 'compact';
+		// In modern multi-tab mode the tabs-and-actions-container gains extra
+		// padding (tabs.css), so the total height differs from the base values.
+		// The `.tabs` class is present only when showTabs === 'multiple'; single-tab
+		// and no-tab modes are not affected by those CSS overrides.
+		if (this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs')) {
+			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
+		}
+		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}
 
 	protected getHoverTitle(editor: EditorInput): string | IManagedHoverTooltipMarkdownString {
@@ -465,6 +658,13 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected updateTabHeight(): void {
 		this.parent.style.setProperty('--editor-group-tab-height', `${this.tabHeight}px`);
+		// Signal compact mode via a CSS class so the modern tab rules in tabs.css
+		// can apply a proportionally smaller --editor-group-tab-height value.
+		this.parent.classList.toggle('compact-height', this.groupsView.partOptions.tabHeight === 'compact');
+	}
+
+	private updateTabActionSpaceReservation(): void {
+		this.parent.classList.toggle('tab-actions-reserve-space', this.groupsView.partOptions.tabActionReserveSpace);
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -472,6 +672,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// Update tab height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
 			this.updateTabHeight();
+		}
+
+		if (oldOptions.tabActionReserveSpace !== newOptions.tabActionReserveSpace) {
+			this.updateTabActionSpaceReservation();
 		}
 
 		// Update Editor Actions Toolbar
@@ -482,6 +686,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			if (this.editorActionsToolbarContainer) {
 				this.handleEditorActionToolBarVisibility(this.editorActionsToolbarContainer);
 				this.updateEditorActionsToolbar();
+			}
+			if (this.editorLayoutActionsToolbarContainer) {
+				this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
+				this.updateEditorLayoutActionsToolbar();
 			}
 		}
 	}
@@ -509,6 +717,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	abstract updateEditorSelections(): void;
 
 	abstract updateEditorLabel(editor: EditorInput): void;
+
+	abstract updateEditorCapabilities(editor: EditorInput): void;
 
 	abstract updateEditorDirty(editor: EditorInput): void;
 
