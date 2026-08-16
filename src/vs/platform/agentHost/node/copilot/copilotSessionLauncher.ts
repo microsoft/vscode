@@ -3,38 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
-import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
-import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentSession } from '../../common/agent.js';
+import { getByokLmSelectionModelId, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
+import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
+import type { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
-import { getByokLmSelectionModelId, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
-import type { ActiveClientToolSet } from '../activeClientState.js';
+import type { ICopilotPluginInfo } from './copilotAgent.js';
+import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
-import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
-import { buildSandboxConfigForSdk, type CopilotSandboxConfig } from './sandboxConfigForSdk.js';
-import type { ICopilotPluginInfo } from './copilotAgent.js';
+import { isGpt56Model } from './modelIdentifiers.js';
+import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
-import './prompts/allPrompts.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
-import { isGpt56Model } from './modelIdentifiers.js';
+import { buildSandboxConfigForSdk, type CopilotSandboxConfig } from './sandboxConfigForSdk.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 /**
@@ -413,9 +414,7 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 	// tier.
 	const contextSize = model?.config?.[ContextSizeConfigKey];
 	if (contextSize === undefined) {
-		// When the model's long-context tier costs the same as the default tier,
-		// always opt into long_context — no picker is shown and the user gets the
-		// larger window for free.
+		// No selection: free long context defaults to the full window; other models stay on the SDK default tier.
 		return freeLongContext ? 'long_context' : undefined;
 	}
 	const selectedWindow = Number(contextSize);
@@ -539,8 +538,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
 			const raw = await this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config));
 			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
-			await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
-			return new CopilotSessionWrapper(raw);
+			return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.fallback.model?.id);
 		} catch (err) {
 			let resumeError = err;
 			const errCode = getCopilotSdkErrorCode(resumeError);
@@ -552,8 +550,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
 					const raw = await this._withTraceContext(fallbackPlan.sessionId, () => fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig));
-					await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
-					return new CopilotSessionWrapper(raw);
+					return this._finalizeSession(raw, sandboxConfig, plan.sessionId, fallbackPlan.fallback.model?.id);
 				} catch (retryErr) {
 					resumeError = retryErr;
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
@@ -596,14 +593,26 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
-		await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
-		// TODO: Remove this post-create update once the SDK exposes verbosity in
-		// SessionConfig, alongside create-session options such as reasoningEffort.
-		if (isGpt56Model(plan.model?.id)) {
-			await this._applyVerbosity(raw, 'medium', plan.sessionId);
-		}
+		return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.model?.id);
+	}
 
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: CopilotSandboxConfig | undefined, sessionId: string, modelId: string | undefined): Promise<CopilotSessionWrapper> {
+		await this._applySandboxConfig(raw, sandboxConfig, sessionId);
+		// TODO: Remove these post-launch updates once the SDK exposes verbosity and
+		// reasoningSummary in SessionConfig, alongside launch options such as reasoningEffort.
+		if (isGpt56Model(modelId)) {
+			await this._applyGpt56Customizations(raw, sessionId);
+		}
 		return new CopilotSessionWrapper(raw);
+	}
+
+	/** Applies the post-launch session options used by GPT-5.6 models. */
+	private async _applyGpt56Customizations(session: CopilotSessionWrapper['session'], sessionId: string): Promise<void> {
+		await this._applyVerbosity(session, 'medium', sessionId);
+		const reasoningSummaryEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ReasoningSummary) === true;
+		if (reasoningSummaryEnabled) {
+			await this._applyReasoningSummary(session, 'concise', sessionId);
+		}
 	}
 
 	/** Sets output verbosity after session creation. */
@@ -613,6 +622,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.info(`[Copilot:${sessionId}] Applied '${verbosity}' verbosity`);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to apply '${verbosity}' verbosity`, err);
+		}
+	}
+
+	/** Sets reasoning summary detail after session creation. */
+	private async _applyReasoningSummary(session: CopilotSessionWrapper['session'], reasoningSummary: ReasoningSummary, sessionId: string): Promise<void> {
+		try {
+			await session.rpc.options.update({ reasoningSummary });
+			this._logService.info(`[Copilot:${sessionId}] Applied '${reasoningSummary}' reasoning summary`);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to apply '${reasoningSummary}' reasoning summary`, err);
 		}
 	}
 

@@ -62,6 +62,14 @@ class RecordingRequestService implements IRequestService {
 	async loadCertificates(): Promise<string[]> { return []; }
 }
 
+class TestLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].join(' '));
+	}
+}
+
 function requestContext(statusCode: number, body: object): IRequestContext {
 	return {
 		res: { statusCode, headers: {} },
@@ -69,19 +77,19 @@ function requestContext(statusCode: number, body: object): IRequestContext {
 	};
 }
 
-function emptyGalleryQueryResponse(): object {
+function galleryQueryResponse(extensions: object[]): object {
 	return {
 		results: [{
-			extensions: [],
+			extensions,
 			resultMetadata: [{
 				metadataType: 'ResultCount',
-				metadataItems: [{ name: 'TotalCount', count: 0 }]
+				metadataItems: [{ name: 'TotalCount', count: extensions.length }]
 			}]
 		}]
 	};
 }
 
-function rawLatestExtension(): object {
+function rawLatestExtension() {
 	const date = '2026-01-01T00:00:00Z';
 	return {
 		extensionId: 'extension-uuid',
@@ -145,9 +153,9 @@ suite('Extension Gallery Service', () => {
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 
-	function createExtensionGalleryService(requestService: IRequestService): ExtensionGalleryServiceWithNoStorageService {
+	function createExtensionGalleryService(requestService: IRequestService, logService = new NullLogService()): ExtensionGalleryServiceWithNoStorageService {
 		const allowedExtensionsService = disposables.add(new AllowedExtensionsService(productService, configurationService));
-		return new ExtensionGalleryServiceWithNoStorageService(requestService, new NullLogService(), environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, createExtensionGalleryManifestService());
+		return new ExtensionGalleryServiceWithNoStorageService(requestService, logService, environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, createExtensionGalleryManifestService());
 	}
 
 	test('marketplace machine id', async () => {
@@ -159,7 +167,7 @@ suite('Extension Gallery Service', () => {
 	});
 
 	test('getExtensions uses query API for extension info without uuid', async () => {
-		const requestService = new RecordingRequestService(options => options.type === 'POST' ? requestContext(200, emptyGalleryQueryResponse()) : requestContext(404, {}));
+		const requestService = new RecordingRequestService(options => options.type === 'POST' ? requestContext(200, galleryQueryResponse([])) : requestContext(404, {}));
 		const galleryService = createExtensionGalleryService(requestService);
 
 		const extensions = await galleryService.getExtensions([{ id: 'ms-vscode.visualization-runner' }], CancellationToken.None);
@@ -174,7 +182,7 @@ suite('Extension Gallery Service', () => {
 	});
 
 	test('getExtensions uses latest resource API for extension info with uuid', async () => {
-		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, rawLatestExtension()) : requestContext(200, emptyGalleryQueryResponse()));
+		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, rawLatestExtension()) : requestContext(200, galleryQueryResponse([])));
 		const galleryService = createExtensionGalleryService(requestService);
 
 		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
@@ -185,6 +193,32 @@ suite('Extension Gallery Service', () => {
 		}, {
 			requests: [{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' }],
 			extensions: [{ id: 'publisher.extension', uuid: 'extension-uuid', version: '1.0.0' }]
+		});
+	});
+
+	test('getExtensions falls back to query API when latest resource response omits files', async () => {
+		const rawExtension = rawLatestExtension();
+		const invalidLatestExtension = {
+			...rawExtension,
+			versions: rawExtension.versions.map(version => ({ ...version, files: undefined }))
+		};
+		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, invalidLatestExtension) : requestContext(200, galleryQueryResponse([rawExtension])));
+		const logService = new TestLogService();
+		const galleryService = createExtensionGalleryService(requestService, logService);
+
+		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			extensions: extensions.map(extension => ({ id: extension.identifier.id, uuid: extension.identifier.uuid, version: extension.version })),
+			errors: logService.errors
+		}, {
+			requests: [
+				{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' },
+				{ type: 'POST', url: queryServiceUri }
+			],
+			extensions: [{ id: 'publisher.extension', uuid: 'extension-uuid', version: '1.0.0' }],
+			errors: []
 		});
 	});
 
@@ -589,5 +623,3 @@ suite('Extension Gallery Service', () => {
 
 	});
 });
-
-

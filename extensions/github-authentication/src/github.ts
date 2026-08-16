@@ -14,6 +14,17 @@ import { crypto } from './node/crypto';
 import { TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 import { GitHubSocialSignInProvider, isSocialSignInProvider } from './flows';
 
+/**
+ * The stored (JSON) form of a vscode.Uri pointing to the account's avatar.
+ */
+interface StoredAccountIcon {
+	scheme: string;
+	authority?: string;
+	path?: string;
+	query?: string;
+	fragment?: string;
+}
+
 interface SessionData {
 	id: string;
 	account?: {
@@ -22,9 +33,29 @@ interface SessionData {
 		// Unfortunately, for some time the id was a number, so we need to support both.
 		// This can be removed once we are confident that all users have migrated to the new id.
 		id: string | number;
+		// `undefined` means the avatar has not been looked up yet, `null` means a lookup
+		// completed and found no avatar, and a `StoredAccountIcon` is a resolved avatar.
+		icon?: StoredAccountIcon | null;
 	};
 	scopes: string[];
 	accessToken: string;
+}
+
+/**
+ * Whether a stored session's account icon still needs to be looked up.
+ */
+export function needsAccountIconLookup(session: SessionData): boolean {
+	return !session.account || session.account.icon === undefined;
+}
+
+/**
+ * Serializes an account icon for storage, using `null` to mark a completed lookup that found no avatar.
+ */
+export function serializeAccountIcon(icon: vscode.Uri | undefined, hasNoAvatar: boolean): StoredAccountIcon | null | undefined {
+	if (icon) {
+		return { scheme: icon.scheme, authority: icon.authority, path: icon.path, query: icon.query, fragment: icon.fragment };
+	}
+	return hasNoAvatar ? null : undefined;
 }
 
 export enum AuthProviderType {
@@ -134,6 +165,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private readonly _telemetryReporter: ExperimentationTelemetry;
 	private readonly _keychain: Keychain;
 	private readonly _accountsSeen = new Set<string>();
+	private readonly _sessionsWithoutAvatars = new WeakSet<vscode.AuthenticationSession>();
 	private readonly _disposable: vscode.Disposable | undefined;
 
 	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
@@ -278,19 +310,25 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		// the sessions to migrate away from the bad number usage.
 		// TODO@TylerLeonhardt: Remove this after we are confident that all users have migrated to the new id.
 		let seenNumberAccountId: boolean = false;
+		// Sessions that were stored before the account icon was introduced are re-stored
+		// once an icon has been fetched so that we don't refetch it on every read.
+		let seenIconUpdate: boolean = false;
 		// TODO: eventually remove this Set because we should only have one session per set of scopes.
 		const scopesSeen = new Set<string>();
 		const sessionPromises = sessionData.map(async (session: SessionData): Promise<vscode.AuthenticationSession | undefined> => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
-			let userInfo: { id: string; accountName: string } | undefined;
-			if (!session.account) {
+			let userInfo: { id: string; accountName: string; avatarUrl: string | undefined } | undefined;
+			if (needsAccountIconLookup(session)) {
+				const needsAccount = !session.account;
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
-					this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
+					seenIconUpdate = true;
+					if (needsAccount) {
+						this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
+					}
 				} catch (e) {
-					// Remove sessions that return unauthorized response
-					if (e.message === 'Unauthorized') {
+					if (e.message === 'Unauthorized' && needsAccount) {
 						return undefined;
 					}
 				}
@@ -308,19 +346,30 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			} else {
 				accountId = userInfo?.id ?? '<unknown>';
 			}
-			return {
+			let icon: vscode.Uri | undefined;
+			if (session.account?.icon?.scheme) {
+				icon = vscode.Uri.from(session.account.icon);
+			} else if (userInfo?.avatarUrl) {
+				icon = vscode.Uri.parse(userInfo.avatarUrl);
+			}
+			const resolvedSession: vscode.AuthenticationSession = {
 				id: session.id,
 				account: {
 					label: session.account
 						? session.account.label ?? session.account.displayName ?? '<unknown>'
-						: userInfo?.accountName ?? '<unknown>',
-					id: accountId
+						: (userInfo?.accountName ?? '<unknown>'),
+					id: accountId,
+					icon,
 				},
 				// we set this to session.scopes to maintain the original order of the scopes requested
 				// by the extension that called getSession()
 				scopes: session.scopes,
 				accessToken: session.accessToken
 			};
+			if (!icon && (session.account?.icon === null || userInfo)) {
+				this._sessionsWithoutAvatars.add(resolvedSession);
+			}
+			return resolvedSession;
 		});
 
 		const verifiedSessions = (await Promise.allSettled(sessionPromises))
@@ -329,7 +378,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			.filter(<T>(p?: T): p is T => Boolean(p));
 
 		this._logger.info(`Got ${verifiedSessions.length} verified sessions.`);
-		if (seenNumberAccountId || verifiedSessions.length !== sessionData.length) {
+		if (seenNumberAccountId || seenIconUpdate || verifiedSessions.length !== sessionData.length) {
 			await this.storeSessions(verifiedSessions);
 		}
 
@@ -339,7 +388,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private async storeSessions(sessions: vscode.AuthenticationSession[]): Promise<void> {
 		this._logger.info(`Storing ${sessions.length} sessions...`);
 		this._sessionsPromise = Promise.resolve(sessions);
-		await this._keychain.setToken(JSON.stringify(sessions));
+		const storedSessions: SessionData[] = sessions.map(session => ({
+			id: session.id,
+			account: {
+				label: session.account.label,
+				id: session.account.id,
+				icon: serializeAccountIcon(session.account.icon, this._sessionsWithoutAvatars.has(session)),
+			},
+			scopes: [...session.scopes],
+			accessToken: session.accessToken
+		}));
+		await this._keychain.setToken(JSON.stringify(storedSessions));
 		this._logger.info(`Stored ${sessions.length} sessions!`);
 	}
 
@@ -409,12 +468,16 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
 		const userInfo = await this._githubServer.getUserInfo(token);
-		return {
+		const session: vscode.AuthenticationSession = {
 			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
-			account: { label: userInfo.accountName, id: userInfo.id },
+			account: { label: userInfo.accountName, id: userInfo.id, icon: userInfo.avatarUrl ? vscode.Uri.parse(userInfo.avatarUrl) : undefined },
 			scopes
 		};
+		if (!session.account.icon) {
+			this._sessionsWithoutAvatars.add(session);
+		}
+		return session;
 	}
 
 	public async removeSession(id: string) {

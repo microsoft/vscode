@@ -327,22 +327,18 @@
 	height: 7px;
 }
 
-.chat-pet-eyes.animated .chat-pet-pupil {
-	animation: chat-pet-eye-blink 2s steps(1, end) infinite;
+.chat-pet-eyes.blink .chat-pet-pupil {
+	animation: chat-pet-eye-blink 260ms steps(1, end);
 }
 
-.chat-pet-button[data-state='idle'] .chat-pet-eyes.animated .chat-pet-pupil,
-.chat-pet-button[data-state='rendering'] .chat-pet-eyes.animated .chat-pet-pupil,
-.chat-pet-button[data-state='clapping'] .chat-pet-eyes.animated .chat-pet-pupil,
-.chat-pet-button[data-state='yapping'] .chat-pet-eyes.animated .chat-pet-pupil,
-.chat-pet-button[data-state='typing'] .chat-pet-eyes.animated .chat-pet-pupil,
-.chat-pet-button[data-state='buttonPress'] .chat-pet-eyes.animated .chat-pet-pupil,
-.chat-pet-button[data-state='love'] .chat-pet-eyes.animated .chat-pet-pupil {
+.chat-pet-button[data-state='idle'] .chat-pet-eyes.blink .chat-pet-pupil,
+.chat-pet-button[data-state='rendering'] .chat-pet-eyes.blink .chat-pet-pupil,
+.chat-pet-button[data-state='clapping'] .chat-pet-eyes.blink .chat-pet-pupil,
+.chat-pet-button[data-state='yapping'] .chat-pet-eyes.blink .chat-pet-pupil,
+.chat-pet-button[data-state='typing'] .chat-pet-eyes.blink .chat-pet-pupil,
+.chat-pet-button[data-state='buttonPress'] .chat-pet-eyes.blink .chat-pet-pupil,
+.chat-pet-button[data-state='love'] .chat-pet-eyes.blink .chat-pet-pupil {
 	animation-name: chat-pet-tall-eye-blink;
-}
-
-.chat-pet-button[data-state='love'] .chat-pet-eyes.animated .chat-pet-pupil {
-	animation-duration: 1.4s;
 }
 
 .chat-pet-button.dragging .chat-pet-pupil {
@@ -476,28 +472,28 @@
 
 @keyframes chat-pet-eye-blink {
 	0%,
-	45.999%,
-	56%,
+	11.537%,
+	88.462%,
 	100% {
 		clip-path: inset(0);
 	}
 
-	46%,
-	55.999% {
+	11.538%,
+	88.461% {
 		clip-path: inset(1px 0);
 	}
 }
 
 @keyframes chat-pet-tall-eye-blink {
 	0%,
-	45.999%,
-	56%,
+	11.537%,
+	88.462%,
 	100% {
 		clip-path: inset(0);
 	}
 
-	46%,
-	55.999% {
+	11.538%,
+	88.461% {
 		clip-path: inset(3px 0);
 	}
 }

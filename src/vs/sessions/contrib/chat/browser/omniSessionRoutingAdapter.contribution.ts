@@ -81,6 +81,7 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		}));
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
 			this.sessionResourceAliases.set(from.resource.toString(), to.resource);
+			this.sessionResourceAliases.set(from.mainChat.get().resource.toString(), to.mainChat.get().resource);
 			this._refreshSessions();
 			this._onDidChangeSessions.fire();
 		}));
@@ -230,7 +231,7 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 	}
 
 	resolveSessionResource(sessionId: string): URI | undefined {
-		return this._resolveTarget(sessionId)?.session.resource;
+		return this._resolveTarget(sessionId)?.chat.resource;
 	}
 
 	async dispatchToSession(sessionId: string, message: string, options: IChatSendRequestOptions, token: CancellationToken): Promise<IChatSessionRoutingDispatchResult> {
@@ -257,9 +258,9 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 				attachedContext: options.attachedContext?.length ? [...options.attachedContext] : undefined,
 				background: true,
 			});
-			return { status: 'sent', resource: target.session.resource, activityBaseline };
+			return { status: 'sent', resource: target.chat.resource, activityBaseline };
 		} catch (error) {
-			return this._toRejectedResult(error, target.session.resource);
+			return this._toRejectedResult(error, target.chat.resource);
 		}
 	}
 
@@ -300,14 +301,15 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 					reason: localize('omniSessionRouting.sessionNotCreated', "The Sessions provider could not create the new session."),
 				};
 			}
-			return { status: 'sent', resource: session.resource, activityBaseline: session.createdAt.getTime() };
+			return { status: 'sent', resource: session.mainChat.get().resource, activityBaseline: session.createdAt.getTime() };
 		} catch (error) {
 			return this._toRejectedResult(error);
 		}
 	}
 
 	revealSession(resource: URI): Promise<void> {
-		return this.sessionsService.openSession(this._resolveSessionResourceAlias(resource));
+		const resolved = this._resolveSessionResourceAlias(resource);
+		return this.sessionsService.openSession(this._resolveTarget(resolved.toString())?.session.resource ?? resolved);
 	}
 
 	private _resolveSessionResourceAlias(resource: URI): URI {
@@ -469,6 +471,7 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		const gitHubInfo = folder?.gitRepository?.gitHubInfo.get();
 		return {
 			sessionId: session.sessionId,
+			resource: session.resource,
 			label: session.title.get(),
 			repo: gitHubInfo ? `${gitHubInfo.owner}/${gitHubInfo.repo}` : undefined,
 			cwd: folder?.workingDirectory.path,
@@ -511,9 +514,6 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 	}
 
 	private _getUnsupportedOptions(options: IChatSendRequestOptions): IChatSessionRoutingDispatchResult | undefined {
-		if (options.userSelectedModelConfiguration && Object.keys(options.userSelectedModelConfiguration).length) {
-			return this._unsupported(localize('omniSessionRouting.modelConfigurationUnsupported', "The selected model configuration cannot be sent through Sessions."));
-		}
 		// The chat widget snapshots every default-enabled tool as `true`. Sessions
 		// providers own that default tool set, so only an actual disabled-tool
 		// override is unsupported and must be rejected rather than dropped.

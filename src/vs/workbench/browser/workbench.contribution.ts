@@ -12,6 +12,7 @@ import { Registry } from '../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, ConfigurationMigrationWorkbenchContribution, DynamicWindowConfiguration, DynamicWorkbenchSecurityConfiguration, Extensions, IConfigurationMigrationRegistry, problemsConfigurationNodeBase, windowConfigurationNodeBase, workbenchConfigurationNodeBase } from '../common/configuration.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
 import { NotificationsPosition, NotificationsSettings } from '../common/notifications.js';
+import { ACCOUNTS_AVATAR_SETTING } from '../services/authentication/common/authentication.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../services/history/common/history.js';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from '../services/layout/browser/layoutService.js';
@@ -206,6 +207,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				enum: ['left', 'right'],
 				default: 'right',
 				markdownDescription: localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'tabActionLocation' }, "Controls the position of the editor's tabs action buttons (close, unpin). This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`')
+			},
+			'workbench.editor.tabActionReserveSpace': {
+				type: 'boolean',
+				default: true,
+				description: localize('workbench.editor.tabActionReserveSpace', "Controls whether Modern UI editor tabs always reserve space for tab action buttons. When disabled, clean tabs stay compact; tabs with persistent dirty or pinned indicators reserve space regardless.")
 			},
 			'workbench.editor.tabActionCloseVisibility': {
 				type: 'boolean',
@@ -650,6 +656,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'description': localize('notificationsButton', "Controls the visibility of the Notifications button in the title bar. Only applies when notifications are positioned at the top right.")
+			},
+			[ACCOUNTS_AVATAR_SETTING]: {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('accountsShowAvatar', "Controls whether signed-in account profile images (avatars) are shown in account-related UI, such as the Accounts item in the Activity Bar.")
 			},
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
 				'type': 'string',

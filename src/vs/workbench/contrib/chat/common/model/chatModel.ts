@@ -40,6 +40,7 @@ import { ChatQuestionCarouselData } from './chatProgressTypes/chatQuestionCarous
 import { ToolDataSource, IToolData } from '../tools/languageModelToolsService.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
+import { IIntendedModelSelection } from '../modelSelection.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from './chatUri.js';
@@ -2034,7 +2035,35 @@ export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 've
  * - The UI stays in sync with the persisted state
  * - New chats use UI defaults (persisted preferences) instead of hardcoded values
  */
-export interface IInputModel {
+/**
+ * Holds the model a conversation is meant to run on. Implemented by the conversation's
+ * {@link IInputModel}, and by an input part that has no conversation bound to speak for.
+ */
+export interface IIntendedModelHolder {
+	/**
+	 * The model this conversation is meant to run on, whatever the catalog can offer right now.
+	 *
+	 * Distinct from {@link IChatModelInputState.selectedModel}, which is shared draft content: it is
+	 * synced to peers and the agent host and shows what the composer currently displays. This is
+	 * local reconciliation state — never serialized, never synced — recording what should be
+	 * displayed once the catalog can offer it, and it deliberately outlives {@link IInputModel.clearState}.
+	 */
+	readonly intendedModel: IIntendedModelSelection | undefined;
+
+	/** Sets {@link intendedModel}. */
+	setIntendedModel(selection: IIntendedModelSelection | undefined): void;
+}
+
+/** An {@link IIntendedModelHolder} for an input that has no conversation to speak for it. */
+export class IntendedModelSlot implements IIntendedModelHolder {
+	intendedModel: IIntendedModelSelection | undefined;
+
+	setIntendedModel(selection: IIntendedModelSelection | undefined): void {
+		this.intendedModel = selection;
+	}
+}
+
+export interface IInputModel extends IIntendedModelHolder {
 	/** Observable for current input state (undefined for new/uninitialized chats) */
 	readonly state: IObservable<IChatModelInputState | undefined>;
 
@@ -2069,7 +2098,11 @@ export interface IChatModelInputState {
 		kind: ChatModeKind | undefined;
 	};
 
-	/** Currently selected language model, if any */
+	/**
+	 * Currently selected language model, if any. Shared draft content: synced to peers and the
+	 * agent host. See {@link IIntendedModelHolder.intendedModel} for the model this conversation is
+	 * meant to run on, which may differ while the catalog cannot offer it.
+	 */
 	selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 
 	/**
@@ -2329,9 +2362,23 @@ class InputModel implements IInputModel {
 	private readonly _state: ReturnType<typeof observableValue<IChatModelInputState | undefined>>;
 	readonly state: IObservable<IChatModelInputState | undefined>;
 
+	/**
+	 * Survives {@link clearState}: sending a message or clearing the draft says nothing about which
+	 * model the conversation is meant to run on.
+	 */
+	private _intendedModel: IIntendedModelSelection | undefined;
+
 	constructor(initialState: IChatModelInputState | undefined, private readonly logger: ILogService, private readonly sessionId: string) {
 		this._state = observableValueOpts({ debugName: 'inputModelState', equalsFn: equals }, initialState);
 		this.state = this._state;
+	}
+
+	get intendedModel(): IIntendedModelSelection | undefined {
+		return this._intendedModel;
+	}
+
+	setIntendedModel(selection: IIntendedModelSelection | undefined): void {
+		this._intendedModel = selection;
 	}
 
 	setState(state: Partial<IChatModelInputState>): void {

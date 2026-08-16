@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -32,6 +32,12 @@ suite('agentHostSchema', () => {
 
 	test('active-agent title generation is an additive boolean root setting', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostActiveAgentTitleGenerationConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, false);
+	});
+
+	test('Markdown plan rich links are an additive boolean root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostMarkdownPlanRichLinksEnabledConfigKey];
 		assert.strictEqual(property.type, 'boolean');
 		assert.strictEqual(property.default, false);
 	});

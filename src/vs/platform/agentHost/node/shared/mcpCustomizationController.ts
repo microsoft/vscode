@@ -6,10 +6,12 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, observableValue, transaction, type IObservable, type ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { AgentSession } from '../../common/agent.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
+import { parseChatUri } from '../../common/state/sessionState.js';
 import type { SessionAction } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 
@@ -49,12 +51,8 @@ export { DEFAULT_MCP_APP_CAPABILITIES, DEFAULT_MCP_APP };
  * Options for {@link McpCustomizationController}.
  */
 export interface IMcpCustomizationControllerOptions {
-	/** Provider id (e.g. `'copilotcli'`). Used as the channel URI authority. */
-	readonly providerId: string;
-	/** Session id (the raw id, not the full URI). Used as the channel path segment. */
-	readonly sessionId: string;
-	/** Canonical session URI used to resolve persisted customization state. */
-	readonly sessionUri: URI;
+	/** Concrete chat URI used for MCP App routing. */
+	readonly chatUri: URI;
 	/** Emits a {@link SessionAction} into the session's action stream. */
 	readonly emit: (action: SessionAction) => void;
 	/** Returns durable plugin source URIs for plugin-provided MCP servers. */
@@ -80,8 +78,9 @@ export function buildMcpTopLevelCustomizationId(providerId: string, sessionId: s
 	return `mcp-top-level:${providerId}:${sessionId}:${serverName}`;
 }
 
-export function buildMcpChannel(providerId: string, sessionId: string, serverName: string): string {
-	return `mcp://${providerId}/${encodeURIComponent(sessionId)}/${encodeURIComponent(serverName)}`;
+export function buildMcpChannel(chatUri: URI, serverName: string): string {
+	const providerId = getMcpChannelProviderId(chatUri);
+	return `mcp://${providerId}/${encodeURIComponent(chatUri.toString())}/${encodeURIComponent(serverName)}`;
 }
 
 /**
@@ -109,6 +108,11 @@ export function buildMcpChannel(providerId: string, sessionId: string, serverNam
  */
 export class McpCustomizationController extends Disposable {
 
+	private readonly _chatUri: URI;
+	private readonly _providerId: string;
+	private readonly _sessionId: string;
+	private readonly _sessionUri: URI;
+
 	/** Per-server live entries, keyed by server name. */
 	private readonly _live = observableValue<ReadonlyMap<string, ILiveEntry>>(this, new Map());
 
@@ -128,6 +132,17 @@ export class McpCustomizationController extends Disposable {
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
+		this._chatUri = this._options.chatUri;
+		const chat = parseChatUri(this._chatUri);
+		if (!chat) {
+			throw new Error(`Malformed AHP chat URI: ${this._chatUri.toString()}`);
+		}
+		this._sessionUri = URI.parse(chat.session);
+		this._providerId = AgentSession.provider(this._sessionUri) ?? '';
+		this._sessionId = AgentSession.id(this._sessionUri);
+		if (!this._providerId || !this._sessionId) {
+			throw new Error(`Malformed Agent Host session URI: ${chat.session}`);
+		}
 		this.runtimeStates = derived(this, reader => {
 			const out = new Map<string, IMcpServerRuntimeState>();
 			for (const entry of this._live.read(reader).values()) {
@@ -365,7 +380,7 @@ export class McpCustomizationController extends Disposable {
 	}
 
 	private _mintTopLevelId(serverName: string): string {
-		return buildMcpTopLevelCustomizationId(this._options.providerId, this._options.sessionId, serverName);
+		return buildMcpTopLevelCustomizationId(this._providerId, this._sessionId, serverName);
 	}
 
 	private _resolveChildId(serverName: string): string | undefined {
@@ -373,7 +388,7 @@ export class McpCustomizationController extends Disposable {
 	}
 
 	private _findPublishedMcpCustomization(serverName: string): { readonly topLevelId?: string; readonly childId?: string } | undefined {
-		const customizations = this._stateManager.getSessionState(this._options.sessionUri.toString())?.customizations ?? [];
+		const customizations = this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [];
 		const topLevel = customizations.find(customization => customization.type === CustomizationType.McpServer && customization.name === serverName);
 		if (topLevel?.type === CustomizationType.McpServer) {
 			return { topLevelId: topLevel.id };
@@ -386,7 +401,7 @@ export class McpCustomizationController extends Disposable {
 		if (state.kind !== McpServerStatus.Ready) {
 			return undefined;
 		}
-		return buildMcpChannel(this._options.providerId, this._options.sessionId, serverName);
+		return buildMcpChannel(this._chatUri, serverName);
 	}
 
 	private _buildTopLevel(id: string, serverName: string, state: McpServerState, enabled: boolean): McpServerCustomization {
@@ -400,7 +415,7 @@ export class McpCustomizationController extends Disposable {
 		const mcpApp = this._options.capabilities
 			? { capabilities: this._options.capabilities }
 			: DEFAULT_MCP_APP;
-		const existing = getMcpServerCustomizations(this._stateManager.getSessionState(this._options.sessionUri.toString())?.customizations ?? [])
+		const existing = getMcpServerCustomizations(this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [])
 			.find(customization => customization.id === id);
 		const customization: McpServerCustomization = {
 			type: CustomizationType.McpServer,
@@ -504,22 +519,32 @@ export function findMcpServerName(customizations: readonly Customization[], id: 
 }
 
 /**
- * Parsed `mcp://<providerId>/<sessionId>/<serverName>` URI as minted by
+ * Parsed `mcp://<providerId>/<chatUri>/<serverName>` URI as minted by
  * {@link McpCustomizationController}. The path segments are
  * URL-decoded.
  */
 export interface IMcpChannelRoute {
 	readonly providerId: string;
-	readonly sessionId: string;
+	readonly chatUri: URI;
 	readonly serverName: string;
+}
+
+function getMcpChannelProviderId(chatUri: URI): string {
+	const chat = parseChatUri(chatUri);
+	if (!chat) {
+		throw new Error(`Malformed AHP chat URI: ${chatUri.toString()}`);
+	}
+	const providerId = AgentSession.provider(chat.session);
+	if (!providerId) {
+		throw new Error(`Malformed Agent Host session URI: ${chat.session}`);
+	}
+	return providerId;
 }
 
 /**
  * Decodes a channel URI string into a {@link IMcpChannelRoute}, or
  * returns `undefined` when the URI is not an `mcp://` channel or the
- * path is malformed. Intentionally uses string parsing rather than
- * `URI.parse` so the helper stays usable from layers (e.g. agentService
- * test fixtures) without a full URI dependency.
+ * path is malformed.
  */
 export function parseMcpChannelUri(uri: string): IMcpChannelRoute | undefined {
 	const prefix = 'mcp://';
@@ -533,24 +558,29 @@ export function parseMcpChannelUri(uri: string): IMcpChannelRoute | undefined {
 	}
 	const providerId = rest.slice(0, slash);
 	const tail = rest.slice(slash + 1);
-	const sep = tail.indexOf('/');
-	if (sep <= 0 || sep === tail.length - 1) {
+	const segments = tail.split('/');
+	if (segments.length !== 2 || !segments[0] || !segments[1]) {
 		return undefined;
 	}
-	let sessionId: string;
+	let chatUri: URI;
 	let serverName: string;
 	try {
-		// `decodeURIComponent` throws `URIError` on malformed percent
-		// escapes (e.g. a lone `%`). Treat any decode failure as a
-		// malformed channel rather than letting it escape — the caller
-		// translates `undefined` into a clean `Method not found`.
-		sessionId = decodeURIComponent(tail.slice(0, sep));
-		serverName = decodeURIComponent(tail.slice(sep + 1));
+		chatUri = URI.parse(decodeURIComponent(segments[0]));
+		serverName = decodeURIComponent(segments[1]);
 	} catch {
 		return undefined;
 	}
-	if (!providerId || !sessionId || !serverName) {
+	if (!providerId || !serverName) {
 		return undefined;
 	}
-	return { providerId, sessionId, serverName };
+	let routedProviderId: string;
+	try {
+		routedProviderId = getMcpChannelProviderId(chatUri);
+	} catch {
+		return undefined;
+	}
+	if (routedProviderId !== providerId) {
+		return undefined;
+	}
+	return { providerId, chatUri, serverName };
 }

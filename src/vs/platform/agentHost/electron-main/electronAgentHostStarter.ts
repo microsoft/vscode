@@ -17,11 +17,12 @@ import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMa
 import { ILogService } from '../../log/common/log.js';
 import { Schemas } from '../../../base/common/network.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { AgentHostStartError, IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest } from '../common/agent.js';
 import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
-import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar } from '../common/agentHostTelemetry.js';
+import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
@@ -54,6 +55,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		@IEnvironmentMainService private readonly _environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -158,10 +160,8 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		const args = [
 			'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
 			'--user-data-dir', this._environmentMainService.userDataPath,
+			'--telemetry-level', telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
 		];
-		if (this._environmentMainService.disableTelemetry) {
-			args.push('--disable-telemetry');
-		}
 
 		// Forward the host's resolved telemetry identifiers so the agent host
 		// reuses the same persisted machineId/sqmId/devDeviceId instead of

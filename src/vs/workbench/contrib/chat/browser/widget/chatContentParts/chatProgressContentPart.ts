@@ -137,7 +137,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 			const shimmerText = text.slice(0, remaining);
 			const suffixText = text.slice(remaining);
-			const span = element.ownerDocument.createElement('span');
+			const span = $<HTMLSpanElement>('span');
 			span.classList.add('chat-progress-shimmer-text');
 			span.textContent = shimmerText;
 			node.parentNode?.insertBefore(span, node);

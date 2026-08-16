@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
+import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewWorkbenchService, BrowserViewEditorId } from './browserView.js';
 import { EditorInputCapabilities, GroupIdentifier, IEditorSerializer, IMoveResult, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -78,7 +78,7 @@ function stripUrlQueryAndFragment(url: string): string {
 
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
-	static readonly EDITOR_ID = 'workbench.editor.browser';
+	static readonly EDITOR_ID = BrowserViewEditorId;
 	static readonly DEFAULT_LABEL = localize('browser.editorLabel', "Browser");
 
 	private readonly _id: string;

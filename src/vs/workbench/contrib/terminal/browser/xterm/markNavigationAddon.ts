@@ -76,13 +76,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 
 		if (markCapability && !skipEmptyCommands) {
-			let next = markCapability.markers().next()?.value;
-			const arr: IMarker[] = [];
-			while (next) {
-				arr.push(next);
-				next = markCapability.markers().next()?.value;
-			}
-			markers = arr;
+			markers = [...markCapability.markers()];
 		}
 		return markers;
 	}

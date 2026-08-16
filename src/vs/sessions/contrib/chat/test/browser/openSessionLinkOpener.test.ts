@@ -36,9 +36,30 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		chatStatus.set(SessionStatus.NeedsInput, undefined);
 
 		assert.deepStrictEqual(values, [
-			{ title: 'Parent session', description: 'Session details', status: 'inProgress' },
-			{ title: 'Peer chat', description: 'Session details', status: 'completed' },
-			{ title: 'Peer chat', description: 'Session details', status: 'needsInput' },
+			{
+				kind: 'session',
+				title: 'Parent session',
+				detail: 'Session details',
+				status: { kind: 'pending', label: 'Working' },
+				tooltip: 'Parent session · Working',
+				ariaLabel: 'Agent session Parent session, Working',
+			},
+			{
+				kind: 'session',
+				title: 'Peer chat',
+				detail: 'Session details',
+				status: { kind: 'success', label: 'Completed' },
+				tooltip: 'Peer chat · Completed',
+				ariaLabel: 'Agent session Peer chat, Completed',
+			},
+			{
+				kind: 'session',
+				title: 'Peer chat',
+				detail: 'Session details',
+				status: { kind: 'warning', label: 'Needs input' },
+				tooltip: 'Peer chat · Needs input',
+				ariaLabel: 'Agent session Peer chat, Needs input',
+			},
 		]);
 	});
 });

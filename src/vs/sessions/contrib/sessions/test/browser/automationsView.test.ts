@@ -196,6 +196,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 
 class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 	result: IAutomationDialogResult | undefined;
+	error: Error | undefined;
 	beforeReturn: (() => void) | undefined;
 	showCalls = 0;
 	lastOptions: IShowAutomationDialogOptions | undefined;
@@ -203,8 +204,19 @@ class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 	override async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		this.showCalls++;
 		this.lastOptions = options;
+		if (this.error) {
+			throw this.error;
+		}
 		this.beforeReturn?.();
 		return this.result;
+	}
+}
+
+class TestLogService extends NullLogService {
+	readonly errors: { message: string | Error; args: readonly unknown[] }[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push({ message, args });
 	}
 }
 
@@ -461,6 +473,7 @@ suite('AutomationsCardsWidget', () => {
 		const sessionsManagementService = disposables.add(new FakeSessionsManagementService());
 		const sessionsService = new FakeSessionsService(() => sessionsManagementService.markRead(sessionsManagementService.session));
 		const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true } } });
+		const logService = new TestLogService();
 		const store = disposables.add(new DisposableStore());
 		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -477,7 +490,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
 		instantiationService.stub(IHoverService, NullHoverService);
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 			override readonly onDidChange = Event.None;
 			override isSessionPinned(): boolean { return false; }
@@ -508,7 +521,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { automationService, automationDialogService, configurationService, dialogService, instantiationService, runner, sessionsManagementService, sessionsService, widget };
+		return { automationService, automationDialogService, configurationService, dialogService, instantiationService, logService, runner, sessionsManagementService, sessionsService, widget };
 	}
 
 	test('renders localized schedules and shared session rows', () => {
@@ -1155,6 +1168,31 @@ suite('AutomationsCardsWidget', () => {
 			message: 'Failed to update automation.',
 			detail: 'This automation changed while the dialog was open. Reopen it to review the latest values.',
 		}]);
+	});
+
+	test('edit dialog failures are logged and reported to the user', async () => {
+		const { automationDialogService, automationService, dialogService, logService, widget } = setup();
+		const item = automation();
+		automationService.setAutomations([item]);
+		const error = new Error('dialog failed');
+		automationDialogService.error = error;
+
+		widget.element.querySelector<HTMLButtonElement>('.automations-card-main')?.click();
+		await dialogService.errorCalled.p;
+
+		assert.deepStrictEqual({
+			loggedErrors: logService.errors,
+			dialogErrors: dialogService.errors,
+		}, {
+			loggedErrors: [{
+				message: '[AutomationsCards] Failed to update automation',
+				args: [error],
+			}],
+			dialogErrors: [{
+				message: 'Failed to update automation.',
+				detail: 'dialog failed',
+			}],
+		});
 	});
 
 	test('run failures are reported to the user', async () => {

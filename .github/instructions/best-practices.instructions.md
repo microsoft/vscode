@@ -19,6 +19,10 @@ applyTo: src/vs/**
 - Resolve editor action arguments with `resolveCommandsContext` (`vs/workbench/browser/parts/editor/editorCommandsContext.ts`) to get the correct editor(s) instead of reading `editorService.activeEditor`.
 - Support multi-selection. The resolved editor actions context can contain several editors (e.g. multi-selected tabs).
 
+## Context Keys
+
+- Don't use context keys as a source of truth for application logic (for example, by reading `IContextKeyService.getContextKeyValue()` and branching on the result). Read the state from its owning service or model instead. Context keys are intended for declarative enablement and visibility, such as when clauses, command preconditions, and menu contributions.
+
 ## URI
 
 - Don't hardcode URI scheme strings like `'file'`, `'untitled'`, or `'vscode-remote'`. Use the `Schemas` constants from `vs/base/common/network.ts` (e.g. `Schemas.file`, `Schemas.untitled`, `Schemas.vscodeRemote`).

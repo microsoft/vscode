@@ -28,13 +28,13 @@ import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { CLOSE_CHAT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { CLOSE_CHAT_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
-import { $, append, EventHelper, reset } from '../../../../base/browser/dom.js';
+import { $, append, EventHelper, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -348,6 +348,114 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsService = accessor.get(ISessionsService);
 		sessionsPartService.focusSession(sessionsService.activeSession.get());
+	}
+});
+
+function withActiveSessionView(accessor: ServicesAccessor, action: (view: NonNullable<ReturnType<ISessionsPartService['getSessionView']>>) => void): void {
+	const sessionsService = accessor.get(ISessionsService);
+	const view = accessor.get(ISessionsPartService).getSessionView(sessionsService.activeSession.get()?.sessionId);
+	if (view) {
+		action(view);
+	}
+}
+
+registerAction2(class FocusPreviousChatGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID,
+			title: localize2('focusPreviousChatGroup', "Focus Previous Chat Group"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.LeftArrow),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.focusAdjacentChatGroup('previous'));
+	}
+});
+
+registerAction2(class FocusNextChatGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_NEXT_CHAT_GROUP_COMMAND_ID,
+			title: localize2('focusNextChatGroup', "Focus Next Chat Group"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.RightArrow),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.focusAdjacentChatGroup('next'));
+	}
+});
+
+registerAction2(class SplitChatGroupRightAction extends Action2 {
+	constructor() {
+		super({
+			id: SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID,
+			title: localize2('splitChatGroupRight', "Split Chat Group Right"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.splitActiveChat('right'));
+	}
+});
+
+registerAction2(class SplitChatGroupDownAction extends Action2 {
+	constructor() {
+		super({
+			id: SPLIT_CHAT_GROUP_DOWN_COMMAND_ID,
+			title: localize2('splitChatGroupDown', "Split Chat Group Down"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.splitActiveChat('bottom'));
+	}
+});
+
+registerAction2(class MoveChatToPreviousGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID,
+			title: localize2('moveChatToPreviousGroup', "Move Chat to Previous Group"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.moveActiveChatToAdjacentGroup('previous'));
+	}
+});
+
+registerAction2(class MoveChatToNextGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID,
+			title: localize2('moveChatToNextGroup', "Move Chat to Next Group"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.moveActiveChatToAdjacentGroup('next'));
 	}
 });
 
@@ -1300,11 +1408,21 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 						menu: { id: Menus.SessionConversations, group, order, when: scopedToSession },
 					});
 				}
-				override async run(_accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
+				override async run(accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
 					const target = forwardedSession ?? session;
 					const targetChat = target.chats.get().find(c => extUri.isEqual(c.resource, chatResource));
 					if (!targetChat) {
 						return;
+					}
+					// Alt-invoke opens the chat to the side (in a new group beside the
+					// active one) instead of in place; the dropdown's select handler
+					// does not forward the mouse event, so read the live modifier state.
+					if (ModifierKeyEmitter.getInstance().keyStatus.altKey) {
+						const view = accessor.get(ISessionsPartService).getSessionView(target.sessionId);
+						if (view) {
+							await view.openChatToSide(targetChat.resource);
+							return;
+						}
 					}
 					await that._sessionsService.openChat(target, targetChat.resource);
 				}

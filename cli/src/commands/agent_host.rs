@@ -15,6 +15,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use crate::auth::Auth;
 use crate::constants::{self, AGENT_HOST_PORT};
 use crate::log;
+use crate::options::TelemetryLevel;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
 	classify_agent_host, serve_agent_host_tunnel_connection, AgentHostConfig, AgentHostManager,
@@ -288,6 +289,11 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
 		AgentHostConfig {
 			server_data_dir: args.server_data_dir.clone(),
+			telemetry_level: if ctx.args.global_options.disable_telemetry {
+				Some(TelemetryLevel::Off)
+			} else {
+				ctx.args.global_options.telemetry_level
+			},
 			// The AH backend runs on an internal-only unix socket / named
 			// pipe between this supervisor and its child, so we
 			// deliberately disable the backend's token check; this

@@ -34,6 +34,7 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 	private readonly _hasDockedDetailsContext: IContextKey<boolean>;
 	private readonly _sequencer = new Sequencer();
 	private _generation = 0;
+	private _target = DetailPanelTarget.Preserve;
 
 	constructor(
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
@@ -43,6 +44,11 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 	) {
 		super();
 		this._hasDockedDetailsContext = HasDockedDetailsContext.bindTo(contextKeyService);
+		this._register(this._layoutService.onDidChangePartVisibility(event => {
+			if (event.partId === Parts.AUXILIARYBAR_PART && event.visible) {
+				this._queueTarget(this._target);
+			}
+		}));
 		this._register(autorun(reader => {
 			const activeSession = sessionsService.activeSession.read(reader);
 			if (!activeSession || (!(activeSession.isQuickChat?.read(reader) ?? false) && !activeSession.workspace.read(reader))) {
@@ -55,8 +61,13 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 	 * Publishes the target context and serializes Changes/Files container selection.
 	 */
 	sync(target: DetailPanelTarget): void {
+		this._target = target;
 		this._hasDockedDetailsContext.set(target === DetailPanelTarget.Changes || target === DetailPanelTarget.ChangesForced
 			|| target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesForced);
+		this._queueTarget(target);
+	}
+
+	private _queueTarget(target: DetailPanelTarget): void {
 		const generation = ++this._generation;
 		void this._sequencer.queue(() => this._syncTarget(target, generation)).catch(onUnexpectedError);
 	}

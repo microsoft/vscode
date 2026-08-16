@@ -196,6 +196,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected create(parent: HTMLElement): HTMLElement {
 		this.updateTabHeight();
+		this.updateTabActionSpaceReservation();
 		return parent;
 	}
 
@@ -662,11 +663,19 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.parent.classList.toggle('compact-height', this.groupsView.partOptions.tabHeight === 'compact');
 	}
 
+	private updateTabActionSpaceReservation(): void {
+		this.parent.classList.toggle('tab-actions-reserve-space', this.groupsView.partOptions.tabActionReserveSpace);
+	}
+
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 
 		// Update tab height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
 			this.updateTabHeight();
+		}
+
+		if (oldOptions.tabActionReserveSpace !== newOptions.tabActionReserveSpace) {
+			this.updateTabActionSpaceReservation();
 		}
 
 		// Update Editor Actions Toolbar

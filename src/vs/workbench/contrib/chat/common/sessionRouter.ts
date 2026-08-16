@@ -31,6 +31,8 @@ export function isHighConfidenceSessionRoute(result: ISessionRouteResult): boole
 export interface IRoutableSession {
 	/** Stable identifier used to dispatch the request (e.g. via a `send_message` tool). */
 	readonly sessionId: string;
+	/** Authoritative provider-owned session resource, when available. */
+	readonly resource?: URI;
 	/** Human-readable session name shown to the user. */
 	readonly label: string;
 	/** Owning repository, when known (e.g. `owner/repo`). */

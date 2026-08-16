@@ -58,7 +58,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('chat.closeInputWindow', "Close Floating Chat Input Window"),
 			category: Categories.View,
 			f1: false,
-			icon: Codicon.close,
+			icon: Codicon.closeSmall,
 		});
 	}
 	run(accessor: ServicesAccessor): void {

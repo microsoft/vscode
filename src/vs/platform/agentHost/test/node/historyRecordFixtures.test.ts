@@ -8,11 +8,11 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
-import { FileEditKind, MessageKind, ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { FileEditKind, MessageKind, ResponsePartKind, ToolResultContentType, buildChatUri } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
-import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
 suite('mapSessionEventsToHistoryRecords', () => {
@@ -20,6 +20,10 @@ suite('mapSessionEventsToHistoryRecords', () => {
 	const disposables = new DisposableStore();
 	let db: SessionDatabase | undefined;
 	const session = AgentSession.uri('copilot', 'test-session');
+
+	function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2]) {
+		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')));
+	}
 
 	teardown(async () => {
 		disposables.clear();

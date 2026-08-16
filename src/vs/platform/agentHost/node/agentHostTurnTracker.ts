@@ -8,6 +8,8 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
+import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './agentHostToolCallTracker.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import type { ToolCallContributor } from '../common/state/sessionState.js';
@@ -57,6 +59,7 @@ interface ITurnTiming {
 	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
 	readonly permissionLevel: string | undefined;
 	readonly interactionMode: SessionMode | undefined;
+	readonly clientContext: IAgentHostClientTelemetryContext;
 	firstProgressMs: number | undefined;
 
 	// Hang watchdog state
@@ -132,7 +135,7 @@ export class AgentHostTurnTracker extends Disposable {
 		}));
 	}
 
-	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined, interactionMode: SessionMode | undefined): void {
+	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown)): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
@@ -144,6 +147,7 @@ export class AgentHostTurnTracker extends Disposable {
 			modelSelectionKind: model === undefined ? 'default' : model === 'auto' ? 'auto' : 'explicit',
 			permissionLevel,
 			interactionMode,
+			clientContext,
 			firstProgressMs: undefined,
 			quietStopWatch: StopWatch.create(false),
 			lastActivityKind: TURN_ACTIVITY_NONE,
@@ -291,6 +295,10 @@ export class AgentHostTurnTracker extends Disposable {
 		return timing ? { model: timing.model, modelTelemetryKind: timing.modelTelemetryKind } : undefined;
 	}
 
+	getClientTelemetryContext(session: string, turnId: string): IAgentHostClientTelemetryContext | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.clientContext;
+	}
+
 	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure, workspace?: { readonly isMultiRoot: boolean; readonly folderCount: number }): void {
 		const key = this._key(session, turnId);
 		const timing = this._turnTimings.get(key);
@@ -300,6 +308,7 @@ export class AgentHostTurnTracker extends Disposable {
 		this._disposeTurn(key, timing);
 
 		this._reporter.turnCompleted({
+			clientContext: timing.clientContext,
 			provider: timing.provider,
 			session: timing.session,
 			turnId,
@@ -320,6 +329,7 @@ export class AgentHostTurnTracker extends Disposable {
 		// which distinguishes a permanent hang from a merely slow turn.
 		if (timing.lastHangReason !== undefined) {
 			this._reporter.hungTurnCompleted({
+				clientContext: timing.clientContext,
 				provider: timing.provider,
 				session: timing.session,
 				turnId,
@@ -397,6 +407,7 @@ export class AgentHostTurnTracker extends Disposable {
 			const userBlocker = this._firstUserBlocker(timing);
 			const stuckTool = this._resolveStuckTool(timing, hangReason);
 			this._reporter.turnHung({
+				clientContext: timing.clientContext,
 				provider: timing.provider,
 				session: timing.session,
 				turnId: timing.turnId,

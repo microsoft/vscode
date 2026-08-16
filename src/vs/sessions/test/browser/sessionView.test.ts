@@ -17,7 +17,8 @@ suite('Sessions - Session View', () => {
 			_isPartVisible: true,
 			_isLeafVisible: true,
 			_lastLayout: undefined,
-			_currentView: { value: { setVisible: (visible: boolean) => forwarded.push(visible) } },
+			_groupsView: { setSessionVisible: (visible: boolean) => forwarded.push(visible) },
+			_standaloneView: { value: undefined },
 		});
 
 		// A sibling session is maximized, hiding this leaf.
@@ -30,5 +31,29 @@ suite('Sessions - Session View', () => {
 		view.setPartVisible(true);
 
 		assert.deepStrictEqual(forwarded, [false, true]);
+	});
+
+	test('exposes active state to shared editor tab presentation', () => {
+		const element = document.createElement('div');
+		element.classList.add('modern-ui-editor-tab-group');
+		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			_isActive: true,
+			element,
+			themeService: { getColorTheme: () => ({ getColor: () => undefined }) },
+			_groupsView: { setSessionActive: () => { } },
+			_standaloneView: { value: undefined },
+		});
+
+		view.setActive(false);
+		const inactiveClassName = element.className;
+		view.setActive(true);
+
+		assert.deepStrictEqual({
+			inactiveClassName,
+			activeClassName: element.className,
+		}, {
+			inactiveClassName: 'modern-ui-editor-tab-group',
+			activeClassName: 'modern-ui-editor-tab-group modern-ui-editor-tab-group-active',
+		});
 	});
 });

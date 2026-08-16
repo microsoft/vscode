@@ -1078,18 +1078,45 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: 3px;
 }
 
+/*
+ * How round the chat input run is.
+ *
+ * Declared on the part that wraps the whole stack rather than on the input
+ * itself. Everything docked above the input joins it into a single surface, so
+ * those members have to round their outer corners to the same value - and a
+ * custom property only reaches them from a shared ancestor. `chatInputStack.css`
+ * republishes this as the run's outer radius; members read it from there.
+ *
+ * The three rules below are ordered, not just specific: `.compact` and the
+ * quick input scope both match at the same specificity and a compact input
+ * inside the quick input widget must round like a compact one, so `.compact`
+ * comes last. Keep them adjacent and in this order.
+ */
+.interactive-session .interactive-input-part {
+	--chat-input-radius: var(--vscode-cornerRadius-large);
+}
+
+.quick-input-widget .interactive-session .interactive-input-part {
+	--chat-input-radius: var(--vscode-cornerRadius-xSmall);
+}
+
+.interactive-session .interactive-input-part.compact {
+	--chat-input-radius: var(--vscode-cornerRadius-small);
+}
+
 .monaco-workbench .interactive-session .chat-input-container {
 	box-sizing: border-box;
 	cursor: text;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
-	/* Top corners follow the stack, so a docked widget can square them. */
-	--chat-input-radius: var(--vscode-cornerRadius-large);
+	/* Top corners follow the stack, so a docked widget can square them. The
+		fallback keeps an input rendered outside a chat input part rounded. */
+	--chat-input-own-radius: var(--chat-input-radius, var(--vscode-cornerRadius-large));
 	border-radius:
-		var(--chat-input-stack-radius-top, var(--chat-input-radius))
-		var(--chat-input-stack-radius-top, var(--chat-input-radius))
-		var(--chat-input-radius)
-		var(--chat-input-radius);
+		var(--chat-input-stack-radius-top, var(--chat-input-own-radius))
+		var(--chat-input-stack-radius-top, var(--chat-input-own-radius))
+		var(--chat-input-own-radius)
+		var(--chat-input-own-radius);
 	padding: 0 6px 6px 6px;
 	/* top padding is inside the editor widget */
 	width: 100%;
@@ -1769,7 +1796,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-bottom: 0;
 	/* no scrollbar */
 	padding-right: 6px;
-	--chat-input-radius: var(--vscode-cornerRadius-small);
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
@@ -2585,7 +2611,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .quick-input-widget .interactive-session .chat-input-container {
 	margin: 0;
-	--chat-input-radius: var(--vscode-cornerRadius-xSmall);
 	padding: 0 4px 0 6px;
 }
 
@@ -3884,13 +3909,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: absolute;
 	bottom: 7px;
 	right: 12px;
-	border-radius: 100%;
-	width: 27px;
-	height: 27px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size280);
 
 	.codicon {
-		margin: 0px;
+		margin: 0;
 	}
+
+	.codicon::before {
+		display: inline-block;
+		transform: translateY(1px);
+	}
+}
+
+.interactive-session .chat-scroll-down:hover,
+.interactive-session .chat-scroll-down:focus {
+	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
+	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
 .interactive-session.show-scroll-down .chat-scroll-down {

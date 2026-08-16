@@ -20,6 +20,7 @@ import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -879,7 +880,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * model / effort (set eagerly via {@link setModel}) is whatever
 	 * the SDK has been told.
 	 */
-	async send(prompt: SDKUserMessage, turnId: string, resource: URI, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport, hostInstructions?: readonly string[]): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string, resource: URI, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport, hostInstructions?: readonly string[], clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		const pipeline = this._requirePipeline();
 		if (workingDirectories) {
 			this._replaceDesiredWorkingDirectories(workingDirectories);
@@ -904,7 +905,7 @@ export class ClaudeAgentSession extends Disposable {
 		await this._reconcileMcpServerEnablement();
 		this._hostInstructions = hostInstructions;
 		try {
-			await pipeline.send(prompt, turnId);
+			await pipeline.send(prompt, turnId, clientContext);
 		} finally {
 			this._hostInstructions = undefined;
 		}

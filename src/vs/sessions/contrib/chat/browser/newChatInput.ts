@@ -12,7 +12,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, thenRegisterOrDispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -21,8 +21,9 @@ import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
@@ -356,7 +357,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
-	private readonly _inputModelReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
 	private _sessionControlsContainer: HTMLElement | undefined;
 	private readonly _promptTemplatePlaceholder = this._register(new MutableDisposable<PromptTemplatePlaceholderController>());
 	private readonly _promptOptionsWidget = this._register(new MutableDisposable<NewSessionPromptOptionsWidget>());
@@ -702,12 +702,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	 * input model and force-destroys it when the last reference is released.
 	 * Holding one keeps the model alive for this editor's lifetime.
 	 */
-	private async _holdInputModelReference(uri: URI): Promise<void> {
-		try {
-			this._inputModelReference.value = await this.textModelService.createModelReference(uri);
-		} catch (error) {
-			this.logService.error('Failed to hold the chat input model reference', error);
-		}
+	private _holdInputModelReference(uri: URI, model: ITextModel): void {
+		const inputModelReference = thenRegisterOrDispose(this.textModelService.createModelReference(uri), this._store);
+		void inputModelReference.catch(error => {
+			model.dispose();
+			if (!this._store.isDisposed) {
+				this.logService.error('Failed to hold the chat input model reference', error);
+			}
+		});
 	}
 
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
@@ -725,8 +727,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
 
 		const uri = URI.from({ scheme: Schemas.sessionsChatInput, path: `input-${Date.now()}` });
-		const textModel = this._register(this.modelService.createModel('', null, uri, true));
-		void this._holdInputModelReference(uri);
+		const textModel = this.modelService.createModel('', null, uri, true);
+		this._holdInputModelReference(uri, textModel);
 
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this.configurationService),
@@ -1035,6 +1037,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.voiceSessionController.isConnecting.read(reader),
 			this.voiceSessionController.targetSession.read(reader),
 			this.voiceSessionController.hasDraftTarget.read(reader),
+			this.voiceSessionController.omniInputOpen.read(reader),
 		));
 
 		const action = toAction({
@@ -1145,6 +1148,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				this.voiceSessionController.isConnecting.get(),
 				this.voiceSessionController.targetSession.get(),
 				this.voiceSessionController.hasDraftTarget.get(),
+				this.voiceSessionController.omniInputOpen.get(),
 			);
 			const dict = this.voiceInputModeService.dictationAvailable.get();
 			const voice = this.voiceInputModeService.voiceAvailable.get();
@@ -1166,6 +1170,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.voiceSessionController.isConnecting.read(reader);
 			this.voiceSessionController.targetSession.read(reader);
 			this.voiceSessionController.hasDraftTarget.read(reader);
+			this.voiceSessionController.omniInputOpen.read(reader);
 			this.voiceInputModeService.dictationAvailable.read(reader);
 			this.voiceInputModeService.voiceAvailable.read(reader);
 			this.voiceInputModeService.handsFree.read(reader);

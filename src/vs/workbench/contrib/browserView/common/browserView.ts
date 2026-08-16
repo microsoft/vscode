@@ -182,6 +182,9 @@ export interface IBrowserEditorViewState {
 
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
 
+/** The editor that renders a page in the Integrated Browser. */
+export const BrowserViewEditorId = 'workbench.editor.browser';
+
 /**
  * A filter that contextually restricts the browser views returned by
  * {@link IBrowserViewWorkbenchService.getContextualBrowserViews}.

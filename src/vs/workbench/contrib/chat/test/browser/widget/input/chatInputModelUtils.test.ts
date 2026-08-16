@@ -18,6 +18,7 @@ import {
 	hasModelsTargetingSession,
 	isModelHiddenInPicker,
 	isModelSupportedForInlineChat,
+	resolveEditedRequestSelection,
 	isModelSupportedForMode,
 	isModelValidForSession,
 	isNewConversation,
@@ -467,8 +468,17 @@ suite('ChatInputModelUtils', () => {
 			sessionType: undefined,
 		};
 
-		test('should reset when current model is undefined', () => {
-			assert.strictEqual(shouldResetModelToDefault(undefined, [], defaultContext, []), true);
+		test('does not reset when nothing is selected yet', () => {
+			// Validation must not invent a selection: with an empty catalog there is nothing to
+			// reset to, and with a partly-published one the first arrival is an arbitrary stand-in.
+			const model = createModel('gpt', 'GPT');
+			assert.deepStrictEqual({
+				emptyCatalog: shouldResetModelToDefault(undefined, [], defaultContext, []),
+				partlyPublished: shouldResetModelToDefault(undefined, [model], defaultContext, [model]),
+			}, {
+				emptyCatalog: false,
+				partlyPublished: false,
+			});
 		});
 
 		test('should reset when model is no longer available', () => {
@@ -1744,6 +1754,24 @@ suite('ChatInputModelUtils', () => {
 			const hidden = new Set(['openrouter/OpenRouter 2/ai21/jamba-large-1.7']);
 			const result = [visible, hiddenModel].filter(m => !isModelHiddenInPicker(m, id => hidden.has(id)));
 			assert.deepStrictEqual(result.map(m => m.identifier), ['agent-host-copilotcli:anthropic/claude-sonnet-4']);
+		});
+	});
+
+	suite('resolveEditedRequestSelection', () => {
+
+		test('a resubmit uses the inline editor\'s selection, not the composer\'s', () => {
+			// Issue #319743: the inline editor is torn down before the request is built, so its
+			// selection is captured first and must win. Falling back to the composer resubmits with
+			// a model the user did not choose — and bills them for it.
+			assert.deepStrictEqual({
+				edited: resolveEditedRequestSelection('gpt-5.5', 'claude-opus-4.8'),
+				noEditInFlight: resolveEditedRequestSelection(undefined, 'claude-opus-4.8'),
+				editedMatchesComposer: resolveEditedRequestSelection('gpt-5.5', 'gpt-5.5'),
+			}, {
+				edited: 'gpt-5.5',
+				noEditInFlight: 'claude-opus-4.8',
+				editedMatchesComposer: 'gpt-5.5',
+			});
 		});
 	});
 });

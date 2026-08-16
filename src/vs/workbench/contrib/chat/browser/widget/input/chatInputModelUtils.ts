@@ -221,8 +221,11 @@ export function shouldResetModelToDefault(
 	context: IModelSelectionContext,
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
 ): boolean {
+	// Nothing selected yet is not a reason to reset: with an empty catalog there is nothing to
+	// reset *to*, and with a partly-published one the first model to arrive is an arbitrary
+	// stand-in. Waiting lets the intended model be applied when it appears.
 	if (!currentModel) {
-		return true;
+		return false;
 	}
 
 	// Model is no longer in the available list
@@ -344,3 +347,15 @@ export function shouldResetOnModelListChange(
 	return !availableModels.some(m => m.identifier === currentModelId);
 }
 
+
+/**
+ * The selection a request should be sent with, given what an inline request editor had chosen.
+ *
+ * Resubmitting an edited request must use the picker the user actually chose in. That editor is
+ * torn down before the request is built, so its selection is captured up front and always wins
+ *
+ * `edited` is `undefined` when no inline edit is in flight, in which case the composer is correct.
+ */
+export function resolveEditedRequestSelection<T>(edited: T | undefined, composer: T): T {
+	return edited ?? composer;
+}

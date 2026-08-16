@@ -58,7 +58,7 @@ export class ChatGoalBannerWidget extends Disposable {
 		const dismissBtn = dom.append(this._bannerEl, $('button.chat-goal-banner-dismiss'));
 		dismissBtn.title = localize('chat.goalBanner.dismiss', "Dismiss");
 		dismissBtn.setAttribute('aria-label', localize('chat.goalBanner.dismiss', "Dismiss"));
-		dismissBtn.appendChild($(ThemeIcon.asCSSSelector(Codicon.close)));
+		dismissBtn.appendChild($(ThemeIcon.asCSSSelector(Codicon.closeSmall)));
 		this._register(dom.addDisposableListener(dismissBtn, dom.EventType.CLICK, () => {
 			this.clear();
 			this._onDismissEmitter.fire();

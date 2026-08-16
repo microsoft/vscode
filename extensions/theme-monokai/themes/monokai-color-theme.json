@@ -63,7 +63,7 @@
 		"inputOption.activeBorder": "#75715E",
 		"focusBorder": "#99947c",
 		// agent sessions
-		"agentsPanel.border": "#414339",
+		"agentsPanel.border": "#00000000",
 		"agentsChatInput.border": "#414339",
 		"agentsChatInput.focusBorder": "#99947c",
 		"agentsNewSessionButton.border": "#414339",

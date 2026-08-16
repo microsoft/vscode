@@ -418,4 +418,24 @@ suite('ChatPromoNotificationContribution', () => {
 		const stored = JSON.parse(storageService.get('chat.dismissedPromoIds', StorageScope.APPLICATION) ?? '[]');
 		assert.deepStrictEqual(stored, ['promo-shared']);
 	});
+
+	test('dismissing a promo in one window hides it in other windows', () => {
+		const promo = { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off' };
+		const models = [{ identifier: 'copilot:gpt-5.5', metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo } }];
+		// Both windows of the same app share application-scoped storage.
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		const windowA = createMockNotificationService(disposables);
+		const windowB = createMockNotificationService(disposables);
+		disposables.add(new ChatPromoNotificationContribution(createMockLanguageModelsService(models, disposables).service, windowA.service, storageService));
+		disposables.add(new ChatPromoNotificationContribution(createMockLanguageModelsService(models, disposables).service, windowB.service, storageService));
+
+		assert.ok(windowA.getNotification());
+		assert.ok(windowB.getNotification());
+
+		windowA.dismiss();
+
+		assert.strictEqual(windowA.getNotification(), undefined, 'Dismissing window should hide the promo');
+		assert.strictEqual(windowB.getNotification(), undefined, 'Other windows should hide the promo too');
+	});
 });

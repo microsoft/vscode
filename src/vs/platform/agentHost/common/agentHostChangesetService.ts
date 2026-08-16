@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ChangesSummary } from './state/protocol/state.js';
 import type { ISessionFileDiff, URI as ProtocolURI } from './state/sessionState.js';
 
@@ -286,14 +287,14 @@ export interface IAgentHostChangesetService {
 	 * Hook called by `AgentSideEffects` after a tool call that produced
 	 * file edits completes. Schedules a debounced session-changeset recompute.
 	 */
-	onToolCallEditsApplied(session: ProtocolURI, turnId: string): void;
+	onToolCallEditsApplied(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * Hook called by `AgentSideEffects` when a turn completes. Cancels any
 	 * pending mid-turn debounce, then schedules a final session + uncommitted
 	 * recompute. Ordering matters — see implementation.
 	 */
-	onTurnComplete(session: ProtocolURI, turnId: string | undefined): void;
+	onTurnComplete(session: ProtocolURI, turnId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * Hook called by `AgentSideEffects` when a session is truncated (turns

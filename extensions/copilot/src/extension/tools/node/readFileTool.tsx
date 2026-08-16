@@ -22,6 +22,7 @@ import { IWorkspaceService } from '../../../platform/workspace/common/workspaceS
 import { getCachedSha256Hash } from '../../../util/common/crypto';
 import { clamp } from '../../../util/vs/base/common/numbers';
 import { dirname, extUriBiasedIgnorePathCase } from '../../../util/vs/base/common/resources';
+import { isHighSurrogate, isLowSurrogate } from '../../../util/vs/base/common/strings';
 import { sendSkillContentReadTelemetry } from '../common/skillTelemetry';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -432,7 +433,11 @@ class ReadFileResult extends PromptElement<ReadFileResultProps> {
 		let contents = rawContents.split('\n').map(line => {
 			if (line.length > MAX_LINE_LENGTH) {
 				hadLongLines = true;
-				return line.slice(0, MAX_LINE_LENGTH) + ' [truncated]';
+				let end = MAX_LINE_LENGTH;
+				if (isHighSurrogate(line.charCodeAt(end - 1)) && isLowSurrogate(line.charCodeAt(end))) {
+					end--;
+				}
+				return line.slice(0, end) + ' [truncated]';
 			}
 			return line;
 		}).join('\n');

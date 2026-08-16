@@ -22,6 +22,7 @@ import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, markPending
 import { getVoiceConfirmationType } from '../../common/voiceClient/voiceConfirmation.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
 
 /**
  * Callbacks that require access to the chat widget or view state.
@@ -129,7 +130,6 @@ export const IVoiceToolDispatchService = createDecorator<IVoiceToolDispatchServi
 /** Action labels displayed in the status bar during tool execution. */
 const ACTION_LABELS: Record<string, string> = {
 	send_to_chat: localize('agentsVoice.action.sendToChat', "Sending to chat..."),
-	new_sessions: localize('agentsVoice.action.newSessions', "Starting new sessions..."),
 	get_session_info: localize('agentsVoice.action.getSessionInfo', "Checking sessions..."),
 	get_session_changes: localize('agentsVoice.action.getSessionChanges', "Checking changes..."),
 	get_session_thread: localize('agentsVoice.action.getSessionThread', "Checking conversation..."),
@@ -207,29 +207,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 							await this.chatService.sendRequest(ref.object.sessionResource, text, this._agentModeOptions);
 							ref.dispose();
 						}
-					}
-				}
-				break;
-			}
-			case 'new_sessions': {
-				const sessions = args['sessions'];
-				const items: { text?: string }[] = Array.isArray(sessions) ? sessions : [{ text: argString('text') }];
-				let firstResource: URI | undefined;
-				for (const item of items) {
-					const text = item.text;
-					if (text) {
-						const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
-						const resource = ref.object.sessionResource;
-						if (!firstResource) {
-							firstResource = resource;
-						}
-						await this.chatService.sendRequest(resource, text, this._agentModeOptions);
-						ref.dispose();
-					}
-				}
-				if (firstResource) {
-					if (await delegate.switchToSession(firstResource)) {
-						delegate.setTargetSession(firstResource);
 					}
 				}
 				break;
@@ -590,7 +567,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 						: 'unknown';
 			const lastActivity = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created ?? 0;
 			return {
-				id: session.resource.toString(),
+				id: (toAgentHostBackendSessionUri(session.resource) ?? session.resource).toString(),
 				label: session.label || undefined,
 				session_type: 'agent' as const,
 				state,
@@ -614,7 +591,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			const inProgress = model.hasActiveRequest?.get();
 			const lastActivity = model.lastMessageDate || 0;
 			sessionData.push({
-				id: sessionId,
+				id: (toAgentHostBackendSessionUri(model.sessionResource) ?? model.sessionResource).toString(),
 				label: model.title || undefined,
 				session_type: 'chat',
 				state: needsInput ? 'waiting_for_input' : inProgress ? 'working' : 'idle',

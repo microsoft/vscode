@@ -27,7 +27,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
-import { AgentSession, type AgentSignal, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
+import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind } from '../../../common/state/sessionState.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
@@ -224,6 +224,10 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 /** The deterministic session-backed chat URI Agent Host mints for `session`. */
 function defaultChatOf(session: URI): URI {
 	return URI.parse(buildDefaultChatUri(session));
+}
+
+function chatContext(session: URI, chat: URI): IAgentChatContext {
+	return { configurationResource: session, resource: chat };
 }
 
 /**
@@ -491,7 +495,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const backingSession = created.backingSession;
 		assert.ok(backingSession);
 
-		const releasing = agent.chats.releaseChat?.(chat);
+		const releasing = agent.chats.releaseChat?.(chat, chatContext(parent.session, chat));
 		const releaseUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: releaseUnsubscribe.id, result: {} });
 		await releasing;
@@ -532,7 +536,7 @@ suite('CodexAgent prewarm eviction', () => {
 			managedDirectoryExists: true,
 		});
 
-		const disposing = agent.chats.disposeChat(chat);
+		const disposing = agent.chats.disposeChat(chat, chatContext(parent.session, chat));
 		const unsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: unsubscribe.id, result: {} });
 		await disposing;
@@ -693,13 +697,13 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.ok(managedDirectory);
 		await agent['_metadataStore'].read(created.backingSession);
 
-		const releasing = agent.chats.releaseChat?.(chat);
+		const releasing = agent.chats.releaseChat?.(chat, chatContext(parent.session, chat));
 		const unsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: unsubscribe.id, result: {} });
 		await releasing;
 		assert.strictEqual(fs.existsSync(managedDirectory.fsPath), true);
 
-		await agent.chats.disposeChat(chat);
+		await agent.chats.disposeChat(chat, chatContext(parent.session, chat));
 		assert.deepStrictEqual({
 			sessionExists: agent['_sessions'].has('released-peer'),
 			releasedOwnershipExists: agent['_releasedManagedWorkingDirectories'].has('released-peer'),
@@ -747,7 +751,7 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.push({ id: chatGPTStart.id, result: { thread: { id: 'thread-chatgpt' } } });
 		await materializeChatGPT;
 
-		await agent.chats.changeModel(URI.parse(buildDefaultChatUri(copilot.session)), { id: chatGPTModel });
+		await agent.chats.changeModel(defaultChatOf(copilot.session), { id: chatGPTModel }, chatContext(copilot.session, defaultChatOf(copilot.session)));
 		const persistedAfterSwitch = await agent['_metadataStore'].read(copilot.session);
 		const rematerializeCopilot = agent['_materializeIfNeeded'](copilotEntry, copilotEntry.sessionUri, false);
 		const switchedStart = await readNextRequest(peer.outbound);
@@ -1909,8 +1913,8 @@ suite('CodexAgent managed working directory ownership', () => {
 			// released-directory memo simulates the in-memory map being
 			// empty, as it would be after a process restart.
 			agent['_releasedManagedWorkingDirectories'].clear();
-			await agent.chats.releaseChat(chat);
-			await agent.chats.disposeChat(chat);
+			await agent.chats.releaseChat(chat, chatContext(session, chat));
+			await agent.chats.disposeChat(chat, chatContext(session, chat));
 
 			assert.strictEqual(fs.existsSync(marker), true, 'the user folder must never be deleted');
 		} finally {
@@ -1941,8 +1945,8 @@ suite('CodexAgent managed working directory ownership', () => {
 			);
 
 			agent['_releasedManagedWorkingDirectories'].clear();
-			await agent.chats.releaseChat(chat);
-			await agent.chats.disposeChat(chat);
+			await agent.chats.releaseChat(chat, chatContext(session, chat));
+			await agent.chats.disposeChat(chat, chatContext(session, chat));
 
 			assert.strictEqual(fs.existsSync(managedFolder), false, 'the explicitly recorded managed folder is still cleaned up');
 		} finally {

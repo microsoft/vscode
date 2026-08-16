@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import {
+	composeAgentHostBootstrapScript,
 	decodeWslOutput,
 	parseRunningDistros,
 	parseWslListVerbose,
@@ -97,6 +99,36 @@ suite('WSL Remote Agent Host Helpers', () => {
 
 		test('returns empty string for empty buffer', () => {
 			assert.strictEqual(decodeWslOutput(Buffer.alloc(0)), '');
+		});
+	});
+
+	suite('composeAgentHostBootstrapScript', () => {
+		test('propagates telemetry disablement to the WSL agent host', () => {
+			const commit = 'a'.repeat(40);
+			const script = composeAgentHostBootstrapScript({
+				serverDataFolderName: '.vscode-server',
+				quality: 'stable',
+				commit,
+				os: 'linux',
+				arch: 'x64',
+				telemetryLevel: TelemetryConfiguration.OFF,
+			});
+
+			assert.ok(script.endsWith(`exec ~/.vscode-server/code-${commit} --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0`));
+		});
+
+		test('exports telemetry disablement for a custom command', () => {
+			const script = composeAgentHostBootstrapScript({
+				serverDataFolderName: '.vscode-server',
+				quality: 'stable',
+				commit: undefined,
+				os: 'linux',
+				arch: 'x64',
+				telemetryLevel: TelemetryConfiguration.OFF,
+				remoteAgentHostCommand: './start-agent-host',
+			});
+
+			assert.strictEqual(script, 'export VSCODE_AGENT_HOST_TELEMETRY_LEVEL=off && ./start-agent-host');
 		});
 	});
 });

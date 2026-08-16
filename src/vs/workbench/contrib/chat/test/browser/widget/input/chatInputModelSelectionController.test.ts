@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { ModelSelectionReason, resolveModelIdentifierFromCatalog } from '../../../../common/modelSelection.js';
+import { ModelSelectionReason, resolveModelIdentifierFromCatalog, type IIntendedModelSelection } from '../../../../common/modelSelection.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from '../../../../browser/widget/input/chatInputModelSelectionController.js';
 
 function model(identifier: string): ILanguageModelChatMetadataAndIdentifier {
@@ -35,12 +35,37 @@ function targetedModel(identifier: string, sessionType: string): ILanguageModelC
 	return { ...result, metadata: { ...result.metadata, targetChatSessionType: sessionType } };
 }
 
+/**
+ * Conversation-owned intent storage, standing in for `IInputModel.intendedModel`. Keying by
+ * conversation reproduces the production guarantee — one record per conversation, reachable only
+ * while that conversation is bound — rather than assuming it.
+ */
+function createIntentStore(
+	boundKey: () => string | undefined,
+	intents = new Map<string | undefined, IIntendedModelSelection | undefined>(),
+): Pick<IChatInputModelSelectionRuntime, 'getIntentHolder'> {
+	return {
+		getIntentHolder: () => ({
+			get intendedModel() { return intents.get(boundKey()); },
+			setIntendedModel: (selection: IIntendedModelSelection | undefined) => { intents.set(boundKey(), selection); },
+		}),
+	};
+}
+
 interface IRuntimeState {
 	models: ILanguageModelChatMetadataAndIdentifier[];
 	readonly sessionType: string;
 	configuredModel?: string;
 	/** Defaults to `true` (a new/empty session). Set to `false` to model a reopened conversation with history. */
 	isEmpty?: boolean;
+	/** The conversation the input is bound to. Reassign to model the input rebinding to another chat. */
+	conversationKey?: string;
+	/**
+	 * The intended model each conversation owns, standing in for `IInputModel.intendedModel`.
+	 * Keyed by conversation so the production guarantee — one record per conversation, reachable
+	 * only while that conversation is bound — is reproduced rather than assumed.
+	 */
+	readonly intents?: Map<string | undefined, IIntendedModelSelection | undefined>;
 }
 
 function createRuntime(
@@ -48,6 +73,7 @@ function createRuntime(
 	modelChanges: Emitter<string>,
 	applied: string[],
 ): IChatInputModelSelectionRuntime {
+	const boundKey = () => state.conversationKey ?? 'chat:one';
 	return {
 		location: ChatAgentLocation.Chat,
 		getCurrentModeKind: () => ChatModeKind.Ask,
@@ -58,8 +84,8 @@ function createRuntime(
 		requiresCustomModels: () => false,
 		getConfiguredModelValue: () => state.configuredModel,
 		subscribeToModelChanges: listener => modelChanges.event(listener),
-		getBoundConversationKey: () => 'chat:one',
-		getVisibleConversationKey: () => 'chat:one',
+		getBoundConversationKey: boundKey,
+		...createIntentStore(boundKey, state.intents),
 		restoreModelConfiguration: () => { },
 		applyModel: model => applied.push(model.identifier),
 	};
@@ -75,21 +101,21 @@ suite('ChatInputModelSelectionController', () => {
 		const first = model('test/first');
 		const second = model('test/second');
 
-		controller.applyAutomaticSelection(first, () => { });
+		controller.applySelection(first, () => { }, false);
 		const automatic = {
 			current: controller.currentModel.get()?.identifier,
-			explicit: controller.userExplicitlySelectedModel,
+			explicit: controller.selectionReason,
 		};
-		controller.applyExplicitSelection(second, () => { }, false);
+		controller.applySelection(second, () => { }, true, false);
 
 		assert.deepStrictEqual({
 			automatic,
 			current: controller.currentModel.get()?.identifier,
-			explicitAfterUserSelection: controller.userExplicitlySelectedModel,
+			explicitAfterUserSelection: controller.selectionReason,
 		}, {
-			automatic: { current: first.identifier, explicit: false },
+			automatic: { current: first.identifier, explicit: undefined },
 			current: second.identifier,
-			explicitAfterUserSelection: true,
+			explicitAfterUserSelection: ModelSelectionReason.UserSelection,
 		});
 	});
 
@@ -98,9 +124,9 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [], sessionType: 'test' }, modelChanges, [])));
 		const first = model('test/first');
 		const second = model('test/second');
-		controller.applyAutomaticSelection(first, () => { });
+		controller.applySelection(first, () => { }, false);
 
-		assert.throws(() => controller.applyExplicitSelection(second, () => { throw new Error('rejected'); }, true), /rejected/);
+		assert.throws(() => controller.applySelection(second, () => { throw new Error('rejected'); }, true, true), /rejected/);
 		assert.deepStrictEqual({
 			current: controller.currentModel.get()?.identifier,
 			reason: controller.selectionReason,
@@ -140,7 +166,6 @@ suite('ChatInputModelSelectionController', () => {
 		const second = model('test/second');
 		let models = [first];
 		const applied: string[] = [];
-		const initialSelections: string[] = [];
 
 		const runtime: IChatInputModelSelectionRuntime = {
 			location: ChatAgentLocation.Chat,
@@ -153,25 +178,23 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
 			},
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-		controller.initialize(second.identifier, result => initialSelections.push(result.kind));
+		controller.initialize(second.identifier);
 		const pending = controller.isAwaitingRememberedModel();
 		models = [first, second];
 		modelChanges.fire('test');
 
 		assert.deepStrictEqual({
-			initialSelections,
 			pending,
 			pendingAfterResolve: controller.isAwaitingRememberedModel(),
 			applied,
 		}, {
-			initialSelections: ['pending'],
 			pending: true,
 			pendingAfterResolve: false,
 			applied: [first.identifier, second.identifier],
@@ -195,13 +218,13 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => applied.push(selected.identifier),
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
-		controller.initialize(remembered.identifier, () => { });
+		controller.initialize(remembered.identifier);
 		models = [first];
 		modelChanges.fire('partial');
 		// The catalog calls the model conclusively gone; the reclaim must not depend on that verdict.
@@ -237,8 +260,8 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.initialize(remembered.identifier, () => { });
-		controller.applyExplicitSelection(explicit, () => applied.push(explicit.identifier), false);
+		controller.initialize(remembered.identifier);
+		controller.applySelection(explicit, () => applied.push(explicit.identifier), true, false);
 		state.models = [fallback, explicit, remembered];
 		modelChanges.fire('loaded');
 
@@ -262,7 +285,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.initialize(remembered.identifier, () => { });
+		controller.initialize(remembered.identifier);
 		controller.applyProgrammaticSelection(programmatic);
 		state.models = [fallback, programmatic, remembered];
 		modelChanges.fire('loaded');
@@ -322,7 +345,7 @@ suite('ChatInputModelSelectionController', () => {
 			() => state.models.find(model => model.identifier === requested.identifier),
 			'chat:one',
 		);
-		controller.applyExplicitSelection(explicit, () => applied.push(explicit.identifier), false);
+		controller.applySelection(explicit, () => applied.push(explicit.identifier), true, false);
 		state.models = [explicit, requested];
 		modelChanges.fire('loaded');
 
@@ -370,7 +393,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.initialize(remembered.identifier, () => { });
+		controller.initialize(remembered.identifier);
 		state.models = [fallback, locationDefault];
 		controller.reconcileModelListChange(state.models);
 		const pendingAfterDefault = controller.isAwaitingRememberedModel();
@@ -399,7 +422,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.initialize(remembered.identifier, () => { });
+		controller.initialize(remembered.identifier);
 		state.models = [replacement];
 		modelChanges.fire('fallback-removed');
 		const pendingAfterRepair = controller.isAwaitingRememberedModel();
@@ -427,7 +450,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.applyExplicitSelection(selected, () => { }, false);
+		controller.applySelection(selected, () => { }, true, false);
 		state.models = [other];
 		modelChanges.fire('agent-host-restarting');
 		const duringRestart = controller.currentModel.get()?.identifier;
@@ -459,7 +482,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
 		// The remembered model is already available, so `initialize` applies it and arms no wait.
-		controller.initialize(remembered.identifier, () => { });
+		controller.initialize(remembered.identifier);
 		state.models = [other];
 		modelChanges.fire('model-gone');
 		const duringOutage = controller.currentModel.get()?.identifier;
@@ -490,7 +513,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.applyExplicitSelection(selected, () => { }, false);
+		controller.applySelection(selected, () => { }, true, false);
 		state.models = [substitute];
 		modelChanges.fire('model-gone');
 		const duringOutage = controller.currentModel.get()?.identifier;
@@ -518,10 +541,10 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.applyExplicitSelection(selected, () => { }, false);
+		controller.applySelection(selected, () => { }, true, false);
 		state.models = [other, chosen];
 		modelChanges.fire('model-removed');
-		controller.applyExplicitSelection(chosen, () => { }, false);
+		controller.applySelection(chosen, () => { }, true, false);
 		state.models = [selected, other, chosen];
 		modelChanges.fire('model-back');
 
@@ -550,7 +573,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.applyExplicitSelection(picked, () => { }, false);
+		controller.applySelection(picked, () => { }, true, false);
 		state.models = [configured];
 		modelChanges.fire('picked-gone');
 		const duringOutage = controller.currentModel.get()?.identifier;
@@ -592,7 +615,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => configured.metadata.id,
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -600,7 +623,7 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
-		controller.initialize(undefined, () => { });
+		controller.initialize(undefined);
 		const pending = controller.hasPendingIntent();
 		models = [byok, configured];
 		controller.reconcileModelListChange(models);
@@ -625,7 +648,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.initialize(remembered.identifier, () => { });
+		controller.initialize(remembered.identifier);
 		state.models = [fallback, configured, remembered];
 		modelChanges.fire('loaded');
 
@@ -654,7 +677,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.initialize(undefined, () => { });
+		controller.initialize(undefined);
 		state.configuredModel = fallback.metadata.id;
 		state.models = [fallback, locationDefault];
 		modelChanges.fire('configured');
@@ -688,7 +711,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => configured.metadata.id,
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -696,8 +719,8 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
-		controller.initialize(undefined, () => { });
-		controller.applyExplicitSelection(explicit, () => applied.push(explicit.identifier), false);
+		controller.initialize(undefined);
+		controller.applySelection(explicit, () => applied.push(explicit.identifier), true, false);
 		models = [byok, explicit, configured];
 		controller.reconcileModelListChange(models);
 
@@ -725,7 +748,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -733,7 +756,7 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
-		controller.initialize(remembered.identifier, () => { });
+		controller.initialize(remembered.identifier);
 		controller.syncFromConversationState(restored, undefined, undefined, 'chat:one');
 		models = [fallback, restored, remembered];
 		modelChanges.fire('test');
@@ -768,7 +791,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => configured.metadata.id,
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -776,46 +799,10 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
-		controller.initialize(undefined, () => { });
+		controller.initialize(undefined);
 		controller.syncFromConversationState(restored, undefined, undefined, 'chat:one');
 		models = [restored, configured];
 		controller.reconcileModelListChange(models);
-
-		assert.deepStrictEqual({ applied, current: controller.currentModel.get()?.identifier }, {
-			applied: [restored.identifier],
-			current: restored.identifier,
-		});
-	});
-
-	test('conversation restore cancels older history intent', () => {
-		const modelChanges = disposables.add(new Emitter<string>());
-		const restored = model('test/restored');
-		const history = model('test/history');
-		let models = [restored];
-		const applied: string[] = [];
-		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
-			getCurrentSessionType: () => undefined,
-			isEmpty: () => false,
-			getModels: () => models,
-			getAllModels: () => models,
-			requiresCustomModels: () => false,
-			getConfiguredModelValue: () => undefined,
-			subscribeToModelChanges: listener => modelChanges.event(listener),
-			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
-			restoreModelConfiguration: () => { },
-			applyModel: selected => {
-				applied.push(selected.identifier);
-			},
-		};
-		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-
-		controller.preselectFromHistory(history.identifier, 'chat:one');
-		controller.syncFromConversationState(restored, undefined, undefined, 'chat:one');
-		models = [restored, history];
-		modelChanges.fire('test');
 
 		assert.deepStrictEqual({ applied, current: controller.currentModel.get()?.identifier }, {
 			applied: [restored.identifier],
@@ -847,13 +834,13 @@ suite('ChatInputModelSelectionController', () => {
 				getConfiguredModelValue: () => configuredModel,
 				subscribeToModelChanges: () => toDisposable(() => { }),
 				getBoundConversationKey: () => 'chat:one',
-				getVisibleConversationKey: () => 'chat:one',
+				...createIntentStore(() => 'chat:one'),
 				restoreModelConfiguration: () => { },
 				applyModel: selected => {
 					applied.push(selected.identifier);
 				},
 			};
-			disposables.add(new ChatInputModelSelectionController(runtime)).initialize(rememberedModel, () => { });
+			disposables.add(new ChatInputModelSelectionController(runtime)).initialize(rememberedModel);
 			return applied[0];
 		};
 
@@ -865,7 +852,7 @@ suite('ChatInputModelSelectionController', () => {
 		], [locationDefault.identifier, remembered.identifier, locationDefault.identifier, first.identifier]);
 	});
 
-	test('applies fallback and configured defaults through the automatic path', () => {
+	test('validation leaves an unselected picker alone, but a configured default still applies', () => {
 		const first = model('test/first');
 		const second = model('test/second');
 		const configuration: { model: string | undefined } = { model: undefined };
@@ -881,7 +868,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => configuration.model,
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -895,7 +882,7 @@ suite('ChatInputModelSelectionController', () => {
 
 		assert.deepStrictEqual({ configuredApplied, applied }, {
 			configuredApplied: true,
-			applied: [first.identifier, second.identifier],
+			applied: [second.identifier],
 		});
 	});
 
@@ -937,7 +924,7 @@ suite('ChatInputModelSelectionController', () => {
 			applied)));
 
 		controller.beginSessionSwitch(false, false, true);
-		controller.initialize(opus.identifier, () => { });
+		controller.initialize(opus.identifier);
 		const configuredApplied = controller.applyConfiguredDefault();
 
 		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier }, {
@@ -956,10 +943,10 @@ suite('ChatInputModelSelectionController', () => {
 			createRuntime({ models: [gpt, opus], sessionType: 'test', configuredModel: gpt.metadata.id }, modelChanges, applied)));
 
 		controller.beginSessionSwitch(true, false, false);
-		controller.applyExplicitSelection(opus, () => applied.push(opus.identifier), false);
+		controller.applySelection(opus, () => applied.push(opus.identifier), true, false);
 		const configuredApplied = controller.applyConfiguredDefault();
 
-		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier, userPicked: controller.userExplicitlySelectedModel }, {
+		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier, userPicked: controller.selectionReason === ModelSelectionReason.UserSelection }, {
 			configuredApplied: false,
 			applied: [opus.identifier],
 			current: opus.identifier,
@@ -982,7 +969,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => gpt.metadata.id,
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => applied.push(selected.identifier),
 		};
@@ -1041,7 +1028,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -1049,7 +1036,7 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
-		controller.initialize(undefined, () => { });
+		controller.initialize(undefined);
 		models = [byok, copilotDefault];
 		controller.reconcileModelListChange(models);
 
@@ -1079,7 +1066,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: (modelId, configuration) => restored.push({ modelId, configuration }),
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -1136,7 +1123,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: (modelId, configuration) => restored.push({ modelId, configuration }),
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -1198,7 +1185,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -1254,7 +1241,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -1298,7 +1285,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -1306,7 +1293,7 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
-		controller.initialize(remembered.identifier, () => { });
+		controller.initialize(remembered.identifier);
 		const pendingAfterInit = controller.isAwaitingRememberedModel();
 		const appliedAfterInit = [...applied];
 		// An intermediate empty re-resolution must not end the wait or apply a default.
@@ -1386,37 +1373,6 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
-	test('does not apply a late history model after the visible conversation changes', () => {
-		const modelChanges = disposables.add(new Emitter<string>());
-		const restored = model('test/restored');
-		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
-		let visibleConversation = 'chat:one';
-		const applied: string[] = [];
-		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
-			getCurrentSessionType: () => undefined,
-			isEmpty: () => false,
-			getModels: () => models,
-			getAllModels: () => models,
-			requiresCustomModels: () => false,
-			getConfiguredModelValue: () => undefined,
-			subscribeToModelChanges: listener => modelChanges.event(listener),
-			getBoundConversationKey: () => visibleConversation,
-			getVisibleConversationKey: () => visibleConversation,
-			restoreModelConfiguration: () => { },
-			applyModel: selected => applied.push(selected.identifier),
-		};
-		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-
-		controller.preselectFromHistory(restored.identifier, 'chat:one');
-		visibleConversation = 'chat:two';
-		models = [restored];
-		modelChanges.fire('test');
-
-		assert.deepStrictEqual(applied, []);
-	});
-
 	test('revalidates a selection when switching model pools', () => {
 		const general = model('test/general');
 		const targeted = targetedModel('test/targeted', 'agent-host-test');
@@ -1433,14 +1389,14 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
 			},
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-		controller.applyAutomaticSelection(general, () => { });
+		controller.applySelection(general, () => { }, false);
 		state.sessionType = 'agent-host-test';
 
 		controller.revalidateForSessionType(() => { });
@@ -1472,12 +1428,12 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => applied.push(selected.identifier),
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-		controller.applyAutomaticSelection(general, () => { });
+		controller.applySelection(general, () => { }, false);
 
 		state.sessionType = sessionType;
 		controller.revalidateForSessionType(() => { });
@@ -1510,7 +1466,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -1518,7 +1474,7 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
-		controller.initialize(remembered.identifier, () => { });
+		controller.initialize(remembered.identifier);
 		const pendingAfterInit = controller.isAwaitingRememberedModel();
 		models = [fallback, remembered];
 		modelChanges.fire('loaded');
@@ -1552,14 +1508,14 @@ suite('ChatInputModelSelectionController', () => {
 				getConfiguredModelValue: () => undefined,
 				subscribeToModelChanges: () => toDisposable(() => { }),
 				getBoundConversationKey: () => 'chat:one',
-				getVisibleConversationKey: () => 'chat:one',
+				...createIntentStore(() => 'chat:one'),
 				restoreModelConfiguration: () => { },
 				applyModel: selected => {
 					applied.push(selected.identifier);
 				},
 			};
 			const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-			controller.initialize(rememberedId, () => { });
+			controller.initialize(rememberedId);
 			return controller.hasPendingIntent();
 		};
 		const first = model('test/first');
@@ -1594,7 +1550,7 @@ suite('ChatInputModelSelectionController', () => {
 			getConfiguredModelValue: () => undefined,
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
+			...createIntentStore(() => 'chat:one'),
 			restoreModelConfiguration: () => { },
 			applyModel: selected => {
 				applied.push(selected.identifier);
@@ -1602,9 +1558,9 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
-		controller.initialize(remembered.identifier, () => { });
+		controller.initialize(remembered.identifier);
 		const pendingAfterInit = controller.isAwaitingRememberedModel();
-		controller.applyExplicitSelection(explicit, () => applied.push(explicit.identifier), false);
+		controller.applySelection(explicit, () => applied.push(explicit.identifier), true, false);
 		const pendingAfterExplicit = controller.isAwaitingRememberedModel();
 		models = [fallback, explicit, remembered];
 		modelChanges.fire('loaded');
@@ -1619,6 +1575,101 @@ suite('ChatInputModelSelectionController', () => {
 			pendingAfterExplicit: false,
 			applied: [fallback.identifier, explicit.identifier],
 			current: explicit.identifier,
+		});
+	});
+
+	test('does not reclaim an explicit pick into a different conversation', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const first = model('test/first');
+		const second = model('test/second');
+		const state: IRuntimeState = { models: [first, second], sessionType: 'test', isEmpty: false };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		// The user explicitly picks `second` in the conversation the input is bound to.
+		controller.applySelection(second, () => { }, true, false);
+		const afterPick = controller.currentModel.get()?.identifier;
+
+		// The input rebinds to a different conversation, which lands on `first`. That
+		// conversation carries no model of its own, so nothing re-remembers here.
+		state.conversationKey = 'chat:two';
+		controller.beginSessionSwitch(false, true, true);
+		controller.applySelection(first, () => { }, false);
+		controller.endSessionSwitch();
+		const afterSwitch = controller.currentModel.get()?.identifier;
+
+		// The agent host republishes its catalog, as it does periodically. The pick belongs
+		// to the other conversation and must not be dragged into this one.
+		modelChanges.fire('republished');
+
+		assert.deepStrictEqual({
+			afterPick,
+			afterSwitch,
+			current: controller.currentModel.get()?.identifier,
+		}, {
+			afterPick: second.identifier,
+			afterSwitch: first.identifier,
+			current: first.identifier,
+		});
+	});
+
+	test('keeps reclaiming an explicit pick after an untitled conversation materializes', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const first = model('test/first');
+		const second = model('test/second');
+		const intents = new Map<string, IIntendedModelSelection | undefined>();
+		const state: IRuntimeState = { models: [first, second], sessionType: 'test', conversationKey: 'chat:untitled', intents };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		// The user picks `second` in an untitled conversation.
+		controller.applySelection(second, () => { }, true, false);
+
+		// The first send materializes it into a real session, which carries the untitled
+		// conversation's intended model over to the real one (see `_materializeUntitledSession`).
+		intents.set('chat:real', intents.get('chat:untitled'));
+		state.conversationKey = 'chat:real';
+
+		// Meanwhile the catalog momentarily drops the picked model, so a stand-in takes over.
+		state.models = [first];
+		modelChanges.fire('dropped');
+		const whileMissing = controller.currentModel.get()?.identifier;
+
+		// The catalog republishes the picked model.
+		state.models = [first, second];
+		modelChanges.fire('republished');
+
+		assert.deepStrictEqual({
+			whileMissing,
+			current: controller.currentModel.get()?.identifier,
+		}, {
+			whileMissing: first.identifier,
+			current: second.identifier,
+		});
+	});
+
+	test('a conversation waiting for its own model is not reset by a pool rebind', () => {
+		// `loadRemoteSession` seeds the conversation's model from request history as a bare id when
+		// the catalog has not published it yet. Re-initializing from the profile preference (which
+		// happens on every pool rebind) must not erase what the conversation is waiting for.
+		const modelChanges = disposables.add(new Emitter<string>());
+		const profilePreference = model('test/profile');
+		const conversationModel = model('test/conversation');
+		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
+		intents.set('chat:one', { modelId: conversationModel.identifier, reason: ModelSelectionReason.SessionRestore });
+		const state: IRuntimeState = { models: [profilePreference], sessionType: 'test', isEmpty: false, intents };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		controller.initialize(profilePreference.identifier);
+		const whileUnpublished = controller.currentModel.get()?.identifier;
+
+		state.models = [profilePreference, conversationModel];
+		modelChanges.fire('published');
+
+		assert.deepStrictEqual({
+			whileUnpublished,
+			current: controller.currentModel.get()?.identifier,
+		}, {
+			whileUnpublished: profilePreference.identifier,
+			current: conversationModel.identifier,
 		});
 	});
 });

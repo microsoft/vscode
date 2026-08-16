@@ -9,15 +9,15 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentHostCopilotCliSettingsContribution } from '../../../browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
 
 class MockAgentHostService extends mock<IAgentHostService>() {
@@ -75,6 +75,7 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.Opus48Prompt]: { type: 'boolean', title: 'Opus 4.8 Agent Prompt' },
 	[CopilotCliConfigKey.ToolSearchEnabled]: { type: 'boolean', title: 'Agent Host Tool Search' },
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
+	[CopilotCliConfigKey.ReasoningSummary]: { type: 'boolean', title: 'Reasoning Summary' },
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: { type: 'object', title: 'Model Capability Overrides' },
 };
 
@@ -117,19 +118,21 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostToolSearchEnabledSettingId]: true,
 			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
+			[AgentHostReasoningSummaryEnabledSettingId]: true,
 		});
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema));
 		await flush();
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 5);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 6);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
 			[CopilotCliConfigKey.Opus48Prompt]: true,
 			[CopilotCliConfigKey.ToolSearchEnabled]: true,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
+			[CopilotCliConfigKey.ReasoningSummary]: true,
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: capabilityOverrides,
 		});
 	});
@@ -161,17 +164,29 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 	});
 
+	test('does not forward reasoning summary when the experiment value is absent', async () => {
+		const { agentHostService } = setup(disposables, {});
+		agentHostService.setRootState(makeRootStateWithSchema({
+			[CopilotCliConfigKey.ReasoningSummary]: { type: 'boolean', title: 'Reasoning Summary' },
+		}));
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
+	});
+
 	test('does not re-dispatch when the root config already carries structurally equal values', async () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
 			[AgentHostOpus48PromptEnabledSettingId]: true,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
+			[AgentHostReasoningSummaryEnabledSettingId]: false,
 		});
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
 			[CopilotCliConfigKey.Opus48Prompt]: true,
 			[CopilotCliConfigKey.ToolSearchEnabled]: false,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,
+			[CopilotCliConfigKey.ReasoningSummary]: false,
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
 		}));
 		await flush();

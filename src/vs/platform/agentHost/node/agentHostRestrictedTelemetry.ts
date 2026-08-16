@@ -131,6 +131,8 @@ export interface IAgentHostRestrictedTelemetry {
 	sendInternalMSFTTelemetryEventForContext(context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** Sets the Copilot user tracking id (`copilot_trackingId`) carried on every subsequent event. */
 	setCopilotTrackingId(trackingId: string | undefined): void;
+	/** Adds a property carried on every subsequent event, mirroring `ITelemetryService.setCommonProperty`. */
+	setCommonProperty(name: string, value: string | boolean): void;
 	/** Overrides the POST endpoint with the user's CAPI `endpoints.telemetry`; falsy restores the default. */
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void;
 	/** Enables enhanced GH telemetry once the token opts in (`rt=1`); off by default and on flip/logout. */
@@ -226,6 +228,10 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		// targets use their immutable per-session context instead; this mutable value remains for
 		// the pre-existing account-scoped reporters.
 		this._commonProps.copilot_trackingId = trackingId || undefined;
+	}
+
+	setCommonProperty(name: string, value: string | boolean): void {
+		this._commonProps[name] = String(value);
 	}
 
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void {

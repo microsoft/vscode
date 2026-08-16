@@ -1560,6 +1560,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.onDidChangeFocus(this._onFocusChange, this, this.disposables);
 		this.onDidChangeSelection(this._onSelectionChange, this, this.disposables);
+		this.view.onDidScroll(this.onDidChangeActiveDescendant, this, this.disposables);
 
 		if (this.accessibilityProvider) {
 			const ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
@@ -2059,13 +2060,22 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const focus = this.focus.get();
 
 		if (focus.length > 0) {
+			const index = focus[0];
 			let id: string | undefined;
 
 			if (this.accessibilityProvider?.getActiveDescendantId) {
-				id = this.accessibilityProvider.getActiveDescendantId(this.view.element(focus[0]));
+				id = this.accessibilityProvider.getActiveDescendantId(this.view.element(index));
 			}
 
-			this.view.domNode.setAttribute('aria-activedescendant', id || this.view.getElementDomId(focus[0]));
+			if (!id && this.view.domElement(index)) {
+				id = this.view.getElementDomId(index);
+			}
+
+			if (id) {
+				this.view.domNode.setAttribute('aria-activedescendant', id);
+			} else {
+				this.view.domNode.removeAttribute('aria-activedescendant');
+			}
 		} else {
 			this.view.domNode.removeAttribute('aria-activedescendant');
 		}

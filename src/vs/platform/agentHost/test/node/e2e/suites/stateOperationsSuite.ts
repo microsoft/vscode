@@ -15,6 +15,7 @@ import type { SubscribeResult } from '../../../../common/state/protocol/commands
 import { TerminalClaimKind, type TerminalClaim } from '../../../../common/state/protocol/state.js';
 import {
 	buildDefaultChatUri,
+	MessageAttachmentKind,
 	MessageKind,
 	PendingMessageKind,
 	ROOT_STATE_URI,
@@ -149,6 +150,22 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 		assert.strictEqual((await sessionState(sessionUri)).status & SessionStatus.IsArchived, 0);
 	});
 
+	conformanceTest(context, 'session read and archived flags compose independently', async function () {
+		const { sessionUri } = await createSession('status-compose');
+
+		await dispatchAndWait(sessionUri, 1, { type: ActionType.SessionIsReadChanged, isRead: true });
+		await dispatchAndWait(sessionUri, 2, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		const state = await sessionState(sessionUri);
+
+		assert.deepStrictEqual({
+			isRead: (state.status & SessionStatus.IsRead) !== 0,
+			isArchived: (state.status & SessionStatus.IsArchived) !== 0,
+		}, {
+			isRead: true,
+			isArchived: true,
+		});
+	});
+
 	conformanceTest(context, 'session config changes merge with existing values', async function () {
 		const { sessionUri } = await createSession('config-merge');
 		const before = await sessionState(sessionUri);
@@ -178,6 +195,22 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
+	conformanceTest(context, 'empty session config replacement clears previous values', async function () {
+		const { sessionUri } = await createSession('config-clear');
+		await dispatchAndWait(sessionUri, 1, {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.AutoApprove]: 'assisted' },
+		});
+
+		await dispatchAndWait(sessionUri, 2, {
+			type: ActionType.SessionConfigChanged,
+			config: {},
+			replace: true,
+		});
+
+		assert.deepStrictEqual((await sessionState(sessionUri)).config?.values, {});
+	});
+
 	conformanceTest(context, 'active client set adds a session participant', async function () {
 		const { sessionUri, clientId } = await createSession('active-client-add');
 
@@ -190,6 +223,30 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 			clientId,
 			displayName: 'Coverage Client',
 			tools: [],
+		}]);
+	});
+
+	conformanceTest(context, 'active client tools retain their protocol schemas', async function () {
+		const { sessionUri, clientId } = await createSession('active-client-tools');
+		const tools = [{
+			name: 'coverage_echo',
+			description: 'Echoes a value',
+			inputSchema: {
+				type: 'object' as const,
+				properties: { value: { type: 'string' } },
+				required: ['value'],
+			},
+		}];
+
+		await dispatchAndWait(sessionUri, 1, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId, displayName: 'Tool Client', tools },
+		});
+
+		assert.deepStrictEqual((await sessionState(sessionUri)).activeClients, [{
+			clientId,
+			displayName: 'Tool Client',
+			tools,
 		}]);
 	});
 
@@ -208,6 +265,40 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 		assert.deepStrictEqual((await sessionState(sessionUri)).activeClients.map(client => client.displayName), ['After']);
 	});
 
+	conformanceTest(context, 'two active clients remain independently addressable', async function () {
+		const { sessionUri, clientId } = await createSession('active-client-multiple');
+
+		await dispatchAndWait(sessionUri, 1, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId, displayName: 'First', tools: [] },
+		});
+		await dispatchAndWait(sessionUri, 2, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId: 'second-client', displayName: 'Second', tools: [] },
+		});
+
+		assert.deepStrictEqual((await sessionState(sessionUri)).activeClients.map(client => client.clientId).sort(), [
+			clientId,
+			'second-client',
+		].sort());
+	});
+
+	conformanceTest(context, 'removing one active client preserves its sibling', async function () {
+		const { sessionUri, clientId } = await createSession('active-client-remove-one');
+		await dispatchAndWait(sessionUri, 1, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId, displayName: 'First', tools: [] },
+		});
+		await dispatchAndWait(sessionUri, 2, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId: 'second-client', displayName: 'Second', tools: [] },
+		});
+
+		await dispatchAndWait(sessionUri, 3, { type: ActionType.SessionActiveClientRemoved, clientId });
+
+		assert.deepStrictEqual((await sessionState(sessionUri)).activeClients.map(client => client.clientId), ['second-client']);
+	});
+
 	conformanceTest(context, 'active client removal removes the session participant', async function () {
 		const { sessionUri, clientId } = await createSession('active-client-remove');
 		await dispatchAndWait(sessionUri, 1, {
@@ -223,6 +314,35 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 	conformanceTest(context, 'draft change stores a user message', async function () {
 		const { chatUri } = await createSession('draft-set');
 		const draft = userMessage('draft text');
+
+		await dispatchAndWait(chatUri, 1, { type: ActionType.ChatDraftChanged, draft });
+
+		assert.deepStrictEqual((await chatState(chatUri)).draft, draft);
+	});
+
+	conformanceTest(context, 'draft change preserves resource attachments', async function () {
+		const { chatUri, workspace } = await createSession('draft-attachment');
+		const draft: Message = {
+			...userMessage('review this'),
+			attachments: [{
+				type: MessageAttachmentKind.Resource,
+				uri: URI.file(join(workspace, 'draft.ts')).toString(),
+				label: 'draft.ts',
+				displayKind: 'document',
+			}],
+		};
+
+		await dispatchAndWait(chatUri, 1, { type: ActionType.ChatDraftChanged, draft });
+
+		assert.deepStrictEqual((await chatState(chatUri)).draft, draft);
+	});
+
+	conformanceTest(context, 'draft change preserves the selected model', async function () {
+		const { chatUri } = await createSession('draft-model');
+		const draft: Message = {
+			...userMessage('model draft'),
+			model: { id: 'coverage-model' },
+		};
 
 		await dispatchAndWait(chatUri, 1, { type: ActionType.ChatDraftChanged, draft });
 
@@ -358,6 +478,36 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
+	conformanceTest(context, 'successive terminal resizes retain the latest dimensions', async function () {
+		await withTerminal('terminal-resize-latest', async ({ terminalUri }) => {
+			await dispatchAndWait(terminalUri, 1, { type: ActionType.TerminalResized, cols: 100, rows: 35 });
+			await dispatchAndWait(terminalUri, 2, { type: ActionType.TerminalResized, cols: 140, rows: 50 });
+
+			const state = await terminalState(terminalUri);
+			assert.deepStrictEqual({ cols: state.cols, rows: state.rows }, { cols: 140, rows: 50 });
+		});
+	});
+
+	conformanceTest(context, 'terminal claim transfer preserves dimensions and cwd', async function () {
+		await withTerminal('terminal-claim-metadata', async ({ sessionUri, terminalUri, workspace }) => {
+			await dispatchAndWait(terminalUri, 1, {
+				type: ActionType.TerminalClaimed,
+				claim: { kind: TerminalClaimKind.Session, session: sessionUri },
+			});
+
+			const state = await terminalState(terminalUri);
+			assert.deepStrictEqual({
+				cwd: state.cwd,
+				cols: state.cols,
+				rows: state.rows,
+			}, {
+				cwd: URI.file(workspace).fsPath,
+				cols: 90,
+				rows: 30,
+			});
+		});
+	});
+
 	conformanceTest(context, 'terminal title change is broadcast', async function () {
 		await withTerminal('terminal-title', async ({ terminalUri }) => {
 			context.client.clearReceived();
@@ -383,6 +533,35 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
+	conformanceTest(context, 'terminal claim can transfer back to the client', async function () {
+		await withTerminal('terminal-claim-return', async ({ sessionUri, terminalUri, clientId }) => {
+			await dispatchAndWait(terminalUri, 1, {
+				type: ActionType.TerminalClaimed,
+				claim: { kind: TerminalClaimKind.Session, session: sessionUri },
+			});
+			const clientClaim: TerminalClaim = { kind: TerminalClaimKind.Client, clientId };
+
+			await dispatchAndWait(terminalUri, 2, { type: ActionType.TerminalClaimed, claim: clientClaim });
+
+			assert.deepStrictEqual((await terminalState(terminalUri)).claim, clientClaim);
+		});
+	});
+
+	conformanceTest(context, 'session terminal claims preserve turn and tool identifiers', async function () {
+		await withTerminal('terminal-session-claim', async ({ sessionUri, terminalUri }) => {
+			const claim: TerminalClaim = {
+				kind: TerminalClaimKind.Session,
+				session: sessionUri,
+				turnId: 'turn-claim',
+				toolCallId: 'tool-claim',
+			};
+
+			await dispatchAndWait(terminalUri, 1, { type: ActionType.TerminalClaimed, claim });
+
+			assert.deepStrictEqual((await terminalState(terminalUri)).claim, claim);
+		});
+	});
+
 	conformanceTest(context, 'terminal input reaches the shell and produces output', async function () {
 		await withTerminal('terminal-input', async ({ terminalUri }) => {
 			context.client.clearReceived();
@@ -402,6 +581,27 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 			}, 30_000);
 			const output = terminalText(await terminalState(terminalUri));
 			assert.match(output, /(?:^|\D)42(?:\D|$)/);
+		});
+	});
+
+	conformanceTest(context, 'terminal input preserves Unicode output', async function () {
+		await withTerminal('terminal-unicode', async ({ terminalUri }) => {
+			context.client.clearReceived();
+			context.client.dispatch({
+				channel: terminalUri,
+				clientSeq: 1,
+				action: { type: ActionType.TerminalInput, data: 'node -e "console.log(\'SNOWMAN_\'+String.fromCodePoint(0x2603))"\r' },
+			});
+			let streamedOutput = '';
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'terminal/data') || getActionEnvelope(n).channel !== terminalUri) {
+					return false;
+				}
+				streamedOutput += (getActionEnvelope(n).action as { data: string }).data;
+				return streamedOutput.includes('SNOWMAN_\u2603');
+			}, 30_000);
+
+			assert.match(terminalText(await terminalState(terminalUri)), /SNOWMAN_\u2603/);
 		});
 	});
 
@@ -440,6 +640,25 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 			}, {
 				markerBeforeClear: true,
 				markerAfterClear: false,
+			});
+		});
+	});
+
+	conformanceTest(context, 'clearing a terminal preserves dimensions and claim', async function () {
+		await withTerminal('terminal-clear-metadata', async ({ terminalUri, clientId }) => {
+			await dispatchAndWait(terminalUri, 1, { type: ActionType.TerminalResized, cols: 111, rows: 37 });
+
+			await dispatchAndWait(terminalUri, 2, { type: ActionType.TerminalCleared });
+
+			const state = await terminalState(terminalUri);
+			assert.deepStrictEqual({
+				cols: state.cols,
+				rows: state.rows,
+				claim: state.claim,
+			}, {
+				cols: 111,
+				rows: 37,
+				claim: { kind: TerminalClaimKind.Client, clientId },
 			});
 		});
 	});
@@ -514,6 +733,84 @@ export function defineStateOperationsTests(context: IAgentHostE2ETestContext): v
 					await disposeTerminal(observedUri);
 				}
 			}
+		});
+	});
+
+	conformanceTest(context, 'root terminal metadata reflects title changes', async function () {
+		await withTerminal('terminal-root-title', async ({ terminalUri }) => {
+			await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			context.client.clearReceived();
+			context.client.dispatch({
+				channel: terminalUri,
+				clientSeq: 1,
+				action: { type: ActionType.TerminalTitleChanged, title: 'Root Metadata Title' },
+			});
+
+			const changed = await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'root/terminalsChanged')) {
+					return false;
+				}
+				const terminals = (getActionEnvelope(n).action as { terminals?: readonly { resource: string; title: string }[] }).terminals;
+				return terminals?.some(terminal => terminal.resource === terminalUri && terminal.title === 'Root Metadata Title') ?? false;
+			});
+
+			assert.ok(isActionNotification(changed, 'root/terminalsChanged'));
+		});
+	});
+
+	conformanceTest(context, 'root terminal metadata reflects claim transfers', async function () {
+		await withTerminal('terminal-root-claim', async ({ sessionUri, terminalUri }) => {
+			await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			const claim: TerminalClaim = { kind: TerminalClaimKind.Session, session: sessionUri, turnId: 'turn-root-claim' };
+			context.client.clearReceived();
+			context.client.dispatch({
+				channel: terminalUri,
+				clientSeq: 1,
+				action: { type: ActionType.TerminalClaimed, claim },
+			});
+
+			const changed = await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'root/terminalsChanged')) {
+					return false;
+				}
+				const terminals = (getActionEnvelope(n).action as { terminals?: readonly { resource: string; claim: TerminalClaim }[] }).terminals;
+				return terminals?.some(terminal =>
+					terminal.resource === terminalUri
+					&& terminal.claim.kind === TerminalClaimKind.Session
+					&& terminal.claim.session === claim.session
+					&& terminal.claim.turnId === claim.turnId,
+				) ?? false;
+			});
+
+			assert.ok(isActionNotification(changed, 'root/terminalsChanged'));
+		});
+	});
+
+	conformanceTest(context, 'an exited terminal remains discoverable with its exit code until disposal', async function () {
+		await withTerminal('terminal-root-exit', async ({ terminalUri }) => {
+			context.client.clearReceived();
+			context.client.dispatch({
+				channel: terminalUri,
+				clientSeq: 1,
+				action: { type: ActionType.TerminalInput, data: 'exit\r' },
+			});
+			const exited = await context.client.waitForNotification(n =>
+				isActionNotification(n, 'terminal/exited') && getActionEnvelope(n).channel === terminalUri,
+				30_000,
+			);
+			const exitCode = (getActionEnvelope(exited).action as { exitCode?: number }).exitCode;
+
+			const root = await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			const terminal = (root.snapshot!.state as RootState).terminals?.find(terminal => terminal.resource === terminalUri);
+			assert.deepStrictEqual({
+				listed: terminal !== undefined,
+				reportedExitCode: typeof exitCode,
+				stateMatchesNotification: terminal?.exitCode === exitCode,
+			}, {
+				listed: true,
+				reportedExitCode: 'number',
+				stateMatchesNotification: true,
+			});
 		});
 	});
 

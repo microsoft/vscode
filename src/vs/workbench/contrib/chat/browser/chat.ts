@@ -242,6 +242,7 @@ export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | ICha
 
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
+	readonly questionCarouselFitContent?: boolean;
 	readonly noHeader?: boolean;
 	readonly noFooter?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;

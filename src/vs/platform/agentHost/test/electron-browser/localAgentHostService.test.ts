@@ -8,9 +8,24 @@ import { IChannelClient, IChannelServer, IServerChannel } from '../../../../base
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL } from '../../common/agentHostClientProxyChannel.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../../common/agentHostClientByokLmChannel.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetry.js';
+import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import { LocalAgentHostManagementConnection, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { eventName: string; data: ITelemetryData | undefined }[] = [];
+
+	override publicLog2(eventName?: string, data?: ITelemetryData): void {
+		if (eventName) {
+			this.events.push({ eventName, data });
+		}
+	}
+}
 
 /**
  * Regression coverage for the renderer reverse-RPC channel registration. The
@@ -104,5 +119,181 @@ suite('registerAgentHostClientChannels', () => {
 		const { server, registered } = fakeChannelServer();
 		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService(), false);
 		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL]);
+	});
+});
+
+suite('AgentHostStartupTelemetry', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports the first successful session list with startup milestones and retry counts', () => {
+		let now = 0;
+		const telemetryService = new TestTelemetryService();
+		const tracker = store.add(new AgentHostStartupTelemetry(
+			AgentHostClientType.AgentsWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => now }),
+			() => ({ dispose() { } }),
+			telemetryService,
+		));
+
+		now = 10;
+		tracker.messagePortAcquired();
+		now = 20;
+		tracker.sessionListRequested();
+		now = 50;
+		tracker.protocolConnected();
+		now = 80;
+		tracker.authenticationSettled();
+		now = 85;
+		tracker.sessionListRequested();
+		now = 90;
+		tracker.sessionListFailed();
+		now = 120;
+		tracker.sessionListSucceeded();
+		tracker.connectionFailed();
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.startup',
+			data: {
+				clientType: 'agents_window',
+				connectionKind: 'local',
+				outcome: 'success',
+				failureStage: undefined,
+				timeToMessagePortMs: 10,
+				timeToProtocolConnectionMs: 50,
+				timeToAuthenticationSettledMs: 80,
+				timeToSessionListRequestMs: 20,
+				timeToSessionListCompleteMs: 120,
+				sessionListDurationMs: 100,
+				sessionListAttemptCount: 2,
+				sessionListFailureCount: 1,
+			},
+		}]);
+	});
+
+	test('reports a protocol connection failure once', () => {
+		let now = 30;
+		const telemetryService = new TestTelemetryService();
+		const tracker = store.add(new AgentHostStartupTelemetry(
+			AgentHostClientType.EditorWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => now }),
+			() => ({ dispose() { } }),
+			telemetryService,
+		));
+
+		tracker.connectionFailed();
+		now = 40;
+		tracker.sessionListRequested();
+		tracker.sessionListSucceeded();
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.startup',
+			data: {
+				clientType: 'editor_window',
+				connectionKind: 'local',
+				outcome: 'error',
+				failureStage: 'protocolConnection',
+				timeToMessagePortMs: undefined,
+				timeToProtocolConnectionMs: undefined,
+				timeToAuthenticationSettledMs: undefined,
+				timeToSessionListRequestMs: undefined,
+				timeToSessionListCompleteMs: undefined,
+				sessionListDurationMs: undefined,
+				sessionListAttemptCount: 0,
+				sessionListFailureCount: 0,
+			},
+		}]);
+	});
+
+	test('attributes a terminal connection failure after connecting to the session-list stage', () => {
+		let now = 50;
+		const telemetryService = new TestTelemetryService();
+		const tracker = store.add(new AgentHostStartupTelemetry(
+			AgentHostClientType.AgentsWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => now }),
+			() => ({ dispose() { } }),
+			telemetryService,
+		));
+
+		tracker.protocolConnected();
+		now = 70;
+		tracker.sessionListRequested();
+		now = 90;
+		tracker.connectionFailed();
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.startup',
+			data: {
+				clientType: 'agents_window',
+				connectionKind: 'local',
+				outcome: 'error',
+				failureStage: 'sessionList',
+				timeToMessagePortMs: undefined,
+				timeToProtocolConnectionMs: 50,
+				timeToAuthenticationSettledMs: undefined,
+				timeToSessionListRequestMs: 70,
+				timeToSessionListCompleteMs: undefined,
+				sessionListDurationMs: undefined,
+				sessionListAttemptCount: 1,
+				sessionListFailureCount: 0,
+			},
+		}]);
+	});
+
+	test('reports a session-list timeout after the protocol connected', () => {
+		let onTimeout = () => { };
+		const telemetryService = new TestTelemetryService();
+		const tracker = store.add(new AgentHostStartupTelemetry(
+			AgentHostClientType.AgentsWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => 120_000 }),
+			callback => {
+				onTimeout = callback;
+				return { dispose() { } };
+			},
+			telemetryService,
+		));
+
+		tracker.protocolConnected();
+		tracker.sessionListRequested();
+		tracker.sessionListFailed();
+		onTimeout();
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.startup',
+			data: {
+				clientType: 'agents_window',
+				connectionKind: 'local',
+				outcome: 'timeout',
+				failureStage: 'sessionList',
+				timeToMessagePortMs: undefined,
+				timeToProtocolConnectionMs: 120_000,
+				timeToAuthenticationSettledMs: undefined,
+				timeToSessionListRequestMs: 120_000,
+				timeToSessionListCompleteMs: undefined,
+				sessionListDurationMs: undefined,
+				sessionListAttemptCount: 1,
+				sessionListFailureCount: 1,
+			},
+		}]);
+	});
+
+	test('does not report a connection failure after disposal', () => {
+		const telemetryService = new TestTelemetryService();
+		const tracker = new AgentHostStartupTelemetry(
+			AgentHostClientType.EditorWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => 10 }),
+			() => ({ dispose() { } }),
+			telemetryService,
+		);
+
+		tracker.dispose();
+		tracker.connectionFailed();
+
+		assert.deepStrictEqual(telemetryService.events, []);
 	});
 });

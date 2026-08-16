@@ -89,6 +89,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		assert.deepStrictEqual(adapter.getCandidateSessions(CancellationToken.None), [
 			{
 				sessionId: 'provider-a:one',
+				resource: URI.from({ scheme: 'session', path: '/provider-a:one' }),
 				label: 'One',
 				repo: 'microsoft/vscode',
 				cwd: '/work/vscode',
@@ -98,6 +99,7 @@ suite('OmniSessionRoutingAdapter', () => {
 			},
 			{
 				sessionId: 'provider-b:two',
+				resource: URI.from({ scheme: 'session', path: '/provider-b:two' }),
 				label: 'Two',
 				repo: 'microsoft/repo',
 				cwd: '/work/repo',
@@ -112,7 +114,14 @@ suite('OmniSessionRoutingAdapter', () => {
 		const session = createSession('provider:session');
 		managementService.sessions = [session];
 		managementService.fireSessionsChanged({ added: [session], removed: [], changed: [] });
-		assert.deepStrictEqual(adapter.getCandidateSessions(CancellationToken.None).map(candidate => candidate.sessionId), ['provider:session']);
+		assert.deepStrictEqual(adapter.getCandidateSessions(CancellationToken.None).map(candidate => ({
+			sessionId: candidate.sessionId,
+			resource: candidate.resource?.toString(),
+		})), [{
+			sessionId: 'provider:session',
+			resource: session.resource.toString(),
+		}]);
+		assert.strictEqual(adapter.resolveSessionResource(session.sessionId)?.toString(), session.mainChat.get().resource.toString());
 
 		managementService.sessions = [];
 		managementService.fireSessionsChanged({ added: [], removed: [session], changed: [] });
@@ -161,6 +170,7 @@ suite('OmniSessionRoutingAdapter', () => {
 			watchedCount: 3,
 			snapshot: {
 				sessionId: 'provider:session',
+				resource: original.resource,
 				label: 'Update routing badge',
 				repo: 'microsoft/repo',
 				cwd: '/work/repo',
@@ -182,11 +192,11 @@ suite('OmniSessionRoutingAdapter', () => {
 			participant: 'assistant',
 		}];
 		let watchedCount = 0;
-		store.add(adapter.watchSession(provisional.resource, () => watchedCount++));
+		store.add(adapter.watchSession(provisional.mainChat.get().resource, () => watchedCount++));
 
 		managementService.fireSessionReplaced(provisional, committed);
-		const snapshot = await adapter.getSessionSnapshot(provisional.resource, CancellationToken.None);
-		await adapter.revealSession(provisional.resource);
+		const snapshot = await adapter.getSessionSnapshot(provisional.mainChat.get().resource, CancellationToken.None);
+		await adapter.revealSession(provisional.mainChat.get().resource);
 
 		assert.deepStrictEqual({
 			watchedCount,
@@ -319,7 +329,7 @@ suite('OmniSessionRoutingAdapter', () => {
 
 		assert.deepStrictEqual(result, {
 			status: 'rejected',
-			resource: session.resource,
+			resource: session.mainChat.get().resource,
 			reason: `Sessions provider 'provider' not found`,
 		});
 	});
@@ -340,7 +350,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		}, {
 			result: {
 				status: 'sent',
-				resource: session.resource,
+				resource: session.mainChat.get().resource,
 				activityBaseline: session.lastTurnEnd.get()!.getTime(),
 			},
 			send: {
@@ -376,7 +386,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		}, {
 			result: {
 				status: 'sent',
-				resource: created.resource,
+				resource: created.mainChat.get().resource,
 				activityBaseline: created.createdAt.getTime(),
 			},
 			folderSend: {
@@ -399,7 +409,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		}, {
 			result: {
 				status: 'sent',
-				resource: created.resource,
+				resource: created.mainChat.get().resource,
 				activityBaseline: created.createdAt.getTime(),
 			},
 			quickSend: {
@@ -437,6 +447,32 @@ suite('OmniSessionRoutingAdapter', () => {
 			reason: 'The selected tool configuration cannot be sent through Sessions.',
 		});
 		assert.strictEqual(managementService.existingSend, undefined);
+	});
+
+	test('sends with the selected model when its configuration cannot be forwarded', async () => {
+		const session = createSession('provider:session');
+		managementService.sessions = [session];
+
+		const result = await adapter.dispatchToSession(session.sessionId, 'Continue', {
+			userSelectedModelId: 'model',
+			userSelectedModelConfiguration: { reasoningEffort: 'high', contextSize: 1_000_000 },
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			result,
+			send: managementService.existingSend,
+		}, {
+			result: {
+				status: 'sent',
+				resource: session.mainChat.get().resource,
+				activityBaseline: session.lastTurnEnd.get()!.getTime(),
+			},
+			send: {
+				session,
+				chat: session.mainChat.get(),
+				options: { query: 'Continue', attachedContext: undefined, background: true },
+			},
+		});
 	});
 
 	test('rejects cancelled sends before dispatch', async () => {

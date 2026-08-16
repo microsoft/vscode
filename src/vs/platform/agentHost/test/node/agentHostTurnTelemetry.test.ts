@@ -17,6 +17,8 @@ import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, IAgent } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
@@ -138,7 +140,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	}
 
-	function startTurn(turnId: string, text = 'hello', modelId?: string, chatUri = defaultChatUri): void {
+	function startTurn(turnId: string, text = 'hello', modelId?: string, chatUri = defaultChatUri, clientContext?: IAgentHostClientTelemetryContext): void {
 		const action: ChatAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
@@ -150,7 +152,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		// invoke `handleAction` so the side-effect (which calls
 		// `agent.sendMessage` and `turnTracker.turnStarted`) runs.
 		stateManager.dispatchClientAction(chatUri, action, { clientId: 'test', clientSeq: 1 });
-		sideEffects.handleAction(chatUri, action);
+		sideEffects.handleAction(chatUri, action, 'test', clientContext);
 	}
 
 	function fire(action: ChatAction, chatUri = defaultChatUri): void {
@@ -245,6 +247,49 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(typeof data.timeToFirstProgress, 'number');
 		assert.strictEqual(data.isMultiRoot, false);
 		assert.strictEqual(data.folderCount, 0);
+	});
+
+	test('attributes completed and failed turns to the initiating client identity', () => {
+		setupSession();
+		const clientContext: IAgentHostClientTelemetryContext = {
+			clientType: AgentHostClientType.EditorWindow,
+			connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+			transportKind: AgentHostTransportKind.MessagePort,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		};
+		startTurn('t-client', 'hello', undefined, defaultChatUri, clientContext);
+		fire({ type: ActionType.ChatError, turnId: 't-client', duration: 100, error: { errorType: 'providerFailed', message: 'failed' } });
+
+		assert.deepStrictEqual([completedEvents()[0], failedEvents()[0]].map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				eventName: event.eventName,
+				initiatorClientType: data.initiatorClientType,
+				initiatorConnectionKind: data.initiatorConnectionKind,
+				initiatorTransportKind: data.initiatorTransportKind,
+				hostLaunchKind: data.hostLaunchKind,
+				initiatorMachineId: data.initiatorMachineId,
+				initiatorDevDeviceId: data.initiatorDevDeviceId,
+			};
+		}), [{
+			eventName: 'agentHost.turnCompleted',
+			initiatorClientType: 'editor_window',
+			initiatorConnectionKind: 'remote_extension_host',
+			initiatorTransportKind: 'message_port',
+			hostLaunchKind: 'vscode_main_process',
+			initiatorMachineId: 'client-machine-id',
+			initiatorDevDeviceId: 'client-dev-device-id',
+		}, {
+			eventName: 'agentHost.turnFailed',
+			initiatorClientType: 'editor_window',
+			initiatorConnectionKind: 'remote_extension_host',
+			initiatorTransportKind: 'message_port',
+			hostLaunchKind: 'vscode_main_process',
+			initiatorMachineId: 'client-machine-id',
+			initiatorDevDeviceId: 'client-dev-device-id',
+		}]);
 	});
 
 	test('emits turnCompleted with the multi-root working-directory shape', () => {

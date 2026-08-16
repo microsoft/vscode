@@ -320,7 +320,7 @@ export function setup(logger: Logger) {
 			// Resolve Codex availability OUTSIDE the try/catch below so that the
 			// Pending thrown by `this.skip()` is not swallowed (and re-thrown as a
 			// failure) by the failure-diagnostics handler.
-			await app.workbench.agentsWindow.waitForNewSessionView();
+			await app.workbench.agentsWindow.startNewSession();
 			const codexAvailable = await app.workbench.agentsWindow.isSessionTypeAvailable('Codex');
 			if (!codexAvailable) {
 				// Codex must be available — and so this test must run rather than

@@ -367,6 +367,7 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 
 ## Troubleshooting
 
+- **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp npx @playwright/cli ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.
 - **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(jq -r .userDataDir <<<"$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
 - **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.

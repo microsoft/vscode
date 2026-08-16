@@ -254,7 +254,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	}
 
 	/**
-	 * Row actions for the changed-files list: markdown files get a labelless,
+	 * Row actions for the changed-files list: previewable files get a labelless,
 	 * icon-free action that opens the file.
 	 */
 	private _getRowActions(diff: IEditSessionEntryDiff): IAction[] {

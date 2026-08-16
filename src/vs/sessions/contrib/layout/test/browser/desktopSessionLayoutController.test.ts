@@ -547,6 +547,36 @@ suite('LayoutController (desktop)', () => {
 		]);
 	});
 
+	test('[single-pane] applies the active editor detail when the hidden detail panel is reopened', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		harness.activeEditorInput = makeFileEditor();
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+		harness.openedViewContainers = [];
+		harness.activeEditorInput = makeDiffEditor();
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		const openedWhileHidden = [...harness.openedViewContainers];
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			openedWhileHidden,
+			openedAfterReveal: harness.openedViewContainers,
+		}, {
+			openedWhileHidden: [],
+			openedAfterReveal: [CHANGES_VIEW_CONTAINER_ID],
+		});
+	});
+
 	test('[single-pane] maps Markdown preview editors to Files', async () => {
 		createSinglePaneController({ activateAux: true });
 		await timeout(0);

@@ -40,7 +40,8 @@ import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
-import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, ICodexAccountService, shouldShowCodexAccount } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
@@ -180,6 +181,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
+	private accountIcon: URI | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
 	private avatarRequestCounter = 0;
@@ -233,6 +235,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			if (event.affectsConfiguration(AgentHostCodexAgentEnabledSettingId) || event.affectsConfiguration(ChatAIDisabledSettingId)) {
 				this.clickPanelDisposable.clear();
 				this.renderState();
+			}
+			if (event.affectsConfiguration(ACCOUNTS_AVATAR_SETTING)) {
+				this.refreshAvatar();
 			}
 		}));
 		// A signed-out user sees either a quiet "Sign In" (the opt-in is on, so signing
@@ -288,6 +293,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.accountName = info?.accountName;
 		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
+		this.accountIcon = info?.accountIcon;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
 		this.renderState();
@@ -366,7 +372,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private refreshAvatar(): void {
-		const avatarUrl = getAccountProfileImageUrl(this.accountProviderId, this.accountName);
+		const avatarUrl = this.configurationService.getValue<boolean>(ACCOUNTS_AVATAR_SETTING)
+			? getAccountProfileImageUrl(this.accountProviderId, this.accountName, this.accountIcon)
+			: undefined;
 		if (avatarUrl === this.currentAvatarUrl) {
 			return;
 		}

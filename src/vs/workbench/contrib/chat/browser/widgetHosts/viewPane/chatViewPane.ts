@@ -489,8 +489,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * this pane plus a chat editor) exactly one lights up.
 	 */
 	private _currentVoiceInputResource(reader?: IReader): URI | undefined {
-		const omniInputActive = reader ? this.voiceSessionController.omniInputActive.read(reader) : this.voiceSessionController.omniInputActive.get();
-		if (omniInputActive) {
+		const omniInputOpen = reader ? this.voiceSessionController.omniInputOpen.read(reader) : this.voiceSessionController.omniInputOpen.get();
+		if (omniInputOpen) {
 			return undefined;
 		}
 		const target = reader ? this.voiceSessionController.targetSession.read(reader) : this.voiceSessionController.targetSession.get();
@@ -603,13 +603,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			// Only run the per-frame glow loop for states that actually render a
 			// glow. Idle renders none, so keeping the loop alive then would burn a
 			// requestAnimationFrame callback every frame for nothing. React to
 			// simulated states too, so the walkthrough commands light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
-			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {
+			if (!omniInputOpen && (simGlow || (connected && isGlowingVoiceState(voiceState)))) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -668,7 +669,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
-			const omniInputActive = this.voiceSessionController.omniInputActive.read(reader);
+			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._currentSessionResource.read(reader);
 			const showTranscript = showTranscriptSetting.read(reader);
@@ -677,7 +678,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
 
-			if (!connected || omniInputActive) {
+			if (!connected || omniInputOpen) {
 				listeningSession = undefined;
 				ownerSession = undefined;
 				transcriptOverlayNode.style.display = 'none';
