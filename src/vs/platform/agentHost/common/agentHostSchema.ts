@@ -9,6 +9,7 @@ import { ConfigurationTarget, type IConfigurationService, type IConfigurationVal
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns } from '../../chat/common/chatSettings.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
+import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
@@ -451,22 +452,28 @@ export const AgentHostAutoReplyEnabledConfigKey = 'autoReplyEnabled';
 
 export const AgentHostAutoReplyAnswer = 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.';
 
-// Root config key forwarded from the renderer when Copilot Chat's `github.copilot.chat.preferLongContext.enabled` setting changes.
-export const AgentHostPreferLongContextEnabledConfigKey = 'preferLongContextEnabled';
-
-// The Copilot Chat setting ID for preferring long context, forwarded into the agent host root config.
-export const PREFER_LONG_CONTEXT_SETTING_ID = 'github.copilot.chat.preferLongContext.enabled';
-
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 
 /** Root config key forwarded from the renderer for active-agent title generation. */
 export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
 
+/** Root config key controlling rich-link guidance for Markdown plan documents. */
+export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
+
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
 export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
+
+export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
+
+export const enum AgentHostExternalSessionsMode {
+	None = 'none',
+	All = 'all',
+	Last24Hours = 'last24Hours',
+	Last7Days = 'last7Days',
+}
 
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
@@ -587,16 +594,7 @@ export const AgentHostMcpServersConfigKey = 'mcpServers';
 export type AgentHostMcpServers = Record<string, IMcpServerConfiguration>;
 
 export function telemetryLevelToAgentHostConfigValue(telemetryLevel: TelemetryLevel): TelemetryConfiguration {
-	switch (telemetryLevel) {
-		case TelemetryLevel.NONE:
-			return TelemetryConfiguration.OFF;
-		case TelemetryLevel.CRASH:
-			return TelemetryConfiguration.CRASH;
-		case TelemetryLevel.ERROR:
-			return TelemetryConfiguration.ERROR;
-		case TelemetryLevel.USAGE:
-			return TelemetryConfiguration.ON;
-	}
+	return telemetryLevelToAgentHostValue(telemetryLevel);
 }
 
 export function agentHostConfigValueToTelemetryLevel(value: unknown): TelemetryLevel | undefined {
@@ -730,12 +728,6 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.autoReplyEnabled.description', "Whether VS Code's auto-reply setting is enabled. When `true`, `ask_user` questions are auto-answered instead of blocking on the user, mirroring autopilot mode."),
 		default: false,
 	}),
-	[AgentHostPreferLongContextEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.preferLongContextEnabled.title', "Prefer Long Context"),
-		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true` (default), models with a free long context window only show the long context option in the picker. When `false`, the smaller default context option stays selectable."),
-		default: true,
-	}),
 	[AgentHostSystemProxyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.systemProxyEnabled.title', "System Proxy Discovery"),
@@ -748,11 +740,24 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of utility-model title generation."),
 		default: false,
 	}),
+	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.markdownPlanRichLinksEnabled.title', "Markdown Plan Rich Links"),
+		description: localize('agentHost.config.markdownPlanRichLinksEnabled.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
+		default: false,
+	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
 		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
 		default: false,
+	}),
+	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<AgentHostExternalSessionsMode>({
+		type: 'string',
+		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
+		description: localize('agentHost.config.showExternalSessions.description', "Controls whether sessions created outside the Agent Host are included in the session catalog."),
+		enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.All, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days],
+		default: AgentHostExternalSessionsMode.Last7Days,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

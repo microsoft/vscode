@@ -19,7 +19,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench > .monaco-grid-view {
-	margin: 0 var(--vscode-agents-layout-floatingPanelGap) var(--vscode-agents-layout-floatingPanelGap) 4px;
+	margin: 0 var(--vscode-agents-layout-floatingPanelGap) var(--vscode-agents-layout-floatingPanelGap) 0;
 	width: auto;
 	height: calc(100% - var(--vscode-agents-layout-floatingPanelGap));
 }
@@ -194,10 +194,16 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench.vs.agent-sessions-workbench .agents-part-card,
-.monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar,
+.monaco-workbench.vs.agent-sessions-workbench .agents-part-card {
+	border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)));
+}
+
 .monaco-workbench.vs.agent-sessions-workbench .part.panel {
-	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	border-color: var(--vscode-agentsBottomPanel-border, var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)));
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar {
+	border-color: var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent));
 }
 
 .agent-sessions-workbench .monaco-sash:before {
