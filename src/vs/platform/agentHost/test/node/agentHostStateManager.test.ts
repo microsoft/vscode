@@ -602,6 +602,37 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
 	});
 
+	test('restored unpublished sessions retain summary changes without notifying root clients', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Hidden Title' });
+			await new Promise(resolve => setTimeout(resolve, 150));
+			const hiddenChanges = notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged);
+			const retainedTitle = manager.getSessionSummary(sessionUri)?.title;
+
+			manager.setSessionSummaryPublished(sessionUri, true);
+			const added = notifications.find(notification => notification.type === NotificationType.SessionAdded);
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Visible Title' });
+			await new Promise(resolve => setTimeout(resolve, 150));
+			const visibleChanges = notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedParams[];
+
+			assert.deepStrictEqual({
+				hiddenChangeCount: hiddenChanges.length,
+				retainedTitle,
+				addedTitle: added?.type === NotificationType.SessionAdded ? added.summary.title : undefined,
+				visibleChanges: visibleChanges.map(change => change.changes.title),
+			}, {
+				hiddenChangeCount: 0,
+				retainedTitle: 'Hidden Title',
+				addedTitle: 'Hidden Title',
+				visibleChanges: ['Visible Title'],
+			});
+		});
+	});
+
 	test('restoreSession emits sessionSummaryChanged clearing the adoptable marker for a previously surfaced session', () => {
 		// A surfaced adoptable-legacy session is announced with the marker; adopting
 		// it via restoreSession must notify clients the marker was cleared so they
