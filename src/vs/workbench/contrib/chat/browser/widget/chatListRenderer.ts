@@ -69,7 +69,7 @@ import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
-import { RestoreCheckpointActionId } from '../chatEditing/chatEditingActions.js';
+import { RestoreCheckpointActionId, StartOverActionId } from '../chatEditing/chatEditingActions.js';
 import { ChatForkActionViewItem } from './chatForkActionViewItem.js';
 import { ChatRestoreCheckpointActionViewItem } from './chatRestoreCheckpointActionViewItem.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
@@ -680,7 +680,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		super();
 
 		this.chatContentMarkdownRenderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
-		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
+		this.markdownDecorationsRenderer = this._register(this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));
 		this._toolEditorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));
 		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));
@@ -959,8 +959,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const checkpointToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointContainer, MenuId.ChatMessageCheckpoint, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
-					if (action.item.id === RestoreCheckpointActionId) {
-						return this.instantiationService.createInstance(ChatRestoreCheckpointActionViewItem, action, { hoverDelegate: options.hoverDelegate }, (context: unknown) => this.checkpointRestoreNeedsConfirmation(context));
+					if (action.item.id === RestoreCheckpointActionId || action.item.id === StartOverActionId) {
+						const isStartOver = action.item.id === StartOverActionId;
+						const cancelLabel = isStartOver
+							? localize('chat.startOver.cancelTooltip', "Cancel starting over")
+							: localize('chat.restoreCheckpoint.cancelTooltip', "Cancel restoring this checkpoint");
+						const confirmTooltip = isStartOver
+							? localize('chat.startOver.confirmTooltip', "Confirm starting over and discarding all edits")
+							: localize('chat.restoreCheckpoint.confirmTooltip', "Confirm restoring this checkpoint and discarding later edits");
+						return this.instantiationService.createInstance(ChatRestoreCheckpointActionViewItem, action, { hoverDelegate: options.hoverDelegate }, (context: unknown) => this.discardEditsActionNeedsConfirmation(context), cancelLabel, confirmTooltip);
 					}
 					if (action.item.id === ForkConversationActionId) {
 						return this.instantiationService.createInstance(ChatForkActionViewItem, action, { hoverDelegate: options.hoverDelegate });
@@ -1111,13 +1118,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/**
-	 * Determines whether restoring to the checkpoint at the given chat item
-	 * would discard file edits that the user should confirm in-place. Used by
-	 * the "Restore Checkpoint" button to present an inline confirm/cancel
-	 * affordance for agent host sessions, which do not surface the modal
-	 * removal-confirmation dialog used by the standard editing session.
+	 * Determines whether an action at the given chat item would discard file
+	 * edits that the user should confirm in-place.
 	 */
-	private checkpointRestoreNeedsConfirmation(context: unknown): boolean {
+	private discardEditsActionNeedsConfirmation(context: unknown): boolean {
 		if (!isRequestVM(context) && !isResponseVM(context)) {
 			return false;
 		}
@@ -3803,6 +3807,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus: false,
+				fitContent: this.rendererOptions.questionCarouselFitContent,
 				onSubmit: async (answers) => handleSubmit(answers, part)
 			});
 			return part;
@@ -3812,6 +3817,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isEditing = !!this.viewModel?.editing;
 		const part = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
 			shouldAutoFocus,
+			fitContent: this.rendererOptions.questionCarouselFitContent,
 			onSubmit: async (answers) => handleSubmit(answers, part!)
 		});
 
@@ -3819,6 +3825,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!part) {
 			const fallbackPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus,
+				fitContent: this.rendererOptions.questionCarouselFitContent,
 				onSubmit: async (answers) => handleSubmit(answers, fallbackPart)
 			});
 			return fallbackPart;

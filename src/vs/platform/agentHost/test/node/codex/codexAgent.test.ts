@@ -36,6 +36,7 @@ interface ICodexMcpControllerSession {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
 	readonly configurationResource: URI;
+	chatChannel: URI | undefined;
 	readonly clientCustomizations: CodexClientCustomizationStore;
 	mcpController: McpCustomizationController | undefined;
 }
@@ -60,9 +61,9 @@ function resolveConversationSession(harness: ICodexConversationResolverHarness, 
 	return resolver.call(harness, address, context);
 }
 
-function getOrCreateMcpController(harness: ICodexMcpControllerHarness, session: ICodexMcpControllerSession): McpCustomizationController {
+function getOrCreateMcpController(harness: ICodexMcpControllerHarness, session: ICodexMcpControllerSession): McpCustomizationController | undefined {
 	const getOrCreate = (CodexAgent.prototype as unknown as {
-		_getOrCreateMcpController(this: ICodexMcpControllerHarness, session: ICodexMcpControllerSession): McpCustomizationController;
+		_getOrCreateMcpController(this: ICodexMcpControllerHarness, session: ICodexMcpControllerSession): McpCustomizationController | undefined;
 	})._getOrCreateMcpController;
 	return getOrCreate.call(harness, session);
 }
@@ -120,7 +121,7 @@ suite('CodexAgent', () => {
 		});
 	});
 
-	test('keeps fresh plugin MCP ownership after client customization resyncs, including disabled plugins', () => {
+	test('creates MCP customization state only after a concrete chat is bound', () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const customizations = new CodexClientCustomizationStore();
@@ -128,6 +129,7 @@ suite('CodexAgent', () => {
 			sessionId: 'session-1',
 			sessionUri: AgentSession.uri('codex', 'session-1'),
 			configurationResource: AgentSession.uri('codex', 'session-1'),
+			chatChannel: undefined,
 			clientCustomizations: customizations,
 			mcpController: undefined,
 		};
@@ -151,7 +153,10 @@ suite('CodexAgent', () => {
 			_preferredMcpPublisher: () => session,
 			_switchMcpPublisher: () => { },
 		};
+		const beforeChatBinding = getOrCreateMcpController(harness, session);
+		session.chatChannel = URI.parse(buildDefaultChatUri(session.sessionUri));
 		const controller = getOrCreateMcpController(harness, session);
+		assert.ok(controller);
 		const plugin = {
 			synced: { customization: { id: 'azure-plugin', uri: pluginUri } },
 			parsed: { mcpServers: [{ name: 'azure' }] },
@@ -177,11 +182,13 @@ suite('CodexAgent', () => {
 		const topLevelEnablement = controller.topLevelCustomizations()[0]?.enablement;
 
 		assert.deepStrictEqual({
+			beforeChatBinding,
 			owner,
 			topLevelKey: getCustomizationEnablementKey(targetForMcpServer(topLevel, owner, false), CustomizationEnablementKind.Global),
 			nestedKey: getCustomizationEnablementKey(targetForMcpServer(nested, pluginUri, false), CustomizationEnablementKind.Global),
 			topLevelEnablement,
 		}, {
+			beforeChatBinding: undefined,
 			owner: pluginUri,
 			topLevelKey: `${pluginUri}#mcp=azure`,
 			nestedKey: `${pluginUri}#mcp=azure`,
@@ -240,14 +247,14 @@ suite('CodexAgent', () => {
 		];
 		const listChatsToMigrate = (CodexAgent.prototype as unknown as {
 			listChatsToMigrate(this: {
-				_isSdkResolvableWithoutDownload(): Promise<boolean>;
+				_resolveSdkRoot(): Promise<string>;
 				_listCodexChats(): Promise<typeof chats>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 			}): Promise<typeof chats>;
 		}).listChatsToMigrate;
 
 		const result = await listChatsToMigrate.call({
-			_isSdkResolvableWithoutDownload: async () => true,
+			_resolveSdkRoot: async () => '/sdk-root',
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async chat => {
 				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));

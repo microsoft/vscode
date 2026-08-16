@@ -135,7 +135,7 @@
 	}
 
 	.chat-input-stack > .chat-input-notification-container.chat-input-stack-docked ~ .interactive-input-and-side-toolbar {
-		--chat-input-stack-radius-top: var(--vscode-cornerRadius-large);
+		--chat-input-stack-radius-top: var(--chat-input-stack-radius-outer);
 	}
 }
 

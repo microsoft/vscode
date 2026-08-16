@@ -27,10 +27,10 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
-import { AgentSession, type AgentSignal, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
+import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -46,6 +46,7 @@ import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../no
 import type { ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
+import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
@@ -233,6 +234,14 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 /** The deterministic session-backed chat URI Agent Host mints for `session`. */
 function defaultChatOf(session: URI): URI {
 	return URI.parse(buildDefaultChatUri(session));
+}
+
+function chatOf(session: URI, chatId: string): URI {
+	return URI.parse(buildChatUri(session, chatId));
+}
+
+function chatContext(session: URI, chat: URI): IAgentChatContext {
+	return { configurationResource: session, resource: chat };
 }
 
 /**
@@ -535,7 +544,7 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
-		const chat = URI.parse('agent-chat://peer/customizations');
+		const chat = chatOf(parent.session, 'customizations');
 		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'thread-customizations' } } });
@@ -649,7 +658,7 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
-		const chat = URI.parse('agent-chat://peer/mcp-owner');
+		const chat = chatOf(parent.session, 'mcp-owner');
 		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'thread-mcp-peer' } } });
@@ -666,6 +675,9 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 		agent['_applyMcpInventoryToSession'](peerEntry);
 		const ownerController = agent['_getOrCreateMcpController'](ownerEntry);
+		assert.ok(ownerController);
+		assert.ok(ownerEntry.chatChannel);
+		const ownerMcpChannel = buildMcpChannel(ownerEntry.chatChannel, 'shared');
 		ownerController.applyAll([{ name: 'shared', state: { kind: McpServerStatus.Ready } }]);
 		ownerEntry.disposed = true;
 		agent['_sessions'].delete(ownerEntry.sessionId);
@@ -709,7 +721,7 @@ suite('CodexAgent prewarm eviction', () => {
 					customization: {
 						name: 'shared',
 						state: McpServerStatus.Ready,
-						channel: `mcp://codex/${encodeURIComponent(ownerEntry.sessionId)}/shared`,
+						channel: ownerMcpChannel,
 					},
 				},
 				{
@@ -783,7 +795,7 @@ suite('CodexAgent prewarm eviction', () => {
 		} as never;
 
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
-		const chat = URI.parse('agent-chat://peer/workspace-less');
+		const chat = chatOf(parent.session, 'workspace-less');
 		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'thread-peer' } } });
@@ -795,7 +807,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const backingSession = created.backingSession;
 		assert.ok(backingSession);
 
-		const releasing = agent.chats.releaseChat?.(chat);
+		const releasing = agent.chats.releaseChat?.(chat, chatContext(parent.session, chat));
 		const releaseUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: releaseUnsubscribe.id, result: {} });
 		await releasing;
@@ -844,7 +856,7 @@ suite('CodexAgent prewarm eviction', () => {
 			managedDirectoryExists: true,
 		});
 
-		const disposing = agent.chats.disposeChat(chat);
+		const disposing = agent.chats.disposeChat(chat, chatContext(parent.session, chat));
 		const unsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: unsubscribe.id, result: {} });
 		await disposing;
@@ -864,9 +876,10 @@ suite('CodexAgent prewarm eviction', () => {
 		const refresh = new DeferredPromise<void>();
 		agent['_models'].set([], undefined);
 		agent['_modelsRefreshPromise'] = refresh.p;
-		const chat = URI.parse('agent-chat://peer/restored');
+		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'restored');
 
-		const materializing = agent.materializeChat(chat, AgentSession.uri('codex', 'parent'), JSON.stringify({
+		const materializing = agent.materializeChat(chat, parent, JSON.stringify({
 			sessionId: 'restored-peer',
 			model: selectedModel,
 		}));
@@ -887,7 +900,7 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.strictEqual(agent['_modelsRefreshPromise'], undefined);
 
 		await agent.materializeChat(
-			URI.parse('agent-chat://peer/restored-empty-catalog'),
+			chatOf(AgentSession.uri('codex', 'parent'), 'restored-empty-catalog'),
 			AgentSession.uri('codex', 'parent'),
 			JSON.stringify({ sessionId: 'restored-empty-catalog', model: selectedModel }),
 		);
@@ -908,7 +921,7 @@ suite('CodexAgent prewarm eviction', () => {
 		await database.setMetadata('codex.model', persistedModel.id);
 
 		await agent.materializeChat(
-			URI.parse('agent-chat://peer/restored-updated-model'),
+			chatOf(AgentSession.uri('codex', 'parent'), 'restored-updated-model'),
 			AgentSession.uri('codex', 'parent'),
 			JSON.stringify({ sessionId: 'restored-updated-model', model: creationModel }),
 		);
@@ -927,8 +940,8 @@ suite('CodexAgent prewarm eviction', () => {
 			usageSource: 'github',
 			child: { kill: () => true },
 		} as never;
-		const chat = URI.parse('agent-chat://peer/restored-history');
 		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'restored-history');
 		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored-history' }));
 
 		const reading = agent.chats.getMessages(chat, { configurationResource: parent, resource: chat });
@@ -1005,8 +1018,8 @@ suite('CodexAgent prewarm eviction', () => {
 			usageSource: 'github',
 			child: { kill: () => true },
 		} as never;
-		const chat = URI.parse('agent-chat://peer/restored-mcp');
 		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'restored-mcp');
 		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored-mcp' }));
 		const entry = agent['_sessions'].get('restored-mcp')!;
 		const pluginDir = URI.file('/plugin');
@@ -1156,7 +1169,7 @@ suite('CodexAgent prewarm eviction', () => {
 		} as never;
 
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
-		const chat = URI.parse('agent-chat://peer/release-dispose');
+		const chat = chatOf(parent.session, 'release-dispose');
 		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'released-peer' } } });
@@ -1166,13 +1179,13 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.ok(managedDirectory);
 		await agent['_metadataStore'].read(created.backingSession);
 
-		const releasing = agent.chats.releaseChat?.(chat);
+		const releasing = agent.chats.releaseChat?.(chat, chatContext(parent.session, chat));
 		const unsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: unsubscribe.id, result: {} });
 		await releasing;
 		assert.strictEqual(fs.existsSync(managedDirectory.fsPath), true);
 
-		await agent.chats.disposeChat(chat);
+		await agent.chats.disposeChat(chat, chatContext(parent.session, chat));
 		assert.deepStrictEqual({
 			sessionExists: agent['_sessions'].has('released-peer'),
 			releasedOwnershipExists: agent['_releasedManagedWorkingDirectories'].has('released-peer'),
@@ -1220,7 +1233,7 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.push({ id: chatGPTStart.id, result: { thread: { id: 'thread-chatgpt' } } });
 		await materializeChatGPT;
 
-		await agent.chats.changeModel(URI.parse(buildDefaultChatUri(copilot.session)), { id: chatGPTModel });
+		await agent.chats.changeModel(defaultChatOf(copilot.session), { id: chatGPTModel }, chatContext(copilot.session, defaultChatOf(copilot.session)));
 		const persistedAfterSwitch = await agent['_metadataStore'].read(copilot.session);
 		const rematerializeCopilot = agent['_materializeIfNeeded'](copilotEntry, copilotEntry.sessionUri, false);
 		const switchedStart = await readNextRequest(peer.outbound);
@@ -2403,8 +2416,8 @@ suite('CodexAgent managed working directory ownership', () => {
 			// released-directory memo simulates the in-memory map being
 			// empty, as it would be after a process restart.
 			agent['_releasedManagedWorkingDirectories'].clear();
-			await agent.chats.releaseChat(chat);
-			await agent.chats.disposeChat(chat);
+			await agent.chats.releaseChat(chat, chatContext(session, chat));
+			await agent.chats.disposeChat(chat, chatContext(session, chat));
 
 			assert.strictEqual(fs.existsSync(marker), true, 'the user folder must never be deleted');
 		} finally {
@@ -2435,8 +2448,8 @@ suite('CodexAgent managed working directory ownership', () => {
 			);
 
 			agent['_releasedManagedWorkingDirectories'].clear();
-			await agent.chats.releaseChat(chat);
-			await agent.chats.disposeChat(chat);
+			await agent.chats.releaseChat(chat, chatContext(session, chat));
+			await agent.chats.disposeChat(chat, chatContext(session, chat));
 
 			assert.strictEqual(fs.existsSync(managedFolder), false, 'the explicitly recorded managed folder is still cleaned up');
 		} finally {

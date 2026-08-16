@@ -3312,7 +3312,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * never by whether `chat` happens to be "the default chat" or by an
 	 * Agent-Host-guaranteed teardown order.
 	 */
-	private async _releaseConfigScopeIfDone(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
+	private async _releaseConfigScopeIfDone(chat: URI, context: URI | IAgentChatContext): Promise<void> {
 		const configurationResource = this._configScope(chat, context);
 		if (this._untrackConfigScopeChat(configurationResource, chat)) {
 			await this._reclaimManagedWorkingDirectoryIfNotLive(configurationResource);
@@ -3357,27 +3357,28 @@ export class CodexAgent extends Disposable implements IAgent {
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
 		},
-		disposeChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => this._disposeChat(chat, context),
-		releaseChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => this._releaseChat(chat, context),
+		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._disposeChat(chat, context),
+		releaseChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._releaseChat(chat, context),
 		sendMessage: (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
 			return this._sendMessage(chat, prompt, attachments, turnId, workingDirectories, operationContext);
 		},
-		abort: (chat: URI): Promise<void> => {
-			return this._abort(chat);
+		abort: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
+			return this._abort(chat, context);
 		},
-		changeModel: (chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void> => {
+		changeModel: (chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chat, model, context);
 		},
-		changeAgent: (chat: URI, agent: AgentSelection | undefined, context?: URI | IAgentChatContext): Promise<void> => this._changeAgent(chat, agent, context),
-		getMessages: (chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> => {
+		changeAgent: (chat: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> => this._changeAgent(chat, agent, context),
+		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => {
 			return this._getChatMessages(chat, context);
 		},
 	};
 
-	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, context?: URI | IAgentChatContext): Promise<void> {
-		const sessionUri = this._resolveConversationSession(chat, context);
+	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			throw new Error(`Codex conversation is not bound: ${chat.toString()}`);
 		}
@@ -4763,8 +4764,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _abort(chat: URI): Promise<void> {
-		const sessionUri = this._resolveConversationSession(chat);
+	private async _abort(chat: URI, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			return;
 		}
@@ -4810,13 +4812,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _disposeChat(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
-		const runtimeSession = this._resolveConversationSession(chat, context);
+	private async _disposeChat(chat: URI, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const runtimeSession = this._resolveConversationSession(chat, operationContext);
 		this._removeActiveClientHandlesForChat(chat);
 		// Configuration-scope ref tracking is independent of whether a
 		// runtime is currently resolvable for `chat` — an unaddressable chat
 		// still occupied a slot in its scope's ref set when it was created.
-		await this._releaseConfigScopeIfDone(chat, context);
+		await this._releaseConfigScopeIfDone(chat, operationContext);
 		if (!runtimeSession) {
 			return;
 		}
@@ -4824,8 +4827,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessionIdByChatUri.delete(chat.toString());
 	}
 
-	private async _releaseChat(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
-		const runtimeSession = this._resolveConversationSession(chat, context);
+	private async _releaseChat(chat: URI, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const runtimeSession = this._resolveConversationSession(chat, operationContext);
 		if (!runtimeSession) {
 			return;
 		}
@@ -4961,8 +4965,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _changeModel(chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void> {
-		const sessionUri = this._resolveConversationSession(chat, context);
+	private async _changeModel(chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			return;
 		}
@@ -5106,8 +5111,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * persisted rollout. Chat-addressed only: the owning session comes from the
 	 * recorded binding or the host-supplied context, never from the URI.
 	 */
-	private async _getChatMessages(chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> {
-		const sessionUri = this._resolveConversationSession(chat, context);
+	private async _getChatMessages(chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			return [];
 		}
@@ -5408,7 +5414,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		if (!(await this._isSdkResolvableWithoutDownload())) {
+		try {
+			await this._resolveSdkRoot();
+		} catch (err) {
+			this._logService.warn(`[Codex] SDK unavailable while listing chats to migrate: ${err instanceof Error ? err.message : String(err)}`);
 			return undefined;
 		}
 		const chats = await this._listCodexChats();
@@ -5795,9 +5804,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			return [];
 		}
 		const controller = this._getOrCreateMcpController(session);
-		const inventory = this._mcpInventory.forThread(session.threadId);
-		controller.applyAll(inventoryToSdkServers(inventory));
-		this._refreshMcpCustomizationIds(session, controller);
+		if (controller) {
+			controller.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(session.threadId)));
+			this._refreshMcpCustomizationIds(session, controller);
+		}
 		const [workspaceAgents, skillHookContainers] = await Promise.all([
 			discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
 			this._fetchSkillHookContainers(session),
@@ -5808,7 +5818,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		return [
 			...workspaceAgents.containers,
 			...this._resolveClientCustomizationEnablement(session).resolution.customizations,
-			...controller.topLevelCustomizations(),
+			...(controller?.topLevelCustomizations() ?? []),
 			...skillHookContainers,
 		];
 	}
@@ -5869,11 +5879,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * `Method not found` so the protocol server maps them to JSON-RPC
 	 * `-32601`.
 	 */
-	async handleMcpRequest(sessionUri: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
-		const sessionId = AgentSession.id(sessionUri);
+	async handleMcpRequest(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const sessionId = this._sessionIdByChatUri.get(chat.toString());
+		if (!sessionId) {
+			throw new Error(`Method not found: no active chat ${chat.toString()}`);
+		}
 		const session = this._sessions.get(sessionId);
-		if (!session) {
-			throw new Error(`Method not found: no active session ${sessionId}`);
+		if (!session || !session.chatChannel || !isEqual(session.chatChannel, chat)) {
+			throw new Error(`Method not found: no active chat ${chat.toString()}`);
 		}
 		const entry = this._mcpInventory.forThread(session.threadId).get(serverName);
 		if (!entry) {
@@ -5947,6 +5960,9 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _resolveMcpServerName(session: ICodexSession, id: string): string | undefined {
 		const controller = this._getOrCreateMcpController(session);
+		if (!controller) {
+			return undefined;
+		}
 		controller.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(session.threadId)));
 		this._refreshMcpCustomizationIds(session, controller);
 		return controller.serverNameForCustomizationId(id);
@@ -6032,12 +6048,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * registered on the agent (sessions come and go) — disposed explicitly
 	 * when the session is removed.
 	 */
-	private _getOrCreateMcpController(session: ICodexSession): McpCustomizationController {
+	private _getOrCreateMcpController(session: ICodexSession): McpCustomizationController | undefined {
+		if (!session.chatChannel) {
+			return undefined;
+		}
 		if (!session.mcpController) {
 			session.mcpController = this._instantiationService.createInstance(McpCustomizationController, {
-				providerId: this.id,
-				sessionId: session.sessionId,
-				sessionUri: session.configurationResource,
+				chatUri: session.chatChannel,
 				emit: action => this._emitMcpCustomizationAction(session, action),
 				capabilities: CODEX_MCP_APP_CAPABILITIES,
 				pluginMcpServerSources: () => codexPluginMcpServerSources(session.clientCustomizations.plugins()),
@@ -6058,6 +6075,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		const controller = this._getOrCreateMcpController(session);
+		if (!controller) {
+			return;
+		}
 		controller.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(session.threadId)));
 		this._refreshMcpCustomizationIds(session, controller);
 	}

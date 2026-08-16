@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, JsonValue, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
@@ -27,6 +27,7 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -40,6 +41,7 @@ import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCa
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
+import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -137,6 +139,10 @@ class MockCopilotSession {
 	 * Lets a test make an earlier-issued read resolve after a later one.
 	 */
 	readonly usageMetricsGates: Array<Promise<unknown>> = [];
+	backgroundTasks: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'] = [];
+	backgroundTaskListCalls = 0;
+	backgroundTaskRefreshCalls = 0;
+	backgroundTaskListError: Error | undefined;
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	private readonly _allHandlers = new Set<SessionEventHandler>();
@@ -276,6 +282,22 @@ class MockCopilotSession {
 			invoke: async (params: { name: string; input?: string }) => {
 				this.commandInvokeCalls.push(params);
 				return this.commandInvokeResult;
+			},
+		},
+		tasks: {
+			list: async () => {
+				this.backgroundTaskListCalls++;
+				if (this.backgroundTaskListError) {
+					const error = this.backgroundTaskListError;
+					this.backgroundTaskListError = undefined;
+					throw error;
+				}
+				const tasks = this.backgroundTasks.map(task => ({ ...task }));
+				return { tasks };
+			},
+			refresh: async () => {
+				this.backgroundTaskRefreshCalls++;
+				return {};
 			},
 		},
 		mcp: {
@@ -549,7 +571,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 } | {
 	readonly kind: 'custom-tool';
 	readonly toolName?: string;
-	readonly args?: Record<string, unknown>;
+	readonly args?: JsonValue;
 });
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
@@ -661,7 +683,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const parentSessionUri = AgentSession.uri('copilot', 'test-session-1');
 	const sessionUri = options?.sessionUri ?? parentSessionUri;
-	const chatChannelUri = options?.chatChannelUri ?? URI.parse(buildDefaultChatUri(parentSessionUri));
+	const chatChannelUri = options?.chatChannelUri ?? URI.parse(buildDefaultChatUri(sessionUri));
 	const mockSession = new MockCopilotSession();
 	options?.configureMockSession?.(mockSession);
 
@@ -4843,7 +4865,7 @@ suite('CopilotAgentSession', () => {
 						mcpServerName: 'docs',
 						ui: {
 							resourceUri: 'ui://docs',
-							channel: 'mcp://copilot/test-session-1/docs',
+							channel: buildMcpChannel(URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1'))), 'docs'),
 						},
 					},
 				});
@@ -4930,9 +4952,17 @@ suite('CopilotAgentSession', () => {
 
 		test('emits todo store telemetry for successful built-in Copilot SQL', async () => {
 			const telemetryService = new CapturingTelemetryService();
-			const { mockSession, waitForSignal } = await createAgentSession(disposables, {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
 				telemetryService,
 				sessionUri: AgentSession.uri('copilotcli', 'test-session-1'),
+			});
+			session.resetTurnState('turn-sql', undefined, AgentHostClientType.EditorWindow, {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
 			});
 
 			mockSession.fire('tool.execution_start', {
@@ -4949,6 +4979,12 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'todoStoreOperation'), [{
 				eventName: 'todoStoreOperation',
 				data: {
+					initiatorClientType: 'editor_window',
+					initiatorConnectionKind: 'remote_extension_host',
+					initiatorTransportKind: 'message_port',
+					hostLaunchKind: 'vscode_main_process',
+					initiatorMachineId: 'client-machine-id',
+					initiatorDevDeviceId: 'client-dev-device-id',
 					operation: 'write',
 					target: 'todos',
 					toolCallId: 'tc-sql',
@@ -5778,6 +5814,68 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 1);
 			assert.ok(isAction(signals[0], ActionType.ChatTurnComplete));
+		});
+
+		test('idle event completes the active turn while a detached shell runs', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [{
+				type: 'shell',
+				id: 'shell-1',
+				description: 'Monitor CI',
+				status: 'running',
+				startedAt: new Date(0).toISOString(),
+				command: 'monitor-ci',
+				attachmentMode: 'detached',
+				executionMode: 'background',
+			}];
+			session.resetTurnState('turn-background');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).length,
+				listCalls: mockSession.backgroundTaskListCalls,
+				refreshCalls: mockSession.backgroundTaskRefreshCalls,
+			}, {
+				hasActiveTurn: false,
+				completedTurns: 1,
+				listCalls: 0,
+				refreshCalls: 0,
+			});
+		});
+
+		test('running detached shell state defers release conservatively', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const runningShell = {
+				type: 'shell' as const,
+				id: 'shell-running',
+				description: 'Monitor CI',
+				status: 'running' as const,
+				startedAt: new Date(0).toISOString(),
+				command: 'monitor-ci',
+				attachmentMode: 'detached' as const,
+				executionMode: 'background' as const,
+			};
+			mockSession.backgroundTasks = [runningShell];
+			const running = await session.hasRunningDetachedShells();
+			mockSession.backgroundTasks = [{ ...runningShell, status: 'completed', completedAt: new Date().toISOString() }];
+			const completed = await session.hasRunningDetachedShells();
+			mockSession.backgroundTaskListError = new Error('transient tasks.list failure');
+			const failedRead = await session.hasRunningDetachedShells();
+
+			assert.deepStrictEqual({
+				running,
+				completed,
+				failedRead,
+				listCalls: mockSession.backgroundTaskListCalls,
+				refreshCalls: mockSession.backgroundTaskRefreshCalls,
+			}, {
+				running: true,
+				completed: false,
+				failedRead: true,
+				listCalls: 3,
+				refreshCalls: 3,
+			});
 		});
 
 		test('tool-call aggregate emits once with cancelled result across abort and idle', async () => {
@@ -10015,7 +10113,15 @@ suite('CopilotAgentSession', () => {
 
 		test('emits with counts derived from source types + AH identifiers', async () => {
 			const telemetryService = new CapturingTelemetryService();
-			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('turn-instructions', undefined, AgentHostClientType.EditorWindow, {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			});
 
 			mockSession.getInstructionSourcesResult = {
 				sources: [
@@ -10036,6 +10142,12 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(emitted, [{
 				eventName: 'agentHost.instructionsCollected',
 				data: {
+					initiatorClientType: 'editor_window',
+					initiatorConnectionKind: 'remote_extension_host',
+					initiatorTransportKind: 'message_port',
+					hostLaunchKind: 'vscode_main_process',
+					initiatorMachineId: 'client-machine-id',
+					initiatorDevDeviceId: 'client-dev-device-id',
 					provider: 'copilot',
 					agentSessionId: 'test-session-1',
 					isSubagentSession: false,
