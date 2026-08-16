@@ -109,6 +109,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 	 * layout-driven close for a user dismissing a managed tab.
 	 */
 	protected override _suppressEditorVisibilityDuringRestore(): IDisposable | undefined {
+		this._layoutService.clearEditorPartSashResetState();
 		return this._layoutService.suppressEditorPartAutoVisibility();
 	}
 

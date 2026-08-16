@@ -1257,6 +1257,7 @@ export class AgentSideEffects extends Disposable {
 		const agent = this._options.getAgent(parentSessionUri);
 		if (agent) {
 			this._turnTracker.turnStarted(agent.id, subagentChatUri, turnId, undefined, undefined, undefined, undefined, parentClientContext);
+			this._turnTracker.setCurrentStage(subagentChatUri, turnId, 'provider');
 		}
 
 		this._subagentChats.set({ parentChatUri: chatURI, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri, turnStopWatch: StopWatch.create(false) }, chatURI, toolCallId);
@@ -1330,6 +1331,7 @@ export class AgentSideEffects extends Disposable {
 		const agent = this._options.getAgent(subagent.sessionUri);
 		if (agent) {
 			this._turnTracker.turnStarted(agent.id, subagent.chatUri, turnId, undefined, undefined, undefined, undefined, parentClientContext);
+			this._turnTracker.setCurrentStage(subagent.chatUri, turnId, 'provider');
 		}
 		this._subagentChats.set({ ...subagent, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);
 	}
@@ -2143,6 +2145,7 @@ export class AgentSideEffects extends Disposable {
 
 		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
 		try {
+			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			// Host-owned working-directory resolution: resolve the session's working
 			// directory before the agent materializes, so the agent runs in it
 			// without ever knowing how it was derived. Returns the created worktree
@@ -2153,6 +2156,7 @@ export class AgentSideEffects extends Disposable {
 			const clientOperationContext = { ...chatContext, clientTelemetryContext: clientContext };
 
 			const selectionUpdates: Promise<void>[] = [];
+			this._turnTracker.setCurrentStage(turnChannel, turnId, 'modelSelection');
 			if (message.model) {
 				failureStage = 'modelSelection';
 				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model, clientOperationContext));
@@ -2164,6 +2168,7 @@ export class AgentSideEffects extends Disposable {
 			await Promise.all(selectionUpdates);
 
 			failureStage = 'sendMessage';
+			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			const renameInstruction = await this._titleController.prepareInstructionForAgent(sessionChannel, chat);
 			const hostInstructions = [
@@ -2179,6 +2184,7 @@ export class AgentSideEffects extends Disposable {
 				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId);
 				return;
 			}
+			this._turnTracker.setCurrentStage(turnChannel, turnId, 'provider');
 			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
