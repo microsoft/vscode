@@ -85,7 +85,7 @@ function createFeedbackComment(id: string, text: string, startLineNumber: number
 		text,
 		suggestion,
 		canConvertToAgentFeedback: false,
-		replies,
+		replies: replies?.map(text => ({ text, author: 'user' as const })),
 	};
 }
 

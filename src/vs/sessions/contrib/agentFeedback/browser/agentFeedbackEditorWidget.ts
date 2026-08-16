@@ -30,6 +30,7 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackReply } from './agentFeedbackModel.js';
 import { ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 
 interface ICommentItemActions {
@@ -469,13 +470,18 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		return suggestionNode;
 	}
 
-	private _renderReplies(replies: readonly string[]): HTMLElement {
+	private _renderReplies(replies: readonly IAgentFeedbackReply[]): HTMLElement {
 		const repliesNode = $('div.agent-feedback-widget-replies');
 
 		for (const reply of replies) {
 			const replyNode = $('div.agent-feedback-widget-reply');
+			if (reply.author === 'agent') {
+				const author = $('div.agent-feedback-widget-reply-author');
+				author.textContent = nls.localize('agentFeedback.replyFromAgent', "Agent");
+				replyNode.appendChild(author);
+			}
 			const replyText = $('div.agent-feedback-widget-reply-text');
-			const rendered = this._markdownRendererService.render(new MarkdownString(reply));
+			const rendered = this._markdownRendererService.render(new MarkdownString(reply.text));
 			this._eventStore.add(rendered);
 			replyText.appendChild(rendered.element);
 			replyNode.appendChild(replyText);

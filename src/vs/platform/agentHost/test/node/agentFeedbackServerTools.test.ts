@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { FEEDBACK_ANNOTATION_META_KEY, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
+import { feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationEntryAuthor, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatUri } from '../../common/state/sessionState.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -47,6 +47,43 @@ suite('AgentFeedbackServerTools', () => {
 		return { annotations };
 	}
 
+	test('listComments distinguishes user, agent and PR reviewer voices in a thread', () => {
+		const thread = annotation('a', 'accepted', false, 'please rename', 'prReview');
+		thread.entries = [
+			thread.entries[0],
+			{ id: 'a:r0', text: 'done', _meta: feedbackAnnotationEntryMeta('agent') },
+			{ id: 'a:r1', text: 'not quite', _meta: feedbackAnnotationEntryMeta('user') },
+			{ id: 'a:r2', text: 'legacy reply' },
+		];
+		const outcome = applyFeedbackTool(stateWith(thread), sessionResource, listCommentsToolName, {});
+		const comment = JSON.parse(outcome.result).comments[0];
+		assert.deepStrictEqual({ kind: comment.kind, author: comment.author, replies: comment.replies }, {
+			kind: 'prReview',
+			author: 'prReviewer',
+			replies: [
+				{ author: 'agent', text: 'done' },
+				{ author: 'user', text: 'not quite' },
+				// Replies predating authorship could only be typed by the user.
+				{ author: 'user', text: 'legacy reply' },
+			],
+		});
+	});
+
+	test('listComments reports unknown provenance rather than assuming the user', () => {
+		const orphan: Annotation = {
+			id: 'a',
+			turnId: '',
+			resource: fileUri,
+			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
+			resolved: false,
+			entries: [{ id: 'a:0', text: 'comment' }],
+			_meta: { [FEEDBACK_ANNOTATION_META_KEY]: { kind: 'nonsense', state: 'accepted', sessionResource } },
+		};
+		// A comment whose metadata does not decode is not listable at all, so the
+		// agent never sees it mislabelled as the user's.
+		assert.deepStrictEqual(JSON.parse(applyFeedbackTool(stateWith(orphan), sessionResource, listCommentsToolName, {}).result).comments, []);
+	});
+
 	test('addComment produces an AnnotationsSet in the created state with a converted range', () => {
 		const outcome = applyFeedbackTool(stateWith(), sessionResource, addCommentToolName, {
 			resourceUri: fileUri,
@@ -79,6 +116,7 @@ suite('AgentFeedbackServerTools', () => {
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 },
 				text: 'visible',
 				kind: 'codeReview',
+				author: 'agent',
 				resolved: false,
 			}],
 			note: 'There is 1 code review comment which the user has not reviewed yet. If the user wants you to tackle them, call the `viewUnreviewedComments` tool to view them.',
@@ -112,19 +150,22 @@ suite('AgentFeedbackServerTools', () => {
 			actionType: action.type,
 			annotationId: action.annotationId,
 			entryText: action.entry.text,
+			entryAuthor: readFeedbackAnnotationEntryAuthor(action.entry),
 			comment: JSON.parse(outcome.result).comment,
 		}, {
 			actionType: ActionType.AnnotationsEntrySet,
 			annotationId: 'a',
 			entryText: 'agent reply',
+			entryAuthor: 'agent',
 			comment: {
 				id: 'a',
 				resourceUri: fileUri,
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 },
 				text: 'original',
 				kind: 'codeReview',
+				author: 'agent',
 				resolved: false,
-				replies: ['agent reply'],
+				replies: [{ author: 'agent', text: 'agent reply' }],
 			},
 		});
 	});

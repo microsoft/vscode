@@ -322,7 +322,10 @@ suite('AgentFeedbackService - Ordering', () => {
 			replies: items[0].replies,
 		}, {
 			text: 'initial',
-			replies: ['first reply', 'second reply'],
+			replies: [
+				{ text: 'first reply', author: 'user' },
+				{ text: 'second reply', author: 'user' },
+			],
 		});
 	});
 

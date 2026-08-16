@@ -652,7 +652,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return;
 		}
 
-		const newReplies = [...(existing.replies ?? []), replyText];
+		const newReplies = [...(existing.replies ?? []), { text: replyText, author: 'user' as const }];
 		const updated: IAgentFeedback = { ...existing, replies: newReplies };
 		backend.upsert(updated);
 		this._onDidAddReply.fire({ sessionResource, feedback: updated, replyCount: newReplies.length });

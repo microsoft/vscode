@@ -126,7 +126,7 @@ suite('AgentFeedbackAttachmentContribution', () => {
 			sessionResource,
 			kind: AgentFeedbackKind.UserReview,
 			state: AgentFeedbackState.Accepted,
-			replies,
+			replies: replies?.map(text => ({ text, author: 'user' as const })),
 		});
 		const roots = [URI.file('/workspace'), URI.file('/second-root')];
 		const first = feedback('one', 'Fix this', '/workspace/src/a.ts', new Range(10, 2, 12, 4), ['Also cover null', 'Keep the\nerror detail']);
