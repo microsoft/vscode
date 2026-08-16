@@ -33,6 +33,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
 import { ITunnelHostService } from '../../../../../../workbench/contrib/chat/common/tunnelHost.js';
+import type { TunnelConnectFailureReason } from '../../../../../common/sessionsTelemetry.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -385,7 +386,7 @@ suite('TunnelAgentHostContribution', () => {
 		);
 	});
 
-	test('resumes a max-attempts pause on focus and rate-limits repeated focus changes', () => {
+	test('recovery signals resume only compatible pause reasons', () => {
 		const tunnelService = store.add(new StubTunnelService());
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
@@ -404,37 +405,63 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
 		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
 		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
-		const address = `${TUNNEL_ADDRESS_PREFIX}tunnel-focus`;
-		tunnelService.setCached([{ tunnelId: 'tunnel-focus', clusterId: 'use', name: 'Focus Tunnel' }]);
+		const maxAttemptsAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-max-attempts`;
+		const offlineAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-offline`;
+		const authAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-auth`;
+		tunnelService.setCached([
+			{ tunnelId: 'tunnel-max-attempts', clusterId: 'use', name: 'Max Attempts Tunnel' },
+			{ tunnelId: 'tunnel-offline', clusterId: 'use', name: 'Offline Tunnel' },
+			{ tunnelId: 'tunnel-auth', clusterId: 'use', name: 'Auth Tunnel' },
+			{ tunnelId: 'tunnel-idle', clusterId: 'use', name: 'Idle Tunnel' },
+		]);
 		const testable = contribution as unknown as {
-			_reconnectPaused: Set<string>;
+			_reconnectPauseReasons: Map<string, TunnelConnectFailureReason>;
 			_reconnectTimeouts: Map<string, ReturnType<typeof setTimeout>>;
+			_resumeReconnects(trigger: 'sessionAdded'): void;
 		};
 
-		testable._reconnectPaused.add(address);
+		testable._reconnectPauseReasons.set(maxAttemptsAddress, 'maxAttemptsReached');
+		testable._reconnectPauseReasons.set(offlineAddress, 'hostOffline');
+		testable._reconnectPauseReasons.set(authAddress, 'authExpired');
 		hostService.fireFocus(true);
 		const firstResume = {
-			paused: testable._reconnectPaused.has(address),
+			paused: [...testable._reconnectPauseReasons],
 			timers: [...testable._reconnectTimeouts.keys()],
 		};
 
-		testable._reconnectPaused.add(address);
+		testable._reconnectPauseReasons.set(maxAttemptsAddress, 'maxAttemptsReached');
 		hostService.fireFocus(true);
 		const rateLimitedResume = {
-			paused: testable._reconnectPaused.has(address),
+			paused: [...testable._reconnectPauseReasons],
+			timers: [...testable._reconnectTimeouts.keys()],
+		};
+
+		testable._resumeReconnects('sessionAdded');
+		const sessionResume = {
+			paused: [...testable._reconnectPauseReasons],
 			timers: [...testable._reconnectTimeouts.keys()],
 		};
 
 		assert.deepStrictEqual(
-			{ firstResume, rateLimitedResume },
+			{ firstResume, rateLimitedResume, sessionResume },
 			{
-				firstResume: { paused: false, timers: [address] },
-				rateLimitedResume: { paused: true, timers: [address] },
+				firstResume: {
+					paused: [[offlineAddress, 'hostOffline'], [authAddress, 'authExpired']],
+					timers: [maxAttemptsAddress],
+				},
+				rateLimitedResume: {
+					paused: [[offlineAddress, 'hostOffline'], [authAddress, 'authExpired'], [maxAttemptsAddress, 'maxAttemptsReached']],
+					timers: [maxAttemptsAddress],
+				},
+				sessionResume: {
+					paused: [[offlineAddress, 'hostOffline'], [maxAttemptsAddress, 'maxAttemptsReached']],
+					timers: [maxAttemptsAddress, authAddress],
+				},
 			},
 		);
 	});
 
-	test('confirmed online tunnel resumes a max-attempts pause during status check', async () => {
+	test('confirmed online tunnel resumes a host-offline pause during status check', async () => {
 		const tunnelService = store.add(new StubTunnelService());
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
@@ -458,16 +485,16 @@ suite('TunnelAgentHostContribution', () => {
 		tunnelService.setCached([{ tunnelId, clusterId: 'use', name: 'Online Tunnel' }]);
 		tunnelService.setListed([{ tunnelId, clusterId: 'use', name: 'Online Tunnel', tags: [], protocolVersion: 5, hostConnectionCount: 1 }]);
 		const testable = contribution as unknown as {
-			_reconnectPaused: Set<string>;
+			_reconnectPauseReasons: Map<string, TunnelConnectFailureReason>;
 			_reconnectTimeouts: Map<string, ReturnType<typeof setTimeout>>;
 			_silentStatusCheck(): Promise<void>;
 		};
 
-		testable._reconnectPaused.add(address);
+		testable._reconnectPauseReasons.set(address, 'hostOffline');
 		await testable._silentStatusCheck();
 
 		assert.deepStrictEqual(
-			{ paused: testable._reconnectPaused.has(address), timers: [...testable._reconnectTimeouts.keys()] },
+			{ paused: testable._reconnectPauseReasons.has(address), timers: [...testable._reconnectTimeouts.keys()] },
 			{ paused: false, timers: [address] },
 		);
 	});
