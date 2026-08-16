@@ -835,7 +835,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (enabled) {
 					// Only the adoptable legacy extension-host half of discovery is
 					// gated on this setting, so a fresh pass is needed to surface it.
-					void this._emitCopilotChats();
+					void this._runCopilotChatDiscovery();
+				} else {
+					for (const [chat, discovered] of this._discoveredChats) {
+						if (!discovered.external) {
+							this._discoveredChats.delete(chat);
+						}
+					}
 				}
 			}
 		}));
@@ -2135,6 +2141,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _copilotChatDiscovery: Promise<void> | undefined;
+	private readonly _copilotChatDiscoverySequencer = new Sequencer();
+	private readonly _discoveredChats = new Map<string, { readonly signature: string; readonly external: boolean }>();
 
 	/**
 	 * One memoized initial discovery attempt, mirroring Claude and Codex. The
@@ -2145,7 +2153,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _startCopilotChatDiscovery(): Promise<void> {
 		if (!this._copilotChatDiscovery) {
-			this._copilotChatDiscovery = retry(async () => {
+			this._copilotChatDiscovery = this._runCopilotChatDiscovery();
+		}
+		return this._copilotChatDiscovery;
+	}
+
+	private _runCopilotChatDiscovery(): Promise<void> {
+		return this._copilotChatDiscoverySequencer.queue(() =>
+			retry(async () => {
 				if (this._shutdownPromise || this._store.isDisposed) {
 					// Teardown began between attempts. Return rather than throw so
 					// the retry stops instead of sleeping on a dead client.
@@ -2155,9 +2170,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 					throw new Error('Copilot chat catalog is not available');
 				}
 			}, 5000, 3)
-				.catch(err => this._logService.warn('[Copilot] Chat discovery failed', err));
-		}
-		return this._copilotChatDiscovery;
+				.catch(err => this._logService.warn('[Copilot] Chat discovery failed', err))
+		);
 	}
 
 	/**
@@ -2170,13 +2184,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * what {@link _startCopilotChatDiscovery} retries on.
 	 */
 	private async _emitCopilotChats(): Promise<boolean> {
+		const migrateLegacyAtStart = this._isMigrateLegacyCopilotCliEnabled();
 		try {
 			const chats = await this._discoverCopilotChats();
 			if (!chats) {
 				return false;
 			}
-			const migrateLegacy = this._isMigrateLegacyCopilotCliEnabled();
-			const emitted = migrateLegacy ? chats : chats.filter(chat => chat.external);
+			if (this._shutdownPromise || this._store.isDisposed) {
+				return true;
+			}
+			const migrateLegacy = migrateLegacyAtStart && this._isMigrateLegacyCopilotCliEnabled();
+			const emitted = chats.filter(chat => {
+				if (!chat.external && !migrateLegacy) {
+					return false;
+				}
+				const key = chat.chat.toString();
+				const signature = JSON.stringify(chat);
+				if (this._discoveredChats.get(key)?.signature === signature) {
+					return false;
+				}
+				this._discoveredChats.set(key, { signature, external: chat.external });
+				return true;
+			});
 			this._logService.info(`[Copilot] Chat discovery: emitting ${emitted.length} of ${chats.length} discovered chat(s) (adopt legacy extension-host chats: ${migrateLegacy})`);
 			if (emitted.length > 0) {
 				this._onDidDiscoverChats.fire(emitted);
