@@ -275,6 +275,8 @@ export abstract class AbstractScrollableElement extends Widget {
 		}
 
 		this._listenOnDomNode = this._options.listenOnDomNode || this._domNode;
+		// Track focus before the lazy filter sees its first native or delegated wheel event.
+		this._register(WindowMouseWheelEventFilter.trackWindowFocus(dom.getWindow(this._listenOnDomNode)));
 
 		this._mouseWheelToDispose = [];
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);

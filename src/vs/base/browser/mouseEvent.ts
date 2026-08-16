@@ -128,15 +128,25 @@ interface IWindowMouseWheelEventFilterState {
 	lastFocusTime: number;
 }
 
+interface IWindowMouseWheelEventFilterStateReference {
+	readonly state: IWindowMouseWheelEventFilterState;
+	dispose(): void;
+}
+
 const windowMouseWheelEventFilterStates = new WeakMap<Window, IWindowMouseWheelEventFilterState>();
 
 export class WindowMouseWheelEventFilter {
 
 	private readonly _state: IWindowMouseWheelEventFilterState;
+	private readonly _stateReference: IWindowMouseWheelEventFilterStateReference;
+
+	public static trackWindowFocus(targetWindow: Window): { dispose(): void } {
+		return acquireWindowMouseWheelEventFilterState(targetWindow);
+	}
 
 	constructor(private readonly _targetWindow: Window) {
-		this._state = getWindowMouseWheelEventFilterState(this._targetWindow);
-		this._state.references++;
+		this._stateReference = acquireWindowMouseWheelEventFilterState(this._targetWindow);
+		this._state = this._stateReference.state;
 	}
 
 	public shouldIgnore(e: IMouseWheelEvent): boolean {
@@ -144,17 +154,35 @@ export class WindowMouseWheelEventFilter {
 			return false;
 		}
 
-		const eventTime = getEventTime(e, e.view?.window ?? this._targetWindow);
+		const eventTime = getEventTime(e, e.view ?? this._targetWindow);
 		return eventTime > 0 && eventTime < this._state.lastFocusTime - MOUSE_WHEEL_FOCUS_GRACE_TIME;
 	}
 
 	public dispose(): void {
-		this._state.references--;
-		if (this._state.references === 0) {
-			this._state.targetWindow.removeEventListener('focus', this._state.onFocus, true);
-			windowMouseWheelEventFilterStates.delete(this._state.targetWindow);
-		}
+		this._stateReference.dispose();
 	}
+}
+
+function acquireWindowMouseWheelEventFilterState(targetWindow: Window): IWindowMouseWheelEventFilterStateReference {
+	const state = getWindowMouseWheelEventFilterState(targetWindow);
+	state.references++;
+
+	let isDisposed = false;
+	return {
+		state,
+		dispose: () => {
+			if (isDisposed) {
+				return;
+			}
+			isDisposed = true;
+
+			state.references--;
+			if (state.references === 0) {
+				state.targetWindow.removeEventListener('focus', state.onFocus);
+				windowMouseWheelEventFilterStates.delete(state.targetWindow);
+			}
+		}
+	};
 }
 
 function getWindowMouseWheelEventFilterState(targetWindow: Window): IWindowMouseWheelEventFilterState {
@@ -163,19 +191,15 @@ function getWindowMouseWheelEventFilterState(targetWindow: Window): IWindowMouse
 		state = {
 			targetWindow,
 			references: 0,
-			lastFocusTime: targetWindow.document.hasFocus() ? getWindowTime(targetWindow) : 0,
+			lastFocusTime: 0,
 			onFocus: (event: Event) => {
 				state!.lastFocusTime = getEventTime(event, targetWindow);
 			}
 		};
-		targetWindow.addEventListener('focus', state.onFocus, true);
+		targetWindow.addEventListener('focus', state.onFocus);
 		windowMouseWheelEventFilterStates.set(targetWindow, state);
 	}
 	return state;
-}
-
-function getWindowTime(targetWindow: Window): number {
-	return typeof targetWindow.performance?.now === 'function' ? targetWindow.performance.now() : Date.now();
 }
 
 function getEventTime(e: Event, targetWindow: Window): number {
@@ -185,14 +209,29 @@ function getEventTime(e: Event, targetWindow: Window): number {
 	}
 
 	if (timeStamp > 1_000_000_000_000) {
-		const timeOrigin = typeof targetWindow.performance?.timeOrigin === 'number'
-			? targetWindow.performance.timeOrigin
-			: Date.now() - getWindowTime(targetWindow);
-
-		return timeStamp - timeOrigin;
+		return timeStamp;
 	}
 
-	return timeStamp;
+	const timeOrigin = getWindowTimeOrigin(targetWindow);
+	return typeof timeOrigin === 'number' ? timeOrigin + timeStamp : 0;
+}
+
+function getWindowTimeOrigin(targetWindow: Window): number | undefined {
+	try {
+		const targetPerformance = targetWindow.performance;
+		if (typeof targetPerformance?.timeOrigin === 'number' && Number.isFinite(targetPerformance.timeOrigin)) {
+			return targetPerformance.timeOrigin;
+		}
+
+		if (typeof targetPerformance?.now === 'function') {
+			const now = targetPerformance.now();
+			return Number.isFinite(now) ? Date.now() - now : undefined;
+		}
+	} catch {
+		// Cross-origin and detached WindowProxy objects can reject performance access.
+	}
+
+	return undefined;
 }
 
 export class StandardWheelEvent {
