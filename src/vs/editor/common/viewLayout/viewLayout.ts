@@ -14,7 +14,7 @@ import { IEditorWhitespace, IPartialViewLinesViewportData, ILineHeightChangeAcce
 import { ContentSizeChangedEvent } from '../viewModelEventDispatcher.js';
 import { CustomLineHeightData } from './lineHeights.js';
 
-const SMOOTH_SCROLLING_TIME = 125;
+export const SMOOTH_SCROLLING_TIME = 125;
 
 class EditorScrollDimensions {
 

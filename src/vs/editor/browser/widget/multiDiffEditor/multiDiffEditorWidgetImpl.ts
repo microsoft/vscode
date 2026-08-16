@@ -13,16 +13,19 @@ import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived,
 import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
-import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { EditorOptions, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { SMOOTH_SCROLLING_TIME } from '../../../common/viewLayout/viewLayout.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { ObservableElementSizeObserver } from '../diffEditor/utils.js';
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate.js';
@@ -81,6 +84,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this._scrollableElements = h('div.scrollContent', [
@@ -95,13 +99,30 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._scrollable = this._register(new Scrollable({
 			forceIntegerValues: false,
 			scheduleAtNextAnimationFrame: (cb) => scheduleAtNextAnimationFrame(getWindow(this._element), cb),
-			smoothScrollDuration: 100,
+			smoothScrollDuration: 0,
 		}));
 		this._scrollableElement = this._register(new SmoothScrollableElement(this._scrollableElements.root, {
 			vertical: ScrollbarVisibility.Auto,
 			horizontal: ScrollbarVisibility.Auto,
 			useShadows: false,
 		}, this._scrollable));
+
+		// The per-file editors run with `handleMouseWheel: false` and are sized to their
+		// content, so this scrollable is the only place where the editor scrolling settings
+		// can take effect.
+		const mouseWheelScrollSensitivity = observableConfigValue('editor.mouseWheelScrollSensitivity', EditorOptions.mouseWheelScrollSensitivity.defaultValue, configurationService);
+		const fastScrollSensitivity = observableConfigValue('editor.fastScrollSensitivity', EditorOptions.fastScrollSensitivity.defaultValue, configurationService);
+		const scrollPredominantAxis = observableConfigValue('editor.scrollPredominantAxis', EditorOptions.scrollPredominantAxis.defaultValue, configurationService);
+		const smoothScrolling = observableConfigValue('editor.smoothScrolling', EditorOptions.smoothScrolling.defaultValue, configurationService);
+		this._register(autorun(reader => {
+			this._scrollableElement.updateOptions({
+				mouseWheelScrollSensitivity: EditorOptions.mouseWheelScrollSensitivity.validate(mouseWheelScrollSensitivity.read(reader)),
+				fastScrollSensitivity: EditorOptions.fastScrollSensitivity.validate(fastScrollSensitivity.read(reader)),
+				scrollPredominantAxis: EditorOptions.scrollPredominantAxis.validate(scrollPredominantAxis.read(reader)),
+			});
+			this._scrollable.setSmoothScrollDuration(EditorOptions.smoothScrolling.validate(smoothScrolling.read(reader)) ? SMOOTH_SCROLLING_TIME : 0);
+		}));
+
 		this._elements = h('div.monaco-component.multiDiffEditor', {}, [
 			h('div', {}, [this._scrollableElement.getDomNode()]),
 			h('div.placeholder@placeholder', {}, [h('div')]),
