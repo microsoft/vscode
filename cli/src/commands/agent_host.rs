@@ -15,6 +15,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use crate::auth::Auth;
 use crate::constants::{self, AGENT_HOST_PORT};
 use crate::log;
+use crate::options::TelemetryLevel;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
 	classify_agent_host, serve_agent_host_tunnel_connection, AgentHostConfig, AgentHostManager,
@@ -175,7 +176,7 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 	let decision = if args.new_instance {
 		AgentHostReuseDecision::SpawnFresh
 	} else {
-		classify_agent_host(&ctx.log, &user_data_path)
+		classify_agent_host(&ctx.log, &user_data_path).await
 	};
 
 	// Bind the action before matching so the `&args` borrow ends here and
@@ -288,6 +289,11 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
 		AgentHostConfig {
 			server_data_dir: args.server_data_dir.clone(),
+			telemetry_level: if ctx.args.global_options.disable_telemetry {
+				Some(TelemetryLevel::Off)
+			} else {
+				ctx.args.global_options.telemetry_level
+			},
 			// The AH backend runs on an internal-only unix socket / named
 			// pipe between this supervisor and its child, so we
 			// deliberately disable the backend's token check; this
@@ -388,13 +394,18 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		// running sidecar -- never `ensure_supervisor_running`, which
 		// could spawn or reuse an unrelated supervisor -- so we build an
 		// already-resolved `SharedActiveAgentHost` from the sidecar's own
-		// published identity. Because that identity points back at our
-		// own loopback listener (`AgentHostSidecar::serve`, below), a
-		// legacy client proxied this way is accepted through the very
-		// same accept loop that already holds an `--idle-timeout`
-		// activity guard for its connection's whole lifetime, so a
-		// connected legacy tunnel client keeps counting as activity and
-		// cannot make the supervisor time itself out from under it.
+		// published identity.
+		//
+		// Each relayed socket carries its own `--idle-timeout` activity
+		// guard, attached to the transport so it survives the WebSocket
+		// upgrade (see `idle_timeout::GuardedStream`). The inner dial the
+		// gateway makes back into our own listener is not enough on its
+		// own: a client still waiting to send its selection, or one whose
+		// selection resolves to a *different* endpoint (another live
+		// registry entry, or a freshly spawned dedicated host), never
+		// reaches our accept loop at all, so without this guard an
+		// actively proxied tunnel client could not stop us timing out from
+		// under it.
 		let active_agent_host = ready_active_agent_host(sidecar.active_agent_host());
 		let launcher_paths = ctx.paths.clone();
 		let gateway_user_data_path = user_data_path.clone();
@@ -403,19 +414,25 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 			ctx.log,
 			"Routing dev-tunnel-hosted agent-host port through the protocol-v6 selection gateway"
 		);
+		let tunnel_activity = sidecar.activity_tracker();
 		tokio::spawn(async move {
 			while let Some(socket) = tunnel_port.recv().await {
 				let log = tunnel_log.clone();
 				let active_agent_host = active_agent_host.clone();
 				let launcher_paths = launcher_paths.clone();
 				let user_data_path = gateway_user_data_path.clone();
+				let rw = idle_timeout::GuardedStream::new(
+					socket.into_rw(),
+					tunnel_activity.as_ref().map(|a| a.client_connected()),
+				);
 				tokio::spawn(async move {
 					serve_agent_host_tunnel_connection(
 						log,
-						socket.into_rw(),
+						rw,
 						active_agent_host,
 						launcher_paths,
 						user_data_path,
+						false,
 					)
 					.await;
 				});
@@ -710,7 +727,7 @@ pub async fn ensure_supervisor_running(
 		port,
 		token,
 		..
-	} = classify_agent_host(log, &user_data_path)
+	} = classify_agent_host(log, &user_data_path).await
 	{
 		return Ok(ActiveAgentHost {
 			pid,
@@ -727,7 +744,7 @@ pub async fn ensure_supervisor_running(
 
 	spawn_supervisor_and_wait_ready(launcher_paths, log, &[]).await?;
 
-	match classify_agent_host(log, &user_data_path) {
+	match classify_agent_host(log, &user_data_path).await {
 		AgentHostReuseDecision::Reuse {
 			pid,
 			host,
@@ -782,6 +799,7 @@ pub async fn spawn_dedicated_supervisor(
 	let child_pid = spawn_supervisor_and_wait_ready(launcher_paths, log, &extra_args).await?;
 
 	agent_host_registry::list_live_standalone_endpoints(log, user_data_path)
+		.await
 		.into_iter()
 		.find(|e| e.pid == child_pid)
 		.ok_or_else(|| {
@@ -984,7 +1002,9 @@ fn mint_connection_token(path: &Path, prefer_token: Option<String>) -> std::io::
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::async_pipe::{get_socket_name, listen_socket_rw_stream};
 	use std::fs;
+	use tokio::net::TcpListener;
 
 	#[test]
 	fn mint_connection_token_generates_and_persists() {
@@ -1136,11 +1156,23 @@ mod tests {
 	/// entries completely untouched, while a normal (non-`--new-instance`)
 	/// request against the same registry would have chosen to reuse the
 	/// existing standalone entry instead of starting anything new.
-	#[test]
-	fn new_instance_preserves_existing_editor_and_standalone_registry_entries() {
+	#[tokio::test]
+	async fn new_instance_preserves_existing_editor_and_standalone_registry_entries() {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
 		let log = log::Logger::test();
+		let editor_socket_path = get_socket_name();
+		let mut editor_socket_listener =
+			listen_socket_rw_stream(&editor_socket_path).await.unwrap();
+		let _editor_accept_task = tokio::spawn(async move {
+			loop {
+				let _connection = editor_socket_listener.accept().await.unwrap();
+			}
+		});
+		let standalone_listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+		let standalone_port = standalone_listener.local_addr().unwrap().port();
+		let new_supervisor_listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+		let new_supervisor_port = new_supervisor_listener.local_addr().unwrap().port();
 
 		let editor = agent_host_registry::AgentHostEndpointMetadata {
 			schema_version: agent_host_registry::AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
@@ -1150,7 +1182,7 @@ mod tests {
 			protocol_version: agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			connection_token: "editor-tok".to_string(),
 			endpoint: agent_host_registry::AgentHostEndpointAddress::Socket {
-				path: "/tmp/editor.sock".to_string(),
+				path: editor_socket_path.to_string_lossy().to_string(),
 			},
 			quality: None,
 			tunnel_name: None,
@@ -1161,7 +1193,7 @@ mod tests {
 			std::process::id(),
 			"standalone-existing".to_string(),
 			"127.0.0.1".to_string(),
-			5555,
+			standalone_port,
 			"standalone-tok".to_string(),
 			agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			None,
@@ -1173,13 +1205,13 @@ mod tests {
 		// Sanity check: without `--new-instance`, this registry state
 		// would have caused a plain `code agent host` to reuse the
 		// existing standalone entry rather than spawn anything.
-		let plain_decision = classify_agent_host(&log, &user_data_path);
+		let plain_decision = classify_agent_host(&log, &user_data_path).await;
 		assert_eq!(
 			plain_decision,
 			AgentHostReuseDecision::Reuse {
 				pid: std::process::id(),
 				host: Some("127.0.0.1".to_string()),
-				port: 5555,
+				port: standalone_port,
 				token: Some("standalone-tok".to_string()),
 				tunnel_name: None,
 				instance_id: "standalone-existing".to_string(),
@@ -1190,7 +1222,7 @@ mod tests {
 			ForegroundAction::ReuseBanner {
 				pid: std::process::id(),
 				host: Some("127.0.0.1".to_string()),
-				port: 5555,
+				port: standalone_port,
 				token: Some("standalone-tok".to_string()),
 				tunnel_name: None,
 			}
@@ -1221,7 +1253,7 @@ mod tests {
 			std::process::id(),
 			"standalone-new-instance".to_string(),
 			"127.0.0.1".to_string(),
-			6666,
+			new_supervisor_port,
 			"new-instance-tok".to_string(),
 			agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			None,
@@ -1230,7 +1262,7 @@ mod tests {
 		agent_host_registry::publish_agent_host_endpoint(&log, &user_data_path, &new_supervisor)
 			.unwrap();
 
-		let live = agent_host_registry::list_live_endpoints(&log, &user_data_path);
+		let live = agent_host_registry::list_live_endpoints(&log, &user_data_path).await;
 		assert_eq!(live.len(), 3);
 		assert!(live.iter().any(|e| e.instance_id == "editor-instance"));
 		assert!(live.iter().any(|e| e.instance_id == "standalone-existing"));

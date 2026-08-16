@@ -18,6 +18,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { INewSessionPromptOption, NewSessionPromptOptionsState } from './newSessionComposerService.js';
 
 const promptOptionButtonStyles: IButtonStyles = {
@@ -81,12 +82,12 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 	}
 
 	/**
-	 * Also marks the container, so a tip rendered above these options does not
-	 * style itself as attached to the input while they sit in between.
+	 * Show or hide the options, and report to the stack. Standalone, so a tip
+	 * above joins the options rather than the input.
 	 */
 	private _setVisible(visible: boolean): void {
 		dom.setVisibility(visible, this.element);
-		this._container.classList.toggle('showing-prompt-options', visible);
+		setChatInputStackSlot(this.element, visible ? ChatInputStackSlot.Standalone : ChatInputStackSlot.Empty);
 	}
 
 	setState(state: NewSessionPromptOptionsState | undefined): void {
