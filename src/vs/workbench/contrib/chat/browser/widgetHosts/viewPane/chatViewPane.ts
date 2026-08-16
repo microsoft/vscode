@@ -364,7 +364,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Controls wrapper — sessions + chat live inside here
 		const controlsWrapper = append(parent, $('.voice-agent-controls-wrapper'));
 		this.createControls(controlsWrapper);
-		this._register(addDisposableListener(parent, EventType.MOUSE_DOWN, event => this.handleMouseBackNavigation(event)));
+		const workbenchContainer = this.layoutService.getContainer(getWindow(parent));
+		this._register(addDisposableListener(workbenchContainer, EventType.MOUSE_DOWN, event => this.handleMouseBackNavigation(event), true));
 
 		// Voice bar — hidden by default, voice is activated via mic button in toolbar.
 		// The widget is still created for PTT keybinding support and session binding.
@@ -418,6 +419,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		EventHelper.stop(event, true);
+		event.stopImmediatePropagation();
 		await this.clear();
 		this.focusSessions();
 	}
