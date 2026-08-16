@@ -6,7 +6,7 @@
 import { localize } from '../../../nls.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { ConfigurationTarget, type IConfigurationService, type IConfigurationValue } from '../../configuration/common/configuration.js';
-import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns } from '../../chat/common/chatSettings.js';
+import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns } from '../../chat/common/chatSettings.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
@@ -468,12 +468,7 @@ export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCo
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
-export const enum AgentHostExternalSessionsMode {
-	None = 'none',
-	All = 'all',
-	Last24Hours = 'last24Hours',
-	Last7Days = 'last7Days',
-}
+export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
 
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
@@ -752,12 +747,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
 		default: false,
 	}),
-	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<AgentHostExternalSessionsMode>({
+	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',
 		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
 		description: localize('agentHost.config.showExternalSessions.description', "Controls whether sessions created outside the Agent Host are included in the session catalog."),
-		enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.All, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days],
-		default: AgentHostExternalSessionsMode.Last7Days,
+		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.All, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days],
+		default: ChatExternalSessionsMode.Last7Days,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

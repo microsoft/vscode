@@ -1615,7 +1615,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (readSessionEhcliAdoptable(session._meta) && !this._isMigrateLegacyEnabled()) {
 			return false;
 		}
-		if (!readSessionExternal(session._meta) || readSessionEhcliAdoptable(session._meta) || this._stateManager.getSessionState(session.session.toString())) {
+		if (!readSessionExternal(session._meta) || readSessionEhcliAdoptable(session._meta)) {
 			return true;
 		}
 		switch (mode) {
@@ -1710,16 +1710,24 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const key = metadata.session.toString();
 			visible.add(key);
-			if (!previouslyBroadcast.has(key) && !this._stateManager.getSessionState(key)) {
-				const provider = AgentSession.provider(metadata.session);
-				if (provider) {
-					await this._announceSurfacedSession(metadata, provider);
+			if (!previouslyBroadcast.has(key)) {
+				if (this._stateManager.getSessionState(key)) {
+					this._stateManager.setSessionSummaryPublished(key, true);
+				} else {
+					const provider = AgentSession.provider(metadata.session);
+					if (provider) {
+						await this._announceSurfacedSession(metadata, provider);
+					}
 				}
 			}
 		}
 		for (const key of previouslyBroadcast) {
-			if (!visible.has(key) && !this._stateManager.getSessionState(key)) {
-				this._stateManager.retractSurfacedSession(key);
+			if (!visible.has(key)) {
+				if (this._stateManager.getSessionState(key)) {
+					this._stateManager.setSessionSummaryPublished(key, false);
+				} else {
+					this._stateManager.retractSurfacedSession(key);
+				}
 				this._announcedSurfacedKeys.delete(key);
 			}
 		}

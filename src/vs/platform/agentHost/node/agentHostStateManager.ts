@@ -807,6 +807,34 @@ export class AgentHostStateManager extends Disposable {
 		});
 	}
 
+	/** Publishes or unpublishes a live session summary without changing its session state. */
+	setSessionSummaryPublished(session: string, published: boolean): void {
+		if (published === this._summaryNotifier.isAnnounced(session)) {
+			return;
+		}
+
+		if (published) {
+			const entry = this._sessionStates.get(session);
+			if (!entry) {
+				return;
+			}
+			const summary = this._toSummary(session, entry);
+			this._summaryNotifier.announce(session, summary);
+			this._onDidEmitNotification.fire({
+				type: 'root/sessionAdded',
+				channel: ROOT_STATE_URI,
+				summary,
+			});
+		} else {
+			this._summaryNotifier.remove(session);
+			this._onDidEmitNotification.fire({
+				type: 'root/sessionRemoved',
+				channel: ROOT_STATE_URI,
+				session,
+			});
+		}
+	}
+
 	/**
 	 * Restores a session from a previous server lifetime into the state manager
 	 * with pre-populated turns. The session is created in `ready` lifecycle
