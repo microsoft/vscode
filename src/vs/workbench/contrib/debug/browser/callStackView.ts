@@ -41,6 +41,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { asCssVariable, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
@@ -53,6 +54,24 @@ import * as icons from './debugIcons.js';
 import { createDisconnectMenuItemAction } from './debugToolBar.js';
 
 const $ = dom.$;
+
+const MAX_VISIBLE_CALL_STACK_ROWS = 9;
+const CALL_STACK_ROW_HEIGHT = 22;
+const HORIZONTAL_MIN_BODY_SIZE = 170;
+
+export function computeCallStackBodySizes(orientation: Orientation, contentHeight: number, visibleViewCount: number): { minimumBodySize: number; maximumBodySize: number } {
+	if (orientation === Orientation.HORIZONTAL) {
+		return {
+			minimumBodySize: HORIZONTAL_MIN_BODY_SIZE,
+			maximumBodySize: Number.POSITIVE_INFINITY,
+		};
+	}
+
+	return {
+		minimumBodySize: Math.min(MAX_VISIBLE_CALL_STACK_ROWS * CALL_STACK_ROW_HEIGHT, contentHeight),
+		maximumBodySize: visibleViewCount > 1 ? contentHeight : Number.POSITIVE_INFINITY,
+	};
+}
 
 type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndSessionIds | IStackFrame[];
 
@@ -157,6 +176,7 @@ export class CallStackView extends ViewPane {
 	private tree!: WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>;
 	private autoExpandedSessions = new Set<IDebugSession>();
 	private selectionNeedsUpdate = false;
+	private ignoreLayout = false;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -221,6 +241,7 @@ export class CallStackView extends ViewPane {
 				this.selectionNeedsUpdate = false;
 				await this.updateTreeSelection();
 			}
+			this.updateSize();
 		}, 50));
 	}
 
@@ -382,6 +403,11 @@ export class CallStackView extends ViewPane {
 			}
 		}));
 
+		this._register(this.tree.onDidChangeContentHeight(() => this.updateSize()));
+
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
+		this._register(containerModel.onDidChangeAllViewDescriptors(() => this.updateSize()));
+
 		this._register(this.debugService.onDidNewSession(s => {
 			const sessionListeners: IDisposable[] = [];
 			sessionListeners.push(s.onDidChangeName(() => {
@@ -400,8 +426,29 @@ export class CallStackView extends ViewPane {
 	}
 
 	protected override layoutBody(height: number, width: number): void {
+		if (this.ignoreLayout) {
+			return;
+		}
+
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
+		try {
+			this.ignoreLayout = true;
+			this.updateSize();
+		} finally {
+			this.ignoreLayout = false;
+		}
+	}
+
+	private updateSize(): void {
+		if (!this.tree) {
+			return;
+		}
+
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
+		const { minimumBodySize, maximumBodySize } = computeCallStackBodySizes(this.orientation, this.tree.contentHeight, containerModel.visibleViewDescriptors.length);
+		this.minimumBodySize = minimumBodySize;
+		this.maximumBodySize = maximumBodySize;
 	}
 
 	override focus(): void {
