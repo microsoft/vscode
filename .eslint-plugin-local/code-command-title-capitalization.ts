@@ -7,20 +7,53 @@ import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
 import type * as ESTree from 'estree';
 
+/**
+ * Validates that command titles follow Microsoft title-style capitalization guidelines.
+ *
+ * This rule applies to localize() and localize2() function calls and ensures that:
+ * - Articles (a, an, the) are lowercase unless first or last word
+ * - Prepositions of 4 or fewer letters (to, for, with, at, by, in, of, on, up, as, etc.) are lowercase unless first or last word
+ * - Conjunctions (and, but, or, nor, yet, so) are lowercase unless first or last word
+ * - All other words are capitalized (first letter uppercase, rest lowercase)
+ * - Hyphenated words: each part is capitalized unless it's a lowercase word and not the first/last part of the entire title
+ *
+ * Examples:
+ * ✅ localize('key', 'Open File')
+ * ✅ localize('key', 'Go to Line') // "to" is lowercase (not first/last word)
+ * ✅ localize('key', 'Save As') // "As" is last word, capitalized
+ * ✅ localize('key', 'Open the File') // "the" is lowercase (not first/last word)
+ * ✅ localize('key', 'Self-Paced Training') // both parts of hyphenated word capitalized
+ * ❌ localize('key', 'Open file') // "file" should be capitalized
+ * ❌ localize('key', 'Go To Line') // "To" should be lowercase
+ * ❌ localize('key', 'Format The Document') // "The" should be lowercase
+ * ❌ localize('key', 'Self-paced Training') // "paced" should be capitalized
+ *
+ * Reference: https://learn.microsoft.com/en-us/style-guide/capitalization#title-style-capitalization
+ */
+
 function isStringLiteral(node: TSESTree.Node | ESTree.Node | null | undefined): node is TSESTree.StringLiteral {
 	return !!node && node.type === AST_NODE_TYPES.Literal && typeof node.value === 'string';
 }
 
 /**
- * Prepositions of 4 or fewer letters that should not be capitalized unless they are the first or last word.
+ * Words that should not be capitalized unless they are the first or last word.
  * Based on Microsoft style guide: https://learn.microsoft.com/en-us/style-guide/capitalization#title-style-capitalization
+ * Includes:
+ * - Articles (a, an, the)
+ * - Prepositions of 4 or fewer letters (to, for, with, at, by, in, of, on, up, as, etc.)
+ * - Conjunctions (and, but, or, nor, yet, so)
  */
-const PREPOSITIONS = new Set([
-	'to', 'for', 'with', 'at', 'by', 'in', 'of', 'on', 'up', 'as', 'if', 'or', 'and', 'but', 'nor', 'so', 'yet'
+const LOWERCASE_WORDS = new Set([
+	// Articles
+	'a', 'an', 'the',
+	// Prepositions of 4 or fewer letters
+	'to', 'for', 'with', 'at', 'by', 'in', 'of', 'on', 'up', 'as',
+	// Conjunctions
+	'and', 'but', 'or', 'nor', 'yet', 'so'
 ]);
 
-function isPreposition(word: string): boolean {
-	return PREPOSITIONS.has(word.toLowerCase());
+function isLowercaseWord(word: string): boolean {
+	return LOWERCASE_WORDS.has(word.toLowerCase());
 }
 
 interface ValidationResult {
@@ -37,25 +70,68 @@ function isValidTitleCase(text: string): ValidationResult {
 
 		const isFirstWord = i === 0;
 		const isLastWord = i === words.length - 1;
-		const lowerWord = word.toLowerCase();
 
-		// Check if this is a preposition that shouldn't be capitalized
-		if (isPreposition(lowerWord) && !isFirstWord && !isLastWord) {
-			// Preposition should be lowercase
-			if (word !== lowerWord) {
+		// Handle hyphenated words by processing each part
+		if (word.includes('-')) {
+			const parts = word.split('-');
+			const capitalizedParts: string[] = [];
+
+			for (let j = 0; j < parts.length; j++) {
+				const part = parts[j];
+				if (!part) continue;
+
+				const isFirstPart = j === 0;
+				const isLastPart = j === parts.length - 1;
+				const isPartFirstWord = isFirstWord && isFirstPart;
+				const isPartLastWord = isLastWord && isLastPart;
+				const lowerPart = part.toLowerCase();
+
+				// Check if this part should be lowercase
+				if (isLowercaseWord(lowerPart) && !isPartFirstWord && !isPartLastWord) {
+					// Part should be lowercase
+					capitalizedParts.push(lowerPart);
+				} else {
+					// Part should be capitalized (normalize to first letter uppercase, rest lowercase)
+					const expectedCapitalized = lowerPart.charAt(0).toUpperCase() + lowerPart.slice(1);
+					if (part !== expectedCapitalized) {
+						return {
+							valid: false,
+							error: `Word "${word}" part "${part}" should be capitalized as "${expectedCapitalized}"`
+						};
+					}
+					capitalizedParts.push(expectedCapitalized);
+				}
+			}
+
+			const expectedWord = capitalizedParts.join('-');
+			if (word !== expectedWord) {
 				return {
 					valid: false,
-					error: `Preposition "${word}" should be lowercase when not first or last word`
+					error: `Word "${word}" should be capitalized as "${expectedWord}"`
 				};
 			}
 		} else {
-			// Non-preposition words should be capitalized (first letter uppercase, rest lowercase)
-			const expectedCapitalized = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-			if (word !== expectedCapitalized) {
-				return {
-					valid: false,
-					error: `Word "${word}" should be capitalized as "${expectedCapitalized}"`
-				};
+			// Handle non-hyphenated words
+			const lowerWord = word.toLowerCase();
+
+			// Check if this is a word that shouldn't be capitalized
+			if (isLowercaseWord(lowerWord) && !isFirstWord && !isLastWord) {
+				// Word should be lowercase
+				if (word !== lowerWord) {
+					return {
+						valid: false,
+						error: `Word "${word}" should be lowercase when not first or last word`
+					};
+				}
+			} else {
+				// Non-exempt words should be capitalized (normalize to first letter uppercase, rest lowercase)
+				const expectedCapitalized = lowerWord.charAt(0).toUpperCase() + lowerWord.slice(1);
+				if (word !== expectedCapitalized) {
+					return {
+						valid: false,
+						error: `Word "${word}" should be capitalized as "${expectedCapitalized}"`
+					};
+				}
 			}
 		}
 	}
@@ -69,6 +145,10 @@ export default new class CommandTitleCapitalization implements eslint.Rule.RuleM
 		messages: {
 			invalidCapitalization: 'Command title "{{title}}" does not follow title-style capitalization: {{error}}'
 		},
+		docs: {
+			description: 'Validates that command titles follow Microsoft title-style capitalization guidelines',
+		},
+		type: 'suggestion',
 		schema: false,
 	};
 
