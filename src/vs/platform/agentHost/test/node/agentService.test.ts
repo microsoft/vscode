@@ -30,7 +30,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -4929,6 +4930,106 @@ suite('AgentService (node dispatcher)', () => {
 					files: 0,
 				},
 			);
+		});
+
+		test('annotations survive session state restoration', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			const annotation = {
+				id: 'feedback-1',
+				turnId: 'turn-1',
+				resource: URI.file('/workspace/reviewed.ts').toString(),
+				resolved: false,
+				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+			};
+
+			await localService.subscribe(URI.parse(annotationsUri), 'client-before-restart');
+			localService.dispatchAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation,
+			}, 'client-before-restart', 1);
+			localService.stateManager.deleteSession(session.toString());
+
+			const restored = await localService.subscribe(URI.parse(annotationsUri), 'client-after-restart');
+
+			assert.deepStrictEqual(restored.state, { annotations: [annotation] });
+		});
+
+		test('annotations subscribe concurrent with session restore returns persisted feedback', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			const annotation = {
+				id: 'feedback-1',
+				turnId: 'turn-1',
+				resource: URI.file('/workspace/reviewed.ts').toString(),
+				resolved: false,
+				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+			};
+
+			await localService.subscribe(URI.parse(annotationsUri), 'client-before-restart');
+			localService.dispatchAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation,
+			}, 'client-before-restart', 1);
+			localService.stateManager.deleteSession(session.toString());
+
+			// The session restore populates session state before it restores
+			// annotations; a subscribe racing that window must still wait.
+			const [, restored] = await Promise.all([
+				localService.restoreSession(session),
+				localService.subscribe(URI.parse(annotationsUri), 'client-racing-restore'),
+			]);
+
+			assert.deepStrictEqual(restored.state, { annotations: [annotation] });
+		});
+
+		test('subagent annotations persist in the parent session database', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const parent = await localService.createSession({ provider: 'copilot' });
+			const subagent = buildSubagentSessionUri(parent, 'tool-call');
+			localService.stateManager.restoreSession({
+				resource: subagent,
+				provider: 'subagent',
+				title: 'Subagent',
+				status: SessionStatus.Idle,
+				createdAt: new Date(1).toISOString(),
+				modifiedAt: new Date(1).toISOString(),
+			}, []);
+			const annotationsUri = buildAnnotationsUri(subagent);
+
+			await localService.subscribe(URI.parse(annotationsUri), 'client');
+			localService.dispatchAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: {
+					id: 'feedback-1',
+					turnId: 'turn-1',
+					resource: URI.file('/workspace/reviewed.ts').toString(),
+					resolved: false,
+					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+				},
+			}, 'client', 1);
+
+			assert.deepStrictEqual({
+				parentKeys: sessionData.database(parent).setMetadataCalls.map(call => call.key).filter(key => key.startsWith('annotations')),
+				subagentKeys: sessionData.database(URI.parse(subagent)).setMetadataCalls.map(call => call.key).filter(key => key.startsWith('annotations')),
+			}, {
+				parentKeys: [`annotations:${subagent}`],
+				subagentKeys: [],
+			});
 		});
 
 		test('subscribe to an unknown changeset id fails without restoring the parent session', async () => {
