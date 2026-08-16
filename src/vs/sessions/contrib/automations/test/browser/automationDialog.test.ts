@@ -26,7 +26,10 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
+import { ChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { isWorkspaceCustomChatMode } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
@@ -129,6 +132,25 @@ function createFormState(overrides?: Partial<IFormState>): IFormState {
 		...overrides,
 	};
 }
+
+suite('Automation chat modes', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows user agents but hides workspace agents', () => {
+		const userAgent = upcastPartial<IChatMode>({ isBuiltin: false, source: { storage: PromptsStorage.user } });
+		const workspaceAgent = upcastPartial<IChatMode>({ isBuiltin: false, source: { storage: PromptsStorage.local } });
+
+		assert.deepStrictEqual({
+			builtin: !isWorkspaceCustomChatMode(ChatMode.Agent),
+			user: !isWorkspaceCustomChatMode(userAgent),
+			workspace: !isWorkspaceCustomChatMode(workspaceAgent),
+		}, {
+			builtin: true,
+			user: true,
+			workspace: false,
+		});
+	});
+});
 
 function createWorkspace(requiresWorkspaceTrust: boolean): ISessionWorkspace {
 	return {

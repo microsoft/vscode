@@ -31,7 +31,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
@@ -48,8 +47,7 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { ChatAgentLocation, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatWidget, ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
-import { isModeConsideredBuiltIn } from '../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
+import { ChatInputPart, IChatInputPartOptions, IChatInputStyles, isWorkspaceCustomChatMode } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -809,7 +807,6 @@ export function renderForm(
 	languageModelsService: ILanguageModelsService,
 	layoutService: IWorkbenchLayoutService,
 	logService: ILogService,
-	productService: IProductService,
 	sessionsManagementService: ISessionsManagementService,
 	workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	initialPrompt: string,
@@ -1007,7 +1004,7 @@ export function renderForm(
 		renderWorkingSet: false,
 		enableImplicitContext: false,
 		supportsChangingModes: true,
-		hideCustomChatModes: true,
+		hideWorkspaceChatModes: true,
 		suppressModePreferredModel: true,
 		suppressModelPersistence: true,
 		menus: {
@@ -1080,22 +1077,22 @@ export function renderForm(
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
 
 	if (initialMode) {
-		const getUnfilteredInitialMode = () => {
+		const getInitialMode = () => {
 			const modes = chatInput.currentChatModesObs.get();
 			return modes.findModeById(initialMode) ?? modes.findModeByName(initialMode);
 		};
-		const isHiddenCustomInitialMode = () => {
-			const mode = getUnfilteredInitialMode();
-			return !!mode && chatInputOptions.hideCustomChatModes && !isModeConsideredBuiltIn(mode, productService);
+		const isHiddenInitialMode = () => {
+			const mode = getInitialMode();
+			return !!mode && chatInputOptions.hideWorkspaceChatModes && isWorkspaceCustomChatMode(mode);
 		};
 
-		if (isHiddenCustomInitialMode()) {
-			logService.trace(`[AutomationDialog] Skipping hidden custom initial mode "${initialMode}". Falling back to the default mode.`);
+		if (isHiddenInitialMode()) {
+			logService.trace(`[AutomationDialog] Skipping unavailable custom initial mode "${initialMode}". Falling back to the default mode.`);
 		} else {
 			chatInput.setChatMode(initialMode, /* storeSelection */ false);
 		}
 		// Retry on cold-start when extension-contributed modes arrive late.
-		if (chatInput.currentModeObs.get().id !== initialMode && !isHiddenCustomInitialMode()) {
+		if (chatInput.currentModeObs.get().id !== initialMode && !isHiddenInitialMode()) {
 			const baseline = chatInput.currentModeObs.get().id;
 			const retry = disposables.add(new MutableDisposable<IDisposable>());
 			const tryApply = () => {
@@ -1103,8 +1100,8 @@ export function renderForm(
 					retry.clear();
 					return;
 				}
-				if (isHiddenCustomInitialMode()) {
-					logService.trace(`[AutomationDialog] Skipping hidden custom initial mode "${initialMode}" after modes updated. Falling back to the default mode.`);
+				if (isHiddenInitialMode()) {
+					logService.trace(`[AutomationDialog] Skipping unavailable custom initial mode "${initialMode}" after modes updated. Falling back to the default mode.`);
 					retry.clear();
 					return;
 				}

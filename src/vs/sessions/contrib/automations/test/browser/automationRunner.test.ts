@@ -490,7 +490,7 @@ suite('AutomationRunner', () => {
 		});
 	});
 
-	test('passes captured mode and permission level through to createAndSendNewChatRequest', async () => {
+	test('passes a captured custom agent and permission level through to createAndSendNewChatRequest', async () => {
 		const { service, sessionsMgmt, runner } = setup();
 		sessionsMgmt.nextSession = fakeSession('s1');
 
@@ -499,7 +499,7 @@ suite('AutomationRunner', () => {
 			prompt: 'p',
 			schedule: hourly(),
 			target: workspaceTarget(),
-			mode: 'agent',
+			mode: 'reviewer',
 			permissionLevel: 'autopilot',
 		});
 		await runner.runOnce(a, 'schedule', 1).whenCompleted;
@@ -509,7 +509,7 @@ suite('AutomationRunner', () => {
 			providerId: undefined,
 			sessionTypeId: undefined,
 			modelId: undefined,
-			modeId: 'agent',
+			modeId: 'reviewer',
 			permissionLevel: 'autopilot',
 			isolationMode: undefined,
 			branch: undefined,
