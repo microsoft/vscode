@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from 'vitest';
-import { normalizeProviderMessages, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
+import { describe, expect, it, vi } from 'vitest';
+import { collectSystemTextsFromRequestBody, extractTextFromContent, normalizeProviderMessages, stringifyToolDefinitionsForOTel, stringifyToolsRawForTelemetry, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
 
 describe('toInputMessages', () => {
 	it('converts a simple text message', () => {
@@ -293,6 +293,129 @@ describe('toSystemInstructions', () => {
 	it('returns undefined for undefined input', () => {
 		expect(toSystemInstructions(undefined)).toBeUndefined();
 	});
+
+	it('returns multiple blocks for multiple system messages', () => {
+		expect(toSystemInstructions(['You are helpful', 'Always be concise'])).toEqual([
+			{ type: 'text', content: 'You are helpful' },
+			{ type: 'text', content: 'Always be concise' },
+		]);
+	});
+
+	it('filters empty strings from array input', () => {
+		expect(toSystemInstructions(['', 'real', ''])).toEqual([
+			{ type: 'text', content: 'real' },
+		]);
+	});
+
+	it('returns undefined for array containing only empty strings', () => {
+		expect(toSystemInstructions(['', ''])).toBeUndefined();
+	});
+
+	it('returns undefined for empty array', () => {
+		expect(toSystemInstructions([])).toBeUndefined();
+	});
+});
+
+describe('extractTextFromContent', () => {
+	it('returns string content as-is', () => {
+		expect(extractTextFromContent('hello world')).toBe('hello world');
+	});
+
+	it('returns empty string for undefined/null', () => {
+		expect(extractTextFromContent(undefined)).toBe('');
+		expect(extractTextFromContent(null)).toBe('');
+	});
+
+	it('joins text blocks from Anthropic-style content array', () => {
+		expect(extractTextFromContent([
+			{ type: 'text', text: 'first' },
+			{ type: 'text', text: 'second' },
+		])).toBe('first\nsecond');
+	});
+
+	it('handles cache_control and other metadata gracefully', () => {
+		expect(extractTextFromContent([
+			{ type: 'text', text: 'system prompt', cache_control: { type: 'ephemeral' } },
+		])).toBe('system prompt');
+	});
+
+	it('treats plain strings inside arrays as text', () => {
+		expect(extractTextFromContent(['a', 'b'])).toBe('a\nb');
+	});
+
+	it('returns empty string for unknown shapes', () => {
+		expect(extractTextFromContent(42)).toBe('');
+		expect(extractTextFromContent({ foo: 'bar' })).toBe('');
+	});
+});
+
+describe('collectSystemTextsFromRequestBody', () => {
+	it('collects a single system message from OpenAI Chat Completions `messages`', () => {
+		expect(collectSystemTextsFromRequestBody({
+			messages: [
+				{ role: 'system', content: 'You are helpful' },
+				{ role: 'user', content: 'hi' },
+			],
+		})).toEqual(['You are helpful']);
+	});
+
+	it('collects multiple system messages in order (e.g. personality + instructions)', () => {
+		expect(collectSystemTextsFromRequestBody({
+			messages: [
+				{ role: 'system', content: 'You are helpful' },
+				{ role: 'system', content: 'Always be concise' },
+				{ role: 'user', content: 'hi' },
+			],
+		})).toEqual(['You are helpful', 'Always be concise']);
+	});
+
+	it('falls back to top-level `system` (Anthropic) when no messages-level system exists', () => {
+		expect(collectSystemTextsFromRequestBody({
+			messages: [{ role: 'user', content: 'hi' }],
+			system: 'Anthropic system prompt',
+		})).toEqual(['Anthropic system prompt']);
+	});
+
+	it('falls back to top-level `instructions` (Responses API) when no messages-level system exists', () => {
+		expect(collectSystemTextsFromRequestBody({
+			input: [{ role: 'user', content: 'hi' }],
+			instructions: 'Responses API instructions',
+		})).toEqual(['Responses API instructions']);
+	});
+
+	it('extracts text from Anthropic-style content-block arrays in top-level system', () => {
+		expect(collectSystemTextsFromRequestBody({
+			messages: [],
+			system: [
+				{ type: 'text', text: 'block one', cache_control: { type: 'ephemeral' } },
+				{ type: 'text', text: 'block two' },
+			],
+		})).toEqual(['block one\nblock two']);
+	});
+
+	it('prefers messages-level system over top-level fields to avoid duplication', () => {
+		expect(collectSystemTextsFromRequestBody({
+			messages: [{ role: 'system', content: 'from messages' }],
+			system: 'from top-level',
+			instructions: 'from instructions',
+		})).toEqual(['from messages']);
+	});
+
+	it('returns empty array when no system content exists anywhere', () => {
+		expect(collectSystemTextsFromRequestBody({
+			messages: [{ role: 'user', content: 'hi' }],
+		})).toEqual([]);
+		expect(collectSystemTextsFromRequestBody({})).toEqual([]);
+	});
+
+	it('skips system entries whose content extracts to empty text', () => {
+		expect(collectSystemTextsFromRequestBody({
+			messages: [
+				{ role: 'system', content: '' },
+				{ role: 'system', content: 'real' },
+			],
+		})).toEqual(['real']);
+	});
 });
 
 describe('toToolDefinitions', () => {
@@ -371,6 +494,82 @@ describe('toToolDefinitions', () => {
 
 	it('returns undefined for undefined input', () => {
 		expect(toToolDefinitions(undefined)).toBeUndefined();
+	});
+});
+
+describe('stringifyToolDefinitionsForOTel', () => {
+	it('returns undefined for empty / undefined input', () => {
+		expect(stringifyToolDefinitionsForOTel(undefined)).toBeUndefined();
+		expect(stringifyToolDefinitionsForOTel([])).toBeUndefined();
+	});
+
+	it('skips re-stringification on repeated calls with the same array reference', () => {
+		const tools = [{ name: 'readFile_byref_' + Math.random(), description: 'd', inputSchema: { type: 'object' } }];
+		stringifyToolDefinitionsForOTel(tools); // prime the WeakMap
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const a = stringifyToolDefinitionsForOTel(tools);
+			const b = stringifyToolDefinitionsForOTel(tools);
+			expect(spy).not.toHaveBeenCalled();
+			expect(a).toBe(b);
+			expect(JSON.parse(a!)).toEqual([{ type: 'function', name: tools[0].name, description: 'd', parameters: { type: 'object' } }]);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it('content-interns across distinct references (one stringify per new ref, same instance returned)', () => {
+		const unique = 'readFile_intern_' + Math.random();
+		const t1 = [{ name: unique, description: 'd', inputSchema: { type: 'object' } }];
+		const t2 = [{ name: unique, description: 'd', inputSchema: { type: 'object' } }];
+		const a = stringifyToolDefinitionsForOTel(t1);
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const b = stringifyToolDefinitionsForOTel(t2);
+			// Distinct ref forces one new JSON.stringify; intern then collapses the result.
+			expect(spy).toHaveBeenCalledTimes(1);
+			expect(Object.is(a, b)).toBe(true);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+});
+
+describe('stringifyToolsRawForTelemetry', () => {
+	it('mirrors JSON.stringify for empty / undefined input', () => {
+		expect(stringifyToolsRawForTelemetry(undefined)).toBeUndefined();
+		expect(stringifyToolsRawForTelemetry([])).toBe('[]');
+	});
+
+	it('skips re-stringification on repeated calls with the same array reference', () => {
+		const tools = [{ type: 'function', name: 'raw_byref_' + Math.random() }];
+		const expected = JSON.stringify(tools);
+		stringifyToolsRawForTelemetry(tools); // prime the WeakMap
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const a = stringifyToolsRawForTelemetry(tools);
+			const b = stringifyToolsRawForTelemetry(tools);
+			expect(spy).not.toHaveBeenCalled();
+			expect(a).toBe(expected);
+			expect(a).toBe(b);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it('content-interns across distinct references (one stringify per new ref, same instance returned)', () => {
+		const unique = 'raw_intern_' + Math.random();
+		const t1 = [{ type: 'function', name: unique }];
+		const t2 = [{ type: 'function', name: unique }];
+		const a = stringifyToolsRawForTelemetry(t1);
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const b = stringifyToolsRawForTelemetry(t2);
+			expect(spy).toHaveBeenCalledTimes(1);
+			expect(Object.is(a, b)).toBe(true);
+		} finally {
+			spy.mockRestore();
+		}
 	});
 });
 

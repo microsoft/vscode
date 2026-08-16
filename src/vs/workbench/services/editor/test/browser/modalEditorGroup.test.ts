@@ -22,6 +22,8 @@ import { EditorService } from '../../browser/editorService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Memento } from '../../../../common/memento.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
 
 suite('Modal Editor Group', () => {
 
@@ -184,6 +186,38 @@ suite('Modal Editor Group', () => {
 		assert.ok(modalPart2);
 		assert.strictEqual(modalPart1, modalPart2);
 		assert.strictEqual(modalPart1.activeGroup.id, modalPart2.activeGroup.id);
+
+		await modalPart1.close();
+	});
+
+	test('createModalEditorPart is race-proof: concurrent creation returns same singleton instance', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		let addGroupCount = 0;
+		disposables.add(parts.onDidAddGroup(() => {
+			addGroupCount++;
+		}));
+
+		// Fire multiple concurrent creation requests before any of them has a
+		// chance to resolve and assign the singleton instance
+		const [modalPart1, modalPart2, modalPart3] = await Promise.all([
+			parts.createModalEditorPart(),
+			parts.createModalEditorPart(),
+			parts.createModalEditorPart()
+		]);
+
+		// All concurrent calls must resolve to the exact same singleton instance/group
+		assert.strictEqual(modalPart1, modalPart2);
+		assert.strictEqual(modalPart2, modalPart3);
+		assert.strictEqual(modalPart1.activeGroup.id, modalPart2.activeGroup.id);
+		assert.strictEqual(modalPart1.activeGroup.id, modalPart3.activeGroup.id);
+
+		// Only a single group/registration event should have fired for the singleton,
+		// proving only one modal part was ever created despite the concurrent calls
+		assert.strictEqual(addGroupCount, 1);
 
 		await modalPart1.close();
 	});
@@ -384,17 +418,36 @@ suite('Modal Editor Group', () => {
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 		const parts = await createEditorParts(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, parts);
+		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 
 		// No modal initially
-		assert.strictEqual(parts.activeModalEditorPart, undefined);
+		assert.deepStrictEqual({
+			activeModalEditorPart: parts.activeModalEditorPart,
+			modalEditorVisible: EditorPartModalVisibleContext.getValue(contextKeyService),
+		}, {
+			activeModalEditorPart: undefined,
+			modalEditorVisible: false,
+		});
 
 		// Create modal
 		const modalPart = await parts.createModalEditorPart();
-		assert.strictEqual(parts.activeModalEditorPart, modalPart);
+		assert.deepStrictEqual({
+			activeModalEditorPart: parts.activeModalEditorPart,
+			modalEditorVisible: EditorPartModalVisibleContext.getValue(contextKeyService),
+		}, {
+			activeModalEditorPart: modalPart,
+			modalEditorVisible: true,
+		});
 
 		// Close modal
 		await modalPart.close();
-		assert.strictEqual(parts.activeModalEditorPart, undefined);
+		assert.deepStrictEqual({
+			activeModalEditorPart: parts.activeModalEditorPart,
+			modalEditorVisible: EditorPartModalVisibleContext.getValue(contextKeyService),
+		}, {
+			activeModalEditorPart: undefined,
+			modalEditorVisible: false,
+		});
 	});
 
 	test('findGroup returns main part group when modal is active and preferredGroup is not MODAL_GROUP', async () => {
@@ -768,11 +821,32 @@ suite('Modal Editor Group', () => {
 
 	suite('RequiresModal capability', () => {
 
-		test('findGroup opens modal for editor with RequiresModal even when setting is off', async () => {
+		test('findGroup respects useModal: off for editor with RequiresModal', async () => {
 			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 			const configurationService = new TestConfigurationService();
 			await configurationService.setUserConfiguration('workbench.editor.useModal', 'off');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			input.capabilities = EditorInputCapabilities.RequiresModal;
+
+			const result = instantiationService.invokeFunction(accessor => findGroup(accessor, { editor: input, options: {} }, undefined));
+
+			const [group] = result instanceof Promise ? await result : result;
+
+			// With useModal: off, the user preference wins and no modal part is created
+			assert.strictEqual(parts.activeModalEditorPart, undefined);
+			assert.strictEqual(group.id, parts.mainPart.activeGroup.id);
+		});
+
+		test('findGroup opens modal for editor with RequiresModal when useModal is some', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'some');
 			instantiationService.stub(IConfigurationService, configurationService);
 			const parts = await createEditorParts(instantiationService, disposables);
 			instantiationService.stub(IEditorGroupsService, parts);

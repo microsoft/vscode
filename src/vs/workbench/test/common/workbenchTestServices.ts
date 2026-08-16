@@ -790,7 +790,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	context: Lazy<ChatEntitlementContext> | undefined;
 
 	readonly organisations: undefined;
-	readonly isInternal = false;
+	readonly isInternal: boolean = false;
 	readonly sku = undefined;
 	readonly copilotTrackingId = undefined;
 
@@ -815,12 +815,14 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
 
+	acceptQuotas(): void { }
+	clearQuotas(): void { }
 	markAnonymousRateLimited(): void { }
 	markSetupCompleted(): void { }
 	setForceHidden(_hidden: boolean): void { }
 
-	readonly previewFeaturesDisabled = false;
 	readonly clientByokEnabled = false;
+	readonly hasByokModels = false;
 }
 
 export class TestLifecycleService extends Disposable implements ILifecycleService {

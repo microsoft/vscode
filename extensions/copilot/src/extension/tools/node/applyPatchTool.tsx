@@ -521,7 +521,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 	 * and do another turn.
 	 */
 	private async healCommit(patch: string, docs: DocText, explanation: string, token: CancellationToken) {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const prompt = await PromptRenderer.create(
 			this.instantiationService,
 			endpoint,
@@ -656,14 +656,14 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 			},
 		);
 
-		this.telemetryService.sendEnhancedGHTelemetryEvent('applyPatchTool', multiplexProperties({
+		void multiplexProperties({
 			headerRequestId: options.chatRequestId,
 			baseModel: model,
 			messageText: file,
 			completionTextJson: options.input.input,
 			postProcessingOutcome: outcome,
 			healed: String(healed),
-		}));
+		}).then(properties => this.telemetryService.sendEnhancedGHTelemetryEvent('applyPatchTool', properties)).catch(() => { /* best-effort telemetry */ });
 	}
 
 	async resolveInput(input: IApplyPatchToolParams, promptContext: IBuildPromptContext): Promise<IApplyPatchToolParams> {

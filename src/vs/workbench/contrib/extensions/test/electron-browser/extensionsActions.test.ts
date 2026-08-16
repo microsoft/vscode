@@ -18,6 +18,7 @@ import { getGalleryExtensionId } from '../../../../../platform/extensionManageme
 import { TestExtensionEnablementService } from '../../../../services/extensionManagement/test/browser/extensionEnablementService.test.js';
 import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IPager } from '../../../../../base/common/paging.js';
@@ -58,6 +59,7 @@ import { arch } from '../../../../../base/common/process.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
+import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { Mutable } from '../../../../../base/common/types.js';
@@ -93,6 +95,12 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 	instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
+	instantiationService.stub(IExtensionGalleryManifestService, {
+		onDidChangeExtensionGalleryManifest: Event.None,
+		onDidChangeExtensionGalleryManifestStatus: Event.None,
+		extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Unavailable,
+		async getExtensionGalleryManifest() { return null; }
+	});
 	instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 
 	instantiationService.stub(IWorkbenchExtensionManagementService, {
@@ -2551,7 +2559,7 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 
 	test('test enable AI in workspace updates workspace setting when AI is disabled globally', async () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		configurationService.setUserConfiguration('chat.disableAIFeatures', true);
+		configurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
 
 		let updatedValue: { key: string; value: unknown; target: unknown } | undefined;
 		const originalUpdateValue = configurationService.updateValue.bind(configurationService);
@@ -2578,7 +2586,7 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 		await testObject.run();
 
 		assert.ok(updatedValue, 'updateValue should have been called');
-		assert.strictEqual(updatedValue.key, 'chat.disableAIFeatures');
+		assert.strictEqual(updatedValue.key, ChatAIDisabledSettingId);
 		assert.strictEqual(updatedValue.value, false, 'workspace setting should be set to false');
 	});
 

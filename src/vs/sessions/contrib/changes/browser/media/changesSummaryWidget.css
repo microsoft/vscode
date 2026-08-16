@@ -1,0 +1,17 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.changes-summary-widget {
+	display: inline-flex;
+	gap: 4px;
+
+	.changes-summary-lines-added {
+		color: var(--vscode-chat-linesAddedForeground);
+	}
+
+	.changes-summary-lines-removed {
+		color: var(--vscode-chat-linesRemovedForeground);
+	}
+}

@@ -234,7 +234,7 @@ export class StartDebuggingPrompt extends PromptElement<StartDebuggingPromptProp
 	}
 
 	private async queryModelForRequestedFiles(debuggerType: string | undefined, progress: vscode.Progress<vscode.ChatResponseProgressPart> | undefined, token: vscode.CancellationToken) {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const promptRenderer = this.props.input.type === StartDebuggingType.CommandLine
 			? PromptRenderer.create(
 				this.instantiationService,
@@ -295,7 +295,7 @@ export class StartDebuggingPrompt extends PromptElement<StartDebuggingPromptProp
 	}
 
 	private async getDebuggerType(progress: vscode.Progress<vscode.ChatResponseProgressPart> | undefined, token: vscode.CancellationToken): Promise<string | undefined> {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 
 		const promptRenderer = PromptRenderer.create(
 			this.instantiationService,

@@ -44,7 +44,7 @@ function makeInsertContext(overrides?: Partial<UnifiedXmlInsertContext>): Unifie
 	return {
 		editWindowLines: ['line0', 'cursor_line', 'line2'],
 		editWindowLineRange: new OffsetRange(10, 13),
-		cursorOriginalLinesOffset: 1,
+		cursorLineInEditWindowOffset: 1,
 		cursorColumnZeroBased: 6,
 		editWindow: new OffsetRange(0, 100),
 		originalEditWindow: undefined,

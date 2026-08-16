@@ -607,6 +607,21 @@ describe('CopilotToken class', function () {
 		expect(enabledToken.isExpandedClientSideIndexingEnabled()).toBe(true);
 		expect(disabledToken.isExpandedClientSideIndexingEnabled()).toBe(false);
 	});
+
+	it('isBlackbirdExternalIndexingEnabled returns false when flag is absent', function () {
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=test' }));
+		expect(token.isBlackbirdExternalIndexingEnabled()).toBe(false);
+	});
+
+	it('isBlackbirdExternalIndexingEnabled returns false when flag is 0', function () {
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'blackbird_external_indexing=0;tid=test' }));
+		expect(token.isBlackbirdExternalIndexingEnabled()).toBe(false);
+	});
+
+	it('isBlackbirdExternalIndexingEnabled returns true when flag is 1', function () {
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'blackbird_external_indexing=1;tid=test' }));
+		expect(token.isBlackbirdExternalIndexingEnabled()).toBe(true);
+	});
 });
 
 class StaticFetcherService implements IFetcherService {

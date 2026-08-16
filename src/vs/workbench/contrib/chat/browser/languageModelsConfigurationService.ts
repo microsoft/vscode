@@ -11,8 +11,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -28,6 +28,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 
 type LanguageModelsProviderGroups = Mutable<ILanguageModelsProviderGroup>[];
 
@@ -43,18 +44,22 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 
 	private languageModelsProviderGroups: LanguageModelsProviderGroups = [];
 
+	/** Resolved once the first config-file load attempt completes; assigned exactly once in the ctor. Rejections are swallowed so consumers can treat readiness as "first load attempted". */
+	private readonly _whenReady: Promise<void>;
+	get whenReady(): Promise<void> { return this._whenReady; }
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super();
-		this.modelsConfigurationFile = uriIdentityService.extUri.joinPath(userDataProfileService.currentProfile.location, 'chatLanguageModels.json');
-		this.updateLanguageModelsConfiguration();
+		this.modelsConfigurationFile = userDataProfileService.currentProfile.languageModelsResource;
+		this._whenReady = this.updateLanguageModelsConfiguration().catch(() => { /* swallow: readiness signals "attempted", not "succeeded" */ });
 		// Watch the parent folder for reliable change detection across platforms (especially Windows
 		// where `fs.watch` on individual files can miss in-place writes).
 		this._register(fileService.watch(uriIdentityService.extUri.dirname(this.modelsConfigurationFile)));
@@ -153,7 +158,14 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	}
 
 	async configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void> {
-		const editor = await this.editorService.openEditor(this.textEditorService.createTextEditor({ resource: this.modelsConfigurationFile }));
+		// Mirror the surface that the chat models editor is currently shown in: if
+		// it lives inside the modal editor part, open the JSON in the modal too;
+		// otherwise fall back to the default group resolution (regular editor area).
+		const preferredGroup = this.editorGroupsService.getPart(this.editorGroupsService.activeGroup) === this.editorGroupsService.activeModalEditorPart ? MODAL_GROUP : undefined;
+		const editor = await this.editorService.openEditor({
+			resource: this.modelsConfigurationFile,
+			options: { override: DEFAULT_EDITOR_ASSOCIATION.id }
+		}, preferredGroup);
 		if (!editor || !options?.group) {
 			return;
 		}
@@ -163,24 +175,36 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 			return;
 		}
 
-		if (!options.group.range) {
-			return;
-		}
-
 		if (options.snippet) {
 			// Insert snippet at the end of the last property line (before the closing brace line), with comma prepended
 			const model = codeEditor.getModel();
 			if (!model) {
 				return;
 			}
-			const lastPropertyLine = options.group.range.endLineNumber - 1;
-			const lastPropertyLineLength = model.getLineLength(lastPropertyLine);
-			const insertPosition = { lineNumber: lastPropertyLine, column: lastPropertyLineLength + 1 };
+			const targetRange = options.snippetTarget === 'models' ? options.group.modelsRange : options.group.range;
+			if (!targetRange) {
+				return;
+			}
+			const models = options.group.models;
+			const isModelsArray = options.snippetTarget === 'models' && Array.isArray(models);
+			const emptyModelsArray = isModelsArray && models.length === 0;
+			const insertBeforeModelsArrayEnd = emptyModelsArray || (isModelsArray && targetRange.startLineNumber === targetRange.endLineNumber);
+			const lastPropertyLine = targetRange.endLineNumber - 1;
+			const insertPosition = insertBeforeModelsArrayEnd ? {
+				lineNumber: targetRange.endLineNumber,
+				column: targetRange.endColumn - 1
+			} : {
+				lineNumber: lastPropertyLine,
+				column: model.getLineLength(lastPropertyLine) + 1
+			};
 			codeEditor.setPosition(insertPosition);
 			codeEditor.revealPositionNearTop(insertPosition);
 			codeEditor.focus();
-			SnippetController2.get(codeEditor)?.insert(',\n' + options.snippet);
+			SnippetController2.get(codeEditor)?.insert(emptyModelsArray ? options.snippet : ',\n' + options.snippet);
 		} else {
+			if (!options.group.range) {
+				return;
+			}
 			const position = { lineNumber: options.group.range.startLineNumber, column: options.group.range.startColumn };
 			codeEditor.setPosition(position);
 			codeEditor.revealPositionNearTop(position);
@@ -203,6 +227,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 			const updatedLanguageModelsProviderGroups = await update(languageModelsProviderGroups);
 			for (const group of updatedLanguageModelsProviderGroups) {
 				delete group.range;
+				delete group.modelsRange;
 			}
 			model.setValue(JSON.stringify(updatedLanguageModelsProviderGroups, undefined, '\t'));
 			await this.textFileService.save(this.modelsConfigurationFile);
@@ -273,19 +298,37 @@ export function parseLanguageModelsProviderGroups(model: ITextModel): LanguageMo
 				currentProperty = null;
 				return;
 			}
-			const array: unknown[] = [];
+			const array: unknown[] & { _parentModelsRange?: Mutable<IRange> } = [];
+			const parent = currentParent as Record<string, unknown> & { range?: IRange; modelsRange?: Mutable<IRange> };
+			if (currentProperty === 'models' && parent.range) {
+				const start = model.getPositionAt(offset);
+				const end = model.getPositionAt(offset + length);
+				parent.modelsRange = {
+					startLineNumber: start.lineNumber,
+					startColumn: start.column,
+					endLineNumber: end.lineNumber,
+					endColumn: end.column
+				};
+				array._parentModelsRange = parent.modelsRange;
+			}
 			onValue(array, offset, length);
 			previousParents.push(currentParent);
 			currentParent = array;
 			currentProperty = null;
 		},
 		onArrayEnd: (offset: number, length: number) => {
-			const parent = currentParent as { _parentConfigurationRange?: Mutable<IRange> };
+			const parent = currentParent as { _parentConfigurationRange?: Mutable<IRange>; _parentModelsRange?: Mutable<IRange> };
 			if (parent._parentConfigurationRange) {
 				const end = model.getPositionAt(offset + length);
 				parent._parentConfigurationRange.endLineNumber = end.lineNumber;
 				parent._parentConfigurationRange.endColumn = end.column;
 				delete parent._parentConfigurationRange;
+			}
+			if (parent._parentModelsRange) {
+				const end = model.getPositionAt(offset + length);
+				parent._parentModelsRange.endLineNumber = end.lineNumber;
+				parent._parentModelsRange.endColumn = end.column;
+				delete parent._parentModelsRange;
 			}
 			currentParent = previousParents.pop();
 		},

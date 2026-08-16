@@ -51,4 +51,37 @@ suite('Agent Client URI transform', () => {
 		const wrapped = toAgentClientUri(URI.file('/foo'), 'my-client');
 		assert.strictEqual(wrapped.authority, 'my-client');
 	});
+
+	test('preserves query and fragment across round trip', () => {
+		const original = URI.from({
+			scheme: 'vscode-notebook-cell',
+			authority: '',
+			path: '/Users/me/notebook.ipynb',
+			query: 'cellHandle=3',
+			fragment: 'L10-L20',
+		});
+		const wrapped = toAgentClientUri(original, 'client-q');
+		assert.strictEqual(wrapped.query, 'cellHandle=3');
+		assert.strictEqual(wrapped.fragment, 'L10-L20');
+
+		const decoded = fromAgentClientUri(wrapped);
+		assert.strictEqual(decoded.scheme, 'vscode-notebook-cell');
+		assert.strictEqual(decoded.path, '/Users/me/notebook.ipynb');
+		assert.strictEqual(decoded.query, 'cellHandle=3');
+		assert.strictEqual(decoded.fragment, 'L10-L20');
+	});
+
+	test('preserves opaque paths (e.g. untitled:Untitled-1)', () => {
+		const original = URI.parse('untitled:Untitled-1');
+		assert.strictEqual(original.path, 'Untitled-1');
+		assert.strictEqual(original.authority, '');
+
+		const wrapped = toAgentClientUri(original, 'client-u');
+		const decoded = fromAgentClientUri(wrapped);
+
+		assert.strictEqual(decoded.scheme, 'untitled');
+		assert.strictEqual(decoded.authority, '');
+		assert.strictEqual(decoded.path, 'Untitled-1');
+		assert.strictEqual(decoded.toString(), 'untitled:Untitled-1');
+	});
 });

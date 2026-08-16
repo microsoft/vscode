@@ -15,7 +15,7 @@ import { unificationStateObservable } from './completionsUnificationContribution
 
 export class CompletionsCoreContribution extends Disposable {
 
-	private readonly _copilotToken = observableFromEvent(this, this.authenticationService.onDidAuthenticationChange, () => this.authenticationService.copilotToken);
+	private readonly _copilotToken = observableFromEvent(this, this.authenticationService.onDidCopilotTokenChange, () => this.authenticationService.copilotToken);
 
 	constructor(
 		@ICopilotInlineCompletionItemProviderService _copilotInlineCompletionItemProviderService: ICopilotInlineCompletionItemProviderService,
@@ -31,9 +31,14 @@ export class CompletionsCoreContribution extends Disposable {
 			const unificationStateValue = unificationState.read(reader);
 			const configEnabled = configurationService.getExperimentBasedConfigObservable<boolean>(ConfigKey.TeamInternal.InlineEditsEnableGhCompletionsProvider, experimentationService).read(reader);
 			const extensionUnification = unificationStateValue?.extensionUnification ?? false;
+			const copilotToken = this._copilotToken.read(reader);
 
 			let hasInstantiatedProvider = false;
-			if (unificationStateValue?.codeUnification || extensionUnification || configEnabled || this._copilotToken.read(reader)?.isNoAuthUser) {
+			// Completions require a Copilot token to call the completions endpoint, so don't
+			// register the provider in air-gapped / signed-out scenarios — it would just fail
+			// with GitHubLoginFailedError on every keystroke.
+			const wantsProvider = unificationStateValue?.codeUnification || extensionUnification || configEnabled || copilotToken?.isNoAuthUser;
+			if (wantsProvider && copilotToken) {
 				const provider = _copilotInlineCompletionItemProviderService.getOrCreateProvider();
 				reader.store.add(
 					languages.registerInlineCompletionItemProvider(

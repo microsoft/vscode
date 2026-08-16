@@ -99,6 +99,13 @@ describe('Configurations', () => {
 				// This setting should be internal, but can't be made TeamInternal because we lose the team and internal flags as part of its testing.
 				return;
 			}
+			if (key === ConfigKey.Advanced.CLISessionEventLoggingEnabled.fullyQualifiedId) {
+				// Test-only diagnostic toggle: enables verbose tool/permission/event
+				// logging from CopilotCLISession. Not surfaced to end users so it
+				// intentionally has no package.json entry. The smoke test enables it
+				// directly in settings.json.
+				return;
+			}
 			expect(advancedConfigurationsInPackageJson, `Advanced setting ${key} should be defined in the advanced section of package.json`).toContain(key);
 		});
 

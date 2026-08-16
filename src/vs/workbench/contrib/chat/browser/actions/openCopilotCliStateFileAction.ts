@@ -9,8 +9,10 @@ import { Categories } from '../../../../../platform/action/common/actionCommonCa
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService } from '../chat.js';
@@ -18,14 +20,14 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { resolveEventsUri } from '../copilotCliEventsUri.js';
 
 /**
- * Shared implementation of "Open Copilot CLI State File". Resolves the
+ * Shared implementation of "Open Copilot State File". Resolves the
  * `events.jsonl` URI for the given chat session resource and opens it in
  * an editor, or shows a notification explaining why it could not be
  * opened.
  *
  * Both the workbench-side action (uses `IChatWidgetService`) and the
  * sessions-app-side action (uses `ISessionsManagementService`) call into
- * this helper after resolving the active Copilot CLI session resource.
+ * this helper after resolving the active Copilot session resource.
  */
 export async function openCopilotCliStateFile(
 	accessor: ServicesAccessor,
@@ -49,10 +51,10 @@ export async function openCopilotCliStateFile(
 			await editorService.openEditor({ resource: result.resource });
 			return;
 		case 'no-session':
-			notificationService.info(localize('openSessionEventsFile.noSession', "No Copilot CLI session is active."));
+			notificationService.info(localize('openSessionEventsFile.noSession', "No Copilot session is active."));
 			return;
 		case 'unsupported-scheme':
-			notificationService.info(localize('openSessionEventsFile.unsupported', "The active chat session is not a Copilot CLI session."));
+			notificationService.info(localize('openSessionEventsFile.unsupported', "The active chat session is not a Copilot session."));
 			return;
 		case 'remote-not-connected':
 			notificationService.warn(localize('openSessionEventsFile.notConnected', "No active connection found for remote agent host '{0}'.", result.authority));
@@ -65,7 +67,7 @@ export async function openCopilotCliStateFile(
 
 /**
  * Workbench-side action. Uses the last-focused chat widget's view model to
- * find the active Copilot CLI chat session. Suitable for vscode where the
+ * find the active Copilot chat session. Suitable for vscode where the
  * agents-window-specific `ISessionsManagementService` is not present.
  */
 export class OpenCopilotCliStateFileAction extends Action2 {
@@ -75,10 +77,13 @@ export class OpenCopilotCliStateFileAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenCopilotCliStateFileAction.ID,
-			title: localize2('openSessionEventsFile', "Open Copilot CLI State File"),
+			title: localize2('openSessionEventsFile', "Open Copilot State File"),
 			f1: true,
 			category: Categories.Developer,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				IsSessionsWindowContext.negate(),
+			),
 		});
 	}
 
