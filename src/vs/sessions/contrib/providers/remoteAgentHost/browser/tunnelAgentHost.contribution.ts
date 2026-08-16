@@ -903,7 +903,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				if (info && info.hostConnectionCount > 0) {
 					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
 
-					if (this._reconnectPauseReasons.has(address)) {
+					if (this._reconnectPauseReasons.get(address) === 'hostOffline') {
 						this._logService.info(
 							`[TunnelAgentHost] Confirmed host online for paused ${address}; auto-resuming reconnect.`
 						);
@@ -928,6 +928,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 					if (tunnel.hostConnectionCount > 0 && !this._isHostedTunnel(tunnel)) {
 						const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 						if (this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId)) {
+							continue;
+						}
+						if (this._reconnectPauseReasons.has(address)) {
 							continue;
 						}
 						const alreadyConnected = this._remoteAgentHostService.connections.some(

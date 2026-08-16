@@ -461,11 +461,14 @@ suite('TunnelAgentHostContribution', () => {
 		);
 	});
 
-	test('confirmed online tunnel resumes a host-offline pause during status check', async () => {
+	test('status checks resume only host-offline pauses and auto-connect preserves other pauses', async () => {
 		const tunnelService = store.add(new StubTunnelService());
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
-		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		const configurationService = new TestConfigurationService({
+			[RemoteAgentHostsEnabledSettingId]: true,
+			[RemoteAgentHostAutoConnectSettingId]: true,
+		});
 		const hostService = new StubHostService();
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ITunnelAgentHostService, tunnelService as unknown as ITunnelAgentHostService);
@@ -480,22 +483,42 @@ suite('TunnelAgentHostContribution', () => {
 		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
 		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
 		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
-		const tunnelId = 'tunnel-online';
-		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
-		tunnelService.setCached([{ tunnelId, clusterId: 'use', name: 'Online Tunnel' }]);
-		tunnelService.setListed([{ tunnelId, clusterId: 'use', name: 'Online Tunnel', tags: [], protocolVersion: 5, hostConnectionCount: 1 }]);
+		const offlineAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-offline`;
+		const authAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-auth`;
+		const maxAttemptsAddress = `${TUNNEL_ADDRESS_PREFIX}tunnel-max-attempts`;
+		tunnelService.setCached([
+			{ tunnelId: 'tunnel-offline', clusterId: 'use', name: 'Offline Tunnel' },
+			{ tunnelId: 'tunnel-auth', clusterId: 'use', name: 'Auth Tunnel' },
+			{ tunnelId: 'tunnel-max-attempts', clusterId: 'use', name: 'Max Attempts Tunnel' },
+		]);
+		tunnelService.setListed([
+			{ tunnelId: 'tunnel-offline', clusterId: 'use', name: 'Offline Tunnel', tags: [], protocolVersion: 5, hostConnectionCount: 1 },
+			{ tunnelId: 'tunnel-auth', clusterId: 'use', name: 'Auth Tunnel', tags: [], protocolVersion: 5, hostConnectionCount: 1 },
+			{ tunnelId: 'tunnel-max-attempts', clusterId: 'use', name: 'Max Attempts Tunnel', tags: [], protocolVersion: 5, hostConnectionCount: 1 },
+		]);
 		const testable = contribution as unknown as {
 			_reconnectPauseReasons: Map<string, TunnelConnectFailureReason>;
 			_reconnectTimeouts: Map<string, ReturnType<typeof setTimeout>>;
 			_silentStatusCheck(): Promise<void>;
 		};
 
-		testable._reconnectPauseReasons.set(address, 'hostOffline');
+		testable._reconnectPauseReasons.set(offlineAddress, 'hostOffline');
+		testable._reconnectPauseReasons.set(authAddress, 'authExpired');
+		testable._reconnectPauseReasons.set(maxAttemptsAddress, 'maxAttemptsReached');
 		await testable._silentStatusCheck();
+		await Promise.resolve();
 
 		assert.deepStrictEqual(
-			{ paused: testable._reconnectPauseReasons.has(address), timers: [...testable._reconnectTimeouts.keys()] },
-			{ paused: false, timers: [address] },
+			{
+				paused: [...testable._reconnectPauseReasons],
+				connects: tunnelService.connectCalls.map(call => call.tunnel.tunnelId),
+				timers: [...testable._reconnectTimeouts.keys()],
+			},
+			{
+				paused: [[authAddress, 'authExpired'], [maxAttemptsAddress, 'maxAttemptsReached']],
+				connects: ['tunnel-offline'],
+				timers: [],
+			},
 		);
 	});
 
