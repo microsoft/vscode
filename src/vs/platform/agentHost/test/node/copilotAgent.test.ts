@@ -6840,7 +6840,19 @@ suite('CopilotAgent', () => {
 					dispose: () => { },
 				}, boundChat);
 
-				assert.strictEqual(await agent.handleMcpRequest(boundChat, 'srv', 'tools/call', undefined), 'srv/tools/call');
+				const staleChat = URI.parse(buildChatUri(session, 'stale'));
+				chatBackings(agent).set(staleChat.toString(), { sdkSessionId: 'unrelated-sdk-id' });
+
+				assert.deepStrictEqual({
+					result: await agent.handleMcpRequest(boundChat, 'srv', 'tools/call', undefined),
+					staleRejected: await agent.handleMcpRequest(staleChat, 'srv', 'tools/call', undefined).then(
+						() => false,
+						error => error instanceof Error && error.message.startsWith('Method not found: no active chat'),
+					),
+				}, {
+					result: 'srv/tools/call',
+					staleRejected: true,
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
