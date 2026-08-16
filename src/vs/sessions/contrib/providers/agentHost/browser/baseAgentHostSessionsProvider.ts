@@ -3613,6 +3613,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	setMode(sessionId: string, modeId: string): void {
+		this.setAgent(sessionId, modeId === ChatMode.Agent.id ? undefined : { uri: modeId, name: '' });
+	}
+
 	getCustomAgents(sessionId: string): readonly AgentCustomization[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		const stateAgents = getEffectiveAgents(sessionState?.customizations);

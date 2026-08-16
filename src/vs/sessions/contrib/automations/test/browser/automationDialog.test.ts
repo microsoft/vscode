@@ -28,8 +28,9 @@ import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../.
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
 import { ChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { Target } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { isWorkspaceCustomChatMode } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
+import { isWorkspaceCustomChatMode, resolveChatInputCustomAgentTarget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
@@ -148,6 +149,21 @@ suite('Automation chat modes', () => {
 			builtin: true,
 			user: true,
 			workspace: false,
+		});
+	});
+
+	test('uses the delegated session type to filter agents without a session resource', () => {
+		const requestedSessionTypes: string[] = [];
+		const target = resolveChatInputCustomAgentTarget(undefined, 'copilotcli', {
+			getCustomAgentTargetForSessionType: sessionType => {
+				requestedSessionTypes.push(sessionType);
+				return Target.GitHubCopilot;
+			},
+		});
+
+		assert.deepStrictEqual({ target, requestedSessionTypes }, {
+			target: Target.GitHubCopilot,
+			requestedSessionTypes: ['copilotcli'],
 		});
 	});
 });

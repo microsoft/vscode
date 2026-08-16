@@ -270,6 +270,15 @@ export function isWorkspaceCustomChatMode(mode: IChatMode): boolean {
 	return !mode.isBuiltin && mode.source?.storage === PromptsStorage.local;
 }
 
+export function resolveChatInputCustomAgentTarget(
+	sessionResource: URI | undefined,
+	delegatedSessionType: string | undefined,
+	chatSessionsService: Pick<IChatSessionsService, 'getCustomAgentTargetForSessionType'>,
+): Target {
+	const sessionType = sessionResource ? getChatSessionType(sessionResource) : delegatedSessionType;
+	return sessionType ? chatSessionsService.getCustomAgentTargetForSessionType(sessionType) : Target.Undefined;
+}
+
 export interface IWorkingSetEntry {
 	uri: URI;
 }
@@ -1342,7 +1351,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			setMode: (mode: IChatMode) => this.setChatMode2(mode, true),
 			customAgentTarget: () => {
 				const sessionResource = this._widget?.viewModel?.model.sessionResource;
-				return (sessionResource && this.chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource))) ?? Target.Undefined;
+				return resolveChatInputCustomAgentTarget(
+					sessionResource,
+					this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.(),
+					this.chatSessionsService,
+				);
 			},
 		};
 	}
