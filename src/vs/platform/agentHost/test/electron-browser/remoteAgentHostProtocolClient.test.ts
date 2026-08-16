@@ -63,7 +63,7 @@ const syncTestConfigurationNode = {
 	},
 };
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
-import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
+import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
@@ -318,6 +318,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		assert.deepStrictEqual((initialize.params as { _meta?: Record<string, unknown> })._meta, {
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
+			'vscode.telemetryLevel': 'all',
 			'vscode.clientMachineId': 'client-machine-id',
 			'vscode.clientDevDeviceId': 'client-dev-device-id',
 		});
@@ -333,7 +334,9 @@ suite('RemoteAgentHostProtocolClient', () => {
 		const noTelemetryClient = createClient(noTelemetryTransport).client;
 		const noTelemetryConnectPromise = noTelemetryClient.connect();
 		const noTelemetryInitialize = noTelemetryTransport.sentMessages[0] as JsonRpcRequest;
-		assert.strictEqual((noTelemetryInitialize.params as { _meta?: Record<string, unknown> })._meta, undefined);
+		assert.deepStrictEqual((noTelemetryInitialize.params as { _meta?: Record<string, unknown> })._meta, {
+			'vscode.telemetryLevel': 'off',
+		});
 		noTelemetryTransport.fireMessage({
 			jsonrpc: '2.0',
 			id: noTelemetryInitialize.id,
@@ -966,7 +969,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 	test('initialize handshake includes protocol version and client info', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport(AgentHostClientConnectionKind.DevTunnel));
 		const clientInfo = agentsWindowAgentHostClientInfo;
-		const { client } = createClient(transport, undefined, undefined, undefined, undefined, 'renderer-client-id', clientInfo);
+		const { client } = createClientForIdentity('test.example:1234', transport, createPermissionService(), undefined, new NullLogService(), new TestConfigurationService(), 'renderer-client-id', clientInfo, new TestClientIdentityTelemetryService());
 		const connectPromise = client.connect();
 
 		transport.connectDeferred.complete();
@@ -990,7 +993,12 @@ suite('RemoteAgentHostProtocolClient', () => {
 			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: 'renderer-client-id',
 			clientInfo,
-			_meta: { 'vscode.clientConnectionKind': 'dev_tunnel' },
+			_meta: {
+				'vscode.clientConnectionKind': 'dev_tunnel',
+				'vscode.telemetryLevel': 'all',
+				'vscode.clientMachineId': 'client-machine-id',
+				'vscode.clientDevDeviceId': 'client-dev-device-id',
+			},
 		});
 		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
 
@@ -1028,6 +1036,40 @@ suite('RemoteAgentHostProtocolClient', () => {
 				},
 			},
 		});
+	});
+
+	test('forwards the actual telemetry service restriction during initialization and config sync', async () => {
+		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));
+		const configurationService = new TestConfigurationService();
+		const client = disposables.add(new RemoteAgentHostProtocolClient(
+			'test.example:1234',
+			transport,
+			undefined,
+			'telemetry-disabled-client',
+			editorWindowAgentHostClientInfo,
+			new NullLogService(),
+			createPermissionService(),
+			configurationService,
+			NullTelemetryService,
+		));
+
+		const connectPromise = client.connect();
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+		assert.deepStrictEqual((initialize.params as { _meta?: Record<string, unknown> })._meta, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
+			'vscode.telemetryLevel': 'off',
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+		await connectPromise;
+
+		assert.strictEqual(
+			findRootConfigValue(transport.sentMessages, AgentHostTelemetryLevelConfigKey),
+			'off',
+		);
 	});
 
 	test('forwards every setting declaring `agentHost` on connect and when one changes', async () => {
@@ -2004,6 +2046,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				reconnectTransport.connectDeferred.complete();
 				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
 				assert.deepStrictEqual((reconnect.params as { _meta?: Record<string, unknown> })._meta, {
+					'vscode.telemetryLevel': 'all',
 					'vscode.clientMachineId': 'client-machine-id',
 					'vscode.clientDevDeviceId': 'client-dev-device-id',
 				});
@@ -2020,6 +2063,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				}, {
 					clientInfo: agentsWindowAgentHostClientInfo,
 					meta: {
+						'vscode.telemetryLevel': 'all',
 						'vscode.clientMachineId': 'client-machine-id',
 						'vscode.clientDevDeviceId': 'client-dev-device-id',
 					},
