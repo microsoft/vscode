@@ -57,8 +57,10 @@ interface ICodexMcpControllerHarness {
 
 interface ICodexMcpRequestHarness {
 	readonly _sessionIdByChatUri: Map<string, string>;
-	readonly _sessions: Map<string, { readonly chatChannel: URI | undefined }>;
-	readonly _mcpInventory: Map<string, ICodexMcpServerEntry>;
+	readonly _sessions: Map<string, { readonly chatChannel: URI | undefined; readonly threadId?: string }>;
+	readonly _mcpInventory: {
+		forThread(threadId: string | undefined): ReadonlyMap<string, ICodexMcpServerEntry>;
+	};
 }
 
 function resolveConversationSession(harness: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined {
@@ -222,12 +224,14 @@ suite('CodexAgent', () => {
 				[staleChat.toString(), 'session-1'],
 			]),
 			_sessions: new Map([['session-1', { chatChannel: boundChat }]]),
-			_mcpInventory: new Map([['server', {
-				state: { kind: McpServerStatus.Ready },
-				tools: [],
-				resources: [],
-				resourceTemplates: [],
-			}]]),
+			_mcpInventory: {
+				forThread: () => new Map([['server', {
+					state: { kind: McpServerStatus.Ready },
+					tools: [],
+					resources: [],
+					resourceTemplates: [],
+				}]]),
+			},
 		};
 
 		assert.deepStrictEqual({
