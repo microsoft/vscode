@@ -10,7 +10,7 @@ import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import type { Page } from '@playwright/test';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 
 const browserCommandPrefix = 'workbench.action.browser';
 
@@ -56,7 +56,7 @@ export function setup(logger: Logger): void {
 			},
 			async app => {
 				await preseedChatExtensionEnablement(app.userDataPath);
-				preseedSettings(app.userDataPath, mockServer.url);
+				preseedSettings(app.userDataPath, getMockLlmServerUrl(mockServer));
 			}
 		);
 

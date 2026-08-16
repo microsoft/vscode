@@ -231,8 +231,9 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 	 * fall back on.
 	 */
 	private sendEvent(method: string, params: unknown, sessionId: string | undefined): void {
-		this._onMessage.fire({ method, params, sessionId });
-		this._onEvent.fire({ method, params, sessionId });
+		const externalSessionId = sessionId === ROOT_SESSION_ID ? undefined : sessionId;
+		this._onMessage.fire({ method, params, sessionId: externalSessionId });
+		this._onEvent.fire({ method, params, sessionId: externalSessionId });
 	}
 
 	// #region Public API
@@ -338,6 +339,10 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 	}
 
 	private handleTargetAttachToBrowserTarget(sessionId?: string) {
+		if (sessionId !== undefined && sessionId !== ROOT_SESSION_ID) {
+			throw new CDPInvalidParamsError('This implementation only supports attachToBrowserTarget from the root session');
+		}
+
 		// Each attach is its own session, per CDP: subscriptions and detach are
 		// per-session, so returning a shared ID would let one client's state and
 		// teardown clobber another's.

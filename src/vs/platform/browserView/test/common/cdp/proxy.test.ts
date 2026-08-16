@@ -236,6 +236,7 @@ suite('CDPBrowserProxy', () => {
 
 	test('returns protocol errors through the message transport', async () => {
 		const { proxy } = createProxy();
+		const browserSession = await proxy.sendCommand('Target.attachToBrowserTarget') as { sessionId: string };
 		const messages: object[] = [];
 		store.add(proxy.onMessage(message => messages.push(message)));
 
@@ -243,12 +244,14 @@ suite('CDPBrowserProxy', () => {
 		await proxy.sendMessage({ id: 2, method: 'Runtime.evaluate', sessionId: 'missing' });
 		await proxy.sendMessage({ id: 3, method: 'Target.attachToTarget', params: { targetId: 'missing', flatten: false } });
 		await proxy.sendMessage({ id: 4, method: 'Target.getTargets', sessionId: 'missing' });
+		await proxy.sendMessage({ id: 5, method: 'Target.attachToBrowserTarget', sessionId: browserSession.sessionId });
 
 		assert.deepStrictEqual(messages, [
 			{ id: 1, error: { code: -32601, message: 'Method not found: Unknown.method' }, sessionId: undefined },
 			{ id: 2, error: { code: -32000, message: 'Session not found: missing' }, sessionId: 'missing' },
 			{ id: 3, error: { code: -32602, message: 'This implementation only supports attachToTarget with flatten=true' }, sessionId: undefined },
 			{ id: 4, error: { code: -32000, message: 'Session not found: missing' }, sessionId: 'missing' },
+			{ id: 5, error: { code: -32602, message: 'This implementation only supports attachToBrowserTarget from the root session' }, sessionId: browserSession.sessionId },
 		]);
 	});
 
@@ -300,9 +303,9 @@ suite('CDPBrowserProxy', () => {
 			routedTo: event.sessionId,
 			targetType: (event.params as { targetInfo?: CDPTargetInfo }).targetInfo?.type,
 		})), [
-			{ method: 'Target.attachedToTarget', routedTo: '', targetType: 'page' },
+			{ method: 'Target.attachedToTarget', routedTo: undefined, targetType: 'page' },
 			{ method: 'Target.attachedToTarget', routedTo: undefined, targetType: 'browser' },
-			{ method: 'Target.detachedFromTarget', routedTo: '', targetType: undefined },
+			{ method: 'Target.detachedFromTarget', routedTo: undefined, targetType: undefined },
 		]);
 	});
 
@@ -328,7 +331,7 @@ suite('CDPBrowserProxy', () => {
 				.map(event => event.sessionId),
 			secondAttachCount: second.attachCount,
 		}, {
-			attachedAfterReRegister: [undefined, '', ''],
+			attachedAfterReRegister: [undefined, undefined, undefined],
 			secondAttachCount: 1,
 		});
 	});
