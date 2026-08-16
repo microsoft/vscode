@@ -43,7 +43,7 @@ import { checkEditConsistency } from '../common/editRebase';
 import { NesChangeHint } from '../common/nesTriggerHint';
 import { RejectionCollector } from '../common/rejectionCollector';
 import { DebugRecorder } from './debugRecorder';
-import { INesConfigs } from './nesConfigs';
+import { INesConfigs, INesRequestConfigs, INesSpeculativeConfigs } from './nesConfigs';
 import { CachedEdit, CachedOrRebasedEdit, NextEditCache } from './nextEditCache';
 import { LlmNESTelemetryBuilder, ReusedRequestKind } from './nextEditProviderTelemetry';
 import { INextEditResult, NextEditResult } from './nextEditResult';
@@ -296,6 +296,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	 * `SpeculativeRequestManager.onActiveDocumentChanged` (trajectory check).
 	 */
 	private _cancelPendingRequestDueToDocChange(docId: DocumentId, docValue: StringText) {
+		// Intentionally read directly (not via the per-request config snapshot): this is a
+		// per-keystroke autorun gate, not part of a request lifecycle (see #324752 item 4).
 		const isAsyncCompletions = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAsyncCompletions, this._expService);
 
 		if (isAsyncCompletions || this._pendingStatelessNextEditRequest === null) {
@@ -369,7 +371,12 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const documentAtInvocationTime = doc.value.get();
 		const selections = doc.selection.get();
 
-		const nesConfigs = this.determineNesConfigs(telemetryBuilder, logContext);
+		const nesConfigs = this._readRequestConfigs();
+		// Preserve the original telemetry + log side effects exactly: telemetry and the logged
+		// codeblock stay the `{ isAsyncCompletions }` subset (see INesConfigs).
+		const telemetryConfigs: INesConfigs = { isAsyncCompletions: nesConfigs.isAsyncCompletions };
+		telemetryBuilder.setNESConfigs(telemetryConfigs);
+		logContext.addCodeblockToLog(JSON.stringify(telemetryConfigs, null, '\t'));
 
 		let cachedEdit = this._nextEditCache.lookupNextEdit(docId, documentAtInvocationTime, selections);
 		if (cachedEdit?.rejected) {
@@ -447,7 +454,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		} else {
 			logger.trace(`fetching next edit with shouldExpandEditWindow=${shouldExpandEditWindow}`);
-			const providerRequestStartDateTime = (this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsDebounceUseCoreRequestTime, this._expService)
+			const providerRequestStartDateTime = (nesConfigs.debounceUseCoreRequestTime
 				? (context.requestIssuedDateTime ?? undefined)
 				: undefined);
 			req = new NextEditFetchRequest(context.requestUuid, logContext, providerRequestStartDateTime, false);
@@ -539,7 +546,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		telemetryBuilder.setHasNextEdit(true);
 
-		const delay = this.computeMinimumResponseDelay({ triggerTime, isRebasedCachedEdit, isSubsequentCachedEdit, isFromSpeculativeRequest, enforceCacheDelay: context.enforceCacheDelay }, logger);
+		const delay = this.computeMinimumResponseDelay({ triggerTime, isRebasedCachedEdit, isSubsequentCachedEdit, isFromSpeculativeRequest, enforceCacheDelay: context.enforceCacheDelay }, nesConfigs, logger);
 		if (delay > 0) {
 			await timeout(delay);
 			if (cancellationToken.isCancellationRequested) {
@@ -592,15 +599,35 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		return true;
 	}
 
-	private determineNesConfigs(telemetryBuilder: LlmNESTelemetryBuilder, logContext: InlineEditRequestLogContext): INesConfigs {
-		const nesConfigs: INesConfigs = {
+	/**
+	 * Reads all experiment-based configuration used by the main NES request path into a
+	 * single snapshot, so the individual methods can consume config from the snapshot
+	 * instead of reading it inline. Computed once per request in `_getNextEditCanThrow`.
+	 */
+	private _readRequestConfigs(): INesRequestConfigs {
+		return {
 			isAsyncCompletions: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAsyncCompletions, this._expService),
+			debounceUseCoreRequestTime: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsDebounceUseCoreRequestTime, this._expService),
+			autoExpandEditWindowLines: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAutoExpandEditWindowLines, this._expService),
+			cacheDelay: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, this._expService),
+			rebasedCacheDelay: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, this._expService),
+			subsequentCacheDelay: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSubsequentCacheDelay, this._expService),
+			speculativeRequestDelay: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestDelay, this._expService),
 		};
+	}
 
-		telemetryBuilder.setNESConfigs({ ...nesConfigs });
-		logContext.addCodeblockToLog(JSON.stringify(nesConfigs, null, '\t'));
-
-		return nesConfigs;
+	/**
+	 * Reads all experiment-based configuration used by the speculative NES request path
+	 * into a single snapshot. Kept separate from `_readRequestConfigs` so each
+	 * request-producing flow only reads (and exposes) its own experiment flags. Computed
+	 * once per speculative request in `_triggerSpeculativeRequest`.
+	 */
+	private _readSpeculativeConfigs(): INesSpeculativeConfigs {
+		return {
+			cursorPlacement: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestsCursorPlacement, this._expService),
+			autoExpandEditWindowLinesSetting: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestsAutoExpandEditWindowLines, this._expService),
+			autoExpandEditWindowLines: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAutoExpandEditWindowLines, this._expService),
+		};
 	}
 
 	private _processDoc(doc: DocumentHistory): ProcessedDoc {
@@ -634,7 +661,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		};
 	}
 
-	private async fetchNextEdit(req: NextEditFetchRequest, doc: IObservableDocument, nesConfigs: INesConfigs, shouldExpandEditWindow: boolean, parentLogger: ILogger, telemetryBuilder: LlmNESTelemetryBuilder, cancellationToken: CancellationToken): Promise<Result<CachedOrRebasedEdit, NoNextEditReason>> {
+	private async fetchNextEdit(req: NextEditFetchRequest, doc: IObservableDocument, nesConfigs: INesRequestConfigs, shouldExpandEditWindow: boolean, parentLogger: ILogger, telemetryBuilder: LlmNESTelemetryBuilder, cancellationToken: CancellationToken): Promise<Result<CachedOrRebasedEdit, NoNextEditReason>> {
 		const curDocId = doc.id;
 		const logger = parentLogger.createSubLogger('fetchNextEdit');
 		const historyContext = this._historyContextProvider.getHistoryContext(curDocId);
@@ -834,7 +861,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		req: NextEditFetchRequest,
 		doc: IObservableDocument,
 		historyContext: HistoryContext,
-		nesConfigs: INesConfigs,
+		nesConfigs: INesRequestConfigs,
 		shouldExpandEditWindow: boolean,
 		parentLogger: ILogger,
 		telemetryBuilder: LlmNESTelemetryBuilder,
@@ -869,7 +896,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const firstEdit = new DeferredPromise<Result<CachedOrRebasedEdit, NoNextEditReason>>();
 
 		const nLinesEditWindow = (shouldExpandEditWindow
-			? this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAutoExpandEditWindowLines, this._expService)
+			? nesConfigs.autoExpandEditWindowLines
 			: undefined);
 
 		const nextEditRequest = new StatelessNextEditRequest(
@@ -1129,17 +1156,14 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		return disposables;
 	}
 
-	private computeMinimumResponseDelay({ triggerTime, isRebasedCachedEdit, isSubsequentCachedEdit, isFromSpeculativeRequest, enforceCacheDelay }: { triggerTime: number; isRebasedCachedEdit: boolean; isSubsequentCachedEdit: boolean; isFromSpeculativeRequest: boolean; enforceCacheDelay: boolean }, logger: ILogger): number {
+	private computeMinimumResponseDelay({ triggerTime, isRebasedCachedEdit, isSubsequentCachedEdit, isFromSpeculativeRequest, enforceCacheDelay }: { triggerTime: number; isRebasedCachedEdit: boolean; isSubsequentCachedEdit: boolean; isFromSpeculativeRequest: boolean; enforceCacheDelay: boolean }, nesConfigs: INesRequestConfigs, logger: ILogger): number {
 
 		if (!enforceCacheDelay) {
 			logger.trace('[minimumDelay] no minimum delay enforced due to enforceCacheDelay being false');
 			return 0;
 		}
 
-		const cacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, this._expService);
-		const rebasedCacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, this._expService);
-		const subsequentCacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSubsequentCacheDelay, this._expService);
-		const speculativeRequestDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestDelay, this._expService);
+		const { cacheDelay, rebasedCacheDelay, subsequentCacheDelay, speculativeRequestDelay } = nesConfigs;
 
 		let minimumResponseDelay = cacheDelay;
 		if (isRebasedCachedEdit && rebasedCacheDelay !== undefined) {
@@ -1166,7 +1190,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		this._lastOutcome = undefined; // clear so that outcome is "pending" until resolved
 		this._specManager.clearScheduled(); // clear any previously scheduled speculative
 
-		// Trigger speculative request for the post-edit document state
+		// Trigger speculative request for the post-edit document state.
+		// Intentionally read directly (not via the per-request config snapshot): this is a
+		// per-shown enablement gate checked before a speculative request exists (see #324752 item 4).
 		const speculativeRequestsEnablement = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, this._expService);
 		if (speculativeRequestsEnablement === SpeculativeRequestsEnablement.On) {
 			// If the originating stream is still running, defer the speculative request
@@ -1196,6 +1222,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			return;
 		}
 
+		const speculativeConfigs = this._readSpeculativeConfigs();
+
 		const logContext = new InlineEditRequestLogContext(docId.uri, 0, undefined);
 
 		const sw = new StopWatch();
@@ -1222,7 +1250,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				return;
 			} else if (cachedEdit.editWindow) {
 				logger.trace('have cached no-suggestions entry for post-edit state, but it has an edit window. Checking if shifting selection based on cursor placement config can yield a cached edit');
-				const cursorPlacement = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestsCursorPlacement, this._expService);
+				const cursorPlacement = speculativeConfigs.cursorPlacement;
 				if (cursorPlacement === SpeculativeRequestsCursorPlacement.AfterEditWindow) {
 					logger.trace('cursor placement config is AfterEditWindow, shifting selection to after edit window');
 					shiftedSelection = NextEditProvider.shiftSelectionAfterEditWindow(postEditContentST, cachedEdit.editWindow);
@@ -1298,6 +1326,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					triggeredBySpeculativeRequest: suggestion.source.isSpeculative,
 					isSubsequentEdit: suggestion.result?.isSubsequentEdit ?? false,
 				},
+				speculativeConfigs,
 				logger
 			);
 
@@ -1340,6 +1369,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		rootedEdit: RootedEdit,
 		appliedEdit: StringReplacement,
 		{ triggeredBySpeculativeRequest, isSubsequentEdit }: { triggeredBySpeculativeRequest: boolean; isSubsequentEdit: boolean },
+		speculativeConfigs: INesSpeculativeConfigs,
 		parentLogger: ILogger
 	): Promise<StatelessNextEditRequest<CachedOrRebasedEdit> | undefined> {
 		const curDocId = doc.id;
@@ -1402,19 +1432,19 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const firstEdit = new DeferredPromise<Result<CachedOrRebasedEdit, NoNextEditReason>>();
 
 		// FIXME@ulugbekna: implement advanced expansion
-		const autoExpandEditWindowLinesSetting = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestsAutoExpandEditWindowLines, this._expService);
+		const autoExpandEditWindowLinesSetting = speculativeConfigs.autoExpandEditWindowLinesSetting;
 		let nLinesEditWindow: number | undefined;
 		switch (autoExpandEditWindowLinesSetting) {
 			case SpeculativeRequestsAutoExpandEditWindowLines.Off:
 				nLinesEditWindow = undefined;
 				break;
 			case SpeculativeRequestsAutoExpandEditWindowLines.Always:
-				nLinesEditWindow = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAutoExpandEditWindowLines, this._expService);
+				nLinesEditWindow = speculativeConfigs.autoExpandEditWindowLines;
 				break;
 			case SpeculativeRequestsAutoExpandEditWindowLines.Smart: {
 				const isModelOnRightTrack = triggeredBySpeculativeRequest || isSubsequentEdit;
 				nLinesEditWindow = (isModelOnRightTrack
-					? this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAutoExpandEditWindowLines, this._expService)
+					? speculativeConfigs.autoExpandEditWindowLines
 					: undefined);
 				break;
 			}
