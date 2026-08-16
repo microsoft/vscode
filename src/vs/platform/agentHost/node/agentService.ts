@@ -29,7 +29,7 @@ import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommi
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
-import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isSessionAction, type ChatAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isSessionAction, isSessionCatalogFlagAction, type ChatAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -164,6 +164,23 @@ function parsePersistedSourceControlState(value: string): ISessionSourceControlS
 		throw new Error('Invalid persisted source-control state');
 	}
 	return state;
+}
+
+type PersistedSessionCatalogFlags = Partial<Record<
+	typeof AH_META_IS_READ_DB_KEY | typeof AH_META_IS_ARCHIVED_DB_KEY | typeof AH_META_IS_DONE_DB_KEY,
+	string | undefined
+>>;
+
+function applyPersistedSessionCatalogFlags(status: SessionStatus | undefined, metadata: PersistedSessionCatalogFlags = {}): SessionStatus {
+	let updated = status ?? SessionStatus.Idle;
+	if (metadata[AH_META_IS_READ_DB_KEY] !== undefined) {
+		updated = withSessionStatusFlag(updated, SessionStatus.IsRead, metadata[AH_META_IS_READ_DB_KEY] === 'true');
+	}
+	const persistedArchived = metadata[AH_META_IS_ARCHIVED_DB_KEY] ?? metadata[AH_META_IS_DONE_DB_KEY];
+	if (persistedArchived !== undefined) {
+		updated = withSessionStatusFlag(updated, SessionStatus.IsArchived, persistedArchived === 'true');
+	}
+	return updated;
 }
 
 /**
@@ -1131,6 +1148,31 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
+	private async _unloadedSessionCatalogStatus(session: URI): Promise<SessionStatus> {
+		const provider = this._findProviderForSession(session);
+		if (!provider) {
+			throw new Error(`No provider found for session: ${session}`);
+		}
+		const metadata = await this._registeredSessionMetadata(provider, session, await this._isExternalProviderChat(session));
+		if (!metadata) {
+			throw new Error(`No metadata found for session: ${session}`);
+		}
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return applyPersistedSessionCatalogFlags(metadata.status);
+		}
+		try {
+			const persisted = await ref.object.getMetadataObject({
+				[AH_META_IS_READ_DB_KEY]: true,
+				[AH_META_IS_ARCHIVED_DB_KEY]: true,
+				[AH_META_IS_DONE_DB_KEY]: true,
+			});
+			return applyPersistedSessionCatalogFlags(metadata.status, persisted);
+		} finally {
+			ref.dispose();
+		}
+	}
+
 	/**
 	 * Awaits legacy migration started at provider registration. Provider-owned
 	 * discovery is independent and surfaces unknown chats additively.
@@ -1451,14 +1493,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m.customTitle) {
 						updated = { ...updated, summary: m.customTitle };
 					}
-					// `isDone` is the legacy key for `isArchived`.
-					if (m[AH_META_IS_READ_DB_KEY] !== undefined) {
-						updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsRead, m[AH_META_IS_READ_DB_KEY] === 'true') };
-					}
-					const persistedArchived = m[AH_META_IS_ARCHIVED_DB_KEY] ?? m[AH_META_IS_DONE_DB_KEY];
-					if (persistedArchived !== undefined) {
-						updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsArchived, persistedArchived === 'true') };
-					}
+					updated = { ...updated, status: applyPersistedSessionCatalogFlags(updated.status, m) };
 					if (m[META_GIT_STATE]) {
 						try {
 							const gitState = JSON.parse(m[META_GIT_STATE]) as ISessionGitState;
@@ -3480,18 +3515,25 @@ export class AgentService extends Disposable implements IAgentService {
 		// lookup, telemetry, permissions — all keyed by session).
 		const chatChannel = isAhpChatChannel(channel) ? channel : undefined;
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
-		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
+		const sessionState = this._stateManager.getSessionState(sessionChannel);
+		// Restoring just to set a catalog flag fails when the working directory is gone.
+		const appliesWithoutSession = chatChannel === undefined && isSessionCatalogFlagAction(action);
+		const requiresCatalogStatusLookup = appliesWithoutSession && !sessionState;
+		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !appliesWithoutSession && !sessionState;
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
 		const requiresTurnOwnerResolution = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresTurnOwnerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate) {
+		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresTurnOwnerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate && !requiresCatalogStatusLookup) {
 			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
+			const catalogStatus = requiresCatalogStatusLookup
+				? await this._unloadedSessionCatalogStatus(URI.parse(sessionChannel))
+				: undefined;
 			if (requiresSessionRestore) {
 				const sessionUri = URI.parse(sessionChannel);
 				const subagent = parseSubagentSessionUri(sessionUri);
@@ -3521,7 +3563,13 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				this._changesets.refreshBranchChangeset(changeset.sessionUri);
 			}
-			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext);
+			const accepted = this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext);
+			if (accepted && catalogStatus !== undefined && isSessionCatalogFlagAction(rewritten)) {
+				const status = rewritten.type === ActionType.SessionIsArchivedChanged
+					? withSessionStatusFlag(catalogStatus, SessionStatus.IsArchived, rewritten.isArchived)
+					: withSessionStatusFlag(catalogStatus, SessionStatus.IsRead, rewritten.isRead);
+				this._stateManager.emitSessionSummaryChanged(sessionChannel, { status });
+			}
 		}).catch(err => {
 			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
 			this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, toErrorMessage(err));
@@ -3564,26 +3612,26 @@ export class AgentService extends Disposable implements IAgentService {
 		return resolveSessionWorkingDirectoryAction(action, state.workingDirectories, capability.immutablePrimary === true);
 	}
 
-	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
+	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): boolean {
 		const origin = { clientId, clientSeq };
 		if (action.type === ActionType.ChatTurnStarted && this._isTurnIdUsedByAnotherChat(sessionChannel, channel, action.turnId)) {
 			this._stateManager.rejectClientAction(channel, action, origin, 'Turn id is already used by another chat in this session.');
-			return;
+			return false;
 		}
 		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
 			if (clientContext.clientType !== AgentHostClientType.EditorWindow) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require an Editor Window client.');
-				return;
+				return false;
 			}
 			if (channel !== sessionChannel) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require a session channel.');
-				return;
+				return false;
 			}
 			try {
 				action = this._prepareWorkingDirectoryAction(sessionChannel, action);
 			} catch (error) {
 				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
-				return;
+				return false;
 			}
 		}
 		this._stateManager.dispatchClientAction(channel, action, origin, clientContext);
@@ -3595,6 +3643,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._sideEffects.handleAction(channel, action, clientId, clientContext);
+		return true;
 	}
 	private _getUnresolvedPeerChats(sessionChannel: string): readonly string[] | undefined {
 		return this._stateManager.getSessionState(sessionChannel)?.chats.filter(chat => !isDefaultChatUri(chat.resource) && !this._stateManager.getChatState(chat.resource)).map(chat => chat.resource);

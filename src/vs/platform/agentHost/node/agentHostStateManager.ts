@@ -10,7 +10,7 @@ import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type AuthRequiredParams, type ProgressParams } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isSessionCatalogFlagAction, type AuthRequiredParams, type ProgressParams } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
 import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
@@ -1360,6 +1360,16 @@ export class AgentHostStateManager extends Disposable {
 		return this._applyAndEmit(channel, action, origin, clientContext);
 	}
 
+	/** Emits a catalog delta without retaining session state. */
+	emitSessionSummaryChanged(session: URI, changes: Partial<SessionSummary>): void {
+		this._onDidEmitNotification.fire({
+			type: 'root/sessionSummaryChanged',
+			channel: ROOT_STATE_URI,
+			session,
+			changes,
+		});
+	}
+
 	/**
 	 * Reject a client-originated action without applying it to state. Emits an
 	 * {@link ActionEnvelope} that carries the original {@link ActionOrigin} and a
@@ -1476,6 +1486,9 @@ export class AgentHostStateManager extends Disposable {
 				}
 
 				resultingState = newState;
+			} else if (isSessionCatalogFlagAction(sessionAction)) {
+				// No conversation state to reduce; the emitted envelope carries the flag.
+				this._logService.trace(`[AgentHostStateManager] Catalog flag for unloaded session: ${key}, type=${action.type}`);
 			} else if (!isAhpChatChannel(key)) {
 				this._logService.warn(`[AgentHostStateManager] Action for unknown session: ${key}, type=${action.type}`);
 			}
