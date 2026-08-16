@@ -52,6 +52,7 @@ const definitions: readonly ToolDefinition[] = [
 ];
 
 export interface IAgentMergeToolAccessor {
+	isEnabled(): boolean;
 	readFailedCI(session: string): Promise<string>;
 	replyToReviewThread(session: string, threadId: string, body: string, resolve: boolean): Promise<string>;
 	rerunFailedWorkflow(session: string, runId: string, failedJobsOnly: boolean): Promise<string>;
@@ -60,7 +61,7 @@ export interface IAgentMergeToolAccessor {
 export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccessor): IServerToolGroup {
 	return {
 		definitions,
-		isEnabled: toolName => definitions.some(definition => definition.name === toolName),
+		isEnabled: toolName => accessor?.isEnabled() === true && definitions.some(definition => definition.name === toolName),
 		execute: (_stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown) => {
 			if (!accessor) {
 				throw new Error('Agent Merge tools are not available without an Agent Merge controller.');

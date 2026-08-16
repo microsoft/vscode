@@ -24,10 +24,15 @@ export interface IAgentMergeTurnContext {
 export class AgentMergeTools implements IAgentMergeToolAccessor {
 
 	constructor(
+		private readonly _isFeatureEnabled: () => boolean,
 		private readonly _getTurnContext: (session: string) => IAgentMergeTurnContext | undefined,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
+
+	isEnabled(): boolean {
+		return this._isFeatureEnabled();
+	}
 
 	async readFailedCI(session: string): Promise<string> {
 		const context = this._requireTurnAction(session, 'fixCI');

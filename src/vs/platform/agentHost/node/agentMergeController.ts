@@ -110,6 +110,10 @@ export class AgentMergeController extends Disposable {
 		}
 	}
 
+	isEnabled(): boolean {
+		return this._isFeatureEnabled();
+	}
+
 	onSessionAvailable(session: string): void {
 		this._logService.trace(`[AgentMergeController] Session available: session=${session}`);
 		this._syncSession(session);

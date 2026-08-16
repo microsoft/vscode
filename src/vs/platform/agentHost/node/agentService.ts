@@ -535,6 +535,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._configurationService = configurationService;
 		let externalSessionsMode = this._getExternalSessionsMode();
 		this._lastMigrateLegacyEnabled = this._isMigrateLegacyEnabled();
+		let agentMergeEnabled: boolean | undefined;
 		this._register(configurationService.onDidRootConfigChange(() => {
 			const nextMode = this._getExternalSessionsMode();
 			if (nextMode !== externalSessionsMode) {
@@ -542,6 +543,15 @@ export class AgentService extends Disposable implements IAgentService {
 				externalSessionsMode = nextMode;
 				this._queueSessionListReconciliation(previousMode);
 			}
+			// Agent Merge tools are only advertised while the feature is on, so a
+			// toggle has to reach sessions that were advertised under the old value.
+			const nextAgentMergeEnabled = this._agentMergeController.isEnabled();
+			if (agentMergeEnabled !== undefined && nextAgentMergeEnabled !== agentMergeEnabled) {
+				for (const session of this._stateManager.getSessionUris()) {
+					this._serverToolHost.advertise(session);
+				}
+			}
+			agentMergeEnabled = nextAgentMergeEnabled;
 			this._onMigrateLegacySettingChanged();
 		}));
 		const fileMonitorService = _fileMonitorService ?? this._register(new AgentHostFileMonitorService(this._fileService, this._logService));
@@ -714,6 +724,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// dependency (this service) is injected via the accessor.
 		const agentMergeTools = instantiationService.createInstance(
 			AgentMergeTools,
+			() => this._agentMergeController.isEnabled(),
 			session => this._agentMergeController.getTurnContext(session),
 		);
 		this._serverToolHost = new AgentServerToolHost(this._stateManager, buildServerToolGroups(this._createSessionServerToolAccessor(), agentMergeTools));

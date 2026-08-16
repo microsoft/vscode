@@ -28,7 +28,6 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import { readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName } from '../../../../node/shared/agentMergeServerTools.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 interface IServerToolTestSession {
@@ -64,11 +63,6 @@ const sessionToolNames = [
 	SessionServerToolName.SendMessage,
 	SessionServerToolName.GetSessionContext,
 	SessionServerToolName.DeleteSession,
-] as const;
-const agentMergeToolNames = [
-	readAgentMergeCIToolName,
-	replyToAgentMergeReviewThreadToolName,
-	rerunAgentMergeWorkflowToolName,
 ] as const;
 
 export function defineServerToolsTests(context: IAgentHostE2ETestContext): void {
@@ -274,7 +268,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			}
 			return state.serverTools.map(tool => tool.name);
 		}, 100, 30);
-		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...sessionToolNames, ...agentMergeToolNames]);
+		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...sessionToolNames]);
 	});
 
 	serverToolTest('server tool: listComments executes in-process with an empty annotation channel', async function () {
