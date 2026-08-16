@@ -7,7 +7,7 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHu
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
-import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceTimeout, retry, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
 import { type CancellationToken } from '../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
@@ -593,11 +593,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * responds with an additive discovery pass.
 	 */
 	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
-		onDidAddFirstListener: () => {
-			if (this._isMigrateLegacyCopilotCliEnabled()) {
-				void this._emitExtHostChats();
-			}
-		},
+		onDidAddFirstListener: () => { void this._startCopilotChatDiscovery(); },
 	}));
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 	/**
@@ -835,7 +831,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (enabled !== this._lastMigrateLegacyEnabled) {
 				this._lastMigrateLegacyEnabled = enabled;
 				if (enabled) {
-					void this._emitExtHostChats();
+					// Only the adoptable legacy extension-host half of discovery is
+					// gated on this setting, so a fresh pass is needed to surface it.
+					void this._emitCopilotChats();
 				}
 			}
 		}));
@@ -2134,51 +2132,135 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
-	private async _emitExtHostChats(): Promise<void> {
+	private _copilotChatDiscovery: Promise<void> | undefined;
+
+	/**
+	 * One memoized initial discovery attempt, mirroring Claude and Codex. The
+	 * CLI client may still be starting when the first discovery listener
+	 * attaches, and {@link _listSdkSessions} reports that as "cannot enumerate
+	 * yet" rather than an authoritative empty catalog, so the attempt is
+	 * retried before giving up until the next explicit trigger.
+	 */
+	private _startCopilotChatDiscovery(): Promise<void> {
+		if (!this._copilotChatDiscovery) {
+			this._copilotChatDiscovery = retry(async () => {
+				if (this._shutdownPromise || this._store.isDisposed) {
+					// Teardown began between attempts. Return rather than throw so
+					// the retry stops instead of sleeping on a dead client.
+					return;
+				}
+				if (!(await this._emitCopilotChats())) {
+					throw new Error('Copilot chat catalog is not available');
+				}
+			}, 5000, 3)
+				.catch(err => this._logService.warn('[Copilot] Chat discovery failed', err));
+		}
+		return this._copilotChatDiscovery;
+	}
+
+	/**
+	 * Emits the chats found by one discovery pass. External chats are emitted
+	 * unconditionally; adoptable legacy extension-host chats are emitted only
+	 * while in-place migration is enabled, because they are surfaced so the
+	 * user can adopt them rather than as someone else's session.
+	 *
+	 * Returns whether the provider catalog could be enumerated at all, which is
+	 * what {@link _startCopilotChatDiscovery} retries on.
+	 */
+	private async _emitCopilotChats(): Promise<boolean> {
 		try {
-			const chats = await this._discoverExtHostChats();
-			if (chats && this._isMigrateLegacyCopilotCliEnabled()) {
-				this._onDidDiscoverChats.fire(chats);
+			const chats = await this._discoverCopilotChats();
+			if (!chats) {
+				return false;
 			}
+			const migrateLegacy = this._isMigrateLegacyCopilotCliEnabled();
+			const emitted = migrateLegacy ? chats : chats.filter(chat => chat.external);
+			this._logService.info(`[Copilot] Chat discovery: emitting ${emitted.length} of ${chats.length} discovered chat(s) (adopt legacy extension-host chats: ${migrateLegacy})`);
+			if (emitted.length > 0) {
+				this._onDidDiscoverChats.fire(emitted);
+			}
+			return true;
 		} catch (err) {
-			this._logService.warn('[Copilot] Failed to emit extension-host chats', err);
+			this._logService.warn('[Copilot] Failed to emit discovered chats', err);
+			return false;
 		}
 	}
 
-	private async _discoverExtHostChats(): Promise<IAgentDiscoveredChat[] | undefined> {
-		const sessions = await this._listSdkSessions('extension-host chats');
+	/**
+	 * Enumerates the SDK catalog under `~/.copilot` and classifies every chat
+	 * Agent Host does not already know about:
+	 *
+	 * - a legacy extension-host Copilot CLI chat is *internal* and adoptable in
+	 *   place (see {@link ensureChatAdopted}), so it keeps `external: false`;
+	 * - anything else was produced by another client sharing the same Copilot
+	 *   home (the standalone CLI, the GitHub Copilot app, another editor) and
+	 *   is therefore `external: true`.
+	 *
+	 * A chat counts as already known when it has a per-session database, which
+	 * also keeps peer-chat backings out of the result. A chat the SDK reports
+	 * without a working directory is skipped: {@link _doResumeSession} requires
+	 * one and a discovered chat has no other source for it (Agent Host writes
+	 * no metadata for it beyond the read marker), so it would surface as a row
+	 * that throws on open.
+	 *
+	 * Classification is per-chat fallible — an unreadable session database
+	 * would otherwise withhold the whole catalog and fail every retry — so a
+	 * failing chat is logged and skipped while its siblings still surface.
+	 *
+	 * `undefined` means the catalog could not be enumerated yet — not an
+	 * authoritative empty result.
+	 */
+	private async _discoverCopilotChats(): Promise<IAgentDiscoveredChat[] | undefined> {
+		const sessions = await this._listSdkSessions('discoverable chats');
 		if (!sessions) {
 			return undefined;
 		}
 		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
-		const metadataLimiter = new Limiter<IAgentChatMetadata | undefined>(4);
+		const metadataLimiter = new Limiter<IAgentDiscoveredChat | undefined>(4);
 		const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
+		let known = 0;
+		let withoutWorkingDirectory = 0;
+		let failed = 0;
 		const mapped = await Promise.all(sessions.map(s => metadataLimiter.queue(async () => {
-			if (typeof s.context?.workingDirectory !== 'string' || !await this._isExtensionHostCliSession(s.sessionId)) {
-				return undefined;
-			}
 			const session = AgentSession.uri(this.id, s.sessionId);
-			if (await this._readStoredSessionMetadata(session)) {
+			try {
+				if (await this._readStoredSessionMetadata(session)) {
+					known++;
+					return undefined;
+				}
+				if (typeof s.context?.workingDirectory !== 'string') {
+					withoutWorkingDirectory++;
+					return undefined;
+				}
+				const adoptable = await this._isExtensionHostCliSession(s.sessionId);
+				return {
+					chat: URI.parse(buildDefaultChatUri(session)),
+					startTime: s.startTime.getTime(),
+					modifiedTime: s.modifiedTime.getTime(),
+					project: await this._resolveSessionProject(s.context, projectLimiter, projectByContext),
+					summary: s.summary,
+					workingDirectories: [URI.file(s.context.workingDirectory)],
+					_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
+					external: !adoptable,
+				} satisfies IAgentDiscoveredChat;
+			} catch (err) {
+				failed++;
+				this._logService.warn(`[Copilot] Failed to classify discovered chat ${session.toString()}; skipping it`, err);
 				return undefined;
 			}
-			return {
-				chat: URI.parse(buildDefaultChatUri(session)),
-				startTime: s.startTime.getTime(),
-				modifiedTime: s.modifiedTime.getTime(),
-				project: await this._resolveSessionProject(s.context, projectLimiter, projectByContext),
-				summary: s.summary,
-				workingDirectories: [URI.file(s.context.workingDirectory)],
-				_meta: withSessionEhcliAdoptable(undefined),
-				external: false,
-			} satisfies IAgentDiscoveredChat;
 		})));
-		return mapped.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
+		const chats = mapped.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
+		const external = chats.filter(chat => chat.external).length;
+		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${chats.length - external} adoptable legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${failed} failed to classify`);
+		return chats;
 	}
 
 	private async _listSdkSessions(reason: string): Promise<Awaited<ReturnType<CopilotClient['listSessions']>> | undefined> {
 		this._logService.info(`[Copilot] Listing ${reason}...`);
 		try {
-			return await this._retryAfterClosedConnection('listSessions', client => client.listSessions());
+			const sessions = await this._retryAfterClosedConnection('listSessions', client => client.listSessions());
+			this._logService.info(`[Copilot] Listed ${sessions.length} SDK session(s) for ${reason}`);
+			return sessions;
 		} catch (err) {
 			if (err instanceof CancellationError || isRecognizedCopilotClientStartupFailure(err) || classifyCopilotClientOperationFailure(err) !== undefined) {
 				this._logService.info(`[Copilot] Client unavailable while listing ${reason}: ${err instanceof Error ? err.message : String(err)}`);

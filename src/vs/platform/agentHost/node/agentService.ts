@@ -1240,11 +1240,13 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> {
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
 		const discoveryLimiter = new Limiter<boolean>(4);
+		let suppressed = 0;
 		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
 				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
+					suppressed++;
 					return false;
 				}
 				const identity: IRegisteredSession = { session, provider: provider.id, startTime: metadata.startTime, external, source: external ? 'discovery' : 'restore' };
@@ -1258,6 +1260,8 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 					existing.set(session.toString(), external);
 					await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
+				} else {
+					this._logService.trace(`[AgentService] discovery: ${session.toString()} was not registered (tombstoned)`);
 				}
 				return registered;
 			} catch (err) {
@@ -1265,7 +1269,9 @@ export class AgentService extends Disposable implements IAgentService {
 				return false;
 			}
 		})));
-		return results.some(changed => changed);
+		const registered = results.filter(changed => changed).length;
+		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${suppressed} suppressed as subagent/chat backing`);
+		return registered > 0;
 	}
 
 	private async _migrateLegacyProviderChats(provider: IAgent, force = false): Promise<void> {
@@ -1600,10 +1606,41 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 		}
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
-		const visible = combined.filter(session => this._shouldIncludeSession(session, mode));
+		const visible: IAgentSessionMetadata[] = [];
+		// Adoptable-legacy rows are withheld by migrate-legacy, not by the external mode.
+		let hiddenByExternalMode = 0;
+		for (const session of combined) {
+			if (this._shouldIncludeSession(session, mode)) {
+				visible.push(session);
+			} else if (!readSessionEhcliAdoptable(session._meta)) {
+				hiddenByExternalMode++;
+			}
+		}
+		this._logHiddenSessions(hiddenByExternalMode, combined.length, mode);
 
 		this._logService.trace(`[AgentService] listSessions returned ${visible.length} sessions (${additions.length} state-manager fallback)`);
 		return visible;
+	}
+
+	/** Last `hidden/total/mode` triple reported by {@link _logHiddenSessions}, so a steady state is logged once instead of on every refresh. */
+	private _lastHiddenSessionsLog: string | undefined;
+
+	/**
+	 * Surfaces how many sessions the external-sessions setting is holding back.
+	 * Without this, a session that a provider discovered but the current mode
+	 * filters out is indistinguishable from one that was never discovered.
+	 * `hidden` counts only rows the mode itself excluded, never the
+	 * adoptable-legacy rows gated on the separate migrate-legacy setting.
+	 */
+	private _logHiddenSessions(hidden: number, total: number, mode: AgentHostExternalSessionsMode): void {
+		const signature = `${hidden}/${total}/${mode}`;
+		if (signature === this._lastHiddenSessionsLog) {
+			return;
+		}
+		this._lastHiddenSessionsLog = signature;
+		if (hidden > 0) {
+			this._logService.info(`[AgentService] listSessions hid ${hidden} of ${total} session(s) (${AgentHostShowExternalSessionsConfigKey}: '${mode}')`);
+		}
 	}
 
 	private _getExternalSessionsMode(): AgentHostExternalSessionsMode {
