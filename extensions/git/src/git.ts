@@ -434,7 +434,7 @@ export class Git {
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		const baseFolderName = options.targetName || decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
+		const baseFolderName = options.targetName || getCloneTargetFolderName(url);
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
@@ -1029,6 +1029,25 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
 		.filter(m => !!m)
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
+}
+
+/**
+ * Derives a folder name from a git remote URL for use as a clone target.
+ *
+ * Handles three URL shapes:
+ *  - Standard URLs (https://, ssh://, git://, file://): take the basename of the path.
+ *  - SCP-style SSH URLs ([user@]host:path) where the path may not contain a slash
+ *    (e.g. `git@host.example:repo`): strip the `host:` prefix so the folder name
+ *    is just `repo` rather than `git@host.example:repo` (which contains `:` and is
+ *    invalid on Windows). See https://github.com/microsoft/vscode/issues/175062
+ *  - Anything else: fall back to `'repository'`.
+ */
+export function getCloneTargetFolderName(url: string): string {
+	return decodeURI(url)
+		.replace(/[\/]+$/, '')
+		.replace(/^.*[\/\\]/, '')
+		.replace(/^.*:/, '')
+		.replace(/\.git$/, '') || 'repository';
 }
 
 const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
