@@ -273,6 +273,14 @@ export class SinglePaneWorkbench extends Workbench {
 		if (this._syncingEditorVisibility || this._isEditorPartAutoVisibilitySuppressed || !this.partVisibility.editor) {
 			return;
 		}
+		if (this._restoreEqualSplitOnDetailsHide && this.partVisibility.auxiliaryBar) {
+			const totalWidth = this.workbenchGrid.getViewSize(this.sessionsPartView).width + nodeWidth;
+			const balancedWidth = Math.round(this._dockedAuxiliaryBarWidth + (totalWidth - this._dockedAuxiliaryBarWidth) / 2);
+			const constrainedWidth = Math.max(this.editorPartView.minimumWidth, Math.min(balancedWidth, totalWidth - this.sessionsPartView.minimumWidth));
+			if (Math.abs(nodeWidth - constrainedWidth) > 1) {
+				this.clearEditorPartSashResetState();
+			}
+		}
 		const editorWidth = this._persistedEditorWidth(nodeWidth);
 		if (editorWidth !== undefined && editorWidth >= EDITOR_PART_MINIMUM_WIDTH) {
 			this._savedPartSizes = { ...this._savedPartSizes, editor: editorWidth };
@@ -349,7 +357,8 @@ export class SinglePaneWorkbench extends Workbench {
 
 	protected override _applyEditorVisibility(hidden: boolean): void {
 		if (hidden) {
-			this._restoreEqualSplitOnDetailsHide = false;
+			this.clearEditorPartSashResetState();
+			this._editorWidthAfterDetailAutoHide = undefined;
 		}
 
 		// Part sizes are workbench-global, so hiding the side pane must not discard the

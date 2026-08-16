@@ -1497,6 +1497,25 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('manual sash resize clears the pending Details-hide reset behavior', () => {
+		const host = createHost({ single: true, sessionsWidth: 560, editorWidth: 840, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: true } });
+		SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(host);
+		host.workbenchGrid.resizeView(host.sessionsPartView, { width: 700, height: 800 });
+		host.workbenchGrid.resizeView(host.editorPartView, { width: 700, height: 800 });
+		host.resizes.length = 0;
+
+		onEditorNodeResized.call(host, 700);
+		setAuxiliaryBarHidden.call(host, true);
+
+		assert.deepStrictEqual({
+			restoreEqualSplitOnHide: host._restoreEqualSplitOnDetailsHide,
+			resizes: host.resizes,
+		}, {
+			restoreEqualSplitOnHide: false,
+			resizes: [{ width: 420, height: 800 }],
+		});
+	});
+
 	test('session layout restore clears the pending Details-hide reset behavior', () => {
 		const host = createHost({ single: true, sessionsWidth: 560, editorWidth: 840, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: true } });
 		SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(host);
@@ -1851,6 +1870,25 @@ suite('Sessions - Workbench', () => {
 			layoutCount: 2,
 			saveCount: 0,
 			resizes: [],
+		});
+	});
+
+	test('does not restore auto-hidden Details after the whole side pane is closed and reopened', () => {
+		const host = createHost({ single: true, sessionsWidth: 1000, dockedWidth: 300, editorWidth: 599, partVisibility: { editor: true, auxiliaryBar: true } });
+
+		onEditorNodeResized.call(host, 599);
+		setEditorHidden.call(host, true, true);
+		setEditorHidden.call(host, false);
+		onEditorNodeResized.call(host, 899);
+
+		assert.deepStrictEqual({
+			editorVisible: host.partVisibility.editor,
+			detailVisible: host.partVisibility.auxiliaryBar,
+			editorWidthAfterDetailAutoHide: host._editorWidthAfterDetailAutoHide,
+		}, {
+			editorVisible: true,
+			detailVisible: false,
+			editorWidthAfterDetailAutoHide: undefined,
 		});
 	});
 
