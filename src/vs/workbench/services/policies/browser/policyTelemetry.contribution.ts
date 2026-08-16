@@ -177,13 +177,19 @@ function isEmptyMarketplaceAllowlist(rawValue: PolicyValue | undefined): boolean
 	}
 }
 
-const KNOWN_TELEMETRY_LEVELS: ReadonlySet<Exclude<TelemetryLevelBucket, 'unknown' | undefined>> = new Set(['off', 'crash', 'error', 'all']);
-
 function telemetryLevelBucket(rawValue: PolicyValue | undefined): TelemetryLevelBucket {
 	if (rawValue === undefined) {
 		return undefined;
 	}
-	return typeof rawValue === 'string' && KNOWN_TELEMETRY_LEVELS.has(rawValue) ? rawValue : 'unknown';
+	switch (rawValue) {
+		case 'off':
+		case 'crash':
+		case 'error':
+		case 'all':
+			return rawValue;
+		default:
+			return 'unknown';
+	}
 }
 
 registerWorkbenchContribution2(PolicyTelemetryContribution.ID, PolicyTelemetryContribution, WorkbenchPhase.AfterRestored);
