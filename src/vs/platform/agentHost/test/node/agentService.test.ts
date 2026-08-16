@@ -4795,6 +4795,39 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(restored.state, { annotations: [annotation] });
 		});
 
+		test('annotations subscribe concurrent with session restore returns persisted feedback', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			const annotation = {
+				id: 'feedback-1',
+				turnId: 'turn-1',
+				resource: URI.file('/workspace/reviewed.ts').toString(),
+				resolved: false,
+				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+			};
+
+			await localService.subscribe(URI.parse(annotationsUri), 'client-before-restart');
+			localService.dispatchAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation,
+			}, 'client-before-restart', 1);
+			localService.stateManager.deleteSession(session.toString());
+
+			// The session restore populates session state before it restores
+			// annotations; a subscribe racing that window must still wait.
+			const [, restored] = await Promise.all([
+				localService.restoreSession(session),
+				localService.subscribe(URI.parse(annotationsUri), 'client-racing-restore'),
+			]);
+
+			assert.deepStrictEqual(restored.state, { annotations: [annotation] });
+		});
+
 		test('subagent annotations persist in the parent session database', async () => {
 			const sessionData = createPerSessionDataService();
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));

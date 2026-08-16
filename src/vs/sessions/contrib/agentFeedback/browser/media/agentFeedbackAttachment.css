@@ -34,7 +34,9 @@
 	padding-right: var(--vscode-spacing-size40);
 }
 
-.agent-feedback-context-view-tree .monaco-list-row:hover .agent-feedback-context-view-action-bar {
+.agent-feedback-context-view-tree .monaco-list-row:hover .agent-feedback-context-view-action-bar,
+.agent-feedback-context-view-tree .monaco-list-row.focused .agent-feedback-context-view-action-bar,
+.agent-feedback-context-view-tree .agent-feedback-context-view-action-bar:focus-within {
 	display: flex;
 }
 

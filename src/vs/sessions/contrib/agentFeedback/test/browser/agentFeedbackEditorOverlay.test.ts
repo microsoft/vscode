@@ -30,6 +30,7 @@ suite('AgentFeedbackEditorOverlay', () => {
 		instantiationService.stub(IEditorGroupsService, editorPart);
 		instantiationService.stub(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidChangeFeedback = Event.None;
+			override readonly onDidChangeFeedbackVisibility = Event.None;
 			override readonly onDidChangeNavigation = Event.None;
 			override readonly onDidChangeFeedbackScope = Event.None;
 		});
