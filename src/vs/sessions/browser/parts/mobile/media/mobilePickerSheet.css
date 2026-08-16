@@ -15,6 +15,7 @@
 .mobile-picker-sheet-overlay {
 	position: fixed;
 	inset: 0;
+	bottom: var(--vscode-keyboard-height, 0px);
 	z-index: 2000;
 	display: flex;
 	flex-direction: column;
@@ -40,7 +41,7 @@
 .mobile-picker-sheet {
 	position: relative;
 	width: 100%;
-	max-height: 80vh;
+	max-height: min(80vh, calc(100vh - var(--vscode-keyboard-height, 0px)));
 	display: flex;
 	flex-direction: column;
 	background: var(--vscode-menu-background, var(--vscode-editor-background));
@@ -231,6 +232,7 @@
 
 .mobile-picker-sheet-list {
 	flex: 1 1 auto;
+	min-height: 0;
 	overflow-y: auto;
 	-webkit-overflow-scrolling: touch;
 	padding: 4px 8px 12px;
@@ -337,6 +339,7 @@
  * correctly under iOS regardless of what DOM the caller puts inside. */
 .mobile-content-sheet-body {
 	flex: 1 1 auto;
+	min-height: 0;
 	overflow-y: auto;
 	-webkit-overflow-scrolling: touch;
 	touch-action: pan-y;
