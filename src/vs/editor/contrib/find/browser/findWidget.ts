@@ -50,6 +50,7 @@ const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, n
 const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown, nls.localize('findExpandedIcon', 'Icon to indicate that the editor find widget is expanded.'));
 
 export const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
+export const findIgnoreFoldedIcon = registerIcon('find-ignore-folded', Codicon.fold, nls.localize('findIgnoreFoldedIcon', 'Icon for \'Ignore Folded Regions\' in the editor find widget.'));
 export const findReplaceIcon = registerIcon('find-replace', Codicon.replace, nls.localize('findReplaceIcon', 'Icon for \'Replace\' in the editor find widget.'));
 export const findReplaceAllIcon = registerIcon('find-replace-all', Codicon.replaceAll, nls.localize('findReplaceAllIcon', 'Icon for \'Replace All\' in the editor find widget.'));
 export const findPreviousMatchIcon = registerIcon('find-previous-match', Codicon.arrowUp, nls.localize('findPreviousMatchIcon', 'Icon for \'Find Previous\' in the editor find widget.'));
@@ -67,6 +68,7 @@ const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
+const NLS_TOGGLE_IGNORE_FOLDED_TITLE = nls.localize('label.toggleIgnoreFolded', "Ignore Folded Regions");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
 const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
@@ -138,6 +140,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _prevBtn!: SimpleButton;
 	private _nextBtn!: SimpleButton;
 	private _toggleSelectionFind!: Toggle;
+	private _toggleIgnoreFoldedRegions!: Toggle;
 	private _closeBtn!: SimpleButton;
 	private _replaceBtn!: SimpleButton;
 	private _replaceAllBtn!: SimpleButton;
@@ -423,6 +426,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 			this._updateToggleSelectionFindButton();
 		}
+		if (e.ignoreFoldedRegions) {
+			this._toggleIgnoreFoldedRegions.checked = !!this._state.ignoreFoldedRegions;
+		}
 		if (e.searchString || e.matchesCount || e.matchesPosition) {
 			const showRedOutline = (this._state.searchString.length > 0 && this._state.matchesCount === 0);
 			this._domNode.classList.toggle('no-results', showRedOutline);
@@ -530,6 +536,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._findInput.setEnabled(this._isVisible);
 		this._replaceInput.setEnabled(this._isVisible && this._isReplaceVisible);
 		this._updateToggleSelectionFindButton();
+		if (this._isVisible) {
+			this._toggleIgnoreFoldedRegions.enable();
+		} else {
+			this._toggleIgnoreFoldedRegions.disable();
+		}
 		this._closeBtn.setEnabled(this._isVisible);
 
 		const findInputIsNonEmpty = (this._state.searchString.length > 0);
@@ -1018,6 +1029,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
 		this._findInput.setWholeWords(!!this._state.wholeWord);
+		this._toggleIgnoreFoldedRegions.checked = !!this._state.ignoreFoldedRegions;
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter) && !this._codeEditor.getOption(EditorOption.find).findOnType) {
 				this._state.change({ searchString: this._findInput.getValue() }, true);
@@ -1133,6 +1145,23 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}));
 
 		actionsContainer.appendChild(this._toggleSelectionFind.domNode);
+
+		// Toggle ignore folded regions button
+		this._toggleIgnoreFoldedRegions = this._register(new Toggle({
+			icon: findIgnoreFoldedIcon,
+			title: NLS_TOGGLE_IGNORE_FOLDED_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleIgnoreFoldedCommand),
+			isChecked: false,
+			hoverLifecycleOptions,
+			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
+			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+		}));
+
+		this._register(this._toggleIgnoreFoldedRegions.onChange(() => {
+			this._state.change({ ignoreFoldedRegions: this._toggleIgnoreFoldedRegions.checked }, true);
+		}));
+
+		actionsContainer.appendChild(this._toggleIgnoreFoldedRegions.domNode);
 
 		// Close button
 		this._closeBtn = this._register(new SimpleButton({
