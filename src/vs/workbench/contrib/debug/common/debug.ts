@@ -1298,7 +1298,7 @@ export interface IDebugService {
 	renameWatchExpression(id: string, newName: string): void;
 
 	/**
-	 * Moves a watch expression to a new possition. Used for reordering watch expressions.
+	 * Moves a watch expression to a new position. Used for reordering watch expressions.
 	 */
 	moveWatchExpression(id: string, position: number): void;
 
@@ -1313,7 +1313,7 @@ export interface IDebugService {
 	 * and resolveds configurations via DebugConfigurationProviders.
 	 *
 	 * Returns true if the start debugging was successful. For compound launches, all configurations have to start successfully for it to return success.
-	 * On errors the startDebugging will throw an error, however some error and cancelations are handled and in that case will simply return false.
+	 * On errors the startDebugging will throw an error, however some error and cancellations are handled and in that case will simply return false.
 	 */
 	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions, saveBeforeStart?: boolean): Promise<boolean>;
 

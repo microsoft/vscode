@@ -138,7 +138,7 @@ export class SnippetController2 implements IEditorContribution {
 		}
 
 		// don't listen while inserting the snippet
-		// as that is the inflight state causing cancelation
+		// as that is the inflight state causing cancellation
 		this._snippetListener.clear();
 
 		if (opts.undoStopBefore) {
@@ -163,7 +163,7 @@ export class SnippetController2 implements IEditorContribution {
 			this._editor.getModel().pushStackElement();
 		}
 
-		// regster completion item provider when there is any choice element
+		// register completion item provider when there is any choice element
 		if (this._session?.hasChoice) {
 			const provider: CompletionItemProvider = {
 				_debugDisplayName: 'snippetChoiceCompletions',

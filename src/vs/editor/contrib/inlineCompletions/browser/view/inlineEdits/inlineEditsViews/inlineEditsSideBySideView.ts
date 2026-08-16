@@ -40,7 +40,7 @@ const MODIFIED_END_PADDING = 12;
 
 export class InlineEditsSideBySideView extends Disposable implements IInlineEditsView {
 
-	// This is an approximation and should be improved by using the real parameters used bellow
+	// This is an approximation and should be improved by using the real parameters used below
 	static fitsInsideViewport(editor: ICodeEditor, textModel: ITextModel, edit: InlineEditWithChanges, reader: IReader): boolean {
 		const editorObs = observableCodeEditor(editor);
 		const editorWidth = editorObs.layoutInfoWidth.read(reader);
