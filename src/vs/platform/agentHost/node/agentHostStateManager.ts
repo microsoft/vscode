@@ -22,6 +22,7 @@ import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOpt
 import { ChangesSummary, ChatInteractivity, type ChatOrigin } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
+import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -270,8 +271,8 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidChangeSessionTitle = this._register(new Emitter<{ session: string; title: string }>());
 	readonly onDidChangeSessionTitle: Event<{ session: string; title: string }> = this._onDidChangeSessionTitle.event;
 
-	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined }>());
-	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined }> = this._onDidChangeSessionConfig.event;
+	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }>());
+	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }> = this._onDidChangeSessionConfig.event;
 
 	private readonly _onDidChangeSessionWorkingDirectories = this._register(new Emitter<{ session: string }>());
 	readonly onDidChangeSessionWorkingDirectories: Event<{ session: string }> = this._onDidChangeSessionWorkingDirectories.event;
@@ -1355,8 +1356,8 @@ export class AgentHostStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(channel: URI, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
-		return this._applyAndEmit(channel, action, origin);
+	dispatchClientAction(channel: URI, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, origin: ActionOrigin, clientContext?: IAgentHostClientTelemetryContext): unknown {
+		return this._applyAndEmit(channel, action, origin, clientContext);
 	}
 
 	/**
@@ -1413,7 +1414,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
-	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined): unknown {
+	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined, clientContext?: IAgentHostClientTelemetryContext): unknown {
 		let resultingState: unknown = undefined;
 		if (action.type === ActionType.RootConfigChanged && action.replace) {
 			action = {
@@ -1458,7 +1459,7 @@ export class AgentHostStateManager extends Disposable {
 					this._onDidChangeSessionTitle.fire({ session: key, title: newState.title });
 				}
 				if (sessionAction.type === ActionType.SessionConfigChanged) {
-					this._onDidChangeSessionConfig.fire({ session: key, previous: previousState.config, current: newState.config });
+					this._onDidChangeSessionConfig.fire({ session: key, previous: previousState.config, current: newState.config, clientContext });
 				}
 				// The reducer returns the SAME state object when a working-directory
 				// action is a no-op, so a reference change here means the effective

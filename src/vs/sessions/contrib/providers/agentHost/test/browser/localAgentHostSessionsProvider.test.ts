@@ -1289,6 +1289,79 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('hydrates persisted change stats before the live list is available', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const previousHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => previousHost.dispose()));
+		previousHost.addSession(createSession('cached-metadata', { summary: 'Cached Metadata' }));
+		createProvider(disposables, previousHost, undefined, { storageService });
+		await timeout(0);
+		await storageService.flush();
+
+		fireSessionSummaryChanged(previousHost, 'cached-metadata', {
+			changes: { additions: 12, deletions: 4, files: 3 },
+		});
+		await storageService.flush();
+
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const nextProvider = createProvider(disposables, nextHost, undefined, { storageService });
+		const listSessionsCallsBeforeRead = nextHost.listSessionsCallCount;
+		const restored = nextProvider.getSessions()[0];
+
+		assert.deepStrictEqual({
+			listSessionsCallsBeforeRead,
+			changesSummary: restored.changesSummary?.get(),
+		}, {
+			listSessionsCallsBeforeRead: 0,
+			changesSummary: { additions: 12, deletions: 4, files: 3 },
+		});
+	}));
+
+	test('hydrates a pull request icon persisted by a metadata-only update', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const previousHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => previousHost.dispose()));
+		previousHost.addSession(createSession('cached-pr', {
+			summary: 'Cached PR',
+			project: { uri: URI.file('/repo'), displayName: 'repo' },
+		}));
+		createProvider(disposables, previousHost, undefined, { storageService });
+		await timeout(0);
+		await storageService.flush();
+
+		fireSessionSummaryChanged(previousHost, 'cached-pr', {
+			_meta: withSessionGitHubState(undefined, {
+				owner: 'owner',
+				repo: 'repo',
+				pullRequestUrls: ['https://github.com/owner/repo/pull/42'],
+				pullRequestBranchName: 'feature',
+			}),
+		});
+		await storageService.flush();
+
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+		const nextProvider = createProvider(disposables, nextHost, undefined, { storageService, gitHubService });
+		const restored = nextProvider.getSessions()[0];
+		const pullRequestIcon = restored.completedStateIcon?.get();
+
+		assert.deepStrictEqual({
+			pullRequestIcon: pullRequestIcon && { id: pullRequestIcon.id, color: pullRequestIcon.color?.id },
+		}, {
+			pullRequestIcon: {
+				id: computePullRequestIcon(GitHubPullRequestState.Open).id,
+				color: computePullRequestIcon(GitHubPullRequestState.Open).color?.id,
+			},
+		});
+	}));
+
 	test('discards a legacy cache entry so read state is rebuilt from the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Storage-key literals of the pre-`.v2` cache schema, whose entries
 		// carried a stale `isRead: true` written by the old always-read adapter.

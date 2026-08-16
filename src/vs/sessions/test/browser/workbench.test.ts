@@ -39,6 +39,10 @@ suite('Sessions - Workbench', () => {
 	const onEditorNodeResized = Reflect.get(SinglePaneWorkbench.prototype, '_onEditorNodeResized') as (this: ITestWorkbench, nodeWidth: number) => void;
 	const onGridDidChange = Reflect.get(SinglePaneWorkbench.prototype, '_onGridDidChange') as (this: ITestWorkbench) => void;
 	const onEditorPartGridVisibilityChange = Reflect.get(SinglePaneWorkbench.prototype, '_onEditorPartGridVisibilityChange') as (this: ITestWorkbench, visible: boolean) => void;
+	const fireDidChangePartVisibilitySinglePane = Reflect.get(SinglePaneWorkbench.prototype, '_fireDidChangePartVisibility') as (this: {
+		_editorWidthAfterDetailAutoHide: number | undefined;
+		_onDidChangePartVisibility: { fire(event: IPartVisibilityChangeEvent): void };
+	}, partId: Parts, visible: boolean, source?: 'resize') => void;
 	const persistedEditorWidth = Reflect.get(SinglePaneWorkbench.prototype, '_persistedEditorWidth') as (this: ITestWorkbench, editorGridWidth: number | undefined) => number | undefined;
 	const rememberAttachedEditorMaximizedState = Reflect.get(Workbench.prototype, 'rememberAttachedEditorMaximizedState') as (this: IWorkbenchTestHarness) => void;
 	const restoreAttachedEditorMaximizedState = Reflect.get(Workbench.prototype, 'restoreAttachedEditorMaximizedState') as (this: IWorkbenchTestHarness) => void;
@@ -78,7 +82,7 @@ suite('Sessions - Workbench', () => {
 		_restoreSidePaneEditorMaximizedOnShow: boolean;
 		_hasAppliedInitialEditorSplit: boolean;
 		_dockedAuxiliaryBarWidth: number;
-		_detailHiddenForEditorResize: boolean;
+		_editorWidthAfterDetailAutoHide: number | undefined;
 		_memento: DockedEditorSizeMemento;
 		readonly resizes: IViewSize[];
 		readonly distributions: object[];
@@ -279,7 +283,7 @@ suite('Sessions - Workbench', () => {
 			// docked bookkeeping
 			_dockedAuxiliaryBarWidth: options.dockedWidth ?? DockedAuxiliaryBarController.DEFAULT_WIDTH,
 			_syncingEditorVisibility: false,
-			_detailHiddenForEditorResize: false,
+			_editorWidthAfterDetailAutoHide: undefined,
 			_memento: new DockedEditorSizeMemento(),
 			// stubs for the heavy base helpers the hooks call
 			_savePartVisibility: () => { counts.save++; },
@@ -1566,43 +1570,74 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual({
 			editorVisible: host.partVisibility.editor,
 			detailVisible: host.partVisibility.auxiliaryBar,
-			detailHiddenForEditorResize: host._detailHiddenForEditorResize,
+			editorWidthAfterDetailAutoHide: host._editorWidthAfterDetailAutoHide,
 			events: host.events,
 			layoutCount: host.counts.layout,
 			saveCount: host.counts.save,
 		}, {
 			editorVisible: true,
 			detailVisible: false,
-			detailHiddenForEditorResize: true,
+			editorWidthAfterDetailAutoHide: 599,
 			events: [{ partId: Parts.AUXILIARYBAR_PART, visible: false, source: 'resize' }],
 			layoutCount: 1,
 			saveCount: 0,
 		});
 	});
 
-	test('shows details when the editor sash restores room after an automatic hide', () => {
+	test('shows details when the editor sash can preserve the width captured after an automatic hide', () => {
 		const host = createHost({ single: true, sessionsWidth: 1000, dockedWidth: 300, editorWidth: 600, partVisibility: { editor: true, auxiliaryBar: true } });
 
 		onEditorNodeResized.call(host, 599);
-		onEditorNodeResized.call(host, 700);
+		onEditorNodeResized.call(host, 898);
+		const detailVisibleBelowTarget = host.partVisibility.auxiliaryBar;
+		onEditorNodeResized.call(host, 899);
 
 		assert.deepStrictEqual({
 			editorVisible: host.partVisibility.editor,
+			detailVisibleBelowTarget,
 			detailVisible: host.partVisibility.auxiliaryBar,
-			detailHiddenForEditorResize: host._detailHiddenForEditorResize,
+			editorWidthAfterDetailAutoHide: host._editorWidthAfterDetailAutoHide,
+			editorWidthAfterDetailAutoShow: 899 - host._dockedAuxiliaryBarWidth,
 			events: host.events,
 			layoutCount: host.counts.layout,
 			saveCount: host.counts.save,
 		}, {
 			editorVisible: true,
+			detailVisibleBelowTarget: false,
 			detailVisible: true,
-			detailHiddenForEditorResize: false,
+			editorWidthAfterDetailAutoHide: undefined,
+			editorWidthAfterDetailAutoShow: 599,
 			events: [
 				{ partId: Parts.AUXILIARYBAR_PART, visible: false, source: 'resize' },
 				{ partId: Parts.AUXILIARYBAR_PART, visible: true, source: 'resize' },
 			],
 			layoutCount: 2,
 			saveCount: 0,
+		});
+	});
+
+	test('clears the captured editor width only for explicit detail visibility changes', () => {
+		const events: IPartVisibilityChangeEvent[] = [];
+		const host = {
+			_editorWidthAfterDetailAutoHide: 599,
+			_onDidChangePartVisibility: { fire: (event: IPartVisibilityChangeEvent) => events.push(event) },
+		};
+
+		fireDidChangePartVisibilitySinglePane.call(host, Parts.AUXILIARYBAR_PART, false, 'resize');
+		const widthAfterResize = host._editorWidthAfterDetailAutoHide;
+		fireDidChangePartVisibilitySinglePane.call(host, Parts.AUXILIARYBAR_PART, true);
+
+		assert.deepStrictEqual({
+			widthAfterResize,
+			widthAfterExplicitChange: host._editorWidthAfterDetailAutoHide,
+			events,
+		}, {
+			widthAfterResize: 599,
+			widthAfterExplicitChange: undefined,
+			events: [
+				{ partId: Parts.AUXILIARYBAR_PART, visible: false, source: 'resize' },
+				{ partId: Parts.AUXILIARYBAR_PART, visible: true, source: undefined },
+			],
 		});
 	});
 

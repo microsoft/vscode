@@ -1101,4 +1101,25 @@ suite('appendSdkToolResultContent', () => {
 			},
 		]);
 	});
+
+	test('ignores a null shell_exit output preview', () => {
+		const content: ToolResultContent[] = [];
+
+		const result = appendSdkToolResultContent(content, [
+			{ type: 'shell_exit', shellId: '0', exitCode: 7, outputPreview: null, outputTruncated: false },
+		], { session: AgentSession.uri('copilot', 'test-session'), toolCallId: 'tc-1', title: 'Run Shell Command' });
+
+		assert.deepStrictEqual({ result, content }, {
+			result: { shellId: '0', result: { exitCode: 7, truncated: false } },
+			content: [
+				{
+					type: ToolResultContentType.Terminal,
+					resource: 'agenthost-terminal://shell/test-session/tc-1',
+					title: 'Run Shell Command',
+					isPty: false,
+					result: { exitCode: 7, truncated: false },
+				},
+			],
+		});
+	});
 });

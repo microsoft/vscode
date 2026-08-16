@@ -475,6 +475,122 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 		assert.strictEqual(readFileSync(join(root, 'created.txt'), 'utf8'), 'created');
 	});
 
+	// The host currently ignores the requested encoding; see KNOWN_ISSUES.md.
+	conformanceTest(context, 'resourceRead returns requested base64 content without byte loss', async function () {
+		await initializeClient('resource-read-base64');
+		const root = createWorkspace('ahp-resource-read-base64-');
+		const bytes = Buffer.from([0, 1, 127, 128, 254, 255]);
+		writeFileSync(join(root, 'bytes.bin'), bytes);
+
+		const result = await context.client.call<ResourceReadResult>('resourceRead', {
+			channel: ROOT_STATE_URI,
+			uri: fileUri(root, 'bytes.bin'),
+			encoding: ContentEncoding.Base64,
+		});
+
+		assert.deepStrictEqual({
+			encoding: result.encoding,
+			bytes: [...Buffer.from(result.data, 'base64')],
+		}, {
+			encoding: ContentEncoding.Base64,
+			bytes: [...bytes],
+		});
+	}, context.runHostOnlyKnownIssueTests);
+
+	conformanceTest(context, 'resourceResolve returns versioned file metadata', async function () {
+		await initializeClient('resource-resolve-metadata');
+		const root = createWorkspace('ahp-resource-resolve-metadata-');
+		const file = fileUri(root, 'metadata.txt');
+		writeFileSync(join(root, 'metadata.txt'), 'metadata');
+
+		const result = await context.client.call<ResourceResolveResult>('resourceResolve', {
+			channel: ROOT_STATE_URI,
+			uri: file,
+			followSymlinks: false,
+		});
+
+		assert.deepStrictEqual({
+			uri: result.uri,
+			type: result.type,
+			size: result.size,
+			mtimeIsIso: typeof result.mtime === 'string' && new Date(result.mtime).toISOString() === result.mtime,
+			ctimeIsIso: typeof result.ctime === 'string' && new Date(result.ctime).toISOString() === result.ctime,
+			hasEtag: typeof result.etag === 'string' && result.etag.length > 0,
+		}, {
+			uri: file,
+			type: ResourceType.File,
+			size: 'metadata'.length,
+			mtimeIsIso: true,
+			ctimeIsIso: true,
+			hasEtag: true,
+		});
+	});
+
+	conformanceTest(context, 'resourceWrite createOnly atomically creates a missing file', async function () {
+		await initializeClient('resource-create-only-new');
+		const root = createWorkspace('ahp-resource-create-only-new-');
+		const file = fileUri(root, 'created.txt');
+
+		await writeText(file, 'created', { createOnly: true });
+
+		assert.strictEqual(readFileSync(join(root, 'created.txt'), 'utf8'), 'created');
+	});
+
+	conformanceTest(context, 'resourceWrite createOnly supports append creation mode', async function () {
+		await initializeClient('resource-create-only-append');
+		const root = createWorkspace('ahp-resource-create-only-append-');
+		const file = fileUri(root, 'created.txt');
+
+		await writeText(file, 'created', { createOnly: true, mode: ResourceWriteMode.Append });
+
+		assert.strictEqual(readFileSync(join(root, 'created.txt'), 'utf8'), 'created');
+	});
+
+	conformanceTest(context, 'resourceWrite append position beyond EOF prepends content', async function () {
+		await initializeClient('resource-append-before-start');
+		const root = createWorkspace('ahp-resource-append-before-start-');
+		const file = fileUri(root, 'append.txt');
+		writeFileSync(join(root, 'append.txt'), 'TAIL');
+
+		await writeText(file, 'HEAD-', { mode: ResourceWriteMode.Append, position: 100 });
+
+		assert.strictEqual(readFileSync(join(root, 'append.txt'), 'utf8'), 'HEAD-TAIL');
+	});
+
+	conformanceTest(context, 'resourceWrite insert position beyond EOF appends content', async function () {
+		await initializeClient('resource-insert-after-end');
+		const root = createWorkspace('ahp-resource-insert-after-end-');
+		const file = fileUri(root, 'insert.txt');
+		writeFileSync(join(root, 'insert.txt'), 'HEAD');
+
+		await writeText(file, '-TAIL', { mode: ResourceWriteMode.Insert, position: 100 });
+
+		assert.strictEqual(readFileSync(join(root, 'insert.txt'), 'utf8'), 'HEAD-TAIL');
+	});
+
+	conformanceTest(context, 'resourceWrite truncate position beyond EOF appends without padding', async function () {
+		await initializeClient('resource-truncate-after-end');
+		const root = createWorkspace('ahp-resource-truncate-after-end-');
+		const file = fileUri(root, 'truncate.txt');
+		writeFileSync(join(root, 'truncate.txt'), 'HEAD');
+
+		await writeText(file, '-TAIL', { mode: ResourceWriteMode.Truncate, position: 100 });
+
+		assert.strictEqual(readFileSync(join(root, 'truncate.txt'), 'utf8'), 'HEAD-TAIL');
+	});
+
+	conformanceTest(context, 'concurrent resourceWrite appends preserve every write', async function () {
+		await initializeClient('resource-append-concurrent');
+		const root = createWorkspace('ahp-resource-append-concurrent-');
+		const file = fileUri(root, 'append.txt');
+		writeFileSync(join(root, 'append.txt'), '');
+		const pieces = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+		await Promise.all(pieces.map(piece => writeText(file, piece, { mode: ResourceWriteMode.Append })));
+
+		assert.deepStrictEqual([...readFileSync(join(root, 'append.txt'), 'utf8')].sort(), pieces);
+	});
+
 	conformanceTest(context, 'resourceWrite accepts the current etag', async function () {
 		await initializeClient('resource-if-match-current');
 		const root = createWorkspace('ahp-resource-if-match-current-');
