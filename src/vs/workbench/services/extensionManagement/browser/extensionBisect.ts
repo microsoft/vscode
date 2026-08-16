@@ -64,7 +64,7 @@ class BisectState {
 	) { }
 }
 
-class ExtensionBisectService implements IExtensionBisectService {
+export class ExtensionBisectService implements IExtensionBisectService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -82,9 +82,14 @@ class ExtensionBisectService implements IExtensionBisectService {
 		this._state = BisectState.fromJSON(raw);
 
 		if (this._state) {
-			const { mid, high } = this._state;
+			const { mid } = this._state;
 			for (let i = 0; i < this._state.extensions.length; i++) {
-				const isDisabled = i >= mid && i < high;
+				// Disable both the currently bisected upper half [mid, high) and any
+				// extensions previously eliminated from the search via a "still bad"
+				// answer [high, length). Keeping the latter disabled is what allows
+				// bisect to find additional problematic extensions across repeated
+				// runs when more than one extension is faulty (issue #237092).
+				const isDisabled = i >= mid;
 				this._disabled.set(this._state.extensions[i], isDisabled);
 			}
 			logService.warn('extension BISECT active', [...this._disabled]);
@@ -96,7 +101,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 	}
 
 	get disabledCount() {
-		return this._state ? this._state.high - this._state.mid : -1;
+		return this._state ? this._state.extensions.length - this._state.mid : -1;
 	}
 
 	isDisabledByBisect(extension: IExtension): boolean {
@@ -307,7 +312,7 @@ registerAction2(class extends Action2 {
 				message: localize('done.msg', "Extension Bisect"),
 				primaryButton: localize({ key: 'report', comment: ['&& denotes a mnemonic'] }, "&&Report Issue & Continue"),
 				cancelButton: localize('continue', "Continue"),
-				detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
+				detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem. If you still experience the problem after disabling {0}, run Extension Bisect again to identify any additional problematic extensions.", done.id),
 				checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true }
 			});
 			if (res.checkboxChecked) {
