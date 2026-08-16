@@ -161,9 +161,16 @@ suite('git smoke test', function () {
 
 			assert.strictEqual(commitLog.message, expectCommitMessage);
 		} finally {
-			// Clean up
-			fs.unlinkSync(commitMessageFile);
-			cp.execSync('git config --unset i18n.commitEncoding', { cwd });
+			// Clean up without masking the original failure
+			if (fs.existsSync(commitMessageFile)) {
+				fs.unlinkSync(commitMessageFile);
+			}
+
+			try {
+				cp.execSync('git config --unset i18n.commitEncoding', { cwd });
+			} catch {
+				// Ignore cleanup errors if the config was never set or already unset.
+			}
 		}
 	});
 
