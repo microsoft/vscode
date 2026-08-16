@@ -191,9 +191,12 @@ class MockAgentService implements IAgentService {
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
-	async subscribe(resource: URI, clientId: string): Promise<IStateSnapshot> {
+	async subscribe(resource: URI, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
 		this.subscribeCalls.push({ resource: resource.toString(), clientId });
 		await (this.subscribeBarriers.get(resource.toString())?.p ?? this.subscribeBarrier?.p);
+		if (isActive && !isActive()) {
+			throw new Error(`Subscription cancelled: ${resource.toString()}`);
+		}
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
 			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);

@@ -9680,7 +9680,19 @@ suite('AgentService (node dispatcher)', () => {
 				await agent.release.complete();
 
 				await assert.rejects(subscription, /Subscription cancelled/);
+				const subscribers = (service as unknown as { _resourceSubscribers: { has(resource: URI): boolean } })._resourceSubscribers;
+				assert.strictEqual(subscribers.has(session), false);
 			});
+		});
+
+		test('failed subscription removes its subscriber registration', async () => {
+			service.registerProvider(copilotAgent);
+			const missingSession = URI.parse('copilot:/missing-session');
+
+			await assert.rejects(service.subscribe(missingSession, 'client-1'));
+
+			const subscribers = (service as unknown as { _resourceSubscribers: { has(resource: URI): boolean } })._resourceSubscribers;
+			assert.strictEqual(subscribers.has(missingSession), false);
 		});
 
 		test('failed provider release keeps cached state and retries', () => {
@@ -9782,19 +9794,15 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('pending subscription cancellation does not schedule GC after service disposal', () => {
+		test('unsubscribe after service disposal does not schedule GC', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new MockAgent('copilot');
 				service.registerProvider(agent);
 				const session = await service.createSession({ provider: 'copilot' });
-				const release = new DeferredPromise<void>();
-				(service as unknown as { _releaseSessionInFlight: Map<string, Promise<void>> })._releaseSessionInFlight.set(session.toString(), release.p);
-				const subscription = service.subscribe(session, 'client-1');
-				await Promise.resolve();
+				service.addSubscriber(session, 'client-1');
 
 				service.dispose();
-				await release.complete();
-				await assert.rejects(subscription, /Subscription cancelled/);
+				service.unsubscribe(session, 'client-1');
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 
 				assert.deepStrictEqual(agent.disposeSessionCalls, []);

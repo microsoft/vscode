@@ -3136,9 +3136,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 			return snapshot;
 		} catch (error) {
-			if (isActive && !isActive()) {
-				throw new Error(`Subscription cancelled: ${resourceStr}`);
+			const subscriptionIsActive = isActive?.() ?? true;
+			if (subscriptionIsActive) {
+				this.unsubscribe(resource, clientId);
 			}
+			// When inactive, the protocol handler already removed this request's
+			// registration. Do not let an older request clean up a newer one.
 			throw error;
 		}
 	}
@@ -3328,9 +3331,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * data stays intact; the next subscribe restores the session on demand.
 	 */
 	private async _maybeEvictIdleSession(resource: URI): Promise<void> {
-		if (this._store.isDisposed) {
-			return;
-		}
 		const key = resource.toString();
 		const evictionTarget = this._sessionReleaseResource(resource);
 		const evictionTargetKey = evictionTarget.toString();
@@ -3370,7 +3370,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const trackedRelease = (async () => {
 			try {
 				if (!await this._canReleaseSession(provider, evictionTarget, chats)) {
-					if (!this._store.isDisposed && !this._hasSessionSubscribers(evictionTarget)) {
+					if (!this._hasSessionSubscribers(evictionTarget)) {
 						this._scheduleSessionRelease(evictionTarget);
 					}
 					return;
@@ -3396,7 +3396,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			} catch (err) {
 				this._logService.error(err, `[AgentService] Failed to release idle session ${evictionTargetKey}`);
-				if (!this._store.isDisposed && !this._hasSessionSubscribers(evictionTarget)) {
+				if (!this._hasSessionSubscribers(evictionTarget)) {
 					this._scheduleSessionRelease(evictionTarget);
 				}
 			}
@@ -5731,9 +5731,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	override dispose(): void {
-		if (this._store.isDisposed) {
-			return;
-		}
 		for (const provider of this._providers.values()) {
 			provider.dispose();
 		}

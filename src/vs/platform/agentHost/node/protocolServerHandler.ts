@@ -878,6 +878,7 @@ export class ProtocolServerHandler extends Disposable {
 				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
 					throw new Error(`Subscription cancelled: ${key}`);
 				}
+				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				return snapshot;
 			} catch (err) {
 				if (client.subscriptions.get(classified.uri) === pendingSubscription) {
@@ -889,10 +890,11 @@ export class ProtocolServerHandler extends Disposable {
 			}
 		}));
 
+		// Activate the batch only after every restore settles so no channel can
+		// receive an action both live and through the reconnect replay.
 		for (const { pending, active } of pendingStateSubscriptions) {
 			if (client.subscriptions.get(pending.uri) === pending) {
 				client.subscriptions.set(active.uri, active);
-				this._clearClientToolCallDisconnectTimeout(client.clientId, active.uri);
 			}
 		}
 		this._reconcileActiveClientsAfterReconnect(client);
@@ -1170,9 +1172,6 @@ export class ProtocolServerHandler extends Disposable {
 					continue;
 				}
 				this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
-				if (!sub.active) {
-					continue;
-				}
 			} else if (sub.kind === ChannelKind.ResourceWatch) {
 				this._agentService.onResourceWatchUnsubscribed(sub.uri);
 			}
@@ -1185,8 +1184,7 @@ export class ProtocolServerHandler extends Disposable {
 			return false;
 		}
 		for (const other of record.connections) {
-			const subscription = other.subscriptions.get(uri);
-			if (other !== client && subscription?.kind === ChannelKind.State) {
+			if (other !== client && other.subscriptions.has(uri)) {
 				return true;
 			}
 		}
