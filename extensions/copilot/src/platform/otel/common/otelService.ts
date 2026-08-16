@@ -15,6 +15,14 @@ export const IOTelService = createServiceIdentifier<IOTelService>('IOTelService'
 export interface TraceContext {
 	readonly traceId: string;
 	readonly spanId: string;
+	/**
+	 * W3C trace flags from the source span context (e.g. `0x01` for sampled). Optional
+	 * because not all impls preserve it; consumers that build a W3C `traceparent` should
+	 * fall back to a sampled value when unset.
+	 */
+	readonly traceFlags?: number;
+	/** W3C tracestate serialized as a comma-separated key=value list, when present. */
+	readonly traceState?: string;
 }
 
 /**
@@ -152,6 +160,7 @@ export interface ISpanHandle {
 export interface OTelModelOptions {
 	readonly _capturingTokenCorrelationId?: string;
 	readonly _otelTraceContext?: TraceContext | null;
+	readonly _telemetryTurn?: number;
 }
 
 /**

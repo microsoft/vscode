@@ -2,41 +2,41 @@
 	{
 		"name": "Debug config to command [context] - cargo run platform-specific",
 		"requests": [
-			"0a0ac5fc124f816803b7db6bb40f4e109279d18234b4b456e393453c29f797e7",
-			"9740ee5bac12acd1e647a977f488d7eb8ebaf724d67ad34654943581c11ae6a2",
-			"9910c100f87d2469046c5ae4554a05b3bf4fee9c3f1c9a08bbea341708e49bf7"
+			"55d747d7f07f61807a585880557c606c1547a234ac1e1fd235a5d9d486f3c774",
+			"91d8c30bef84f1b10ce2c80b06c05fd260fce9288b976477f72409725cc06ade",
+			"f85e70cfd1fbfbe96e998f3a27ad25fba009c9d889eabd4ffe6402cd4dedab88"
 		]
 	},
 	{
 		"name": "Debug config to command [context] - node subdirectory and arg",
 		"requests": [
-			"035d488ad51c23dcb9268fc11eafab94a5b8734481310666accb07e5caa2d3a7",
-			"30689cee448aeba287dedaf1dc87b7664eb1d9ffa469e40bf6ca836267a28b9e",
-			"5df09d01a75ea6444cbf1f19e140535bf2462b6a8b06908a982c14545ff41dd5"
+			"0e2526717d59b1a1a928cc1d90d74e4f7fb926bf6bb10c8e6f64f5c9e466b028",
+			"8a1b2d73805383c51753ef036737fde63d64cd238696ad3ca3f2309eb59cbfed",
+			"d0791696b74d69c94e4de181727c20c7bb7d37b950a24f9f08a7631a7f3bfdad"
 		]
 	},
 	{
 		"name": "Debug config to command [context] - node test",
 		"requests": [
-			"2ced38655d0b31f17b6bd5e1b0e29eaa37c311683d43657c194ce458b5c16756",
-			"75e1b0184dd4e849ee7310828a3a04caa7faa4b4034db284c6aae68d8a813cac",
-			"bacd442b5113f9c48d25fb13ee9accaff3a9d54ffd59ee20605ba72419ce0ac7"
+			"2dc2b8aeefcd438f33d7263ed115cfc72a2b8c9da0ac7f8b117eedd5261d59f1",
+			"91dc9e502f93158541ce88722e85ae4c56c2a370ba7649f03adf6b7ee98e2f7b",
+			"b76de52c0c611c85f144cb95edecd979c06a3bffc08acacfaccbf0e18cada8bf"
 		]
 	},
 	{
 		"name": "Debug config to command [context] - opening a browser",
 		"requests": [
-			"10032a20788271c94bd0d8574b0258604e12427f49caaf1948f4a14c98e8574a",
-			"b3f39de56857d9753eb7ee94523a742012ec5ec819a4590011671da0d102876e",
-			"cd210f7f8644f8c70e1ce0d159caf3af443ddf8fc58dbccc6e2d3053a4351974"
+			"5241989fe9ed52437a03839ace4f961f671549ba31d3568e0967aed2a17994e4",
+			"c8322fc774f5a979f464fd2c53c3ef320d5f27c17e2c30d06652bb555b6cb948",
+			"d35eb92e15d37ebdbce115d4a43e9610979745c88d14c84310650c4bae6c06bf"
 		]
 	},
 	{
 		"name": "Debug config to command [context] - python3 subdirectory and arg",
 		"requests": [
-			"471730516cb3c4af73f845a9f45da10366780f5155a2623371a50447d0b90407",
-			"ccea634e016cd9651fa0b53e28ab5334cc91af5459c2bbd06d7c8a7426d0ab37",
-			"ec291eb646389eae649eee5b0ba35e3c5e0a9fbbbd5c3151524b25c9f537c214"
+			"073668f173e789bd35a0173b31bf449137e2812ec6a5d71c3aba25c0c895d8cf",
+			"5070b3a1cf60198808b1ab981f666a81338f6dae7321aea5ae297efe941e1f09",
+			"77d8665b898dd9079891ef254bee98cfd9b1fa0c733794ec924081753e92daa6"
 		]
 	}
 ]

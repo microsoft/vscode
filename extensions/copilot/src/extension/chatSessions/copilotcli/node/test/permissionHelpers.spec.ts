@@ -147,6 +147,21 @@ describe('CopilotCLI permissionHelpers', () => {
 			// Bash regex doesn't recognize Set-Location, so full command is kept
 			expect(result.input.command).toBe(fullCommandText);
 		});
+
+		it('shell: passes sandboxBypass and reason when the command opts out of the sandbox', () => {
+			const req = { kind: 'shell', intention: 'Read secret', fullCommandText: 'cat ~/secret', requestSandboxBypass: true, requestSandboxBypassReason: 'Needs access outside the workspace' } as any;
+			const result = buildShellConfirmationParams(req, undefined);
+			expect(result.input.command).toBe('cat ~/secret');
+			expect(result.input.sandboxBypass).toBe(true);
+			expect(result.input.sandboxBypassReason).toBe('Needs access outside the workspace');
+		});
+
+		it('shell: omits sandboxBypass for ordinary commands', () => {
+			const req = { kind: 'shell', intention: 'List workspace files', fullCommandText: 'ls -la' } as any;
+			const result = buildShellConfirmationParams(req, undefined);
+			expect(result.input.sandboxBypass).toBeUndefined();
+			expect(result.input.sandboxBypassReason).toBeUndefined();
+		});
 	});
 
 	describe('buildMcpConfirmationParams', () => {
@@ -313,7 +328,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				makeWorkspaceInfo(), makeWorkspaceService([]), makeToolsService('no'),
 				undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 		});
 
 		it('auto-approves files in session workspace (folder)', async () => {
@@ -323,7 +338,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				makeWorkspaceInfo(URI.file('/workspace')), makeWorkspaceService([]),
 				makeToolsService('no'), undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 		});
 
 		it('auto-approves files in a VS Code workspace folder', async () => {
@@ -333,7 +348,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				makeWorkspaceInfo(URI.file('/other')), makeWorkspaceService([URI.file('/vscode-ws')]),
 				makeToolsService('no'), undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 		});
 
 		it('auto-approves attached files', async () => {
@@ -345,7 +360,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				makeWorkspaceInfo(), makeWorkspaceService([]),
 				makeToolsService('no'), undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 		});
 
 		it('falls back to confirmation tool for out-of-workspace reads and approves on "yes"', async () => {
@@ -356,7 +371,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				makeWorkspaceInfo(URI.file('/workspace')), makeWorkspaceService([]),
 				toolsService, undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 			expect(toolsService.invokeTool).toHaveBeenCalled();
 		});
 
@@ -446,7 +461,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				instaService, makeToolsService('no'),
 				undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 		});
 
 		it('auto-approves writes in working directory when isolation is enabled', async () => {
@@ -463,7 +478,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				instaService, makeToolsService('no'),
 				undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 		});
 
 		it('falls back to confirmation for writes outside workspace', async () => {
@@ -476,7 +491,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				instaService, toolsService,
 				undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 			expect(toolsService.invokeTool).toHaveBeenCalled();
 		});
 
@@ -503,7 +518,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
 			// No file => getFileEditConfirmationToolParams returns undefined => auto-approve
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 		});
 	});
 
@@ -537,7 +552,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				req, undefined, toolsService,
 				undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 			const callArgs = (toolsService.invokeTool as ReturnType<typeof vi.fn>).mock.calls[0];
 			expect(callArgs[0]).toBe(ToolName.CoreConfirmationTool);
 			expect(callArgs[1].input.title).toBe('Copilot CLI Permission Request');
@@ -583,7 +598,7 @@ describe('CopilotCLI permissionHelpers', () => {
 				req, undefined, toolsService,
 				undefined as unknown as ChatParticipantToolToken, logService, token,
 			);
-			expect(result.kind).toBe('approved');
+			expect(result.kind).toBe('approve-once');
 		});
 	});
 });

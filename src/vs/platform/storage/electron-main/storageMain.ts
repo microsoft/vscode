@@ -12,8 +12,8 @@ import { join } from '../../../base/common/path.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { Promises } from '../../../base/node/pfs.js';
-import { InMemoryStorageDatabase, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage, StorageHint, StorageState, MigratingStorage } from '../../../base/parts/storage/common/storage.js';
-import { ISQLiteStorageDatabaseLoggingOptions, ISQLiteStorageDatabaseOptions, SQLiteStorageDatabase } from '../../../base/parts/storage/node/storage.js';
+import { InMemoryStorageDatabase, IStorage, Storage, StorageHint, StorageState, MigratingStorage } from '../../../base/parts/storage/common/storage.js';
+import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from '../../../base/parts/storage/node/storage.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
@@ -22,7 +22,6 @@ import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfil
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from '../../telemetry/common/telemetry.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { Schemas } from '../../../base/common/network.js';
-import { ICrossAppIPCMessage, ICrossAppIPCService } from '../../crossAppIpc/electron-main/crossAppIpcService.js';
 
 export interface IStorageMainOptions {
 
@@ -361,15 +360,12 @@ export class ApplicationSharedStorageMain extends BaseStorageMain {
 		return undefined;
 	}
 
-	private sharedDatabase: SharedSQLiteStorageDatabase | undefined;
-
 	constructor(
 		private readonly options: IStorageMainOptions,
 		private readonly storageFolderPath: string,
 		private readonly applicationStorage: IStorageMain,
 		logService: ILogService,
 		fileService: IFileService,
-		private readonly crossAppIPCService: ICrossAppIPCService,
 	) {
 		super(logService, fileService);
 	}
@@ -379,30 +375,17 @@ export class ApplicationSharedStorageMain extends BaseStorageMain {
 
 		this.logService.info(`[shared storage] Creating shared storage database at '${storageFilePath}' (wasCreated: ${wasCreated})`);
 
-		this.sharedDatabase = new SharedSQLiteStorageDatabase(storageFilePath, {
-			logging: this.createLoggingOptions(),
-			useWAL: true,
-			busyTimeout: 2000
-		}, this.crossAppIPCService, this.logService);
-		this._register(this.sharedDatabase);
+		const database = new SQLiteStorageDatabase(storageFilePath, {
+			logging: this.createLoggingOptions()
+		});
 
-		this.logService.info(`[shared storage] Initializing fallback application storage (type: ${this.applicationStorage instanceof HostApplicationStorageMain ? 'host' : 'local'}, path: ${this.applicationStorage.path ?? 'in-memory'})`);
+		this.logService.info(`[shared storage] Initializing fallback application storage (path: ${this.applicationStorage.path ?? 'in-memory'})`);
 		await this.applicationStorage.init();
 		this.logService.info(`[shared storage] Fallback application storage initialized with ${this.applicationStorage.items.size} items`);
 
-		const migratingStorage = this._register(new MigratingStorage(this.sharedDatabase, { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined }));
-		migratingStorage.setFallbackStorage(this.applicationStorage.storage, this.applicationStorage instanceof HostApplicationStorageMain);
+		const migratingStorage = this._register(new MigratingStorage(database, { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined }));
+		migratingStorage.setFallbackStorage(this.applicationStorage.storage, false);
 		return migratingStorage;
-	}
-
-	protected override async doInit(storage: IStorage): Promise<void> {
-		await super.doInit(storage);
-
-		// Mark the shared database as initialized so that
-		// cross-app IPC messages are processed from now on.
-		// This must happen after Storage.init() completes to
-		// avoid processing stale queued messages.
-		this.sharedDatabase?.setInitialized();
 	}
 
 	get applicationStorageItems(): Map<string, string> {
@@ -425,29 +408,6 @@ export class ApplicationSharedStorageMain extends BaseStorageMain {
 
 		return { storageFilePath: storageDatabasePath, wasCreated: true };
 	}
-}
-
-export class HostApplicationStorageMain extends BaseStorageMain {
-
-	constructor(
-		readonly path: string,
-		logService: ILogService,
-		fileService: IFileService
-	) {
-		super(logService, fileService);
-	}
-
-	protected async doCreate(): Promise<Storage> {
-		this.logService.info(`[shared storage] Opening host application storage at '${this.path}'`);
-		try {
-			const storage = new Storage(new SQLiteStorageDatabase(this.path, { logging: this.createLoggingOptions() }));
-			return storage;
-		} catch (error) {
-			this.logService.error(`[shared storage] Failed to open host application storage at '${this.path}': ${error}`);
-			throw error;
-		}
-	}
-
 }
 
 export class WorkspaceStorageMain extends BaseStorageMain {
@@ -525,102 +485,6 @@ export class WorkspaceStorageMain extends BaseStorageMain {
 				this.logService.error(`[storage main] ensureWorkspaceStorageFolderMeta(): Unable to create workspace storage metadata due to ${error}`);
 			}
 		}
-	}
-}
-
-const enum SharedStorageMessageType {
-	Changed = 'sharedStorage:changed'
-}
-
-interface ISharedStorageChangedMessage extends ICrossAppIPCMessage {
-	readonly type: SharedStorageMessageType.Changed;
-	readonly data: {
-		readonly changed?: [string, string][];
-		readonly deleted?: string[];
-	};
-}
-
-/**
- * A SQLite storage database wrapper that detects external changes
- * via CrossAppIPC. When the sibling app (VS Code or Sessions app)
- * writes to the shared storage, it sends an IPC message with the
- * changed keys for instant notification.
- */
-class SharedSQLiteStorageDatabase extends Disposable implements IStorageDatabase {
-
-	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
-
-	private readonly database: SQLiteStorageDatabase;
-	private initialized = false;
-
-	constructor(
-		path: string,
-		options: ISQLiteStorageDatabaseOptions | undefined,
-		private readonly crossAppIPCService: ICrossAppIPCService,
-		private readonly logService: ILogService
-	) {
-		super();
-
-		this.database = new SQLiteStorageDatabase(path, options);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.crossAppIPCService.onDidReceiveMessage(msg => {
-			if (msg.type !== SharedStorageMessageType.Changed) {
-				return;
-			}
-
-			if (!this.initialized) {
-				this.logService.trace('[shared storage] Ignoring cross-app IPC message received before initialization');
-				return;
-			}
-
-			const { changed, deleted } = (msg as ISharedStorageChangedMessage).data;
-			this.logService.trace(`[shared storage] Received cross-app IPC change: ${changed?.length ?? 0} changed, ${deleted?.length ?? 0} deleted`);
-
-			this._onDidChangeItemsExternal.fire({
-				changed: changed ? new Map(changed) : undefined,
-				deleted: deleted ? new Set(deleted) : undefined
-			});
-		}));
-	}
-
-	setInitialized(): void {
-		this.initialized = true;
-	}
-
-	async getItems(): Promise<Map<string, string>> {
-		const items = await this.database.getItems();
-		this.logService.trace(`[shared storage] Initialized with ${items.size} items`);
-		return items;
-	}
-
-	async updateItems(request: IUpdateRequest): Promise<void> {
-		await this.database.updateItems(request);
-
-		const changedCount = request.insert?.size ?? 0;
-		const deletedCount = request.delete?.size ?? 0;
-		this.logService.trace(`[shared storage] Sending cross-app IPC change: ${changedCount} changed, ${deletedCount} deleted`);
-
-		// Notify the sibling app via IPC
-		this.crossAppIPCService.sendMessage({
-			type: SharedStorageMessageType.Changed,
-			data: {
-				changed: request.insert ? Array.from(request.insert.entries()) : undefined,
-				deleted: request.delete ? Array.from(request.delete.values()) : undefined
-			}
-		});
-	}
-
-	async optimize(): Promise<void> {
-		return this.database.optimize();
-	}
-
-	async close(recovery?: () => Map<string, string>): Promise<void> {
-		return this.database.close(recovery);
 	}
 }
 

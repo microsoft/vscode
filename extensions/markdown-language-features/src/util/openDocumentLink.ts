@@ -27,6 +27,12 @@ export class MdLinkOpener {
 	}
 
 	public async openDocumentLink(linkText: string, fromResource: vscode.Uri, viewColumn?: vscode.ViewColumn): Promise<void> {
+		const absoluteUri = getAbsoluteUri(linkText);
+		if (absoluteUri && absoluteUri.scheme !== 'file') {
+			await openExternal(absoluteUri);
+			return;
+		}
+
 		const resolved = await this.#client.resolveLinkTarget(linkText, fromResource);
 		if (!resolved) {
 			return;
@@ -48,7 +54,8 @@ export class MdLinkOpener {
 
 		switch (resolved.kind) {
 			case 'external':
-				return vscode.commands.executeCommand('vscode.open', uri);
+				await openExternal(uri);
+				return;
 
 			case 'folder':
 				return vscode.commands.executeCommand('revealInExplorer', uri);
@@ -75,6 +82,20 @@ export class MdLinkOpener {
 			}
 		}
 	}
+}
+
+async function openExternal(uri: vscode.Uri): Promise<void> {
+	if (uri.scheme === 'http' || uri.scheme === 'https') {
+		await vscode.env.openExternal(uri, { allowContributedOpeners: true });
+	} else {
+		await vscode.commands.executeCommand('vscode.open', uri);
+	}
+}
+
+export function getAbsoluteUri(linkText: string): vscode.Uri | undefined {
+	return !/^[a-z]:[\\/]/i.test(linkText) && /^[a-z][a-z0-9+.-]*:/i.test(linkText)
+		? vscode.Uri.parse(linkText, true)
+		: undefined;
 }
 
 function getSelectionFromLocationFragment(fragment: string): vscode.Range | undefined {
@@ -154,4 +175,3 @@ function getViewColumn(resource: vscode.Uri): vscode.ViewColumn {
 			return vscode.ViewColumn.Active;
 	}
 }
-

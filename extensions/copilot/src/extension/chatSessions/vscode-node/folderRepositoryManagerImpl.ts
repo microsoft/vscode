@@ -28,7 +28,6 @@ import {
 } from '../common/folderRepositoryManager';
 import { isUntitledSessionId } from '../common/utils';
 import { isWelcomeView } from '../copilotcli/node/copilotCli';
-import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 
 /**
@@ -420,7 +419,6 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 		// Store worktree properties for the session
 		// Note: The caller is responsible for calling setWorktreeProperties after getting the real session ID
 
-		this.logService.info(`[FolderRepositoryManager] Created worktree for session ${sessionId}: ${worktreeProperties.worktreePath}`);
 
 		// Migrate changes from active repository to worktree if requested
 		if (uncommittedChangesAction === 'move' || uncommittedChangesAction === 'copy') {
@@ -462,7 +460,6 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 		const trustedInfos: { folder: vscode.Uri; info: FolderRepositoryInfo }[] = [];
 		for (let i = 0; i < allFolders.length; i++) {
 			if (folderInfos[i].trusted === false) {
-				this.logService.warn(`[FolderRepositoryManager] Multi-root: folder ${allFolders[i].fsPath} is not trusted, excluding`);
 				continue;
 			}
 			trustedInfos.push({ folder: allFolders[i], info: folderInfos[i] });
@@ -477,7 +474,6 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 
 		// 3. If workspace mode, skip worktree creation — return all as-is
 		if (isolation === 'workspace') {
-			this.logService.info(`[FolderRepositoryManager] Multi-root: workspace isolation mode, skipping worktree creation for all folders`);
 			const primary = trustedInfos.find(t => t.folder.fsPath === primaryFolder.fsPath)?.info
 				?? { folder: primaryFolder, repository: undefined, repositoryProperties: undefined, worktree: undefined, worktreeProperties: undefined, trusted: true };
 			const additional = trustedInfos
@@ -882,41 +878,6 @@ async function checkPathExists(filePath: vscode.Uri, fileSystem: IFileSystemServ
 		return true;
 	} catch (error) {
 		return false;
-	}
-}
-
-// #endregion
-
-// #region ClaudeFolderRepositoryManager
-
-/**
- * Claude-specific implementation that resolves folder information for
- * existing sessions using the Claude session state service as a fallback.
- */
-export class ClaudeFolderRepositoryManager extends FolderRepositoryManager {
-	constructor(
-		@IChatSessionWorktreeService worktreeService: IChatSessionWorktreeService,
-		@IChatSessionWorkspaceFolderService workspaceFolderService: IChatSessionWorkspaceFolderService,
-		@IGitService gitService: IGitService,
-		@IWorkspaceService workspaceService: IWorkspaceService,
-		@ILogService logService: ILogService,
-		@IToolsService toolsService: IToolsService,
-		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
-		@IFileSystemService private readonly fileSystem: IFileSystemService,
-		@IChatSessionMetadataStore metadataStore: IChatSessionMetadataStore
-	) {
-		super(worktreeService, workspaceFolderService, gitService, workspaceService, logService, toolsService, metadataStore);
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	protected async getSessionFallbackFolder(sessionId: string): Promise<vscode.Uri | undefined> {
-		const folderInfo = this.sessionStateService.getFolderInfoForSession(sessionId);
-		if (folderInfo && (await checkPathExists(vscode.Uri.file(folderInfo.cwd), this.fileSystem))) {
-			return vscode.Uri.file(folderInfo.cwd);
-		}
-		return undefined;
 	}
 }
 

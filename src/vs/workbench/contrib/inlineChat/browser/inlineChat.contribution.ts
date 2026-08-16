@@ -4,20 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { InlineChatController } from './inlineChatController.js';
 import * as InlineChatActions from './inlineChatActions.js';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { InlineChatNotebookContribution } from './inlineChatNotebook.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatEnabler, InlineChatEscapeToolContribution, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { CancelAction, ChatSubmitAction } from '../../chat/browser/actions/chatExecuteActions.js';
-import { localize } from '../../../../nls.js';
-import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 import { InlineChatDefaultModel } from './inlineChatDefaultModel.js';
 
@@ -32,58 +27,6 @@ registerAction2(InlineChatActions.RephraseInlineChatSessionAction);
 // --- browser
 
 registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
-
-// --- MENU special ---
-
-const editActionMenuItem: IMenuItem = {
-	group: '0_main',
-	order: 0,
-	command: {
-		id: ChatSubmitAction.ID,
-		title: localize('send.edit', "Edit Code"),
-	},
-	when: ContextKeyExpr.and(
-		ChatContextKeys.inputHasText,
-		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
-		CTX_INLINE_CHAT_EDITING,
-		CTX_INLINE_CHAT_V1_ENABLED
-	),
-};
-
-const generateActionMenuItem: IMenuItem = {
-	group: '0_main',
-	order: 0,
-	command: {
-		id: ChatSubmitAction.ID,
-		title: localize('send.generate', "Generate"),
-	},
-	when: ContextKeyExpr.and(
-		ChatContextKeys.inputHasText,
-		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
-		CTX_INLINE_CHAT_EDITING.toNegated(),
-		CTX_INLINE_CHAT_V1_ENABLED
-	),
-};
-
-MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, editActionMenuItem);
-MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, generateActionMenuItem);
-
-const cancelActionMenuItem: IMenuItem = {
-	group: '0_main',
-	order: 0,
-	command: {
-		id: CancelAction.ID,
-		title: localize('cancel', "Cancel Request"),
-		shortTitle: localize('cancelShort', "Cancel"),
-	},
-	when: ContextKeyExpr.and(
-		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS,
-	),
-};
-
-MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, cancelActionMenuItem);
-
-
 
 // --- actions ---
 

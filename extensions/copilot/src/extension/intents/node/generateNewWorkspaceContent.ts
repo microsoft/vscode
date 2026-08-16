@@ -20,7 +20,7 @@ abstract class NewWorkspaceContentGenerator {
 	) { }
 
 	public async generate(promptArgs: NewWorkspaceContentsPromptProps, token: CancellationToken): Promise<string> {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const promptRenderer = PromptRenderer.create(this.instantiationService, endpoint, this.promptType, promptArgs);
 		const prompt = await promptRenderer.render();
 

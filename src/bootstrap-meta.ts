@@ -5,7 +5,6 @@
 
 import { createRequire } from 'node:module';
 import type { IProductConfiguration } from './vs/base/common/product.js';
-import type { INodeProcess } from './vs/base/common/platform.js';
 
 const require = createRequire(import.meta.url);
 
@@ -17,30 +16,6 @@ if (productObj['BUILD_INSERT_PRODUCT_CONFIGURATION']) {
 let pkgObj = { BUILD_INSERT_PACKAGE_CONFIGURATION: 'BUILD_INSERT_PACKAGE_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
 if (pkgObj['BUILD_INSERT_PACKAGE_CONFIGURATION']) {
 	pkgObj = require('../package.json'); // Running out of sources
-}
-
-// Load sub files
-if ((process as INodeProcess).isEmbeddedApp) {
-	// Preserve the parent VS Code's policy identity before the
-	// embedded app overrides win32RegValueName / darwinBundleIdentifier.
-	productObj.parentPolicyConfig = {
-		win32RegValueName: productObj.win32RegValueName,
-		darwinBundleIdentifier: productObj.darwinBundleIdentifier,
-		urlProtocol: productObj.urlProtocol,
-	};
-
-	try {
-		const productSubObj = require('../product.sub.json');
-		if (productObj.embedded && productSubObj.embedded) {
-			Object.assign(productObj.embedded, productSubObj.embedded);
-			delete productSubObj.embedded;
-		}
-		Object.assign(productObj, productSubObj);
-	} catch (error) { /* ignore */ }
-	try {
-		const pkgSubObj = require('../package.sub.json');
-		pkgObj = Object.assign(pkgObj, pkgSubObj);
-	} catch (error) { /* ignore */ }
 }
 
 let productOverridesObj = {};

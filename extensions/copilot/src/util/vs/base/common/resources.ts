@@ -176,7 +176,7 @@ export class ExtUri implements IExtUri {
 				return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), this._ignorePathCasing(base)) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 			}
 			if (isEqualAuthority(base.authority, parentCandidate.authority)) {
-				return extpath.isEqualOrParent(base.path, parentCandidate.path, this._ignorePathCasing(base), '/') && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+				return extpath.isEqualOrParent(base.path, parentCandidate.path, this._ignorePathCasing(base), true) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 			}
 		}
 		return false;
@@ -192,8 +192,8 @@ export class ExtUri implements IExtUri {
 		return basename(resource) || resource.authority;
 	}
 
-	basename(resource: URI): string {
-		return paths.posix.basename(resource.path);
+	basename(resource: URI, suffix?: string): string {
+		return paths.posix.basename(resource.path, suffix);
 	}
 
 	extname(resource: URI): string {

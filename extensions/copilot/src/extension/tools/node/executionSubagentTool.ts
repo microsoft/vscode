@@ -9,6 +9,7 @@ import { ChatFetchResponseType } from '../../../platform/chat/common/commonTypes
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
+import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -16,9 +17,10 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ChatResponseNotebookEditPart, ChatResponseTextEditPart, ChatToolInvocationPart, ExtendedLanguageModelToolResult, LanguageModelTextPart, MarkdownString } from '../../../vscodeTypes';
 import { Conversation, Turn } from '../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../prompt/common/intents';
-import { ExecutionSubagentToolCallingLoop } from '../../prompt/node/executionSubagentToolCallingLoop';
+import { ExecutionSubagentToolCallingLoop, IBackgroundCommand } from '../../prompt/node/executionSubagentToolCallingLoop';
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
+import { stripFinalAnswerTags, updateSubagentInvocation } from './subagentToolUtils';
 
 export interface IExecutionSubagentParams {
 
@@ -52,11 +54,14 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 
 		const request = this._inputContext.request!;
 		const parentSessionId = this._inputContext.conversation?.sessionId ?? generateUuid();
+		// Use the parent tool call ID so nested tools render in the parent's subagent region.
+		// Programmatic invocations without a streamed parent still need an ID for tracing.
+		const parentToolCallId = options.chatStreamToolCallId;
 		// Generate a stable session ID for this subagent invocation that will be used:
 		// 1. As subAgentInvocationId in the subagent's tool context
 		// 2. As subAgentInvocationId in toolMetadata for parent trajectory linking
 		// 3. As the session_id in the subagent's own trajectory
-		const subAgentInvocationId = generateUuid();
+		const subAgentInvocationId = parentToolCallId ?? generateUuid();
 
 		const toolCallLimit = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolCallLimit, this.experimentationService);
 
@@ -67,22 +72,42 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 			location: request.location,
 			promptText: options.input.query,
 			subAgentInvocationId: subAgentInvocationId,
-			parentToolCallId: options.chatStreamToolCallId,
+			parentToolCallId,
+			parentHeaderRequestId: this._inputContext?.parentHeaderRequestId,
+			parentModelCallId: this._inputContext?.parentModelCallId,
+			topLevelTurnId: this._inputContext?.requestId,
 		});
 
 		const stream = this._inputContext?.stream && ChatResponseStreamImpl.filter(
 			this._inputContext.stream,
 			part => part instanceof ChatToolInvocationPart || part instanceof ChatResponseTextEditPart || part instanceof ChatResponseNotebookEditPart
 		);
+		const modelName = await loop.getModelName();
+		updateSubagentInvocation(stream, parentToolCallId, ToolName.ExecutionSubagent, {
+			description: options.input.description,
+			agentName: 'execution',
+			prompt: options.input.query,
+			modelName,
+		});
 
 		// Create a new capturing token to group this execution subagent and all its nested tool calls
 		// Similar to how DefaultIntentRequestHandler does it
 		// Pass the subAgentInvocationId so the trajectory uses this ID for explicit linking
+		// Fall back to request.sessionId (matches the parent's CapturingToken.chatSessionId set in
+		// DefaultIntentRequestHandler), then conversation.sessionId, when the AsyncLocalStorage
+		// CapturingToken context isn't propagated across the chat-tool-invocation boundary (otherwise
+		// PARENT_CHAT_SESSION_ID would be missing and the subagent would upload as a standalone cloud session).
+		const parentChatSessionId = getCurrentCapturingToken()?.chatSessionId ?? request.sessionId ?? parentSessionId;
 		const executionSubagentToken = new CapturingToken(
 			`Execution: ${options.input.query.substring(0, 50)}${options.input.query.length > 50 ? '...' : ''}`,
 			'execution',
 			subAgentInvocationId,
-			'execution'  // subAgentName for trajectory tracking
+			'execution',  // subAgentName for trajectory tracking
+			// Use invocation ID as chatSessionId so spans get their own log file
+			subAgentInvocationId,
+			// Link back to the parent session for debug log grouping and cloud session folding
+			parentChatSessionId,
+			'executionSubagent',
 		);
 
 		// Wrap the loop execution in captureInvocation with the new token
@@ -96,7 +121,8 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 			description: options.input.description,
 			// The subAgentInvocationId links this tool call to the subagent's trajectory
 			subAgentInvocationId: subAgentInvocationId,
-			agentName: 'execution'
+			agentName: 'execution',
+			modelName,
 		};
 
 		let subagentResponse = '';
@@ -105,6 +131,19 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 		} else {
 			subagentResponse = `The execution subagent request failed with this message:\n${loopResult.response.type}: ${loopResult.response.reason}`;
 		}
+
+		// If any terminal commands moved to the background (timeout or async) during
+		// the subagent's run, append a Note line for each on the line(s) immediately
+		// after the final </final_answer>.
+		subagentResponse = appendBackgroundCommandNotesToFinalAnswer(subagentResponse, loop.backgroundCommands);
+		subagentResponse = stripFinalAnswerTags(subagentResponse);
+		updateSubagentInvocation(stream, parentToolCallId, ToolName.ExecutionSubagent, {
+			description: options.input.description,
+			agentName: 'execution',
+			prompt: options.input.query,
+			modelName,
+			result: subagentResponse,
+		});
 
 		// toolMetadata will be automatically included in exportAllPromptLogsAsJsonCommand
 		const result = new ExtendedLanguageModelToolResult([new LanguageModelTextPart(subagentResponse)]);
@@ -126,3 +165,39 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 }
 
 ToolRegistry.registerTool(ExecutionSubagentTool);
+
+/**
+ * Appends a `Note: ...` line for each stopped terminal command (timed out or
+ * invoked in async/background mode) on the line(s) immediately after the final
+ * `</final_answer>` of the subagent's response. If no `<final_answer>` block is
+ * present, appends the notes to the end of the response.
+ */
+function appendBackgroundCommandNotesToFinalAnswer(
+	response: string,
+	backgroundCommands: readonly IBackgroundCommand[],
+): string {
+	if (backgroundCommands.length === 0) {
+		return response;
+	}
+
+	const notes = backgroundCommands.map(c => {
+		if (c.reason === 'timeout') {
+			const timeoutText = c.timeoutMs !== undefined ? ` after ${c.timeoutMs} ms` : '';
+			return `Note: The command \`${c.command}\` timed out${timeoutText}. It may still be running in terminal ID ${c.termId}.`;
+		}
+		if (c.reason === 'inputNeeded') {
+			return `Note: The command \`${c.command}\` may be waiting for input in terminal ID ${c.termId}. Use send_to_terminal or get_terminal_output to check.`;
+		}
+		return `Note: The command \`${c.command}\` was started in the background. It may still be running in terminal ID ${c.termId}.`;
+	}).join('\n');
+
+	const closingTag = '</final_answer>';
+	const closeIdx = response.lastIndexOf(closingTag);
+	if (closeIdx === -1) {
+		return response.length > 0 ? `${response}\n\n${notes}` : notes;
+	}
+	const insertAt = closeIdx + closingTag.length;
+	const before = response.slice(0, insertAt);
+	const after = response.slice(insertAt).replace(/^\s*/, '');
+	return after.length > 0 ? `${before}\n${notes}\n${after}` : `${before}\n${notes}`;
+}

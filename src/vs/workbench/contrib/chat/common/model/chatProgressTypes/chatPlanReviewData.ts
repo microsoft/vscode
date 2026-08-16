@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { UriComponents } from '../../../../../../base/common/uri.js';
 import { IChatPlanApprovalAction, IChatPlanReview, IChatPlanReviewResult } from '../../chatService/chatService.js';
 import { ToolDataSource } from '../../tools/languageModelToolsService.js';
@@ -16,6 +17,8 @@ import { ToolDataSource } from '../../tools/languageModelToolsService.js';
 export class ChatPlanReviewData implements IChatPlanReview {
 	public readonly kind = 'planReview' as const;
 	public readonly completion = new DeferredPromise<IChatPlanReviewResult | undefined>();
+	private readonly _onDidDismiss = new Emitter<void>();
+	readonly onDidDismiss: Event<void> = this._onDidDismiss.event;
 
 	public draftFeedback: string | undefined;
 	public draftCollapsed: boolean | undefined;
@@ -30,7 +33,20 @@ export class ChatPlanReviewData implements IChatPlanReview {
 		public data?: IChatPlanReviewResult,
 		public isUsed?: boolean,
 		public source?: ToolDataSource,
+		public isOutdated?: boolean,
 	) { }
+
+	/** Dismiss without a user choice (e.g. the response was cancelled). */
+	dismiss(): void {
+		if (this.isUsed) {
+			return;
+		}
+		this.isUsed = true;
+		this.draftFeedback = undefined;
+		this.draftCollapsed = undefined;
+		void this.completion.complete(undefined);
+		this._onDidDismiss.fire();
+	}
 
 	toJSON(): IChatPlanReview {
 		return {
@@ -43,6 +59,7 @@ export class ChatPlanReviewData implements IChatPlanReview {
 			resolveId: this.resolveId,
 			data: this.data,
 			isUsed: this.isUsed,
+			isOutdated: this.isOutdated,
 			source: this.source,
 		};
 	}

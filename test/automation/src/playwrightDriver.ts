@@ -48,6 +48,7 @@ export class PlaywrightDriver {
 
 	private static traceCounter = 1;
 	private static screenShotCounter = 1;
+	private static reloadMarkerCounter = 1;
 
 	private static readonly vscodeToPlaywrightKey: { [key: string]: string } = {
 		cmd: 'Meta',
@@ -143,6 +144,151 @@ export class PlaywrightDriver {
 		}));
 	}
 
+	async getCDPTargets(): Promise<Protocol.Target.TargetInfo[]> {
+		const session = await this.context.newCDPSession(this.page);
+		try {
+			return (await session.send('Target.getTargets')).targetInfos;
+		} finally {
+			await session.detach();
+		}
+	}
+
+	async evaluateCDPTarget<T>(targetId: string, expression: string): Promise<T> {
+		const response = await this.sendCDPTargetCommand(targetId, 'Runtime.evaluate', {
+			expression,
+			awaitPromise: true,
+			returnByValue: true
+		}) as Protocol.Runtime.evaluateReturnValue;
+		if (response.exceptionDetails) {
+			throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+		}
+		return response.result.value as T;
+	}
+
+	async evaluateCDPTargetFrame<T>(targetId: string, frameUrlPattern: string, expression: string): Promise<T> {
+		const { frameTree } = await this.sendCDPTargetCommand(targetId, 'Page.getFrameTree', {}) as Protocol.Page.getFrameTreeReturnValue;
+		const frame = findFrame(frameTree, frameUrlPattern);
+		let frameId = frame?.id;
+		if (!frameId) {
+			const { root } = await this.sendCDPTargetCommand(targetId, 'DOM.getDocument', {
+				depth: -1,
+				pierce: true
+			}) as Protocol.DOM.getDocumentReturnValue;
+			frameId = findDOMFrameId(root, frameUrlPattern);
+		}
+		if (!frameId) {
+			throw new Error(`Frame not found for URL pattern '${frameUrlPattern}'.`);
+		}
+		const { executionContextId } = await this.sendCDPTargetCommand(targetId, 'Page.createIsolatedWorld', {
+			frameId,
+			worldName: 'vscodeAutomation',
+			grantUniveralAccess: true
+		}) as Protocol.Page.createIsolatedWorldReturnValue;
+		const response = await this.sendCDPTargetCommand(targetId, 'Runtime.evaluate', {
+			expression,
+			contextId: executionContextId,
+			awaitPromise: true,
+			returnByValue: true
+		}) as Protocol.Runtime.evaluateReturnValue;
+		if (response.exceptionDetails) {
+			throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+		}
+		return response.result.value as T;
+	}
+
+	private async sendCDPTargetCommand(targetId: string, method: string, params: object): Promise<unknown> {
+		const rootSession = await this.context.newCDPSession(this.page);
+		let sessionId: string | undefined;
+		const messageId = 1;
+		let listener: ((event: { sessionId: string; message: string }) => void) | undefined;
+		let detachedListener: ((event: { sessionId: string; targetId?: string }) => void) | undefined;
+		let timeout: NodeJS.Timeout | undefined;
+		try {
+			sessionId = (await rootSession.send('Target.attachToTarget', { targetId, flatten: false })).sessionId;
+			const response = new Promise<unknown>((resolve, reject) => {
+				listener = event => {
+					if (event.sessionId !== sessionId) {
+						return;
+					}
+					const message = JSON.parse(event.message) as { id?: number; result?: unknown; error?: { message: string } };
+					if (message.id !== messageId) {
+						return;
+					}
+					if (message.error) {
+						reject(new Error(message.error.message));
+					} else {
+						resolve(message.result);
+					}
+				};
+				detachedListener = event => {
+					if (event.sessionId === sessionId) {
+						reject(new Error(`CDP target '${targetId}' detached while running '${method}'.`));
+					}
+				};
+				rootSession.on('Target.receivedMessageFromTarget', listener);
+				rootSession.on('Target.detachedFromTarget', detachedListener);
+				timeout = setTimeout(() => reject(new Error(`Timed out running CDP command '${method}' on target '${targetId}'.`)), 15_000);
+			});
+			const send = rootSession.send('Target.sendMessageToTarget', {
+				sessionId,
+				message: JSON.stringify({ id: messageId, method, params })
+			});
+			const [, result] = await Promise.all([send, response]);
+			return result;
+		} finally {
+			if (listener) {
+				rootSession.off('Target.receivedMessageFromTarget', listener);
+			}
+			if (detachedListener) {
+				rootSession.off('Target.detachedFromTarget', detachedListener);
+			}
+			if (timeout) {
+				clearTimeout(timeout);
+			}
+			if (sessionId) {
+				await rootSession.send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
+			}
+			await rootSession.detach();
+		}
+	}
+
+	/**
+	 * Wait for an open window/page whose URL contains the provided pattern.
+	 */
+	async waitForPage(urlPattern: string, timeoutMs: number = 10_000): Promise<playwright.Page> {
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const page = this.getAllWindows().find(candidate => !candidate.isClosed() && candidate.url().includes(urlPattern));
+			if (page) {
+				return page;
+			}
+			await wait(100);
+		} while (Date.now() < deadline);
+
+		const openUrls = this.getAllWindows().map(page => page.url());
+		throw new Error(`Timed out waiting for page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+	}
+
+	/**
+	 * Run an action and wait for a newly opened window/page whose URL contains the provided pattern.
+	 */
+	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = 10_000): Promise<playwright.Page> {
+		const existingPages = new Set(this.getAllWindows());
+		await action();
+
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const page = this.getAllWindows().find(candidate => !existingPages.has(candidate) && !candidate.isClosed() && candidate.url().includes(urlPattern));
+			if (page) {
+				return page;
+			}
+			await wait(100);
+		} while (Date.now() < deadline);
+
+		const openUrls = this.getAllWindows().map(page => page.url());
+		throw new Error(`Timed out waiting for new page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+	}
+
 	/**
 	 * Take a screenshot of the current window.
 	 * @param fullPage - Whether to capture the full scrollable page
@@ -158,8 +304,8 @@ export class PlaywrightDriver {
 	/**
 	 * Get the accessibility snapshot of the current window.
 	 */
-	async getAccessibilitySnapshot(): Promise<playwright.Accessibility['snapshot'] extends () => Promise<infer T> ? T : never> {
-		return await this.page.accessibility.snapshot();
+	async getAccessibilitySnapshot(): Promise<string> {
+		return await this.page.ariaSnapshot({ mode: 'ai' });
 	}
 
 	/**
@@ -399,6 +545,25 @@ export class PlaywrightDriver {
 		await this.whenLoaded;
 	}
 
+	/**
+	 * Stamps the current document so that {@link waitForWindowReload} can tell the
+	 * document apart from the one that a window reload will bring up.
+	 */
+	async markWindowForReload(): Promise<string> {
+		const marker = `vscodeSmokeTestReloadMarker${PlaywrightDriver.reloadMarkerCounter++}`;
+		await this.page.evaluate(m => { (window as unknown as Record<string, boolean>)[m] = true; }, marker);
+
+		return marker;
+	}
+
+	/**
+	 * Waits until the document that was stamped via {@link markWindowForReload} is
+	 * gone, meaning the window reload actually took effect.
+	 */
+	async waitForWindowReload(marker: string, timeout: number = 60_000): Promise<void> {
+		await this.page.waitForFunction(m => !(window as unknown as Record<string, boolean>)[m], marker, { timeout, polling: 100 });
+	}
+
 	private _cdpSession: playwright.CDPSession | undefined;
 
 	async startCDP() {
@@ -566,7 +731,79 @@ export class PlaywrightDriver {
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
 		const { x, y } = await this.getElementXY(selector, xoffset, yoffset);
-		await this.page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
+		// getElementXY already incorporates both offsets (relative to the element's
+		// top-left corner) when both are provided, so don't add them again.
+		if (xoffset !== undefined && yoffset !== undefined) {
+			await this.page.mouse.click(x, y);
+		} else {
+			await this.page.mouse.click(x + (xoffset ?? 0), y + (yoffset ?? 0));
+		}
+	}
+
+	/**
+	 * Click an element via Playwright's actionability-checked path, with a fallback
+	 * to a stable-coordinates click if Playwright refuses to interact.
+	 *
+	 * The primary path (`page.click`) is preferred because Playwright re-checks
+	 * `elementFromPoint(x, y)` immediately before dispatching, eliminating the
+	 * TOCTOU window where a sibling element could shift the target between the
+	 * position lookup and the click. The fallback only kicks in when a known
+	 * actionability error occurs — specifically when an overlay element intercepts
+	 * pointer events (the known case is Monaco's `.native-edit-context`, z-index: -10,
+	 * which `elementFromPoint` returns instead of the intended target). Other errors
+	 * (e.g. selector not found, detached element, timeout on a genuinely missing
+	 * element) are rethrown so real failures aren't silently masked.
+	 */
+	async robustClick(selector: string, timeoutMs: number = 2000): Promise<void> {
+		try {
+			await this.page.click(selector, { timeout: timeoutMs });
+			return;
+		} catch (err) {
+			if (!this.isPointerInterceptedError(err)) {
+				throw err;
+			}
+			try {
+				await this.clickAtStablePosition(selector);
+			} catch (fallbackErr) {
+				const orig = err instanceof Error ? err.message : String(err);
+				const fb = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+				throw new Error(`robustClick fallback failed for '${selector}'. Original page.click error: ${orig}. Fallback error: ${fb}`);
+			}
+		}
+	}
+
+	/**
+	 * Returns true when the error is an actionability failure caused by an overlay
+	 * element intercepting pointer events (e.g. Monaco's `.native-edit-context`).
+	 * These are the only errors for which the stable-coordinates fallback is safe.
+	 */
+	private isPointerInterceptedError(err: unknown): boolean {
+		const message = err instanceof Error ? err.message : String(err);
+		return message.includes('intercepts pointer events');
+	}
+
+	/**
+	 * Fallback for {@link robustClick}: polls the element's click position via
+	 * getElementXY until two consecutive samples (separated by `intervalMs`) return
+	 * identical coordinates, then dispatches a mouse click at those exact stable
+	 * coordinates. Clicking the already-sampled {x,y} eliminates the re-sample
+	 * window, making the race window as small as possible (just the CDP round-trip).
+	 */
+	private async clickAtStablePosition(selector: string, intervalMs: number = 100, timeoutMs: number = 5000): Promise<void> {
+		let last: { x: number; y: number } | undefined;
+		const start = Date.now();
+		while (true) {
+			const current = await this.getElementXY(selector);
+			if (last && last.x === current.x && last.y === current.y) {
+				await this.page.mouse.click(current.x, current.y);
+				return;
+			}
+			last = current;
+			if (Date.now() - start > timeoutMs) {
+				throw new Error(`Element position never stabilized for '${selector}' within ${timeoutMs}ms`);
+			}
+			await wait(intervalMs);
+		}
 	}
 
 	async setValue(selector: string, text: string) {
@@ -756,6 +993,40 @@ export class PlaywrightDriver {
 
 export function wait(ms: number): Promise<void> {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+function findFrame(frameTree: Protocol.Page.FrameTree, urlPattern: string): Protocol.Page.Frame | undefined {
+	if (frameTree.frame.url.includes(urlPattern)) {
+		return frameTree.frame;
+	}
+	for (const child of frameTree.childFrames ?? []) {
+		const frame = findFrame(child, urlPattern);
+		if (frame) {
+			return frame;
+		}
+	}
+	return undefined;
+}
+
+function findDOMFrameId(node: Protocol.DOM.Node, urlPattern: string): Protocol.Page.FrameId | undefined {
+	const attributes = node.attributes ?? [];
+	for (let index = 0; index < attributes.length; index += 2) {
+		if (attributes[index] === 'src' && attributes[index + 1]?.includes(urlPattern) && node.frameId) {
+			return node.frameId;
+		}
+	}
+	for (const child of [
+		...(node.children ?? []),
+		...(node.shadowRoots ?? []),
+		...(node.pseudoElements ?? []),
+		...(node.contentDocument ? [node.contentDocument] : [])
+	]) {
+		const frameId = findDOMFrameId(child, urlPattern);
+		if (frameId) {
+			return frameId;
+		}
+	}
+	return undefined;
 }
 
 export type { AxeResults };

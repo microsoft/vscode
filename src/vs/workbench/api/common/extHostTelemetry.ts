@@ -117,6 +117,11 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 
 		commonProperties['common.remotename'] = cleanRemoteAuthority(this.initData.remote.authority, this.initData);
 
+		if (this.initData.environment.isSessionsWindow) {
+			// __GDPR__COMMON__ "common.isAgentsWindow" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			commonProperties['common.isAgentsWindow'] = true;
+		}
+
 		return commonProperties;
 	}
 

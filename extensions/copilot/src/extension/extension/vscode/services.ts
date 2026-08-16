@@ -63,8 +63,6 @@ import { NotificationService } from '../../../platform/notification/vscode/notif
 import { IUrlOpener, NullUrlOpener } from '../../../platform/open/common/opener';
 import { RealUrlOpener } from '../../../platform/open/vscode/opener';
 import { IProjectTemplatesIndex, ProjectTemplatesIndex } from '../../../platform/projectTemplatesIndex/common/projectTemplatesIndex';
-import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
-import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode/promptsServiceImpl';
 import { IPromptPathRepresentationService, PromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IReleaseNotesService } from '../../../platform/releaseNotes/common/releaseNotesService';
 import { ReleaseNotesService } from '../../../platform/releaseNotes/vscode/releaseNotesServiceImpl';
@@ -162,7 +160,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(ISurveyService, new SyncDescriptor(SurveyService));
 	builder.define(IEditSurvivalTrackerService, new SyncDescriptor(EditSurvivalTrackerService));
 	builder.define(IPromptPathRepresentationService, new SyncDescriptor(PromptPathRepresentationService));
-	builder.define(IPromptsService, new SyncDescriptor(PromptsServiceImpl));
 	builder.define(IReleaseNotesService, new SyncDescriptor(ReleaseNotesService));
 	builder.define(ISnippyService, new SyncDescriptor(SnippyService));
 	builder.define(IInteractiveSessionService, new InteractiveSessionServiceImpl());

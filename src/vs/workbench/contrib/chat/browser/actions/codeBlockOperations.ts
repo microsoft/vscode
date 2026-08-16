@@ -85,11 +85,12 @@ export class InsertCodeBlockOperation {
 				editDeltaInfo: EditDeltaInfo.fromText(context.code),
 				feature: 'sideBarChat',
 				languageId: context.languageId,
-				modeId: context.element.model.request?.modeInfo?.modeId,
+				modeId: context.element.model.request?.modeInfo?.telemetryModeId,
 				modelId: request?.modelId,
 				presentation: 'codeBlock',
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
+				sourceRequestId: undefined,
 			});
 		}
 	}

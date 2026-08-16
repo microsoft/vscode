@@ -231,7 +231,7 @@ function createLongDistanceEditor(options: {
 		clearSuggestWidgetInlineCompletions: () => { },
 		dispose: () => { },
 		fetch: async () => true,
-		inlineCompletions: constObservable(new InlineCompletionsState([
+		inlineCompletions: constObservable(disposableStore.add(new InlineCompletionsState([
 			InlineEditItem.createForTest(
 				TextModelValueReference.snapshot(textModel),
 				new Range(
@@ -242,11 +242,11 @@ function createLongDistanceEditor(options: {
 				),
 				options.newText
 			)
-		], undefined)),
+		], undefined))),
 		loading: constObservable(false),
 		seedInlineCompletionsWithSuggestWidget: () => { },
 		seedWithCompletion: () => { },
-		suggestWidgetInlineCompletions: constObservable(InlineCompletionsState.createEmpty()),
+		suggestWidgetInlineCompletions: constObservable(disposableStore.add(InlineCompletionsState.createEmpty())),
 	});
 
 	const editorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -317,17 +317,17 @@ export function createApp(config: Config) {
 		clearSuggestWidgetInlineCompletions: () => { },
 		dispose: () => { },
 		fetch: async () => true,
-		inlineCompletions: constObservable(new InlineCompletionsState([
+		inlineCompletions: constObservable(disposableStore.add(new InlineCompletionsState([
 			InlineEditItem.createForTest(
 				TextModelValueReference.snapshot(targetModel),
 				new Range(1, 1, 3, 100),
 				`export interface Config {\n\tport: number;\n\thost: string;\n\tdebug: boolean;\n}`
 			)
-		], undefined)),
+		], undefined))),
 		loading: constObservable(false),
 		seedInlineCompletionsWithSuggestWidget: () => { },
 		seedWithCompletion: () => { },
-		suggestWidgetInlineCompletions: constObservable(InlineCompletionsState.createEmpty()),
+		suggestWidgetInlineCompletions: constObservable(disposableStore.add(InlineCompletionsState.createEmpty())),
 	});
 
 	const editor = disposableStore.add(instantiationService.createInstance(

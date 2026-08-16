@@ -117,6 +117,7 @@ export class InputBox extends Widget {
 	private maxHeight: number = Number.POSITIVE_INFINITY;
 	private scrollableElement: ScrollableElement | undefined;
 	private readonly hover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly messageResizeObserver: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public get onDidChange(): Event<string> { return this._onDidChange.event; }
@@ -229,6 +230,10 @@ export class InputBox extends Widget {
 			}));
 			this.actionbar.push(actions, { icon: true, label: false });
 		}
+	}
+
+	public get actionsWidth(): number {
+		return this.actionbar?.getContainer().offsetWidth ?? 0;
 	}
 
 	protected onBlur(): void {
@@ -523,9 +528,12 @@ export class InputBox extends Widget {
 			},
 			onHide: () => {
 				this.state = 'closed';
+				this.messageResizeObserver.clear();
 			},
 			layout: layout
 		});
+
+		this.observeElementResize();
 
 		// ARIA Support
 		let alertText: string;
@@ -551,7 +559,25 @@ export class InputBox extends Widget {
 			this.contextViewProvider.hideContextView();
 		}
 
+		this.messageResizeObserver.clear();
 		this.state = 'idle';
+	}
+
+	/**
+	 * Keeps the validation message sized and anchored to the input while the
+	 * message is showing and the input itself is resized, e.g. because the
+	 * containing view was resized.
+	 */
+	private observeElementResize(): void {
+		const observer = new dom.DisposableResizeObserver('InputBox.validationMessage', () => {
+			// Ignore notifications for a hidden or detached input, laying out
+			// against a degenerate anchor would move the message to the corner.
+			if (this.element.isConnected && dom.getTotalWidth(this.element) > 0) {
+				this.layoutMessage();
+			}
+		}, dom.getWindow(this.element));
+		observer.observe(this.element);
+		this.messageResizeObserver.value = observer;
 	}
 
 	private layoutMessage(): void {

@@ -16,6 +16,8 @@ import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
+import { CopilotChatAttr, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel } from '../../../platform/otel/common/index';
+import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { toErrorMessage } from '../../../util/common/errorMessage';
@@ -23,19 +25,16 @@ import { isNonEmptyArray } from '../../../util/vs/base/common/arrays';
 import { timeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { ResourceSet } from '../../../util/vs/base/common/map';
-import { isFalsyOrWhitespace } from '../../../util/vs/base/common/strings';
 import { assertType, isDefined } from '../../../util/vs/base/common/types';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestEditorData, ChatResponseTextEditPart, LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
 import { Intent } from '../../common/constants';
 import { getAgentTools } from '../../intents/node/agentIntent';
-import { IIntentService } from '../../intents/node/intentService';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
-import { Conversation, Turn } from '../../prompt/common/conversation';
+import { Conversation } from '../../prompt/common/conversation';
 import { IToolCall } from '../../prompt/common/intents';
 import { ToolCallRound } from '../../prompt/common/toolCallRound';
 import { ChatTelemetryBuilder, InlineChatTelemetry } from '../../prompt/node/chatParticipantTelemetry';
-import { DefaultIntentRequestHandler } from '../../prompt/node/defaultIntentRequestHandler';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IIntent } from '../../prompt/node/intents';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
@@ -43,7 +42,7 @@ import { ICompletedToolCallRound, InlineChat2Prompt, LARGE_FILE_LINE_THRESHOLD }
 import { ToolName } from '../../tools/common/toolNames';
 import { CopilotToolMode } from '../../tools/common/toolsRegistry';
 import { isToolValidationError, isValidatedToolInput, IToolsService } from '../../tools/common/toolsService';
-import { InlineChatProgressMessages } from '../../inlineChat/node/progressMessages';
+import { InlineChatProgressMessages } from './progressMessages';
 import { CopilotInteractiveEditorResponse, InteractionOutcome } from '../../inlineChat/node/promptCraftingTypes';
 
 
@@ -53,6 +52,14 @@ interface IInlineChatEditResult {
 	telemetry: InlineChatTelemetry;
 	lastResponse: ChatResponse;
 	needsExitTool: boolean;
+	toolCallRounds: ToolCallRound[];
+	availableTools: vscode.LanguageModelToolInformation[];
+	totalInputTokens: number;
+	totalOutputTokens: number;
+	totalCacheReadTokens: number;
+	totalCacheCreationTokens: number;
+	totalReasoningTokens: number;
+	lastResolvedModel?: string;
 	errorMessage?: string;
 }
 
@@ -76,11 +83,8 @@ export class InlineChatIntent implements IIntent {
 		@IEndpointProvider private readonly _endpointProvider: IEndpointProvider,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ILogService private readonly _logService: ILogService,
-		@IToolsService private readonly _toolsService: IToolsService,
 		@IIgnoreService private readonly _ignoreService: IIgnoreService,
 		@IEditSurvivalTrackerService private readonly _editSurvivalTrackerService: IEditSurvivalTrackerService,
-		@IIntentService private readonly _intentService: IIntentService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 	) {
 		this._progressMessages = this._instantiationService.createInstance(InlineChatProgressMessages);
@@ -109,71 +113,6 @@ export class InlineChatIntent implements IIntent {
 			};
 		}
 
-		const enableV2 = this._configurationService.getNonExtensionConfig<boolean>('inlineChat.enableV2');
-
-		if (!enableV2) {
-			// OLD world
-			return this._handleRequestWithOldWorld(conversation, request, stream, token, documentContext, chatTelemetry);
-		}
-
-		return this._handleRequestWithNewWorld(endpoint, conversation, request, stream, token, documentContext, chatTelemetry);
-	}
-
-	// --- OLD world
-
-	private async _handleRequestWithOldWorld(conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<vscode.ChatResult> {
-		// OLD world
-		let didEmitEdits = false;
-		stream = ChatResponseStreamImpl.spy(stream, part => {
-			if (part instanceof ChatResponseTextEditPart) {
-				didEmitEdits = true;
-			}
-		});
-
-		const intent = await this._selectIntent(conversation.turns, documentContext, request);
-
-		if (isFalsyOrWhitespace(request.prompt)) {
-			request = { ...request, prompt: intent.description };
-		}
-
-		const handler = this._instantiationService.createInstance(DefaultIntentRequestHandler, intent, conversation, request, stream, token, documentContext, ChatLocation.Editor, chatTelemetry, undefined, undefined);
-		const result = await handler.getResult();
-
-		if (!didEmitEdits && !result.errorDetails) {
-			// BAILOUT: when no edits were emitted, invoke the exit tool manually
-			await this._toolsService.invokeTool(INLINE_CHAT_EXIT_TOOL_NAME, { toolInvocationToken: request.toolInvocationToken, input: undefined }, token);
-		}
-		return result;
-	}
-
-	private async _selectIntent(history: readonly Turn[], documentContext: IDocumentContext, request: vscode.ChatRequest): Promise<IIntent> {
-
-		if (request.command) {
-			const result = this._intentService.getIntent(request.command, ChatLocation.Editor);
-			if (result) {
-				return result;
-			}
-		}
-
-		let preferredIntent: Intent | undefined;
-		if (documentContext && request.attempt === 0 && history.length === 1) {
-			if (documentContext.selection.isEmpty && documentContext.document.lineAt(documentContext.selection.start.line).text.trim() === '') {
-				preferredIntent = Intent.Generate;
-			} else if (!documentContext.selection.isEmpty && documentContext.selection.start.line !== documentContext.selection.end.line) {
-				preferredIntent = Intent.Edit;
-			}
-		}
-		if (preferredIntent) {
-			return this._intentService.getIntent(preferredIntent, ChatLocation.Editor) ?? this._intentService.unknownIntent;
-		}
-		return this._intentService.unknownIntent;
-	}
-
-	// --- NEW world
-
-	private async _handleRequestWithNewWorld(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<vscode.ChatResult> {
-		assertType(request.location2 instanceof ChatRequestEditorData);
-		assertType(documentContext);
 
 		const editSurvivalTracker = this._editSurvivalTrackerService.initialize(request.location2.document);
 
@@ -212,16 +151,6 @@ export class InlineChatIntent implements IIntent {
 			return CanceledResult;
 		}
 
-		if (result.needsExitTool) {
-			this._logService.warn('[InlineChat], BAIL_OUT because of needsExitTool');
-			// BAILOUT: when no edits were emitted, invoke the exit tool manually
-			await this._toolsService.invokeTool(INLINE_CHAT_EXIT_TOOL_NAME, {
-				toolInvocationToken: request.toolInvocationToken, input: {
-					response: result.lastResponse.type === ChatFetchResponseType.Success ? result.lastResponse.value : undefined,
-				}
-			}, token);
-		}
-
 
 		// store metadata for telemetry sending
 		const turn = conversation.getLatestTurn();
@@ -241,7 +170,7 @@ export class InlineChatIntent implements IIntent {
 
 		if (result.lastResponse.type !== ChatFetchResponseType.Success) {
 			const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-			const details = getErrorDetailsFromChatFetchError(result.lastResponse, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+			const details = getErrorDetailsFromChatFetchError(result.lastResponse, this._authenticationService.copilotToken?.copilotPlan, outageStatus, this._authenticationService.copilotToken?.tokenBasedBilling, this._authenticationService.copilotToken?.quotaInfo.quota_reset_date);
 			return {
 				errorDetails: {
 					message: details.message,
@@ -274,11 +203,85 @@ class InlineChatToolCalling {
 		@IToolsService private readonly _toolsService: IToolsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
+		@IOTelService private readonly _otelService: IOTelService,
 	) { }
 
 	async run(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<IInlineChatEditResult> {
 		assertType(request.location2 instanceof ChatRequestEditorData);
 		assertType(documentContext);
+
+		return this._otelService.startActiveSpan(
+			'invoke_agent Inline Chat',
+			{
+				kind: SpanKind.INTERNAL,
+				attributes: {
+					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.INVOKE_AGENT,
+					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
+					[GenAiAttr.AGENT_NAME]: 'Inline Chat',
+					[GenAiAttr.CONVERSATION_ID]: conversation.sessionId,
+					[GenAiAttr.REQUEST_MODEL]: endpoint.model,
+					[CopilotChatAttr.SESSION_ID]: conversation.sessionId,
+					[CopilotChatAttr.INTENT]: this._intent.id,
+					[CopilotChatAttr.LOCATION]: ChatLocation.toStringShorter(ChatLocation.Editor),
+					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(request.prompt, this._otelService.config.maxAttributeSizeChars),
+					[GitHubCopilotAttr.AGENT_TYPE]: 'builtin',
+				},
+			},
+			async span => {
+				const otelStartTime = Date.now();
+				try {
+					const result = await this._runInlineToolLoop(endpoint, conversation, request, stream, token, documentContext, chatTelemetry);
+
+					// Invoke the bail-out exit tool inside the active span so its
+					// `execute_tool` span is parented under `invoke_agent Inline Chat`
+					// instead of becoming a sibling root span.
+					if (!token.isCancellationRequested && result.needsExitTool) {
+						this._logService.warn('[InlineChat], BAIL_OUT because of needsExitTool');
+						await this._toolsService.invokeTool(INLINE_CHAT_EXIT_TOOL_NAME, {
+							toolInvocationToken: request.toolInvocationToken, input: {
+								response: result.lastResponse.type === ChatFetchResponseType.Success ? result.lastResponse.value : undefined,
+							}
+						}, token);
+					}
+
+					const toolDefinitionsJson = stringifyToolDefinitionsForOTel(result.availableTools);
+					const response = result.lastResponse;
+					span.setAttributes({
+						[CopilotChatAttr.TURN_COUNT]: result.toolCallRounds.length,
+						...(response.type === ChatFetchResponseType.Success ? {
+							...(result.lastResolvedModel ? { [GenAiAttr.RESPONSE_MODEL]: normalizeResponseModel(endpoint.model, result.lastResolvedModel) ?? result.lastResolvedModel } : {}),
+							[GenAiAttr.RESPONSE_ID]: response.modelCallId ?? response.requestId,
+							[GenAiAttr.USAGE_INPUT_TOKENS]: result.totalInputTokens,
+							[GenAiAttr.USAGE_OUTPUT_TOKENS]: result.totalOutputTokens,
+							...(result.totalCacheReadTokens ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: result.totalCacheReadTokens } : {}),
+							...(result.totalCacheCreationTokens ? { [GenAiAttr.USAGE_CACHE_CREATION_INPUT_TOKENS]: result.totalCacheCreationTokens } : {}),
+							...(result.totalReasoningTokens ? { [GenAiAttr.USAGE_REASONING_OUTPUT_TOKENS]: result.totalReasoningTokens } : {}),
+							[GenAiAttr.OUTPUT_MESSAGES]: truncateForOTel(JSON.stringify([
+								{ role: 'assistant', parts: [{ type: 'text', content: response.value }] }
+							]), this._otelService.config.maxAttributeSizeChars),
+						} : {}),
+						...(toolDefinitionsJson ? { [GenAiAttr.TOOL_DEFINITIONS]: truncateForOTel(toolDefinitionsJson, this._otelService.config.maxAttributeSizeChars) } : {}),
+					});
+					span.setStatus(SpanStatusCode.OK);
+					const durationSec = (Date.now() - otelStartTime) / 1000;
+					GenAiMetrics.recordAgentDuration(this._otelService, 'Inline Chat', durationSec);
+					GenAiMetrics.recordAgentTurnCount(this._otelService, 'Inline Chat', result.toolCallRounds.length);
+					return result;
+				} catch (err) {
+					span.setStatus(SpanStatusCode.ERROR, err instanceof Error ? err.message : String(err));
+					span.setAttribute(StdAttr.ERROR_TYPE, err instanceof Error ? err.constructor.name : 'Error');
+					throw err;
+				}
+			},
+		);
+	}
+
+	private async _runInlineToolLoop(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<IInlineChatEditResult> {
+
+		// Re-narrow `request.location2` for the type checker. `run()` has already asserted this,
+		// but the narrowing does not survive across the async boundary into this private method.
+		assertType(request.location2 instanceof ChatRequestEditorData);
+		const location2 = request.location2;
 
 		const isLargeFile = documentContext.document.lineCount > LARGE_FILE_LINE_THRESHOLD;
 		const availableTools = await this._getAvailableTools(request, endpoint, isLargeFile);
@@ -290,6 +293,12 @@ class InlineChatToolCalling {
 		let telemetry: InlineChatTelemetry;
 		let lastResponse: ChatResponse;
 		let lastInteractionOutcome: InteractionOutcome;
+		let totalInputTokens = 0;
+		let totalOutputTokens = 0;
+		let totalCacheReadTokens = 0;
+		let totalCacheCreationTokens = 0;
+		let totalReasoningTokens = 0;
+		let lastResolvedModel: string | undefined;
 
 		while (true) {
 
@@ -298,7 +307,7 @@ class InlineChatToolCalling {
 				previousRounds,
 				hasFailedEdits: failedEditCount > 0,
 				snapshotAtRequest: documentContext.document,
-				data: request.location2,
+				data: location2,
 				exitToolName: INLINE_CHAT_EXIT_TOOL_NAME,
 				isLargeFile,
 				readToolName: isLargeFile ? ToolName.ReadFile : undefined,
@@ -320,6 +329,14 @@ class InlineChatToolCalling {
 
 			lastInteractionOutcome = new InteractionOutcome(telemetry.editCount > 0 ? 'inlineEdit' : 'none', []);
 			lastResponse = result.fetchResult;
+			if (lastResponse.type === ChatFetchResponseType.Success) {
+				totalInputTokens += lastResponse.usage?.prompt_tokens ?? 0;
+				totalOutputTokens += lastResponse.usage?.completion_tokens ?? 0;
+				totalCacheReadTokens += lastResponse.usage?.prompt_tokens_details?.cached_tokens ?? 0;
+				totalCacheCreationTokens += lastResponse.usage?.prompt_tokens_details?.cache_creation_input_tokens ?? 0;
+				totalReasoningTokens += lastResponse.usage?.completion_tokens_details?.reasoning_tokens ?? 0;
+				lastResolvedModel = lastResponse.resolvedModel;
+			}
 
 			// telemetry
 			{
@@ -389,11 +406,19 @@ class InlineChatToolCalling {
 				lastResponse,
 				telemetry,
 				needsExitTool: false,
+				toolCallRounds,
+				availableTools,
+				totalInputTokens,
+				totalOutputTokens,
+				totalCacheReadTokens,
+				totalCacheCreationTokens,
+				totalReasoningTokens,
+				lastResolvedModel,
 				errorMessage: l10n.t('Failed to edit the file. The requested change could not be applied.'),
 			};
 		}
 
-		return { lastResponse, telemetry, needsExitTool };
+		return { lastResponse, telemetry, needsExitTool, toolCallRounds, availableTools, totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens, totalReasoningTokens, lastResolvedModel };
 	}
 
 	private async _makeRequestAndRunTools(endpoint: IChatEndpoint, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, messages: Raw.ChatMessage[], inlineChatTools: vscode.LanguageModelToolInformation[], telemetry: InlineChatTelemetry, token: CancellationToken) {

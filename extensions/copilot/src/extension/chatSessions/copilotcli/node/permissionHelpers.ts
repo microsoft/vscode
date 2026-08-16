@@ -18,6 +18,7 @@ import { createEditConfirmation, formatDiffAsUnified } from '../../../tools/node
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { getAffectedUrisForEditTool, getCdPresentationOverrides, ToolCall } from '../common/copilotCLITools';
+import type { Session } from '../common/utils';
 import { getCopilotCLISessionStateDir } from './cliHelpers';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
 
@@ -27,6 +28,8 @@ type CoreTerminalConfirmationToolParams = {
 		message: string;
 		command: string | undefined;
 		isBackground: boolean;
+		sandboxBypass?: boolean;
+		sandboxBypassReason?: string;
 	};
 };
 
@@ -43,7 +46,7 @@ type CoreConfirmationToolParams = {
  * The result of requesting permissions — the full union accepted by `Session.respondToPermission`.
  * Extracted from the SDK's second parameter type to stay in sync automatically.
  */
-export type PermissionRequestResult = Parameters<import('@github/copilot/sdk').Session['respondToPermission']>[1];
+export type PermissionRequestResult = Parameters<Session['respondToPermission']>[1];
 
 /**
  * Handles `read` permission requests.
@@ -66,30 +69,30 @@ export async function handleReadPermission(
 	const file = Uri.file(permissionRequest.path);
 
 	if (imageSupport.isTrustedImage(file)) {
-		return { kind: 'approved' };
+		return { kind: 'approve-once' };
 	}
 
 	if (isFileFromSessionWorkspace(file, workspaceInfo)) {
 		logService.trace(`[CopilotCLISession] Auto Approving request to read file in session workspace ${permissionRequest.path}`);
-		return { kind: 'approved' };
+		return { kind: 'approve-once' };
 	}
 
 	if (workspaceService.getWorkspaceFolder(file)) {
 		logService.trace(`[CopilotCLISession] Auto Approving request to read workspace file ${permissionRequest.path}`);
-		return { kind: 'approved' };
+		return { kind: 'approve-once' };
 	}
 
 	// Auto-approve reads of internal session resources (e.g. plan.md).
 	const sessionDir = Uri.joinPath(Uri.file(getCopilotCLISessionStateDir()), sessionId);
 	if (extUriBiasedIgnorePathCase.isEqualOrParent(file, sessionDir)) {
 		logService.trace(`[CopilotCLISession] Auto Approving request to read Copilot CLI session resource ${permissionRequest.path}`);
-		return { kind: 'approved' };
+		return { kind: 'approve-once' };
 	}
 
 	// Auto-approve if the file was explicitly attached by the user.
 	if (attachments.some(attachment => attachment.type === 'file' && isEqual(Uri.file(attachment.path), file))) {
 		logService.trace(`[CopilotCLISession] Auto Approving request to read attached file ${permissionRequest.path}`);
-		return { kind: 'approved' };
+		return { kind: 'approve-once' };
 	}
 
 	const toolParams: CoreConfirmationToolParams = {
@@ -149,7 +152,7 @@ export async function handleWritePermission(
 		if (autoApprove) {
 			logService.trace(`[CopilotCLISession] Auto Approving request ${editFile.fsPath}`);
 			await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
-			return { kind: 'approved' };
+			return { kind: 'approve-once' };
 		}
 	}
 
@@ -157,7 +160,7 @@ export async function handleWritePermission(
 	const sessionDir = Uri.joinPath(Uri.file(getCopilotCLISessionStateDir()), sessionId);
 	if (editFile && extUriBiasedIgnorePathCase.isEqualOrParent(editFile, sessionDir)) {
 		logService.trace(`[CopilotCLISession] Auto Approving request to write to Copilot CLI session resource ${editFile.fsPath}`);
-		return { kind: 'approved' };
+		return { kind: 'approve-once' };
 	}
 
 	// Fall back to interactive confirmation. If approved, track the edit.
@@ -174,10 +177,10 @@ export async function handleWritePermission(
 		if (editFile) {
 			await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
 		}
-		return { kind: 'approved' };
+		return { kind: 'approve-once' };
 	}
 	const result = await invokeConfirmationTool(toolParams, toolParentCallId, toolsService, toolInvocationToken, logService, token);
-	if (result.kind === 'approved' && editFile) {
+	if (result.kind === 'approve-once' && editFile) {
 		await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
 	}
 	return result;
@@ -216,12 +219,21 @@ export function buildShellConfirmationParams(
 	const userFriendlyCommand = fullCommandText ? getCdPresentationOverrides(fullCommandText, isPowershell, workingDirectory)?.commandLine : undefined;
 	const command = userFriendlyCommand ?? fullCommandText;
 
+	// When the model opted this command out of the sandbox, surface that to the
+	// user so the confirmation makes the elevation of privilege clear (the
+	// terminal confirmation tool renders its own title, so the note must be
+	// passed as a dedicated flag rather than baked into the message).
+	const sandboxBypass = permissionRequest.requestSandboxBypass === true;
+	const sandboxBypassReason = sandboxBypass ? permissionRequest.requestSandboxBypassReason : undefined;
+
 	return {
 		tool: ToolName.CoreTerminalConfirmationTool,
 		input: {
 			message: permissionRequest.intention || command || codeBlock(permissionRequest),
 			command,
-			isBackground: false
+			isBackground: false,
+			...(sandboxBypass ? { sandboxBypass: true } : {}),
+			...(sandboxBypassReason ? { sandboxBypassReason } : {}),
 		}
 	};
 }
@@ -282,7 +294,7 @@ async function invokeConfirmationTool(
 		const result = await toolsService.invokeTool(tool, { input, toolInvocationToken, subAgentInvocationId: toolParentCallId }, token);
 		const firstResultPart = result.content.at(0);
 		if (firstResultPart instanceof LanguageModelTextPart && typeof firstResultPart.value === 'string' && firstResultPart.value.toLowerCase() === 'yes') {
-			return { kind: 'approved' };
+			return { kind: 'approve-once' };
 		}
 	} catch (error) {
 		logService.error(error, `[CopilotCLISession] Permission request error`);
@@ -423,7 +435,7 @@ export function getFileBeingEdited(permissionRequest: Extract<PermissionRequest,
 	const editFile = editFiles && editFiles.length ? editFiles[0] : (permissionRequest.fileName ? URI.file(permissionRequest.fileName) : undefined);
 	return editFile;
 }
-function codeBlock(obj: Record<string, unknown>): string {
+function codeBlock(obj: unknown): string {
 	return `\n\n\`\`\`\n${JSON.stringify(obj, null, 2)}\n\`\`\``;
 }
 

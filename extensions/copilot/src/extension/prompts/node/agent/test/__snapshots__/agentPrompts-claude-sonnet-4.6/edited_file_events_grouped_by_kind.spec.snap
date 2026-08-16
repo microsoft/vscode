@@ -5,8 +5,6 @@ When generating code, please follow these user provided coding instructions. You
 This is a test custom instruction file
 </instructions>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -29,8 +27,6 @@ Session memory (/memories/session/) is empty. No session notes have been created
 Repository memory (/memories/repo/) is empty. No workspace-scoped notes have been created yet.
 </repoMemory>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -46,6 +42,7 @@ Some edits were made, by the user or possibly by a formatter or another automate
 So be sure to check the current file contents before making any new edits.
 </context>
 <reminderInstructions>
+Write a comment only to state what the code cannot show on its own, and keep it to one short line. Don't restate what the next line does or explain your change to the reviewer, and don't write a multi-paragraph doc comment where a single line will do.
 Do NOT create markdown files to document changes unless requested.
 
 </reminderInstructions>
@@ -53,6 +50,4 @@ Do NOT create markdown files to document changes unless requested.
 hello
 </userRequest>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~

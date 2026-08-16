@@ -99,7 +99,7 @@ export class PerfviewInput extends TextResourceEditorInput {
 	}
 }
 
-class PerfModelContentProvider implements ITextModelContentProvider {
+export class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _model: ITextModel | undefined;
 	private _modelDisposables: IDisposable[] = [];
@@ -119,7 +119,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 	provideTextContent(resource: URI): Promise<ITextModel> {
 
 		if (!this._model || this._model.isDisposed()) {
-			dispose(this._modelDisposables);
+			this._modelDisposables = dispose(this._modelDisposables);
 			const langId = this._languageService.createById('markdown');
 			this._model = this._modelService.getModel(resource) || this._modelService.createModel('Loading...', langId, resource);
 
@@ -153,6 +153,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				this._addExtensionsTable(md);
 				md.blank();
 				this._addPerfMarksTable('Terminal Stats', md, this._timerService.getPerformanceMarks().find(e => e[0] === 'renderer')?.[1].filter(e => e.name.startsWith('code/terminal/')));
+				md.blank();
+				this._addAgentHostPerfMarksTable(md);
 				md.blank();
 				this._addWorkbenchContributionsPerfMarksTable(md);
 				md.blank();
@@ -270,6 +272,14 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			md.heading(2, name);
 		}
 		md.table(['Name', 'Timestamp', 'Delta', 'Total'], table);
+	}
+
+	private _addAgentHostPerfMarksTable(md: MarkdownBuilder): void {
+		const marks = perf.getMarks();
+		if (!marks.some(mark => mark.name.startsWith('code/agentHost/'))) {
+			return;
+		}
+		this._addPerfMarksTable('Agent Host Startup', md, marks.filter(mark => mark.name === 'code/timeOrigin' || mark.name.startsWith('code/agentHost/')));
 	}
 
 	private _addWorkbenchContributionsPerfMarksTable(md: MarkdownBuilder): void {

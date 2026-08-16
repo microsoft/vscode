@@ -22,6 +22,7 @@ import { IWorkspaceService } from '../../../platform/workspace/common/workspaceS
 import { getCachedSha256Hash } from '../../../util/common/crypto';
 import { clamp } from '../../../util/vs/base/common/numbers';
 import { dirname, extUriBiasedIgnorePathCase } from '../../../util/vs/base/common/resources';
+import { isHighSurrogate, isLowSurrogate } from '../../../util/vs/base/common/strings';
 import { sendSkillContentReadTelemetry } from '../common/skillTelemetry';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -36,7 +37,7 @@ import { formatUriForFileWidget } from '../common/toolUtils';
 import { getImageMimeType } from './imageToolUtils';
 import { assertFileNotContentExcluded, assertFileOkForTool, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 
-export const readFileV2Description: vscode.LanguageModelToolInformation = {
+export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
 	name: ToolName.ReadFile,
 	description: 'Read the contents of a file. Line numbers are 1-indexed. This tool will truncate its output at 2000 lines and may be called repeatedly with offset and limit parameters to read larger files in chunks. Binary files use offset/limit as byte offsets.',
 	tags: ['vscode_codesearch'],
@@ -59,7 +60,8 @@ export const readFileV2Description: vscode.LanguageModelToolInformation = {
 			},
 		}
 	} satisfies ObjectJsonSchema,
-};
+	fullReferenceName: orig.fullReferenceName
+});
 
 export interface IReadFileParamsV1 {
 	filePath: string;
@@ -74,6 +76,7 @@ export interface IReadFileParamsV2 {
 }
 
 const MAX_LINES_PER_READ = 2000;
+const MAX_LINE_LENGTH = 2000;
 
 export type ReadFileParams = IReadFileParamsV1 | IReadFileParamsV2;
 
@@ -218,7 +221,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 
 			// Check if file is external (outside workspace, not open in editor, etc.)
 			const isExternal = await this.instantiationService.invokeFunction(
-				accessor => isFileExternalAndNeedsConfirmation(accessor, uri!, this._promptContext, { readOnly: true })
+				accessor => isFileExternalAndNeedsConfirmation(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
 			);
 
 			if (isExternal) {
@@ -243,7 +246,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				};
 			}
 
-			await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri!, this._promptContext, { readOnly: true }));
+			await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory }));
 
 			try {
 				documentSnapshot = await this.getSnapshot(uri);
@@ -318,7 +321,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 
 	public alternativeDefinition(originTool: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation {
 		if (this.configurationService.getExperimentBasedConfig<boolean>(ConfigKey.TeamInternal.EnableReadFileV2, this.experimentationService)) {
-			return readFileV2Description;
+			return getReadFileV2Description(originTool);
 		}
 
 		return originTool;
@@ -425,7 +428,23 @@ class ReadFileResult extends PromptElement<ReadFileResultProps> {
 			this.props.startLine - 1, 0,
 			this.props.endLine - 1, Infinity,
 		);
-		let contents = documentSnapshot.getText(range);
+		const rawContents = documentSnapshot.getText(range);
+		let hadLongLines = false;
+		let contents = rawContents.split('\n').map(line => {
+			if (line.length > MAX_LINE_LENGTH) {
+				hadLongLines = true;
+				let end = MAX_LINE_LENGTH;
+				if (isHighSurrogate(line.charCodeAt(end - 1)) && isLowSurrogate(line.charCodeAt(end))) {
+					end--;
+				}
+				return line.slice(0, end) + ' [truncated]';
+			}
+			return line;
+		}).join('\n');
+
+		if (hadLongLines) {
+			contents += `\n[One or more long lines were truncated at ${MAX_LINE_LENGTH} characters]\n`;
+		}
 
 		if (this.props.truncated) {
 			contents += `\n[File content truncated at line ${this.props.endLine}. Use ${ToolName.ReadFile} with offset/limit parameters to view more.]\n`;

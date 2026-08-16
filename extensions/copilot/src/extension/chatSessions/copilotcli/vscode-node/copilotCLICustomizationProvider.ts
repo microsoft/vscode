@@ -17,6 +17,7 @@ import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import { basename } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { ICopilotCLIAgents, isEnabledForCopilotCLI } from '../../copilotcli/node/copilotCli';
+import { INativeEnvService } from '../../../../platform/env/common/envService';
 
 export class CopilotCLICustomizationProvider extends Disposable implements vscode.ChatSessionCustomizationProvider {
 
@@ -44,6 +45,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
+		@INativeEnvService private readonly envService: INativeEnvService,
 	) {
 		super();
 
@@ -55,7 +57,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 		this._register(this.copilotCLIAgents.onDidChangeAgents(() => this._onDidChange.fire()));
 	}
 
-	async provideChatSessionCustomizations(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
+	async provideChatSessionCustomizations(_sessionResource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const [agents, instructions, skills, hooks, plugins] = await Promise.all([
 			this.getAgentItems(token),
 			this.getInstructionItems(token),
@@ -82,17 +84,46 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 		return items;
 	}
 
+	async provideSourceFolders(_sessionResource: vscode.Uri, type: vscode.ChatSessionCustomizationType, _token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationSourceFolder[]> {
+		const folders: vscode.ChatSessionCustomizationSourceFolder[] = [];
+		const roots = getSearchRoots();
+		for (const folder of this.workspaceService.getWorkspaceFolders()) {
+			for (const root of roots.workspace) {
+				if (root.type === type) {
+					folders.push({
+						uri: URI.joinPath(folder, ...root.path),
+						label: root.path[0],
+						source: 'local'
+					});
+				}
+			}
+		}
+		for (const root of roots.user) {
+			if (root.type === type) {
+				folders.push({
+					uri: URI.joinPath(this.envService.userHome, ...root.path),
+					label: `~/${root.path[0]}`,
+					source: 'user'
+				});
+			}
+		}
+		return folders;
+	}
+
 	/**
 	 * Builds agent items from ICopilotCLIAgents, which already merges SDK
 	 * and prompt-file agents with source URIs.
 	 */
 	private async getAgentItems(_token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const agentInfos = await this.copilotCLIAgents.getAgents();
-		return agentInfos.map(({ agent, sourceUri }) => ({
+		return agentInfos.map(({ agent, sourceUri, pluginUri, extensionId, source }) => ({
 			uri: sourceUri,
 			type: vscode.ChatSessionCustomizationType.Agent,
 			name: agent.displayName || agent.name,
 			description: agent.description,
+			extensionId,
+			pluginUri,
+			source
 		}));
 	}
 
@@ -133,7 +164,11 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 				uri,
 				type: vscode.ChatSessionCustomizationType.Instructions,
 				name: basename(uri),
+				description: undefined,
 				groupKey: 'agent-instructions',
+				source: 'local', // these are surfaced by the extension, even if they come from the workspace
+				extensionId: undefined,
+				pluginUri: undefined
 			});
 		}
 
@@ -166,6 +201,9 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 					groupKey: 'context-instructions',
 					badge,
 					badgeTooltip,
+					extensionId: instruction.extensionId,
+					pluginUri: instruction.pluginUri,
+					source: instruction.source
 				});
 			} else {
 				items.push({
@@ -174,6 +212,9 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 					name,
 					description,
 					groupKey: 'on-demand-instructions',
+					extensionId: instruction.extensionId,
+					pluginUri: instruction.pluginUri,
+					source: instruction.source
 				});
 			}
 		}
@@ -189,8 +230,10 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			uri: s.uri,
 			type: vscode.ChatSessionCustomizationType.Skill,
 			name: s.name,
+			description: s.description,
 			extensionId: s.extensionId,
 			pluginUri: s.pluginUri,
+			source: s.source
 		}));
 	}
 
@@ -203,6 +246,10 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			uri: h.uri,
 			type: vscode.ChatSessionCustomizationType.Hook,
 			name: basename(h.uri).replace(/\.json$/i, ''),
+			description: undefined,
+			extensionId: h.extensionId,
+			pluginUri: h.pluginUri,
+			source: h.source
 		}));
 	}
 
@@ -214,6 +261,32 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			uri: p.uri,
 			type: vscode.ChatSessionCustomizationType.Plugins,
 			name: basename(p.uri),
+			description: undefined,
+			extensionId: undefined,
+			pluginUri: undefined,
+			source: 'plugin'
 		}));
 	}
+}
+
+
+function getSearchRoots() {
+	return {
+		workspace: [
+			{ path: ['.github', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.agents', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.claude', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.github', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.claude', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.github', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+			{ path: ['.github', 'hooks'], recursive: true, type: vscode.ChatSessionCustomizationType.Hook },
+		],
+		user: [
+			{ path: ['.copilot', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.copilot', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+			{ path: ['.copilot', 'hooks'], recursive: true, type: vscode.ChatSessionCustomizationType.Hook },
+		],
+	};
 }

@@ -150,6 +150,20 @@ export class CodeSearchWorkspaceDiffTracker extends Disposable {
 		return seenFiles;
 	}
 
+	/**
+	 * Get the diff file count per tracked repo.
+	 */
+	getRepoDiffCounts(): ReadonlyMap<URI, { state: string; diffFileCount: number }> {
+		const result = new ResourceMap<{ state: string; diffFileCount: number }>();
+		for (const [uri, repoEntry] of this._repos) {
+			result.set(uri, {
+				state: RepoState[repoEntry.state],
+				diffFileCount: repoEntry.initialChanges.size,
+			});
+		}
+		return result;
+	}
+
 	private async openRepo(info: RepoEntry) {
 		this._repos.delete(info.info.rootUri);
 

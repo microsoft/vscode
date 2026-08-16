@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
-import { extractFilePath, extractRefsFromMcpTool, extractRefsFromTerminal, extractRepoFromMcpTool, isGitHubMcpTool } from '../sessionStoreTracking';
+import { extractAgentName, extractFilePath, extractPlainTextFromContent, extractRefsFromMcpTool, extractRefsFromTerminal, extractRepoFromMcpTool, isGitHubMcpTool } from '../sessionStoreTracking';
 
 describe('extractFilePath', () => {
 	it('extracts filePath from replace_string_in_file', () => {
@@ -181,5 +181,79 @@ describe('extractRefsFromTerminal', () => {
 
 	it('returns empty for unrelated commands', () => {
 		expect(extractRefsFromTerminal({ command: 'ls -la' }, 'output')).toEqual([]);
+	});
+});
+
+describe('extractAgentName', () => {
+	it('returns trimmed attribute value when present', () => {
+		expect(extractAgentName({ name: 'invoke_agent', attributes: { 'gen_ai.agent.name': '  copilot  ' } }))
+			.toBe('copilot');
+	});
+
+	it('parses agent name from span name when attribute is absent', () => {
+		expect(extractAgentName({ name: 'invoke_agent copilot', attributes: {} }))
+			.toBe('copilot');
+	});
+
+	it('parses multi-word agent name from span name', () => {
+		expect(extractAgentName({ name: 'invoke_agent GitHub Copilot Chat', attributes: {} }))
+			.toBe('GitHub Copilot Chat');
+	});
+
+	it('returns unknown when span name is invoke_agent with no suffix', () => {
+		expect(extractAgentName({ name: 'invoke_agent ', attributes: {} }))
+			.toBe('unknown');
+	});
+
+	it('falls back to span name when attribute is empty string', () => {
+		expect(extractAgentName({ name: 'invoke_agent copilot', attributes: { 'gen_ai.agent.name': '' } }))
+			.toBe('copilot');
+	});
+
+	it('returns unknown when span name does not start with invoke_agent', () => {
+		expect(extractAgentName({ name: 'execute_tool read_file', attributes: {} }))
+			.toBe('unknown');
+	});
+});
+
+describe('extractPlainTextFromContent', () => {
+	it('returns plain text string unchanged', () => {
+		expect(extractPlainTextFromContent('Fix the bug')).toBe('Fix the bug');
+	});
+
+	it('returns undefined for empty string', () => {
+		expect(extractPlainTextFromContent('')).toBeUndefined();
+	});
+
+	it('returns undefined for whitespace-only string', () => {
+		expect(extractPlainTextFromContent('   ')).toBeUndefined();
+	});
+
+	it('extracts text from [{type:"text", text:"..."}] array', () => {
+		expect(extractPlainTextFromContent('[{"type":"text","text":"Fix the bug"}]')).toBe('Fix the bug');
+	});
+
+	it('trims whitespace from text part', () => {
+		expect(extractPlainTextFromContent('[{"type":"text","text":"  padded  "}]')).toBe('padded');
+	});
+
+	it('returns undefined for text part with empty text', () => {
+		expect(extractPlainTextFromContent('[{"type":"text","text":""}]')).toBeUndefined();
+	});
+
+	it('returns undefined for array with no text parts (tool results)', () => {
+		expect(extractPlainTextFromContent('[{"type":"tool_result","content":"some result"}]')).toBeUndefined();
+	});
+
+	it('extracts content from {role, content} object with string content', () => {
+		expect(extractPlainTextFromContent('{"role":"user","content":"Fix the login bug"}')).toBe('Fix the login bug');
+	});
+
+	it('returns undefined for object with array content (multi-modal)', () => {
+		expect(extractPlainTextFromContent('{"role":"user","content":[{"type":"text"}]}')).toBeUndefined();
+	});
+
+	it('returns undefined for invalid/truncated JSON', () => {
+		expect(extractPlainTextFromContent('[{"type":"text","text":"Fix')).toBeUndefined();
 	});
 });

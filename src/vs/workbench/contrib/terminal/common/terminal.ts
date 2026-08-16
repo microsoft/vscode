@@ -60,12 +60,6 @@ export interface ITerminalProfileResolverService {
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 }
 
-/*
- * When there were shell integration args injected
- * and createProcess returns an error, this exit code will be used.
- */
-export const ShellIntegrationExitCode = 633;
-
 export interface IRegisterContributedProfileArgs {
 	extensionIdentifier: string; id: string; title: string; options: ICreateContributedTerminalProfileOptions; titleTemplate?: string;
 }
@@ -103,6 +97,7 @@ export interface IShellLaunchConfigResolveOptions {
 	remoteAuthority: string | undefined;
 	os: OperatingSystem;
 	allowAutomationShell?: boolean;
+	allowAgentHostShell?: boolean;
 }
 
 export type FontWeight = 'normal' | 'bold' | number;
@@ -610,6 +605,20 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.debug.stepInto',
 	'workbench.action.debug.stepOut',
 	'workbench.action.debug.stepOver',
+	'sessions.goBack',
+	'sessions.goForward',
+	'sessions.focusActiveSession',
+	'sessions.focusSessionInGrid1',
+	'sessions.focusSessionInGrid2',
+	'sessions.focusSessionInGrid3',
+	'sessions.focusSessionInGrid4',
+	'sessions.focusSessionInGrid5',
+	'sessions.focusSessionInGrid6',
+	'sessions.focusSessionInGrid7',
+	'sessions.focusSessionInGrid8',
+	'sessions.focusSessionInGrid9',
+	'sessionsViewPane.navigatePreviousSession',
+	'sessionsViewPane.navigateNextSession',
 	'workbench.action.nextEditor',
 	'workbench.action.previousEditor',
 	'workbench.action.nextEditorInGroup',

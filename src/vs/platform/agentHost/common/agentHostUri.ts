@@ -3,27 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Schemas } from '../../../base/common/network.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import type { ResourceLabelFormatter } from '../../label/common/label.js';
 
 /**
  * The URI scheme for accessing files on a remote agent host.
  *
- * URIs encode the original scheme, authority, and path so that any
- * remote resource can be represented without assuming `file://`:
+ * The original file path is kept verbatim as the URI path so resource
+ * labels, language detection, and path comparisons see a real path. The
+ * original scheme, authority, and query are carried in a single
+ * url-safe-base64 `_ah` query parameter so any remote resource can be
+ * represented without assuming `file://`:
  *
  * ```
- * vscode-agent-host://[connectionAuthority]/[originalScheme]/[originalAuthority]/[originalPath]
+ * vscode-agent-host://[connectionAuthority][originalPath]?_ah=[meta]#[originalFragment]
  * ```
  *
- * For example, `file:///home/user/foo.ts` on remote `my-server` becomes:
+ * where `meta` is {@link IAgentHostUriMeta} as url-safe-base64-encoded
+ * JSON. Encoding the metadata as a single opaque parameter (rather than
+ * raw JSON) keeps the query a well-formed parameter list, so unrelated
+ * query parameters such as `vscodeLinkType` can coexist on the wrapped
+ * URI without corrupting the metadata. For example,
+ * `file:///home/user/foo.ts` on remote `my-server` becomes:
  * ```
- * vscode-agent-host://my-server/file//home/user/foo.ts
+ * vscode-agent-host://my-server/home/user/foo.ts?_ah=eyJzY2hlbWUiOiJmaWxlIn0
  * ```
  */
 export const AGENT_HOST_SCHEME = 'vscode-agent-host';
+
+/**
+ * Query parameter that carries the {@link IAgentHostUriMeta} payload.
+ */
+const AGENT_HOST_META_PARAM = '_ah';
+
+/**
+ * Metadata carried in the query of a {@link AGENT_HOST_SCHEME} URI so the
+ * original URI can be reconstructed while keeping the path label-friendly.
+ */
+interface IAgentHostUriMeta {
+	/** Original URI scheme (e.g. `file`, `git-blob`). */
+	readonly scheme: string;
+	/** Original URI authority, omitted when empty. */
+	readonly authority?: string;
+	/** Original URI query, omitted when empty. */
+	readonly query?: string;
+}
 
 /**
  * Wraps a remote URI into a {@link AGENT_HOST_SCHEME} URI that can be
@@ -39,12 +66,19 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 		return originalUri;
 	}
 
-	// Path format: /[originalScheme]/[originalAuthority]/[originalPath]
-	const originalAuthority = originalUri.authority || '';
+	const meta: IAgentHostUriMeta = {
+		scheme: originalUri.scheme,
+		...(originalUri.authority ? { authority: originalUri.authority } : {}),
+		...(originalUri.query ? { query: originalUri.query } : {}),
+	};
+	const params = new URLSearchParams();
+	params.set(AGENT_HOST_META_PARAM, encodeBase64(VSBuffer.fromString(JSON.stringify(meta)), false, true));
 	return URI.from({
 		scheme: AGENT_HOST_SCHEME,
 		authority: connectionAuthority,
-		path: `/${originalUri.scheme}/${originalAuthority || '-'}${originalUri.path}`,
+		path: originalUri.path || '/',
+		query: params.toString(),
+		fragment: originalUri.fragment,
 	});
 }
 
@@ -54,37 +88,32 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
  * The inverse of {@link toAgentHostUri}.
  */
 export function fromAgentHostUri(agentHostUri: URI): URI {
-	// Path: /[originalScheme]/[originalAuthority]/[rest of original path]
-	const path = agentHostUri.path;
-
-	// Find first segment boundary after leading /
-	const schemeEnd = path.indexOf('/', 1);
-	if (schemeEnd === -1) {
-		// Malformed — treat whole path as file scheme
-		return URI.from({ scheme: 'file', path });
+	if (agentHostUri.scheme !== AGENT_HOST_SCHEME) {
+		return agentHostUri;
 	}
 
-	const originalScheme = path.substring(1, schemeEnd);
-
-	// Find second segment boundary (authority/path split)
-	const authorityEnd = path.indexOf('/', schemeEnd + 1);
-	if (authorityEnd === -1) {
-		// No path after authority
-		const originalAuthority = path.substring(schemeEnd + 1);
-		return URI.from({ scheme: originalScheme, authority: originalAuthority, path: '/' });
+	let meta: Partial<IAgentHostUriMeta> | undefined;
+	const encoded = agentHostUri.query ? new URLSearchParams(agentHostUri.query).get(AGENT_HOST_META_PARAM) : null;
+	if (encoded) {
+		try {
+			meta = JSON.parse(decodeBase64(encoded).toString()) as Partial<IAgentHostUriMeta>;
+		} catch {
+			meta = undefined;
+		}
 	}
 
-	let originalAuthority = path.substring(schemeEnd + 1, authorityEnd);
-	if (originalAuthority === '-') {
-		originalAuthority = '';
+	if (!meta || typeof meta.scheme !== 'string') {
+		// Missing/invalid metadata — fall back to treating the path as a
+		// file path so callers get a usable URI instead of an exception.
+		return URI.from({ scheme: Schemas.file, path: agentHostUri.path, fragment: agentHostUri.fragment });
 	}
-
-	const originalPath = path.substring(authorityEnd);
 
 	return URI.from({
-		scheme: originalScheme,
-		authority: originalAuthority || undefined,
-		path: originalPath,
+		scheme: meta.scheme,
+		authority: meta.authority || undefined,
+		path: agentHostUri.path,
+		query: meta.query || '',
+		fragment: agentHostUri.fragment,
 	});
 }
 
@@ -99,39 +128,79 @@ export function normalizeRemoteAgentHostAddress(address: string): string {
 	return address;
 }
 
+const REMOTE_LOCAL_AGENT_HOST_AUTHORITY = 'remote_local';
+
 /**
  * Encode a remote address into an identifier that is safe for use in
  * both URI schemes and URI authorities, and is collision-free.
  *
- * Three tiers:
- * 1. Purely alphanumeric addresses are returned as-is.
- * 2. "Normal" addresses containing only `[a-zA-Z0-9.:-]` get colons
+ * Four tiers:
+ * 1. The reserved ambient authority `local` is escaped for remote hosts.
+ * 2. Purely alphanumeric addresses are returned as-is.
+ * 3. "Normal" addresses containing only `[a-zA-Z0-9.:-]` get colons
  *    replaced with `__` (double underscore) for human readability.
  *    Addresses containing `_` skip this tier to keep the encoding
  *    collision-free (`__` can only appear from colon replacement).
- * 3. Everything else is url-safe base64-encoded with a `b64-` prefix.
+ * 4. Everything else is url-safe base64-encoded with a `b64-` prefix.
  */
 export function agentHostAuthority(address: string): string {
 	const normalized = normalizeRemoteAgentHostAddress(address);
+	if (normalized === 'local') {
+		return REMOTE_LOCAL_AGENT_HOST_AUTHORITY;
+	}
 	if (/^[a-zA-Z0-9]+$/.test(normalized)) {
 		return normalized;
 	}
 	if (/^[a-zA-Z0-9.:\-]+$/.test(normalized)) {
 		return normalized.replaceAll(':', '__');
 	}
-	return 'b64-' + encodeBase64(VSBuffer.fromString(normalized), false, true);
+	return `b64-${encodeBase64(VSBuffer.fromString(normalized), false, true)}`;
 }
 
 /**
- * Label formatter for {@link AGENT_HOST_SCHEME} URIs. Strips the two
- * leading path segments (`/scheme/authority`) to display the original
- * file path.
+ * Authority of the in-process agent host. It always runs on the same
+ * machine — and therefore the same operating system — as the client.
+ */
+export const LOCAL_AGENT_HOST_AUTHORITY = 'local';
+
+/**
+ * Fallback label formatter for {@link AGENT_HOST_SCHEME} URIs of hosts
+ * whose operating system is unknown. The URI path is already the original
+ * resource path, so the label is the path verbatim.
+ *
+ * Deliberately lossless: without knowing the host's operating system,
+ * neither `\` separators nor drive letter normalization can be applied
+ * safely, since `/c:/repo/a.ts` is a valid POSIX path too and rendering it
+ * as `C:/repo/a.ts` would name a different resource. Hosts whose operating
+ * system is known get {@link agentHostLabelFormatter} instead.
  */
 export const AGENT_HOST_LABEL_FORMATTER: ResourceLabelFormatter = {
 	scheme: AGENT_HOST_SCHEME,
 	formatting: {
 		label: '${path}',
 		separator: '/',
-		stripPathSegments: 2,
 	},
 };
+
+/**
+ * Label formatter for {@link AGENT_HOST_SCHEME} URIs of an agent host whose
+ * operating system is known, so its paths render the way they do natively
+ * on that host (`C:\a\b` instead of `/c:/a/b`). This matters because such
+ * URIs are shown side by side with plain `file:` URIs — for example as the
+ * original side of a diff — which are always rendered natively.
+ *
+ * Registered per authority since the operating system cannot be derived
+ * from the client: a Windows client may be connected to a POSIX host.
+ */
+export function agentHostLabelFormatter(authority: string, os: OperatingSystem): ResourceLabelFormatter {
+	const isWindows = os === OperatingSystem.Windows;
+	return {
+		scheme: AGENT_HOST_SCHEME,
+		authority,
+		formatting: {
+			label: '${path}',
+			separator: isWindows ? '\\' : '/',
+			normalizeDriveLetter: isWindows,
+		},
+	};
+}
