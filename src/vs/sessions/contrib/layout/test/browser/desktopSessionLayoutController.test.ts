@@ -309,6 +309,7 @@ suite('LayoutController (desktop)', () => {
 		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
 
 		harness.setPartHiddenCalls = [];
+		const sashResetStateClearsBeforeSwitch = harness.clearEditorPartSashResetStateCalls;
 		harness.activeSessionObs.set(sessionB, undefined);
 		harness.visibleSessionsObs.set([sessionB], undefined);
 		await timeout(0);
@@ -318,10 +319,12 @@ suite('LayoutController (desktop)', () => {
 			detailVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 			visibilityRestores: harness.setPartHiddenCalls.filter(call =>
 				call.part === Parts.EDITOR_PART || call.part === Parts.AUXILIARYBAR_PART),
+			sashResetStateClears: harness.clearEditorPartSashResetStateCalls - sashResetStateClearsBeforeSwitch,
 		}, {
 			editorVisible: true,
 			detailVisible: false,
 			visibilityRestores: [],
+			sashResetStateClears: 1,
 		});
 	});
 

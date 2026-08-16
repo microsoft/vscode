@@ -83,9 +83,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 	}
 
 	private _registerEmptyGroupClose(): void {
-		// This listener is registered before detail synchronization, so the last-editor
-		// removal closes the whole side pane before an empty group can transiently hide
-		// Details and make its combined width look like a pure Editor width.
+		// Close the whole pane before detail synchronization can persist its combined width as Editor-only.
 		this._register(this._editorService.onDidEditorsChange(event => {
 			if (!event || event.event.kind !== GroupModelChangeKind.EDITOR_CLOSE) {
 				return;

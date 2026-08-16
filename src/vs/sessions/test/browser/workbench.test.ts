@@ -813,8 +813,7 @@ suite('Sessions - Workbench', () => {
 	});
 
 	test('_savePartSizes preserves the last valid editor width after the detail-only node closes (single-pane)', () => {
-		// Regression: after the detail-only node closes, its 300px cached visible size
-		// is not an editor-content width and must not replace the last valid width.
+		// The cached detail-only node width must not replace the last valid Editor-content width.
 		const stored: Record<string, string> = {};
 		const editorView = {}, sessionsView = {}, sideBarView = {}, auxView = {}, panelView = {};
 		const viewSizes = new Map<object, IViewSize>([
@@ -855,6 +854,41 @@ suite('Sessions - Workbench', () => {
 		assert.strictEqual(sizes.editor, 520);
 	});
 
+	test('_savePartSizes uses the cached hidden Editor width in classic layout', () => {
+		const stored: Record<string, string> = {};
+		const editorView = {}, sessionsView = {}, sideBarView = {}, auxView = {}, panelView = {};
+		const viewSizes = new Map<object, IViewSize>([
+			[editorView, { width: 850, height: 700 }],
+			[sessionsView, { width: 632, height: 700 }],
+			[sideBarView, { width: 300, height: 700 }],
+			[auxView, { width: 300, height: 700 }],
+			[panelView, { width: 1000, height: 200 }],
+		]);
+		const host = {
+			editorPartView: editorView,
+			sessionsPartView: sessionsView,
+			sideBarPartView: sideBarView,
+			auxiliaryBarPartView: auxView,
+			panelPartView: panelView,
+			partVisibility: { sidebar: true, auxiliaryBar: false, editor: false, panel: false, sessions: true },
+			_savedPartSizes: { editor: 520 },
+			_dockedAuxiliaryBarWidth: 0,
+			_memento: new DockedEditorSizeMemento(),
+			logService: undefined,
+			workbenchGrid: {
+				getViewSize: (view: object) => viewSizes.get(view) ?? { width: 0, height: 0 },
+				getViewCachedVisibleSize: (view: object) => viewSizes.get(view)?.width,
+			},
+			storageService: { store: (key: string, value: string) => { stored[key] = value; } },
+		};
+		Object.setPrototypeOf(host, Workbench.prototype);
+
+		savePartSizes.call(host as unknown as ISavePartSizesTestHarness);
+
+		const sizes = JSON.parse(stored['workbench.sessions.partSizes']);
+		assert.strictEqual(sizes.editor, 850);
+	});
+
 
 	test('showing docked detail with hidden editor restores the preferred detail width instead of cached node width', () => {
 		const host = createHost({ single: true, editorWidth: 640, dockedWidth: 300, partVisibility: { editor: false, auxiliaryBar: false } });
@@ -875,6 +909,26 @@ suite('Sessions - Workbench', () => {
 			visibilityChanges: [true],
 			events: [{ partId: Parts.AUXILIARYBAR_PART, visible: true }],
 			layoutCount: 1,
+		});
+	});
+
+	test('showing Details during restore uses the latest live Editor-only sash width', () => {
+		const host = createHost({ single: true, editorWidth: 900, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: false } });
+		host._savedPartSizes = { editor: 600 };
+
+		onEditorNodeResized.call(host, 900);
+		host._editorPartAutoVisibilitySuppressionCount++;
+		setAuxiliaryBarHidden.call(host, false);
+		host._editorPartAutoVisibilitySuppressionCount--;
+
+		assert.deepStrictEqual({
+			savedEditorWidth: host._savedPartSizes.editor,
+			editorNodeWidth: host.workbenchGrid.getViewSize(host.editorPartView).width,
+			resizes: host.resizes,
+		}, {
+			savedEditorWidth: 900,
+			editorNodeWidth: 1200,
+			resizes: [{ width: 1200, height: 800 }],
 		});
 	});
 
@@ -1440,6 +1494,22 @@ suite('Sessions - Workbench', () => {
 		}, {
 			restoreEqualSplitOnHide: false,
 			resizes: [{ width: 1000, height: 800 }],
+		});
+	});
+
+	test('session layout restore clears the pending Details-hide reset behavior', () => {
+		const host = createHost({ single: true, sessionsWidth: 560, editorWidth: 840, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: true } });
+		SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(host);
+
+		SinglePaneWorkbench.prototype.clearEditorPartSashResetState.call(host);
+		setAuxiliaryBarHidden.call(host, true);
+
+		assert.deepStrictEqual({
+			restoreEqualSplitOnHide: host._restoreEqualSplitOnDetailsHide,
+			resizes: host.resizes,
+		}, {
+			restoreEqualSplitOnHide: false,
+			resizes: [{ width: 560, height: 800 }],
 		});
 	});
 

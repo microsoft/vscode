@@ -115,6 +115,10 @@ export class SinglePaneWorkbench extends Workbench {
 		return Math.round(this._dockedAuxiliaryBarWidth + (totalWidth - this._dockedAuxiliaryBarWidth) / 2);
 	}
 
+	override clearEditorPartSashResetState(): void {
+		this._restoreEqualSplitOnDetailsHide = false;
+	}
+
 	/** Re-layouts the docked auxiliary bar, which the editor part owns. */
 	private _layoutDockedAuxBar(): void {
 		(this.editorGroupService.mainPart as SinglePaneMainEditorPart).layoutDockedAuxiliaryBar();
@@ -255,11 +259,24 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	protected override _onGridDidChange(): void {
-		this._syncEditorVisibility(this.workbenchGrid.getViewSize(this.editorPartView).width);
+		const nodeWidth = this.workbenchGrid.getViewSize(this.editorPartView).width;
+		this._rememberEditorContentWidth(nodeWidth);
+		this._syncEditorVisibility(nodeWidth);
 	}
 
 	protected override _onEditorNodeResized(nodeWidth: number): void {
+		this._rememberEditorContentWidth(nodeWidth);
 		this._syncEditorVisibility(nodeWidth);
+	}
+
+	private _rememberEditorContentWidth(nodeWidth: number): void {
+		if (this._syncingEditorVisibility || this._isEditorPartAutoVisibilitySuppressed || !this.partVisibility.editor) {
+			return;
+		}
+		const editorWidth = this._persistedEditorWidth(nodeWidth);
+		if (editorWidth !== undefined && editorWidth >= EDITOR_PART_MINIMUM_WIDTH) {
+			this._savedPartSizes = { ...this._savedPartSizes, editor: editorWidth };
+		}
 	}
 
 	protected override _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
@@ -363,8 +380,7 @@ export class SinglePaneWorkbench extends Workbench {
 		);
 
 		if (hidden) {
-			// Hiding Editor while Details remains visible transitions the shared node to
-			// detail-only, so remember its combined width before shrinking it.
+			// Preserve the combined width before shrinking the shared node to Details-only.
 			if (this.partVisibility.auxiliaryBar) {
 				this._memento.dockedEditorSizeBeforeHide = this.workbenchGrid.getViewSize(this.editorPartView);
 				this.workbenchGrid.resizeView(this.editorPartView, {

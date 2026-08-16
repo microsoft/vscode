@@ -248,6 +248,8 @@ export interface IDockedEditorLayout {
 	setDockedAuxiliaryBarWidth(width: number): void;
 	/** Returns the preferred editor-part width for an outer sash reset. */
 	getPreferredEditorPartWidth(): number | undefined;
+	/** Clears transient outer-sash reset behavior before applying a session layout. */
+	clearEditorPartSashResetState(): void;
 }
 
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
@@ -853,7 +855,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// grid size can be the 300px detail-only node even after the whole side pane
 		// closes, while a sub-minimum measurement can also come from a transient
 		// sessions-part squeeze. Preserve the last valid editor-content width instead.
-		if (!this.partVisibility.editor || editorWidth === undefined || editorWidth < EDITOR_PART_MINIMUM_WIDTH) {
+		if ((this.isSinglePaneLayoutEnabled && !this.partVisibility.editor) || editorWidth === undefined || editorWidth < EDITOR_PART_MINIMUM_WIDTH) {
 			editorWidth = savedEditorWidth;
 		} else {
 			// Track the latest good width so a later shutdown-time squeeze falls back to it.
@@ -1922,6 +1924,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	getPreferredEditorPartWidth(): number | undefined {
 		return undefined;
 	}
+
+	clearEditorPartSashResetState(): void { }
 
 	private layoutMobileSidebar(): void {
 		const sidebarContainer = this.getContainer(mainWindow, Parts.SIDEBAR_PART);
