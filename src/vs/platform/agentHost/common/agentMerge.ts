@@ -57,11 +57,17 @@ export interface AgentMergeTarget {
 	readonly commentWatermark: string;
 }
 
+export interface AgentMergeReviewThreadContext {
+	readonly id: string;
+	readonly path?: string;
+	readonly line?: number;
+	readonly author?: string;
+	readonly body: string;
+}
+
 export interface AgentMergeInjectedConfiguration {
-	readonly previousMode?: string;
-	readonly previousAutoApprove?: string;
-	readonly mode?: string;
-	readonly autoApprove?: string;
+	readonly previous: Readonly<Record<string, unknown>>;
+	readonly applied: Readonly<Record<string, unknown>>;
 }
 
 export interface AgentMergeSessionState {
@@ -149,7 +155,7 @@ export interface AgentMergePromptContext {
 	readonly headSha: string;
 	readonly baseRef: string;
 	readonly headRef: string;
-	readonly reviewThreadIds: readonly string[];
+	readonly reviewThreads: readonly AgentMergeReviewThreadContext[];
 	readonly reviewSummaries: readonly string[];
 	readonly newComments: readonly string[];
 	readonly failedChecks: readonly string[];
@@ -231,16 +237,10 @@ function readTarget(value: unknown): AgentMergeTarget | undefined {
 }
 
 function readInjectedConfiguration(value: unknown): AgentMergeInjectedConfiguration | undefined {
-	if (!isRecord(value)) {
+	if (!isRecord(value) || !isRecord(value.previous) || !isRecord(value.applied)) {
 		return undefined;
 	}
-	const result: Record<string, string> = {};
-	for (const key of ['previousMode', 'previousAutoApprove', 'mode', 'autoApprove'] as const) {
-		if (typeof value[key] === 'string') {
-			result[key] = value[key];
-		}
-	}
-	return Object.keys(result).length > 0 ? result : undefined;
+	return { previous: value.previous, applied: value.applied };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -298,7 +298,16 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 		headSha: core.value.headSha,
 		baseRef: core.value.baseRef,
 		headRef: core.value.headRef,
-		reviewThreadIds: reviewThreads.map(thread => thread.id),
+		reviewThreads: reviewThreads.slice(0, 20).map(thread => {
+			const comment = thread.comments.find(candidate => isAgentMergeFeedbackAuthor(candidate.author));
+			return {
+				id: thread.id,
+				...(thread.path ? { path: thread.path } : {}),
+				...(thread.line !== undefined ? { line: thread.line } : {}),
+				...(comment?.author?.login ? { author: comment.author.login } : {}),
+				body: (comment?.body ?? '').slice(0, 1_000),
+			};
+		}),
 		reviewSummaries: changesRequested.map(review => review.body ?? `Changes requested by ${review.author?.login ?? 'reviewer'}`),
 		newComments: newComments.map(comment => comment.body ?? `Comment by ${comment.author?.login ?? 'reviewer'}`),
 		failedChecks: checks.failed.map(check => check.name),

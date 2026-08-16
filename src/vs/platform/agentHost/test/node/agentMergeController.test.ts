@@ -9,7 +9,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../common/agentMerge.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
@@ -38,7 +38,13 @@ suite('AgentMergeController', () => {
 		}();
 		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
 		disposables.add(new AgentMergeController(
-			{ startTurn: () => false },
+			{
+				startTurn: () => false,
+				getAutonomousSessionConfig: () => ({
+					[SessionConfigKey.Mode]: 'autopilot',
+					[SessionConfigKey.AutoApprove]: 'assisted',
+				}),
+			},
 			stateManager,
 			configurationService,
 			gitStateService,
@@ -85,10 +91,14 @@ suite('AgentMergeController', () => {
 				agentMerge: {
 					enabled: true,
 					injectedConfiguration: {
-						previousMode: 'interactive',
-						previousAutoApprove: 'default',
-						mode: 'autopilot',
-						autoApprove: 'assisted',
+						previous: {
+							[SessionConfigKey.Mode]: 'interactive',
+							[SessionConfigKey.AutoApprove]: 'default',
+						},
+						applied: {
+							[SessionConfigKey.Mode]: 'autopilot',
+							[SessionConfigKey.AutoApprove]: 'assisted',
+						},
 					},
 				},
 			},
@@ -142,9 +152,8 @@ suite('AgentMergeController', () => {
 			mode: 'autopilot',
 			autoApprove: 'default',
 			injected: {
-				previousMode: 'interactive',
-				previousAutoApprove: 'default',
-				mode: 'autopilot',
+				previous: { [SessionConfigKey.Mode]: 'interactive' },
+				applied: { [SessionConfigKey.Mode]: 'autopilot' },
 			},
 		});
 	});
@@ -164,7 +173,15 @@ suite('AgentMergeController', () => {
 		}();
 		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
 		disposables.add(new AgentMergeController(
-			{ startTurn: () => false },
+			{
+				startTurn: () => false,
+				getAutonomousSessionConfig: () => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
+					? { [SessionConfigKey.Mode]: 'autopilot' }
+					: {
+						[SessionConfigKey.Mode]: 'autopilot',
+						[SessionConfigKey.AutoApprove]: 'assisted',
+					},
+			},
 			stateManager,
 			configurationService,
 			gitStateService,

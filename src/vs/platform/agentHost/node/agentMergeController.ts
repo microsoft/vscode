@@ -16,7 +16,6 @@ import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentMergeAction, AgentMergeConfigKey, AgentMergeConfiguration, AgentMergePromptContext, AgentMergeSessionState, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
@@ -34,6 +33,7 @@ const maximumTotalPromptCount = 6;
 
 interface IAgentMergeControllerOptions {
 	readonly startTurn: (session: string, turnId: string, prompt: string) => boolean;
+	readonly getAutonomousSessionConfig: (session: string, config: Readonly<Record<string, unknown>>) => Record<string, unknown> | undefined;
 }
 
 class AgentMergeRuntime extends Disposable {
@@ -89,6 +89,7 @@ export class AgentMergeController extends Disposable {
 			void this._completeTurn(event.session);
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => this._stopRuntime(session)));
+		this._register(this._gitStateService.onDidRefreshSessionGitState(session => this._schedule(session, 0)));
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._schedule(session, 0)));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			for (const session of this._stateManager.getSessionUris()) {
@@ -176,20 +177,20 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		const values = this._configurationService.getSessionConfigValues(session) ?? {};
-		const mode = values[SessionConfigKey.Mode];
-		const autoApprove = values[SessionConfigKey.AutoApprove];
-		const autoApprovePolicyRestricted = this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true;
-		const injectedConfiguration = {
-			...(typeof mode === 'string' ? { previousMode: mode } : {}),
-			...(typeof autoApprove === 'string' ? { previousAutoApprove: autoApprove } : {}),
-			mode: 'autopilot',
-			...(!autoApprovePolicyRestricted ? { autoApprove: 'assisted' } : {}),
-		};
-		this._logService.info(`[AgentMergeController] Applying autonomous session configuration: session=${session}, mode=autopilot, approvals=${autoApprovePolicyRestricted ? 'unchanged-policy-restricted' : 'assisted'}`);
+		const applied = this._options.getAutonomousSessionConfig(session, values);
+		if (!applied || Object.keys(applied).length === 0) {
+			this._logService.debug(`[AgentMergeController] Provider did not select autonomous session configuration: session=${session}`);
+			return;
+		}
+		const previous: Record<string, unknown> = {};
+		for (const key of Object.keys(applied)) {
+			previous[key] = values[key];
+		}
+		const injectedConfiguration = { previous, applied };
+		this._logService.info(`[AgentMergeController] Applying provider-selected autonomous session configuration: session=${session}, keys=${Object.keys(applied).sort().join(',')}`);
 		this._configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeController]: toControllerState(agentMerge, { injectedConfiguration }),
-			[SessionConfigKey.Mode]: injectedConfiguration.mode,
-			...(injectedConfiguration.autoApprove ? { [SessionConfigKey.AutoApprove]: injectedConfiguration.autoApprove } : {}),
+			...applied,
 		});
 	}
 
@@ -242,7 +243,7 @@ export class AgentMergeController extends Disposable {
 		const runtime = this._runtimes.get(session);
 		const state = this._stateManager.getSessionState(session);
 		const agentMerge = readAgentMergeSessionState(state?.config?.values);
-		if (!runtime || !state || !agentMerge?.enabled || state.activeTurn) {
+		if (!runtime || !state || !agentMerge?.enabled || this._stateManager.hasActiveTurn(session)) {
 			return;
 		}
 		const gitState = readSessionGitState(state._meta);
@@ -270,6 +271,10 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		const refreshedState = this._stateManager.getSessionState(session);
+		if (!this._hasTargetBranch(refreshedState, target.branchName)) {
+			this._disable(session, agentMerge, 'the checked-out branch changed while pull request state was refreshing');
+			return;
+		}
 		const gitHubState = readSessionGitHubState(refreshedState?._meta);
 		const pullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0];
 		if (!target.pullRequestUrl) {
@@ -346,7 +351,7 @@ export class AgentMergeController extends Disposable {
 					commentWatermark: gate.context.commentWatermark,
 				};
 				if (!this._isCurrentRuntime(session, runtime)
-					|| this._stateManager.getSessionState(session)?.activeTurn
+					|| this._stateManager.hasActiveTurn(session)
 					|| !this._options.startTurn(session, turnId, buildAgentMergePrompt(gate.actions, gate.context))) {
 					this._logService.debug(`[AgentMergeController] Repair turn was not claimed because the session became busy or stopped: session=${session}`);
 					runtime.backstopScheduler.schedule();
@@ -458,7 +463,7 @@ export class AgentMergeController extends Disposable {
 		}
 		const preparation = await this._gitHubService.mutations.prepareMerge(ref, headSha, runtime.abortController.signal);
 		this._logService.debug(`[AgentMergeController] Native merge preparation completed: session=${session}`);
-		if (!this._isCurrentRuntime(session, runtime) || this._stateManager.getSessionState(session)?.activeTurn) {
+		if (!this._isCurrentRuntime(session, runtime) || this._stateManager.hasActiveTurn(session) || !this._hasTargetBranch(this._stateManager.getSessionState(session), agentMerge.target!.branchName)) {
 			runtime.backstopScheduler.schedule();
 			return;
 		}
@@ -546,11 +551,10 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		const values = this._configurationService.getSessionConfigValues(session) ?? {};
-		if (values[SessionConfigKey.Mode] === injected.mode && injected.previousMode !== undefined) {
-			patch[SessionConfigKey.Mode] = injected.previousMode;
-		}
-		if (values[SessionConfigKey.AutoApprove] === injected.autoApprove && injected.previousAutoApprove !== undefined) {
-			patch[SessionConfigKey.AutoApprove] = injected.previousAutoApprove;
+		for (const [key, appliedValue] of Object.entries(injected.applied)) {
+			if (structuralEquals(values[key], appliedValue)) {
+				patch[key] = injected.previous[key];
+			}
 		}
 	}
 
@@ -562,10 +566,14 @@ export class AgentMergeController extends Disposable {
 		}
 	}
 
+	private _hasTargetBranch(state: ReturnType<AgentHostStateManager['getSessionState']>, branchName: string): boolean {
+		return readSessionGitState(state?._meta)?.branchName === branchName;
+	}
+
 	private _logGateResult(session: string, gate: ReturnType<typeof evaluateAgentMerge>): void {
 		switch (gate.kind) {
 			case 'prompt':
-				this._logService.debug(`[AgentMergeController] Gate selected repair: session=${session}, actions=${gate.actions.join(',')}, reviewThreads=${gate.context.reviewThreadIds.length}, reviewSummaries=${gate.context.reviewSummaries.length}, newComments=${gate.context.newComments.length}, failedChecks=${gate.context.failedChecks.length}, behind=${gate.context.behind}, conflicting=${gate.context.conflicting}`);
+				this._logService.debug(`[AgentMergeController] Gate selected repair: session=${session}, actions=${gate.actions.join(',')}, reviewThreads=${gate.context.reviewThreads.length}, reviewSummaries=${gate.context.reviewSummaries.length}, newComments=${gate.context.newComments.length}, failedChecks=${gate.context.failedChecks.length}, behind=${gate.context.behind}, conflicting=${gate.context.conflicting}`);
 				break;
 			case 'merge':
 				this._logService.debug(`[AgentMergeController] Gate selected native merge: session=${session}`);
@@ -635,7 +643,7 @@ function buildAgentMergePrompt(actions: readonly AgentMergeAction[], context: Ag
 		`Title: ${context.title}`,
 		`Head: ${context.headRef} (${context.headSha})`,
 		`Base: ${context.baseRef}`,
-		`Unresolved authorized review threads: ${context.reviewThreadIds.join(', ') || 'none'}`,
+		`Unresolved authorized review threads:\n${formatReviewThreads(context.reviewThreads)}`,
 		`Changes-requested reviews: ${truncatePromptItems(context.reviewSummaries)}`,
 		`New authorized comments: ${truncatePromptItems(context.newComments)}`,
 		`Failed required checks: ${context.failedChecks.join(', ') || 'none'}`,
@@ -661,6 +669,18 @@ function truncatePromptItems(values: readonly string[]): string {
 		return 'none';
 	}
 	return values.map(value => value.slice(0, maximumPromptCommentLength)).join('\n---\n');
+}
+
+function formatReviewThreads(threads: AgentMergePromptContext['reviewThreads']): string {
+	if (threads.length === 0) {
+		return 'none';
+	}
+	return threads.map(thread => [
+		`Thread ${thread.id}`,
+		...(thread.path ? [`File: ${thread.path}${thread.line !== undefined ? `:${thread.line}` : ''}`] : []),
+		...(thread.author ? [`Author: ${thread.author}`] : []),
+		`Feedback: ${thread.body || '(no body)'}`,
+	].join('\n')).join('\n---\n');
 }
 
 function toControllerState(current: AgentMergeSessionState, patch: Partial<AgentMergeSessionState>): Omit<AgentMergeSessionState, 'enabled' | 'overrides'> {

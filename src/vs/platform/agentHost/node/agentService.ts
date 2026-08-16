@@ -599,6 +599,7 @@ export class AgentService extends Disposable implements IAgentService {
 		services.set(IAgentHostGitStateService, this._gitStateService);
 		this._agentMergeController = this._register(instantiationService.createInstance(AgentMergeController, {
 			startTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
+			getAutonomousSessionConfig: (session, config) => this._findProviderForSession(session)?.getAutonomousSessionConfig?.(config),
 		}));
 
 		this._checkpointService = this._register(instantiationService.createInstance(AgentHostCheckpointService));
@@ -1050,7 +1051,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _startAgentMergePrompt(session: string, turnId: string, prompt: string): boolean {
-		if (this._stateManager.getSessionState(session)?.activeTurn) {
+		if (this._stateManager.hasActiveTurn(session)) {
 			return false;
 		}
 		const chat = buildDefaultChatUri(session).toString();

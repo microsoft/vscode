@@ -67,7 +67,7 @@ Pull-request identity uses the Agent Host's configured GitHub host. Never canoni
 
 ## Agent Merge
 
-Agent Merge is a provider-neutral Agent Host controller. Copilot, Claude, and Codex use the same persisted session state, pull-request subscription, readiness gate, system-initiated repair turn, scoped GitHub tools, and native merge executor.
+Agent Merge is a provider-neutral Agent Host controller. Copilot, Claude, and Codex use the same persisted session state, pull-request subscription, readiness gate, system-initiated repair turn, scoped GitHub tools, and native merge executor. The controller does not encode provider approval keys: the owning `IAgent` selects the provider-native autonomous configuration to apply and the controller records and conditionally restores that patch.
 
 The client owns only enablement and per-session action overrides under session config. The host owns the bound branch and pull request, comment watermark, injected permission-mode state, deduplication fingerprint, and retry count under a separate host-only config value. Both values survive session restore; provider config never receives either value.
 
@@ -75,9 +75,9 @@ Agent Merge's session config names are well-known `SessionConfigKey` values alon
 
 Global `chat.agentHost.agentMerge.*` settings are mirrored into Agent Host root config and apply live. A session can override address-reviews, fix-CI, resolve-conflicts, and merge actions, or reset to the global defaults. Enabling Agent Merge injects Autopilot mode and Assisted approvals unless managed policy forbids elevated approval modes. Disabling restores each value only while it still equals the injected value, preserving later manual changes.
 
-The controller subscribes to the reusable platform GitHub service at background priority and uses a 10-minute safety backstop. A pure, fail-closed gate starts a model turn only for authorized maintainer or Copilot review feedback, failed required checks, conflicts, or a behind branch. Pending checks do not start a turn. Repeated identical work and total autonomous repair attempts are bounded. A branch or pull-request identity change disables the controller and requires explicit re-enablement.
+The controller subscribes to the reusable platform GitHub service at background priority and uses a 10-minute safety backstop. A pure, fail-closed gate starts a model turn only for authorized maintainer or Copilot review feedback, failed required checks, conflicts, or a behind branch. Authorized unresolved inline threads include bounded body, file, line, author, and thread identity in the prompt so the agent can act without an unrestricted GitHub read surface. Pending checks do not start a turn. Repeated identical work and total autonomous repair attempts are bounded. Git-state refreshes immediately revalidate the bound branch, including after asynchronous PR attachment and merge preparation; a branch or pull-request identity change disables the controller and requires explicit re-enablement.
 
-Repair turns receive only pull-request-bound tools for failed CI details, attributed review-thread replies and resolution, and failed-workflow reruns. Pull-request feedback and CI content remain untrusted. The agent is never authorized to merge. The controller performs a fresh readiness check and then directly merges or enqueues through the GitHub service.
+Repair turns receive only pull-request-bound tools for failed CI details, attributed review-thread replies and resolution, and failed-workflow reruns. Pull-request feedback and CI content remain untrusted. The agent is never authorized to merge. The controller claims a turn only while no chat in the session has an active turn, performs a fresh readiness check, and then directly merges or enqueues through the GitHub service.
 
 The Agents Window initially exposes command-palette actions only: enable, disable, and configure the active Agent Host session. Configure uses an accessible multi-select Quick Pick and includes reset-to-global-defaults behavior.
 
