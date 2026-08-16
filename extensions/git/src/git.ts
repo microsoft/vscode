@@ -699,7 +699,12 @@ export class Git {
 			options.cwd = sanitizePath(cwd);
 		}
 
-		return cp.spawn(this.path, args, options);
+		// Depending on the user's Git settings (i18n.commitEncoding, i18n.logOutputEncoding),
+		// commit messages may appear garbled,
+		// so the output encoding for commit messages is forced to UTF-8.
+		const spawnArgs = ['-c', 'i18n.logOutputEncoding=UTF-8', ...args];
+
+		return cp.spawn(this.path, spawnArgs, options);
 	}
 
 	private getCwd(options: SpawnOptions): string | undefined {
