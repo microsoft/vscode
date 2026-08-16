@@ -5317,14 +5317,15 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._networkDiagnostics.fetch(url);
 	}
 
-	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	async collectDebugLogs(session: URI, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._debugLogsCollector) {
 			throw new Error('Agent Host debug log collection is unavailable');
 		}
-		const providers = session
-			? [this._findProviderForSession(session)].filter((provider): provider is IAgent => provider !== undefined)
-			: [...this._providers.values()];
-		return this._debugLogsCollector.collect(providers, session, kind);
+		const provider = this._findProviderForSession(session);
+		if (!provider) {
+			throw new Error(`No Agent Host provider is available for session ${session.toString()}`);
+		}
+		return this._debugLogsCollector.collect(provider, session, kind);
 	}
 
 	async readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {

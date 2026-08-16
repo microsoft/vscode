@@ -5,7 +5,6 @@
 
 import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type ManagedSettingsResolvedData, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
-import type { Dirent } from 'fs';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
 import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
@@ -2135,62 +2134,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
-	async collectDebugLogs(session: URI | undefined, outputDirectory: URI): Promise<boolean> {
-		const liveSessions = this._allLiveSessions();
-		const target = session ? this._findSessionChat(session) : liveSessions[0];
-		if (target) {
-			await target.collectDebugLogs(outputDirectory, session !== undefined);
-			return true;
+	async collectDebugLogs(session: URI, outputDirectory: URI): Promise<boolean> {
+		const target = this._findSessionChat(session);
+		if (!target) {
+			throw new Error(`No live Copilot session is available for ${session.toString()}`);
 		}
-
-		// No live session to ask the SDK through (e.g. exporting from a window
-		// with no active chat). The process logs still live on this machine, so
-		// collect them directly rather than making the client guess their path.
-		return this._collectProcessLogs(outputDirectory);
-	}
-
-	/**
-	 * Copies the most recent Copilot process log into `copilot-logs/`. Mirrors
-	 * the newest-log fallback the SDK bundle would otherwise provide.
-	 */
-	private async _collectProcessLogs(outputDirectory: URI): Promise<boolean> {
-		const logsDirectory = join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'logs');
-		let entries: Dirent[];
-		try {
-			entries = await fs.readdir(logsDirectory, { withFileTypes: true });
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-				this._logService.warn('[Copilot] Failed to list process logs', error);
-			}
-			return false;
-		}
-
-		const candidates = await Promise.all(entries
-			.filter(entry => entry.isFile() && entry.name.endsWith('.log'))
-			.map(async entry => {
-				const path = join(logsDirectory, entry.name);
-				try {
-					return { path, name: entry.name, mtime: (await fs.stat(path)).mtimeMs };
-				} catch {
-					return undefined;
-				}
-			}));
-		const newest = candidates
-			.filter((c): c is { path: string; name: string; mtime: number } => c !== undefined)
-			.sort((a, b) => b.mtime - a.mtime)[0];
-		if (!newest) {
-			return false;
-		}
-
-		try {
-			const target = join(outputDirectory.fsPath, 'copilot-logs');
-			await fs.mkdir(target, { recursive: true });
-			await fs.copyFile(newest.path, join(target, newest.name));
-			return true;
-		} catch (error) {
-			this._logService.warn(`[Copilot] Failed to include process log ${newest.name}`, error);
-			return false;
-		}
+		await target.collectDebugLogs(outputDirectory);
+		return true;
 	}
 
 	private async _emitExtHostChats(): Promise<void> {

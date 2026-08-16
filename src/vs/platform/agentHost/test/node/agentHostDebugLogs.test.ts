@@ -17,6 +17,7 @@ import { AgentHostDebugLogsCollector } from '../../node/agentHostDebugLogs.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES } from '../../common/agentService.js';
 
 suite('AgentHostDebugLogsCollector', () => {
+	const emptyProvider = { id: 'test', collectDebugLogs: async () => false };
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let testRoot: string;
@@ -40,13 +41,13 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService()));
 
-		const result = await collector.collect([{
+		const result = await collector.collect({
 			id: 'test',
 			collectDebugLogs: async (_session, outputDirectory) => {
 				await writeFile(join(outputDirectory.fsPath, 'events.jsonl'), 'event');
 				return true;
 			},
-		}], URI.parse('test:/session-1'), 'archive');
+		}, URI.parse('test:/session-1'), 'archive');
 
 		assert.deepStrictEqual({
 			kind: result.kind,
@@ -75,7 +76,7 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService()));
 
-		await assert.rejects(collector.collect([{
+		await assert.rejects(collector.collect({
 			id: 'test',
 			collectDebugLogs: async (_session, outputDirectory) => {
 				// A directory artifact is copied file-by-file, so its total
@@ -88,7 +89,7 @@ suite('AgentHostDebugLogsCollector', () => {
 				}
 				return true;
 			},
-		}], undefined, 'directory'), /Agent Host debug logs are too large/);
+		}, URI.parse('test:/session-1'), 'directory'), /Agent Host debug logs are too large/);
 		assert.deepStrictEqual(await readdir(outputRoot), []);
 	});
 
@@ -102,14 +103,14 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService()));
 
-		const artifact = await collector.collect([{
+		const artifact = await collector.collect({
 			id: 'test',
 			collectDebugLogs: async (_session, outputDirectory) => {
 				// Incompressible, so the resulting archive spans several chunks.
 				await writeFile(join(outputDirectory.fsPath, 'events.jsonl'), randomBytes(3 * 1024 * 1024));
 				return true;
 			},
-		}], undefined, 'archive');
+		}, URI.parse('test:/session-1'), 'archive');
 
 		const chunks: number[] = [];
 		let position = 0;
@@ -155,7 +156,7 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService()));
 
-		const artifact = await collector.collect([], undefined, 'directory');
+		const artifact = await collector.collect(emptyProvider, URI.parse('test:/session-1'), 'directory');
 
 		await assert.rejects(collector.readArtifactChunk(artifact.resource, 0), /Unknown or expired/);
 	});
@@ -170,7 +171,7 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService()));
 
-		const result = await collector.collect([{
+		const result = await collector.collect({
 			id: 'test',
 			collectDebugLogs: async (_session, outputDirectory) => {
 				// Highly compressible, like real log text: together these exceed
@@ -181,7 +182,7 @@ suite('AgentHostDebugLogsCollector', () => {
 				}
 				return true;
 			},
-		}], undefined, 'archive');
+		}, URI.parse('test:/session-1'), 'archive');
 
 		assert.deepStrictEqual({
 			uncompressedOverLimit: result.uncompressedSize > AGENT_HOST_DEBUG_LOGS_MAX_BYTES,
@@ -204,13 +205,13 @@ suite('AgentHostDebugLogsCollector', () => {
 
 		const head = Buffer.alloc(AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES, 'A');
 		const tail = Buffer.from('THE-INTERESTING-END');
-		const artifact = await collector.collect([{
+		const artifact = await collector.collect({
 			id: 'test',
 			collectDebugLogs: async (_session, outputDirectory) => {
 				await writeFile(join(outputDirectory.fsPath, 'huge.log'), Buffer.concat([head, tail]));
 				return true;
 			},
-		}], undefined, 'archive');
+		}, URI.parse('test:/session-1'), 'archive');
 
 		const kept = await buffer(artifact.resource.fsPath, 'huge.log');
 		assert.deepStrictEqual({
@@ -220,6 +221,23 @@ suite('AgentHostDebugLogsCollector', () => {
 			cappedToLimit: true,
 			keptTheTail: 'THE-INTERESTING-END',
 		});
+	});
+
+	test('propagates provider collection failures and cleans staging', async () => {
+		const logsHome = join(testRoot, 'logs');
+		const outputRoot = join(testRoot, 'tmp');
+		await mkdir(logsHome, { recursive: true });
+		await mkdir(outputRoot, { recursive: true });
+		const collector = disposables.add(new AgentHostDebugLogsCollector({
+			logsHome: URI.file(logsHome),
+			tmpDir: URI.file(outputRoot),
+		}, new NullLogService()));
+
+		await assert.rejects(collector.collect({
+			id: 'test',
+			collectDebugLogs: async () => { throw new Error('SDK collection failed'); },
+		}, URI.parse('test:/session-1'), 'archive'), /SDK collection failed/);
+		assert.deepStrictEqual(await readdir(outputRoot), []);
 	});
 
 	test('expires an abandoned artifact', async () => {
@@ -232,7 +250,7 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService(), 5));
 
-		await collector.collect([], undefined, 'directory');
+		await collector.collect(emptyProvider, URI.parse('test:/session-1'), 'directory');
 		await timeout(20);
 
 		assert.deepStrictEqual(await readdir(outputRoot), []);
@@ -248,7 +266,7 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService()));
 
-		await collector.collect([], undefined, 'directory');
+		await collector.collect(emptyProvider, URI.parse('test:/session-1'), 'directory');
 		collector.dispose();
 		await timeout(20);
 

@@ -37,7 +37,7 @@ export class AgentHostDebugLogsCollector extends Disposable {
 		this._register(toDisposable(() => void this.cleanup()));
 	}
 
-	async collect(providers: readonly DebugLogsProvider[], session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	async collect(provider: DebugLogsProvider, session: URI, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
 		const id = generateUuid();
 		const staging = join(this._environment.tmpDir.fsPath, `agent-host-debug-logs-${id}`);
 		await mkdir(staging, { recursive: true });
@@ -46,15 +46,11 @@ export class AgentHostDebugLogsCollector extends Disposable {
 		let retainStaging = false;
 		const archive = join(this._environment.tmpDir.fsPath, `agent-host-debug-logs-${id}.zip`);
 		try {
-			for (const provider of providers) {
-				if (!provider.collectDebugLogs) {
-					continue;
-				}
-				try {
-					providerLogsIncluded = await provider.collectDebugLogs(session, URI.file(staging)) || providerLogsIncluded;
-				} catch (error) {
-					this._logService.warn(`[AgentHostDebugLogs] Failed to collect ${provider.id} logs`, error);
-				}
+			if (provider.collectDebugLogs) {
+				// An implemented provider contributor is part of this collection,
+				// so its failure must fail the export. Providers without additional
+				// diagnostics still get the Agent Host process log below.
+				providerLogsIncluded = await provider.collectDebugLogs(session, URI.file(staging));
 			}
 
 			await this._copyOptional(

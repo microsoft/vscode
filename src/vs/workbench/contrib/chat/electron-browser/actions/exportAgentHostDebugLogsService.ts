@@ -58,9 +58,6 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 				// The archive lives on a remote agent host. Stream it down in
 				// bounded chunks rather than pulling the whole thing over in a
 				// single protocol message.
-				if (!readChunk) {
-					throw new Error('Connected Agent Host cannot stream its debug-log archive');
-				}
 				localHostArchive = joinPath(this.environmentService.tmpDir, `agent-host-debug-logs-${generateUuid()}.zip`);
 				temporaryHostArchive = localHostArchive;
 				await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, readChunk));

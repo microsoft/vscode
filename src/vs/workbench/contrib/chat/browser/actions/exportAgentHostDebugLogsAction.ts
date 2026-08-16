@@ -14,7 +14,7 @@ import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -69,8 +69,7 @@ export interface IAgentHostDebugLogsExport {
  */
 export interface IAgentHostDebugLogsHostArtifact {
 	readonly artifact: IAgentHostDebugLogsArtifact;
-	/** Absent when the connected host predates chunked artifact reads. */
-	readonly readChunk?: (position: number) => Promise<IAgentHostDebugLogsChunk>;
+	readonly readChunk: (position: number) => Promise<IAgentHostDebugLogsChunk>;
 }
 
 export const IAgentHostDebugLogsExportService = createDecorator<IAgentHostDebugLogsExportService>('agentHostDebugLogsExportService');
@@ -148,56 +147,45 @@ export function createHostArtifactStream(
  */
 export async function collectAgentHostDebugLogs(
 	accessor: ServicesAccessor,
-	activeSession: IActiveAgentHostSessionForExport | undefined,
+	activeSession: IActiveAgentHostSessionForExport,
 	onDidCreateHostArtifact: (artifact: IAgentHostDebugLogsArtifact) => void,
-): Promise<IAgentHostDebugLogsExport | undefined> {
+): Promise<IAgentHostDebugLogsExport> {
 	const agentHostService = accessor.get(IAgentHostService);
 	const agentHostConnectionsService = accessor.get(IAgentHostConnectionsService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const outputService = accessor.get(IOutputService);
 	const fileService = accessor.get(IFileService);
-	const notificationService = accessor.get(INotificationService);
 	const textModelService = accessor.get(ITextModelService);
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const exportService = accessor.get(IAgentHostDebugLogsExportService);
 
-	const sessionResolution = activeSession ? agentHostConnectionsService.resolveSessionResource(activeSession.resource) : undefined;
-	const connection = sessionResolution?.connection ?? (!activeSession ? agentHostConnectionsService.ambientConnection : undefined);
-	if (!connection?.collectDebugLogs) {
-		notificationService.notify({
-			severity: Severity.Error,
-			message: localize('exportDebugLogs.noConnection', "No Agent Host is connected, so its debug logs cannot be collected."),
-		});
-		return undefined;
+	const sessionResolution = agentHostConnectionsService.resolveSessionResource(activeSession.resource);
+	if (!sessionResolution) {
+		throw new Error(`No live Agent Host connection owns session ${activeSession.resource.toString()}`);
+	}
+	const { connection, backendSession } = sessionResolution;
+	if (!connection.collectDebugLogs) {
+		throw new Error('Connected Agent Host does not support debug-log collection');
 	}
 	// The Agent Host owns discovery and packaging of its own logs; failures
 	// surface to the user rather than being papered over by a second,
 	// path-guessing implementation on this side.
-	const hostArtifact = await connection.collectDebugLogs(sessionResolution?.backendSession, exportService.hostArtifactKind);
+	const hostArtifact = await connection.collectDebugLogs(backendSession, exportService.hostArtifactKind);
 	onDidCreateHostArtifact(hostArtifact);
 
 	// Collect all output channel IDs relevant for the current session's agent host.
 	const channelIds = new Set<string>();
 
-	// Remote agent host connection (if any), for downloading agenthost.log from the remote.
-	let remoteConnection: IRemoteAgentHostConnectionInfo | undefined;
 	let ahpLogNameFilter: ((name: string) => boolean) | undefined;
-
-	if (activeSession) {
-		if (activeSession.isLocal) {
-			const localClientId = sanitizeFilePart(agentHostService.clientId);
-			ahpLogNameFilter = name => name.includes(localClientId);
-		} else {
-			remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
-			if (remoteConnection) {
-				const remoteConnectionId = sanitizeFilePart(remoteConnection.address);
-				ahpLogNameFilter = name => name.includes(remoteConnectionId);
-			}
-		}
+	if (activeSession.isLocal) {
+		const localClientId = sanitizeFilePart(agentHostService.clientId);
+		ahpLogNameFilter = name => name.includes(localClientId);
 	} else {
-		for (const connection of remoteAgentHostService.connections) {
-			channelIds.add(remoteAgentHostLogOutputChannelId(connection.address));
+		const remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
+		if (remoteConnection) {
+			const remoteConnectionId = sanitizeFilePart(remoteConnection.address);
+			ahpLogNameFilter = name => name.includes(remoteConnectionId);
 		}
 	}
 
@@ -273,17 +261,13 @@ export async function collectAgentHostDebugLogs(
 	};
 }
 
-/**
- * Binds a connection's chunked artifact read to one artifact. Returns
- * `undefined` for hosts that do not implement it, so the caller can fall back
- * to reading the artifact through the agent-host filesystem provider.
- */
+/** Binds a connection's chunked artifact read to one artifact. */
 function createChunkReader(
 	connection: IAgentConnection,
 	resource: URI,
-): ((position: number) => Promise<IAgentHostDebugLogsChunk>) | undefined {
+): (position: number) => Promise<IAgentHostDebugLogsChunk> {
 	if (!connection.readDebugLogsChunk) {
-		return undefined;
+		throw new Error('Connected Agent Host does not support streaming debug-log artifacts');
 	}
 	return position => {
 		if (!connection.readDebugLogsChunk) {
@@ -302,12 +286,16 @@ export async function exportAgentHostDebugLogs(
 	const chatEntitlementService = accessor.get(IChatEntitlementService);
 	const fileService = accessor.get(IFileService);
 	const logService = accessor.get(ILogService);
+	if (!activeSession) {
+		notificationService.notify({
+			severity: Severity.Error,
+			message: localize('exportDebugLogs.noActiveSession', "Open an Agent Host session before exporting its debug logs."),
+		});
+		return;
+	}
 	let hostArtifact: IAgentHostDebugLogsArtifact | undefined;
 	try {
 		const logs = await collectAgentHostDebugLogs(accessor, activeSession, artifact => hostArtifact = artifact);
-		if (!logs) {
-			return;
-		}
 		try {
 			const saved = await exportService.save(logs.exportName, logs.files, logs.hostArtifact);
 			if (saved) {

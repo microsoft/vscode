@@ -1135,7 +1135,7 @@ export interface IAgent {
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
 
 	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
-	collectDebugLogs?(session: URI | undefined, outputDirectory: URI): Promise<boolean>;
+	collectDebugLogs?(session: URI, outputDirectory: URI): Promise<boolean>;
 
 	// ---- MCP and server tools -----------------------------------------------
 

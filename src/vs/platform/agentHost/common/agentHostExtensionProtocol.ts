@@ -14,7 +14,7 @@ export interface IAgentHostExtensionCommandMap {
 	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };
 	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 	[CollectAgentHostDebugLogsExtensionMethod]: {
-		params: { session?: string; kind: AgentHostDebugLogsArtifactKind };
+		params: { session: string; kind: AgentHostDebugLogsArtifactKind };
 		result: { kind: AgentHostDebugLogsArtifactKind; resource: string; providerLogsIncluded: boolean; size: number; uncompressedSize: number };
 	};
 	[ReadAgentHostDebugLogsChunkExtensionMethod]: {
