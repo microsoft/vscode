@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isActiveDocument, reset } from '../../../../base/browser/dom.js';
+import { getWindow, isActiveDocument, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
@@ -14,6 +14,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
@@ -105,6 +106,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
 		@IConfigurationService private _configurationService: IConfigurationService,
+		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
@@ -146,6 +148,16 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 					};
 
 					if (action.id !== CommandCenterCenterViewItem._quickOpenCommandId) {
+						// Let other contributions supply a custom view item for any
+						// action rendered inside this pill (matches what
+						// MenuWorkbenchToolBar does at the outer level).
+						const factory = this._actionViewItemService.lookUp(MenuId.CommandCenterCenter, action instanceof SubmenuItemAction ? action.item.submenu.id : action.id);
+						if (factory) {
+							const custom = factory(action, options, this._instaService, getWindow(container).vscodeWindowId);
+							if (custom) {
+								return custom;
+							}
+						}
 						return createActionViewItem(this._instaService, action, options);
 					}
 
