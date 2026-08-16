@@ -4090,6 +4090,8 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = URI.file('/original');
 			const { session } = await createAgentSession(agent);
+			setExternalSessionsMode(service, AgentHostExternalSessionsMode.All, 1);
+			await waitForSessionListReconciliation(service);
 			service.registerProvider(agent);
 			agent.fireDiscoveredChats([discoveredChat(session)]);
 			for (let i = 0; i < 50 && (await service.getRegisteredSessions()).length === 0; i++) {
