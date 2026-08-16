@@ -3382,7 +3382,11 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const settledState = this._stateManager.getSessionState(evictionTargetKey);
-		if (!settledState || this._stateManager.hasActiveTurn(evictionTargetKey)) {
+		if (!settledState) {
+			return;
+		}
+		if (this._stateManager.hasActiveTurn(evictionTargetKey)) {
+			this._scheduleSessionRelease(evictionTarget);
 			return;
 		}
 		const provider = this._findProviderForSession(evictionTarget);
