@@ -1,0 +1,32 @@
+{
+	"original": {
+		"content": "print(\"Left\")\n\n\nif 1:\n    if 2:\n        pass\n\nif 3:\n    pass\n\n\nprint(\"Done\")\n",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "print(\"Right\")\n\n\nif 1:\n    if 2:\n        pass\n\n\nprint(\"Done\")\n",
+		"fileName": "./2.txt"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,2)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,8 -> 1,12]",
+					"modifiedRange": "[1,8 -> 1,13]"
+				}
+			]
+		},
+		{
+			"originalRange": "[8,11)",
+			"modifiedRange": "[8,8)",
+			"innerChanges": [
+				{
+					"originalRange": "[8,1 -> 11,1 EOL]",
+					"modifiedRange": "[8,1 -> 8,1 EOL]"
+				}
+			]
+		}
+	]
+}
