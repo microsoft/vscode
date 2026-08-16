@@ -23,7 +23,7 @@
  */
 
 import assert from 'assert';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -33,9 +33,9 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import type { ListSessionsResult, ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { ChangesetOperationTargetKind } from '../../../../common/state/protocol/channels-changeset/commands.js';
+import { ChangesetOperationTargetKind, type InvokeChangesetOperationResult } from '../../../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, readSessionGitState, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	ChangesetKind,
 	buildBranchChangesetUri,
@@ -79,6 +79,13 @@ interface IOperationStatusChangedAction {
 	readonly status: string;
 }
 
+interface IObservedChangesetState {
+	readonly status: string;
+	readonly files: readonly IObservedChangesetFile[];
+	readonly operations?: readonly IObservedOperation[];
+	readonly error?: { readonly message?: string };
+}
+
 const CHANGESET_OPERATION_TIMEOUT_MS = 60_000;
 
 export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
@@ -103,6 +110,33 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git add .', { cwd: workspace });
 		execSync('git commit -q -m "seed"', { cwd: workspace });
 		return workspace;
+	}
+
+	function createRemoteGitWorkspace(prefix: string): { readonly workspace: string; readonly remote: string } {
+		const workspace = createGitWorkspace(`${prefix}-workspace-`);
+		const remote = mkdtempSync(join(tmpdir(), `${prefix}-remote-`));
+		tempDirs.push(remote);
+		execFileSync('git', ['init', '--bare', '-q'], { cwd: remote });
+		execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: workspace });
+		execFileSync('git', ['push', '-q', '-u', 'origin', 'HEAD'], { cwd: workspace });
+		execFileSync('git', ['config', 'pull.rebase', 'false'], { cwd: workspace });
+		return { workspace, remote };
+	}
+
+	function commitFile(workspace: string, file: string, contents: string, message: string): void {
+		writeFileSync(join(workspace, file), contents);
+		execFileSync('git', ['add', file], { cwd: workspace });
+		execFileSync('git', ['commit', '-q', '-m', message], { cwd: workspace });
+	}
+
+	function pushRemoteCommit(remote: string, prefix: string, file: string, contents: string): void {
+		const clone = mkdtempSync(join(tmpdir(), `${prefix}-clone-`));
+		tempDirs.push(clone);
+		execFileSync('git', ['clone', '-q', remote, '.'], { cwd: clone });
+		execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: clone });
+		execFileSync('git', ['config', 'user.name', 'Agent Host E2E'], { cwd: clone });
+		commitFile(clone, file, contents, `add ${file}`);
+		execFileSync('git', ['push', '-q'], { cwd: clone });
 	}
 
 	async function createSessionIn(workspace: string, prefix: string): Promise<string> {
@@ -200,9 +234,9 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		);
 	}
 
-	async function changesetState(channel: string): Promise<{ readonly status: string; readonly files: readonly IObservedChangesetFile[]; readonly error?: { readonly message?: string } }> {
+	async function changesetState(channel: string): Promise<IObservedChangesetState> {
 		const result = await context.client.call<SubscribeResult>('subscribe', { channel });
-		let state = result.snapshot!.state as { readonly status: string; readonly files: readonly IObservedChangesetFile[]; readonly error?: { readonly message?: string } };
+		let state = result.snapshot!.state as IObservedChangesetState;
 		if (state.status === 'computing') {
 			await context.client.waitForNotification(n =>
 				isActionNotification(n, 'changeset/statusChanged')
@@ -213,6 +247,50 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			state = (await context.client.call<SubscribeResult>('subscribe', { channel })).snapshot!.state as typeof state;
 		}
 		return state;
+	}
+
+	async function waitForOperation(channel: string, operationId: string): Promise<IObservedOperation> {
+		return retry(async () => {
+			const operation = (await changesetState(channel)).operations?.find(operation => operation.id === operationId);
+			if (!operation || operation.status !== 'idle') {
+				throw new Error(`Changeset ${channel} has not advertised idle operation ${operationId}`);
+			}
+			return operation;
+		}, 100, 100);
+	}
+
+	async function waitForOperationRemoved(channel: string, operationId: string): Promise<void> {
+		await retry(async () => {
+			if ((await changesetState(channel)).operations?.some(operation => operation.id === operationId)) {
+				throw new Error(`Changeset ${channel} still advertises operation ${operationId}`);
+			}
+		}, 100, 100);
+	}
+
+	async function invokeChangesetOperation(channel: string, operationId: string): Promise<{
+		readonly result: InvokeChangesetOperationResult;
+		readonly statuses: readonly string[];
+	}> {
+		context.client.clearReceived();
+		const completed = context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/operationStatusChanged')
+			&& getActionEnvelope(n).channel === channel
+			&& (getActionEnvelope(n).action as IOperationStatusChangedAction).operationId === operationId
+			&& (getActionEnvelope(n).action as IOperationStatusChangedAction).status === 'idle',
+			CHANGESET_OPERATION_TIMEOUT_MS,
+		);
+		const result = await context.client.call<InvokeChangesetOperationResult>('invokeChangesetOperation', {
+			channel,
+			operationId,
+		}, CHANGESET_OPERATION_TIMEOUT_MS);
+		await completed;
+		const statuses = context.client.receivedNotifications(n =>
+			isActionNotification(n, 'changeset/operationStatusChanged')
+			&& getActionEnvelope(n).channel === channel,
+		).map(n => getActionEnvelope(n).action as IOperationStatusChangedAction)
+			.filter(action => action.operationId === operationId)
+			.map(action => action.status);
+		return { result, statuses };
 	}
 
 	async function waitForChangesetFiles(channel: string, basenames: readonly string[]): Promise<readonly IObservedChangesetFile[]> {
@@ -709,6 +787,125 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			{ id: 'commit', scopes: ['changeset'] },
 			{ id: 'discard-changes', scopes: ['resource'] },
 		]);
+	});
+
+	conformanceTest(context, 'a branch with an upstream and no outgoing commits omits sync', async function () {
+		const { workspace } = createRemoteGitWorkspace('ahp-sync-none');
+		const sessionUri = await createSessionIn(workspace, 'sync-none');
+		const changeset = buildUncommittedChangesetUri(sessionUri);
+
+		await retry(async () => {
+			const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			const gitState = readSessionGitState((subscribed.snapshot!.state as SessionState)._meta);
+			if (!gitState?.upstreamBranchName || gitState.outgoingChanges !== 0) {
+				throw new Error('Session Git state has not confirmed an up-to-date upstream');
+			}
+		}, 100, 100);
+		const state = await changesetState(changeset);
+
+		assert.strictEqual(state.operations?.some(operation => operation.id === 'sync') ?? false, false);
+	});
+
+	conformanceTest(context, 'an outgoing commit advertises a changeset-scoped sync operation', async function () {
+		const { workspace } = createRemoteGitWorkspace('ahp-sync-advertise');
+		commitFile(workspace, 'outgoing.txt', 'outgoing\n', 'add outgoing');
+		const sessionUri = await createSessionIn(workspace, 'sync-advertise');
+		const changeset = buildUncommittedChangesetUri(sessionUri);
+
+		const operation = await waitForOperation(changeset, 'sync');
+
+		assert.deepStrictEqual({
+			id: operation.id,
+			scopes: operation.scopes,
+			status: operation.status,
+		}, {
+			id: 'sync',
+			scopes: ['changeset'],
+			status: 'idle',
+		});
+	});
+
+	conformanceTest(context, 'sync pushes an outgoing commit and clears the operation', async function () {
+		const { workspace, remote } = createRemoteGitWorkspace('ahp-sync-push');
+		commitFile(workspace, 'outgoing.txt', 'outgoing\n', 'add outgoing');
+		const sessionUri = await createSessionIn(workspace, 'sync-push');
+		const changeset = buildUncommittedChangesetUri(sessionUri);
+		await waitForOperation(changeset, 'sync');
+
+		const invoked = await invokeChangesetOperation(changeset, 'sync');
+		await waitForOperationRemoved(changeset, 'sync');
+		const localHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: workspace, encoding: 'utf8' }).trim();
+		const remoteHead = execFileSync('git', ['--git-dir', remote, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+
+		assert.deepStrictEqual({
+			message: typeof invoked.result.message === 'string' ? invoked.result.message : invoked.result.message?.markdown,
+			statuses: invoked.statuses,
+			remoteMatchesLocal: remoteHead === localHead,
+		}, {
+			message: 'Synced changes.',
+			statuses: ['running', 'idle'],
+			remoteMatchesLocal: true,
+		});
+	});
+
+	conformanceTest(context, 'sync pulls a non-conflicting remote commit before pushing', async function () {
+		const { workspace, remote } = createRemoteGitWorkspace('ahp-sync-diverged');
+		commitFile(workspace, 'outgoing.txt', 'outgoing\n', 'add outgoing');
+		pushRemoteCommit(remote, 'ahp-sync-diverged', 'incoming.txt', 'incoming\n');
+		const sessionUri = await createSessionIn(workspace, 'sync-diverged');
+		const changeset = buildUncommittedChangesetUri(sessionUri);
+		await waitForOperation(changeset, 'sync');
+
+		await invokeChangesetOperation(changeset, 'sync');
+		const localHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: workspace, encoding: 'utf8' }).trim();
+		const remoteHead = execFileSync('git', ['--git-dir', remote, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+
+		assert.deepStrictEqual({
+			incoming: readFileSync(join(workspace, 'incoming.txt'), 'utf8').replaceAll('\r\n', '\n'),
+			outgoing: readFileSync(join(workspace, 'outgoing.txt'), 'utf8').replaceAll('\r\n', '\n'),
+			remoteMatchesLocal: remoteHead === localHead,
+		}, {
+			incoming: 'incoming\n',
+			outgoing: 'outgoing\n',
+			remoteMatchesLocal: true,
+		});
+	});
+
+	conformanceTest(context, 'sync reports an error when its upstream becomes unreachable', async function () {
+		const { workspace } = createRemoteGitWorkspace('ahp-sync-failure');
+		commitFile(workspace, 'outgoing.txt', 'outgoing\n', 'add outgoing');
+		const sessionUri = await createSessionIn(workspace, 'sync-failure');
+		const changeset = buildUncommittedChangesetUri(sessionUri);
+		await waitForOperation(changeset, 'sync');
+		execFileSync('git', ['remote', 'set-url', 'origin', join(workspace, 'missing-remote')], { cwd: workspace });
+		context.client.clearReceived();
+		const failed = context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/operationStatusChanged')
+			&& getActionEnvelope(n).channel === changeset
+			&& (getActionEnvelope(n).action as IOperationStatusChangedAction).operationId === 'sync'
+			&& (getActionEnvelope(n).action as IOperationStatusChangedAction).status === 'error',
+			CHANGESET_OPERATION_TIMEOUT_MS,
+		);
+
+		await assert.rejects(context.client.call('invokeChangesetOperation', {
+			channel: changeset,
+			operationId: 'sync',
+		}, CHANGESET_OPERATION_TIMEOUT_MS), /Failed to sync changes/);
+		await failed;
+		const statuses = context.client.receivedNotifications(n =>
+			isActionNotification(n, 'changeset/operationStatusChanged')
+			&& getActionEnvelope(n).channel === changeset,
+		).map(n => getActionEnvelope(n).action as IOperationStatusChangedAction)
+			.filter(action => action.operationId === 'sync')
+			.map(action => action.status);
+
+		assert.deepStrictEqual({
+			statuses,
+			outgoingPreserved: readFileSync(join(workspace, 'outgoing.txt'), 'utf8').replaceAll('\r\n', '\n'),
+		}, {
+			statuses: ['running', 'error'],
+			outgoingPreserved: 'outgoing\n',
+		});
 	});
 
 	conformanceTest(context, 'discarding a tracked change restores the file and reports operation status', async function () {

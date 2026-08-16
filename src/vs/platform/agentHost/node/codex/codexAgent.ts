@@ -21,7 +21,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostCodexMultiRootEnabledConfigKey, AgentHostMcpServersConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
+import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostMcpServersConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
@@ -77,7 +77,7 @@ import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
 import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
-import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
 import type { Personality } from './protocol/generated/Personality.js';
@@ -5636,8 +5636,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			return [];
 		}
 		const controller = this._getOrCreateMcpController(session);
-		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
-		this._refreshMcpCustomizationIds(session, controller);
+		controller?.applyAll(inventoryToSdkServers(this._mcpInventory));
+		if (controller) {
+			this._refreshMcpCustomizationIds(session, controller);
+		}
 		const [workspaceAgents, skillHookContainers] = await Promise.all([
 			discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
 			this._fetchSkillHookContainers(session),
@@ -5648,7 +5650,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		return [
 			...workspaceAgents.containers,
 			...session.clientCustomizations.toCustomizations(),
-			...controller.topLevelCustomizations(),
+			...(controller?.topLevelCustomizations() ?? []),
 			...skillHookContainers,
 		];
 	}
@@ -5709,11 +5711,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * `Method not found` so the protocol server maps them to JSON-RPC
 	 * `-32601`.
 	 */
-	async handleMcpRequest(sessionUri: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
-		const sessionId = AgentSession.id(sessionUri);
+	async handleMcpRequest(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const sessionId = this._sessionIdByChatUri.get(chat.toString());
+		if (!sessionId) {
+			throw new Error(`Method not found: no active chat ${chat.toString()}`);
+		}
 		const session = this._sessions.get(sessionId);
-		if (!session) {
-			throw new Error(`Method not found: no active session ${sessionId}`);
+		if (!session || !session.chatChannel || !isEqual(session.chatChannel, chat)) {
+			throw new Error(`Method not found: no active chat ${chat.toString()}`);
 		}
 		const entry = this._mcpInventory.get(serverName);
 		if (!entry) {
@@ -5780,6 +5785,9 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _resolveMcpServerName(session: ICodexSession, id: string): string | undefined {
 		const controller = this._getOrCreateMcpController(session);
+		if (!controller) {
+			return undefined;
+		}
 		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
 		this._refreshMcpCustomizationIds(session, controller);
 		return controller.serverNameForCustomizationId(id);
@@ -5790,12 +5798,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * registered on the agent (sessions come and go) — disposed explicitly
 	 * when the session is removed.
 	 */
-	private _getOrCreateMcpController(session: ICodexSession): McpCustomizationController {
+	private _getOrCreateMcpController(session: ICodexSession): McpCustomizationController | undefined {
+		if (!session.chatChannel) {
+			return undefined;
+		}
 		if (!session.mcpController) {
 			session.mcpController = this._instantiationService.createInstance(McpCustomizationController, {
-				providerId: this.id,
-				sessionId: session.sessionId,
-				sessionUri: session.sessionUri,
+				chatUri: session.chatChannel,
 				emit: action => this._fire(session.sessionUri, action),
 				capabilities: CODEX_MCP_APP_CAPABILITIES,
 				pluginMcpServerSources: () => codexPluginMcpServerSources(session.clientCustomizations.plugins()),
@@ -5816,6 +5825,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				continue;
 			}
 			const controller = this._getOrCreateMcpController(session);
+			if (!controller) {
+				continue;
+			}
 			controller.applyAll(servers);
 			this._refreshMcpCustomizationIds(session, controller);
 		}
@@ -6071,6 +6083,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			inherited[SessionConfigKey.Permissions] = config[SessionConfigKey.Permissions];
 		}
 		return Object.keys(inherited).length > 0 ? inherited : undefined;
+	}
+
+	getAutonomousSessionConfig(_config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		return getCodexAutonomousSessionConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true);
 	}
 
 	async chatConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {

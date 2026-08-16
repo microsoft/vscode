@@ -47,7 +47,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -1261,6 +1261,18 @@ suite('ClaudeAgent', () => {
 			disabledByDefault: undefined,
 			whenEnabled: { immutablePrimary: true },
 			afterDisabling: undefined,
+		});
+	});
+
+	test('selects provider-native autonomous session config and respects policy', () => {
+		const { agent, configService } = createTestContext(disposables);
+		const selected = agent.getAutonomousSessionConfig({});
+		configService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+		const restricted = agent.getAutonomousSessionConfig({});
+
+		assert.deepStrictEqual({ selected, restricted }, {
+			selected: { [ClaudeSessionConfigKey.PermissionMode]: 'auto' },
+			restricted: undefined,
 		});
 	});
 

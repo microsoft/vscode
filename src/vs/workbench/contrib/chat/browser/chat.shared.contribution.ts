@@ -402,7 +402,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentSessions.showExternal.none', "Only shows sessions created by the Agent Host."),
 				nls.localize('chat.agentSessions.showExternal.all', "Shows all sessions discovered from supported external agent applications."),
 				nls.localize('chat.agentSessions.showExternal.last24Hours', "Shows external sessions updated in the last 24 hours."),
-				nls.localize('chat.agentSessions.showExternal.last7Days', "Shows external sessions updated in the last 7 days."),
+				nls.localize('chat.agentSessions.showExternal.last7Days', "Shows external sessions updated in the last 7 days. This is the default."),
 			],
 			default: AgentHostExternalSessionsMode.Last7Days,
 			markdownDescription: nls.localize('chat.agentSessions.showExternal', "Controls which external agent sessions, created outside VS Code's Agent Host, are shown."),

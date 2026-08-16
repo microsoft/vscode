@@ -13,6 +13,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
@@ -76,7 +77,7 @@ export interface IAgentHostManagedSettingsSnapshot {
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;
 	readonly managedKeys: readonly string[];
-	readonly settings?: Readonly<Record<string, unknown>>;
+	readonly settings?: unknown;
 }
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
@@ -395,6 +396,7 @@ export interface IAgentCreateSessionConfig {
 export interface IAgentChatContext {
 	readonly resource: URI;
 	readonly configurationResource: URI;
+	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
 	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
@@ -688,6 +690,9 @@ export interface IAgentChats {
 
 	/** Dispose the addressed chat and free its backing. */
 	disposeChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
+
+	/** Return whether the addressed chat can currently release its in-memory backing. */
+	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
 	releaseChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
@@ -1063,6 +1068,9 @@ export interface IAgent {
 	/** Select provider-owned configuration inherited by a newly created chat. */
 	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
 
+	/** Select provider-owned configuration for an unattended autonomous turn. */
+	getAutonomousSessionConfig?(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
+
 	/** Return dynamic completions for a provider-owned chat configuration property. */
 	chatConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
@@ -1140,8 +1148,8 @@ export interface IAgent {
 	/** Optional lifecycle operation paired with {@link startMcpServer}. */
 	stopMcpServer?(session: URI, id: string): Promise<void>;
 
-	/** Optional `mcp://` router for providers that advertise MCP side-channel resources. */
-	handleMcpRequest?(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+	/** Optional `mcp://` router for providers that advertise chat-scoped MCP side-channel resources. */
+	handleMcpRequest?(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	/** Optional notification stream paired with {@link handleMcpRequest}. */
 	readonly onMcpNotification?: Event<IMcpNotification>;
