@@ -64,6 +64,8 @@ export type FetchFn = typeof globalThis.fetch;
  * family, normally `<key>Chunk`, `<key>Chunk_2`, `<key>Chunk_3`, … (first column has no numeric
  * suffix, the rest are NOT zero-padded, each capped at {@link MAX_PROPERTY_LENGTH}), while the
  * original `<key>` column carries just the first uncompressed chunk of the value.
+ * The `messagesJson` property is the schema exception: its compressed family is
+ * `messagesJSONChunk`, `messagesJSONChunk_2`, `messagesJSONChunk_3`, …
  *
  * Fields in {@link ALWAYS_COMPRESSED_CHUNK_KEYS} always get the compressed chunk family even when
  * they fit within {@link MAX_PROPERTY_LENGTH}, so the backend can always read them from their
