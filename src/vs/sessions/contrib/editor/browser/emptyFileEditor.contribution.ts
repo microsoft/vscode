@@ -16,9 +16,9 @@ import { EmptyFileEditorInput, EmptyFileEditorSerializer } from './emptyFileEdit
 
 /**
  * Registers the empty-file editor (the "Select a file or search with <kbd>" placeholder pane) and
- * its serializer, but only in the single-pane layout where the "New File" add-tab flow uses it.
+ * its serializer, but only in the single-pane layout where the "Files" add-tab flow uses it.
  * Registered at startup (before editor restore) so persisted empty-file tabs can be deserialized.
- * Opening it is owned by `addTabActions.ts`'s "New File" action.
+ * Opening it is owned by `addTabActions.ts`'s "Files" action.
  */
 class SinglePaneEmptyFileEditorContribution extends Disposable implements IWorkbenchContribution {
 

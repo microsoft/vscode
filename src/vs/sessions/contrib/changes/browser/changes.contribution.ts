@@ -8,7 +8,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
@@ -19,14 +18,14 @@ import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGL
 import { ChangesViewPane, SinglePaneChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from './sessionChangesEditorInput.js';
-import { ChangesTabController } from './changesTabController.js';
-import { DetailPanelController } from './detailPanelController.js';
-import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionChangesService, SessionChangesService } from './sessionChangesService.js';
 import './changesActions.js';
 import './changesViewActions.js';
+import './changesetReviewActions.js';
 import './checksActions.js';
+import './media/multiFileDiffEditor.css';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ChangesViewService } from './changesViewService.js';
@@ -34,8 +33,6 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibilityHelp.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-
-registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
 
 /**
  * Registers the custom single-pane Changes editor (multi-diff pane with the header
@@ -70,32 +67,6 @@ class SinglePaneChangesEditorContribution extends Disposable implements IWorkben
 
 registerWorkbenchContribution2(SinglePaneChangesEditorContribution.ID, SinglePaneChangesEditorContribution, WorkbenchPhase.BlockStartup);
 
-/**
- * Drives the single-pane layout once editors are restored: creates the Changes tab
- * controller (keeps the docked Changes tab in sync) and the detail-panel controller.
- * Only active when the single-pane layout is enabled.
- */
-class SinglePaneModeController extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.sessions.singlePaneMode';
-
-	constructor(
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-
-		if (!layoutService.isSinglePaneLayoutEnabled) {
-			return;
-		}
-
-		this._register(instantiationService.createInstance(ChangesTabController));
-		this._register(instantiationService.createInstance(DetailPanelController));
-	}
-}
-
-registerWorkbenchContribution2(SinglePaneModeController.ID, SinglePaneModeController, WorkbenchPhase.AfterRestored);
-
 AccessibleViewRegistry.register(new SessionsChangesAccessibilityHelp());
 
 
@@ -127,6 +98,8 @@ const changesViewContainer = viewContainersRegistry.registerViewContainer({
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
+export const changesViewWhen = ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext, SessionIsCreatedContext);
+
 /**
  * Registers the Changes view with the layout-appropriate pane class: the single-pane
  * {@link SinglePaneChangesViewPane} when the single-pane layout is enabled, otherwise
@@ -152,7 +125,7 @@ class ChangesViewContribution extends Disposable implements IWorkbenchContributi
 			canMoveView: false,
 			weight: 100,
 			order: 1,
-			when: ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
+			when: changesViewWhen,
 			windowEnablement: WindowEnablement.Sessions,
 		}], changesViewContainer);
 	}
@@ -173,3 +146,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
+registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);

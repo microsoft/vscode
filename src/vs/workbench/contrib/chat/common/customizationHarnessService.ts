@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { AICustomizationManagementSection, AICustomizationSource, AICustomizationSources, BUILTIN_STORAGE, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
@@ -21,6 +21,8 @@ import { CustomAgent } from './promptSyntax/service/promptsServiceImpl.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
 import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
+import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -92,8 +94,7 @@ export interface IHarnessDescriptor {
 	/**
 	 * Per-section overrides for the create button behavior.
 	 *
-	 * A `commandId` entry replaces the button entirely with a command
-	 * invocation (e.g. Claude hooks → `copilot.claude.hooks`).
+	 * A `commandId` entry replaces the button entirely with a command invocation.
 	 *
 	 * A `rootFile` entry makes the primary button create a specific file
 	 * at the workspace root (e.g. Claude instructions → `CLAUDE.md`).
@@ -107,11 +108,6 @@ export interface IHarnessDescriptor {
 	 * When `undefined`, the harness is always available (e.g. Local).
 	 */
 	readonly requiredAgentId?: string;
-	/**
-	 * Returns the storage source filter that should be applied to customization
-	 * items of the given type when this harness is active.
-	 */
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
 	/**
 	 * When set, this harness is backed by an extension-contributed provider
 	 * that can supply customization items directly (bypassing promptsService
@@ -163,6 +159,8 @@ export interface ICustomizationItem {
 	readonly statusMessage?: string;
 	/** Whether this customization is currently enabled. */
 	readonly enabled?: boolean;
+	/** Host-published reason for a disabled customization. */
+	readonly disabledReason?: CustomizationDisabledReason;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
@@ -190,6 +188,21 @@ export interface ICustomizationAgentRef {
 
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
+}
+
+export function getCustomizationDisabledLabel(reason: CustomizationDisabledReason | undefined): string {
+	if (reason?.source === 'plugin') {
+		return localize('customizationDisabledPlugin', "Disabled (Plugin)");
+	}
+	switch (reason?.scope) {
+		case CustomizationEnablementKind.Workspace:
+			return localize('customizationDisabledWorkspace', "Disabled (Workspace)");
+		case CustomizationEnablementKind.Session:
+			return localize('customizationDisabledSession', "Disabled (Session)");
+		case CustomizationEnablementKind.Global:
+		case undefined:
+			return localize('customizationDisabled', "Disabled");
+	}
 }
 
 /**
@@ -240,6 +253,8 @@ export interface ICustomizationSourceFolder {
 	readonly uri: URI;
 	/** Display label for the picker when multiple folders are offered. */
 	readonly label: string;
+	/** Customization source for this folder (typically 'local' or 'user' for writable creation locations). */
+	readonly source: AICustomizationSource;
 }
 
 /**
@@ -368,14 +383,7 @@ export interface ICustomizationSlashCommand {
 	readonly sessionTypes?: readonly string[];
 }
 
-// #region Shared filter constants
-
-/**
- * Empty filter returned when no harness is registered yet.
- */
-const EMPTY_FILTER: IStorageSourceFilter = {
-	sources: [],
-};
+// #region Shared descriptor constants
 
 /**
  * Empty descriptor returned when no harness is registered yet.
@@ -384,7 +392,6 @@ const EMPTY_DESCRIPTOR: IHarnessDescriptor = {
 	id: '',
 	label: '',
 	icon: Codicon.sparkle,
-	getStorageSourceFilter: () => EMPTY_FILTER,
 };
 
 
@@ -405,7 +412,6 @@ const EMPTY_DESCRIPTOR: IHarnessDescriptor = {
  * with no user-root restrictions.
  */
 export function createVSCodeHarnessDescriptor(): IHarnessDescriptor {
-	const filter: IStorageSourceFilter = { sources: AICustomizationSources.all };
 	return {
 		id: SessionType.Local,
 		label: localize('harness.local', "Local"),
@@ -417,7 +423,6 @@ export function createVSCodeHarnessDescriptor(): IHarnessDescriptor {
 				rootFileShortcuts: [AGENT_MD_FILENAME],
 			}],
 		]),
-		getStorageSourceFilter: () => filter,
 	};
 }
 

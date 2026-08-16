@@ -54,8 +54,7 @@ export function setup(logger: Logger) {
 			logger.log(`Old extension host PID: ${pid}`);
 
 			// Reload window while extension host is blocked
-			await app.workbench.quickaccess.runCommand('Developer: Reload Window', { keepOpen: true });
-			await app.code.whenWorkbenchRestored();
+			await app.code.reloadWindow(() => app.workbench.quickaccess.runCommand('Developer: Reload Window', { keepOpen: true }));
 			logger.log('Window reloaded');
 
 			// Verify old process is gone, allowing for slower teardown on busy machines
@@ -108,8 +107,7 @@ export function setup(logger: Logger) {
 			logger.log(`Extension host PID for graceful deactivation test: ${pid}`);
 
 			// Reload window - this should trigger graceful deactivation
-			await app.workbench.quickaccess.runCommand('Developer: Reload Window', { keepOpen: true });
-			await app.code.whenWorkbenchRestored();
+			await app.code.reloadWindow(() => app.workbench.quickaccess.runCommand('Developer: Reload Window', { keepOpen: true }));
 			logger.log('Window reloaded');
 
 			// Wait for the process to exit and marker file to be written

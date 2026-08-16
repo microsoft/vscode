@@ -215,19 +215,26 @@ function _stableStringify(value: unknown, seen: WeakSet<object>): string {
 		return '"[Circular]"';
 	}
 	seen.add(value as object);
+
+	let result: string;
 	if (Array.isArray(value)) {
-		return '[' + value.map(v => _stableStringify(v, seen)).join(',') + ']';
-	}
-	const keys = Object.keys(value as object).sort();
-	const parts: string[] = [];
-	for (const k of keys) {
-		const v = (value as Record<string, unknown>)[k];
-		if (v === undefined) {
-			continue;
+		result = '[' + value.map(v => _stableStringify(v, seen)).join(',') + ']';
+	} else {
+		const keys = Object.keys(value as object).sort();
+		const parts: string[] = [];
+		for (const k of keys) {
+			const v = (value as Record<string, unknown>)[k];
+			if (v === undefined) {
+				continue;
+			}
+			parts.push(JSON.stringify(k) + ':' + _stableStringify(v, seen));
 		}
-		parts.push(JSON.stringify(k) + ':' + _stableStringify(v, seen));
+		result = '{' + parts.join(',') + '}';
 	}
-	return '{' + parts.join(',') + '}';
+
+	// Track only ancestors so shared sibling references are serialized in full.
+	seen.delete(value as object);
+	return result;
 }
 
 type obj = { [key: string]: any };

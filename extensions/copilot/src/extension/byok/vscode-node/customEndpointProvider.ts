@@ -90,18 +90,24 @@ interface _CustomEndpointModelConfig {
 	name: string;
 	url: string;
 	apiType?: CustomEndpointApiType;
-	maxInputTokens: number;
+	/** Optional when {@link contextWindow} is set; then derived as `contextWindow - maxOutputTokens`. */
+	maxInputTokens?: number;
 	maxOutputTokens: number;
+	/** The model's full context window (input + output) in tokens, e.g. 1000000 for a 1M model. */
+	contextWindow?: number;
 	toolCalling: boolean;
 	vision: boolean;
 	thinking?: boolean;
+	adaptiveThinking?: boolean;
+	minThinkingBudget?: number;
+	maxThinkingBudget?: number;
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
 	modelOptions?: IChatModelRequestOptions;
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
-	reasoningEffortFormat?: 'chat-completions' | 'responses';
+	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
 
 export interface CustomEndpointModelConfig extends _CustomEndpointModelConfig {
@@ -153,11 +159,15 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
+			contextWindow: modelConfiguration?.contextWindow,
 			toolCalling: !!model.capabilities?.toolCalling || false,
 			vision: !!model.capabilities?.imageInput || false,
 			name: model.name,
 			url,
 			thinking: modelConfiguration?.thinking ?? false,
+			adaptiveThinking: modelConfiguration?.adaptiveThinking,
+			minThinkingBudget: modelConfiguration?.minThinkingBudget,
+			maxThinkingBudget: modelConfiguration?.maxThinkingBudget,
 			streaming: modelConfiguration?.streaming,
 			requestHeaders: modelConfiguration?.requestHeaders,
 			modelOptions: modelConfiguration?.modelOptions,

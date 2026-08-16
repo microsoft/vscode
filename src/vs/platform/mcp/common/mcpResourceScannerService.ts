@@ -8,6 +8,7 @@ import { Queue } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { parse, ParseError } from '../../../base/common/json.js';
+import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { Mutable } from '../../../base/common/types.js';
@@ -108,7 +109,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 					const errors: ParseError[] = [];
 					const result = parse(content.value.toString(), errors, { allowTrailingComma: true, allowEmptyContent: true }) || {};
 					if (errors.length > 0) {
-						throw new Error('Failed to parse scanned MCP servers: ' + errors.join(', '));
+						throw new Error('Failed to parse scanned MCP servers: ' + errors.map(e => `[${e.offset}, ${e.length}] ${getParseErrorMessage(e.error)}`).join(', '));
 					}
 
 					if (target === ConfigurationTarget.USER) {
@@ -164,7 +165,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 			const errors: ParseError[] = [];
 			scannedWorkspaceMcpServers = parse(content.value.toString(), errors, { allowTrailingComma: true, allowEmptyContent: true }) as IScannedWorkspaceMcpServers;
 			if (errors.length > 0) {
-				throw new Error('Failed to parse scanned MCP servers: ' + errors.join(', '));
+				throw new Error('Failed to parse scanned MCP servers: ' + errors.map(e => `[${e.offset}, ${e.length}] ${getParseErrorMessage(e.error)}`).join(', '));
 			}
 		} catch (error) {
 			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {

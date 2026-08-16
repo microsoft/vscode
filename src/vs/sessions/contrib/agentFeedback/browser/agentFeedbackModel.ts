@@ -5,6 +5,7 @@
 
 import type { URI } from '../../../../base/common/uri.js';
 import type { IRange } from '../../../../editor/common/core/range.js';
+import type { AgentFeedbackAuthorValue } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import type { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 
 /**
@@ -63,6 +64,12 @@ export const enum AgentFeedbackState {
 	Resolved = 'resolved',
 }
 
+/** A single message within a feedback thread, and who wrote it. */
+export interface IAgentFeedbackReply {
+	readonly text: string;
+	readonly author: AgentFeedbackAuthorValue;
+}
+
 export interface IAgentFeedback {
 	readonly id: string;
 	readonly text: string;
@@ -81,7 +88,7 @@ export interface IAgentFeedback {
 	 * talking about the same code region. The first {@link text} is the initial
 	 * comment; replies are subsequent messages added to it.
 	 */
-	readonly replies?: readonly string[];
+	readonly replies?: readonly IAgentFeedbackReply[];
 	/** Lifecycle state of this feedback item. */
 	readonly state: AgentFeedbackState;
 

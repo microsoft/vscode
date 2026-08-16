@@ -60,6 +60,7 @@ import { IStateReadService, IStateService } from '../../platform/state/node/stat
 import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
 import { IThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
+import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
 import { FilePolicyService } from '../../platform/policy/common/filePolicyService.js';
@@ -72,7 +73,7 @@ import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdenti
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
 import { ILoggerMainService, LoggerMainService } from '../../platform/log/electron-main/loggerService.js';
 import { LogService } from '../../platform/log/common/logService.js';
-import { massageMessageBoxOptions } from '../../platform/dialogs/common/dialogs.js';
+import { massageMessageBoxOptions } from '../../platform/dialogs/electron-main/dialogMainUtils.js';
 import { SaveStrategy, StateService } from '../../platform/state/node/stateService.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
@@ -544,7 +545,7 @@ class CodeMain {
 	}
 
 	private async checkInnoSetupMutex(productService: IProductService, logService: ILogService): Promise<boolean> {
-		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate)) {
+		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate && isInnoSetupInstall())) {
 			return false;
 		}
 
@@ -622,6 +623,10 @@ class CodeMain {
 	}
 
 	private validatePaths(args: NativeParsedArgs): NativeParsedArgs {
+		const defaultKeybindingsExportPath = args['export-default-keybindings'];
+		if (defaultKeybindingsExportPath) {
+			args['export-default-keybindings'] = sanitizeFilePath(defaultKeybindingsExportPath, cwd());
+		}
 
 		// Track URLs if they're going to be used
 		if (args['open-url']) {

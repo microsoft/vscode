@@ -262,8 +262,9 @@ export async function showMobileWorkspacePickerSheet(
 
 	triggerElement.setAttribute('aria-expanded', 'true');
 
+	let result: string | undefined;
 	try {
-		await showMobilePickerSheet(
+		result = await showMobilePickerSheet(
 			layoutService.mainContainer,
 			localize('mobileWorkspacePicker.title', "Choose Workspace"),
 			rows.map(r => r.sheetItem),
@@ -274,11 +275,6 @@ export async function showMobileWorkspacePickerSheet(
 				stayOpenOnSelect: true,
 				doneLabel: localize('mobileWorkspacePicker.cancel', "Cancel"),
 				onDidSelect: (id) => {
-					if (id.startsWith(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX)) {
-						const idx = Number(id.slice(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX.length));
-						headerBrowseActions[idx]?.invoke();
-						return;
-					}
 					if (id.startsWith(SEARCH_RESULT_ID_PREFIX)) {
 						// Drill down: build a path query from the current
 						// query prefix + this folder's name, e.g.
@@ -316,6 +312,10 @@ export async function showMobileWorkspacePickerSheet(
 	} finally {
 		triggerElement.setAttribute('aria-expanded', 'false');
 		triggerElement.focus();
+	}
+	if (result?.startsWith(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX)) {
+		const index = Number(result.slice(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX.length));
+		headerBrowseActions[index]?.invoke();
 	}
 }
 
