@@ -36,6 +36,12 @@ export interface IPopupOptions {
 	x?: number;
 	y?: number;
 	positioningItem?: number;
+	/**
+	 * `vscodeWindowId` of the window the menu should anchor to. When unset,
+	 * Electron defaults to the currently focused window, which is wrong when
+	 * the trigger came from a non-focused auxiliary window.
+	 */
+	targetWindowId?: number;
 }
 
 export const CONTEXT_MENU_CHANNEL = 'vscode:contextmenu';

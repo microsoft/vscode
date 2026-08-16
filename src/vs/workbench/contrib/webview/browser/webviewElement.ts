@@ -32,6 +32,7 @@ import { IRemoteAuthorityResolverService } from '../../../../platform/remote/com
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
 import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js';
 import { WebviewThemeDataProvider } from './themeing.js';
@@ -176,6 +177,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		@ITunnelService private readonly _tunnelService: ITunnelService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -277,7 +279,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				getAnchor: () => ({
 					x: elementBox.x + data.clientX,
 					y: elementBox.y + data.clientY
-				})
+				}),
+				// Anchor is a bare IAnchor; pass container so the platform can
+				// route the menu to this webview's window (e.g. auxiliary windows).
+				container: this.window ? this._layoutService.getContainer(this.window) : undefined,
 			});
 			this._send('set-context-menu-visible', { visible: true });
 		}));
