@@ -136,8 +136,9 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		containerDomNode.style.wordBreak = 'keep-all';
 		containerDomNode.style.overflowWrap = 'anywhere';
 	} else {
-		// overflow-wrap: break-word
-		containerDomNode.style.wordBreak = 'inherit';
+		// word-break: break-all; overflow-wrap: break-word
+		// Use break-all to allow breaks within ligature glyphs that may exceed viewport width
+		containerDomNode.style.wordBreak = 'break-all';
 		containerDomNode.style.overflowWrap = 'break-word';
 	}
 	targetWindow.document.body.appendChild(containerDomNode);
