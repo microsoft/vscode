@@ -115,10 +115,6 @@ export class SinglePaneWorkbench extends Workbench {
 		return Math.round(this._dockedAuxiliaryBarWidth + (totalWidth - this._dockedAuxiliaryBarWidth) / 2);
 	}
 
-	override clearEditorPartSashResetState(): void {
-		this._restoreEqualSplitOnDetailsHide = false;
-	}
-
 	/** Re-layouts the docked auxiliary bar, which the editor part owns. */
 	private _layoutDockedAuxBar(): void {
 		(this.editorGroupService.mainPart as SinglePaneMainEditorPart).layoutDockedAuxiliaryBar();
@@ -260,31 +256,11 @@ export class SinglePaneWorkbench extends Workbench {
 
 	protected override _onGridDidChange(): void {
 		const nodeWidth = this.workbenchGrid.getViewSize(this.editorPartView).width;
-		this._rememberEditorContentWidth(nodeWidth);
 		this._syncEditorVisibility(nodeWidth);
 	}
 
 	protected override _onEditorNodeResized(nodeWidth: number): void {
-		this._rememberEditorContentWidth(nodeWidth);
 		this._syncEditorVisibility(nodeWidth);
-	}
-
-	private _rememberEditorContentWidth(nodeWidth: number): void {
-		if (this._syncingEditorVisibility || this._isEditorPartAutoVisibilitySuppressed || !this.partVisibility.editor) {
-			return;
-		}
-		if (this._restoreEqualSplitOnDetailsHide && this.partVisibility.auxiliaryBar) {
-			const totalWidth = this.workbenchGrid.getViewSize(this.sessionsPartView).width + nodeWidth;
-			const balancedWidth = Math.round(this._dockedAuxiliaryBarWidth + (totalWidth - this._dockedAuxiliaryBarWidth) / 2);
-			const constrainedWidth = Math.max(this.editorPartView.minimumWidth, Math.min(balancedWidth, totalWidth - this.sessionsPartView.minimumWidth));
-			if (Math.abs(nodeWidth - constrainedWidth) > 1) {
-				this.clearEditorPartSashResetState();
-			}
-		}
-		const editorWidth = this._persistedEditorWidth(nodeWidth);
-		if (editorWidth !== undefined && editorWidth >= EDITOR_PART_MINIMUM_WIDTH) {
-			this._savedPartSizes = { ...this._savedPartSizes, editor: editorWidth };
-		}
 	}
 
 	protected override _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
@@ -357,7 +333,7 @@ export class SinglePaneWorkbench extends Workbench {
 
 	protected override _applyEditorVisibility(hidden: boolean): void {
 		if (hidden) {
-			this.clearEditorPartSashResetState();
+			this._restoreEqualSplitOnDetailsHide = false;
 			this._editorWidthAfterDetailAutoHide = undefined;
 		}
 
