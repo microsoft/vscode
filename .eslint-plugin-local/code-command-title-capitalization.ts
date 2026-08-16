@@ -62,7 +62,7 @@ interface ValidationResult {
 }
 
 function isValidTitleCase(text: string): ValidationResult {
-	const words = text.split(/\s+/);
+	const words = text.trim().split(/\s+/).filter(Boolean);
 
 	for (let i = 0; i < words.length; i++) {
 		const word = words[i];
@@ -178,7 +178,9 @@ export default new class CommandTitleCapitalization implements eslint.Rule.RuleM
 			else if (messageNode.type === AST_NODE_TYPES.ObjectExpression) {
 				for (const property of messageNode.properties) {
 					if (property.type === AST_NODE_TYPES.Property && !property.computed) {
-						if (property.key.type === AST_NODE_TYPES.Identifier && property.key.name === 'message') {
+						const isMessageKey = (property.key.type === AST_NODE_TYPES.Identifier && property.key.name === 'message') ||
+							(isStringLiteral(property.key) && String(property.key.value) === 'message');
+						if (isMessageKey) {
 							if (isStringLiteral(property.value)) {
 								message = property.value.value;
 							} else if (property.value.type === AST_NODE_TYPES.TemplateLiteral &&
@@ -196,7 +198,7 @@ export default new class CommandTitleCapitalization implements eslint.Rule.RuleM
 				const validation = isValidTitleCase(message);
 				if (!validation.valid) {
 					context.report({
-						loc: messageNode.loc,
+						node: messageNode,
 						messageId: 'invalidCapitalization',
 						data: {
 							title: message,

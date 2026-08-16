@@ -35,23 +35,14 @@ const valid14 = nls.localize('key14', 'Copy-and-Paste'); // all parts capitalize
 const valid15 = nls.localize('key15', 'Five Essential Snap-Ins'); // Snap capitalized, Ins capitalized (last part)
 
 // Invalid cases - should trigger warnings
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalid1 = nls.localize('key20', 'Open file'); // "file" should be capitalized
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalid2 = nls.localize2('key21', 'Save With As'); // "With" should be lowercase
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalid3 = nls.localize('key22', 'Format The Document'); // "The" should be lowercase
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalid4 = nls.localize2('key23', 'Go To Line'); // "To" should be lowercase
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalid5 = nls.localize('key24', 'Find In Files'); // "In" should be lowercase
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalid6 = nls.localize('key25', 'Copy And Paste'); // "And" should be lowercase
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalid7 = nls.localize('key26', 'Create A New File'); // "A" should be lowercase
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalid8 = nls.localize('key27', 'Self-paced Training'); // "paced" should be capitalized
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalid9 = nls.localize('key28', 'Copy-and-paste'); // "paste" should be capitalized
 
 // Non-localize calls - should not trigger warnings
@@ -63,15 +54,14 @@ const validTemplate = nls.localize('key30', `Open File`); // Template literal wi
 
 // Object expression with message property - should be validated
 const validObject = nls.localize('key31', { message: 'Open File' });
+const validObjectStringKey = nls.localize('key31b', { 'message': 'Open File' }); // String literal key
 
 // More hyphenated edge cases
 const validHyphenatedWithLowercase = nls.localize('key32', 'Up-to-Date Information'); // "to" lowercase in middle
 const validHyphenatedComplex = nls.localize('key33', 'State-of-the-Art Technology'); // "of" "the" lowercase in middle
 
 // Invalid hyphenated cases
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalidHyphenated1 = nls.localize('key50', 'Up-To-Date Information'); // "To" should be lowercase in middle
-// eslint-disable-next-line local/code-command-title-capitalization
 const invalidHyphenated2 = nls.localize('key51', 'State-Of-The-Art Technology'); // "Of" "The" should be lowercase in middle
 
 // Edge cases - single words
@@ -81,13 +71,12 @@ const validSingleWordArticle = nls.localize('key53', 'The'); // Single article, 
 // Edge cases - lowercase words at start/end
 const validPrepositionStart = nls.localize('key54', 'To Personalize Windows'); // "To" is first word, capitalized
 const validPrepositionEnd = nls.localize('key55', 'A Home to Go Back To'); // "To" is last word, capitalized
+const validTrailingSpace = nls.localize('key56', 'A Home to Go Back To '); // Trailing space, "To" still last word
 
 // Mixed case scenarios - invalid
-// eslint-disable-next-line local/code-command-title-capitalization
-const invalidMixedCase = nls.localize('key56', 'OPEN FILE'); // All caps should be normalized
-// eslint-disable-next-line local/code-command-title-capitalization
-const invalidMixedCase2 = nls.localize('key57', 'oPEN fILE'); // Random capitalization should be normalized
+const invalidMixedCase = nls.localize('key57', 'OPEN FILE'); // All caps should be normalized
+const invalidMixedCase2 = nls.localize('key58', 'oPEN fILE'); // Random capitalization should be normalized
 
 // Empty and whitespace edge cases
-const validEmptyAfter = nls.localize('key58', 'Open File '); // Trailing space (should be handled by split)
-const validMultipleSpaces = nls.localize('key59', 'Open  File'); // Multiple spaces (should be handled by split)
+const validEmptyAfter = nls.localize('key59', 'Open File '); // Trailing space (should be handled by split)
+const validMultipleSpaces = nls.localize('key60', 'Open  File'); // Multiple spaces (should be handled by split)
