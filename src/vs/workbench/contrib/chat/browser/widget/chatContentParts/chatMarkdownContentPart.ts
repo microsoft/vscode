@@ -806,8 +806,8 @@ class ChatOutputCodeBlockPart extends Disposable {
 
 	hasSameContent(identifier: string, text: string, isComplete: boolean): boolean {
 		return identifier.toLowerCase() === this.identifier.toLowerCase()
-			&& text === this.text
-			&& isComplete === this.isComplete;
+			&& isComplete === this.isComplete
+			&& (!isComplete || text === this.text);
 	}
 
 	override dispose(): void {

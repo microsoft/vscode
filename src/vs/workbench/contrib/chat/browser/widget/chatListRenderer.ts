@@ -318,7 +318,10 @@ export function splitMarkdownContentAtRenderedCodeBlocks(markdown: IChatMarkdown
 	if (!collectMarkdownCodeBlockRanges(tokens, normalized.value, undefined, hasRenderer, splitOffsets, codeRanges)) {
 		return [markdown];
 	}
-	const usableSplitOffsets = [...new Set(splitOffsets.filter(offset => offset < normalized.value.length))].sort((a, b) => a - b);
+	const usableSplitOffsets = [...new Set(splitOffsets
+		.map(offset => trimTrailingLineEnding(value, normalized.originalOffsets[offset]))
+		.filter(offset => offset < value.length))]
+		.sort((a, b) => a - b);
 
 	if (usableSplitOffsets.length === 0 || Object.keys(tokens.links).length > 0 || hasPotentialReferenceLinks(normalized.value, codeRanges)) {
 		return [markdown];
@@ -326,8 +329,7 @@ export function splitMarkdownContentAtRenderedCodeBlocks(markdown: IChatMarkdown
 
 	const result: IChatMarkdownContent[] = [];
 	let start = 0;
-	for (const normalizedSplitOffset of usableSplitOffsets) {
-		const splitOffset = trimTrailingLineEnding(value, normalized.originalOffsets[normalizedSplitOffset]);
+	for (const splitOffset of usableSplitOffsets) {
 		result.push(createMarkdownSegment(markdown, value.slice(start, splitOffset)));
 		start = splitOffset;
 	}
@@ -393,7 +395,7 @@ function collectMarkdownCodeBlockRanges(
 }
 
 function createNestedMarkdownSourceMap(raw: string, text: string, parentSourceMap: IMarkdownSourceMap | undefined, parentOffset: number): IMarkdownSourceMap | undefined {
-	const rawLines = raw.split('\n');
+	const rawLines = (raw.endsWith('\n') && !text.endsWith('\n') ? raw.slice(0, -1) : raw).split('\n');
 	const textLines = text.split('\n');
 	if (rawLines.length !== textLines.length) {
 		return undefined;

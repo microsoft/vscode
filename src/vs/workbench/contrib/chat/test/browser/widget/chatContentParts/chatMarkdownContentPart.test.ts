@@ -372,6 +372,32 @@ suite('ChatMarkdownContentPart', () => {
 		assert.ok(part.domNode.textContent?.includes('Rendering code block'));
 	});
 
+	test('keeps pending chat output renderer mounted while code block content streams', async () => {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+
+		const ctx = createRenderContext(false);
+		const part = createMarkdownPart('```mermaid\ngraph', ctx, true);
+		const pendingOutput = part.domNode.querySelector('.chat-output-code-block');
+		assert.ok(pendingOutput);
+
+		assert.strictEqual(part.tryIncrementalUpdate({
+			kind: 'markdownContent',
+			content: new MarkdownString('```mermaid\ngraph TD\nA-->B'),
+		}), true);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+		assert.deepStrictEqual({
+			sameOutput: part.domNode.querySelector('.chat-output-code-block') === pendingOutput,
+			renderedOutputs: renderedCodeBlockOutputs,
+			text: part.domNode.textContent,
+		}, {
+			sameOutput: true,
+			renderedOutputs: [],
+			text: 'Rendering code block...',
+		});
+	});
+
 	test('renders multiple code blocks with correct indices', () => {
 		const part = createMarkdownPart(
 			'Some text\n```python\nprint("a")\n```\nMore text\n```typescript\nconst x = 1;\n```'
