@@ -194,7 +194,7 @@ export function setup(logger: Logger): void {
 		 * Expected result: The command is sandbox-wrapped and its output contains
 		 * `${sandboxReply}` and `SANDBOX_EXIT_CODE=0`.
 		 */
-		it.skip('runs terminal commands inside the sandbox', async function () {
+		it('runs terminal commands inside the sandbox', async function () {
 			const app = this.app as Application;
 
 			try {
@@ -215,7 +215,7 @@ export function setup(logger: Logger): void {
 				const terminalLog = fs.readFileSync(terminalLogPath, 'utf8');
 				assert.match(
 					terminalLog,
-					/RunInTerminalTool: Command rewritten by CommandLineSandboxRewriter: Wrapped command for sandbox execution/,
+					/RunInTerminalTool: Command rewritten by [^:]+: Wrapped command for sandbox execution/,
 					`expected sandbox-wrapped terminal execution in ${terminalLogPath}`
 				);
 			} catch (error) {
