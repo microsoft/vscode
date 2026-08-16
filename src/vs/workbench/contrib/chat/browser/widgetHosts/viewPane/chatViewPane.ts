@@ -417,7 +417,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return;
 		}
 
-		EventHelper.stop(event);
+		EventHelper.stop(event, true);
 		await this.clear();
 		this.focusSessions();
 	}
