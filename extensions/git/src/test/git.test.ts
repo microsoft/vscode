@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { Git, GitStatusParser, IExecutionResult, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, parseGitStashes, Repository } from '../git';
+import { GitErrorCodes } from '../api/git.constants';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -641,6 +642,85 @@ suite('git', () => {
 				parseCoAuthors('Fix bug\n\nSigned-off-by: Admin <admin@corp.com>\nCo-authored-by: Jane Doe <jane@example.com>'),
 				[{ name: 'Jane Doe', email: 'jane@example.com' }]
 			);
+		});
+	});
+
+	suite('parseGitStashes', () => {
+		test('empty', function () {
+			assert.deepStrictEqual(parseGitStashes(''), []);
+		});
+
+		test('stash created by `git stash`', function () {
+			const input = '14301d5a5721241cca14e815ae760b15c35f1384\n09aa741a05ede93fc3f02e8184891be6e1e889ac\nstash@{0}\nWIP on main: 09aa741 init\n1784017026\n1784017026\x00';
+
+			assert.deepStrictEqual(parseGitStashes(input), [{
+				hash: '14301d5a5721241cca14e815ae760b15c35f1384',
+				parents: ['09aa741a05ede93fc3f02e8184891be6e1e889ac'],
+				index: 0,
+				branchName: 'main',
+				description: 'WIP (09aa741 init)',
+				authorDate: new Date(1784017026 * 1000),
+				commitDate: new Date(1784017026 * 1000)
+			}]);
+		});
+
+		test('stash named "autostash" by the user keeps its branch', function () {
+			const input = '14301d5a5721241cca14e815ae760b15c35f1384\n09aa741a05ede93fc3f02e8184891be6e1e889ac\nstash@{0}\nOn main: autostash\n1784017026\n1784017026\x00';
+
+			assert.deepStrictEqual(parseGitStashes(input), [{
+				hash: '14301d5a5721241cca14e815ae760b15c35f1384',
+				parents: ['09aa741a05ede93fc3f02e8184891be6e1e889ac'],
+				index: 0,
+				branchName: 'main',
+				description: 'autostash',
+				authorDate: new Date(1784017026 * 1000),
+				commitDate: new Date(1784017026 * 1000)
+			}]);
+		});
+
+		test('autostash created by `git pull --autostash` carries no branch', function () {
+			const input = '14301d5a5721241cca14e815ae760b15c35f1384\n09aa741a05ede93fc3f02e8184891be6e1e889ac 1cc119cbf97d36603218e1280e46a81f4ffe2cea\nstash@{0}\nautostash\n1784017026\n1784017026\x00';
+
+			assert.deepStrictEqual(parseGitStashes(input), [{
+				hash: '14301d5a5721241cca14e815ae760b15c35f1384',
+				parents: ['09aa741a05ede93fc3f02e8184891be6e1e889ac', '1cc119cbf97d36603218e1280e46a81f4ffe2cea'],
+				index: 0,
+				branchName: undefined,
+				description: 'autostash',
+				authorDate: new Date(1784017026 * 1000),
+				commitDate: new Date(1784017026 * 1000)
+			}]);
+		});
+	});
+
+	suite('Repository.pull', () => {
+		function createRepository(result: Partial<IExecutionResult<string>>): Repository {
+			const git = {
+				userAgent: 'git/test',
+				compareGitVersionTo: () => 1,
+				exec: async () => ({ exitCode: 0, stdout: '', stderr: '', ...result })
+			} as unknown as Git;
+
+			return new Repository(git, '/repo', undefined, { path: '/repo/.git', isBare: false }, undefined!);
+		}
+
+		test('autostash conflict is reported even though git exits with 0', async function () {
+			const repository = createRepository({
+				stderr: 'Applying autostash resulted in conflicts.\nYour changes are safe in the stash.\n'
+			});
+
+			await assert.rejects(
+				repository.pull(false, undefined, undefined, { autoStash: true }),
+				err => (err as { gitErrorCode?: string }).gitErrorCode === GitErrorCodes.StashConflict);
+		});
+
+		test('successful pull is not reported as an autostash conflict', async function () {
+			const repository = createRepository({
+				stdout: 'Updating 1cc119c..09aa741\n',
+				stderr: 'From https://github.com/microsoft/vscode\n   1cc119c..09aa741  main -> origin/main\n'
+			});
+
+			assert.strictEqual(await repository.pull(false, undefined, undefined, { autoStash: true }), true);
 		});
 	});
 
