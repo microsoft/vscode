@@ -1951,6 +1951,8 @@ export interface IChatService {
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
+	readonly onDidInvalidateSessionModel: Event<URI>;
+
 	/**
 	 * An observable containing all live chat models.
 	 */
@@ -1990,6 +1992,12 @@ export interface IChatService {
 	 * @returns A reference to the session's model, or undefined if the session could not be loaded
 	 */
 	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined>;
+
+	/**
+	 * Prevents future acquisitions from reusing the current model for this
+	 * resource. Existing references remain valid until their owners release them.
+	 */
+	invalidateSessionModel(sessionResource: URI): void;
 
 	/**
 	 * Loads a session from exported chat data

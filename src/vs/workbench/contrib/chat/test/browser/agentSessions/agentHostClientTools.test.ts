@@ -664,6 +664,7 @@ suite('AgentHostClientTools', () => {
 				getSession: () => undefined,
 				onDidCreateModel: Event.None,
 				removePendingRequest: () => { },
+				invalidateSessionModel: () => { },
 			});
 			instantiationService.stub(IAgentHostFileSystemService, {
 				registerAuthority: () => toDisposable(() => { }),

@@ -11,12 +11,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
-import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChatModelReference } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { MockChatModel } from '../../../../../workbench/contrib/chat/test/common/model/mockChatModel.js';
+import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
+import { shouldRebindChatWidgetModel } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,6 +81,85 @@ suite('Sessions - Chat View', () => {
 		}, {
 			evicted: undefined,
 			retained: { scrollTop: CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT },
+		});
+	});
+
+	test('rebinds an invalidated current chat to a fresh model', async () => {
+		interface IReloadableChatView {
+			readonly _currentChatResource: URI | undefined;
+			_reloadInvalidatedChatModel(resource: URI): void;
+			_loadChatModel(resource: URI, preserveCurrentModelOnFailure: boolean): Promise<void>;
+		}
+
+		const resource = URI.parse('remote-agent:/session');
+		const oldModel = disposables.add(new MockChatModel(resource));
+		const newModel = disposables.add(new MockChatModel(resource));
+		let oldReferenceDisposals = 0;
+		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
+		modelRef.value = { object: oldModel, dispose: () => oldReferenceDisposals++ };
+		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const loading: boolean[] = [];
+		const boundModels: MockChatModel[] = [];
+		const restoredViewStates: object[] = [];
+		const blockedLoad = new DeferredPromise<IChatModelReference | undefined>();
+		let loadCount = 0;
+		const element = dom.$('div');
+		disposables.add(toDisposable(() => element.remove()));
+		const view: IReloadableChatView = Object.assign(Object.create(ChatView.prototype), {
+			_currentChatResource: resource,
+			_modelRef: modelRef,
+			_loadCts: loadCts,
+			_widget: {
+				viewModel: { model: oldModel, sessionResource: resource },
+				getInput: () => '',
+				setLoading: (value: boolean) => loading.push(value),
+				setModel(model: MockChatModel) {
+					if (!shouldRebindChatWidgetModel(this.viewModel.model, model)) {
+						return;
+					}
+					this.viewModel = { model, sessionResource: model.sessionResource };
+					boundModels.push(model);
+				},
+				restoreViewState: (state: object) => restoredViewStates.push(state),
+			},
+			chatService: {
+				acquireOrLoadSession: (_resource: URI, _location: unknown, token: CancellationToken) => {
+					loadCount++;
+					return loadCount === 1
+						? raceCancellationError(blockedLoad.p, token)
+						: Promise.resolve({ object: newModel, dispose: () => { } });
+				},
+			},
+			viewStateService: {
+				get: () => ({ scrollTop: 42 }),
+			},
+			element,
+			logService: { error: () => { } },
+			showProgressWhile: () => { },
+			_updateWidgetLockState: () => { },
+			_saveCurrentViewState: () => { },
+		});
+
+		const initialLoad = view._loadChatModel(resource, false);
+		view._reloadInvalidatedChatModel(resource);
+		await Promise.resolve();
+		await initialLoad;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			currentResource: view._currentChatResource,
+			oldReferenceDisposals,
+			loading,
+			boundModels,
+			restoredViewStates,
+			boundResource: element.dataset.boundChatResource,
+		}, {
+			currentResource: resource,
+			oldReferenceDisposals: 1,
+			loading: [true, true, false],
+			boundModels: [newModel],
+			restoredViewStates: [{ scrollTop: 42 }],
+			boundResource: resource.toString(),
 		});
 	});
 

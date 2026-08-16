@@ -25,6 +25,9 @@ export class MockChatService implements IChatService {
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();
 	readonly onDidCreateModel = this._onDidCreateModel.event;
 
+	private readonly _onDidInvalidateSessionModel = new Emitter<URI>();
+	readonly onDidInvalidateSessionModel = this._onDidInvalidateSessionModel.event;
+
 	private readonly sessions = new ResourceMap<IChatModel>();
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
@@ -111,6 +114,11 @@ export class MockChatService implements IChatService {
 
 	acquireExistingSession(_sessionResource: URI, _debugOwner?: string): IChatModelReference | undefined {
 		return undefined;
+	}
+
+	invalidateSessionModel(sessionResource: URI): void {
+		this.removeSession(sessionResource);
+		this._onDidInvalidateSessionModel.fire(sessionResource);
 	}
 
 	setSessionTitle(_sessionResource: URI, _title: string): void { }

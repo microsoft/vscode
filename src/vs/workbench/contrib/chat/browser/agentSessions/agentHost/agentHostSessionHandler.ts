@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
+import { DeferredPromise, Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -987,6 +987,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _pendingMcpAutoAuthentication = new Map<string, Promise<boolean>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
+	private readonly _inFlightTurns = this._register(new DisposableStore());
 	private readonly _turnStopWatches = new Map<string, StopWatch>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
@@ -2741,102 +2742,112 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
-		onFailureStage('prepareTurn');
-		// This waits only for local trust checks and ordered optimistic dispatch;
-		// working-directory action envelopes are not a turn-start barrier.
-		await this._workingDirectorySynchronizer.reconcile(session, cancellationToken);
-		if (cancellationToken.isCancellationRequested) {
-			return;
-		}
 		const turnId = request.requestId;
-		this._clientDispatchedTurnIds.add(turnId);
 		const chatURI = this._getChatURI(request.sessionResource);
 		const turnChannel = chatURI;
-		const messageAttachments = await this._convertVariablesToAttachments(request);
-		if (cancellationToken.isCancellationRequested) {
-			return;
-		}
+		const completion = new DeferredPromise<Turn | undefined>();
+		const turnStore = this._inFlightTurns.add(new DisposableStore());
+		let completedTurn: Turn | undefined;
+		let turnDispatched = false;
+		turnStore.add(toDisposable(() => {
+			this._clientDispatchedTurnIds.delete(turnId);
+			this._activeSessions.get(request.sessionResource)?.complete();
+			completion.complete(completedTurn);
+		}));
+		turnStore.add(cancellationToken.onCancellationRequested(() => {
+			if (!turnDispatched) {
+				this._inFlightTurns.delete(turnStore);
+				return;
+			}
+			this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
+			this._config.connection.dispatch(turnChannel, {
+				type: ActionType.ChatTurnCancelled,
+				turnId,
+				duration: this._turnDuration(turnChannel, turnId),
+			});
+		}));
 
-		// Add this connection as an active client for the session before the
-		// turn goes out. We only do this on turn start (not on session open)
-		// so that opening a session doesn't eagerly register this client while
-		// another client is in the middle of a turn.
-		this._ensureActiveClient(request.sessionResource, session);
+		try {
+			onFailureStage('prepareTurn');
+			// This waits only for local trust checks and ordered optimistic dispatch;
+			// working-directory action envelopes are not a turn-start barrier.
+			await Promise.race([
+				this._workingDirectorySynchronizer.reconcile(session, cancellationToken),
+				completion.p,
+			]);
+			if (turnStore.isDisposed || cancellationToken.isCancellationRequested) {
+				this._inFlightTurns.delete(turnStore);
+				return completion.p;
+			}
+			const messageAttachments = await this._convertVariablesToAttachments(request);
+			if (turnStore.isDisposed || cancellationToken.isCancellationRequested) {
+				this._inFlightTurns.delete(turnStore);
+				return completion.p;
+			}
 
-		// Model and agent selection now travel on the turn message itself rather
-		// than via the removed `session/modelChanged` / `session/agentChanged`
-		// actions. The host applies the selection carried by the message before
-		// sending the turn to the agent backend.
-		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
-		const requestedAgentUri = request.modeInstructions?.uri?.toString();
+			// Add this connection as an active client for the session before the
+			// turn goes out. We only do this on turn start (not on session open)
+			// so that opening a session doesn't eagerly register this client while
+			// another client is in the middle of a turn.
+			this._ensureActiveClient(request.sessionResource, session);
 
-		// If the chat model has fewer previous requests than the protocol has
-		// turns, a checkpoint was restored or a message was edited. Dispatch
-		// session/truncated so the server drops the stale tail.
-		const chatModel = this._chatService.getSession(request.sessionResource);
-		const protocolState = this._getSessionState(session.toString(), chatURI);
-		if (chatModel && protocolState?.turns.length) {
-			// -2 since -1 will already be the current request
-			const previousRequestIndex = chatModel.getRequests().findIndex(i => i.id === request.requestId) - 1;
-			const previousRequest = previousRequestIndex >= 0 ? chatModel.getRequests()[previousRequestIndex] : undefined;
-			if (!previousRequest && protocolState.turns.length > 0) {
-				const truncateAction: ChatTruncatedAction = {
-					type: ActionType.ChatTruncated,
-				};
-				this._config.connection.dispatch(turnChannel, truncateAction);
-			} else {
-				const seenAtIndex = protocolState.turns.findIndex(t => t.id === previousRequest!.id);
-				if (seenAtIndex !== -1 && seenAtIndex < protocolState.turns.length - 1) {
+			// Model and agent selection now travel on the turn message itself rather
+			// than via the removed `session/modelChanged` / `session/agentChanged`
+			// actions. The host applies the selection carried by the message before
+			// sending the turn to the agent backend.
+			const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
+			const requestedAgentUri = request.modeInstructions?.uri?.toString();
+
+			// If the chat model has fewer previous requests than the protocol has
+			// turns, a checkpoint was restored or a message was edited. Dispatch
+			// session/truncated so the server drops the stale tail.
+			const chatModel = this._chatService.getSession(request.sessionResource);
+			const protocolState = this._getSessionState(session.toString(), chatURI);
+			if (chatModel && protocolState?.turns.length) {
+				// -2 since -1 will already be the current request
+				const previousRequestIndex = chatModel.getRequests().findIndex(i => i.id === request.requestId) - 1;
+				const previousRequest = previousRequestIndex >= 0 ? chatModel.getRequests()[previousRequestIndex] : undefined;
+				if (!previousRequest && protocolState.turns.length > 0) {
 					const truncateAction: ChatTruncatedAction = {
 						type: ActionType.ChatTruncated,
-						turnId: previousRequest!.id,
 					};
 					this._config.connection.dispatch(turnChannel, truncateAction);
+				} else {
+					const seenAtIndex = protocolState.turns.findIndex(t => t.id === previousRequest!.id);
+					if (seenAtIndex !== -1 && seenAtIndex < protocolState.turns.length - 1) {
+						const truncateAction: ChatTruncatedAction = {
+							type: ActionType.ChatTruncated,
+							turnId: previousRequest!.id,
+						};
+						this._config.connection.dispatch(turnChannel, truncateAction);
+					}
 				}
 			}
-		}
 
-		// Dispatch session/turnStarted — the server will call sendMessage on
-		// the provider as a side effect.
-		const turnAction: ChatTurnStartedAction = {
-			type: ActionType.ChatTurnStarted,
-			turnId,
-			startedAt: new Date().toISOString(),
-			message: withMessageHiddenFromTranscript({
-				...userOriginMessage(request.message, messageAttachments),
-				...(selectedModel ? { model: selectedModel } : {}),
-				...(requestedAgentUri ? { agent: { uri: requestedAgentUri } } : {}),
-			}, request.hideFromTranscript),
-		};
-		this._ensureTurnStopWatch(turnChannel, turnId);
-		onFailureStage('dispatchTurn');
-		this._config.connection.dispatch(turnChannel, turnAction);
+			const turnAction: ChatTurnStartedAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: new Date().toISOString(),
+				message: withMessageHiddenFromTranscript({
+					...userOriginMessage(request.message, messageAttachments),
+					...(selectedModel ? { model: selectedModel } : {}),
+					...(requestedAgentUri ? { agent: { uri: requestedAgentUri } } : {}),
+				}, request.hideFromTranscript),
+			};
+			this._ensureTurnStopWatch(turnChannel, turnId);
+			this._clientDispatchedTurnIds.add(turnId);
+			turnDispatched = true;
+			onFailureStage('dispatchTurn');
+			this._config.connection.dispatch(turnChannel, turnAction);
+			if (turnStore.isDisposed) {
+				return completion.p;
+			}
 
-		// Ensure the snapshot controller records a sentinel checkpoint for this
-		// request so it appears in requestDisablement even if the turn
-		// produces no file edits.
-		this._ensureSnapshotController(request.sessionResource)
-			?.ensureRequestCheckpoint(request.requestId);
+			this._ensureSnapshotController(request.sessionResource)
+				?.ensureRequestCheckpoint(request.requestId);
 
-		// Wait for the turn to reach a terminal state. The observable graph
-		// installed below drives all progress emission via the `progress`
-		// sink and resolves the promise from `onTurnEnded`. Cancellation is
-		// surfaced through the same path: the observer disposes itself when
-		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
-		onFailureStage('observeTurn');
-		return new Promise<Turn | undefined>(resolve => {
-			const store = new DisposableStore();
-			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
-				cancelSub.dispose();
-				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
-				this._config.connection.dispatch(turnChannel, {
-					type: ActionType.ChatTurnCancelled,
-					turnId,
-					duration: this._turnDuration(turnChannel, turnId),
-				});
-			}));
-
-			store.add(this._observeTurn({
+			onFailureStage('observeTurn');
+			turnStore.add(this._observeTurn({
 				backendSession: session,
 				sessionResource: request.sessionResource,
 				chatURI,
@@ -2845,10 +2856,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				cancellationToken,
 				suppressErrorMarkdown: true,
 				onTurnEnded: (lastTurn) => {
-					store.dispose();
-					this._clientDispatchedTurnIds.delete(turnId);
-					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
-					resolve(lastTurn);
+					completedTurn = lastTurn;
+					this._inFlightTurns.delete(turnStore);
 				},
 				onFileEdits: (tc) => {
 					const editParts = this._hydrateFileEdits(request.sessionResource, request.requestId, tc);
@@ -2857,7 +2866,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 				},
 			}));
-		});
+			return completion.p;
+		} catch (error) {
+			if (turnStore.isDisposed) {
+				return completion.p;
+			}
+			this._inFlightTurns.delete(turnStore);
+			throw error;
+		}
 	}
 
 	// ---- Tool confirmation --------------------------------------------------
@@ -6327,7 +6343,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	override dispose(): void {
+		this._inFlightTurns.clear();
 		for (const [, session] of this._activeSessions) {
+			if (!session.isCompleteObs.get()) {
+				session.complete();
+			}
+			this._chatService.invalidateSessionModel(session.sessionResource);
 			session.dispose();
 		}
 		this._activeSessions.clear();

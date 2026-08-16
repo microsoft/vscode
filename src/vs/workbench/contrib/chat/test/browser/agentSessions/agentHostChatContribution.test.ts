@@ -809,6 +809,11 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		getSession: (sessionResource: URI) => chatModels.get(sessionResource.toString()),
 		onDidCreateModel: onDidCreateModel.event,
 		onDidDisposeSession: Event.None,
+		invalidatedSessionModels: [] as URI[],
+		invalidateSessionModel(sessionResource: URI) {
+			this.invalidatedSessionModels.push(sessionResource);
+			chatModels.delete(sessionResource.toString());
+		},
 		setSession(sessionResource: URI, model: IChatModel) {
 			chatModels.set(sessionResource.toString(), model);
 			onDidCreateModel.fire(model);
@@ -4178,6 +4183,69 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(chatSession.isCompleteObs?.get(), true, 'should be complete after turn finishes');
+		}));
+
+		test('disposing the handler settles a live turn without cancelling the backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+
+			const { turnPromise, chatSession } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			let settled = false;
+			void turnPromise.then(() => settled = true);
+			await timeout(0);
+
+			assert.strictEqual(settled, false, 'turn should still be awaiting backend completion');
+
+			sessionHandler.dispose();
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				settled,
+				cancelled: agentHostService.dispatchedActions.some(action => action.action.type === 'chat/turnCancelled'),
+				invalidatedSessionModels: chatService.invalidatedSessionModels.map(resource => resource.toString()),
+			}, {
+				settled: true,
+				cancelled: false,
+				invalidatedSessionModels: [chatSession.sessionResource.toString()],
+			});
+		}));
+
+		test('disposing the handler during turn preparation prevents stale dispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService, chatService } = createTestServices(disposables);
+			const reconcileStarted = new DeferredPromise<void>();
+			const releaseReconcile = new DeferredPromise<void>();
+			instantiationService.stub(IAgentHostSessionWorkingDirectorySynchronizer, {
+				register: () => toDisposable(() => { }),
+				reconcile: async () => {
+					reconcileStarted.complete();
+					await releaseReconcile.p;
+				},
+			} as Partial<IAgentHostSessionWorkingDirectorySynchronizer> as IAgentHostSessionWorkingDirectorySynchronizer);
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			const handlerStore = disposables.add(new DisposableStore());
+			const sessionHandler = handlerStore.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'Copilot SDK agent running in a dedicated process',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				isNewSession: sessionResource => listController.isNewSession(sessionResource),
+			}));
+
+			const { turnPromise, chatSession } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			await reconcileStarted.p;
+			handlerStore.dispose();
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				turnStarted: agentHostService.dispatchedActions.some(action => action.action.type === 'chat/turnStarted'),
+				invalidatedSessionModels: chatService.invalidatedSessionModels.map(resource => resource.toString()),
+			}, {
+				turnStarted: false,
+				invalidatedSessionModels: [chatSession.sessionResource.toString()],
+			});
+			releaseReconcile.complete();
 		}));
 
 		test('live turn returns model credit details from usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -9570,6 +9638,23 @@ suite('AgentHostChatContribution', () => {
 			const markdownPart = progress.find(p => p.kind === 'markdownContent') as IChatMarkdownContent | undefined;
 			assert.ok(markdownPart, 'Should have markdown content from streaming text');
 			assert.strictEqual(markdownPart!.content.value, 'Partial response so far');
+		});
+
+		test('disposing the handler settles a restored active turn', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-dispose');
+			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-dispose' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.strictEqual(session.isCompleteObs?.get(), false, 'session should initially reflect the active backend turn');
+
+			sessionHandler.dispose();
+
+			assert.strictEqual(session.isCompleteObs?.get(), true, 'obsolete handler should settle its local streamed response');
 		});
 
 		test('does not duplicate system notification progress when reconnecting', async () => {

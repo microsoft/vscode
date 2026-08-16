@@ -276,6 +276,10 @@ const supportsAllAttachments: Required<Omit<IChatAgentAttachmentCapabilities, 't
 
 const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
 
+export function shouldRebindChatWidgetModel(currentModel: IChatModel | undefined, newModel: IChatModel): boolean {
+	return currentModel !== newModel;
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2478,7 +2482,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
+		if (!shouldRebindChatWidgetModel(this.viewModel?.model, model)) {
 			return;
 		}
 

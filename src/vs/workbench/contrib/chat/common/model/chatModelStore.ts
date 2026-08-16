@@ -56,11 +56,16 @@ export class ChatModelStore extends Disposable {
 	private readonly _refCollection: ReferenceCollection<ChatModel>;
 
 	private readonly _models = new ObservableMap<string, ChatModel>();
+	private readonly _modelsByGeneration = new Map<string, ChatModel>();
+	private readonly _currentGenerationKeys = new Map<string, string>();
+	private readonly _resourceKeysByGeneration = new Map<string, string>();
+	private readonly _invalidatedGenerationKeys = new Set<string>();
 	private readonly _modelsToDispose = new Set<string>();
 	private readonly _pendingDisposals = new Set<Promise<void>>();
 	private readonly _modelCreateOwners = new Map<string, string>();
 	private readonly _referenceOwners = new Map<string, Map<number, string>>();
 	private _referenceOwnerIds = 0;
+	private _generation = 0;
 
 	private readonly _onDidDisposeModel = this._register(new Emitter<ChatModel>());
 	public readonly onDidDisposeModel = this._onDidDisposeModel.event;
@@ -105,24 +110,45 @@ export class ChatModelStore extends Disposable {
 	}
 
 	public acquireExisting(uri: URI, debugOwner?: string): IReference<ChatModel> | undefined {
-		const key = this.toKey(uri);
-		if (!this._models.has(key)) {
+		const resourceKey = this.toKey(uri);
+		if (!this._models.has(resourceKey)) {
 			return undefined;
 		}
 
-		return this.wrapReference(key, this._refCollection.acquire(key, undefined, debugOwner), debugOwner);
+		const generationKey = this._currentGenerationKeys.get(resourceKey);
+		if (!generationKey) {
+			throw new Error(`No current generation for chat session ${resourceKey}`);
+		}
+		return this.wrapReference(generationKey, this._refCollection.acquire(generationKey, undefined, debugOwner), debugOwner);
 	}
 
 	public acquireOrCreate(props: IStartSessionProps, debugOwner?: string): IReference<ChatModel> {
-		const key = this.toKey(props.sessionResource);
-		return this.wrapReference(key, this._refCollection.acquire(key, props, debugOwner), debugOwner);
+		const resourceKey = this.toKey(props.sessionResource);
+		const generationKey = this.getOrCreateGenerationKey(resourceKey);
+		return this.wrapReference(generationKey, this._refCollection.acquire(generationKey, props, debugOwner), debugOwner);
+	}
+
+	/**
+	 * Prevent future acquisitions from returning the current model while allowing
+	 * existing references to release it through the normal reference lifecycle.
+	 */
+	public invalidate(uri: URI): boolean {
+		const resourceKey = this.toKey(uri);
+		const generationKey = this._currentGenerationKeys.get(resourceKey);
+		if (!generationKey) {
+			return false;
+		}
+
+		this._currentGenerationKeys.delete(resourceKey);
+		this._invalidatedGenerationKeys.add(generationKey);
+		this._models.delete(resourceKey);
+		return true;
 	}
 
 	public getReferenceDebugSnapshot(): IChatModelReferenceDebugSnapshot {
-		const models = Array.from(this._models.values())
-			.map(model => {
-				const key = this.toKey(model.sessionResource);
-				const owners = this._referenceOwners.get(key) ?? new Map();
+		const models = Array.from(this._modelsByGeneration.entries())
+			.map(([generationKey, model]) => {
+				const owners = this._referenceOwners.get(generationKey) ?? new Map();
 				const countsByOwner = new Map<string, number>();
 				for (const owner of owners.values()) {
 					countsByOwner.set(owner, (countsByOwner.get(owner) ?? 0) + 1);
@@ -135,12 +161,12 @@ export class ChatModelStore extends Disposable {
 				return {
 					sessionResource: model.sessionResource,
 					title: model.title,
-					createdBy: this._modelCreateOwners.get(key) ?? 'unknown',
+					createdBy: this._modelCreateOwners.get(generationKey) ?? 'unknown',
 					initialLocation: model.initialLocation,
 					isImported: !!model.isImported,
 					willKeepAlive: model.willKeepAlive,
 					hasPendingEdits: !!model.editingSession?.entries.get().some(entry => entry.state.get() === ModifiedFileEntryState.Modified),
-					pendingDisposal: this._modelsToDispose.has(key),
+					pendingDisposal: this._modelsToDispose.has(generationKey),
 					referenceCount: owners.size,
 					holders,
 				} satisfies IChatModelReferenceDebugInfo;
@@ -154,61 +180,77 @@ export class ChatModelStore extends Disposable {
 		};
 	}
 
-	private createReferencedObject(key: string, props?: IStartSessionProps, debugOwner?: string): ChatModel {
-		this._modelsToDispose.delete(key);
-		const existingModel = this._models.get(key);
+	private createReferencedObject(generationKey: string, props?: IStartSessionProps, debugOwner?: string): ChatModel {
+		this._modelsToDispose.delete(generationKey);
+		const resourceKey = this.getResourceKey(generationKey);
+		const existingModel = this._currentGenerationKeys.get(resourceKey) === generationKey
+			? this._models.get(resourceKey)
+			: undefined;
 		if (existingModel) {
 			return existingModel;
 		}
 
 		if (!props) {
-			throw new Error(`No start session props provided for chat session ${key}`);
+			throw new Error(`No start session props provided for chat session ${resourceKey}`);
 		}
 
-		this.logService.trace(`Creating chat session ${key}`);
+		this.logService.trace(`Creating chat session ${resourceKey}`);
 		const model = this.delegate.createModel(props);
-		this._modelCreateOwners.set(key, debugOwner ?? 'unspecified');
-		if (model.sessionResource.toString() !== key) {
-			throw new Error(`Chat session key mismatch for ${key}`);
+		this._modelCreateOwners.set(generationKey, debugOwner ?? 'unspecified');
+		if (model.sessionResource.toString() !== resourceKey) {
+			throw new Error(`Chat session key mismatch for ${resourceKey}`);
 		}
-		this._models.set(key, model);
+		this._modelsByGeneration.set(generationKey, model);
+		this._models.set(resourceKey, model);
 		this._onDidCreateModel.fire(model);
 		return model;
 	}
 
-	private destroyReferencedObject(key: string, object: ChatModel): void {
-		this._modelsToDispose.add(key);
-		const promise = this.doDestroyReferencedObject(key, object);
+	private destroyReferencedObject(generationKey: string, object: ChatModel): void {
+		this._modelsToDispose.add(generationKey);
+		const promise = this.doDestroyReferencedObject(generationKey, object);
 		this._pendingDisposals.add(promise);
 		promise.finally(() => {
 			this._pendingDisposals.delete(promise);
 		});
 	}
 
-	private async doDestroyReferencedObject(key: string, object: ChatModel): Promise<void> {
+	private async doDestroyReferencedObject(generationKey: string, object: ChatModel): Promise<void> {
 		try {
-			await this.delegate.willDisposeModel(object);
+			if (!this._invalidatedGenerationKeys.has(generationKey)) {
+				await this.delegate.willDisposeModel(object);
+			}
 		} catch (error) {
 			this.logService.error(error);
 		} finally {
-			if (this._modelsToDispose.has(key)) {
-				this.logService.trace(`Disposing chat session ${key}`);
-				this._models.delete(key);
-				this._modelCreateOwners.delete(key);
-				this._referenceOwners.delete(key);
-				this._onDidDisposeModel.fire(object);
+			if (this._modelsToDispose.has(generationKey)) {
+				const resourceKey = this.getResourceKey(generationKey);
+				this.logService.trace(`Disposing chat session ${resourceKey}`);
+				const isCurrentGeneration = this._currentGenerationKeys.get(resourceKey) === generationKey;
+				if (isCurrentGeneration) {
+					this._models.delete(resourceKey);
+					this._currentGenerationKeys.delete(resourceKey);
+				}
+				this._modelsByGeneration.delete(generationKey);
+				this._modelCreateOwners.delete(generationKey);
+				this._referenceOwners.delete(generationKey);
+				this._resourceKeysByGeneration.delete(generationKey);
+				this._invalidatedGenerationKeys.delete(generationKey);
+				if (![...this._resourceKeysByGeneration.values()].includes(resourceKey)) {
+					this._onDidDisposeModel.fire(object);
+				}
 				object.dispose();
 			}
-			this._modelsToDispose.delete(key);
+			this._modelsToDispose.delete(generationKey);
 		}
 	}
 
-	private wrapReference(key: string, reference: IReference<ChatModel>, debugOwner?: string): IReference<ChatModel> {
+	private wrapReference(generationKey: string, reference: IReference<ChatModel>, debugOwner?: string): IReference<ChatModel> {
 		const ownerId = ++this._referenceOwnerIds;
-		let ownerEntries = this._referenceOwners.get(key);
+		let ownerEntries = this._referenceOwners.get(generationKey);
 		if (!ownerEntries) {
 			ownerEntries = new Map();
-			this._referenceOwners.set(key, ownerEntries);
+			this._referenceOwners.set(generationKey, ownerEntries);
 		}
 		ownerEntries.set(ownerId, debugOwner ?? 'unspecified');
 
@@ -221,10 +263,10 @@ export class ChatModelStore extends Disposable {
 				}
 
 				isDisposed = true;
-				const owners = this._referenceOwners.get(key);
+				const owners = this._referenceOwners.get(generationKey);
 				owners?.delete(ownerId);
 				if (owners?.size === 0) {
-					this._referenceOwners.delete(key);
+					this._referenceOwners.delete(generationKey);
 				}
 				reference.dispose();
 
@@ -234,6 +276,24 @@ export class ChatModelStore extends Disposable {
 			}
 		};
 		return wrapped;
+	}
+
+	private getOrCreateGenerationKey(resourceKey: string): string {
+		let generationKey = this._currentGenerationKeys.get(resourceKey);
+		if (!generationKey) {
+			generationKey = `${++this._generation}:${resourceKey}`;
+			this._currentGenerationKeys.set(resourceKey, generationKey);
+			this._resourceKeysByGeneration.set(generationKey, resourceKey);
+		}
+		return generationKey;
+	}
+
+	private getResourceKey(generationKey: string): string {
+		const resourceKey = this._resourceKeysByGeneration.get(generationKey);
+		if (!resourceKey) {
+			throw new Error(`No chat session resource for generation ${generationKey}`);
+		}
+		return resourceKey;
 	}
 
 	/**
@@ -249,6 +309,6 @@ export class ChatModelStore extends Disposable {
 
 	override dispose(): void {
 		super.dispose();
-		this._models.forEach(model => model.dispose());
+		this._modelsByGeneration.forEach(model => model.dispose());
 	}
 }
