@@ -1081,11 +1081,38 @@ Add a comment to a file range.
 ```
 
 #### listComments
-List comments for this session.
+List comments for this session. Resolved comments are omitted by default.
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {
+    "includeResolved": {
+      "type": "boolean",
+      "description": "Whether resolved comments should be included. Defaults to false."
+    }
+  }
+}
+```
+
+#### replyToComment
+Reply to an existing comment for this session.
+```json
+{
+  "type": "object",
+  "properties": {
+    "commentId": {
+      "type": "string",
+      "description": "ID of the comment to reply to."
+    },
+    "text": {
+      "type": "string",
+      "description": "Reply text to add."
+    }
+  },
+  "required": [
+    "commentId",
+    "text"
+  ]
 }
 ```
 
