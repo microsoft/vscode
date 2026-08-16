@@ -20,7 +20,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ICloseEditorOptions, IEditorGroup, IEditorGroupsService, IEditorReplacement, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IEditorsChangeEvent, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
@@ -180,7 +180,7 @@ export interface ITestLayoutHarness {
 	onWillOpenEditor: Emitter<IEditorWillOpenEvent>;
 	onWillCloseEditor: Emitter<{ editor: EditorInput }>;
 	onDidCloseEditor: Emitter<{ editor: EditorInput; groupId?: number }>;
-	onDidEditorsChange: Emitter<void>;
+	onDidEditorsChange: Emitter<IEditorsChangeEvent | void>;
 	onDidLayoutMainContainer: Emitter<IDimension>;
 	onDidChangeViewContainerVisibility: Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>;
 	onDidChangeActiveViewDescriptors: Emitter<void>;
@@ -199,6 +199,7 @@ export interface ITestLayoutHarness {
 	editorRevealedExplicitly: boolean;
 	/** Current suppression depth for `suppressEditorPartAutoVisibility()`. */
 	editorPartAutoVisibilitySuppressionDepth: number;
+	clearEditorPartSashResetStateCalls: number;
 	/** Whether the lifecycle `Restored` phase has resolved (activates single-pane managed-tab / detail-panel behaviour). */
 	activateAux: boolean;
 	/** Editors in the main part's active group (drives the single-pane managed-tab logic). */
@@ -296,7 +297,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		onWillOpenEditor: store.add(new Emitter<IEditorWillOpenEvent>()),
 		onWillCloseEditor: store.add(new Emitter<{ editor: EditorInput }>()),
 		onDidCloseEditor: store.add(new Emitter<{ editor: EditorInput; groupId?: number }>()),
-		onDidEditorsChange: store.add(new Emitter<void>()),
+		onDidEditorsChange: store.add(new Emitter<IEditorsChangeEvent | void>()),
 		onDidLayoutMainContainer: store.add(new Emitter<IDimension>()),
 		onDidChangeViewContainerVisibility: store.add(new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>()),
 		onDidChangeActiveViewDescriptors: store.add(new Emitter<void>()),
@@ -318,6 +319,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		setPartHiddenCalls: [],
 		editorRevealedExplicitly: false,
 		editorPartAutoVisibilitySuppressionDepth: 0,
+		clearEditorPartSashResetStateCalls: 0,
 		activateAux: options.activateAux ?? false,
 		activeGroupEditors: [],
 		closedEditors: [],
@@ -446,6 +448,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 		isEditorPartAutoVisibilitySuppressed(): boolean {
 			return harness.editorPartAutoVisibilitySuppressionDepth > 0;
+		}
+		clearEditorPartSashResetState(): void {
+			harness.clearEditorPartSashResetStateCalls++;
 		}
 		setAuxiliaryBarHiddenForResize(hidden: boolean): void {
 			const wasVisible = harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true;
