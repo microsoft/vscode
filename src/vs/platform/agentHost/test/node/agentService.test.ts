@@ -2747,6 +2747,47 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('publishes an external session restored while hidden when the configured mode includes it', async () => {
+			class ExternalOnlyAgent extends TimedExternalAgent {
+				override async listSessions(): Promise<IAgentSessionMetadata[]> {
+					return [];
+				}
+			}
+
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			const agent = disposables.add(new ExternalOnlyAgent('copilot'));
+			const session = agent.addSession('hidden-then-restored', now);
+			const notifications: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(`add:${notification.summary.resource}`);
+				}
+			}));
+
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 1);
+			await waitForSessionListReconciliation(svc);
+			svc.registerProvider(agent);
+			assert.deepStrictEqual(await svc.listSessions(), []);
+			agent.fireDiscoveredChats([discoveredChat(session)]);
+			for (let attempt = 0; attempt < 20 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
+				await timeout(0);
+			}
+			await svc.restoreSession(session);
+			notifications.length = 0;
+
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 2);
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual({
+				visible: (await svc.listSessions()).map(entry => entry.session.toString()),
+				notifications,
+			}, {
+				visible: [session.toString()],
+				notifications: [`add:${session.toString()}`],
+			});
+		});
+
 		test('discovery registration preserves provider-supplied internal provenance', async () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
