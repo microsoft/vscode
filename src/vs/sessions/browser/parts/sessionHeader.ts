@@ -6,16 +6,12 @@
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { localize } from '../../../nls.js';
-import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { getUntitledSessionTitle } from '../../services/sessions/common/session.js';
 import { ActionRunner, IAction } from '../../../base/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
@@ -27,7 +23,6 @@ import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
 
@@ -57,9 +52,8 @@ class SessionActivatingActionRunner extends ActionRunner {
 
 /**
  * The session header shown at the top of a session view. It surfaces the session
- * identity (status icon + title), a meta row (contributed workspace folder /
- * changes / pull request pills), and the session toolbars (e.g. Run, Open in
- * VS Code, New Chat).
+ * status, metadata (workspace folder / changes / pull request pills), and the
+ * session toolbar (e.g. Run, Open in VS Code, New Chat).
  *
  * It is intentionally decoupled from the {@link ChatCompositeBar} (the chat tab
  * strip) so the two surfaces evolve independently. The hosting view tells the
@@ -69,16 +63,12 @@ export class SessionHeader extends Disposable {
 
 	private readonly _container: HTMLElement;
 	private readonly _iconEl: HTMLElement;
-	private readonly _titleEl: HTMLElement;
-	private readonly _titleTextEl: HTMLElement;
 	private readonly _metaRow: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _metaToolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
-	private _renameInput: HTMLInputElement | undefined;
 	private _session: IActiveSession | undefined;
 
 	// dragstart's own target is always the draggable container, so this tracks the
@@ -116,17 +106,14 @@ export class SessionHeader extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
 		this._container = $('.chat-composite-bar.session-header-bar');
 
-		// Header: a status icon column alongside a main column that stacks the title
-		// row (title + actions) and the meta row (workspace · diff). This mirrors the
-		// sessions list so the meta row aligns under the title rather than under the
-		// status icon.
+		// Header: status, metadata pills, and session actions share one row. Session
+		// identity lives in the window titlebar.
 		const header = $('.chat-composite-bar-header');
 		this._container.appendChild(header);
 
@@ -134,29 +121,11 @@ export class SessionHeader extends Disposable {
 		header.appendChild(this._iconEl);
 		this._statusIcon = this._register(instantiationService.createInstance(SessionStatusIcon, this._iconEl));
 
-		const main = $('.chat-composite-bar-header-main');
-		header.appendChild(main);
-
-		const titleRow = $('.chat-composite-bar-title-row');
-		main.appendChild(titleRow);
-
-		this._titleEl = $('.chat-composite-bar-session-title');
-		titleRow.appendChild(this._titleEl);
-
-		// Wrap the title text in a span so we can swap it for an input when
-		// the user clicks to rename without rebuilding the title slot itself.
-		this._titleTextEl = $('span.chat-composite-bar-session-title-text');
-		this._titleEl.appendChild(this._titleTextEl);
-
-		// Click the title to start an inline rename. Click is preferred over
-		// mousedown so that initiating a drag from the title doesn't also
-		// flip into edit mode.
-		this._register(addDisposableListener(this._titleEl, EventType.CLICK, () => {
-			this.startTitleEditing();
-		}));
+		this._metaRow = $('.chat-composite-bar-meta-row');
+		header.appendChild(this._metaRow);
 
 		const titleActions = $('.chat-composite-bar-title-actions');
-		titleRow.appendChild(titleActions);
+		header.appendChild(titleActions);
 		this._titleActionsEl = titleActions;
 
 		const toolbarContainer = $('.chat-composite-bar-toolbar');
@@ -169,9 +138,6 @@ export class SessionHeader extends Disposable {
 			// so the actions stay visually grouped.
 			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 		}));
-
-		this._metaRow = $('.chat-composite-bar-meta-row');
-		main.appendChild(this._metaRow);
 
 		// Session header meta toolbar. Actions are contributed into the generic
 		// Menus.SessionHeaderMeta menu: the files view contributes the workspace
@@ -262,12 +228,6 @@ export class SessionHeader extends Disposable {
 				return;
 			}
 
-			// Don't initiate a drag while the title is being renamed.
-			if (this._renameInput) {
-				e.preventDefault();
-				return;
-			}
-
 			this._sessionTransfer.setData(
 				[new DraggedSessionIdentifier(session.sessionId, session.resource)],
 				DraggedSessionIdentifier.prototype,
@@ -292,8 +252,6 @@ export class SessionHeader extends Disposable {
 		if (this._session === session) {
 			return;
 		}
-		// Cancel any in-flight rename when switching sessions.
-		this._cancelTitleEditing();
 		this._session = session;
 		this._toolbar.context = session;
 		this._metaToolbar.context = session;
@@ -319,19 +277,14 @@ export class SessionHeader extends Disposable {
 	private _updateHeader(session: IActiveSession, reader: IReader): void {
 		// Session icon — the SessionStatusIcon widget owns the rendering (spinner vs.
 		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
-		// The pull request is surfaced in the meta row, so in terminal/default states the
-		// title shows the read/unread dot indicator (no session type or PR icon).
+		// The pull request is surfaced in the metadata row, so terminal/default states
+		// use the read/unread dot indicator (no session type or PR icon).
 		const status = session.status.read(reader);
 		const isRead = session.isRead.read(reader);
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
-		// Session title — quick chats use "New Chat" as the untitled fallback.
-		const isQuickChat = session.isQuickChat?.read(reader) ?? false;
-		this._titleTextEl.textContent = session.title.read(reader) || getUntitledSessionTitle(isQuickChat);
-		this._titleEl.classList.toggle('editable', this._isTitleEditable());
-
-		// Meta row: contributed action pills (workspace folder · diff stats · pull request).
+		// Metadata: contributed action pills (workspace folder · diff stats · pull request).
 		// Reading the signal re-runs this on menu changes.
 		this._metaActionsSignal.read(reader);
 		const hasMetaActions = !this._metaToolbar.isEmpty();
@@ -353,116 +306,6 @@ export class SessionHeader extends Disposable {
 		applySessionBarThemeColors(this._container, this._themeService.getColorTheme());
 	}
 
-	/**
-	 * The title is editable when the backing provider declares it supports
-	 * renaming the session (`capabilities.supportsRename`). This is the same
-	 * signal that gates the `Rename...` context menu action in the sessions list.
-	 */
-	private _isTitleEditable(): boolean {
-		return !!this._session && (this._session.capabilities.get().supportsRename ?? false);
-	}
-
-	startTitleEditing(): void {
-		if (!this._isTitleEditable() || this._renameInput) {
-			return;
-		}
-		this._startTitleEditing();
-	}
-
-	/**
-	 * Replace the rendered title text with an `<input>` containing the current
-	 * title (pre-selected). Enter commits via {@link ISessionsManagementService.renameChat},
-	 * Escape or blur cancels.
-	 */
-	private _startTitleEditing(): void {
-		const session = this._session;
-		if (!session || this._renameInput) {
-			return;
-		}
-
-		const initialTitle = session.title.get();
-		// When the stored title is empty the header shows a localized fallback.
-		// Reflect that as a placeholder rather than seeding the input with it, so
-		// the user neither sees a blank field nor accidentally commits the fallback.
-		const fallbackTitle = getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
-
-		const input = document.createElement('input');
-		input.type = 'text';
-		input.className = 'chat-composite-bar-session-title-input';
-		input.value = initialTitle;
-		input.placeholder = fallbackTitle;
-		input.setAttribute('aria-label', localize('renameSession.aria', "Rename session"));
-		input.spellcheck = false;
-
-		this._titleTextEl.style.display = 'none';
-		this._titleEl.appendChild(input);
-		this._titleEl.classList.add('editing');
-		this._renameInput = input;
-
-		input.focus();
-		input.select();
-
-		const store = new DisposableStore();
-		this._editingDisposables.value = store;
-
-		let finished = false;
-		const finish = (commit: boolean) => {
-			if (finished) {
-				return;
-			}
-			finished = true;
-			const newTitle = input.value.trim();
-			this._endTitleEditing();
-			if (commit && newTitle && newTitle !== initialTitle) {
-				this._sessionsManagementService
-					.renameSession(session, newTitle)
-					.catch(onUnexpectedError);
-			}
-		};
-
-		store.add(addStandardDisposableListener(input, EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-			if (e.equals(KeyCode.Enter)) {
-				e.preventDefault();
-				e.stopPropagation();
-				finish(true);
-			} else if (e.equals(KeyCode.Escape)) {
-				e.preventDefault();
-				e.stopPropagation();
-				finish(false);
-			} else {
-				// Don't let typing leak out to workbench shortcuts (e.g. Space).
-				e.stopPropagation();
-			}
-		}));
-
-		store.add(addDisposableListener(input, EventType.BLUR, () => {
-			finish(false);
-		}));
-
-		// Swallow click/pointerdown on the input so the title's click handler
-		// doesn't try to re-enter editing mode. Use the generic mousedown
-		// helper which routes through `pointerdown` on iOS where mouse events
-		// don't fire.
-		store.add(addDisposableGenericMouseDownListener(input, e => e.stopPropagation()));
-		store.add(addDisposableListener(input, EventType.CLICK, e => e.stopPropagation()));
-	}
-
-	private _cancelTitleEditing(): void {
-		if (!this._renameInput) {
-			return;
-		}
-		this._endTitleEditing();
-	}
-
-	private _endTitleEditing(): void {
-		if (this._renameInput) {
-			this._renameInput.remove();
-			this._renameInput = undefined;
-		}
-		this._titleTextEl.style.display = '';
-		this._titleEl.classList.remove('editing');
-		this._editingDisposables.clear();
-	}
 }
 
 /**

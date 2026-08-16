@@ -34,7 +34,7 @@ Editors open as modal overlays via `ModalEditorPart`. The main editor part exist
 
 | Part | Position | Default Visibility | Purpose |
 |------|----------|-------------------|---------|
-| Titlebar | Top, full width | Always visible | Session picker, toggle actions, account widget |
+| Titlebar | Top, full width | Always visible | Active-session identity, navigation and layout actions, account widget |
 | Sidebar | Left, below titlebar | Visible | Sessions list |
 | Sessions Part | Center of right section | Visible | Grid of one or more session views (each rendering the active chat of its session) |
 | Custom View Grid | Same row as the Sessions Part | Hidden | Grid of custom views shown *instead of* the Sessions Part — see [§2.4](#24-custom-view-grid) |
@@ -127,7 +127,7 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 | Section | Menu ID | Content |
 |---------|---------|---------|
 | Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, new session (when sidebar hidden, A/B experiment), agent host filter |
-| Center | `Menus.CommandCenter` | Session picker widget |
+| Center | `Menus.CommandCenter` | Active-session identity |
 | Right | `Menus.TitleBarUpdate`, `Menus.TitleBarSessionMenu`, `Menus.TitleBarRightLayout` | The leftmost Update indicator, active-session actions (including Create Pull Request for created sessions with changes), remote connections, run script (split button), Open in VS Code, bottom-panel and auxiliary-bar layout toggles, and the account widget |
 
 No menubar or `WindowTitle` dependency. Editor-specific actions remain in the editor header, while session-level actions are placed on the right of the title bar.
@@ -138,20 +138,14 @@ The Update indicator occupies its own toolbar at the leading edge of the right-s
 
 The account widget shows overlapping provider identities only for accounts that are currently verified as signed in. Its panel keeps provider and status groups in a stable order: Copilot, ChatGPT (or its sign-in action), then contributed account status such as Codebase Semantic Index, with dividers between groups. Subscription usage uses a two-row metric layout with the plan and percentage first, followed by reset timing and the usage label.
 
-### Session Picker (Center)
+### Session Identity (Center)
 
-The center section shows a clickable session picker widget. When a session is active it renders:
+For an active session, the center section shows a passive session identity with:
 - **Provider icon** — the session type icon (e.g. Copilot CLI, Cloud)
 - **Session title** — the AI-generated or user-assigned session title
 - **Workspace name** — the repository or folder name
-- **Branch / worktree** — the active git branch or worktree name in parentheses
-- **Changes summary** — `+insertions -deletions` when the session has pending changes
 
-When no session is active (new chat view) the widget hides its chrome so the center is empty. Clicking opens the session switcher quick pick.
-
-When the primary side bar is hidden and at least one session is **blocked** the widget instead switches to a **requires-input** state (see [Blocked Sessions](#blocked-sessions-center) below).
-
-After the user approves a pending action on a session from the sessions list (e.g. the **Allow** button on an approval row), the widget briefly shows a green "Approved N sessions" confirmation. Each approval within the rolling 3s window increments the count and restarts the countdown; while visible it takes precedence over the requires-input state. Driven by `ISessionActionFeedbackService` (`contrib/sessions`), whose `approvedCount` observable the widget reads.
+Drafts use **New session** (or **New chat** for a quick chat) until they receive a title. When no session is active, the center is empty. The identity is not interactive; session-level commands remain in the in-content session header alongside the metadata pills. The title remains the active-session identity when the session needs input or an approval completes; those states do not replace it. Back and forward arrows appear beside the identity only while the primary sidebar is hidden, because the visible sessions list already provides direct navigation.
 
 In the single-pane layout, activating the session header **Changes** pill is treated as an explicit
 editor open: it reveals the docked editor area and opens the Changes multi-diff editor even though
@@ -174,11 +168,9 @@ projection and the Files view.
 
 When multiple remote agent hosts are known, a dropdown pill in the left toolbar scopes the workbench to a specific host. When no hosts are known the pill acts as a re-discover trigger.
 
-### Blocked Sessions (Center)
+### Blocked Sessions
 
-When at least one session is **blocked**, the center session picker widget (`SessionsTitleBarWidget`) switches from the active-session pill to a light orange "N sessions require input" state (orange label with a subtle background and border), and blinks gently twice whenever a newly blocked occurrence appears. A session counts as blocked when it needs input, or - while not in progress - has failing CI checks. Pull request comments do not make a session blocked. Raw detection is owned by the `BlockedSessions` model (`contrib/blockedSessions`), which reuses the shared, background-polled GitHub CI models and identifies CI occurrences by commit. The widget refines this into what the title bar surfaces via the `BlockedSessionsIndicatorModel` (`blockedSessionsIndicatorModel.ts`) it instantiates: it acknowledges the current occurrence when the user views the session or explicitly ignores it, applies optimistic approval dismissals, classifies the homogeneous requires-input reason (for the specific message), builds the pill label, and decides when the attention blink plays. Acknowledgement lasts only for that input request or CI failure; a later approval, a new failing commit, or an unblock-to-block transition surfaces the session again. Clicking the widget opens those sessions rendered exactly like the sessions list but flat - no sections, groups or workspace headers - via the reusable `SessionsFlatList` (exported from `sessionsList.ts`) in a dropdown anchored below the command center box using `IContextViewService`; clicking a row opens the session like the main list. Its header toolbar offers **Show All Sessions**, **Ignore All Input Needed**, and a trailing **Close** action whose hover shows the `Escape` keybinding. Its rows use `Menus.BlockedSessionsItem` instead of the main session-item toolbar menu and contribute **Ignore Input Needed** / **Ignore CI Failure** actions with the same bell-slash icon. When no session is blocked, the widget behaves as the normal active-session pill. Whether the widget enters this state is driven by the `BlockedSessionsIndicatorModel`'s `blockedSessions` observable.
-
-Approval acknowledgement must use the pending tool call's stable id, not the approval model's load-time timestamp. Opening the new-session view can dispose and later reload the chat model; a timestamp-based id would make the same approval appear blocked again after that reload.
+Blocked and approval state is surfaced by the sessions list and the active session's prompt-area status controls. It does not replace the active-session identity in the titlebar.
 
 ### Account Widget (Right)
 
@@ -220,7 +212,7 @@ The header is centered and capped to 990px via its own CSS class (`.chat-composi
 
 **Pitfall:** combined codicon glyphs (e.g. `git-pull-request-done`) have a wider horizontal advance (~16px) than `*-compact` glyphs (e.g. `worktree-compact`, 12px), so even at `font-size: 12px` their layout box stays wide and pushes the following label away. Setting `font-size` alone does not fix it — clamp the icon box with explicit `width`/`height` set to `--vscode-codiconFontSize-compact` plus `justify-content: center` so the extra advance overflows harmlessly and the label sits tight against the glyph.
 
-**Pitfall:** don't put `overflow: hidden` on the meta row. The meta buttons are secondary `Button`s whose focus ring is drawn with `outline-offset: 2px`, so it extends a few pixels outside the button. When the meta row's height equals the button height (22px) and the row clips its overflow, the ring is sheared flat at the top and bottom. Leave the row `overflow: visible` and rely on the header's `padding-bottom` and the title-row gap above to give the ring room.
+**Pitfall:** don't put `overflow: hidden` on the metadata row. The metadata buttons are secondary `Button`s whose focus ring is drawn outside the button. When the row clips its overflow, the ring is sheared flat at the top and bottom. Leave the row `overflow: visible` and rely on the header padding to give the ring room.
 
 #### 4.1.1 Chat groups grid
 
