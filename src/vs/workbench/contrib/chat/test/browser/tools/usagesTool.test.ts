@@ -326,5 +326,40 @@ suite('UsagesTool', () => {
 
 			assert.ok(getTextContent(result).includes('1 usages'));
 		});
+
+		test('rejects filePath that escapes the session working directory', async () => {
+			const outsideUri = URI.parse('file:///outside.ts');
+			const outsideContent = 'export const OutsideSecretMarker = 1;';
+			const outsideModel = disposables.add(createTextModel(outsideContent, 'typescript', undefined, outsideUri));
+			const requestedUris: URI[] = [];
+			const textModelService = {
+				_serviceBrand: undefined,
+				createModelReference: async (uri: URI) => {
+					requestedUris.push(uri);
+					return { object: { textEditorModel: outsideModel }, dispose: () => { } };
+				},
+				registerTextModelContentProvider: () => ({ dispose: () => { } }),
+				canHandleResource: () => false,
+			} as unknown as ITextModelService;
+			disposables.add(langFeatures.referenceProvider.register('typescript', {
+				provideReferences: (): Location[] => [
+					{ uri: outsideUri, range: new Range(1, 14, 1, 33) },
+				]
+			}));
+
+			const tool = disposables.add(createTool(textModelService, createMockWorkspaceService(), { modelService: createMockModelService([outsideModel]) }));
+			const result = await tool.invoke(
+				{
+					parameters: { symbol: 'OutsideSecretMarker', filePath: '../outside.ts', lineContent: outsideContent },
+					context: { workingDirectory: URI.parse('file:///session-dir') },
+				} as unknown as IToolInvocation,
+				noopCountTokens, noopProgress, CancellationToken.None
+			);
+
+			const text = getTextContent(result);
+			assert.ok(text.includes('Provide either'));
+			assert.ok(!text.includes(outsideContent));
+			assert.strictEqual(requestedUris.length, 0);
+		});
 	});
 });

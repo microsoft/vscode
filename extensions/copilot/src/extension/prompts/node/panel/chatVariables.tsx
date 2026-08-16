@@ -107,7 +107,7 @@ export class UserQuery extends PromptElement<QueryProps, void> {
 	override render(state: void, sizing: PromptSizing): PromptPiece<any, any> | undefined {
 		const promptFiles: PromptElement[] = [];
 		for (const v of this.props.chatVariables) {
-			if (isPromptFile(v)) {
+			if (isPromptFile(v.reference)) {
 				promptFiles.push(<PromptFile variable={v} omitReferences={false} />);
 			}
 		}
@@ -204,7 +204,7 @@ export async function renderChatVariables(chatVariables: ChatVariablesCollection
 			: FilePathMode.None;
 	for (const variable of chatVariables) {
 		const { uniqueName: variableName, value: variableValue, reference } = variable;
-		if (isInstructionFile(variable) || isCustomizationsIndex(variable) || isPromptFile(variable)) { // instructions and index are handled in the `CustomInstructions` element, prompt file as part of the UserQuery
+		if (isInstructionFile(variable.reference) || isCustomizationsIndex(variable.reference) || isPromptFile(variable.reference)) { // instructions and index are handled in the `CustomInstructions` element, prompt file as part of the UserQuery
 			continue;
 		}
 
@@ -443,7 +443,10 @@ export class ChatToolReferences extends PromptElement<ChatToolCallProps, void> {
 			const name = toolReference.range ? this.props.promptContext.query.slice(toolReference.range[0], toolReference.range[1]) : undefined;
 			try {
 				const result = await this.toolsService.invokeToolWithEndpoint(tool.name, { input: { ...toolArgs, ...internalToolArgs }, toolInvocationToken: tools.toolInvocationToken }, this.promptEndpoint, token || CancellationToken.None);
-				sendInvokedToolTelemetry(this.instantiationService, this.promptEndpoint, this.telemetryService, tool.name, result);
+				sendInvokedToolTelemetry(this.instantiationService, this.promptEndpoint, this.telemetryService, tool.name, result, {
+					conversationId: this.props.promptContext.conversation?.sessionId,
+					requestId: this.props.promptContext.requestId,
+				});
 				results.push({ name, value: result });
 			} catch (err) {
 				const errResult = toolCallErrorToResult(err);

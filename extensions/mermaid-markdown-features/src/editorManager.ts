@@ -7,6 +7,7 @@ import { generateUuid } from './util/uuid';
 import { MermaidWebviewManager } from './webviewManager';
 import { escapeHtmlText } from './util/html';
 import { Disposable } from './util/dispose';
+import { renderMermaidConfigSpan } from './markdownMermaid/config';
 
 export const mermaidEditorViewType = 'vscode.mermaid-markdown-features.preview';
 
@@ -276,6 +277,7 @@ class MermaidPreview extends Disposable {
 				</style>
 			</head>
 			<body data-vscode-context='${JSON.stringify({ preventDefaultContextMenuItems: true, mermaidWebviewId: this.diagramId })}' data-vscode-mermaid-webview-id="${this.diagramId}">
+				${renderMermaidConfigSpan()}
 				<div class="zoom-controls">
 					<button class="pan-mode-btn" title="${togglePanModeLabel}" aria-label="${togglePanModeLabel}" aria-pressed="false"><i class="codicon codicon-move" aria-hidden="true"></i></button>
 					<button class="zoom-out-btn" title="${zoomOutLabel}" aria-label="${zoomOutLabel}"><i class="codicon codicon-zoom-out" aria-hidden="true"></i></button>

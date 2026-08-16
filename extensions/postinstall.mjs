@@ -27,6 +27,8 @@ function processLib() {
 	const toDelete = new Set([
 		'tsc.js',
 		'_tsc.js',
+		'tsc6.js',
+		'_tsc6.js',
 
 		'typescriptServices.js',
 		'_typescriptServices.js',

@@ -4390,12 +4390,15 @@
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/picomatch": "2.3.0",
     "@types/which": "3.0.0"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
+  },
+  "allowScripts": {
+    "@vscode/fs-copyfile@2.0.0": true
   }
 }

@@ -43,9 +43,17 @@ pub fn prepare_extraction_root(root: &Path) -> Result<PathBuf, WrappedError> {
 }
 
 /// Joins an archive entry's relative path under `root_canonical` after
-/// rejecting any entry that would land outside the root. Rejects absolute
-/// paths, drive prefixes, and `..` traversal that escapes the root.
+/// rejecting any entry that would land outside the root. Rejects empty
+/// entries, absolute paths, drive prefixes, and `..` traversal that escapes
+/// the root.
 pub fn safe_extract_join(root_canonical: &Path, entry: &Path) -> Result<PathBuf, WrappedError> {
+	if entry.as_os_str().is_empty() {
+		return Err(wrap(
+			"empty extraction entry",
+			"refusing to extract empty archive entry".to_string(),
+		));
+	}
+
 	for component in entry.components() {
 		if matches!(component, Component::Prefix(_) | Component::RootDir) {
 			return Err(wrap(
@@ -168,6 +176,12 @@ mod tests {
 		assert!(safe_extract_join(&root, Path::new("/etc/passwd")).is_err());
 		let ok = safe_extract_join(&root, Path::new("a/b/c")).unwrap();
 		assert_eq!(ok, root.join("a/b/c"));
+	}
+
+	#[test]
+	fn safe_extract_join_rejects_empty_relative() {
+		let root = fs::canonicalize(std::env::temp_dir()).unwrap();
+		assert!(safe_extract_join(&root, Path::new("")).is_err());
 	}
 
 	#[cfg(unix)]

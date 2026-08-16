@@ -1,0 +1,67 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call resolveComments exactly once with commentIds ["reopen-me"] and resolved false, then reply exactly "reopened".
+    response:
+      content:
+        - type: text
+          text: I'll resolve—unresolve, rather—that comment.
+        - type: tool_use
+          id: toolcall_0
+          name: mcp__host__resolveComments
+          input:
+            commentIds:
+              - reopen-me
+            resolved: false
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call resolveComments exactly once with commentIds ["reopen-me"] and resolved false, then reply exactly "reopened".
+        - role: assistant
+          content:
+            - type: text
+              text: I'll resolve—unresolve, rather—that comment.
+            - type: tool_use
+              name: mcp__host__resolveComments
+              input:
+                commentIds:
+                  - reopen-me
+                resolved: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                {
+                  "resolved": false,
+                  "updatedCommentIds": [
+                    "reopen-me"
+                  ],
+                  "notFoundCommentIds": [],
+                  "comments": [
+                    {
+                      "id": "reopen-me",
+                      "resourceUri": "untitled://server-tools/reviewed.ts",
+                      "range": {
+                        "startLineNumber": 2,
+                        "startColumn": 3,
+                        "endLineNumber": 2,
+                        "endColumn": 9
+                      },
+                      "text": "reopen",
+                      "kind": "codeReview",
+                      "resolved": false
+                    }
+                  ]
+                }
+    response:
+      content: reopened
+      stopReason: end_turn

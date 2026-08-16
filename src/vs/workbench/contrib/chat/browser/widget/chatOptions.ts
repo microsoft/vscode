@@ -74,9 +74,9 @@ export class ChatEditorOptions extends Disposable {
 
 	constructor(
 		viewId: string | undefined,
-		private readonly foreground: string,
-		private readonly inputEditorBackgroundColor: string,
-		private readonly resultEditorBackgroundColor: string,
+		private foreground: string,
+		private inputEditorBackgroundColor: string,
+		private resultEditorBackgroundColor: string,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
@@ -125,5 +125,12 @@ export class ChatEditorOptions extends Disposable {
 
 		};
 		this._onDidChange.fire();
+	}
+
+	setColors(foreground: string, inputEditorBackgroundColor: string, resultEditorBackgroundColor: string): void {
+		this.foreground = foreground;
+		this.inputEditorBackgroundColor = inputEditorBackgroundColor;
+		this.resultEditorBackgroundColor = resultEditorBackgroundColor;
+		this.update();
 	}
 }

@@ -25,11 +25,14 @@ const LEGACY_MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1
 /**
  * Minimal entry stored in `installed.json`. URIs are serialised as strings
  * so that external tools can read and write the file without depending on
- * VS Code internal URI representations.
+ * VS Code internal URI representations. The optional `name` identifies the
+ * marketplace plugin and lets VS Code re-read the full descriptor from the
+ * marketplace when needed.
  */
 interface IInstalledJsonEntry {
 	readonly pluginUri: string;
 	readonly marketplace: string;
+	readonly name?: string;
 }
 
 /**
@@ -46,6 +49,7 @@ interface IInstalledJson {
 export interface IStoredInstalledPlugin {
 	readonly pluginUri: URI;
 	readonly marketplace: string;
+	readonly name?: string;
 }
 
 /**
@@ -54,9 +58,9 @@ export interface IStoredInstalledPlugin {
  * the installed-plugin manifest discoverable by external tools (CLIs,
  * other editors, etc.) without depending on VS Code internals.
  *
- * The on-disk format stores only the plugin URI (as a string) and the
- * marketplace identifier. Plugin metadata (name, description, etc.) is
- * read from the plugin manifest on disk by the discovery layer -
+ * The on-disk format stores only the plugin URI (as a string), marketplace
+ * identifier, and plugin name. Full plugin metadata (description, source
+ * descriptor, etc.) is read from marketplace data by the discovery layer -
  * keeping a single source of truth.
  *
  * On construction the store:
@@ -134,10 +138,14 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 				return undefined;
 			}
 
-			// Each entry is { pluginUri: string, enabled: boolean }.
+			// Each entry is { pluginUri, marketplace, name? }.
 			return json.installed
 				.filter((entry): entry is IInstalledJsonEntry => typeof entry.pluginUri === 'string' && typeof entry.marketplace === 'string')
-				.map(entry => ({ pluginUri: URI.parse(entry.pluginUri), marketplace: entry.marketplace }));
+				.map(entry => ({
+					pluginUri: URI.parse(entry.pluginUri),
+					marketplace: entry.marketplace,
+					name: typeof entry.name === 'string' ? entry.name : undefined,
+				}));
 		} catch {
 			return undefined;
 		}
@@ -153,6 +161,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		const entries: IInstalledJsonEntry[] = this.get().map(e => ({
 			pluginUri: e.pluginUri.toString(),
 			marketplace: e.marketplace,
+			...(e.name ? { name: e.name } : {}),
 		}));
 
 		const data: IInstalledJson = {
@@ -230,12 +239,13 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 				return;
 			}
 
-			const migrated: IStoredInstalledPlugin[] = (revive(parsed) as { pluginUri: UriComponents; plugin?: { marketplaceReference?: { rawValue?: string } } }[]).map(entry => {
+			const migrated: IStoredInstalledPlugin[] = (revive(parsed) as { pluginUri: UriComponents; plugin?: { name?: string; marketplaceReference?: { rawValue?: string } } }[]).map(entry => {
 				const uri = URI.revive(entry.pluginUri);
 				const rebased = this._rebasePluginUri(uri);
 				return {
 					pluginUri: rebased ?? uri,
 					marketplace: entry.plugin?.marketplaceReference?.rawValue ?? '',
+					name: entry.plugin?.name,
 				};
 			}).filter(e => !!e.marketplace);
 

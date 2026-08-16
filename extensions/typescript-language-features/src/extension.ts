@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
-import { DisableTsgoCommand, tsNativeExtensionId } from './commands/useTsgo';
+import { DisableTsgoCommand, tsNativeExtensionIds } from './commands/useTsgo';
 import { registerBaseCommands } from './commands/index';
 import { ElectronServiceConfigurationProvider } from './configuration/configuration.electron';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
@@ -61,7 +61,7 @@ export function activate(
 	// Conditionally register features based on whether TSGO is enabled
 	context.subscriptions.push(conditionalRegistration([
 		requireGlobalUnifiedConfig('experimental.useTsgo', { fallbackSection: 'typescript' }),
-		requireHasVsCodeExtension(tsNativeExtensionId),
+		requireHasVsCodeExtension(tsNativeExtensionIds),
 	], () => {
 		// TSGO. Only register a small set of features that don't use TS Server
 		const disposables = new DisposableStore();

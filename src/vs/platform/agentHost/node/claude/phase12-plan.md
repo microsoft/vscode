@@ -295,7 +295,7 @@ Note: **no changes to `claudeSessionMetadataStore.ts`**. Persistence dropped per
 ### Integration
 - Full-stack: a stubbed `IClaudeAgentSdkService` returns a canned parent transcript with an `Agent` tool_use + tool_result containing the synthetic `agentId: <id>` text suffix + a separately-canned subagent transcript. Drive `ClaudeAgent.getSessionMessages(parentURI)` → assert subagent marker present; verify resolver cache populated (priming fired). Then `getSessionMessages(subagentURI)` → assert mapped subagent `Turn[]` returned via cache hit.
 - Same fixture but with the agentId text suffix REMOVED → verify chain falls through to PromptMatchStrategy and resolves correctly.
-- `compile-check-ts-native` clean, `valid-layers-check` clean.
+- `typecheck-client` clean, `valid-layers-check` clean.
 
 ### E2E
 The workspace has the [launch skill](../../../../../../.agents/skills/launch/SKILL.md) (Playwright-driven Code OSS automation) and [code-oss-logs skill](../../../../../../.github/skills/code-oss-logs/SKILL.md) (find and read dev-build logs). Smoke scenario:
@@ -419,7 +419,7 @@ Tests:
 
 **Deletion test outcome**: deleting the `mapperState` accessor chain dissolved 3 modules' getters and removed 2 `as unknown` test casts. Subagent correlation now has one named seam (`IClaudeSubagentResolver`).
 
-Validation: 129 unit tests green, full type-check (`compile-check-ts-native`) clean, `valid-layers-check` clean.
+Validation: 129 unit tests green, full type-check (`typecheck-client`) clean, `valid-layers-check` clean.
 
 ### Step 11 — Avoid-private-methods extractions (landed)
 
@@ -579,7 +579,7 @@ into the mapper's test file.
   invalid `task_notification`.
 
 **Validation:** 141 tests pass across all 6 agentHost test files;
-`compile-check-ts-native` and `valid-layers-check` clean.
+`typecheck-client` and `valid-layers-check` clean.
 
 ---
 
@@ -640,7 +640,7 @@ section were executed end-to-end against the live SDK via the
   `claudeSubagentResolver.test.ts`, `claudeSubagentSignals.test.ts`,
   `claudeMapSessionEvents.test.ts`,
   `claudeSdkPipeline.test.ts` / `claudeSdkMessageRouter.test.ts`).
-- `compile-check-ts-native` and `valid-layers-check` clean.
+- `typecheck-client` and `valid-layers-check` clean.
 - Architecture review passes ran the `/improve-codebase-architecture`
   and `/avoid-private-methods` lenses across the full diff after each
   step; only intentional test-seam exports remain.
