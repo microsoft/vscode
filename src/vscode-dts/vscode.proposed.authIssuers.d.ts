@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 declare module 'vscode' {
 	export interface AuthenticationProviderOptions {
 		/**
@@ -12,45 +11,35 @@ declare module 'vscode' {
 		readonly supportedAuthorizationServers?: Uri[];
 	}
 
-	export interface AuthenticationProviderSessionOptions {
+	/**
+	 * Common OAuth/OpenID Connect options shared across authentication flows.
+	 */
+	export interface AuthenticationProviderCommonOptions {
 		/**
-		 * When specified, the authentication provider will use the provided authorization server URL to
-		 * authenticate the user. This is only used when a provider has `supportedAuthorizationServers` set
+		 * When specified, the authentication provider will use the provided
+		 * authorization server URL. Only effective when the provider has
+		 * `supportedAuthorizationServers` set.
 		 */
 		authorizationServer?: Uri;
 
 		/**
-		 * When specified, the authentication provider will use the provided client ID for the OAuth flow
-		 * instead of its default client ID.
+		 * Override the default client ID for the OAuth flow.
 		 */
 		clientId?: string;
 
 		/**
-		 * When specified, the authentication provider will request a token bound to this resource URI
-		 * (RFC 8707 resource indicator). The provider should forward this to the authorization server
-		 * so the issued access token is audience-restricted to the given resource.
+		 * Resource URI (RFC 8707 resource indicator) to request an
+		 * audience-restricted access token.
 		 */
 		resource?: string;
 	}
 
-	export interface AuthenticationGetSessionOptions {
-		/**
-		 * When specified, the authentication provider will use the provided authorization server URL to
-		 * authenticate the user. This is only used when a provider has `supportedAuthorizationServers` set
-		 */
-		authorizationServer?: Uri;
+	export interface AuthenticationProviderSessionOptions extends AuthenticationProviderCommonOptions {
+		// Session properties may be added here in the future
 
-		/**
-		 * When specified, the authentication provider will use the provided client ID for the OAuth flow
-		 * instead of its default client ID.
-		 */
-		clientId?: string;
+	}
 
-		/**
-		 * When specified, the authentication provider will request a token bound to this resource URI
-		 * (RFC 8707 resource indicator). The provider should forward this to the authorization server
-		 * so the issued access token is audience-restricted to the given resource.
-		 */
-		resource?: string;
+	export interface AuthenticationGetSessionOptions extends AuthenticationProviderCommonOptions {
+	 // Session properties may be added here in the future
 	}
 }
