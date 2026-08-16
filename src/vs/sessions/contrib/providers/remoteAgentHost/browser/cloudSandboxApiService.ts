@@ -19,7 +19,7 @@ import {
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../../../../platform/agentHost/common/githubEndpoints.js';
+import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { IReplayedTaskHistory, parseTaskEventsResponse, replayTaskAhpEvents, TaskEventReplayError } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -36,11 +36,15 @@ type CloudSandboxEnvironmentAction = 'get' | 'connect' | 'reconnect';
 interface ITaskSummary {
 	readonly id: string;
 	readonly name?: string;
-	readonly html_url?: string;
 	readonly archived_at?: string | null;
 	readonly updated_at?: string;
 	readonly agent_collaborators?: readonly { readonly slug?: string }[];
 	readonly compute?: { readonly provider?: string };
+	/**
+	 * The owning repository, identified by numeric id only — the payload carries no name. See
+	 * {@link CloudSandboxApiService._resolveRepositoryName}.
+	 */
+	readonly repository?: { readonly id?: number };
 }
 
 /** A full task, which additionally carries the sessions bound to sandbox environments. */
@@ -49,6 +53,13 @@ interface ITaskDetail extends ITaskSummary {
 }
 
 const LOG_PREFIX = '[CloudSandboxApi]';
+
+/**
+ * The github.com REST API base, used for the repository-name lookup discovery needs. The CORS
+ * caveat on {@link CloudSandboxApiService._tasksBaseUrl} is specific to `api.github.com/agents/*`;
+ * the general REST API is CORS-enabled and already called from the renderer elsewhere.
+ */
+const GITHUB_DOT_COM_API_BASE_URI = deriveGitHubEndpoints(undefined).apiBaseUri;
 
 /** Per-request timeout (ms) for credential and environment calls. */
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -75,6 +86,9 @@ const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
  */
 export class CloudSandboxApiService extends Disposable implements ICloudSandboxApiService {
 	declare readonly _serviceBrand: undefined;
+
+	/** Resolved (or in-flight) repository names, keyed by numeric repository id. */
+	private readonly _repositoryNames = new Map<number, Promise<string | undefined>>();
 
 	constructor(
 		@IRequestService private readonly _requestService: IRequestService,
@@ -150,13 +164,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					// No environment bound yet — a real state, not a failure to resolve.
 					return undefined;
 				}
-				const repo = parseRepoFromTaskUrl(full.html_url);
+				const repositoryId = full.repository?.id ?? task.repository?.id;
+				const repoName = repositoryId !== undefined ? await this._resolveRepositoryName(repositoryId, token) : undefined;
 				return {
 					environmentId: binding.environmentId,
 					sessionId: binding.sessionId,
 					taskId: task.id,
 					name: full.name ?? task.name ?? `Sandbox ${task.id}`,
-					repoName: repo ? `${repo.owner}/${repo.name}` : undefined,
+					repoName,
 					updatedAt: full.updated_at ?? task.updated_at,
 				};
 			} catch (error) {
@@ -167,7 +182,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}));
 
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
-		this._logService.info(`${LOG_PREFIX} Discovery found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${tasks.length} scanned${unresolved > 0 ? `; ${unresolved} unresolved` : ''}.`);
+		const unnamed = sessions.filter(session => !session.repoName).length;
+		this._logService.info(`${LOG_PREFIX} Discovery found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${tasks.length} scanned${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
 		return { kind: unresolved > 0 ? 'partial' : 'complete', sessions };
 	}
 
@@ -192,6 +208,45 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			throw new TaskEventReplayError('Task AHP history response was empty or not JSON.');
 		}
 		return replayTaskAhpEvents(parseTaskEventsResponse(body));
+	}
+
+	/**
+	 * Resolve a numeric repository id to its `owner/name`, memoized for the life of the service.
+	 * A task names its repository nowhere — `repository` carries an id, and the session's
+	 * `event_url` / `base_ref` are empty for tasks created through the tasks API.
+	 *
+	 * The cached promise must never reject: every task in a pass shares it, and a rejection would
+	 * count each one as unresolved (forcing the scan `partial`) and drop those sessions from the
+	 * listing entirely. A miss is evicted so the next pass retries.
+	 */
+	private _resolveRepositoryName(repositoryId: number, token: CancellationToken): Promise<string | undefined> {
+		const cached = this._repositoryNames.get(repositoryId);
+		if (cached) {
+			return cached;
+		}
+		const pending = (async () => {
+			try {
+				const url = `${GITHUB_DOT_COM_API_BASE_URI}/repositories/${repositoryId}`;
+				const context = await this._request(url, 'mc.repositoryClient.get', 'getRepository', {
+					'Accept': 'application/vnd.github.v3+json',
+				}, token, DISCOVERY_TIMEOUT_MS);
+				if (!isSuccess(context)) {
+					throw new CloudSandboxRequestError(context.res.statusCode, `HTTP ${context.res.statusCode ?? 'none'}`);
+				}
+				const body = await this._readJson<{ full_name?: string }>(context);
+				return body?.full_name;
+			} catch (error) {
+				this._logService.warn(`${LOG_PREFIX} Repository ${repositoryId} lookup failed: ${toErrorMessage(error)}`);
+				return undefined;
+			}
+		})();
+		this._repositoryNames.set(repositoryId, pending);
+		pending.then(name => {
+			if (!name && this._repositoryNames.get(repositoryId) === pending) {
+				this._repositoryNames.delete(repositoryId);
+			}
+		});
+		return pending;
 	}
 
 	/** Shared handler for the `connect`/`reconnect` endpoints (200 token or 202 waking). */
@@ -390,22 +445,6 @@ function getTaskEnvironmentBinding(task: ITaskDetail): { environmentId: string; 
 		if (session.environment_id && session.environment_id.length > 0 && session.id.length > 0) {
 			return { environmentId: session.environment_id, sessionId: session.id };
 		}
-	}
-	return undefined;
-}
-
-/** The `owner/name` repository encoded in a task's `html_url`, when parseable. */
-function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string } | undefined {
-	if (!htmlUrl) {
-		return undefined;
-	}
-	try {
-		const match = new URL(htmlUrl).pathname.match(/^\/([^/]+)\/([^/]+)\//);
-		if (match) {
-			return { owner: match[1], name: match[2] };
-		}
-	} catch {
-		// not a parseable URL
 	}
 	return undefined;
 }

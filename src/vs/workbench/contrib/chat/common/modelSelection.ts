@@ -156,10 +156,20 @@ export const enum ModelSelectionReason {
 
 export type ModelSelectionApplyReason = Exclude<ModelSelectionReason, ModelSelectionReason.NoModels>;
 
-export function isAuthoritativeModelSelectionReason(reason: ModelSelectionApplyReason | undefined): boolean {
-	return reason === ModelSelectionReason.ProgrammaticSelection
-		|| reason === ModelSelectionReason.SessionRestore
-		|| reason === ModelSelectionReason.UserSelection;
+/**
+ * The model a conversation is meant to run on, and the authority that put it there — regardless of
+ * what the catalog can offer right now. Owned by the conversation rather than by any input widget,
+ * so a choice made in one chat can never be applied to another.
+ *
+ * Deliberately local: it is never serialized and never crosses the agent-host wire, unlike the
+ * selected model in the conversation's draft state.
+ */
+export interface IIntendedModelSelection {
+	readonly modelId: string;
+	/** Present when the model itself was seen; absent when only an id was restored from storage. */
+	readonly model?: ILanguageModelChatMetadataAndIdentifier;
+	readonly reason: ModelSelectionApplyReason;
+	readonly configuration?: Record<string, unknown>;
 }
 
 /**
@@ -265,8 +275,8 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 		|| currentReason === ModelSelectionReason.Remembered
 		|| currentReason === ModelSelectionReason.NewChatRepush;
 	const configuredModelValue = session.kind === 'untitled'
-		&& (newConversation
-			|| (!newConversation && (!sessionModelId || automaticSelection) && !isAuthoritativeModelSelectionReason(currentReason)))
+		&& !isInConversationModelChoice(currentReason)
+		&& (newConversation || (!newConversation && (!sessionModelId || automaticSelection)))
 		? models.configuredModel
 		: undefined;
 	const configuredModel = configuredModelValue

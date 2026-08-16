@@ -5,7 +5,12 @@
 
 .new-session-prompt-options {
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsChatInput-border);
-	border-radius: var(--vscode-cornerRadius-large);
+	/* Top corners follow the stack, so a tip above joins these options. */
+	border-radius:
+		var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))
+		var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))
+		var(--vscode-cornerRadius-large)
+		var(--vscode-cornerRadius-large);
 	box-sizing: border-box;
 	container-type: inline-size;
 	margin-bottom: var(--vscode-spacing-size80);
@@ -13,12 +18,26 @@
 	width: 100%;
 }
 
+.new-session-prompt-options-header {
+	align-items: center;
+	display: flex;
+	margin-bottom: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
 .new-session-prompt-options-title {
 	color: var(--vscode-agentsChatInput-foreground);
+	flex: 1;
 	font-size: var(--vscode-agents-fontSize-heading3);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 1.4;
-	margin: 0 0 var(--vscode-spacing-size80);
+	margin: 0;
+	min-width: 0;
+}
+
+.new-session-prompt-options-actions {
+	flex-shrink: 0;
+	margin-left: auto;
 }
 
 .new-session-prompt-options-list {
@@ -100,6 +119,30 @@
 	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
 	flex-shrink: 0;
 	font-weight: var(--vscode-agents-fontWeight-regular);
+}
+
+.new-session-prompt-option.has-title-detail .new-session-prompt-option-title {
+	align-items: center;
+	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	grid-column: 2;
+	grid-row: 2;
+}
+
+.new-session-prompt-options-list > .new-session-prompt-option.has-title-detail .new-session-prompt-option-action-icon {
+	color: inherit;
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
+	transform: translateY(-1px);
+}
+
+.new-session-prompt-option.has-title-detail .new-session-prompt-option-description {
+	color: var(--vscode-agentsChatInput-foreground);
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	grid-column: 2;
+	grid-row: 1;
 }
 
 .new-session-prompt-option-description {

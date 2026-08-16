@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { retry } from '../../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -16,6 +16,8 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+
+const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
 export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier !== 'parity') {
@@ -63,14 +65,18 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		}));
 	}
 
-	async function releaseAndRestoreSession(sessionUri: string): Promise<void> {
+	async function releaseAndRestoreSession(sessionUri: string, additionalChats: readonly string[] = []): Promise<void> {
 		const before = await fetchSessionWithChat(context.client, sessionUri);
 		const beforeResponsePartIds = responsePartIds(before.turns);
 		const beforeTurns = durableTurnContent(before.turns);
 		assert.ok(beforeResponsePartIds.length > 0);
 		const chatUri = buildDefaultChatUri(sessionUri);
+		for (const chat of additionalChats) {
+			context.client.notify('unsubscribe', { channel: chat });
+		}
 		context.client.notify('unsubscribe', { channel: chatUri });
 		context.client.notify('unsubscribe', { channel: sessionUri });
+		await timeout(50);
 
 		await retry(async () => {
 			const restored = await fetchSessionWithChat(context.client, sessionUri);
@@ -124,7 +130,10 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		});
 	});
 
-	(config.supportsMultipleChats ? test : test.skip)('peer chat catalog and transcript survive a host restart', async function () {
+	const peerChatPersistenceEnabled = config.supportsMultipleChats
+		&& (config.supportsMultipleChatsE2E !== false || RECORDING)
+		&& (!(context.isWindows && config.provider === 'copilotcli') || context.runKnownIssueTests);
+	(peerChatPersistenceEnabled ? test : test.skip)('peer chat catalog and transcript survive a host restart', async function () {
 		this.timeout(240_000);
 		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-peer-persistence-`);
 		tempDirs.push(workspace);
@@ -151,6 +160,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			60_000,
 		);
 
+		await releaseAndRestoreSession(sessionUri, [peerUri]);
 		await restartAndInitialize(`peer-persistence-reconnect-${config.provider}`, workspace);
 
 		const reopenedSession = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });

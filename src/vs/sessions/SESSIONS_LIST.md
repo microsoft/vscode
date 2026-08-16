@@ -6,9 +6,9 @@ The sessions list is the primary navigation surface in the Agents Window. It occ
 
 ## Overview
 
-The sessions list (`SessionsView` + `SessionsList`) displays every session known to `ISessionsManagementService`. Sessions are aggregated from all registered providers and shown in collapsible **sections**. The user can group, sort, filter, pin, and archive sessions. Selecting a session navigates to it.
+The sessions list (`SessionsView` + `SessionsList`) displays user-facing sessions known to `ISessionsManagementService`. Sessions marked with `ISession.isAutomation` by their provider-owned run ledger are excluded before filtering and grouping. Other sessions are aggregated from all registered providers and shown in collapsible **sections**. The user can group, sort, filter, pin, and archive sessions. Selecting a session navigates to it.
 
-When `chat.omni.enabled` is enabled, the Sessions header includes a `Codicon.arrowCircleUpSparkle` action after **New Session** that toggles the floating chat input window.
+When `chat.omni.enabled` is enabled, the Sessions header includes a `Codicon.arrowCircleUpSparkle` action after **New Session** that toggles the Agents-only floating chat input window. The window routes through a provider-neutral Sessions adapter and is not registered in editor workbenches. Its New Session row uses the same recent-workspace/provider model as the welcome picker: Local/GitHub/Remote/custom tabs, workspace labels/descriptions/icons, provider `Select...` actions, search, restored selection, and exact provider identity are rendered in Omni's separate action-widget window.
 
 ### Key Files
 
@@ -21,6 +21,8 @@ When `chat.omni.enabled` is enabled, the Sessions header includes a `Codicon.arr
 | `services/sessions/browser/sessionSectionOrderService.ts` | `ISessionSectionOrderService` — manual top-level order of groups + workspace sections and workspace promotion (UI-only) |
 | `contrib/sessions/browser/views/sessionsViewActions.ts` | All registered actions (sort, group, filter, pin, archive, rename, navigate) |
 
+Renderers that need row-level styling declare `ITreeRenderer.rowClassName`; they must not traverse to tree-owned `.monaco-list-row` markup with `closest()`.
+
 ---
 
 ## Features
@@ -32,7 +34,7 @@ Each session row displays:
 - **Status icon** — animated indicator for InProgress / NeedsInput / Error / Completed / Unread; unread takes precedence over completed-state glyphs such as a pull request, while quick chats never show a PR glyph (they have no GitHub PR association) and no per-row chat icon is shown either (the Chats section header, Pinned section, or custom group already conveys their identity)
 - **Title** — the session's display title (observable)
 - **Type icon** (regular sessions only) — folder/worktree/cloud icon indicating the workspace kind; omitted for quick chats
-- **Workspace badge** — folder/worktree/cloud icon + label (hidden when redundant with section header)
+- **Workspace badge** — workspace label rendered inline after the folder/worktree/cloud type icon. It is hidden only when a workspace section header already carries the same label; date, custom-group, Pinned, and Done rows show it unless live status temporarily hides row details.
 - **Diff stats** (regular sessions only) — `+insertions −deletions` when the session has pending changes; omitted for quick chats
 - **Status description or timestamp** (regular sessions only) — InProgress/NeedsInput/Error show a status message, otherwise a relative timestamp; quick chats show none of this (their compact spinner status icon already conveys "in progress", and diff stats/timestamps are omitted for their more compact row)
 - **Approval row** (optional) — pending agent approvals with an "Allow" button
@@ -42,6 +44,8 @@ Quick-chat rows (`.session-item.quick-chat`, driven by the reactive `ISession.is
 Continuous row animations preserve their existing appearance while limiting rendering work: the title shimmer follows the same three-second path with at most 30 visual updates per second, then rests for three seconds before repeating. Both it and the shared pixel spinner pause outside the viewport and whenever their document is hidden, while their visibility tracking survives temporary row-template detachment. Status icons cross-fade only for state changes within the same session; when virtualization rebinds a row template to another session, the new icon renders immediately so stale status is never shown.
 
 `SessionsFlatList` reuses the same session row renderer for sectionless surfaces, including the approval row and dynamic row height updates. Consumers that size their own container listen for content-height changes and relayout the list. When embedded inside another hover, consumers disable row hovers so moving over the list does not replace the parent hover.
+
+Automation run history uses `SessionsFlatList` for runs backed by a live session. Pending and running runs without a resolved session use a lightweight `Working...` row; date grouping and run actions remain owned by the Automations view.
 
 ### Grouping
 
@@ -61,10 +65,12 @@ Each quick chat is its **own single-chat session** (New Quick Chat = a new sessi
 
 Two grouping modes (user-switchable):
 
-- **By Workspace** (default) — user groups and one section per workspace label share a single, freely-reorderable user-managed order below Pinned. By default groups come first and workspaces are alphabetical ("Unknown" workspace last) until the user drags them. A workspace header includes a **Create Session from Pull Request** icon action unless the section is backed only by `github-remote-file` cloud workspaces. The Quick Pick opens immediately in a disabled busy state while repository identity resolves. Identity comes from hydrated session metadata when available; otherwise the action opens the checkout through `IGitService`, waits for its repository-state remotes to hydrate, and parses the GitHub remote. Closing the picker cancels that wait. The picker then runs fresh Waiting for My Review and Assigned to Me queries in parallel with the lightweight first-100 catalog query. Each group query returns complete rows, so Waiting can render without waiting for the full catalog; groups append in final display order so visible entries never move during enrichment. PRs that already have a session are excluded. Typing a query that matches none of the loaded entries fetches subsequent pages until a match is found or the catalog is exhausted. After selection, the picker remains busy while it loads the PR details and all paged file patches, issue comments, and review comments and waits for the folder to advertise a worktree-capable session type; Escape cancels this wait. The provisional session then activates immediately and starts a worktree that tracks the PR head branch. The initial request and response are retained as hidden model context, while the PR JSON appears as a one-time context pill that moves into the first visible request.
+- **By Workspace** (default) — user groups and one section per workspace label share a single, freely-reorderable user-managed order below Pinned. By default groups come first and workspaces are alphabetical ("Unknown" workspace last) until the user drags them. A workspace header includes a **Create Session from Pull Request** icon action unless the section is backed only by `github-remote-file` cloud workspaces. The Quick Pick opens immediately in a disabled busy state while repository identity resolves. Identity comes from hydrated session metadata when available; otherwise the action opens the checkout through `IGitService`, waits for its repository-state remotes to hydrate, and parses the GitHub remote. Closing the picker cancels that wait. The picker then runs fresh Waiting for My Review and Assigned to Me queries in parallel with the lightweight first-100 catalog query. Each group query returns complete rows, so Waiting can render without waiting for the full catalog; groups append in final display order so visible entries never move during enrichment. PRs that already have a local or remote-host checkout session are excluded; an existing `github-remote-file` cloud-agent session does not prevent creating a separate worktree session for the same PR. Typing a query that matches none of the loaded entries fetches subsequent pages until a match is found or the catalog is exhausted. After selection, the picker remains busy while it loads the PR details and all paged file patches, issue comments, and review comments and waits for the folder to advertise a worktree-capable session type; Escape cancels this wait. The provisional session then activates immediately and starts a worktree that tracks the PR head branch. The initial request and response are retained as hidden model context, while the PR JSON appears as a one-time context pill that moves into the first visible request.
 - **By Date** — user groups form a contiguous, user-ordered block directly below Pinned; the non-grouped sessions follow in the fixed date sections (Recent, Older), where Recent holds up to 10 sessions from the last 7 days and Older holds the rest. Groups never mix into the date sections.
 
 User groups are **fully user-managed**: their order is owned by `ISessionSectionOrderService`, defaults to newest-first, and is shared across both grouping modes (it no longer derives from the recency of a group's member sessions). Groups remain visible and persisted until explicitly deleted. A group with no currently-visible member rows renders a muted **"No session" placeholder row** like the empty Chats section; its hover briefly explains that sessions can be added through the session context menu or drag and drop. This includes genuinely empty groups and groups whose members currently render in Pinned or are hidden by a filter. Archiving a session removes its group membership, so a group whose last member is marked done becomes empty and can be deleted.
+
+`SessionsList.getRenderedSessionGroup` is the shared placement predicate for custom-group membership: the membership must resolve to an existing group, and Pinned/Done precedence excludes the row. `isRenderedInCustomGroup` derives from it and makes a custom-group row reuse the standard always-visible workspace badge because the group header names the group rather than the workspace. Do not add a separate hover- or focus-revealed workspace label; equivalent workspace identity uses the same badge presentation everywhere.
 
 Archived sessions always go to the archived section (labelled "Archived" or "Done" depending on `chat.experimental.sessionArchiveActionWording`) regardless of grouping mode. Archive wins over pin — an archived session is never shown in Pinned — and archiving removes the session from any user-created group. This cleanup also applies when an archived session is added by a provider and when persisted group state loads. Restoring the session does not restore its former group membership.
 
@@ -84,6 +90,7 @@ When grouping by workspace, the list shows only **primary** workspace sections b
 - A workspace qualifies as primary if it has recent activity (last 4 days), matches the open window's folder, or contains the most recently updated session
 - Remaining workspaces collapse behind a "+N more workspaces" toggle
 - Within each workspace or user-created group, sessions beyond 5 (configurable by the same assignment treatment) also show a "Show more" toggle and then a "Show less" toggle once expanded
+- "Show more" rows use the same horizontal inset and corner-radius tier as session rows, including the phone layout
 - The find widget bypasses all capping
 
 ### Filtering
@@ -142,7 +149,7 @@ The insertion line relies on the base list widget's `drop-target-before`/`drop-t
 
 Archived sessions do not show the session group context menu actions ("Create Group", "Add to Group", "Move to Group", or "Remove from Group").
 
-The **Create Group** context-menu action is also available from list blank space, section headers, group headers, "show more" rows, and placeholder rows. These non-session entry points create an empty group and immediately start inline renaming; the session-row action creates the group with the selected sessions as before.
+The **Create Group** context-menu action is also available from list blank space, section headers, group headers, "show more" rows, and placeholder rows. These non-session entry points create an empty group and immediately start inline renaming; the session-row action creates the group with the selected sessions as before. Transient context-menu actions are non-disposable values; the contributed session-row menu remains owned for the menu lifetime and is disposed when it closes.
 
 ### Read / Unread
 

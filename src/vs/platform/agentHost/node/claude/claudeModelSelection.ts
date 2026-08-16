@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentModelInfo } from '../../common/agentService.js';
+import type { IAgentModelInfo } from '../../common/agent.js';
 import { createAgentModelGroupMeta } from '../../common/agentModelSource.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
@@ -147,9 +147,9 @@ export function resolveClaudeSessionTransport(inputs: {
  * Array order is *not* what picks the session default. The picker re-buckets the
  * flat list by the `_meta` vendor token and renders group-by-group, so which
  * model is pre-selected follows the group ordering — verified end-to-end: with
- * both halves populated the Anthropic group sorts first and
- * `@provider=anthropic:default` is pre-selected, i.e. the default routes native
- * and bills the user's own Anthropic account. Do not reason about the default
+ * both halves populated the Anthropic group sorts first, so the pre-selected
+ * model is the native group's first row, i.e. the default routes native and
+ * bills the user's own Anthropic account. Do not reason about the default
  * from the order here. (Making that choice explicit rather than emergent needs a
  * default/sticky model preference, which does not exist yet.)
  *

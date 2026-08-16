@@ -116,7 +116,49 @@ export class UserInfoStore extends Disposable {
 	}
 }
 
-export type TASClientDelegateFn = (globalState: vscode.Memento, userInfoStore: UserInfoStore) => ITASExperimentationService;
+/**
+ * A one-way switch used to neutralize a superseded delegate. `tas-client`'s `dispose()` only
+ * stops polling; an already in-flight fetch can still complete and write shared state. Revoking
+ * the gate makes that delegate's storage/telemetry writes no-ops so it cannot overwrite the
+ * memento (`VSCode.ABExp.FeatureData`) or `abexp.assignmentcontext` after being replaced.
+ */
+export class RevocationGate {
+	private _revoked = false;
+	get isRevoked(): boolean {
+		return this._revoked;
+	}
+	revoke(): void {
+		this._revoked = true;
+	}
+}
+
+/** Wraps a memento so writes are dropped once the gate is revoked (reads still pass through). */
+class RevocableMemento implements vscode.Memento {
+	constructor(
+		private readonly _actual: vscode.Memento,
+		private readonly _gate: RevocationGate,
+	) { }
+
+	keys(): readonly string[] {
+		return this._actual.keys();
+	}
+
+	get<T>(key: string): T | undefined;
+	get<T>(key: string, defaultValue: T): T;
+	get<T>(key: string, defaultValue?: T): T | undefined {
+		return defaultValue === undefined ? this._actual.get<T>(key) : this._actual.get<T>(key, defaultValue);
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	update(key: string, value: any): Thenable<void> {
+		if (this._gate.isRevoked) {
+			return Promise.resolve();
+		}
+		return this._actual.update(key, value);
+	}
+}
+
+export type TASClientDelegateFn = (memento: vscode.Memento, userInfoStore: UserInfoStore, gate: RevocationGate) => ITASExperimentationService;
 
 export class BaseExperimentationService extends Disposable implements IExperimentationService {
 
@@ -169,8 +211,16 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 
 	private _createDelegate(): ITASExperimentationService {
 		const generation = ++this._delegateGeneration;
-		const delegate = this._delegateFn(this._globalState, this._userInfoStore);
-		this._delegateDisposable.value = toDisposable(() => delegate.dispose());
+		const gate = new RevocationGate();
+		const memento = new RevocableMemento(this._globalState, gate);
+		const delegate = this._delegateFn(memento, this._userInfoStore, gate);
+		// Revoke this generation's storage/telemetry writes and stop its polling when it is
+		// superseded (a newer delegate is assigned) or the service is disposed, so a still
+		// in-flight fetch cannot overwrite the shared memento / assignment context afterwards.
+		this._delegateDisposable.value = toDisposable(() => {
+			gate.revoke();
+			delegate.dispose();
+		});
 		delegate.initialFetch.then(() => {
 			if (generation !== this._delegateGeneration || this._store.isDisposed) {
 				return; // superseded by a newer delegate, or the service was disposed

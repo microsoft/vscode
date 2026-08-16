@@ -139,7 +139,9 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 		if (model.id === AutoChatEndpoint.pseudoModelId) {
 			try {
 				const allEndpoints = await this.getAllChatEndpoints();
-				return this._autoModeService.resolveAutoModeEndpoint(requestOrFamilyOrModel as ChatRequest, allEndpoints);
+				// `await` so a routing failure is caught here rather than escaping
+				// the `try` and failing the whole request.
+				return await this._autoModeService.resolveAutoModeEndpoint(requestOrFamilyOrModel as ChatRequest, allEndpoints);
 			} catch {
 				return this.getChatEndpoint('copilot-utility');
 			}

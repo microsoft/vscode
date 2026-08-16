@@ -1182,9 +1182,15 @@ export const SESSION_META_GIT_KEY = 'git';
  */
 export const SESSION_META_GITHUB_KEY = 'github';
 
+/** Reserved key for durable source-control workflow provenance. */
+export const SESSION_META_SOURCE_CONTROL_KEY = 'vscode.sourceControl';
+
 export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
+
+/** Reserved key for whether a session was first discovered in a provider-native catalog. */
+export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
 
@@ -1293,12 +1299,64 @@ export interface ISessionGitState {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** Whether the current branch has commits not contained in its local base branch. */
+	readonly hasBaseBranchChanges?: boolean;
 	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubOwner?: string;
 	/** GitHub owner parsed from the current branch's upstream or push remote. */
 	readonly githubHeadOwner?: string;
 	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubRepo?: string;
+}
+
+export const enum SessionSourceControlOutcome {
+	Merge = 'merge',
+	PullRequest = 'pullRequest',
+}
+
+/** Durable source-control workflow provenance for a session. */
+export interface ISessionSourceControlState {
+	readonly merge?: {
+		/** Resulting target-branch HEAD after the most recent successful merge. */
+		readonly commit: string;
+	};
+	readonly latestOutcome?: SessionSourceControlOutcome;
+}
+
+/** Reads validated source-control workflow provenance from session metadata. */
+export function readSessionSourceControlState(meta: SessionMeta | undefined): ISessionSourceControlState | undefined {
+	const value = meta?.[SESSION_META_SOURCE_CONTROL_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+
+	const raw = value as Record<string, unknown>;
+	let merge: ISessionSourceControlState['merge'];
+	const rawMerge = raw['merge'];
+	if (rawMerge && typeof rawMerge === 'object' && !Array.isArray(rawMerge)) {
+		const commit = (rawMerge as Record<string, unknown>)['commit'];
+		merge = typeof commit === 'string' && commit.length > 0 ? { commit } : undefined;
+	}
+
+	const rawLatestOutcome = raw['latestOutcome'];
+	const latestOutcome = rawLatestOutcome === SessionSourceControlOutcome.Merge || rawLatestOutcome === SessionSourceControlOutcome.PullRequest
+		? rawLatestOutcome
+		: undefined;
+	if (!merge && (!latestOutcome || latestOutcome === SessionSourceControlOutcome.Merge)) {
+		return undefined;
+	}
+	return { merge, latestOutcome };
+}
+
+/** Returns session metadata with source-control workflow provenance updated. */
+export function withSessionSourceControlState(meta: SessionMeta | undefined, state: ISessionSourceControlState | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (state) {
+		next[SESSION_META_SOURCE_CONTROL_KEY] = state;
+	} else {
+		delete next[SESSION_META_SOURCE_CONTROL_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
 }
 
 /**
@@ -1451,6 +1509,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
+		hasBaseBranchChanges?: boolean;
 		githubOwner?: string;
 		githubHeadOwner?: string;
 		githubRepo?: string;
@@ -1462,6 +1521,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
+	if (typeof raw['hasBaseBranchChanges'] === 'boolean') { result.hasBaseBranchChanges = raw['hasBaseBranchChanges']; }
 	if (typeof raw['githubOwner'] === 'string') { result.githubOwner = raw['githubOwner']; }
 	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
 	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
@@ -1647,6 +1707,22 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		next[SESSION_META_WORKSPACELESS_KEY] = true;
 	} else {
 		delete next[SESSION_META_WORKSPACELESS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Whether the session was first discovered in a provider-native catalog. */
+export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EXTERNAL_KEY] === true;
+}
+
+/** Returns a copy of `meta` with the external-session provenance marker updated. */
+export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (external) {
+		next[SESSION_META_EXTERNAL_KEY] = true;
+	} else {
+		delete next[SESSION_META_EXTERNAL_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }
