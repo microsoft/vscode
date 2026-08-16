@@ -3369,7 +3369,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!targetState) {
 			return;
 		}
-		if (targetState.activeTurn !== undefined) {
+		if (this._stateManager.hasActiveTurn(evictionTargetKey)) {
 			this._scheduleSessionRelease(evictionTarget);
 			return;
 		}
@@ -3382,7 +3382,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const settledState = this._stateManager.getSessionState(evictionTargetKey);
-		if (!settledState || settledState.activeTurn !== undefined) {
+		if (!settledState || this._stateManager.hasActiveTurn(evictionTargetKey)) {
 			return;
 		}
 		const provider = this._findProviderForSession(evictionTarget);
@@ -3401,7 +3401,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (this._hasSessionSubscribers(evictionTarget)) {
 					return;
 				}
-				if (this._restoreSessionInFlight.has(evictionTargetKey) || currentState?.activeTurn !== undefined) {
+				if (this._restoreSessionInFlight.has(evictionTargetKey) || this._stateManager.hasActiveTurn(evictionTargetKey)) {
 					this._scheduleSessionRelease(evictionTarget);
 					return;
 				}

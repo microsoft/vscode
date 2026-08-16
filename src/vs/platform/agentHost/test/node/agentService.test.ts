@@ -9475,6 +9475,34 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'active-turn session must not be evicted');
 		});
 
+		test('a session with an active peer chat is NOT evicted when its last subscriber drops', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
+				service.stateManager.addChat(sessionResource.toString(), peerChat.toString(), {});
+				service.addSubscriber(sessionResource, 'client-1');
+				service.dispatchAction(
+					peerChat.toString(),
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					'client-1', 1,
+				);
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					hasActiveTurn: service.stateManager.hasActiveTurn(sessionResource.toString()),
+					hasCachedState: service.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+					releaseCalls: copilotAgent.releaseSessionCalls.length,
+				}, {
+					hasActiveTurn: true,
+					hasCachedState: true,
+					releaseCalls: 0,
+				});
+			});
+		});
+
 		test('a provider can defer idle release without losing cached state', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DeferringReleaseMockAgent('copilot');
