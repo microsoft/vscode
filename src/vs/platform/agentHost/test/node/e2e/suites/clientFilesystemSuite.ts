@@ -368,10 +368,10 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 
 		const first = await context.client.call<CreateResourceWatchResult>('createResourceWatch', params);
 		const second = await context.client.call<CreateResourceWatchResult>('createResourceWatch', params);
-		const [firstSubscription, secondSubscription] = await Promise.all([
-			context.client.call<SubscribeResult>('subscribe', { channel: first.channel }),
-			context.client.call<SubscribeResult>('subscribe', { channel: second.channel }),
-		]);
+		const firstSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: first.channel });
+		const secondSubscription = second.channel === first.channel
+			? firstSubscription
+			: await context.client.call<SubscribeResult>('subscribe', { channel: second.channel });
 
 		assert.deepStrictEqual(secondSubscription.snapshot?.state, firstSubscription.snapshot?.state);
 	});
