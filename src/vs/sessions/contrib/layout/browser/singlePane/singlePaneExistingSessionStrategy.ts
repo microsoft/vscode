@@ -15,6 +15,7 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -82,7 +83,14 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 	}
 
 	private _registerEmptyGroupClose(): void {
-		this._register(this._editorService.onDidCloseEditor(() => {
+		// This listener is registered before detail synchronization, so the last-editor
+		// removal closes the whole side pane before an empty group can transiently hide
+		// Details and make its combined width look like a pure Editor width.
+		this._register(this._editorService.onDidEditorsChange(event => {
+			if (!event || event.event.kind !== GroupModelChangeKind.EDITOR_CLOSE) {
+				return;
+			}
+
 			const session = this._sessionsService.activeSession.get();
 			if (this._ctx.isRestoringSessionLayout
 				|| this._ctx.multipleSessionsVisibleObs.get()
@@ -125,6 +133,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		let wasQuickChatActive = false;
 		let previousIsCreated: boolean | undefined;
 		let previousSession: IActiveSession | undefined;
+		let togglingSidePane = false;
 
 		this._register(autorun(reader => {
 			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
@@ -179,25 +188,33 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			if (e.partId !== Parts.EDITOR_PART && e.partId !== Parts.AUXILIARYBAR_PART) {
 				return;
 			}
-			if (e.partId === Parts.AUXILIARYBAR_PART && this._changingDetailTransiently) {
+			if (togglingSidePane || (e.partId === Parts.AUXILIARYBAR_PART && this._changingDetailTransiently)) {
 				return;
 			}
-			if (this._ctx.isRestoringSessionLayout) {
-				return;
-			}
-			if (this._ctx.multipleSessionsVisibleObs.get()) {
-				return;
-			}
-			const activeSession = this._sessionsService.activeSession.get();
-			if (!activeSession || activeSession.isQuickChat?.get() || !activeSession.isCreated.get()
-				|| this._layoutService.isEditorMaximized() || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
-				return;
-			}
-			this._visibilityStore.set(SessionVisibilityProfile.Existing, {
-				editorVisible: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
-				auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
-			});
+			this._captureExistingProfileIfApplicable();
 		}));
+		this._register(this._layoutService.onWillToggleSidePane(() => {
+			togglingSidePane = true;
+		}));
+		this._register(this._layoutService.onDidToggleSidePane(() => {
+			try {
+				this._captureExistingProfileIfApplicable();
+			} finally {
+				togglingSidePane = false;
+			}
+		}));
+	}
+
+	private _captureExistingProfileIfApplicable(): void {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.multipleSessionsVisibleObs.get()) {
+			return;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession || activeSession.isQuickChat?.get() || !activeSession.isCreated.get()
+			|| this._layoutService.isEditorMaximized() || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
+			return;
+		}
+		this._captureExistingProfile();
 	}
 
 	/** On submit, seed the Existing profile from the current on-screen composition so the view never jumps. */
@@ -344,11 +361,6 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 	}
 
 	private _computeTarget(activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean): DetailPanelTarget {
-		// For a created session an empty editor group means the whole side pane was closed, so
-		// hide the detail. During a session-switch / submit restore the working-set apply
-		// transiently empties the group before the managed Changes/Files tabs are re-ensured,
-		// so leave it as-is (Preserve) instead — the detail then follows the active editor once
-		// the managed tabs settle.
 		if (mainPartEmpty) {
 			return this._ctx.isRestoringSessionLayout ? DetailPanelTarget.Preserve : DetailPanelTarget.Hidden;
 		}
