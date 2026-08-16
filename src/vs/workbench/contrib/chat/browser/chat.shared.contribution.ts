@@ -517,6 +517,13 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.RichLinks]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.richLinks.enabled', "Controls whether supported links in chat are rendered as rich links with live metadata. Enabling this may make authenticated requests to services such as GitHub."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.IncrementalRenderingStyle]: {
 			type: 'string',
 			enum: ['none', 'fade', 'rise', 'blur', 'scale', 'slide', 'reveal'],

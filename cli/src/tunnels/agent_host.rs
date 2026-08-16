@@ -31,7 +31,7 @@ use crate::async_pipe::{
 use crate::constants::VSCODE_CLI_QUALITY;
 use crate::download_cache::DownloadCache;
 use crate::log;
-use crate::options::Quality;
+use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
@@ -98,6 +98,7 @@ const UPGRADE_KILL_DELAY: Duration = Duration::from_secs(3);
 #[derive(Clone, Debug)]
 pub struct AgentHostConfig {
 	pub server_data_dir: Option<String>,
+	pub telemetry_level: Option<TelemetryLevel>,
 	pub without_connection_token: bool,
 	pub connection_token: Option<String>,
 	pub connection_token_file: Option<String>,
@@ -261,6 +262,10 @@ impl AgentHostManager {
 		if let Some(a) = &self.config.server_data_dir {
 			cmd.arg("--server-data-dir");
 			cmd.arg(a);
+		}
+		if let Some(level) = self.config.telemetry_level {
+			cmd.arg("--telemetry-level");
+			cmd.arg(level.to_string());
 		}
 		if self.config.without_connection_token {
 			cmd.arg("--without-connection-token");
@@ -2255,6 +2260,7 @@ mod tests {
 			Arc::new(ReqwestSimpleHttp::new()),
 			AgentHostConfig {
 				server_data_dir: None,
+				telemetry_level: None,
 				without_connection_token: true,
 				connection_token: None,
 				connection_token_file: None,

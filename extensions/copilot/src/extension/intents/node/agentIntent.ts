@@ -97,18 +97,17 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
  * Only clamps when the selection is strictly smaller than the model window so
  * the full tier ("Longer sessions") stays uncompacted.
  *
- * When no explicit selection is present, falls back to the default context-max tier, unless the tiers cost the same and `chat.preferLongContext.enabled` is set, in which case the full native window is used.
+ * When no explicit selection is present, uses the default tier, or the full window when long context is free (no surcharge).
  *
  * @internal - exported for testing
  */
-export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest, preferLongContext: boolean = false): IChatEndpoint {
+export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest): IChatEndpoint {
 	const contextSize = request.modelConfiguration?.contextSize;
-	// Prefer a valid explicit selection; otherwise fall back to the default tier. Guard against non-positive / non-finite selections (0, -1, NaN, Infinity). When tiers cost the same and the user prefers long context, skip the fallback and use the full window. See microsoft/vscode#322950, microsoft/vscode#323116.
+	// Prefer a valid explicit selection (guard 0/-1/NaN/Infinity); else use the default tier, or the full window when long context is free.
 	const hasLongContextSurcharge = !!endpoint.tokenPricing?.longContext;
-	const useDefaultTierFallback = !preferLongContext || hasLongContextSurcharge;
 	const effectiveSize = (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0)
 		? contextSize
-		: useDefaultTierFallback ? endpoint.tokenPricing?.default.contextMax : undefined;
+		: hasLongContextSurcharge ? endpoint.tokenPricing?.default.contextMax : undefined;
 	if (typeof effectiveSize === 'number' && effectiveSize > 0 && effectiveSize < endpoint.modelMaxPromptTokens) {
 		return endpoint.cloneWithTokenOverride(effectiveSize);
 	}
@@ -664,7 +663,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// so the server-managed compaction threshold (Responses API) is keyed to the
 		// selected tier rather than the model's full native window. See
 		// applyContextSizeOverride for the cost rationale.
-		super(intent, location, applyContextSizeOverride(endpoint, request, configurationService.getConfig(ConfigKey.PreferLongContext)), request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
+		super(intent, location, applyContextSizeOverride(endpoint, request), request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
 
 	public override getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {

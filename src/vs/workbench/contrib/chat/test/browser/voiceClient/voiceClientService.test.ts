@@ -513,6 +513,45 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('prepares for narration audio before sending the request', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		const sentBeforeNarration = socket().sent.length;
+		let sentWhenPrepared = -1;
+
+		const narrationId = service.requestNarration('cs1', 'response', 'Done.', undefined, undefined, undefined, undefined, () => {
+			sentWhenPrepared = socket().sent.length;
+			return true;
+		});
+
+		assert.deepStrictEqual({
+			sentBeforeNarration,
+			sentWhenPrepared,
+			sentAfterNarration: socket().sent.length,
+			narrationId: typeof narrationId,
+		}, {
+			sentBeforeNarration: 1,
+			sentWhenPrepared: 1,
+			sentAfterNarration: 2,
+			narrationId: 'string',
+		});
+	});
+
+	test('links a tool result to its resolved coding session', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+
+		service.sendToolResult('call-1', 'ok', 'copilotcli:/session-1');
+
+		assert.deepStrictEqual(socket().sent.at(-1), {
+			type: 'tool_result',
+			call_id: 'call-1',
+			result: 'ok',
+			coding_session_id: 'copilotcli:/session-1',
+		});
+	});
+
 	test('drops a narration requested before the session starts', async () => {
 		const { service } = createService();
 

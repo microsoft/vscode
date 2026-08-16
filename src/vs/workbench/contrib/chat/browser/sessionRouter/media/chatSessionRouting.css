@@ -33,7 +33,7 @@
 }
 
 .chat-routing-badge-response-prefix {
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -41,8 +41,7 @@
 
 .chat-routing-badge-response-preview {
 	display: block;
-	flex: 0 1 30ch;
-	max-width: 30ch;
+	flex: 1 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
