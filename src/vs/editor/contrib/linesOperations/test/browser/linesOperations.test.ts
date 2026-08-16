@@ -572,6 +572,26 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
+		test('#201093 selection ending at column 1 of next line should not include that line', function () {
+			withTestCodeEditor(
+				[
+					'one',
+					'two',
+					'three',
+					'four'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const joinLinesAction = new JoinLinesAction();
+
+					// Simulates Shift+Down x3 from the start of line 1: the cursor lands at
+					// column 1 of line 4, but only lines 1-3 are visually "fully" selected.
+					editor.setSelection(new Selection(1, 1, 4, 1));
+					executeAction(joinLinesAction, editor);
+					assert.strictEqual(model.getLineContent(1), 'one two three');
+					assert.strictEqual(model.getLineContent(2), 'four');
+				});
+		});
+
 		test('should push undo stop', function () {
 			withTestCodeEditor(
 				[
