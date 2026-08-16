@@ -363,7 +363,7 @@ export class ExplorerService implements IExplorerService {
 	private async onDidRunOperation(e: FileOperationEvent): Promise<void> {
 		// When nesting, changes to one file in a folder may impact the rendered structure
 		// of all the folder's immediate children, thus a recursive refresh is needed.
-		// Ideally the tree would be able to recusively refresh just one level but that does not yet exist.
+		// Ideally the tree would be able to recursively refresh just one level but that does not yet exist.
 		const shouldDeepRefresh = this.config.fileNesting.enabled;
 
 		// Add

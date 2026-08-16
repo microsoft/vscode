@@ -48,7 +48,7 @@ export interface IQuickDiffModelService {
 
 	/**
 	 * Returns `undefined` if the editor model is not resolved.
-	 * Model refrence has to be disposed once not needed anymore.
+	 * Model reference has to be disposed once not needed anymore.
 	 * @param resource
 	 * @param options
 	 */

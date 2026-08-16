@@ -384,7 +384,7 @@ export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspace
 	let workspaceFolder = cwdUri ? workspaceContextService.getWorkspaceFolder(cwdUri) ?? undefined : undefined;
 	if (!workspaceFolder) {
 		// fallback to last active workspace if cwd is not available or it is not in workspace
-		// TOOD: last active workspace is known to be unreliable, we should remove this fallback eventually
+		// TODO: last active workspace is known to be unreliable, we should remove this fallback eventually
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot();
 		workspaceFolder = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 	}
