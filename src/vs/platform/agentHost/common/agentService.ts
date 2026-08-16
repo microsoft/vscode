@@ -83,6 +83,12 @@ export const AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES = 1024 * 1024;
  * is actually transferred. It only exists to keep zipping work finite.
  */
 export const AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES = 256 * 1024 * 1024;
+/**
+ * Upper bound on any single file inside an artifact. Oversized files are
+ * reduced to their trailing bytes rather than dropped, so a very large process
+ * log still contributes the portion that explains a recent failure.
+ */
+export const AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export interface IAgentHostDebugLogsArtifact {
 	readonly kind: AgentHostDebugLogsArtifactKind;

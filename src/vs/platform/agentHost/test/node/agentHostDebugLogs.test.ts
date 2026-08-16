@@ -14,7 +14,7 @@ import { buffer } from '../../../../base/node/zip.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostDebugLogsCollector } from '../../node/agentHostDebugLogs.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES } from '../../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES } from '../../common/agentService.js';
 
 suite('AgentHostDebugLogsCollector', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,9 +78,14 @@ suite('AgentHostDebugLogsCollector', () => {
 		await assert.rejects(collector.collect([{
 			id: 'test',
 			collectDebugLogs: async (_session, outputDirectory) => {
-				const largeLog = join(outputDirectory.fsPath, 'large.log');
-				await writeFile(largeLog, '');
-				await truncate(largeLog, AGENT_HOST_DEBUG_LOGS_MAX_BYTES + 1);
+				// A directory artifact is copied file-by-file, so its total
+				// uncompressed size is what must stay bounded. No single file can
+				// exceed the per-file cap, so it takes several to go over.
+				for (let i = 0; i < 3; i++) {
+					const largeLog = join(outputDirectory.fsPath, `large-${i}.log`);
+					await writeFile(largeLog, '');
+					await truncate(largeLog, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES - 1);
+				}
 				return true;
 			},
 		}], undefined, 'directory'), /Agent Host debug logs are too large/);
@@ -168,9 +173,12 @@ suite('AgentHostDebugLogsCollector', () => {
 		const result = await collector.collect([{
 			id: 'test',
 			collectDebugLogs: async (_session, outputDirectory) => {
-				// Highly compressible, like real log text: over the transfer
-				// limit uncompressed, comfortably under it once zipped.
-				await writeFile(join(outputDirectory.fsPath, 'huge.log'), Buffer.alloc(AGENT_HOST_DEBUG_LOGS_MAX_BYTES + 1024));
+				// Highly compressible, like real log text: together these exceed
+				// the transfer limit uncompressed while each stays under the
+				// per-file cap, yet they compress to well under the limit.
+				for (let i = 0; i < 3; i++) {
+					await writeFile(join(outputDirectory.fsPath, `big-${i}.log`), Buffer.alloc(AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES - 1024));
+				}
 				return true;
 			},
 		}], undefined, 'archive');
@@ -181,6 +189,36 @@ suite('AgentHostDebugLogsCollector', () => {
 		}, {
 			uncompressedOverLimit: true,
 			archiveUnderLimit: true,
+		});
+	});
+
+	test('keeps the tail of a file that exceeds the per-file cap', async () => {
+		const logsHome = join(testRoot, 'logs');
+		const outputRoot = join(testRoot, 'tmp');
+		await mkdir(logsHome, { recursive: true });
+		await mkdir(outputRoot, { recursive: true });
+		const collector = disposables.add(new AgentHostDebugLogsCollector({
+			logsHome: URI.file(logsHome),
+			tmpDir: URI.file(outputRoot),
+		}, new NullLogService()));
+
+		const head = Buffer.alloc(AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES, 'A');
+		const tail = Buffer.from('THE-INTERESTING-END');
+		const artifact = await collector.collect([{
+			id: 'test',
+			collectDebugLogs: async (_session, outputDirectory) => {
+				await writeFile(join(outputDirectory.fsPath, 'huge.log'), Buffer.concat([head, tail]));
+				return true;
+			},
+		}], undefined, 'archive');
+
+		const kept = await buffer(artifact.resource.fsPath, 'huge.log');
+		assert.deepStrictEqual({
+			cappedToLimit: kept.length === AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES,
+			keptTheTail: kept.subarray(kept.length - tail.length).toString(),
+		}, {
+			cappedToLimit: true,
+			keptTheTail: 'THE-INTERESTING-END',
 		});
 	});
 

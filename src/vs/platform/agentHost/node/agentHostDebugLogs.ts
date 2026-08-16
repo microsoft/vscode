@@ -14,7 +14,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { IAgent } from '../common/agent.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 
 type DebugLogsProvider = Pick<IAgent, 'id' | 'collectDebugLogs'>;
 type LocalZipFile = IFile & { readonly localPath: string };
@@ -63,9 +63,14 @@ export class AgentHostDebugLogsCollector extends Disposable {
 			);
 
 			const files = await collectFiles(staging);
+			// Process logs can reach hundreds of megabytes. Keep the tail of any
+			// oversized file: it is the part that explains a recent failure, and
+			// it keeps the artifact within the size the client will accept —
+			// whether the file came from a provider's SDK bundle or was copied
+			// in directly.
 			let uncompressedSize = 0;
 			for (const file of files) {
-				uncompressedSize += (await stat(file.localPath)).size;
+				uncompressedSize += await truncateToTail(file.localPath, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES);
 			}
 			// A directory artifact is copied file-by-file, so its uncompressed
 			// size is what crosses the wire. An archive only has to keep the
@@ -171,6 +176,27 @@ export class AgentHostDebugLogsCollector extends Disposable {
  */
 function artifactKey(path: string): string {
 	return URI.file(path).fsPath;
+}
+
+/**
+ * Rewrites `path` in place to its last `maxBytes` bytes when it exceeds them.
+ * Returns the resulting size.
+ */
+async function truncateToTail(path: string, maxBytes: number): Promise<number> {
+	const { size } = await stat(path);
+	if (size <= maxBytes) {
+		return size;
+	}
+	const handle = await open(path, 'r+');
+	try {
+		const buffer = Buffer.allocUnsafe(maxBytes);
+		const { bytesRead } = await handle.read(buffer, 0, maxBytes, size - maxBytes);
+		await handle.write(buffer, 0, bytesRead, 0);
+		await handle.truncate(bytesRead);
+		return bytesRead;
+	} finally {
+		await handle.close();
+	}
 }
 
 async function collectFiles(root: string, relative = ''): Promise<LocalZipFile[]> {

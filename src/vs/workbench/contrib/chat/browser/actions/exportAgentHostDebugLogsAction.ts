@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../../../base/common/async.js';
 import { VSBuffer, newWriteableBufferStream, streamToBuffer, type VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -13,10 +12,9 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId, AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -25,26 +23,19 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { JsonRpcErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/errors.js';
-import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
-import { findRelevantCopilotLogs, getRemoteConnectionForSession, readRemoteAgentHostLog, sanitizeFilePart } from '../chatDebug/agentHostLogSources.js';
+import { COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme } from '../copilotCliEventsUri.js';
+import { getRemoteConnectionForSession, sanitizeFilePart } from '../chatDebug/agentHostLogSources.js';
 import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
 
-/** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
-const AGENT_HOST_LOGGER_CHANNEL_ID = AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
 /** Output channel ID for the current window's renderer log. */
 const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
 /** Output channel ID for the shared process compound log. */
 const SHARED_PROCESS_LOG_CHANNEL_ID = 'shared';
-const MAX_REMOTE_COPILOT_LOG_EXPORT_SIZE = 10 * 1024 * 1024;
 
 /**
  * Description of the agent-host session whose logs should be exported. If
@@ -64,20 +55,10 @@ export type IAgentHostDebugLogFile =
 	| { readonly path: string; readonly contents: string }
 	| { readonly path: string; readonly resource: URI; readonly size: number };
 
-/**
- * How long to wait for host-side log collection before giving up and falling
- * back to client-side discovery. Generous enough for a real collection (which
- * zips the host's logs), short enough that an unresponsive host does not make
- * the command appear to do nothing. Observed in practice: a host whose
- * management channel is wedged never answers at all, so without a bound the
- * export waits forever.
- */
-const AGENT_HOST_COLLECTION_TIMEOUT_MS = 30_000;
-
 export interface IAgentHostDebugLogsExport {
 	readonly files: IAgentHostDebugLogFile[];
 	readonly exportName: string;
-	readonly hostArtifact?: IAgentHostDebugLogsHostArtifact;
+	readonly hostArtifact: IAgentHostDebugLogsHostArtifact;
 }
 
 /**
@@ -97,7 +78,7 @@ export const IAgentHostDebugLogsExportService = createDecorator<IAgentHostDebugL
 export interface IAgentHostDebugLogsExportService {
 	readonly _serviceBrand: undefined;
 	readonly hostArtifactKind: AgentHostDebugLogsArtifactKind;
-	save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean>;
+	save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact): Promise<boolean>;
 }
 
 export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
@@ -109,8 +90,8 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 		@IFileService private readonly fileService: IFileService,
 	) { }
 
-	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean> {
-		return exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files, hostArtifact?.artifact);
+	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact): Promise<boolean> {
+		return exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files, hostArtifact.artifact);
 	}
 }
 
@@ -156,9 +137,10 @@ export function createHostArtifactStream(
 
 /**
  * Shared implementation of "Export Agent Host Debug Logs". Collects the
- * Copilot CLI session events file (if available), the window/shared/local
- * agent-host output channel logs, remote forwarded logs, and the AHP
- * transport JSONL logs.
+ * Agent Host's own debug-log bundle (collected and packaged by the host), plus
+ * the logs this side owns: the window/shared-process output channels, remote
+ * forwarded logs, the AHP transport JSONL logs, and the client-local capture
+ * sidecars.
  *
  * Both the workbench-side action (resolves the active session via
  * `IChatWidgetService`) and the sessions-app-side action (resolves it via
@@ -169,7 +151,6 @@ export async function collectAgentHostDebugLogs(
 	activeSession: IActiveAgentHostSessionForExport | undefined,
 	onDidCreateHostArtifact: (artifact: IAgentHostDebugLogsArtifact) => void,
 ): Promise<IAgentHostDebugLogsExport | undefined> {
-	const pathService = accessor.get(IPathService);
 	const agentHostService = accessor.get(IAgentHostService);
 	const agentHostConnectionsService = accessor.get(IAgentHostConnectionsService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
@@ -177,49 +158,24 @@ export async function collectAgentHostDebugLogs(
 	const fileService = accessor.get(IFileService);
 	const notificationService = accessor.get(INotificationService);
 	const textModelService = accessor.get(ITextModelService);
-	const productService = accessor.get(IProductService);
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const exportService = accessor.get(IAgentHostDebugLogsExportService);
 
 	const sessionResolution = activeSession ? agentHostConnectionsService.resolveSessionResource(activeSession.resource) : undefined;
 	const connection = sessionResolution?.connection ?? (!activeSession ? agentHostConnectionsService.ambientConnection : undefined);
-	let hostArtifact: IAgentHostDebugLogsArtifact | undefined;
-	if (connection?.collectDebugLogs) {
-		// Host-side collection is an optimization, never a hard requirement, so it
-		// must not be able to hold the export hostage. A host that is unreachable
-		// (e.g. an agent host that never finishes connecting) leaves this request
-		// pending forever, so bound it and fall back to client-side discovery.
-		const collection = connection.collectDebugLogs(sessionResolution?.backendSession, exportService.hostArtifactKind);
-		try {
-			hostArtifact = await raceTimeout(collection, AGENT_HOST_COLLECTION_TIMEOUT_MS);
-			if (hostArtifact) {
-				onDidCreateHostArtifact(hostArtifact);
-			} else {
-				logService.warn(`[ExportAgentHostDebugLogs] Host-side log collection timed out after ${AGENT_HOST_COLLECTION_TIMEOUT_MS}ms; using compatibility collection.`);
-				// The request may still land later. Nothing is watching it by then,
-				// so discard whatever it produced instead of leaking a temp artifact.
-				collection.then(
-					artifact => fileService.del(artifact.resource, { recursive: artifact.kind === 'directory' }),
-					() => undefined,
-				).catch(() => undefined);
-			}
-		} catch (error) {
-			if (error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound) {
-				logService.info('[ExportAgentHostDebugLogs] Connected Agent Host does not support host-side log collection; using compatibility collection.');
-			} else {
-				logService.warn(`[ExportAgentHostDebugLogs] Host-side log collection failed; using compatibility collection: ${error instanceof Error ? error.message : String(error)}`);
-			}
-		}
+	if (!connection?.collectDebugLogs) {
+		notificationService.notify({
+			severity: Severity.Error,
+			message: localize('exportDebugLogs.noConnection', "No Agent Host is connected, so its debug logs cannot be collected."),
+		});
+		return undefined;
 	}
-
-	const userHome = pathService.userHome({ preferLocal: true });
-
-	const eventsResult = resolveEventsUri(
-		activeSession?.resource,
-		userHome,
-		authority => remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority),
-	);
+	// The Agent Host owns discovery and packaging of its own logs; failures
+	// surface to the user rather than being papered over by a second,
+	// path-guessing implementation on this side.
+	const hostArtifact = await connection.collectDebugLogs(sessionResolution?.backendSession, exportService.hostArtifactKind);
+	onDidCreateHostArtifact(hostArtifact);
 
 	// Collect all output channel IDs relevant for the current session's agent host.
 	const channelIds = new Set<string>();
@@ -230,25 +186,16 @@ export async function collectAgentHostDebugLogs(
 
 	if (activeSession) {
 		if (activeSession.isLocal) {
-			if (!hostArtifact) {
-				channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
-			}
 			const localClientId = sanitizeFilePart(agentHostService.clientId);
 			ahpLogNameFilter = name => name.includes(localClientId);
 		} else {
 			remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
-			if (!hostArtifact && remoteConnection) {
-				channelIds.add(remoteAgentHostLogOutputChannelId(remoteConnection.address));
-			}
 			if (remoteConnection) {
 				const remoteConnectionId = sanitizeFilePart(remoteConnection.address);
 				ahpLogNameFilter = name => name.includes(remoteConnectionId);
 			}
 		}
 	} else {
-		if (!hostArtifact) {
-			channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
-		}
 		for (const connection of remoteAgentHostService.connections) {
 			channelIds.add(remoteAgentHostLogOutputChannelId(connection.address));
 		}
@@ -260,16 +207,7 @@ export async function collectAgentHostDebugLogs(
 
 	const files: IAgentHostDebugLogFile[] = [];
 
-	// 1. events.jsonl
-	if (!hostArtifact?.providerLogsIncluded && eventsResult.kind === 'ok') {
-		try {
-			files.push(await createDebugLogFile('events.jsonl', eventsResult.resource, fileService));
-		} catch {
-			// File may not exist yet if the session never wrote any events
-		}
-	}
-
-	// 2. Output channels
+	// 1. Output channels
 	for (const channelId of channelIds) {
 		const channel = outputService.getChannel(channelId);
 		const descriptor = outputService.getChannelDescriptor(channelId);
@@ -285,7 +223,7 @@ export async function collectAgentHostDebugLogs(
 		}
 	}
 
-	// 3. AHP transport JSONL logs (one file per remote connection, written under <logsHome>/ahp/).
+	// 2. AHP transport JSONL logs (one file per remote connection, written under <logsHome>/ahp/).
 	// These replace the per-connection `agenthost.<clientId>` IPC traffic output channel.
 	try {
 		const ahpDir = joinPath(environmentService.logsHome, 'ahp');
@@ -304,41 +242,9 @@ export async function collectAgentHostDebugLogs(
 		// AHP log directory may not exist if no remote connection has been opened or if logging is disabled.
 	}
 
-	// 4. For remote agent hosts, also download the agenthost.log file directly from
-	// the remote machine. The CLI launches the server with its default data dir,
-	// which lives at `<home>/<serverDataFolderName>/data/logs/<datestamp>/agenthost.log`.
-	if (!hostArtifact && remoteConnection?.defaultDirectory) {
-		try {
-			const remoteLog = await readRemoteAgentHostLog(remoteConnection, productService.serverDataFolderName, fileService);
-			if (remoteLog) {
-				files.push({ path: 'remote-agenthost.log', contents: remoteLog });
-			}
-		} catch (error) {
-			logService.warn(`[ExportAgentHostDebugLogs] Failed to download remote agenthost.log: ${error instanceof Error ? error.message : String(error)}`);
-		}
-	}
-
-	// 5. Copilot SDK process logs under <COPILOT_HOME>/logs.
 	const rawSessionId = getCopilotCliSessionRawId(activeSession?.resource);
-	const copilotLogsDir = activeSession
-		? rawSessionId
-			? activeSession.isLocal
-				? buildLocalCopilotLogsUri(userHome)
-				: remoteConnection ? buildRemoteCopilotLogsUri(remoteConnection) : undefined
-			: undefined
-		: buildLocalCopilotLogsUri(userHome);
-	if (!hostArtifact?.providerLogsIncluded && copilotLogsDir) {
-		const copilotLogFiles = await findRelevantCopilotLogs(copilotLogsDir, rawSessionId, fileService, logService);
-		for (const file of copilotLogFiles) {
-			try {
-				files.push(await createDebugLogFile(file.path, file.resource, fileService, file.size, MAX_REMOTE_COPILOT_LOG_EXPORT_SIZE));
-			} catch (error) {
-				logService.warn(`[ExportAgentHostDebugLogs] Failed to read Copilot log '${file.path}': ${error instanceof Error ? error.message : String(error)}`);
-			}
-		}
-	}
 
-	// 6. Client-local capture sidecars for the session. These hold data the SDK
+	// 3. Client-local capture sidecars for the session. These hold data the SDK
 	// never persists — per-model-call token/credit usage (`assistant.usage` is
 	// ephemeral) and the loaded customization set (`session.*_loaded` likewise) —
 	// so without them an export cannot explain a usage/cost discrepancy or say
@@ -357,25 +263,13 @@ export async function collectAgentHostDebugLogs(
 		}
 	}
 
-	if (files.length === 0 && !hostArtifact) {
-		notificationService.notify({
-			severity: Severity.Warning,
-			message: activeSession
-				? localize('exportDebugLogs.noFiles.activeSession', "No log files were found for the active Agent Host session.")
-				: localize('exportDebugLogs.noFiles.currentWindow', "No Agent Host log files were found for the current window."),
-		});
-		return undefined;
-	}
-
 	const titleSlug = activeSession?.title
 		? `-${activeSession.title.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`
 		: '';
 	return {
 		files,
 		exportName: `ah-logs${titleSlug}`,
-		hostArtifact: hostArtifact && connection
-			? { artifact: hostArtifact, readChunk: createChunkReader(connection, hostArtifact.resource) }
-			: undefined,
+		hostArtifact: { artifact: hostArtifact, readChunk: createChunkReader(connection, hostArtifact.resource) },
 	};
 }
 

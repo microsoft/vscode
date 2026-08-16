@@ -29,7 +29,7 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean> {
+	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact): Promise<boolean> {
 		const defaultUri = joinPath(await this.fileDialogService.preferredHome(Schemas.file), `${exportName}.zip`);
 		const saveUri = await this.fileDialogService.showSaveDialog({
 			title: localize('exportDebugLogs.saveDialogTitle', "Export Agent Host Debug Logs"),
@@ -49,23 +49,23 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		});
 		let temporaryHostArchive: URI | undefined;
 		try {
-			if (hostArtifact) {
-				const { artifact, readChunk } = hostArtifact;
-				if (artifact.kind !== 'archive') {
-					throw new Error(`Expected an Agent Host debug-log archive, got ${artifact.kind}`);
-				}
-				let localHostArchive = artifact.resource;
-				if (artifact.resource.scheme !== Schemas.file) {
-					// The archive lives on a remote agent host. Stream it down in
-					// bounded chunks rather than pulling it over in one message.
-					localHostArchive = joinPath(this.environmentService.tmpDir, `agent-host-debug-logs-${generateUuid()}.zip`);
-					temporaryHostArchive = localHostArchive;
-					await (readChunk
-						? this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, readChunk))
-						: this.fileService.copy(artifact.resource, localHostArchive));
-				}
-				zipFiles.push({ sourceArchive: localHostArchive });
+			const { artifact, readChunk } = hostArtifact;
+			if (artifact.kind !== 'archive') {
+				throw new Error(`Expected an Agent Host debug-log archive, got ${artifact.kind}`);
 			}
+			let localHostArchive = artifact.resource;
+			if (artifact.resource.scheme !== Schemas.file) {
+				// The archive lives on a remote agent host. Stream it down in
+				// bounded chunks rather than pulling the whole thing over in a
+				// single protocol message.
+				if (!readChunk) {
+					throw new Error('Connected Agent Host cannot stream its debug-log archive');
+				}
+				localHostArchive = joinPath(this.environmentService.tmpDir, `agent-host-debug-logs-${generateUuid()}.zip`);
+				temporaryHostArchive = localHostArchive;
+				await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, readChunk));
+			}
+			zipFiles.push({ sourceArchive: localHostArchive });
 			await this.nativeHostService.createZipFile(saveUri, zipFiles);
 		} finally {
 			if (temporaryHostArchive) {
