@@ -149,7 +149,8 @@ export function feedbackAnnotationEntryMeta(author: AgentFeedbackAuthorValue): R
  * entries written before authors were recorded.
  */
 export function readFeedbackAnnotationEntryAuthor(entry: AnnotationEntry): AgentFeedbackAuthorValue | undefined {
-	const slot = entry._meta?.[FEEDBACK_ANNOTATION_META_KEY];
+	const meta = entry._meta;
+	const slot = meta?.[FEEDBACK_ANNOTATION_META_KEY];
 	if (!slot || typeof slot !== 'object' || Array.isArray(slot)) {
 		return undefined;
 	}

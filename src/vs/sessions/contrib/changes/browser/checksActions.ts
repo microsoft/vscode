@@ -21,7 +21,7 @@ import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPull
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { SessionIsActiveContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { whenChatWidgetForSession } from '../../../browser/chatWidgetUtils.js';
+import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
 
 /**

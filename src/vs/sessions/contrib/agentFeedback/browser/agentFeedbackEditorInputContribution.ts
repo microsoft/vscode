@@ -67,7 +67,7 @@ export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidg
 			placeholder: localize('agentFeedback.addFeedback', "Add Feedback"),
 			getMaxContentWidth: () => this._computeContentWidth(),
 			primaryAction: {
-				label: localize('agentFeedback.add', "Add"),
+				label: localize('agentFeedback.addAction', "Add"),
 				icon: Codicon.plus,
 				keybindingLabel: localize('enter', "Enter"),
 				menuKeybinding: enterKeybinding,

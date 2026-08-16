@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../base/common/async.js';
-import { DisposableStore } from '../../base/common/lifecycle.js';
-import { URI } from '../../base/common/uri.js';
-import { IChatWidget, IChatWidgetService } from '../../workbench/contrib/chat/browser/chat.js';
+import { raceTimeout } from '../../../../base/common/async.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 
 const CHAT_WIDGET_LOAD_TIMEOUT_MS = 10_000;
 

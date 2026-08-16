@@ -31,7 +31,7 @@ import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMem
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentFeedbackAttachmentEntry.js';
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
 import { SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
-import { whenChatWidgetForSession } from '../../../browser/chatWidgetUtils.js';
+import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 
 // --- Types --------------------------------------------------------------------
 
