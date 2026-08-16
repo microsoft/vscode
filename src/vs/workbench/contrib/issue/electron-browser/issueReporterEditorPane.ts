@@ -148,6 +148,13 @@ export class IssueReporterEditorPane extends EditorPane {
 		// Keep our own input reference for revealAndActivate() after clearInput().
 		this.wizardInput = input;
 
+		// The input is a singleton, so only one pane may host its wizard at a time.
+		// When the editor moves between the editor area and a modal editor part the
+		// destination pane builds its own wizard; tear down any wizard (and its
+		// workbench-rooted floating capture bar) still held by another pane so we
+		// never end up with two capture bars. Attachments survive via the input.
+		this.destroyOtherLiveWizards();
+
 		// If the wizard is already built and its DOM is still attached, re-parent floating bar if needed
 		if (this.wizard && this.container.contains(this.wizard.getPanel())) {
 			this.wizard.reparentFloatingBar();
@@ -519,6 +526,21 @@ export class IssueReporterEditorPane extends EditorPane {
 		this.wizardInput = undefined;
 		if (this.container) {
 			clearNode(this.container);
+		}
+	}
+
+	/**
+	 * Tear down the wizard on every other live pane. The issue reporter input is a
+	 * singleton, so a wizard held by another pane is stale once this pane hosts it
+	 * (e.g. after the editor moves between the editor area and a modal editor part).
+	 * This also disposes that pane's workbench-rooted floating capture bar, which
+	 * would otherwise linger as a duplicate.
+	 */
+	private destroyOtherLiveWizards(): void {
+		for (const inst of IssueReporterEditorPane.liveInstances) {
+			if (inst !== this && inst.wizard) {
+				inst.destroyWizard();
+			}
 		}
 	}
 
