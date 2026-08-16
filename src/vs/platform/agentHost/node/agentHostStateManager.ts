@@ -306,12 +306,16 @@ export class AgentHostStateManager extends Disposable {
 				const entry = this._sessionStates.get(session);
 				return entry ? this._toSummary(session, entry) : undefined;
 			},
-			(session, changes) => this._onDidEmitNotification.fire({
-				type: 'root/sessionSummaryChanged',
-				channel: ROOT_STATE_URI,
-				session,
-				changes,
-			}),
+			(session, changes) => {
+				if (this._publishedSessionSummaries.has(session)) {
+					this._onDidEmitNotification.fire({
+						type: 'root/sessionSummaryChanged',
+						channel: ROOT_STATE_URI,
+						session,
+						changes,
+					});
+				}
+			},
 		));
 	}
 	private readonly _log = (msg: string) => this._logService.warn(`[AgentHostStateManager] ${msg}`);

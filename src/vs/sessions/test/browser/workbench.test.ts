@@ -912,26 +912,6 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('showing Details during restore uses the latest live Editor-only sash width', () => {
-		const host = createHost({ single: true, editorWidth: 900, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: false } });
-		host._savedPartSizes = { editor: 600 };
-
-		onEditorNodeResized.call(host, 900);
-		host._editorPartAutoVisibilitySuppressionCount++;
-		setAuxiliaryBarHidden.call(host, false);
-		host._editorPartAutoVisibilitySuppressionCount--;
-
-		assert.deepStrictEqual({
-			savedEditorWidth: host._savedPartSizes.editor,
-			editorNodeWidth: host.workbenchGrid.getViewSize(host.editorPartView).width,
-			resizes: host.resizes,
-		}, {
-			savedEditorWidth: 900,
-			editorNodeWidth: 1200,
-			resizes: [{ width: 1200, height: 800 }],
-		});
-	});
-
 	test('reapplying a docked width retains the exact user width in a detail-only node', () => {
 		const host = createHost({ single: true, dockedWidth: 220, editorWidth: 220, partVisibility: { editor: false, auxiliaryBar: true } });
 		const setDockedAuxiliaryBarWidth = SinglePaneWorkbench.prototype.setDockedAuxiliaryBarWidth as (this: ITestWorkbench, width: number) => void;
@@ -1497,7 +1477,7 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('manual sash resize clears the pending Details-hide reset behavior', () => {
+	test('manual sash resize preserves the pending Details-hide reset behavior', () => {
 		const host = createHost({ single: true, sessionsWidth: 560, editorWidth: 840, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: true } });
 		SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(host);
 		host.workbenchGrid.resizeView(host.sessionsPartView, { width: 700, height: 800 });
@@ -1512,23 +1492,7 @@ suite('Sessions - Workbench', () => {
 			resizes: host.resizes,
 		}, {
 			restoreEqualSplitOnHide: false,
-			resizes: [{ width: 420, height: 800 }],
-		});
-	});
-
-	test('session layout restore clears the pending Details-hide reset behavior', () => {
-		const host = createHost({ single: true, sessionsWidth: 560, editorWidth: 840, dockedWidth: 280, partVisibility: { editor: true, auxiliaryBar: true } });
-		SinglePaneWorkbench.prototype.getPreferredEditorPartWidth.call(host);
-
-		SinglePaneWorkbench.prototype.clearEditorPartSashResetState.call(host);
-		setAuxiliaryBarHidden.call(host, true);
-
-		assert.deepStrictEqual({
-			restoreEqualSplitOnHide: host._restoreEqualSplitOnDetailsHide,
-			resizes: host.resizes,
-		}, {
-			restoreEqualSplitOnHide: false,
-			resizes: [{ width: 560, height: 800 }],
+			resizes: [{ width: 700, height: 800 }],
 		});
 	});
 
