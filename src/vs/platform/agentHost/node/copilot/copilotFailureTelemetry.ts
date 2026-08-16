@@ -8,31 +8,65 @@ import { getErrorCode } from '../../../../base/common/errors.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { packErrorForTelemetry } from '../../../telemetry/common/errorTelemetry.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
+import { toInitiatorTelemetry, type IAgentHostInitiatorClassification, type IAgentHostInitiatorTelemetry } from '../agentHostTelemetryReporter.js';
 
 export type CopilotClientFailureOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage' | 'startClient';
 export type CopilotClientFailureKind = 'clientNotConnected' | 'connectionClosed' | 'connectionDisposed' | 'runtimeConnectionClosed' | 'startupFailed';
 type CopilotStartupFailureCause = 'nativeModuleProcedureNotFound' | 'nativeModuleInitializationFailed' | 'nativeModuleNotFound' | 'permissionDenied' | 'timeout' | 'spawnFailed' | 'processExitedUnexpectedly' | 'processExited';
 type CopilotStartupFailureResource = 'runtime' | 'cliNative' | 'conpty' | 'sandbox' | 'other';
 
-export interface ICopilotFailureCorrelation {
+export interface ICopilotFailureCorrelation extends IAgentHostInitiatorTelemetry {
 	readonly agentSessionId?: string;
 	readonly chatSessionId?: string;
 	readonly turnId?: string;
 	readonly sdkSessionId?: string;
 }
 
-type CopilotSessionFailureCorrelation = {
+type CopilotSessionFailureCorrelation = IAgentHostInitiatorTelemetry & {
 	readonly agentSessionId: string;
 	readonly chatSessionId: string;
 	readonly turnId: string | undefined;
 	readonly sdkSessionId: string;
 };
 
-export function createCopilotFailureCorrelation(sessionUri: URI, chatUri: URI, turnId: string | undefined, sdkSessionId: string): CopilotSessionFailureCorrelation {
+export type CopilotModelCallEndpointTelemetryKind = 'anthropicMessages' | 'chatCompletions' | 'other' | 'responses' | 'responsesWebSocket';
+
+const normalizedCopilotApiEndpointKinds = new Map<string, CopilotModelCallEndpointTelemetryKind>([
+	['/chat/completions', 'chatCompletions'],
+	['/responses', 'responses'],
+	['/v1/messages', 'anthropicMessages'],
+	['ws:/responses', 'responsesWebSocket'],
+]);
+
+export function normalizeCopilotApiEndpoint(endpoint: string | undefined): CopilotModelCallEndpointTelemetryKind | undefined {
+	if (!endpoint) {
+		return undefined;
+	}
+
+	const trimmedEndpoint = endpoint.trim();
+	const directMatch = normalizedCopilotApiEndpointKinds.get(trimmedEndpoint.toLowerCase());
+	if (directMatch) {
+		return directMatch;
+	}
+
+	if (URL.canParse(trimmedEndpoint)) {
+		const parsed = new URL(trimmedEndpoint);
+		const normalizedPath = parsed.pathname.replace(/\/+$/, '') || '/';
+		if ((parsed.protocol === 'ws:' || parsed.protocol === 'wss:') && normalizedPath === '/responses') {
+			return 'responsesWebSocket';
+		}
+		return normalizedCopilotApiEndpointKinds.get(normalizedPath.toLowerCase()) ?? 'other';
+	}
+
+	return 'other';
+}
+
+export function createCopilotFailureCorrelation(sessionUri: URI, chatUri: URI, turnId: string | undefined, sdkSessionId: string, clientContext?: IAgentHostClientTelemetryContext): CopilotSessionFailureCorrelation {
 	return {
+		...toInitiatorTelemetry(clientContext),
 		agentSessionId: AgentSession.id(sessionUri),
 		chatSessionId: getTelemetryChatSessionId(chatUri),
 		turnId: turnId || undefined,
@@ -77,7 +111,7 @@ type CopilotClientFailureEvent = ICopilotFailureCorrelation & {
 	callstack: string | undefined;
 };
 
-type CopilotClientFailureClassification = {
+type CopilotClientFailureClassification = IAgentHostInitiatorClassification & {
 	clientFailureId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier shared by detections and recovery telemetry for one Copilot client failure episode.' };
 	failureKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded category of Copilot client failure that was detected.' };
 	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Copilot provider operation that detected the client failure.' };
@@ -211,7 +245,7 @@ type CopilotClientRecoveryTurnEvent = CopilotSessionFailureCorrelation & {
 	clientFailureId: string;
 };
 
-type CopilotClientRecoveryTurnClassification = {
+type CopilotClientRecoveryTurnClassification = IAgentHostInitiatorClassification & {
 	clientFailureId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier shared by all telemetry for one Copilot client failure episode.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host chat identifier.' };
@@ -242,7 +276,7 @@ type CopilotSdkSessionErrorEvent = CopilotSessionFailureCorrelation & {
 	callstack: string | undefined;
 };
 
-type CopilotSdkSessionErrorClassification = {
+type CopilotSdkSessionErrorClassification = IAgentHostInitiatorClassification & {
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host chat identifier.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host turn identifier, when available.' };
@@ -286,7 +320,7 @@ type CopilotModelCallFailureEvent = CopilotSessionFailureCorrelation & {
 	failureKind: string | undefined;
 	source: string;
 	transport: string | undefined;
-	apiEndpoint: TelemetryTrustedValue<string> | undefined;
+	apiEndpoint: CopilotModelCallEndpointTelemetryKind | undefined;
 	statusCode: number | undefined;
 	durationMs: number | undefined;
 	model: string | undefined;
@@ -306,7 +340,7 @@ type CopilotModelCallFailureEvent = CopilotSessionFailureCorrelation & {
 	imagePartsMissingMediaType: number | undefined;
 };
 
-type CopilotModelCallFailureClassification = {
+type CopilotModelCallFailureClassification = IAgentHostInitiatorClassification & {
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host chat identifier.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host turn identifier, when available.' };
@@ -317,7 +351,7 @@ type CopilotModelCallFailureClassification = {
 	failureKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the SDK model call failed at the API or transport boundary.' };
 	source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the model call came from the top-level agent, a subagent, or MCP sampling.' };
 	transport: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The HTTP or WebSocket transport used by the failed model call.' };
-	apiEndpoint: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded API endpoint used by the failed model call.' };
+	apiEndpoint: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded API endpoint category used by the failed model call. Values are chatCompletions, responses, responsesWebSocket, anthropicMessages, or other.' };
 	statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The HTTP status code, when available.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of the failed model call in milliseconds.' };
 	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider model identifier used by the failed call.' };
@@ -349,7 +383,7 @@ export function reportCopilotModelCallFailure(telemetryService: ITelemetryServic
 		failureKind: event.data.failureKind,
 		source: event.data.source,
 		transport: event.data.transport,
-		apiEndpoint: event.data.apiEndpoint ? new TelemetryTrustedValue(event.data.apiEndpoint) : undefined,
+		apiEndpoint: normalizeCopilotApiEndpoint(event.data.apiEndpoint),
 		statusCode: event.data.statusCode,
 		durationMs: event.data.durationMs,
 		model: event.data.isByok ? 'byokModel' : event.data.model,

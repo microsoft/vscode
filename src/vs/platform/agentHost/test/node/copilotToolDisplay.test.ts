@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { PermissionRequest } from '@github/copilot-sdk';
+import type { JsonValue, PermissionRequest } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
@@ -26,7 +26,7 @@ function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: 
 	};
 }
 
-function customToolPermissionRequest(toolName: string, args: Record<string, unknown>): CopilotCustomToolPermissionRequest {
+function customToolPermissionRequest(toolName: string, args: JsonValue): CopilotCustomToolPermissionRequest {
 	return {
 		kind: 'custom-tool',
 		toolName,
@@ -229,7 +229,7 @@ suite('getPermissionDisplay — read permission display', () => {
 			permissionKind: display.permissionKind,
 			permissionPath: display.permissionPath,
 		}, {
-			invocationMessage: { markdown: 'Reading [context7-copilot-debug-main.json](file:///Users/connor/Downloads/context7-copilot-debug-main.json)' },
+			invocationMessage: { markdown: 'Read [context7-copilot-debug-main.json](file:///Users/connor/Downloads/context7-copilot-debug-main.json)' },
 			toolInput: undefined,
 			permissionKind: 'read',
 			permissionPath: '/Users/connor/Downloads/context7-copilot-debug-main.json',
@@ -256,14 +256,14 @@ suite('getPermissionDisplay — write permission display', () => {
 		}, {
 			create: {
 				confirmationTitle: 'Create file?',
-				invocationMessage: { markdown: 'Creating [package.json](file:///repo/project/package.json)' },
+				invocationMessage: { markdown: 'Create [package.json](file:///repo/project/package.json)' },
 				toolInput: '{"path":"/repo/project/package.json"}',
 				permissionKind: 'write',
 				permissionPath: '/repo/project/package.json',
 			},
 			edit: {
 				confirmationTitle: 'Write file?',
-				invocationMessage: { markdown: 'Editing [package.json](file:///repo/project/package.json)' },
+				invocationMessage: { markdown: 'Edit [package.json](file:///repo/project/package.json)' },
 				toolInput: '{"path":"/repo/project/package.json"}',
 				permissionKind: 'write',
 				permissionPath: '/repo/project/package.json',
@@ -287,8 +287,29 @@ suite('view tool — view_range display', () => {
 	}
 
 	test('renders path-only when view_range is absent', () => {
-		assert.ok(invocation({ path: '/repo/file.ts' }).startsWith('Reading ['));
+		assert.ok(invocation({ path: '/repo/file.ts' }).startsWith('Read ['));
 		assert.ok(pastTense({ path: '/repo/file.ts' }).startsWith('Read ['));
+	});
+
+	test('renders Copilot SDK tool-output reads without exposing the temp path', () => {
+		const paths = [
+			'/tmp/1786468439523-copilot-tool-output-d115e2.txt',
+			'/tmp/1786499016779-copilot-tool-output-44600-1a0a63b8-4548-4fb8-a507-da72473e0556.txt',
+			'C:\\Temp\\copilot-tool-output-1786468439523-d115e2.txt',
+			'C:\\Temp\\copilot-tool-output-1786499172415-297.txt',
+		];
+		assert.deepStrictEqual(
+			paths.map(path => ({
+				invocation: invocation({ path, view_range: [107, 119] }),
+				pastTense: pastTense({ path, view_range: [107, 119] }),
+			})),
+			[
+				{ invocation: 'Read tool output', pastTense: 'Read tool output' },
+				{ invocation: 'Read tool output', pastTense: 'Read tool output' },
+				{ invocation: 'Read tool output', pastTense: 'Read tool output' },
+				{ invocation: 'Read tool output', pastTense: 'Read tool output' },
+			],
+		);
 	});
 
 	test('renders "lines X to Y" for a valid two-element range', () => {
@@ -335,31 +356,29 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 		return typeof result === 'string' ? result : result.markdown;
 	}
 
-	test('agent-coordination tools use a single message (past tense) for both invocation and completion', () => {
-		// read/write agents surface the agent id, and the invocation message
-		// matches the past-tense message (these tools are fast).
+	test('agent-coordination tools use a single message for both invocation and completion', () => {
 		assert.strictEqual(invocation('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
 		assert.strictEqual(pastTense('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
-		assert.strictEqual(invocation('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Wrote to agent `math-helper`');
-		assert.strictEqual(pastTense('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Wrote to agent `math-helper`');
+		assert.strictEqual(invocation('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Write to agent `math-helper`');
+		assert.strictEqual(pastTense('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Write to agent `math-helper`');
 	});
 
 	test('agent tools fall back to a generic phrase without an agent id', () => {
 		assert.strictEqual(invocation('read_agent', {}), 'Read agent');
-		assert.strictEqual(pastTense('write_agent', undefined), 'Wrote to agent');
+		assert.strictEqual(pastTense('write_agent', undefined), 'Write to agent');
 	});
 
 	test('agent tools ignore a malformed (non-string) agent id instead of throwing', () => {
 		// agent_id comes from untrusted JSON, so a non-string must not reach the
 		// markdown inline-code formatter (which would throw).
 		assert.strictEqual(invocation('read_agent', { agent_id: 123 }), 'Read agent');
-		assert.strictEqual(pastTense('write_agent', { agent_id: '' }), 'Wrote to agent');
+		assert.strictEqual(pastTense('write_agent', { agent_id: '' }), 'Write to agent');
 	});
 
 	test('list_agents shares one message; task keeps distinct present/past phrases', () => {
 		// list_agents is a fast agent-coordination tool: one message.
-		assert.strictEqual(invocation('list_agents', {}), 'Listed agents');
-		assert.strictEqual(pastTense('list_agents', {}), 'Listed agents');
+		assert.strictEqual(invocation('list_agents', {}), 'List agents');
+		assert.strictEqual(pastTense('list_agents', {}), 'List agents');
 		// task delegates to a (possibly slow) subagent, so it keeps a present-tense invocation.
 		assert.strictEqual(invocation('task', {}), 'Delegating task');
 		assert.strictEqual(pastTense('task', {}), 'Delegated task');
@@ -424,16 +443,16 @@ suite('copilotToolDisplay — streaming edit messages', () => {
 		], [
 			'Creating [new.ts](file:///repo/new.ts) (2 lines)',
 			'Replacing 1 line with 2 lines in [file.ts](file:///repo/file.ts)',
-			'Reading [file.ts](file:///repo/file.ts)',
+			'Read [file.ts](file:///repo/file.ts)',
 		]);
 	});
 
 	test('preserves file context after streaming aliases become ready and complete', () => {
 		const cases: Array<[toolName: string, parameters: Record<string, unknown>, ready: string, complete: string]> = [
-			['str_replace', { path: '/repo/file.ts' }, 'Editing [file.ts](file:///repo/file.ts)', 'Edited [file.ts](file:///repo/file.ts)'],
-			['insert', { path: '/repo/file.ts' }, 'Inserting text in [file.ts](file:///repo/file.ts)', 'Inserted text in [file.ts](file:///repo/file.ts)'],
-			['str_replace_editor', { command: 'create', path: '/repo/new.ts' }, 'Creating [new.ts](file:///repo/new.ts)', 'Created [new.ts](file:///repo/new.ts)'],
-			['str_replace_editor', { command: 'str_replace', path: '/repo/file.ts' }, 'Editing [file.ts](file:///repo/file.ts)', 'Edited [file.ts](file:///repo/file.ts)'],
+			['str_replace', { path: '/repo/file.ts' }, 'Edit [file.ts](file:///repo/file.ts)', 'Edit [file.ts](file:///repo/file.ts)'],
+			['insert', { path: '/repo/file.ts' }, 'Insert text in [file.ts](file:///repo/file.ts)', 'Insert text in [file.ts](file:///repo/file.ts)'],
+			['str_replace_editor', { command: 'create', path: '/repo/new.ts' }, 'Create [new.ts](file:///repo/new.ts)', 'Create [new.ts](file:///repo/new.ts)'],
+			['str_replace_editor', { command: 'str_replace', path: '/repo/file.ts' }, 'Edit [file.ts](file:///repo/file.ts)', 'Edit [file.ts](file:///repo/file.ts)'],
 		];
 		assert.deepStrictEqual(cases.map(([toolName, parameters]) => ({
 			ready: invocation(toolName, parameters),
@@ -646,8 +665,8 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 				past: text(getPastTenseMessage('listComments', 'List Comments', undefined, true, listResult)),
 			}, {
 				displayName: 'List Comments',
-				invoke: 'Checking comments',
-				past: 'Checked 2 comments',
+				invoke: 'List comments',
+				past: 'List comments',
 			});
 		});
 
@@ -709,10 +728,10 @@ suite('skill events', () => {
 			withPathToolCallId: 'synth-skill-evt-123',
 			withPathToolName: 'skill',
 			withPathDisplayName: 'Read Skill',
-			withPathInvocation: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+			withPathInvocation: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 			withPathPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 			withoutEventIdToolCallId: 'synth-skill--15753539',
-			withoutEventIdInvocation: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+			withoutEventIdInvocation: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 			withoutEventIdPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 		});
 	});
@@ -726,26 +745,26 @@ suite('rg / grep search tool display', () => {
 		return typeof msg === 'string' ? msg : msg.markdown;
 	}
 
-	test('rg invocation/past tense use "Searching for {pattern}" wording', () => {
+	test('rg uses one stable search message', () => {
 		const inv = text(getInvocationMessage('rg', 'Search', { pattern: 'foo' }));
 		const past = text(getPastTenseMessage('rg', 'Search', { pattern: 'foo' }, true));
 		assert.deepStrictEqual({ inv, past }, {
-			inv: 'Searching for `foo`',
-			past: 'Searched for `foo`',
+			inv: 'Search for `foo`',
+			past: 'Search for `foo`',
 		});
 	});
 
 	test('rg without a pattern falls back to a generic search message (not the raw tool name)', () => {
 		const inv = text(getInvocationMessage('rg', 'Search', undefined));
-		assert.strictEqual(inv, 'Searching files');
+		assert.strictEqual(inv, 'Search files');
 	});
 
-	test('grep keeps "Searching for {pattern}" wording', () => {
+	test('grep uses one stable search message', () => {
 		const inv = text(getInvocationMessage('grep', 'Search', { pattern: 'bar' }));
 		const past = text(getPastTenseMessage('grep', 'Search', { pattern: 'bar' }, true));
 		assert.deepStrictEqual({ inv, past }, {
-			inv: 'Searching for `bar`',
-			past: 'Searched for `bar`',
+			inv: 'Search for `bar`',
+			past: 'Search for `bar`',
 		});
 	});
 
@@ -789,6 +808,29 @@ suite('web_fetch tool display', () => {
 	});
 });
 
+suite('search tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	test('web search has progress wording while code search stays stable', () => {
+		assert.deepStrictEqual({
+			webInvocation: text(getInvocationMessage('web_search', 'Web Search', { query: 'VS Code tests' })),
+			webComplete: text(getPastTenseMessage('web_search', 'Web Search', { query: 'VS Code tests' }, true)),
+			codeInvocation: text(getInvocationMessage('search_code_subagent', 'Search Code', { query: 'tool display mapping' })),
+			codeComplete: text(getPastTenseMessage('search_code_subagent', 'Search Code', { query: 'tool display mapping' }, true)),
+		}, {
+			webInvocation: 'Searching the web for `VS Code tests`',
+			webComplete: 'Searched the web for `VS Code tests`',
+			codeInvocation: 'Search code for `tool display mapping`',
+			codeComplete: 'Search code for `tool display mapping`',
+		});
+	});
+});
+
 suite('sql tool display', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -804,8 +846,8 @@ suite('sql tool display', () => {
 	});
 
 	test('falls back to generic SQL wording when description is absent', () => {
-		assert.strictEqual(text(getInvocationMessage('sql', 'Execute SQL', { query: 'SELECT 1' })), 'Executing SQL query');
-		assert.strictEqual(text(getPastTenseMessage('sql', 'Execute SQL', { query: 'SELECT 1' }, true)), 'Executed SQL query');
+		assert.strictEqual(text(getInvocationMessage('sql', 'Execute SQL', { query: 'SELECT 1' })), 'Execute SQL query');
+		assert.strictEqual(text(getPastTenseMessage('sql', 'Execute SQL', { query: 'SELECT 1' }, true)), 'Execute SQL query');
 	});
 });
 
@@ -842,8 +884,8 @@ suite('apply_patch tool display', () => {
 		const inv = text(getInvocationMessage('apply_patch', 'Patch', { input: singleFilePatch }));
 		const past = text(getPastTenseMessage('apply_patch', 'Patch', { input: singleFilePatch }, true));
 		assert.deepStrictEqual({ inv, past }, {
-			inv: 'Editing [foo.ts](file:///repo/src/foo.ts)',
-			past: 'Edited [foo.ts](file:///repo/src/foo.ts)',
+			inv: 'Edit [foo.ts](file:///repo/src/foo.ts)',
+			past: 'Edit [foo.ts](file:///repo/src/foo.ts)',
 		});
 	});
 
@@ -851,28 +893,28 @@ suite('apply_patch tool display', () => {
 		const inv = text(getInvocationMessage('apply_patch', 'Patch', { input: multiFilePatch }));
 		const past = text(getPastTenseMessage('apply_patch', 'Patch', { input: multiFilePatch }, true));
 		assert.deepStrictEqual({ inv, past }, {
-			inv: 'Editing [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
-			past: 'Edited [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
+			inv: 'Edit [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
+			past: 'Edit [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
 		});
 	});
 
 	test('falls back to a generic message when the patch body is missing or unparseable', () => {
-		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', undefined), 'Editing files');
-		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', { input: 'not a patch' }), 'Editing files');
-		assert.strictEqual(getPastTenseMessage('apply_patch', 'Patch', undefined, true), 'Edited files');
+		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', undefined), 'Edit files');
+		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', { input: 'not a patch' }), 'Edit files');
+		assert.strictEqual(getPastTenseMessage('apply_patch', 'Patch', undefined, true), 'Edit files');
 	});
 
 	test('also accepts the patch text under the `patch` parameter (CLI shape)', () => {
 		const inv = text(getInvocationMessage('apply_patch', 'Patch', { patch: singleFilePatch }));
-		assert.strictEqual(inv, 'Editing [foo.ts](file:///repo/src/foo.ts)');
+		assert.strictEqual(inv, 'Edit [foo.ts](file:///repo/src/foo.ts)');
 	});
 
 	test('git_apply_patch shares the same display path', () => {
 		const inv = text(getInvocationMessage('git_apply_patch', 'Patch', { input: singleFilePatch }));
 		const past = text(getPastTenseMessage('git_apply_patch', 'Patch', { input: singleFilePatch }, true));
 		assert.deepStrictEqual({ inv, past }, {
-			inv: 'Editing [foo.ts](file:///repo/src/foo.ts)',
-			past: 'Edited [foo.ts](file:///repo/src/foo.ts)',
+			inv: 'Edit [foo.ts](file:///repo/src/foo.ts)',
+			past: 'Edit [foo.ts](file:///repo/src/foo.ts)',
 		});
 	});
 

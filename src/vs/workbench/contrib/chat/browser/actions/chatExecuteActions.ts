@@ -22,6 +22,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
@@ -32,7 +33,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
+import { type IChatAcceptInputOptions, IChatContextPickerDelegate, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
@@ -48,6 +49,7 @@ export interface IChatExecuteActionContext {
 	inputValue?: string;
 	acceptInputOptions?: IChatAcceptInputOptions;
 	voice?: IVoiceChatExecuteActionContext;
+	contextPicker?: IChatContextPickerDelegate;
 }
 
 abstract class SubmitAction extends Action2 {
@@ -431,7 +433,11 @@ export class OpenModelPickerAction extends Action2 {
 						ContextKeyExpr.or(
 							ChatContextKeys.inAgentSessionsWelcome.negate(),
 							ChatContextKeys.chatSessionHasTargetedModels,
-							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))
+							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
+							ContextKeyExpr.and(
+								IsSessionsWindowContext,
+								ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot),
+								ContextKeyExpr.equals(`config.${AgentHostAllowSignedOutWhenUsableSettingId}`, true)))
 					)
 			}
 		});

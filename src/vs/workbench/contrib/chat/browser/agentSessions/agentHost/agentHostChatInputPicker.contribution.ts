@@ -25,7 +25,7 @@ import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/ch
  *   0.8  OpenAgentHostAutoApprovePickerAction (NEW — Auto-Approve)
  *   0.9  OpenAgentHostPermissionModePickerAction (NEW — Claude Approvals)
  *   0.9  OpenAgentHostCodexApprovalsPickerAction (NEW — Codex Approvals)
- *   1    OpenPermissionPickerAction           (Default Permissions)
+ *   1    OpenPermissionPickerAction           (Manual permissions)
  *   1.1  OpenAgentHostFolderPickerAction      (NEW — Folder, multi-root only;
  *                                              ordered last to match the
  *                                              extension-host Copilot CLI)
@@ -54,6 +54,8 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 					ChatContextKeyExprs.isAgentHostSession,
 					WorkspaceFolderCountContext.greater(1),
 					IsSessionsWindowContext.negate(),
+					// Equal-peer providers add every workspace folder automatically, so they do not need a primary picker.
+					ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory,
 				),
 			}],
 		});

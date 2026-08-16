@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -28,13 +28,13 @@ import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { CLOSE_CHAT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { CLOSE_CHAT_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
-import { $, append, EventHelper, reset } from '../../../../base/browser/dom.js';
+import { $, append, EventHelper, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -81,35 +81,26 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const contextKeyService = accessor.get(IContextKeyService);
 
-		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
-		const sessionGroups = groupSessionsForPicker(recent, other);
 		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
 
 		interface ISessionPickItem extends IQuickPickItem {
 			session?: ISession;
 		}
 
-		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
-		let firstSessionItem: ISessionPickItem | undefined;
-
-		// New session item
-		items.push({
-			label: `$(add) ${localize('newSession', "New Session")}`,
-			session: undefined,
-		});
-
-		const toPickItem = (session: ISession): ISessionPickItem => {
-			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
+		const toPickItem = (session: ISession, reader: IReader): ISessionPickItem => {
+			const title = session.title.read(reader) || getUntitledSessionTitle(session.isQuickChat?.read(reader) ?? false);
 
 			// Status icon, mirroring the sessions list and session header.
-			const status = session.status.get();
-			const isRead = session.isRead.get();
-			const isArchived = session.isArchived.get();
-			const workspace = session.workspace.get();
-			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest?.icon;
-			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, pullRequestIcon);
+			const status = session.status.read(reader);
+			const isRead = session.isRead.read(reader);
+			const isArchived = session.isArchived.read(reader);
+			const workspace = session.workspace.read(reader);
+			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
+			const completedStateIcon = session.completedStateIcon?.read(reader) ?? pullRequestIcon;
+			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
 
 			// Second row: workspace (with its icon, like the session header /
 			// list) and the relative time. A leading blank icon aligns the
@@ -118,50 +109,68 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			const detailParts: string[] = [];
 			if (workspace?.label) {
 				const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const workspaceIcon = workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree;
+				const workspaceIcon = workspace.typeIcon ?? (workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree);
 				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${workspace.label}`);
 			} else {
 				detailParts.push(`$(${Codicon.blank.id})`);
 			}
-			detailParts.push(fromNow(session.updatedAt.get(), true, true));
+			detailParts.push(fromNow(session.updatedAt.read(reader), true, true));
 
 			return {
+				id: session.sessionId,
 				label: title,
 				detail: detailParts.join(' \u00B7 '),
 				iconClass: ThemeIcon.asClassName(icon),
+				iconColor: icon.color,
 				session,
 			};
 		};
 
-		const appendSessions = (label: string, sessions: readonly ISession[]): void => {
-			if (sessions.length === 0) {
-				return;
-			}
-			items.push({ type: 'separator', label });
-			for (const session of sessions) {
-				const item = toPickItem(session);
-				firstSessionItem ??= item;
-				items.push(item);
-			}
-		};
-
-		appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
-		appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
-		appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
-		appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
-
 		const picker = quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true });
-		picker.items = items;
 		picker.placeholder = localize('searchSessions', "Search sessions by name or folder");
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
-		if (firstSessionItem) {
-			picker.activeItems = [firstSessionItem];
-		}
 
 		const disposables = new DisposableStore();
 		disposables.add(picker);
+		const sessionsChanged = observableSignalFromEvent('sessionsPickerSessionsChanged', sessionsManagementService.onDidChangeSessions);
+		disposables.add(autorun(reader => {
+			sessionsChanged.read(reader);
+			const { recent, other } = sessionsService.getRecentlyOpenedSessions();
+			const sessionGroups = groupSessionsForPicker(recent, other, reader);
+			const items: (ISessionPickItem | IQuickPickSeparator)[] = [{
+				id: 'newSession',
+				label: `$(add) ${localize('newSession', "New Session")}`,
+				session: undefined,
+			}];
+			let firstSessionItem: ISessionPickItem | undefined;
+			const appendSessions = (label: string, sessions: readonly ISession[]): void => {
+				if (sessions.length === 0) {
+					return;
+				}
+				items.push({ type: 'separator', label });
+				for (const session of sessions) {
+					const item = toPickItem(session, reader);
+					firstSessionItem ??= item;
+					items.push(item);
+				}
+			};
+
+			appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
+			appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
+			appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
+			appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
+
+			const activeItemId = picker.activeItems[0]?.id;
+			picker.items = items;
+			const activeItem = activeItemId
+				? items.find((item): item is ISessionPickItem => item.type !== 'separator' && item.id === activeItemId)
+				: firstSessionItem;
+			if (activeItem) {
+				picker.activeItems = [activeItem];
+			}
+		}));
 
 		// Expose a context key while the picker is open so the navigate
 		// keybindings (bound to the same chord as this command) can advance the
@@ -339,6 +348,114 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsService = accessor.get(ISessionsService);
 		sessionsPartService.focusSession(sessionsService.activeSession.get());
+	}
+});
+
+function withActiveSessionView(accessor: ServicesAccessor, action: (view: NonNullable<ReturnType<ISessionsPartService['getSessionView']>>) => void): void {
+	const sessionsService = accessor.get(ISessionsService);
+	const view = accessor.get(ISessionsPartService).getSessionView(sessionsService.activeSession.get()?.sessionId);
+	if (view) {
+		action(view);
+	}
+}
+
+registerAction2(class FocusPreviousChatGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID,
+			title: localize2('focusPreviousChatGroup', "Focus Previous Chat Group"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.LeftArrow),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.focusAdjacentChatGroup('previous'));
+	}
+});
+
+registerAction2(class FocusNextChatGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_NEXT_CHAT_GROUP_COMMAND_ID,
+			title: localize2('focusNextChatGroup', "Focus Next Chat Group"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.RightArrow),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.focusAdjacentChatGroup('next'));
+	}
+});
+
+registerAction2(class SplitChatGroupRightAction extends Action2 {
+	constructor() {
+		super({
+			id: SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID,
+			title: localize2('splitChatGroupRight', "Split Chat Group Right"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.splitActiveChat('right'));
+	}
+});
+
+registerAction2(class SplitChatGroupDownAction extends Action2 {
+	constructor() {
+		super({
+			id: SPLIT_CHAT_GROUP_DOWN_COMMAND_ID,
+			title: localize2('splitChatGroupDown', "Split Chat Group Down"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.splitActiveChat('bottom'));
+	}
+});
+
+registerAction2(class MoveChatToPreviousGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID,
+			title: localize2('moveChatToPreviousGroup', "Move Chat to Previous Group"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.moveActiveChatToAdjacentGroup('previous'));
+	}
+});
+
+registerAction2(class MoveChatToNextGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID,
+			title: localize2('moveChatToNextGroup', "Move Chat to Next Group"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		withActiveSessionView(accessor, view => view.moveActiveChatToAdjacentGroup('next'));
 	}
 });
 
@@ -1291,11 +1408,21 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 						menu: { id: Menus.SessionConversations, group, order, when: scopedToSession },
 					});
 				}
-				override async run(_accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
+				override async run(accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
 					const target = forwardedSession ?? session;
 					const targetChat = target.chats.get().find(c => extUri.isEqual(c.resource, chatResource));
 					if (!targetChat) {
 						return;
+					}
+					// Alt-invoke opens the chat to the side (in a new group beside the
+					// active one) instead of in place; the dropdown's select handler
+					// does not forward the mouse event, so read the live modifier state.
+					if (ModifierKeyEmitter.getInstance().keyStatus.altKey) {
+						const view = accessor.get(ISessionsPartService).getSessionView(target.sessionId);
+						if (view) {
+							await view.openChatToSide(targetChat.resource);
+							return;
+						}
 					}
 					await that._sessionsService.openChat(target, targetChat.resource);
 				}

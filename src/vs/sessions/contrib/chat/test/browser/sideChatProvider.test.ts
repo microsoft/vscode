@@ -22,6 +22,7 @@ import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -91,6 +92,9 @@ suite('SessionsSideChatProviderContribution', () => {
 				callOrder.push(`open:${chatUri.toString()}`);
 				options.onOpenChat?.(callOrder);
 			},
+		}));
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: () => undefined,
 		}));
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			getWidgetBySessionResource: () => options.widgetFactory?.(callOrder) ?? options.widget,

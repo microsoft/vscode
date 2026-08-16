@@ -225,7 +225,9 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.getId() === Parts.STATUSBAR_PART && e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this._onDidChange.fire(undefined);
-				this.updateStyles();
+				if (this.element) {
+					this.updateStyles();
+				}
 			}
 		}));
 	}

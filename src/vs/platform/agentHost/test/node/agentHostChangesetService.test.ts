@@ -10,10 +10,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import type { ChangesSummary } from '../../common/state/protocol/state.js';
@@ -1309,6 +1311,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		log?: RecordingLogService;
 		telemetry?: ITelemetryService;
 		subscriptions?: string[];
+		peer?: { resource: string; db: TestSessionDatabase; turnId: string };
 	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const log = options.log ?? new RecordingLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -1322,10 +1325,17 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				return diffService;
 			}
 		}
+		const sessionDataService = createSessionDataService(db);
+		const peerDataService = options.peer ? createSessionDataService(options.peer.db) : undefined;
 		const svc = disposables.add(new TestableChangesetService(
 			stateManager,
 			log,
-			createSessionDataService(db),
+			{
+				...sessionDataService,
+				openDatabase: resource => options.peer?.resource === resource.toString()
+					? peerDataService!.openDatabase(resource)
+					: sessionDataService.openDatabase(resource),
+			},
 			options.git,
 			options.checkpoint,
 			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
@@ -1343,6 +1353,20 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: options.workingDirectories,
 		});
+		if (options.peer) {
+			stateManager.addChat(sessionStr, options.peer.resource);
+			stateManager.dispatchServerAction(options.peer.resource, {
+				type: ActionType.ChatTurnStarted,
+				turnId: options.peer.turnId,
+				startedAt: new Date(0).toISOString(),
+				message: { text: 'peer', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(options.peer.resource, {
+				type: ActionType.ChatTurnComplete,
+				turnId: options.peer.turnId,
+				duration: 1,
+			});
+		}
 		return { svc, stateManager, log };
 	}
 
@@ -1400,6 +1424,26 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			1,
 			'the git-backed file must appear exactly once',
 		);
+	});
+
+	test('uses the owning peer database for multi-root non-git fallback', async () => {
+		const sessionDb = new TestSessionDatabase();
+		const peerDb = new TestSessionDatabase();
+		peerDb.addEdit({ turnId: 'peer-turn', toolCallId: 'tc1', filePath: '/folderA/peer.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
+		const peerResource = 'ahp-chat://peer-1/session-mr';
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///folderA', 'file:///folderB'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			db: sessionDb,
+			peer: { resource: peerResource, db: peerDb, turnId: 'peer-turn' },
+		});
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'peer-turn');
+
+		assert.deepStrictEqual(stateManager.getChangesetState(turnUri)?.files.map(file => file.id), [
+			URI.file('/folderA/peer.txt').toString(),
+		]);
 	});
 
 	test('diffs a repository shared by two working directories exactly once (dedup by repo root)', async () => {
@@ -1959,13 +2003,26 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				subscriptions: [buildTurnChangesetUri(sessionStr, 'turn-1')],
 			});
 
-			svc.onTurnComplete(sessionStr, 'turn-1');
+			svc.onTurnComplete(sessionStr, 'turn-1', {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			});
 			const data = await waitForTelemetry(telemetry, 'agentHost.changesetComputed', d => d.kind === 'turn');
 
 			assert.deepStrictEqual({
 				provider: data.provider,
 				agentSessionId: data.agentSessionId,
 				turnId: data.turnId,
+				initiatorClientType: data.initiatorClientType,
+				initiatorConnectionKind: data.initiatorConnectionKind,
+				initiatorTransportKind: data.initiatorTransportKind,
+				hostLaunchKind: data.hostLaunchKind,
+				initiatorMachineId: data.initiatorMachineId,
+				initiatorDevDeviceId: data.initiatorDevDeviceId,
 				kind: data.kind,
 				outcome: data.outcome,
 				isMultiRoot: data.isMultiRoot,
@@ -1976,6 +2033,12 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				provider: URI.parse(sessionStr).scheme,
 				agentSessionId: AgentSession.id(sessionStr),
 				turnId: 'turn-1',
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				kind: 'turn',
 				outcome: 'computed',
 				isMultiRoot: false,

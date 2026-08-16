@@ -30,6 +30,7 @@ import { formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatWidgetService } from '../../chat.js';
+import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
@@ -37,6 +38,8 @@ export interface IOpenSubagentChatContext {
 	readonly chatResource: string;
 	readonly parentSessionResource?: string;
 	readonly title?: string;
+	/** Open the subagent chat to the side (in a new group) rather than in place. */
+	readonly toSide?: boolean;
 	readonly confirmationCount?: number;
 	readonly confirmationActive?: boolean;
 	readonly startedAt?: number;
@@ -281,6 +284,16 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			EventHelper.stop(event, true);
 			return;
 		}
+		// Alt-click opens the subagent chat to the side (in a new group) rather
+		// than in place. Thread the intent through the action context.
+		if ((event as MouseEvent).altKey) {
+			const context = asOpenSubagentChatContext(this._context);
+			if (context) {
+				EventHelper.stop(event, true);
+				this.actionRunner.run(this.action, { ...context, toSide: true });
+				return;
+			}
+		}
 		super.onClick(event, preserveFocus);
 	}
 
@@ -505,7 +518,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._activeToolRendered.clear();
 		this._activeToolFileWidgets.clear();
 		this._activeToolLabelElement.textContent = '';
-		const rendered = this.markdownRendererService.render(new MarkdownString(label), undefined, this._activeToolLabelElement);
+		const rendered = this.markdownRendererService.render(new MarkdownString(label), getChatMarkdownRenderOptions(), this._activeToolLabelElement);
 		renderFileWidgets(rendered.element, this.instantiationService, this.chatMarkdownAnchorService, this._activeToolFileWidgets);
 		this._activeToolRendered.value = rendered;
 		this._displayedToolLabel = label;

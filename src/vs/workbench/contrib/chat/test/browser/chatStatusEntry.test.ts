@@ -6,15 +6,20 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ChatQuotaResumeState, ChatStatusBarEntry, computeQuotaResumeState } from '../../browser/chatStatus/chatStatusEntry.js';
 import { IChatStatusItemService } from '../../browser/chatStatus/chatStatusItemService.js';
+import { UpdateTitleBarChatInProgressContext, UpdateTitleBarContext, UpdateTitleBarEditorVisibleContext } from '../../../update/common/update.js';
 
 type Quotas = IChatEntitlementService['quotas'];
 
@@ -24,6 +29,12 @@ const pooledDepleted = { percentRemaining: 0, unlimited: true, hasQuota: false }
 const pooledAvailable = { percentRemaining: 100, unlimited: true, hasQuota: true } as const;
 
 const RESUME_STATE_KEY = 'chat.quotaResumeState';
+
+class TestContextKeyService extends MockContextKeyService {
+	override contextMatchesRules(rules: ContextKeyExpression): boolean {
+		return rules.evaluate({ getValue: key => this.getContextKeyValue(key) });
+	}
+}
 
 suite('ChatStatusBarEntry - computeQuotaResumeState', () => {
 
@@ -110,8 +121,10 @@ suite('ChatStatusBarEntry', () => {
 		};
 	}
 
-	function createEntry(opts: { quotas?: Quotas; entitlement?: ChatEntitlement; persisted?: ChatQuotaResumeState }) {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+	function createEntry(opts: { quotas?: Quotas; entitlement?: ChatEntitlement; persisted?: ChatQuotaResumeState; updateTitleBar?: boolean; updateTitleBarChatInProgress?: boolean; inDebugMode?: boolean; inZenMode?: boolean }) {
+		const instantiationService = workbenchInstantiationService({
+			contextKeyService: () => new TestContextKeyService(),
+		}, store);
 		const svc = createEntitlement(opts);
 
 		const statusbar = {
@@ -140,6 +153,11 @@ suite('ChatStatusBarEntry', () => {
 			deleteEntry: () => { },
 		});
 		instantiationService.stub(IMarkdownRendererService, { _serviceBrand: undefined });
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		UpdateTitleBarContext.bindTo(contextKeyService).set(opts.updateTitleBar ?? false);
+		UpdateTitleBarChatInProgressContext.bindTo(contextKeyService).set(opts.updateTitleBarChatInProgress ?? false);
+		contextKeyService.createKey<boolean>('inDebugMode', false).set(opts.inDebugMode ?? false);
+		InEditorZenModeContext.bindTo(contextKeyService).set(opts.inZenMode ?? false);
 
 		const storageService = instantiationService.get(IStorageService);
 		if (opts.persisted) {
@@ -147,7 +165,13 @@ suite('ChatStatusBarEntry', () => {
 		}
 
 		const entry = store.add(instantiationService.createInstance(ChatStatusBarEntry));
-		return { entry, svc, statusbar, storageService };
+		return {
+			entry,
+			svc,
+			statusbar,
+			storageService,
+			updateTitleBarVisible: contextKeyService.contextMatchesRules(UpdateTitleBarEditorVisibleContext),
+		};
 	}
 
 	function persistedState(storageService: IStorageService): string | undefined {
@@ -163,6 +187,47 @@ suite('ChatStatusBarEntry', () => {
 
 		assert.strictEqual(statusbar.current?.text, '$(copilot-warning) Quota reached');
 		assert.strictEqual(persistedState(storageService), 'blocked');
+	});
+
+	test('keeps Sign In visible in the status bar only while Update owns the title bar', () => {
+		const withoutUpdate = createEntry({ entitlement: ChatEntitlement.Unknown });
+		const withUpdate = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true });
+		const whileDebugging = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true, inDebugMode: true });
+		const whileChatInProgress = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true, updateTitleBarChatInProgress: true });
+		const inZenMode = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true, inZenMode: true });
+		const defaultStatusText = isWeb ? '$(copilot) Sign In' : '$(copilot)';
+
+		assert.deepStrictEqual({
+			text: {
+				withoutUpdate: withoutUpdate.statusbar.current?.text,
+				withUpdate: withUpdate.statusbar.current?.text,
+				whileDebugging: whileDebugging.statusbar.current?.text,
+				whileChatInProgress: whileChatInProgress.statusbar.current?.text,
+				inZenMode: inZenMode.statusbar.current?.text,
+			},
+			visibility: {
+				withoutUpdate: withoutUpdate.updateTitleBarVisible,
+				withUpdate: withUpdate.updateTitleBarVisible,
+				whileDebugging: whileDebugging.updateTitleBarVisible,
+				whileChatInProgress: whileChatInProgress.updateTitleBarVisible,
+				inZenMode: inZenMode.updateTitleBarVisible,
+			},
+		}, {
+			text: {
+				withoutUpdate: defaultStatusText,
+				withUpdate: '$(copilot) Sign In',
+				whileDebugging: defaultStatusText,
+				whileChatInProgress: defaultStatusText,
+				inZenMode: '$(copilot) Sign In',
+			},
+			visibility: {
+				withoutUpdate: false,
+				withUpdate: true,
+				whileDebugging: false,
+				whileChatInProgress: false,
+				inZenMode: false,
+			},
+		});
 	});
 
 	test('transitions to resumed when the limit resets while running', () => {
