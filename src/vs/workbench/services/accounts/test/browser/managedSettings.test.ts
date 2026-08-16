@@ -4,12 +4,54 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from '../../browser/managedSettings.js';
+import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
+import { isManagedSettingsUrl, MANAGED_SETTINGS_ORIGINAL_STATUS_HEADER } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse, parseManagedSettingsCompatibilityError, restoreOriginalStatus } from '../../browser/managedSettings.js';
 
 suite('adaptManagedSettings', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores a status rewritten to avoid console logging', () => {
+		const context = (headers: Record<string, string>, statusCode: number): IRequestContext => ({
+			res: { statusCode, headers },
+			stream: bufferToStream(VSBuffer.fromString('{}')),
+		});
+
+		assert.deepStrictEqual({
+			rewritten: restoreOriginalStatus(context({ [MANAGED_SETTINGS_ORIGINAL_STATUS_HEADER]: '404' }, 200)).res.statusCode,
+			untouched: restoreOriginalStatus(context({}, 200)).res.statusCode,
+			genuineError: restoreOriginalStatus(context({}, 466)).res.statusCode,
+			malformedHeader: restoreOriginalStatus(context({ [MANAGED_SETTINGS_ORIGINAL_STATUS_HEADER]: 'nope' }, 200)).res.statusCode,
+		}, {
+			rewritten: 404,
+			untouched: 200,
+			genuineError: 466,
+			malformedHeader: 200,
+		});
+	});
+
+	test('recognizes the managed settings endpoint across deployments', () => {
+		assert.deepStrictEqual({
+			dotCom: isManagedSettingsUrl('https://api.github.com/copilot_internal/managed_settings'),
+			withQuery: isManagedSettingsUrl('https://api.github.com/copilot_internal/managed_settings?client_id=vscode'),
+			enterprise: isManagedSettingsUrl('https://api.contoso.ghe.com/copilot_internal/managed_settings'),
+			otherEndpoint: isManagedSettingsUrl('https://api.github.com/copilot_internal/user'),
+			otherHost: isManagedSettingsUrl('https://example.com/copilot_internal/managed_settings'),
+			insecure: isManagedSettingsUrl('http://api.github.com/copilot_internal/managed_settings'),
+			unparseable: isManagedSettingsUrl('not a url'),
+		}, {
+			dotCom: true,
+			withQuery: true,
+			enterprise: true,
+			otherEndpoint: false,
+			otherHost: false,
+			insecure: false,
+			unparseable: false,
+		});
+	});
 
 	test('empty response yields an empty managed settings bag', () => {
 		assert.deepStrictEqual(adaptManagedSettings({}), {
