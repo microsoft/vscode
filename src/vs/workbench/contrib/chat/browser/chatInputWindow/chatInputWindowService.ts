@@ -72,6 +72,10 @@ const CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_ACTION_WIDGET_WIDTH = 420;
 const CHAT_INPUT_WINDOW_ACTION_WIDGET_MARGIN = 4;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
+// Transparent gutter around the surface so the CSS window shadow is not clipped
+// by the frameless window bounds. Keep in sync with --omni-window-shadow-size in
+// media/chatInputWindow.css.
+const CHAT_INPUT_WINDOW_SHADOW_SIZE = 16;
 const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
 const CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT = 112;
 const CHAT_INPUT_WINDOW_CONTEXT_PICKER_TRANSITION_DELAY = 100;
@@ -684,14 +688,18 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				return;
 			}
 			lastContentHeight = contentHeight;
+			// Grow the window by the shadow gutter on all sides so the surface keeps
+			// its content size while the CSS shadow renders into the transparent band.
+			const windowWidth = width + 2 * CHAT_INPUT_WINDOW_SHADOW_SIZE;
+			const windowHeight = contentHeight + 2 * CHAT_INPUT_WINDOW_SHADOW_SIZE;
 			if (!didInitialPosition) {
 				didInitialPosition = true;
-				const initialBounds = this._positionedBounds(width, contentHeight);
+				const initialBounds = this._positionedBounds(windowWidth, windowHeight);
 				currentPosition = { x: initialBounds.x, y: initialBounds.y };
 			} else if (!applyingBounds) {
 				currentPosition = { x: win.screenX, y: win.screenY };
 			}
-			pendingBounds = { ...currentPosition, width, height: contentHeight };
+			pendingBounds = { ...currentPosition, width: windowWidth, height: windowHeight };
 			void applyPendingBounds();
 		};
 		this._fitWindowToContent = fitWindowToInput;
@@ -1614,7 +1622,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultBounds(): IRectangle {
-		return this._positionedBounds(this._defaultWidth(), CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
+		return this._positionedBounds(
+			this._defaultWidth() + 2 * CHAT_INPUT_WINDOW_SHADOW_SIZE,
+			CHAT_INPUT_WINDOW_DEFAULT_HEIGHT + 2 * CHAT_INPUT_WINDOW_SHADOW_SIZE
+		);
 	}
 
 	private _positionedBounds(width: number, height: number): IRectangle {

@@ -7,11 +7,16 @@
 	--omni-rail: 20px;
 	--omni-icon-column: 16px;
 	--omni-row-gap: 8px;
+	/* Transparent gutter reserved so the window shadow can render without being
+	   clipped by the frameless window bounds. Keep in sync with
+	   CHAT_INPUT_WINDOW_SHADOW_SIZE in chatInputWindowService.ts. */
+	--omni-window-shadow-size: 16px;
 
 	box-sizing: border-box;
-	height: calc(100% - var(--vscode-strokeThickness) - var(--vscode-strokeThickness)) !important;
-	margin: var(--vscode-strokeThickness);
+	height: calc(100% - var(--omni-window-shadow-size) - var(--omni-window-shadow-size)) !important;
+	margin: var(--omni-window-shadow-size);
 	border-radius: var(--vscode-cornerRadius-xLarge);
+	box-shadow: 0 3px 10px 0 var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
 	overflow: hidden;
 }
 
