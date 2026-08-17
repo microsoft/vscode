@@ -10,11 +10,15 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ILanguageModelChatSelector } from '../../common/languageModels.js';
 
 type CleanupTestService = {
 	_languageModelsService: {
-		selectLanguageModels: () => Promise<string[]>;
+		selectLanguageModels: (selector: ILanguageModelChatSelector) => Promise<string[]>;
 		sendChatRequest: (...args: never[]) => Promise<never>;
+	};
+	_assignmentService: {
+		getTreatment: () => Promise<string | undefined>;
 	};
 	_promptsService: {
 		getDictationInstructions: (token: CancellationToken) => Promise<string | undefined>;
@@ -145,6 +149,9 @@ suite('ChatSpeechToTextService', () => {
 		const clock = sinon.useFakeTimers();
 		try {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+			service._assignmentService = {
+				getTreatment: async () => undefined,
+			};
 			service._languageModelsService = {
 				selectLanguageModels: async () => ['test-model'],
 				sendChatRequest: () => new Promise<never>(() => { }),
@@ -169,6 +176,42 @@ suite('ChatSpeechToTextService', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+
+	test('selects Luna only for the dictation cleanup model treatment', async () => {
+		const selectors: ILanguageModelChatSelector[] = [];
+		const createService = (treatment: string | undefined): CleanupTestService => {
+			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+			service._assignmentService = {
+				getTreatment: async () => treatment,
+			};
+			service._languageModelsService = {
+				selectLanguageModels: async selector => {
+					selectors.push(selector);
+					return [];
+				},
+				sendChatRequest: () => Promise.reject(new Error('Unexpected request')),
+			};
+			service._promptsService = {
+				getDictationInstructions: async () => undefined,
+			};
+			service._logService = {
+				info: () => { },
+				warn: () => { },
+				trace: () => { },
+			};
+			return service;
+		};
+
+		await createService(undefined)._cleanupWithLanguageModel('control transcript', CancellationToken.None);
+		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('treatment transcript', CancellationToken.None);
+		await createService('unexpected-model')._cleanupWithLanguageModel('unknown treatment transcript', CancellationToken.None);
+
+		assert.deepStrictEqual(selectors, [
+			{ vendor: 'copilot', id: 'copilot-utility-small' },
+			{ vendor: 'copilot', id: 'gpt-5.6-luna' },
+			{ vendor: 'copilot', id: 'copilot-utility-small' },
+		]);
 	});
 
 });

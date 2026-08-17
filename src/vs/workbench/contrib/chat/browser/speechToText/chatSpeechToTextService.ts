@@ -37,6 +37,7 @@ import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 import { getMediaCaptureWindow } from '../voiceClient/micCaptureService.js';
 import { resolveDictationLanguage } from './dictationLanguage.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
@@ -124,8 +125,11 @@ const LLM_CLEANUP_MAX_CHARS = 4000;
 /** Bounded deadline for cleanup, so a stalled provider does not make dictation feel stuck. */
 const LLM_CLEANUP_TIMEOUT_MS = 1500;
 
-/** Utility model used for transcript cleanup — a small, fast model in the spirit of gpt-4o-mini. */
+/** Utility model used for transcript cleanup, currently backed by gpt-4o-mini. */
 const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' };
+
+const LLM_CLEANUP_MODEL_TREATMENT = 'dictationLlmCleanupModel';
+const LLM_CLEANUP_LUNA_MODEL_ID = 'gpt-5.6-luna';
 
 /**
  * Which backend transcribes dictation audio:
@@ -521,6 +525,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		this._recordingContextKey = ChatContextKeys.speechToTextRecording.bindTo(contextKeyService);
@@ -1364,8 +1369,19 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			cts.cancel();
 		}, LLM_CLEANUP_TIMEOUT_MS);
 		try {
+			const experimentalModel = await raceCancellation(
+				this._assignmentService.getTreatment<string>(LLM_CLEANUP_MODEL_TREATMENT),
+				cts.token,
+			);
+			if (cts.token.isCancellationRequested) {
+				this._logService.info(`[chat-stt] skipped language model cleanup (reason=${timedOut ? 'timeout' : 'cancelledBeforeRequest'}); using raw transcript`);
+				return undefined;
+			}
+			const modelSelector = experimentalModel === LLM_CLEANUP_LUNA_MODEL_ID
+				? { vendor: 'copilot', id: LLM_CLEANUP_LUNA_MODEL_ID }
+				: LLM_CLEANUP_MODEL_SELECTOR;
 			const models = await raceCancellation(
-				this._languageModelsService.selectLanguageModels(LLM_CLEANUP_MODEL_SELECTOR),
+				this._languageModelsService.selectLanguageModels(modelSelector),
 				cts.token,
 				[],
 			);
