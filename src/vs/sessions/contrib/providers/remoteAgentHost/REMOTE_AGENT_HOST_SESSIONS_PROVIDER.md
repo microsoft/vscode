@@ -83,6 +83,7 @@ Decoupling these allows copilot sessions from different providers (local CLI, re
 - A manual SSH reconnect from the host picker bypasses that paused auto-reconnect state and starts a fresh reconnect attempt for stored SSH hosts; host-picker disconnect/cancel for SSH uses the SSH service instead of removing the stored host.
 - `vscodeAgents.sshConnect/attempt` records each complete SSH plus AHP initialization attempt from the initial connection and stored-host reconnect paths, with connect/reconnect, user-initiated, attempt number, duration, success, retry intent, and a bounded failure category. It never records host names, addresses, aliases, or raw error messages.
 - VS Code remote transports declare their route in AHP initialize metadata (`dev_tunnel`, `ssh`, `wsl`, `remote_extension_host`, `direct_websocket`, or `web_pub_sub`). Agent Host product telemetry combines that declaration with the host-observed physical transport and launcher kind; message telemetry retains the initiating client id and route.
+- `ITunnelHostService` is a required dependency of the tunnel agent host contribution on every target, because tunnel discovery filters out the locally hosted tunnel. Hosting is CLI-backed and therefore impossible in a browser, so web registers an inert implementation that reports a permanently inactive sharing state rather than leaving the service unregistered. Omitting it fails construction of the whole contribution and silently disables tunnel discovery.
 
 ## Stubbed Operations
 
