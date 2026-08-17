@@ -1943,6 +1943,25 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			assert.deepStrictEqual(JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!), { additions: 8, deletions: 3, files: 2 }, 'persisted all-folder summary is not clobbered');
 		});
 
+		test('a session with no summary of its own advertises no chip, rather than the branch divergence', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			// The branch is far from its upstream — commits made before this
+			// session existed, and by other people. None of it is this session's.
+			git.computeSessionFileDiffs = async () => [gitDiff('/repoA/history.ts', 16070, 634)];
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForCount(() => stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status === ChangesetStatus.Ready ? 1 : 0, 1);
+			stateManager.removeSession(sessionStr);
+
+			const overlay = svc.computeListEntryChanges(sessionStr, {});
+
+			assert.strictEqual(overlay, undefined, 'no session-scoped evidence must render no chip');
+			assert.strictEqual(await db.getMetadata(META_CHANGES_SUMMARY), undefined, 'the branch divergence must not be persisted as the session summary');
+		});
+
 		test('multi-folder branch changeset DATA stays primary-only (AC-8 data fence)', async () => {
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
@@ -1965,22 +1984,28 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			assert.deepStrictEqual(branch?.files.map(f => f.id), [URI.file('/repoA/a.ts').toString()], 'branch changeset data stays primary-only in a multi-root session');
 		});
 
-		test('single-folder summary stays branch-derived (characterization: byte-for-byte unchanged)', async () => {
+		test('a branch refresh no longer writes the chip from the branch divergence', async () => {
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
-			git.computeSessionFileDiffs = async () => [gitDiff('/wd/only.ts', 4, 2)];
+			// The branch has diverged far from its upstream — commits made before
+			// this session existed, and by other people. None of it is the
+			// session's own work, so none of it belongs in the session's chip.
+			git.computeSessionFileDiffs = async () => [gitDiff('/wd/history.ts', 16070, 634)];
 			const db = new TestSessionDatabase();
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
 
 			svc.refreshBranchChangeset(sessionStr);
-			const changes = await waitForSummaryChanges(stateManager);
+			await waitForCount(() => stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status === ChangesetStatus.Ready ? 1 : 0, 1);
 
-			// The single primary branch diff IS the whole session footprint, exactly as today.
-			assert.deepStrictEqual(changes, { additions: 4, deletions: 2, files: 1 });
+			// The branch changeset itself is still published — only its ownership
+			// of the chip is withdrawn.
 			assert.deepStrictEqual(
-				JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
-				{ additions: 4, deletions: 2, files: 1 },
+				stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.files.map(f => f.id),
+				[URI.file('/wd/history.ts').toString()],
+				'branch changeset data is unaffected',
 			);
+			assert.strictEqual(stateManager.getSessionSummary(sessionStr)?.changes, undefined, 'a branch refresh must not write the chip');
+			assert.strictEqual(await db.getMetadata(META_CHANGES_SUMMARY), undefined, 'the branch divergence must not be persisted as the chip');
 		});
 
 		test('a repository whose branch diff throws is skipped and logged, without failing the aggregate', async () => {

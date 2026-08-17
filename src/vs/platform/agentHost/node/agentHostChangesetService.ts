@@ -106,43 +106,6 @@ function summariseDiffs(diffs: readonly ISessionFileDiff[] | undefined): Changes
 }
 
 /**
- * Derives the `summary.changes` aggregate for an unopened session from
- * the ready live {@link ChangesetState} of the catalogue entry whose
- * `changeKind === 'session'` — typically because a previous
- * `restoreStaticChangeset` warmed the cache before the session itself
- * was attached.
- *
- * Returns `undefined` when no live session-wide state is ready, so
- * `listSessions` leaves the `changes` field unset for sessions without
- * usable counts — preserving the long-standing contract that unopened
- * sessions without live or persisted data advertise no aggregate.
- *
- * Only the `changeKind: 'session'` entry feeds the summary; other kinds
- * (`'uncommitted'`, `'turn'`, `'compare-turns'`) describe slices, not
- * the session-level footprint. The static catalogue itself (built by
- * {@link buildDefaultChangesetCatalog}) is independent of counts and
- * is seeded once at session creation.
- */
-function computeChangesSummaryFromLiveState(
-	session: ChangesetState | undefined,
-): ChangesSummary | undefined {
-	const sessionDiffs = session?.status === ChangesetStatus.Ready ? session.files.map(f => f.edit) : undefined;
-	return summariseDiffs(sessionDiffs);
-}
-
-/**
- * Derives the `summary.changes` aggregate for an unopened session from
- * parsed persisted diffs for the `changeKind: 'session'` catalogue
- * entry. Returns `undefined` when the session-wide blob is absent so
- * malformed metadata leaves `summary.changes` unset.
- */
-function computeChangesSummaryFromPersistedDiffs(
-	sessionDiffs: readonly ISessionFileDiff[] | undefined,
-): ChangesSummary | undefined {
-	return summariseDiffs(sessionDiffs);
-}
-
-/**
  * Parses a JSON-serialised {@link ISessionFileDiff}[] blob from session
  * metadata. Returns `undefined` for missing or malformed input, logging a
  * warning that names `sessionUri` and `kind` so operators can correlate the
@@ -322,36 +285,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		}
 
-		// Read live state for an unopened session: synthesise the aggregate
-		// from the live `changeKind: 'branch'` changeset state. Counts stay
-		// in lockstep with the actual changeset state for the session-list chip.
-		const liveSession = this._stateManager.getChangesetState(buildBranchChangesetUri(sessionUri));
-		const liveChanges = computeChangesSummaryFromLiveState(liveSession);
-		if (liveChanges) {
-			// Migrate the changes summary to the new storage mechanism.
-			this.persistChangesSummary(sessionUri, liveChanges);
-			return liveChanges;
-		}
-
-		// No live source — try persisted blobs (if the caller batched them).
-		const branchRaw = metadata[META_CHANGESET_BRANCH];
-		const legacyRaw = metadata[META_LEGACY_DIFFS];
-		if (branchRaw === undefined && legacyRaw === undefined) {
-			return undefined;
-		}
-		const restored = this.parsePersistedStaticChangesets(sessionUri, { branchRaw, legacyRaw });
-
-		// `listSessions` must not seed full changeset state for every row; it
-		// only parses persisted blobs enough to render the chip aggregate.
-		// Once the session is opened via `restoreSession`, the live overlay in
-		// `AgentService.listSessions` replaces this parse-only aggregate.
-		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored.branch);
-		if (persistedChanges) {
-			// Migrate the changes summary to the new storage mechanism.
-			this.persistChangesSummary(sessionUri, persistedChanges);
-			return persistedChanges;
-		}
-
+		// Nothing session-scoped is available. The `changeKind: 'branch'`
+		// changeset is not a substitute: it measures the branch against its
+		// upstream, which includes every commit made before the session existed
+		// and by anyone else. Deriving the chip from it labels that divergence
+		// as the session's own work — a session that has never run a turn, and
+		// owns no file edits at all, still gets a count — and persisting it
+		// makes the wrong number durable.
+		//
+		// A row with no chip is the honest rendering of "no session-scoped
+		// evidence yet". The next completed turn writes `META_CHANGES_SUMMARY`
+		// and the chip appears with the session's real counts.
 		return undefined;
 	}
 
@@ -1317,30 +1261,34 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				// during the rollout window.
 				this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
 
-				// Own the `summary.changes` aggregate by session shape:
-				//
-				// - SINGLE-folder: derive it from the primary branch `diffs`,
-				//   exactly as before — that branch changeset IS the whole
-				//   session footprint. The session-list chip and the
-				//   inactive-session aggregate (`computeListEntryChanges`) read the
-				//   branch changeset, as does the active session view, so sourcing
-				//   the persisted summary from the same place keeps the count stable
-				//   across the active <-> inactive transition.
-				// - MULTI-folder: the primary-only `diffs` under-count the session,
-				//   so do NOT write the summary here. Recompute the ALL-FOLDER
-				//   aggregate independently from every repository's branch diff so a
-				//   subsequent branch recompute keeps the all-folder count instead of
-				//   clobbering it back to the primary folder's. The branch CHANGESET
-				//   state is still published from the primary `diffs` above (data
-				//   unchanged); only the summary ownership moves.
+				// MULTI-folder: the primary-only `diffs` under-count the session,
+				// so recompute the ALL-FOLDER aggregate independently from every
+				// repository so a subsequent branch recompute keeps the all-folder
+				// count instead of clobbering it back to the primary folder's. The
+				// branch CHANGESET state is still published from the primary
+				// `diffs` above (data unchanged); only the summary ownership moves.
 				const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
 				if (isMultiRootSession(workingDirectories)) {
 					// Reuse the primary branch `diffs` just computed above so the
 					// summary doesn't re-diff the primary repo (perf: one fewer git
 					// diff per branch recompute).
 					await this._updateMultiFolderChangesSummary(session, ref.object, workingDirectories!, diffs);
-				} else {
-					const changesSummary = summariseDiffs(diffs) ?? { additions: 0, deletions: 0, files: 0 };
+				}
+			}
+
+			// SINGLE-folder: the chip counts the session's own work, so it comes
+			// from the session changeset. The branch changeset answers a
+			// different question — how far the branch has diverged from its
+			// upstream — which includes commits made before the session existed
+			// and by other people; sourcing the chip from it labels all of that
+			// as this session's changes.
+			if (kind === ChangesetKind.Session) {
+				const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
+				// `summariseDiffs` separates "computed, and empty" (a zero chip,
+				// which is a real answer) from "could not compute" (`undefined`),
+				// which must leave the chip unset rather than claim zero.
+				const changesSummary = summariseDiffs(diffs);
+				if (!isMultiRootSession(workingDirectories) && changesSummary) {
 					this.persistChangesSummary(session, changesSummary);
 					this._stateManager.setSessionSummaryChanges(session, changesSummary);
 				}
