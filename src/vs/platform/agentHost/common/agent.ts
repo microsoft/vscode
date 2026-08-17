@@ -129,12 +129,7 @@ export interface IAgentDiscoveredChat extends IAgentChatMetadata {
 	readonly external: boolean;
 }
 
-/**
- * Reports which of `sessions` the host already has in its session registry,
- * as a set of `URI.toString()` keys. Discovery uses it to drop candidates the
- * host already owns before doing any per-session I/O; the registry is owned by
- * `AgentService`, so providers ask instead of inspecting host state.
- */
+/** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
@@ -1099,11 +1094,7 @@ export interface IAgent {
 	/** Provides chats that are ready to be registered as Agent Host sessions. */
 	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]>;
 
-	/**
-	 * Optional host seam letting a provider ask which candidate sessions the
-	 * registry already owns, so discovery can drop them before opening their
-	 * per-session databases. Set by `AgentService` at provider registration.
-	 */
+	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
 
 	// ---- Legacy migration ---------------------------------------------------

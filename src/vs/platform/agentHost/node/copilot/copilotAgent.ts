@@ -2207,9 +2207,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 *   creator provenance. External chats must also have repository metadata
 	 *   and have been modified within the last seven days.
 	 *
-	 * A chat counts as already known when the host's session registry already
-	 * owns it (or, absent the host filter, when it has a per-session database),
-	 * which also keeps peer-chat backings out of the result. A chat the SDK reports
+	 * Registered chats are filtered by the host, with stored metadata as a
+	 * fallback when no host filter is installed. A chat the SDK reports
 	 * without a working directory is skipped: {@link _doResumeSession} requires
 	 * one and a discovered chat has no other source for it (Agent Host writes
 	 * no metadata for it beyond the read marker), so it would surface as a row
@@ -2227,15 +2226,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!sessions) {
 			return undefined;
 		}
-		// Ask the host which candidates its registry already owns. This is the
-		// authoritative "already known" test and costs one registry query
-		// instead of one session-database open per catalog entry.
+		// Filter registered candidates with one registry query.
 		const knownSessions = this._knownSessionsFilter
 			? await this._knownSessionsFilter(sessions.map(s => AgentSession.uri(this.id, s.sessionId)))
 			: undefined;
-		// Adoptable legacy chats are only emitted while in-place migration is
-		// enabled, so their (Git-touching) project resolution is pure waste
-		// when it is off.
+		// Skip project resolution for adoptable chats that will not be emitted.
 		const emitAdoptable = this._isMigrateLegacyCopilotCliEnabled();
 		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
 		const metadataLimiter = new Limiter<IAgentDiscoveredChat | undefined>(4);
