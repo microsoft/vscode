@@ -15,10 +15,11 @@ import { ConfigKey } from '../../../../platform/configuration/common/configurati
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { ICAPIClientService } from '../../../../platform/endpoint/common/capiClient';
+import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { MockAuthenticationService } from '../../../../platform/ignore/node/test/mockAuthenticationService';
 import { MockCAPIClientService } from '../../../../platform/ignore/node/test/mockCAPIClientService';
 import { ElectronFetchErrorChromiumDetails, ILogService } from '../../../../platform/log/common/logService';
-import { FinishedCallback } from '../../../../platform/networking/common/fetch';
+import { FinishedCallback, IResponseDelta } from '../../../../platform/networking/common/fetch';
 import { IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
@@ -45,6 +46,7 @@ describe('ChatMLFetcherImpl retry logic', () => {
 	let configurationService: InMemoryConfigurationService;
 	let cancellationTokenSource: CancellationTokenSource;
 	let endpoint: IChatEndpoint;
+	let availableEndpoints: IChatEndpoint[];
 
 	beforeEach(() => {
 		disposables = new DisposableStore();
@@ -60,6 +62,7 @@ describe('ChatMLFetcherImpl retry logic', () => {
 		const experimentationService = new NullExperimentationService();
 
 		endpoint = createMockEndpoint();
+		availableEndpoints = [];
 
 		fetcher = new ChatMLFetcherImpl(
 			mockFetcherService as unknown as IFetcherService,
@@ -81,6 +84,7 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			]).seal() as unknown as IInstantiationService,
 			new NullChatWebSocketManager(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			{ _serviceBrand: undefined, getAllChatEndpoints: async () => availableEndpoints } as unknown as IEndpointProvider,
 		);
 
 		// Skip delays in tests for faster execution
@@ -237,6 +241,112 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			// All invalid means no valid status codes - should fail without retry
 			expect(result.type).toBe(ChatFetchResponseType.Failed);
 			expect(mockFetcherService.fetchCallCount).toBe(1);
+		});
+	});
+
+	describe('refusal fallback', () => {
+		function setupRefusal(options: { enabled?: boolean; withFallbackEndpoint?: boolean; refusingModel?: string } = {}) {
+			configurationService.setConfig(ConfigKey.Advanced.AnthropicRefusalFallback, options.enabled ?? true);
+			endpoint = createMockEndpoint({ model: options.refusingModel ?? 'claude-opus-5', name: 'Claude Opus 5', finishReason: 'refusal' });
+			availableEndpoints = options.withFallbackEndpoint === false
+				? []
+				: [createMockEndpoint({ model: 'claude-opus-4.8', name: 'Claude Opus 4.8' })];
+		}
+
+		it('re-issues a refused request once against the fallback model', async () => {
+			setupRefusal();
+			mockFetcherService.queueResponse(createSuccessResponse('refused'));
+			mockFetcherService.queueResponse(createSuccessResponse('Recovered!'));
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			expect({ type: result.type, fetchCallCount: mockFetcherService.fetchCallCount }).toEqual({
+				type: ChatFetchResponseType.Success,
+				fetchCallCount: 2,
+			});
+		});
+
+		it('tells the user which model declined and which one served the retry', async () => {
+			setupRefusal();
+			mockFetcherService.queueResponse(createSuccessResponse('refused'));
+			mockFetcherService.queueResponse(createSuccessResponse('Recovered!'));
+
+			const deltas: IResponseDelta[] = [];
+			const opts = createBaseOpts();
+			opts.finishedCb = async (_text, _index, delta) => {
+				deltas.push(delta);
+				return undefined;
+			};
+			await fetcher.fetchMany(opts, cancellationTokenSource.token);
+
+			expect(deltas.filter(d => d.retryReason).map(d => ({ retryReason: d.retryReason, retryMessage: d.retryMessage }))).toEqual([{
+				retryReason: 'refusal',
+				retryMessage: 'Claude Opus 5 declined this request, so it was retried with Claude Opus 4.8. The declined attempt still counts toward usage.',
+			}]);
+		});
+
+		it('does not retry when the fallback is disabled', async () => {
+			setupRefusal({ enabled: false });
+			mockFetcherService.queueResponse(createSuccessResponse('refused'));
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			expect({ type: result.type, fetchCallCount: mockFetcherService.fetchCallCount }).toEqual({
+				type: ChatFetchResponseType.Refusal,
+				fetchCallCount: 1,
+			});
+		});
+
+		it('does not retry when the model has no configured fallback', async () => {
+			setupRefusal({ refusingModel: 'claude-sonnet-4.6' });
+			mockFetcherService.queueResponse(createSuccessResponse('refused'));
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			expect({ type: result.type, fetchCallCount: mockFetcherService.fetchCallCount }).toEqual({
+				type: ChatFetchResponseType.Refusal,
+				fetchCallCount: 1,
+			});
+		});
+
+		it('does not retry when the fallback model is unavailable', async () => {
+			setupRefusal({ withFallbackEndpoint: false });
+			mockFetcherService.queueResponse(createSuccessResponse('refused'));
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			expect({ type: result.type, fetchCallCount: mockFetcherService.fetchCallCount }).toEqual({
+				type: ChatFetchResponseType.Refusal,
+				fetchCallCount: 1,
+			});
+		});
+
+		it('does not retry when the caller did not opt into retries', async () => {
+			setupRefusal();
+			mockFetcherService.queueResponse(createSuccessResponse('refused'));
+
+			const opts = createBaseOpts();
+			opts.enableRetryOnError = false;
+			const result = await fetcher.fetchMany(opts, cancellationTokenSource.token);
+
+			expect({ type: result.type, fetchCallCount: mockFetcherService.fetchCallCount }).toEqual({
+				type: ChatFetchResponseType.Refusal,
+				fetchCallCount: 1,
+			});
+		});
+
+		it('surfaces the original refusal when the fallback also refuses', async () => {
+			setupRefusal();
+			availableEndpoints = [createMockEndpoint({ model: 'claude-opus-4.8', finishReason: 'refusal' })];
+			mockFetcherService.queueResponse(createSuccessResponse('refused'));
+			mockFetcherService.queueResponse(createSuccessResponse('refused again'));
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			expect({ type: result.type, fetchCallCount: mockFetcherService.fetchCallCount }).toEqual({
+				type: ChatFetchResponseType.Refusal,
+				fetchCallCount: 2,
+			});
 		});
 	});
 
@@ -473,11 +583,15 @@ function createMockInteractionService(): IInteractionService {
 	} as unknown as IInteractionService;
 }
 
-function createMockEndpoint(): IChatEndpoint {
+function createMockEndpoint(options: { model?: string; family?: string; name?: string; finishReason?: string } = {}): IChatEndpoint {
+	const model = options.model ?? 'test-model';
+	const finishReason = options.finishReason ?? 'stop';
 	return {
 		url: 'https://api.github.com/copilot/chat/completions',
 		urlOrRequestMetadata: 'https://api.github.com/copilot/chat/completions',
-		model: 'test-model',
+		model,
+		family: options.family ?? model,
+		name: options.name ?? model,
 		modelMaxPromptTokens: 8192,
 		maxOutputTokens: 4096,
 		supportsToolCalls: true,
@@ -489,7 +603,7 @@ function createMockEndpoint(): IChatEndpoint {
 		policy: 'enabled',
 		getHeaders: async () => ({}),
 		createRequestBody: () => ({
-			model: 'test-model',
+			model,
 			messages: [],
 			stream: true
 		}),
@@ -520,9 +634,9 @@ function createMockEndpoint(): IChatEndpoint {
 						},
 						tokens: [],
 						usage: undefined,
-						model: 'test-model',
+						model,
 						blockFinished: true,
-						finishReason: 'stop',
+						finishReason,
 						telemetryData: telemetryData,
 					};
 				}

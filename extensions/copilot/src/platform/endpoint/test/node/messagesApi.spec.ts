@@ -1972,7 +1972,7 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		expect(results[0].message.content).toHaveLength(0);
 	});
 
-	test('maps refusal stop_reason to ClientDone', async () => {
+	test('maps refusal stop_reason to Refusal', async () => {
 		const response = createNonStreamingResponse({
 			id: 'msg_refusal',
 			type: 'message',
@@ -1994,7 +1994,7 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		for await (const c of completions) {
 			results.push(c);
 		}
-		expect(results[0].finishReason).toBe('DONE');
+		expect(results[0].finishReason).toBe('refusal');
 	});
 
 	test('reports tool calls through finishCallback delta', async () => {
