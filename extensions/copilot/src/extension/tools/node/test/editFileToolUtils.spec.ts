@@ -1130,6 +1130,7 @@ describe('agent definition files require confirmation', () => {
 			'/workspace/.github/agents/dev-helper.md',
 			'/workspace/.github/agents/dev-helper.agent.md',
 			'/workspace/.claude/agents/reviewer.md',
+			'/workspace/.agents/agents/dev-helper.md',
 			'/workspace/.github/agents/nested/deep.md',
 		];
 		for (const file of files) {

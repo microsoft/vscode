@@ -68,6 +68,21 @@ suite('promptFileLocations', function () {
 			assert.strictEqual(getPromptFileType(uri), undefined);
 		});
 
+		test('.md files in .agents/agents/ folder should be recognized as agent files', () => {
+			const uri = URI.file('/workspace/.agents/agents/demonstrate.md');
+			assert.strictEqual(getPromptFileType(uri), PromptsType.agent);
+		});
+
+		test('README.md in .agents/agents/ should NOT be recognized as agent file', () => {
+			const uri = URI.file('/workspace/.agents/agents/README.md');
+			assert.strictEqual(getPromptFileType(uri), undefined);
+		});
+
+		test('.md files in .agents/agents/ subfolder should NOT be recognized as agent files', () => {
+			const uri = URI.file('/workspace/.agents/agents/subfolder/test.md');
+			assert.strictEqual(getPromptFileType(uri), undefined);
+		});
+
 		test('.md files in ~/.copilot/agents/ folder should be recognized as agent files', () => {
 			const uri = URI.file('/home/user/.copilot/agents/my-agent.md');
 			assert.strictEqual(getPromptFileType(uri), PromptsType.agent);
