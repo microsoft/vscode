@@ -437,7 +437,7 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
-	test('clearing a pending programmatic selection clears its authority', async () => {
+	test('resetting to the default abandons a pending programmatic selection', async () => {
 		const modelChanges = disposables.add(new Emitter<string>());
 		const requested = model('test/requested');
 		const state: IRuntimeState = { models: [], sessionType: 'local' };
@@ -447,7 +447,7 @@ suite('ChatInputModelSelectionController', () => {
 			() => state.models.find(model => model.identifier === requested.identifier),
 			'chat:one',
 		);
-		controller.clearPendingProgrammaticSelection();
+		controller.resetToDefault();
 
 		assert.deepStrictEqual({ result: await result, reason: controller.selectionReason }, {
 			result: false,
@@ -1020,6 +1020,29 @@ suite('ChatInputModelSelectionController', () => {
 			derivedRestoreReason: ModelSelectionReason.RestoredChoice,
 			configuredApplied: false,
 			current: picked.identifier,
+		});
+	});
+
+	test('resetting to the default is not undone by the remembered model when the catalog moves', () => {
+		// A reset says "forget what was preferred and take the default". The remembered preference
+		// is what the reset is overriding, so leaving it on the conversation lets the next catalog
+		// change quietly restore it and undo the reset.
+		const remembered = model('test/remembered');
+		const fallback = model('test/fallback');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const state: IRuntimeState = { models: [fallback, remembered], sessionType: 'test' };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.initialize(remembered.identifier);
+		controller.resetToDefault();
+		const afterReset = controller.currentModel.get()?.identifier;
+		// The catalog republishes, which is when reconciliation reruns.
+		modelChanges.fire('published');
+
+		assert.deepStrictEqual({ afterReset, afterCatalogChange: controller.currentModel.get()?.identifier }, {
+			afterReset: fallback.identifier,
+			afterCatalogChange: fallback.identifier,
 		});
 	});
 

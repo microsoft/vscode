@@ -138,10 +138,6 @@ export class ChatInputModelSelectionController extends Disposable {
 		return !!this._pendingProgrammaticSelection;
 	}
 
-	clearPendingProgrammaticSelection(): void {
-		this._clearPendingProgrammaticSelection();
-	}
-
 	/**
 	 * Shows `model` and runs `apply`. A user action claims authority over the conversation and is
 	 * rolled back if `apply` throws; anything else is a mechanical follow-on that leaves the
@@ -248,6 +244,19 @@ export class ChatInputModelSelectionController extends Disposable {
 				this._applyModel(fallbackModel);
 			}
 		}
+	}
+
+	/**
+	 * Forgets what the conversation was meant to run on and takes the default instead.
+	 *
+	 * Clearing the intended model is the point: it is the preference the reset overrides, and a
+	 * reset that leaves it in place is undone by the next catalog change, when reconciliation
+	 * restores it.
+	 */
+	resetToDefault(sessionType = this._runtime.getCurrentSessionType()): void {
+		this._clearPendingProgrammaticSelection();
+		this._remember(undefined);
+		this.selectDefault(sessionType);
 	}
 
 	ensureCurrentModelSupported(): void {
