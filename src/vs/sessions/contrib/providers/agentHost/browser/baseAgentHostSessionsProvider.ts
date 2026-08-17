@@ -655,9 +655,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/**
 	 * The last {@link SessionState} applied to the chat catalog, retained so the
 	 * catalog can be re-reconciled when {@link capabilities} change after the
-	 * fact (see the capability autorun in the constructor).
+	 * fact.
 	 */
 	private _lastCatalogState: SessionState | undefined;
+	private readonly _chatCatalogCapabilitiesObserver = this._register(new MutableDisposable());
 	private readonly _rawId: string;
 	private readonly _resourceScheme: string;
 
@@ -915,19 +916,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				supportsDelete: true,
 			};
 		});
-
-		// Re-apply the chat catalog when advertised capabilities change (e.g. the
-		// agent host's root state arrives after the session's first state update).
-		// Without this, a multi-chat session whose state was processed while
-		// `supportsMultipleChats` was still `false` would stay collapsed to
-		// `[defaultChat]` until the next session-state update.
-		this._register(autorun(reader => {
-			this.capabilities.read(reader);
-			const state = this._lastCatalogState;
-			if (state) {
-				this._applyChatCatalog(state);
-			}
-		}));
 	}
 
 	/**
@@ -948,7 +936,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	applyChatCatalog(state: SessionState): void {
 		this._lastCatalogState = state;
-		this._applyChatCatalog(state);
+		if (this._chatCatalogCapabilitiesObserver.value) {
+			this._applyChatCatalog(state);
+		} else {
+			this._chatCatalogCapabilitiesObserver.value = autorun(reader => {
+				this.capabilities.read(reader);
+				const currentState = this._lastCatalogState;
+				if (currentState) {
+					this._applyChatCatalog(currentState);
+				}
+			});
+		}
 	}
 
 	private _applyChatCatalog(state: SessionState): void {
