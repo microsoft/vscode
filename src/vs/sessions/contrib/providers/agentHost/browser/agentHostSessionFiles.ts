@@ -112,16 +112,27 @@ export function createSessionOutputObs(
 		constObservable(sessionUri),
 	);
 
+	const lastTurnChangesByChat = new Map<string, IObservable<readonly ISessionTurnFileChange[]>>();
+	const pruneLastTurnChanges = (chatUris: readonly URI[]): readonly URI[] => {
+		const chatKeys = new Set(chatUris.map(uri => uri.toString()));
+		for (const key of lastTurnChangesByChat.keys()) {
+			if (!chatKeys.has(key)) {
+				lastTurnChangesByChat.delete(key);
+			}
+		}
+		return chatUris;
+	};
+
 	// All chat URIs in the session (default chat + any peer chats). File edits
 	// can be produced by any chat, so we union edits across all of them.
 	const chatUrisObs = derivedOpts<readonly URI[]>({ equalsFn: (a, b) => a.length === b.length && a.every((u, i) => isEqual(u, b[i])) }, reader => {
 		if (!enabledObs.read(reader)) {
-			return [];
+			return pruneLastTurnChanges([]);
 		}
 		const sessionState = sessionStateObs.read(reader).read(reader);
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionUri));
 		if (!sessionState || sessionState instanceof Error) {
-			return [defaultChatUri];
+			return pruneLastTurnChanges([defaultChatUri]);
 		}
 
 		const uris = new Map<string, URI>();
@@ -130,7 +141,7 @@ export function createSessionOutputObs(
 			const uri = URI.parse(chat.resource);
 			uris.set(uri.toString(), uri);
 		}
-		return [...uris.values()];
+		return pruneLastTurnChanges([...uris.values()]);
 	});
 
 	// One observable of parsed edits per chat, subscribing to that chat's state.
@@ -175,7 +186,6 @@ export function createSessionOutputObs(
 	});
 
 	// The active-turn changeset requests this reactively, so reuse one observable per chat.
-	const lastTurnChangesByChat = new Map<string, IObservable<readonly ISessionTurnFileChange[]>>();
 	const getLastTurnChanges = (chatUri: URI): IObservable<readonly ISessionTurnFileChange[]> => {
 		const key = chatUri.toString();
 		let changes = lastTurnChangesByChat.get(key);

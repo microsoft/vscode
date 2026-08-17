@@ -20,7 +20,7 @@ import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../..
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -4827,6 +4827,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			isLoading: false,
 			changes: [changedFile.toString()],
+		});
+
+		const changesetUri = `${sessionUri}/changeset/turn/active-turn`;
+		agentHost.setChangesetState(changesetUri, { status: ChangesetStatus.Computing, files: [] });
+		agentHost.setChatState(chatUri, {
+			resource: chatUri,
+			title: 'Default',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date().toISOString(),
+			turns: [{
+				id: 'active-turn',
+				message: { text: 'Edit live.ts', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		});
+		const whileComputing = changeset?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString());
+		agentHost.setChangesetState(changesetUri, { status: ChangesetStatus.Ready, files: [] });
+		const afterReady = changeset?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString());
+
+		assert.deepStrictEqual({ whileComputing, afterReady }, {
+			whileComputing: [changedFile.toString()],
+			afterReady: [],
 		});
 	}));
 

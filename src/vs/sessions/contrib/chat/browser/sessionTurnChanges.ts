@@ -120,7 +120,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 			const workspace = session.workspace?.read(reader);
 			const workspaceFolders = workspace?.folders.flatMap(folder => [folder.root, folder.workingDirectory]) ?? [];
 			return changes.read(reader)
-				.filter(diff => workspaceFolders.length === 0 || workspaceFolders.some(folder =>
+				.filter(diff => workspaceFolders.some(folder =>
 					extUriBiasedIgnorePathCase.isEqualOrParent(folder.with({ path: diff.modifiedURI.path }), folder)))
 				.map((diff): ISessionFileChange => ({
 					uri: diff.modifiedURI,

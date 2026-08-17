@@ -239,8 +239,22 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			review: changeset.capabilities?.review !== undefined
 		} satisfies ISessionChangesetCapabilities;
 
+		const providedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[] | undefined>(this, (reader, lastValue) => {
+			const providedChanges = changeset.changes?.read(reader);
+			if (providedChanges !== undefined) {
+				return providedChanges;
+			}
+			if (lastValue === undefined) {
+				return undefined;
+			}
+			const changesetState = this.changesetStateObs.read(reader).read(reader);
+			return changesetState && !(changesetState instanceof Error) && changesetState.status === ChangesetStatus.Ready
+				? undefined
+				: lastValue;
+		});
+
 		this.isLoadingChanges = derived(reader => {
-			if (changeset.changes?.read(reader) !== undefined) {
+			if (providedChangesObs.read(reader) !== undefined) {
 				return false;
 			}
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
@@ -300,7 +314,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		});
 
 		this.changes = derivedOpts({ equalsFn: sessionFileChangesEqual }, reader => {
-			const changes = changeset.changes?.read(reader) ?? changesObs.read(reader) ?? [];
+			const changes = providedChangesObs.read(reader) ?? changesObs.read(reader) ?? [];
 			return this._filterChanges(changes, reader);
 		});
 

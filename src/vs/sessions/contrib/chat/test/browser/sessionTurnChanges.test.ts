@@ -12,7 +12,7 @@ import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionFileChange, ISessionTurnFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionFileChange, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { SessionsChatResponseFileChangesService } from '../../browser/sessionTurnChanges.js';
@@ -101,7 +101,16 @@ suite('SessionTurnChanges', () => {
 	});
 
 	test('opens exact historical request changes as a transient changeset', () => {
-		const session = upcastPartial<IActiveSession>({ resource: URI.parse('agent-host:session') });
+		const workspaceFolder = URI.file('/workspace');
+		const session = upcastPartial<IActiveSession>({
+			resource: URI.parse('agent-host:session'),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [upcastPartial<ISessionFolder>({
+					root: workspaceFolder,
+					workingDirectory: workspaceFolder,
+				})],
+			})),
+		});
 		const chatResource = URI.parse('chat:session');
 		const calls: object[] = [];
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
@@ -164,6 +173,15 @@ suite('SessionTurnChanges', () => {
 				isDeleted: true,
 				added: 0,
 				removed: 3,
+				quitEarly: false,
+				identical: false,
+				isFinal: true,
+				isBusy: false,
+			}, {
+				originalURI: URI.parse('agenthost:/snapshots/outside-before'),
+				modifiedURI: URI.file('/outside/ignored.ts'),
+				added: 1,
+				removed: 1,
 				quitEarly: false,
 				identical: false,
 				isFinal: true,
@@ -266,9 +284,16 @@ suite('SessionTurnChanges', () => {
 			resource: URI.parse('chat:newer'),
 			updatedAt: constObservable(new Date('2026-08-13T11:00:00Z')),
 		});
+		const workspaceFolder = URI.file('/workspace');
 		const session = upcastPartial<IActiveSession>({
 			resource: URI.parse('agent-host:session'),
 			providerId: 'local-agent-host',
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [upcastPartial<ISessionFolder>({
+					root: workspaceFolder,
+					workingDirectory: workspaceFolder,
+				})],
+			})),
 			chats: constObservable([chat, newerChat]),
 			mainChat: constObservable(chat),
 		});
