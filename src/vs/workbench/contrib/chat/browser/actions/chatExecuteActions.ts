@@ -419,6 +419,8 @@ export class OpenModelPickerAction extends Action2 {
 				group: 'navigation',
 				when:
 					ContextKeyExpr.and(
+						// Hide the model picker in the floating chat input window
+						ChatContextKeys.inChatInputWindow.negate(),
 						// Hide the model picker while a delegation (continue in) target is pending
 						ChatContextKeys.hasPendingDelegationTarget.negate(),
 						ContextKeyExpr.or(
