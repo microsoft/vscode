@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as l10n from '@vscode/l10n';
 import { Raw } from '@vscode/prompt-tsx';
 import type { OpenAI } from 'openai';
 import { Response } from '../../../platform/networking/common/fetcherService';
@@ -1130,14 +1131,16 @@ function toResponsesErrorContext(eventType: string, response?: Pick<OpenAI.Respo
  * diagnosable and correlatable without exposing prompt content.
  */
 function describeUninformativeResponsesError(code: string | undefined, context: IResponsesErrorContext): string {
+	// Structured diagnostic identifiers, kept verbatim so they stay greppable and
+	// pasteable into a provider support request.
 	const details = [
 		`event: ${context.eventType}`,
 		...(context.responseStatus ? [`status: ${context.responseStatus}`] : []),
 		...(context.responseId ? [`response: ${context.responseId}`] : []),
 	].join(', ');
 	return code
-		? `The model provider reported a failed response with code '${code}' and no error message (${details}).`
-		: `The model provider reported a failed response without any error details (${details}).`;
+		? l10n.t("The model provider reported a failed response with code '{0}' and no error message ({1}).", code, details)
+		: l10n.t("The model provider reported a failed response without any error details ({0}).", details);
 }
 
 /**
