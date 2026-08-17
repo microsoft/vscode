@@ -146,7 +146,7 @@ suite('AccountPolicyGateContribution', () => {
 		await Promise.resolve();
 		await Promise.resolve();
 		captureState();
-		defaultAccountService.setManagedSettingsRefreshState('satisfied');
+		defaultAccountService.setManagedSettingsRefreshState('inactive');
 		captureState();
 
 		const compatibilityDialog = promptStub.firstCall.args[0];

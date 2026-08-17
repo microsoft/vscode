@@ -35,7 +35,7 @@ export interface IManagedSettingsCompatibilityError {
 	readonly minimumClientVersion?: string;
 }
 
-export type ManagedSettingsRefreshState = 'inactive' | 'pending' | 'satisfied' | 'blocked';
+export type ManagedSettingsRefreshState = 'inactive' | 'pending' | 'blocked';
 
 export interface IDefaultAccountProvider {
 	readonly defaultAccount: IDefaultAccount | null;

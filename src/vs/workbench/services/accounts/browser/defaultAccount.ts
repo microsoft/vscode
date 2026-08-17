@@ -1022,11 +1022,11 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		switch (result.kind) {
 			case 'success':
 				this._forceRemoteSettingsRefreshUnsatisfied = false;
-				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'satisfied' : 'inactive');
+				this.setManagedSettingsRefreshState('inactive');
 				return { data: result.data, fetchedAt, compatibilityError: null };
 			case 'noSettings':
 				this._forceRemoteSettingsRefreshUnsatisfied = false;
-				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'satisfied' : 'inactive');
+				this.setManagedSettingsRefreshState('inactive');
 				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: null };
 			case 'updateRequired':
 				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'blocked' : 'inactive');
