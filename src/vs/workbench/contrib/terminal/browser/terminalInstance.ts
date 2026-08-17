@@ -1040,8 +1040,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Determine whether to send ETX (ctrl+c) before running the command. Only do this when the
-		// command will be executed immediately or when command detection shows the prompt contains text.
-		if (shouldExecute && (!commandDetection || commandDetection.promptInputModel.value.length > 0)) {
+		// command will be executed immediately or when command detection shows the prompt contains
+		// real user input. We check prefix+suffix (which exclude ghost text / PSReadLine predictions)
+		// instead of value (which includes ghost text) to avoid sending ^C at an empty prompt.
+		// A cursor index of -1 means the command line came from a trusted shell integration report
+		// rather than from observed keystrokes, so prefix/suffix don't reflect real user input.
+		// Additionally, if cursorIndex >= 0 but value is empty or only contains continuation prompt
+		// characters (like " > " in PowerShell), it's a stale state and should be ignored.
+		const promptInput = commandDetection?.promptInputModel;
+		const valueIsContinuationPrompt = promptInput ? /^\s*>\s*$/.test(promptInput.value) : false;
+		const hasReliableCursor = promptInput ? (promptInput.cursorIndex >= 0 && promptInput.value.length > 0 && !valueIsContinuationPrompt) : false;
+		const prefixLen = hasReliableCursor ? promptInput!.prefix.length : 0;
+		const suffixLen = hasReliableCursor ? promptInput!.suffix.length : 0;
+		const hasRealUserInput = hasReliableCursor ? (prefixLen + suffixLen > 0) : false;
+		if (shouldExecute && (!commandDetection || hasRealUserInput)) {
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated
