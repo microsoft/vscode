@@ -31,6 +31,14 @@ const enum ChangesetKind {
 	Compare = 'compare-turns',
 }
 
+export interface IAgentHostChangeset extends Changeset {
+	/**
+	 * Optional authoritative changes. `undefined` falls back to the changeset
+	 * channel; an array, including an empty one, is used as-is.
+	 */
+	readonly changes?: IObservable<readonly ISessionFileChange[] | undefined>;
+}
+
 /**
  * Returns the workspace file URI that identifies a change, matching the
  * convention used by {@link sessionFileChangesEqual}: the `uri` of a
@@ -74,7 +82,7 @@ export function createChangesets(
 	sessionUri: URI,
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
-	changesets: readonly Changeset[] | undefined
+	changesets: readonly IAgentHostChangeset[] | undefined,
 ): readonly ISessionChangeset[] {
 	if (!changesets) {
 		return [];
@@ -223,7 +231,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	private readonly _changesetFilesObs: IObservable<readonly ChangesetFile[] | undefined>;
 
 	constructor(
-		changeset: Changeset,
+		changeset: IAgentHostChangeset & { isDefault: boolean },
 		private readonly _options: IAgentHostAdapterOptions,
 		private readonly _dialogService: IDialogService,
 	) {
@@ -232,6 +240,9 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		} satisfies ISessionChangesetCapabilities;
 
 		this.isLoadingChanges = derived(reader => {
+			if (changeset.changes?.read(reader) !== undefined) {
+				return false;
+			}
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
 
 			// If the changeset state is `undefined`, it means that the first snapshot
@@ -289,7 +300,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		});
 
 		this.changes = derivedOpts({ equalsFn: sessionFileChangesEqual }, reader => {
-			return this._filterChanges(changesObs.read(reader) ?? [], reader);
+			const changes = changeset.changes?.read(reader) ?? changesObs.read(reader) ?? [];
+			return this._filterChanges(changes, reader);
 		});
 
 		const operationsObs = derivedObservableWithCache<readonly ISessionChangesetOperation[]>(this, (reader, lastValue) => {
@@ -413,7 +425,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	constructor(
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
-		changesetSummary: Changeset & { isDefault: boolean },
+		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
 	) {
 		super(changesetSummary, options, dialogService);
@@ -457,7 +469,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		sessionUri: URI,
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
-		changesetSummary: Changeset & { isDefault: boolean },
+		changesetSummary: IAgentHostChangeset & { isDefault: boolean },
 		@IDialogService dialogService: IDialogService,
 	) {
 		super(changesetSummary, options, dialogService);

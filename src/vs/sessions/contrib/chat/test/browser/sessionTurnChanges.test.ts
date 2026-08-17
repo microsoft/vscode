@@ -20,7 +20,7 @@ import { SessionsChatResponseFileChangesService } from '../../browser/sessionTur
 suite('SessionTurnChanges', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('activates the session and opens live input-pill changes', () => {
+	test('activates the session and selects Last Turn Changes from the live input pill', () => {
 		const chatResource = URI.parse('chat:session');
 		const lastTurnChanges = observableValue<readonly ISessionTurnFileChange[]>('lastTurnChanges', [{
 			uri: URI.file('/workspace/first.ts'),
@@ -37,6 +37,7 @@ suite('SessionTurnChanges', () => {
 		});
 		const session = upcastPartial<IActiveSession>({
 			resource: URI.parse('agent-host:session'),
+			providerId: 'local-agent-host',
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
 		});
@@ -93,9 +94,9 @@ suite('SessionTurnChanges', () => {
 			calls: [
 				{ showSession: session.resource.toString(), preserveFocus: true },
 				{ revealEditorPartExplicitly: true },
-				{ openChangesEditor: session.resource.toString(), changesetId: 'turn:chat:session' },
+				{ openChangesEditor: session.resource.toString(), changesetId: TURN_CHANGES_CHANGESET_ID },
 			],
-			selectedChanges: ['file:///workspace/second.ts'],
+			selectedChanges: undefined,
 		});
 	});
 
@@ -267,6 +268,7 @@ suite('SessionTurnChanges', () => {
 		});
 		const session = upcastPartial<IActiveSession>({
 			resource: URI.parse('agent-host:session'),
+			providerId: 'local-agent-host',
 			chats: constObservable([chat, newerChat]),
 			mainChat: constObservable(chat),
 		});
@@ -284,11 +286,13 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<ISessionChangesService>() {
 				override async openChangesEditor(_sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
 					const selection = options?.changesetSelection;
-					if (selection?.kind === 'transient') {
+					if (selection) {
 						selections.push({
-							id: selection.changeset.id,
-							label: selection.changeset.label,
-							uris: selection.changeset.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : undefined),
+							id: selection.kind === 'transient' ? selection.changeset.id : selection.id,
+							label: selection.kind === 'transient' ? selection.changeset.label : undefined,
+							uris: selection.kind === 'transient'
+								? selection.changeset.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : undefined)
+								: undefined,
 						});
 					}
 					return undefined;
@@ -316,12 +320,12 @@ suite('SessionTurnChanges', () => {
 
 		assert.deepStrictEqual(selections, [{
 			id: 'turn:request',
-			label: 'Last Turn Changes',
+			label: 'Turn Changes',
 			uris: ['file:///workspace/response.ts'],
 		}, {
-			id: 'turn:chat:older',
-			label: 'Last Turn Changes',
-			uris: ['file:///workspace/input.ts'],
+			id: TURN_CHANGES_CHANGESET_ID,
+			label: undefined,
+			uris: undefined,
 		}]);
 	});
 
