@@ -48,7 +48,8 @@ The model-orchestration service:
 
 - aggregates sessions and session types;
 - resolves workspaces and selects providers for new sessions;
-- owns pending workspace-session, quick-chat, and automation drafts;
+- owns pending workspace-session, quick-chat, automation, and chat composer
+  overlay drafts;
 - routes model and lifecycle operations to the owning provider;
 - exposes provider-neutral lookup and recency APIs;
 - emits lifecycle notifications for operations initiated through the service.
@@ -150,6 +151,10 @@ A provider that must establish backend state before presenting a session may imp
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
 
 Provider-specific configuration remains opaque to shared Sessions code. Scoped Automation and New Session surfaces consume the same provider menu contributions and `ISessionContext`; providers may advertise presentation capabilities such as a combined phone Mode/Model picker without exposing provider identity checks to shared UI.
+
+The Quick Chat overlay has an independent draft, so opening it cannot replace a
+draft in the regular composer. Providers own the backend resources behind those
+drafts.
 
 ### Operations
 

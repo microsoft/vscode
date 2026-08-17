@@ -27,6 +27,7 @@ import './nullInlineChatSessionService.js';
 import './modelPicker.js';
 import './agentHostDelegation.js';
 import './newSessionFolderQuickPickAction.js';
+import './chatComposerOverlayService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';

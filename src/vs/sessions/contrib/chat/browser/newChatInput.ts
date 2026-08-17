@@ -364,6 +364,16 @@ export interface INewChatInputSendRequest {
 	readonly background?: boolean;
 }
 
+/** Renders the heading shared by workspace-less New Chat composers. */
+export function renderQuickChatHeader(parent: HTMLElement): HTMLElement {
+	const header = dom.append(parent, dom.$('.new-session-quick-chat-header.session-workspace-picker'));
+	const label = dom.append(header, dom.$('.session-workspace-picker-label'));
+	label.textContent = localize('newChatHeader', "New Chat");
+	const withLabel = dom.append(header, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
+	withLabel.textContent = localize('newSessionWith', "with");
+	return dom.append(header, dom.$('.new-chat-quick-chat-header-picker-host'));
+}
+
 /**
  * Randomized, friendly placeholders shown in the new-session chat input
  * to add a bit of personality. One is picked per widget instance, avoiding
@@ -528,6 +538,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			placeholder?: string;
 			renderSendButton?: boolean;
 			renderRepositoryControls?: boolean;
+			renderChatPet?: boolean;
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			deferredNotificationsEnabled?: IObservable<boolean>;
@@ -755,34 +766,36 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
-		this._register(this.chatPetWidgetService.register(this, {
-			parent: chatInputContainer,
-			dragBounds: inputArea,
-			movementBounds: root,
-			model: constObservable(undefined),
-			hasInput: inputHasContent,
-			inputChanged: this._editor.onDidChangeModelContent,
-			getPlatformTop: petCenterX => {
-				if (petCenterX !== undefined) {
-					const pillTop = getChatPetPillPlatformTop(
-						petCenterX,
-						[
-							...(this.options.getChatPetPlatformElements?.() ?? []),
-							...this.sessionTypePicker.getChatPetPlatformElements(),
-						].map(element => element.getBoundingClientRect()),
-					);
-					if (pillTop !== undefined) {
-						return pillTop;
+		if (this.options.renderChatPet !== false) {
+			this._register(this.chatPetWidgetService.register(this, {
+				parent: chatInputContainer,
+				dragBounds: inputArea,
+				movementBounds: root,
+				model: constObservable(undefined),
+				hasInput: inputHasContent,
+				inputChanged: this._editor.onDidChangeModelContent,
+				getPlatformTop: petCenterX => {
+					if (petCenterX !== undefined) {
+						const pillTop = getChatPetPillPlatformTop(
+							petCenterX,
+							[
+								...(this.options.getChatPetPlatformElements?.() ?? []),
+								...this.sessionTypePicker.getChatPetPlatformElements(),
+							].map(element => element.getBoundingClientRect()),
+						);
+						if (pillTop !== undefined) {
+							return pillTop;
+						}
 					}
-				}
-				// Stand on the notice docked above the input, not on the input itself.
-				return getChatPetStackPlatformTop(chatInputContainer, inputArea);
-			},
-			onDidChangePlatform: Event.any(
-				this.options.onDidChangeChatPetPlatform ?? Event.None,
-				this.sessionTypePicker.onDidChangeChatPetPlatform,
-			),
-		}, this.options.petHostPreferred, this.onDidFocus));
+					// Stand on the notice docked above the input, not on the input itself.
+					return getChatPetStackPlatformTop(chatInputContainer, inputArea);
+				},
+				onDidChangePlatform: Event.any(
+					this.options.onDidChangeChatPetPlatform ?? Event.None,
+					this.sessionTypePicker.onDidChangeChatPetPlatform,
+				),
+			}, this.options.petHostPreferred, this.onDidFocus));
+		}
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));

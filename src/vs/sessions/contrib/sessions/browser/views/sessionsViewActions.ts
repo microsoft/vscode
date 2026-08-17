@@ -34,6 +34,7 @@ import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, Sessio
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatComposerOverlayVisibleContext, IChatComposerOverlayService, OPEN_NEW_SESSION_OVERLAY_COMMAND_ID, OPEN_QUICK_CHAT_OVERLAY_COMMAND_ID } from '../../../chat/common/chatComposerOverlay.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
@@ -518,6 +519,16 @@ const QuickChatEnabledContext = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	AGENT_HOST_ENABLED_CONTEXT_KEY,
 );
+const QuickChatOverlayEnabledContext = ContextKeyExpr.and(
+	QuickChatEnabledContext,
+	IsNewChatSessionContext.negate(),
+	ChatComposerOverlayVisibleContext.negate(),
+);
+const NewSessionOverlayEnabledContext = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	IsNewChatSessionContext.negate(),
+	ChatComposerOverlayVisibleContext.negate(),
+);
 
 registerAction2(class NewQuickChatAction extends Action2 {
 	constructor() {
@@ -570,6 +581,44 @@ registerAction2(class NewQuickChatAction extends Action2 {
 		}
 
 		sessionsPartService.focusSession(activeSession);
+	}
+});
+
+registerAction2(class OpenQuickChatOverlayAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_QUICK_CHAT_OVERLAY_COMMAND_ID,
+			title: localize2('openQuickChatOverlay', "Open Quick Chat Overlay"),
+			category: SessionsCategories.Sessions,
+			precondition: QuickChatOverlayEnabledContext,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyL,
+				when: ContextKeyExpr.and(QuickChatOverlayEnabledContext, IsSessionsWindowContext),
+			},
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IChatComposerOverlayService).showQuickChat();
+	}
+});
+
+registerAction2(class OpenNewSessionOverlayAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_NEW_SESSION_OVERLAY_COMMAND_ID,
+			title: localize2('openNewSessionOverlay', "Open New Session Overlay"),
+			category: SessionsCategories.Sessions,
+			precondition: NewSessionOverlayEnabledContext,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyN,
+				when: ContextKeyExpr.and(NewSessionOverlayEnabledContext, IsSessionsWindowContext),
+			},
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IChatComposerOverlayService).showNewSession();
 	}
 });
 

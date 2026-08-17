@@ -109,6 +109,8 @@ class MockSessionStore implements ISessionsManagementService {
 
 	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);
 	readonly automationSession: IObservable<ISession | undefined> = constObservable(undefined);
+	readonly quickChatOverlaySession: IObservable<ISession | undefined> = constObservable(undefined);
+	readonly newSessionOverlaySession: IObservable<ISession | undefined> = constObservable(undefined);
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;
@@ -219,16 +221,22 @@ class MockSessionStore implements ISessionsManagementService {
 	getAutomationSessionConfiguration(): Promise<undefined> { return Promise.resolve(undefined); }
 	supportsAutomationSessionConfiguration(): boolean { return false; }
 	usesCombinedNewSessionConfigPicker(): boolean { return false; }
+	createQuickChatOverlaySession(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	createNewSessionOverlaySession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createNewChatInSession(_session: ISession): Promise<IChat | undefined> { throw new Error('not implemented'); }
 	forkChatInSession(_session: ISession, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 	createSideChatInSession(_session: ISession, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 	discardNewSession(): void { throw new Error('not implemented'); }
 	discardAutomationSession(): void { throw new Error('not implemented'); }
+	discardQuickChatOverlaySession(): void { throw new Error('not implemented'); }
+	discardNewSessionOverlaySession(): void { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendNewChatRequest(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
 	createAndSendNewChatRequest(_folderUri: URI, _options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> { throw new Error('not implemented'); }
 	createAndSendQuickChatRequest(_options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> { throw new Error('not implemented'); }
+	sendQuickChatOverlayRequest(_session: ISession, _options: ISendRequestOptions): Promise<ISession | undefined> { throw new Error('not implemented'); }
+	sendNewSessionOverlayRequest(_session: ISession, _options: ISendRequestOptions): Promise<ISession | undefined> { throw new Error('not implemented'); }
 	sendRequest(_session: ISession, _chat: IChat, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
 	openNewChatInSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	openPreviousSession(): Promise<void> { throw new Error('not implemented'); }

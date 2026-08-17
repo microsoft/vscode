@@ -1,0 +1,82 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-dialog-box.chat-composer-overlay-dialog {
+	width: min(800px, calc(100vw - var(--vscode-spacing-size400)));
+	max-width: calc(100vw - var(--vscode-spacing-size400));
+	border-radius: var(--vscode-cornerRadius-large);
+	position: relative;
+}
+
+.monaco-dialog-box.chat-composer-overlay-dialog > .dialog-toolbar-row {
+	position: absolute;
+	top: var(--vscode-spacing-size80);
+	right: var(--vscode-spacing-size80);
+	z-index: 1;
+	height: auto;
+	padding: 0;
+}
+
+.monaco-dialog-box.chat-composer-overlay-dialog .dialog-message-row {
+	padding: var(--vscode-spacing-size120);
+}
+
+.monaco-dialog-box.chat-composer-overlay-dialog .dialog-message-row .dialog-message-container {
+	padding-left: 0;
+}
+
+.monaco-dialog-box.chat-composer-overlay-dialog .dialog-message-row > .dialog-icon {
+	display: none;
+}
+
+.monaco-dialog-box.chat-composer-overlay-dialog .dialog-message-row .dialog-message-container .dialog-message {
+	display: none;
+}
+
+.monaco-dialog-box.chat-composer-overlay-dialog .dialog-message-container {
+	width: 100%;
+	min-width: 0;
+}
+
+.monaco-dialog-box.chat-composer-overlay-dialog .dialog-message-body {
+	margin-top: 0;
+}
+
+.monaco-dialog-box.chat-composer-overlay-dialog > .dialog-buttons-row {
+	display: none;
+}
+
+.chat-composer-overlay-body,
+.chat-composer-overlay-widget,
+.chat-composer-overlay-widget .new-chat-widget-content {
+	width: 100%;
+	min-width: 0;
+}
+
+.chat-composer-overlay-widget.new-chat-widget-container {
+	height: auto;
+	container-type: inline-size;
+	padding: 0;
+	overflow: visible;
+}
+
+.chat-composer-overlay-widget.new-chat-widget-container .new-chat-widget-content {
+	max-width: none;
+}
+
+.chat-composer-overlay-widget.new-chat-widget-container .new-chat-input-container,
+.chat-composer-overlay-widget.new-chat-widget-container .new-chat-bottom-container {
+	animation: none;
+}
+
+/*
+ * Dialogs intentionally stack above shared context views. Raise popup layers only
+ * while a chat composer owns the modal surface so its pickers remain interactive.
+ */
+.chat-composer-overlay-open .context-view.monaco-component,
+.chat-composer-overlay-open .quick-input-widget,
+.chat-composer-overlay-open .monaco-menu-container {
+	z-index: 2600 !important;
+}

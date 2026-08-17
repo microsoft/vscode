@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { $, append, getWindow } from '../../../../browser/dom.js';
+import { ActionBar } from '../../../../browser/ui/actionbar/actionbar.js';
 import { Button, unthemedButtonStyles } from '../../../../browser/ui/button/button.js';
 import { Dialog, IDialogStyles } from '../../../../browser/ui/dialog/dialog.js';
 import { unthemedInboxStyles } from '../../../../browser/ui/inputbox/inputBox.js';
@@ -68,6 +69,99 @@ suite('Dialog', () => {
 		}, {
 			textarea: { activeElement: textarea, defaultPrevented: false },
 			contentEditable: { activeElement: contentEditable, defaultPrevented: false },
+		});
+
+		dialog.dispose();
+		await result;
+	});
+
+	test('uses the provided focus order for custom body controls', async () => {
+		const container = append(document.body, $('.test-dialog-container'));
+		disposables.add(toDisposable(() => container.remove()));
+		let textarea!: HTMLTextAreaElement;
+		let customButton!: HTMLButtonElement;
+		const dialog = disposables.add(new Dialog(container, 'Message', [], {
+			disableDefaultAction: true,
+			renderBody: body => {
+				textarea = append(body, $('textarea'));
+				customButton = append(body, $('button'));
+			},
+			getFocusableElements: () => [textarea, customButton],
+			buttonStyles: unthemedButtonStyles,
+			checkboxStyles: unthemedCheckboxStyles,
+			inputBoxStyles: unthemedInboxStyles,
+			dialogStyles: unthemedDialogStyles,
+		}));
+		const result = dialog.show();
+
+		textarea.focus();
+		textarea.dispatchEvent(new (getWindow(textarea).KeyboardEvent)('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+
+		assert.strictEqual(getWindow(textarea).document.activeElement, customButton);
+
+		dialog.dispose();
+		await result;
+	});
+
+	test('does not close on Escape from allowed external focus', async () => {
+		const container = append(document.body, $('.test-dialog-container'));
+		disposables.add(toDisposable(() => container.remove()));
+		const externalButton = append(document.body, $('button'));
+		disposables.add(toDisposable(() => externalButton.remove()));
+		const dialog = disposables.add(new Dialog(container, 'Message', [], {
+			disableDefaultAction: true,
+			isExternalFocusAllowed: target => target === externalButton,
+			buttonStyles: unthemedButtonStyles,
+			checkboxStyles: unthemedCheckboxStyles,
+			inputBoxStyles: unthemedInboxStyles,
+			dialogStyles: unthemedDialogStyles,
+		}));
+		const result = dialog.show();
+		let didClose = false;
+		void result.then(() => didClose = true);
+
+		const dispatchEscape = (target: HTMLElement) => {
+			target.focus();
+			target.dispatchEvent(new (getWindow(target).KeyboardEvent)('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			target.dispatchEvent(new (getWindow(target).KeyboardEvent)('keyup', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		};
+
+		dispatchEscape(externalButton);
+		await Promise.resolve();
+		const didCloseFromExternalFocus = didClose;
+
+		dispatchEscape(container.querySelector<HTMLElement>('.monaco-dialog-box')!);
+		await result;
+
+		assert.deepStrictEqual({ didCloseFromExternalFocus, didClose }, { didCloseFromExternalFocus: false, didClose: true });
+	});
+
+	test('does not apply prose list indentation to action bars', async () => {
+		const container = append(document.body, $('.test-dialog-container'));
+		disposables.add(toDisposable(() => container.remove()));
+		let proseList!: HTMLUListElement;
+		let actionBar!: ActionBar;
+		const dialog = disposables.add(new Dialog(container, 'Message', [], {
+			disableDefaultAction: true,
+			renderBody: body => {
+				proseList = append(body, $('ul'));
+				actionBar = disposables.add(new ActionBar(body));
+			},
+			buttonStyles: unthemedButtonStyles,
+			checkboxStyles: unthemedCheckboxStyles,
+			inputBoxStyles: unthemedInboxStyles,
+			dialogStyles: unthemedDialogStyles,
+		}));
+		const result = dialog.show();
+		const actionList = actionBar.getContainer().querySelector<HTMLElement>('.actions-container')!;
+		const targetWindow = getWindow(container);
+
+		assert.deepStrictEqual({
+			proseListPadding: targetWindow.getComputedStyle(proseList).paddingInlineStart,
+			actionListPadding: targetWindow.getComputedStyle(actionList).paddingInlineStart,
+		}, {
+			proseListPadding: '20px',
+			actionListPadding: '0px',
 		});
 
 		dialog.dispose();
@@ -172,6 +266,44 @@ suite('Dialog', () => {
 			activeElement: action.element,
 			actionColor: 'rgb(1, 2, 3)',
 			actionTextDecoration: '',
+			linkColor: 'rgb(4, 5, 6)',
+			linkTextDecoration: 'underline',
+		});
+
+		dialog.dispose();
+		await result;
+	});
+
+	test('does not apply hyperlink styles to an anchor with button semantics', async () => {
+		const container = append(document.body, $('.test-dialog-container'));
+		disposables.add(toDisposable(() => container.remove()));
+		let roleButton!: HTMLAnchorElement;
+		let link!: HTMLAnchorElement;
+		const dialog = disposables.add(new Dialog(container, 'Message', [], {
+			disableDefaultAction: true,
+			renderBody: body => {
+				roleButton = append(body, $('a'));
+				roleButton.role = 'button';
+				link = append(body, $('a'));
+			},
+			buttonStyles: unthemedButtonStyles,
+			checkboxStyles: unthemedCheckboxStyles,
+			inputBoxStyles: unthemedInboxStyles,
+			dialogStyles: {
+				...unthemedDialogStyles,
+				textLinkForeground: 'rgb(4, 5, 6)',
+			},
+		}));
+		const result = dialog.show();
+
+		assert.deepStrictEqual({
+			roleButtonColor: roleButton.style.color,
+			roleButtonTextDecoration: roleButton.style.textDecoration,
+			linkColor: link.style.color,
+			linkTextDecoration: link.style.textDecoration,
+		}, {
+			roleButtonColor: '',
+			roleButtonTextDecoration: '',
 			linkColor: 'rgb(4, 5, 6)',
 			linkTextDecoration: 'underline',
 		});

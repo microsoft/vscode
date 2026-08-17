@@ -3344,6 +3344,47 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('New Session overlay draft lifecycle is isolated from the regular composer draft', async () => {
+		const drafts = [
+			stubSession({ sessionId: 'overlay-first', providerId: 'test' }),
+			stubSession({ sessionId: 'regular-composer', providerId: 'test' }),
+			stubSession({ sessionId: 'overlay-replacement', providerId: 'test' }),
+		];
+		const deleted: string[] = [];
+		let createIndex = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
+				return {
+					uri: folderUri,
+					label: 'folder',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+			}
+			override createNewSession(): ISession { return drafts[createIndex++]; }
+			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
+		}(drafts[0]);
+		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
+		const folderUri = URI.parse('test:///folder');
+
+		service.createNewSessionOverlaySession(folderUri);
+		service.createNewSession(folderUri);
+		const replacement = service.createNewSessionOverlaySession(folderUri);
+		await service.sendNewSessionOverlayRequest(replacement, { query: 'implement the idea' });
+
+		assert.deepStrictEqual({
+			newSession: service.newSession.get()?.sessionId,
+			overlaySession: service.newSessionOverlaySession.get()?.sessionId,
+			deleted,
+		}, {
+			newSession: 'regular-composer',
+			overlaySession: undefined,
+			deleted: ['overlay-first'],
+		});
+	});
+
 	test('sendNewChatRequest clears the draft without firing onDidDiscardNewSession', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
@@ -4374,6 +4415,7 @@ suite('SessionsManagementService', () => {
 		class QuickChatProvider extends TestSessionsProvider {
 			lastQuickChatType: string | undefined;
 			createQuickChatCalls = 0;
+			readonly deletedSessionIds: string[] = [];
 			override readonly supportsQuickChats = true;
 
 			constructor(
@@ -4389,6 +4431,10 @@ suite('SessionsManagementService', () => {
 				this.createQuickChatCalls++;
 				this.lastQuickChatType = sessionTypeId;
 				return stubSession({ sessionId: `q${this.createQuickChatCalls}`, providerId: this.id });
+			}
+
+			override deleteNewSession(sessionId: string): void {
+				this.deletedSessionIds.push(sessionId);
 			}
 		}
 
@@ -4445,6 +4491,46 @@ suite('SessionsManagementService', () => {
 				second: 'q2',
 				createQuickChatCalls: 2,
 				draft: 'q2',
+			});
+		});
+
+		test('keeps the overlay draft independent from the regular composer draft', () => {
+			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }));
+			const service = setupQuickChat([quick]);
+
+			const composerDraft = service.createQuickChat();
+			const firstOverlayDraft = service.createQuickChatOverlaySession();
+			const secondOverlayDraft = service.createQuickChatOverlaySession();
+
+			assert.deepStrictEqual({
+				composerDraft: service.newSession.get()?.sessionId,
+				overlayDraft: service.quickChatOverlaySession.get()?.sessionId,
+				deletedSessionIds: quick.deletedSessionIds,
+				created: [composerDraft.sessionId, firstOverlayDraft.sessionId, secondOverlayDraft.sessionId],
+			}, {
+				composerDraft: 'q1',
+				overlayDraft: 'q3',
+				deletedSessionIds: ['q2'],
+				created: ['q1', 'q2', 'q3'],
+			});
+		});
+
+		test('sends the overlay draft without replacing the regular composer draft', async () => {
+			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }));
+			const service = setupQuickChat([quick]);
+
+			service.createQuickChat();
+			const overlayDraft = service.createQuickChatOverlaySession();
+			await service.sendQuickChatOverlayRequest(overlayDraft, { query: 'implement the idea' });
+
+			assert.deepStrictEqual({
+				composerDraft: service.newSession.get()?.sessionId,
+				overlayDraft: service.quickChatOverlaySession.get()?.sessionId,
+				deletedSessionIds: quick.deletedSessionIds,
+			}, {
+				composerDraft: 'q1',
+				overlayDraft: undefined,
+				deletedSessionIds: [],
 			});
 		});
 

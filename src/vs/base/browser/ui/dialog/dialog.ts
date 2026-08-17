@@ -62,6 +62,8 @@ export interface IDialogOptions {
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
+	/** Overrides the dialog's default tab order for embedded custom widgets. */
+	readonly getFocusableElements?: () => readonly HTMLElement[];
 	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
 	readonly buttonOptions?: Array<undefined | { sublabel?: string; styleButton?: (button: IButton) => void }>;
@@ -361,7 +363,7 @@ export class Dialog extends Disposable {
 				const evt = new StandardKeyboardEvent(e);
 
 				if (evt.equals(KeyCode.Escape)) {
-					sawEscapeKeyDown = true;
+					sawEscapeKeyDown = !(isHTMLElement(e.target) && this.options.isExternalFocusAllowed?.(e.target));
 				}
 
 				if (evt.equals(KeyMod.Alt)) {
@@ -415,58 +417,71 @@ export class Dialog extends Disposable {
 					const focusableElements: { focus: () => void }[] = [];
 					let focusedIndex = -1;
 
-					if (this.messageContainer) {
-						// eslint-disable-next-line no-restricted-syntax
-						const links = this.messageContainer.querySelectorAll('a');
-						for (const link of links) {
-							focusableElements.push(link);
-							if (isActiveElement(link)) {
+					const providedFocusableElements = this.options.getFocusableElements?.();
+					if (providedFocusableElements) {
+						for (const element of providedFocusableElements) {
+							if (!element.isConnected || element.tabIndex < 0 || element.hasAttribute('disabled')) {
+								continue;
+							}
+							focusableElements.push(element);
+							if (isActiveElement(element)) {
 								focusedIndex = focusableElements.length - 1;
 							}
 						}
-					}
-
-					for (const input of this.inputs) {
-						focusableElements.push(input);
-						if (input.hasFocus()) {
-							focusedIndex = focusableElements.length - 1;
-						}
-					}
-
-					if (this.checkbox) {
-						focusableElements.push(this.checkbox);
-						if (this.checkbox.hasFocus()) {
-							focusedIndex = focusableElements.length - 1;
-						}
-					}
-
-					if (this.buttonBar) {
-						for (const button of this.buttonBar.buttons) {
-							if (button instanceof ButtonWithDropdown) {
-								focusableElements.push(button.primaryButton);
-								if (button.primaryButton.hasFocus()) {
-									focusedIndex = focusableElements.length - 1;
-								}
-								focusableElements.push(button.dropdownButton);
-								if (button.dropdownButton.hasFocus()) {
-									focusedIndex = focusableElements.length - 1;
-								}
-							} else {
-								focusableElements.push(button);
-								if (button.hasFocus()) {
+					} else {
+						if (this.messageContainer) {
+							// eslint-disable-next-line no-restricted-syntax
+							const links = this.messageContainer.querySelectorAll('a');
+							for (const link of links) {
+								focusableElements.push(link);
+								if (isActiveElement(link)) {
 									focusedIndex = focusableElements.length - 1;
 								}
 							}
 						}
-					}
 
-					if (this.footerContainer) {
-						// eslint-disable-next-line no-restricted-syntax
-						const links = this.footerContainer.querySelectorAll('a');
-						for (const link of links) {
-							focusableElements.push(link);
-							if (isActiveElement(link)) {
+						for (const input of this.inputs) {
+							focusableElements.push(input);
+							if (input.hasFocus()) {
 								focusedIndex = focusableElements.length - 1;
+							}
+						}
+
+						if (this.checkbox) {
+							focusableElements.push(this.checkbox);
+							if (this.checkbox.hasFocus()) {
+								focusedIndex = focusableElements.length - 1;
+							}
+						}
+
+						if (this.buttonBar) {
+							for (const button of this.buttonBar.buttons) {
+								if (button instanceof ButtonWithDropdown) {
+									focusableElements.push(button.primaryButton);
+									if (button.primaryButton.hasFocus()) {
+										focusedIndex = focusableElements.length - 1;
+									}
+									focusableElements.push(button.dropdownButton);
+									if (button.dropdownButton.hasFocus()) {
+										focusedIndex = focusableElements.length - 1;
+									}
+								} else {
+									focusableElements.push(button);
+									if (button.hasFocus()) {
+										focusedIndex = focusableElements.length - 1;
+									}
+								}
+							}
+						}
+
+						if (this.footerContainer) {
+							// eslint-disable-next-line no-restricted-syntax
+							const links = this.footerContainer.querySelectorAll('a');
+							for (const link of links) {
+								focusableElements.push(link);
+								if (isActiveElement(link)) {
+									focusedIndex = focusableElements.length - 1;
+								}
 							}
 						}
 					}
@@ -618,7 +633,7 @@ export class Dialog extends Disposable {
 		if (linkFgColor) {
 			// eslint-disable-next-line no-restricted-syntax
 			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
-				if (el.classList.contains('monaco-button')) {
+				if (el.classList.contains('monaco-button') || el.getAttribute('role') === 'button') {
 					continue;
 				}
 				el.style.color = linkFgColor;
