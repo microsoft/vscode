@@ -276,25 +276,36 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._applyModel(defaultModel);
 	}
 
-	applyConfiguredDefault(): boolean {
-		// `chat.defaultModel` seeds every new (empty) conversation. Only a genuine in-conversation
-		// choice blocks it; a `SessionRestore` on an empty session is spillover from the previous
-		// conversation and must yield.
-		//
-		// A choice the conversation is still waiting to have applied blocks it too: while its pool
-		// is cold there is nothing on screen to recognize it by, and seeding over it would mean the
-		// user's own model loses to the default purely for arriving late.
-		if (!this._runtime.isEmpty()
-			|| isInConversationModelChoice(this._selectionReason)
+	/**
+	 * The model `chat.defaultModel` would seed the bound conversation with right now, or
+	 * `undefined` if it would not seed at all.
+	 *
+	 * A configured default seeds every new (empty) conversation. Only a genuine in-conversation
+	 * choice blocks it; a `SessionRestore` on an empty conversation is spillover from the previous
+	 * one and must yield. A choice the conversation is still waiting to have applied blocks it too:
+	 * while its pool is cold there is nothing on screen to recognize it by, and seeding over it
+	 * would mean the user's own model loses to the default purely for arriving late.
+	 *
+	 * @param authority Answers for a conversation whose model this controller has not been given
+	 * yet. A surface that must decide whether to *wait* for an unpublished model cannot have
+	 * adopted it first, so it states the authority it already knows rather than letting the
+	 * controller infer one from state that does not describe that conversation yet. Omit it to have
+	 * the controller answer from what it has itself applied.
+	 */
+	configuredDefaultToSeed(authority?: ModelSelectionAuthority): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const claimedByConversation = authority !== undefined
+			? authority === ModelSelectionAuthority.Conversation
+			: isInConversationModelChoice(this._selectionReason)
 			|| isInConversationModelChoice(this._intendedModel?.reason)
-			|| this._intent) {
-			return false;
+			|| !!this._intent;
+		if (!this._runtime.isEmpty() || claimedByConversation) {
+			return undefined;
 		}
-		const configuredValue = this._runtime.getConfiguredModelValue();
-		if (!configuredValue) {
-			return false;
-		}
-		const configuredModel = resolveConfiguredModel(configuredValue, this._pool());
+		return resolveConfiguredModel(this._runtime.getConfiguredModelValue(), this._pool());
+	}
+
+	applyConfiguredDefault(): boolean {
+		const configuredModel = this.configuredDefaultToSeed();
 		if (!configuredModel) {
 			return false;
 		}

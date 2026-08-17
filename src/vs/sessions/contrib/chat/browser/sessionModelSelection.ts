@@ -16,23 +16,13 @@ import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel 
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IIntendedModelHolder, IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IPendingModelSelection, isInConversationModelChoice, isRestoredModelReason, ModelSelectionApplyReason, ModelSelectionAuthority, ModelSelectionReason, resolveConfiguredModel } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IPendingModelSelection, ModelSelectionAuthority } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionModelPickerOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-
-export interface INormalizedSessionModelPickerOptions extends ISessionModelPickerOptions {
-	readonly showAutoModel: boolean;
-}
-
-const DEFAULT_MODEL_PICKER_OPTIONS: INormalizedSessionModelPickerOptions = {
-	useGroupedModelPicker: true,
-	showFeatured: true,
-	showUnavailableFeatured: false,
-	showManageModelsAction: false,
-	showAutoModel: true,
-};
+import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
+import { sourceForControllerWrite, toModelSelectionAuthority } from './sessionModelProvenance.js';
 
 /**
  * How many conversations keep their intended model. Bounded because a long-lived window can bind
@@ -48,94 +38,17 @@ interface IRememberedModelSelection {
 	readonly source: 'stored' | 'legacy';
 }
 
-export function normalizeModelPickerOptions(options: ISessionModelPickerOptions | undefined): INormalizedSessionModelPickerOptions {
-	return {
-		...DEFAULT_MODEL_PICKER_OPTIONS,
-		...options,
-		showAutoModel: options?.showAutoModel ?? true,
-	};
-}
-
 function legacyModelPickerStorageKey(providerId: string, sessionType: string): string {
 	return `sessions.modelPicker.${providerId}.${sessionType}.selectedModelId`;
 }
 
-/**
- * Translates a provider's account of where a chat's model came from into the shared authority the
- * selection controller reasons about.
- *
- * Only called for a chat that has a model. A provider that cannot account for one says so, and is
- * taken at its word that the model is the chat's own — the safe answer, because the alternative is
- * letting `chat.defaultModel` overwrite a model the user may well have picked. A chat with no model
- * at all never reaches here, because there is no authority to weigh.
- */
-function toModelSelectionAuthority(source: ChatModelSource | undefined): ModelSelectionAuthority {
-	switch (source) {
-		case ChatModelSource.Automatic:
-		case ChatModelSource.Inherited:
-			return ModelSelectionAuthority.Provisional;
-		default:
-			return ModelSelectionAuthority.Conversation;
-	}
-}
-
-/**
- * The provenance to attribute a controller-driven write to.
- *
- * The controller applies a model for several reasons, and only some of them are this input
- * choosing on the conversation's behalf. Reclaiming the conversation's own model — or re-applying
- * it under the identifier its pool publishes it as — carries the authority the conversation
- * already had, so writing it back as {@link ChatModelSource.Automatic} would quietly demote a
- * user's pick to something `chat.defaultModel` may overwrite.
- *
- * @param authorityInForce The provenance the conversation is currently understood to have.
- */
-function sourceForControllerWrite(
-	reason: ModelSelectionApplyReason | undefined,
-	authorityInForce: ChatModelSource | undefined,
-): ChatModelSource {
-	if (reason === ModelSelectionReason.UserSelection) {
-		return ChatModelSource.User;
-	}
-	// Acting on the model the conversation already had, so its authority carries over.
-	if (isInConversationModelChoice(reason) || isRestoredModelReason(reason)) {
-		return authorityInForce ?? ChatModelSource.Restored;
-	}
-	// A configured default, a remembered preference, or the first available model: chosen for a
-	// conversation that had not chosen for itself.
-	return ChatModelSource.Automatic;
-}
-
-export function hasSelectableModel(
-	models: readonly ILanguageModelChatMetadataAndIdentifier[],
-	options: INormalizedSessionModelPickerOptions,
-): boolean {
-	return models.length > 0 || options.showAutoModel;
-}
-
 export const ISessionModelSelection = createDecorator<ISessionModelSelection>('sessionModelSelection');
-
-export interface ISessionModelSelectionState {
-	readonly currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
-	readonly pendingSelection: IPendingModelSelection | undefined;
-	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
-	readonly options: INormalizedSessionModelPickerOptions;
-	readonly hasSelectableModel: boolean;
-}
 
 export interface ISessionModelSelection {
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<ISessionModelSelectionState>;
 	selectModel(modelIdentifier: string): boolean;
 }
-
-const EMPTY_STATE: ISessionModelSelectionState = {
-	currentModel: undefined,
-	pendingSelection: undefined,
-	models: [],
-	options: normalizeModelPickerOptions(undefined),
-	hasSelectableModel: false,
-};
 
 /**
  * Model selection for the Agents Window, expressed on top of the shared
@@ -145,15 +58,18 @@ const EMPTY_STATE: ISessionModelSelectionState = {
  * conversation's own model lives in the controller, so the two windows cannot drift on it.
  *
  * Mostly, but not purely, translation: this class still owns when a conversation counts as seeded
- * ({@link _seeded}), whether a configured default may overtake a model the pool has not published
- * ({@link _canProceedWhilePending}), and what the picker shows ({@link _publish}). Those are the
- * parts most able to diverge from the controller's equivalents.
+ * ({@link _seeded}) and when to wait for a model the pool has not published rather than write a
+ * stand-in through to a provider ({@link _canProceedWhilePending}). It no longer answers *whether*
+ * a configured default may overtake that wait — that is the controller's
+ * {@link ChatInputModelSelectionController.configuredDefaultToSeed}, which this only supplies the
+ * conversation's authority to. Presentation lives in `sessionModelPickerState`, and the
+ * provider-to-controller vocabulary in `sessionModelProvenance`.
  */
 export class SessionModelSelection extends Disposable implements ISessionModelSelection {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _state = observableValue<ISessionModelSelectionState>(this, EMPTY_STATE);
+	private readonly _state = observableValue<ISessionModelSelectionState>(this, EMPTY_MODEL_SELECTION_STATE);
 	readonly state: IObservable<ISessionModelSelectionState> = this._state;
 
 	private readonly _providerListener = this._register(new MutableDisposable());
@@ -352,7 +268,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._seeded = false;
 			this._models = [];
 			this._modelTarget = undefined;
-			this._state.set(EMPTY_STATE, undefined);
+			this._state.set(EMPTY_MODEL_SELECTION_STATE, undefined);
 			return;
 		}
 
@@ -432,17 +348,14 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	/**
 	 * Whether selection may proceed while the wanted model is still unpublished.
 	 *
-	 * Only `chat.defaultModel` may overtake it, and only for a conversation that has neither sent a
-	 * request nor been given a model of its own — the shared precedence puts a configured default
-	 * ahead of a remembered preference. A model the conversation is already running on is never
-	 * overtaken: replacing it with a stand-in would change the conversation rather than describe it.
+	 * Only `chat.defaultModel` may overtake the wait, and whether it may is the controller's
+	 * question, not this adapter's — asking it here in a second vocabulary is how the two would
+	 * drift. All this supplies is the authority, because the conversation's model is precisely what
+	 * cannot be adopted yet: no authority at all means the chat has no model of its own, so there
+	 * is nothing for the configured default to override.
 	 */
 	private _canProceedWhilePending(chatAuthority: ModelSelectionAuthority | undefined): boolean {
-		// No authority at all means the chat has no model of its own, so there is nothing for the
-		// configured default to override.
-		return this._chatIsEmpty
-			&& (chatAuthority ?? ModelSelectionAuthority.Provisional) === ModelSelectionAuthority.Provisional
-			&& !!resolveConfiguredModel(this._configurationService.getValue<string>(ChatConfiguration.DefaultModel), this._models);
+		return !!this._controller.configuredDefaultToSeed(chatAuthority ?? ModelSelectionAuthority.Provisional);
 	}
 
 	/**
@@ -581,22 +494,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		pendingSelection: IPendingModelSelection | undefined,
 		currentModel = this._controller.currentModel.get(),
 	): void {
-		// Only ever show a model the pool actually offers. A pool can empty out with nothing to
-		// fall back to, which leaves the controller holding the last model it applied; showing it
-		// would claim a selection the user cannot act on. The intent survives either way, so the
-		// model returns on its own once the pool publishes it again.
-		const displayedModel = currentModel && this._models.some(model => model.identifier === currentModel.identifier)
-			? currentModel
-			: undefined;
-		this._state.set({
-			models: this._models,
-			options,
-			hasSelectableModel: hasSelectableModel(this._models, options),
-			// While a selection is pending nothing is shown: the model the conversation is meant to
-			// run on is the only correct answer, and it is not available to show yet.
-			currentModel: pendingSelection ? undefined : displayedModel,
-			pendingSelection,
-		}, undefined);
+		this._state.set(createModelSelectionState(this._models, options, currentModel, pendingSelection), undefined);
 	}
 
 	private _getRememberedModel(session: IActiveSession, modelTarget: string | undefined): IRememberedModelSelection | undefined {

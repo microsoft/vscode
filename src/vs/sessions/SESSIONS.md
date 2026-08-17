@@ -360,15 +360,22 @@ point, differing only in the `ModelSelectionAuthority` they report, so the
 scenario-to-entry-point mapping is shared rather than re-decided per surface.
 
 It is close to, but not purely, a translation layer. It still decides when a
-conversation has been seeded and whether a configured default may overtake a
-model the pool has not published yet. What it no longer does is *infer* where a
-chat's model came from, or decide what that means: `IChat.modelSource` carries
-the provenance, so `ISessionsProvider.setModel` requires the caller to state why
-the model is being set, and the adapter translates that into the shared
-`ModelSelectionAuthority` the controller reasons about. A client picking a model
-on the user's behalf says `Automatic`, a provider starting a peer chat on the
-previous chat's model says `Inherited`, and only `User`/`Restored` count as the
-conversation answering for itself.
+conversation has been seeded, and when to wait for a model the provider's pool
+has not published rather than write a stand-in through to a backend. What it
+does not decide is whether `chat.defaultModel` may overtake that wait — it asks
+`ChatInputModelSelectionController.configuredDefaultToSeed` and supplies only
+the conversation's authority, so that precedence is stated once. Presentation
+lives in `sessionModelPickerState.ts` and the provider-to-controller vocabulary
+in `sessionModelProvenance.ts`, leaving this file about selection alone.
+
+What it no longer does is *infer* where a chat's model came from, or decide what
+that means: `IChat.modelSource` carries the provenance, so
+`ISessionsProvider.setModel` requires the caller to state why the model is being
+set, and the adapter translates that into the shared `ModelSelectionAuthority`
+the controller reasons about. A client picking a model on the user's behalf says
+`Automatic`, a provider starting a peer chat on the previous chat's model says
+`Inherited`, and only `User`/`Restored` count as the conversation answering for
+itself.
 
 `IChat.modelSource` is required rather than optional. An absent value reads as
 "this model is the conversation's own", which is the answer that blocks
