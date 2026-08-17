@@ -1172,8 +1172,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const activeTarget = this.voiceSessionController.targetSession.read(reader)?.toString();
 			const pendingChats: IChatInputWindowPendingChat[] = [...this.chatService.chatModels.read(reader)]
 				// Archived sessions are read-only, so their pending prompts must not
-				// surface in omni: routing must never target them and the omni input
-				// must never adopt a read-only model (which shows the read-only banner).
 				.filter(model => !model.isReadOnly.read(reader))
 				.filter(model => !!model.requestNeedsInput.read(reader) && !this._hasOnlyResolvedPendingTools(model, reader))
 				.filter(model => !dismissedPendingRequests.has(this._pendingRequestKey(model.sessionResource, model.lastRequest?.id)))
