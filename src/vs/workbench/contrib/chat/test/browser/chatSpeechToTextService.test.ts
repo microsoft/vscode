@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ILanguageModelChatSelector } from '../../common/languageModels.js';
+import { ILanguageModelChatResponse, ILanguageModelChatSelector } from '../../common/languageModels.js';
 
 type CleanupTestService = {
 	_configurationService: {
@@ -18,16 +18,16 @@ type CleanupTestService = {
 	};
 	_languageModelsService: {
 		selectLanguageModels: (selector: ILanguageModelChatSelector) => Promise<string[]>;
-		sendChatRequest: (...args: never[]) => Promise<never>;
+		sendChatRequest: (...args: never[]) => Promise<ILanguageModelChatResponse>;
 	};
 	_llmCleanupModelTreatment: string | undefined;
 	_promptsService: {
 		getDictationInstructions: (token: CancellationToken) => Promise<string | undefined>;
 	};
 	_logService: {
-		info: (...args: never[]) => void;
-		warn: (...args: never[]) => void;
-		trace: (...args: never[]) => void;
+		info: (message: string) => void;
+		warn: (message: string, error?: unknown) => void;
+		trace: (message: string) => void;
 	};
 	_cleanupWithLanguageModel: (text: string, token: CancellationToken) => Promise<string | undefined>;
 };
@@ -159,6 +159,7 @@ suite('ChatSpeechToTextService', () => {
 	test('bounds stalled language model cleanup and falls back to the raw transcript', async () => {
 		const clock = sinon.useFakeTimers();
 		try {
+			const logs: string[] = [];
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => 'auto',
@@ -166,25 +167,124 @@ suite('ChatSpeechToTextService', () => {
 			service._llmCleanupModelTreatment = undefined;
 			service._languageModelsService = {
 				selectLanguageModels: async () => ['test-model'],
-				sendChatRequest: () => new Promise<never>(() => { }),
+				sendChatRequest: () => new Promise<ILanguageModelChatResponse>(() => { }),
 			};
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
 			service._logService = {
-				info: () => { },
-				warn: () => { },
-				trace: () => { },
+				info: message => logs.push(message),
+				warn: message => logs.push(message),
+				trace: message => logs.push(message),
 			};
 			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
 			let settled = false;
 			cleanupPromise.then(() => settled = true);
-			await clock.tickAsync(1499);
+			await clock.tickAsync(4999);
 			await Promise.resolve();
-			assert.strictEqual(settled, false);
+			const settledBeforeTimeout = settled;
 			await clock.tickAsync(1);
 
-			assert.strictEqual(await cleanupPromise, undefined);
+			assert.deepStrictEqual({
+				settledBeforeTimeout,
+				result: await cleanupPromise,
+				timedOutStartingRequest: logs.some(log => log.includes('timed out (phase=startRequest, elapsedMs=5000, timeoutMs=5000)')),
+				fellBackWithPhase: logs.some(log => log.includes('reason=timeout, phase=startRequest, elapsedMs=5000')),
+			}, {
+				settledBeforeTimeout: false,
+				result: undefined,
+				timedOutStartingRequest: true,
+				fellBackWithPhase: true,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('reports a timeout during model selection instead of no model', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const logs: string[] = [];
+			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+			service._configurationService = {
+				getValue: () => 'auto',
+			};
+			service._llmCleanupModelTreatment = undefined;
+			service._languageModelsService = {
+				selectLanguageModels: () => new Promise<string[]>(() => { }),
+				sendChatRequest: async () => { throw new Error('Unexpected request'); },
+			};
+			service._promptsService = {
+				getDictationInstructions: async () => undefined,
+			};
+			service._logService = {
+				info: message => logs.push(message),
+				warn: message => logs.push(message),
+				trace: message => logs.push(message),
+			};
+
+			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
+			await clock.tickAsync(5000);
+
+			assert.deepStrictEqual({
+				result: await cleanupPromise,
+				timedOutSelectingModel: logs.some(log => log.includes('reason=timeout, phase=selectModel, elapsedMs=5000')),
+				reportedNoModel: logs.some(log => log.includes('reason=noModel')),
+			}, {
+				result: undefined,
+				timedOutSelectingModel: true,
+				reportedNoModel: false,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('allows language model cleanup to complete after 1.5 seconds', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const logs: string[] = [];
+			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+			service._configurationService = {
+				getValue: () => 'auto',
+			};
+			service._llmCleanupModelTreatment = undefined;
+			service._languageModelsService = {
+				selectLanguageModels: async () => ['test-model'],
+				sendChatRequest: async () => ({
+					stream: (async function* () {
+						await new Promise(resolve => setTimeout(resolve, 2000));
+						yield { type: 'text', value: 'hello' } as const;
+					})(),
+					result: Promise.resolve(undefined),
+				}),
+			};
+			service._promptsService = {
+				getDictationInstructions: async () => undefined,
+			};
+			service._logService = {
+				info: message => logs.push(message),
+				warn: message => logs.push(message),
+				trace: message => logs.push(message),
+			};
+
+			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
+			let settled = false;
+			cleanupPromise.then(() => settled = true);
+			await clock.tickAsync(1999);
+			await Promise.resolve();
+			const settledBeforeResponse = settled;
+			await clock.tickAsync(1);
+
+			assert.deepStrictEqual({
+				settledBeforeResponse,
+				result: await cleanupPromise,
+				appliedAfterTwoSeconds: logs.some(log => log.includes('applied language model cleanup') && log.includes('elapsedMs=2000')),
+			}, {
+				settledBeforeResponse: false,
+				result: 'hello',
+				appliedAfterTwoSeconds: true,
+			});
 		} finally {
 			clock.restore();
 		}
