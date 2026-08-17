@@ -277,7 +277,12 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._controller.beginConversationSwitch();
 		}
 
-		if (snapshot.desiredModelResolution.kind === 'pending' && !this._controller.configuredDefaultToSeed(chatModelReason)) {
+		// Only a conversation that could be written to has anything to wait for. A display-only one
+		// writes nothing either way (see `_pushModelToProvider`), so waiting would blank its picker
+		// and block its composer to prevent a write that was never going to happen.
+		if (snapshot.desiredModelResolution.kind === 'pending'
+			&& !this._displayOnly
+			&& !this._controller.configuredDefaultToSeed(chatModelReason)) {
 			// Wait rather than push a stand-in through to the backend; re-seed once the pool settles.
 			this._conversation().seeded = false;
 			this._diagnostics.report('await-desired-model', {

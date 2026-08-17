@@ -1149,6 +1149,41 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
+	test('a reopened conversation still shows a model while its pool is half-published', () => {
+		// As above, but the remembered model has not been published yet and the pool cannot say
+		// whether it ever will be — an agent host that is still connecting. Waiting for it would
+		// guard a write that `_displayOnly` already withholds, at the cost of a blank picker and a
+		// composer that refuses to send.
+		const opus = model('test/opus');
+		const gpt = model('test/gpt');
+		const testSession = createSession('provider', SessionStatus.Completed, undefined);
+		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
+		provider.models = [gpt];
+		provider.modelsResolved = false;
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, opus.identifier);
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(undefined),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.deepStrictEqual({
+			shown: selection.state.get().currentModel?.identifier,
+			pending: selection.state.get().pendingSelection?.reference,
+			writes: provider.writes,
+			sessionModel: testSession.modelId.get(),
+		}, {
+			// A stand-in from the pool, and nothing pending, so the composer can still send.
+			shown: gpt.identifier,
+			pending: undefined,
+			writes: [],
+			sessionModel: undefined,
+		});
+	});
+
 	test('a canonicalized user choice is still written as the conversation\'s own', () => {
 		// Re-applying the conversation's own model under the identifier its pool publishes it as is
 		// bookkeeping, not a fresh pick. Writing it back as automatic would demote the user's

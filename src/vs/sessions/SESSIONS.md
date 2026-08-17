@@ -401,8 +401,9 @@ Two invariants follow from that seam:
   not blank, but only a conversation that has yet to run can be seeded with one.
   A pick the user makes is unaffected: that is an answer for this conversation.
 - A model that the provider's pool has not published yet is waited for rather
-  than replaced. Nothing is pushed to the provider while the wanted model is
-  pending, so a transient stand-in never reaches the backend. Only
+  than replaced, so a transient stand-in never reaches the backend. The wait is
+  only for conversations that would be written to at all: one that has already
+  run is never written to, so it shows a stand-in rather than going blank. Only
   `chat.defaultModel` may overtake the wait, and only for a conversation that has
   neither sent a request nor been given a model of its own.
 
