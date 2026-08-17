@@ -312,8 +312,6 @@ export class MainThreadDocumentsAndEditors extends Disposable implements IMainTh
 		this._register(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, paneCompositeService));
 	}
 
-
-
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {
 
 		const removedEditors: string[] = [];
