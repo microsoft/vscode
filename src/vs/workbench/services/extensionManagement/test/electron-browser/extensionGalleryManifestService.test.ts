@@ -687,8 +687,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	test('Microsoft provider — stale validation superseded by config change does not re-cache access', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
-		// Seed an eligible cache so startup applies it (Available) and kicks off a background
-		// re-validation that we can park mid-flight.
 		storageData.set('marketplace.cachedAccess', JSON.stringify({
 			authProvider: 'microsoft',
 			accountId: 'ms-account-1',
@@ -696,25 +694,20 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			serviceUrl: 'https://marketplace.example.com',
 		}));
 
-		// The cached fast-path materializes the index (first fetch → succeeds); the background
-		// re-validation's index fetch (second) is held open so it parks mid-flight.
-		let indexCalls = 0;
+		// Park the index fetch so the resolution is still in flight when the configuration changes.
 		let releaseIndex!: (v: IRequestContext) => void;
 		const indexGate = new Promise<IRequestContext>(resolve => { releaseIndex = resolve; });
-		requestHandler = () => {
-			indexCalls++;
-			return indexCalls === 1 ? mockResponse(200, createGalleryManifest()) : indexGate;
-		};
+		requestHandler = () => indexGate;
 
 		const service = createService();
-		await service.getExtensionGalleryManifest();
+		const resolving = service.getExtensionGalleryManifest();
 
-		// Let the background validation advance to the point where it awaits the index fetch.
+		// Let the resolution advance to the point where it awaits the index fetch.
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		// The marketplace/auth-provider configuration changes — this clears the cache and asks
 		// the user to restart (which they may decline). It must also supersede the in-flight
-		// validation so its late result cannot re-populate the cache we just cleared.
+		// resolution so its late result cannot re-populate the cache we just cleared.
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as unknown as IConfigurationChangeEvent);
 		await new Promise(resolve => setTimeout(resolve, 0));
 		assert.ok(!storageData.has('marketplace.cachedAccess'));
@@ -722,6 +715,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		// The stale index fetch finally returns a valid manifest — it must be discarded and must
 		// NOT re-write the cache.
 		releaseIndex(mockResponse(200, createGalleryManifest()));
+		await resolving;
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		assert.ok(!storageData.has('marketplace.cachedAccess'));
