@@ -1336,10 +1336,17 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 
 //#region Accessibility
 
+interface ISessionsAccessibilityProviderOptions {
+	readonly grouping: () => SessionsGrouping;
+	readonly isPinned: (session: ISession) => boolean;
+	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
+	readonly includeQuickChatIdentity?: boolean;
+}
+
 class SessionsAccessibilityProvider {
 	constructor(
 		private readonly automationStatus?: IObservable<SessionStatus | undefined>,
-		private readonly workspaceBadgeOptions?: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean },
+		private readonly options?: ISessionsAccessibilityProviderOptions,
 	) { }
 
 	getWidgetAriaLabel(): string {
@@ -1389,22 +1396,27 @@ class SessionsAccessibilityProvider {
 		return derived(this, reader => {
 			const title = element.title.read(reader);
 			const updated = fromNow(element.updatedAt.read(reader), true);
-			let label = element.worktreePending?.read(reader)
-				? localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated)
-				: localize('sessionItemAria', "{0}, updated {1}", title, updated);
+			let label: string;
+			if (this.options?.includeQuickChatIdentity && element.isQuickChat?.read(reader)) {
+				label = localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, updated);
+			} else if (element.worktreePending?.read(reader)) {
+				label = localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated);
+			} else {
+				label = localize('sessionItemAria', "{0}, updated {1}", title, updated);
+			}
 			const status = element.status.read(reader);
 			const workspace = element.workspace.read(reader);
 			const workspaceLabel = workspace ? getWorkspaceBadgeLabel(workspace) : undefined;
 			if (
-				this.workspaceBadgeOptions &&
+				this.options &&
 				status !== SessionStatus.InProgress &&
 				status !== SessionStatus.NeedsInput &&
 				workspaceLabel &&
 				(
-					this.workspaceBadgeOptions.grouping() !== SessionsGrouping.Workspace ||
-					this.workspaceBadgeOptions.isPinned(element) ||
+					this.options.grouping() !== SessionsGrouping.Workspace ||
+					this.options.isPinned(element) ||
 					element.isArchived.read(reader) ||
-					this.workspaceBadgeOptions.isRenderedInCustomGroup?.(element)
+					this.options.isRenderedInCustomGroup?.(element)
 				)
 			) {
 				label = localize('sessionItemWorkspaceAria', "{0}, in {1}", label, workspaceLabel);
@@ -3791,6 +3803,7 @@ export class SessionsFlatList extends Disposable {
 				accessibilityProvider: new SessionsAccessibilityProvider(undefined, {
 					grouping: () => SessionsGrouping.Date,
 					isPinned: session => this._sessionsListModelService.isSessionPinned(session),
+					includeQuickChatIdentity: !useCompactQuickChatRows,
 				}),
 				identityProvider: {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),
