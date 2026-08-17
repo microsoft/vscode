@@ -1191,23 +1191,22 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('hides marked automatic title renames but shows explicit renames and failures', () => {
-			const automaticMeta = { automaticTitleRename: true };
-			const completed = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', _meta: automaticMeta }), undefined, URI.file('/'), 'local');
-			const restoredFailure = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', success: false, _meta: automaticMeta }), undefined, URI.file('/'), 'local');
-			const explicit = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat' }), undefined, URI.file('/'), 'local');
+		test('hides automatic title renames after input resolves but shows streaming, explicit, and failed renames', () => {
+			const automaticInput = JSON.stringify({ title: 'Automatic title', automatic: true });
+			const completed = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'mcp__vscode__rename_chat', toolInput: automaticInput }), undefined, URI.file('/'), 'local');
+			const restoredFailure = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', toolInput: automaticInput, success: false }), undefined, URI.file('/'), 'local');
+			const explicit = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', toolInput: '{"title":"Explicit title"}' }), undefined, URI.file('/'), 'local');
 			const streaming = toolCallStateToStreamingInvocation({
 				toolCallId: 'streaming-rename',
 				toolName: 'rename_chat',
 				displayName: 'Rename Chat',
 				status: ToolCallStatus.Streaming,
-				_meta: automaticMeta,
 			}, undefined);
-			const liveSuccess = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', _meta: automaticMeta }));
-			const liveFailure = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', _meta: automaticMeta }));
+			const liveSuccess = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', toolInput: automaticInput }));
+			const liveFailure = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', toolInput: automaticInput }));
 
-			finalizeToolInvocation(liveSuccess, createCompletedToolCall({ toolName: 'rename_chat', _meta: automaticMeta }));
-			finalizeToolInvocation(liveFailure, createCompletedToolCall({ toolName: 'rename_chat', success: false, _meta: automaticMeta }));
+			finalizeToolInvocation(liveSuccess, createCompletedToolCall({ toolName: 'rename_chat', toolInput: automaticInput }));
+			finalizeToolInvocation(liveFailure, createCompletedToolCall({ toolName: 'rename_chat', toolInput: automaticInput, success: false }));
 
 			assert.deepStrictEqual({
 				completed: completed.presentation,
@@ -1220,7 +1219,7 @@ suite('stateToProgressAdapter', () => {
 				completed: ToolInvocationPresentation.Hidden,
 				restoredFailure: undefined,
 				explicit: undefined,
-				streaming: ToolInvocationPresentation.Hidden,
+				streaming: undefined,
 				liveSuccess: ToolInvocationPresentation.Hidden,
 				liveFailure: undefined,
 			});

@@ -71,8 +71,25 @@ function shouldHideCompletedAgentHostAskUserTool(toolCall: ToolCallState): boole
 	return toolCall.status === ToolCallStatus.Cancelled && toolCall.reason === ToolCallCancellationReason.Skipped;
 }
 
+function isAutomaticTitleRename(toolCall: ToolCallState): boolean {
+	if (!(toolCall.toolName === 'rename_chat' || toolCall.toolName.endsWith('__rename_chat'))
+		|| toolCall.status === ToolCallStatus.Streaming) {
+		return false;
+	}
+	const toolInput = getInlineToolInput(toolCall.toolInput);
+	if (!toolInput) {
+		return false;
+	}
+	try {
+		const args = JSON.parse(toolInput) as { automatic?: unknown };
+		return args.automatic === true;
+	} catch {
+		return false;
+	}
+}
+
 function shouldHideAutomaticTitleRename(toolCall: ToolCallState): boolean {
-	return readToolCallMeta(toolCall).automaticTitleRename === true
+	return isAutomaticTitleRename(toolCall)
 		&& toolCall.status !== ToolCallStatus.Cancelled
 		&& (toolCall.status !== ToolCallStatus.Completed || toolCall.success);
 }
@@ -2643,7 +2660,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		invocation.presentation = shouldHideCompletedAgentHostAskUserTool(tc)
 			? ToolInvocationPresentation.HiddenAfterComplete
 			: undefined;
-	} else if (readToolCallMeta(tc).automaticTitleRename === true) {
+	} else if (isAutomaticTitleRename(tc)) {
 		invocation.presentation = shouldHideAutomaticTitleRename(tc) ? ToolInvocationPresentation.Hidden : undefined;
 	}
 
