@@ -432,9 +432,20 @@ interface ITestCopilotModelInfo {
 
 interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
 	readonly rpc: {
-		readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] };
+		readonly sessions: {
+			readonly fork: CopilotClient['rpc']['sessions']['fork'];
+			readonly list: CopilotClient['rpc']['sessions']['list'];
+		};
 		readonly models: { readonly list: CopilotModelsList };
 	};
+}
+
+type TestCopilotSessionMetadata = Awaited<ReturnType<ITestCopilotClient['listSessions']>>[number] & { readonly clientName?: string };
+
+interface ITestCopilotSessionOptions {
+	readonly clientName?: string;
+	readonly repository?: string;
+	readonly modifiedTime?: Date;
 }
 
 function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
@@ -462,7 +473,27 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 
 class TestCopilotClient implements ITestCopilotClient {
 	readonly rpc: ITestCopilotClient['rpc'] = {
-		sessions: { fork: async () => ({ sessionId: 'forked-session' }) },
+		sessions: {
+			fork: async () => ({ sessionId: 'forked-session' }),
+			list: async () => ({
+				sessions: this._sessions.map(session => ({
+					sessionId: session.sessionId,
+					startTime: session.startTime.toISOString(),
+					modifiedTime: session.modifiedTime.toISOString(),
+					summary: session.summary,
+					clientName: session.clientName,
+					isRemote: false,
+					...(session.context ? {
+						context: {
+							cwd: session.context.workingDirectory,
+							gitRoot: session.context.gitRoot,
+							repository: session.context.repository,
+							branch: session.context.branch,
+						}
+					} : {}),
+				}))
+			}),
+		},
 		models: {
 			list: async params => {
 				this.modelListRequests.push(params);
@@ -494,7 +525,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly deletedSessionIds: string[] = [];
 
 	constructor(
-		private readonly _sessions: Awaited<ReturnType<ITestCopilotClient['listSessions']>>,
+		private readonly _sessions: TestCopilotSessionMetadata[],
 		private readonly _models: readonly ITestCopilotModelInfo[] = [],
 	) { }
 
@@ -734,6 +765,7 @@ class TestableCopilotAgent extends CopilotAgent {
 	readonly resumeCalls: string[] = [];
 	readonly createdClientOptions: CopilotClientOptions[] = [];
 	lastClientOptions: CopilotClientOptions | undefined;
+	protected override readonly _now: () => number;
 
 	// Keep model-refresh retries effectively instant in tests.
 	protected override readonly _modelRefreshBaseDelayMs = 1;
@@ -741,6 +773,7 @@ class TestableCopilotAgent extends CopilotAgent {
 
 	constructor(
 		private readonly _copilotClient: ITestCopilotClient,
+		now: () => number,
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionDataService sessionDataService: ISessionDataService,
@@ -759,6 +792,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
 		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		this._now = now;
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -812,7 +846,7 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService; rootConfig?: Record<string, unknown> }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService; rootConfig?: Record<string, unknown>; now?: () => number }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
@@ -879,7 +913,9 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	services.set(IInstantiationService, instantiationService);
 	const agent = options?.copilotClient
-		? instantiationService.createInstance(options.useRealResumePath ? ResumePathCopilotAgent : TestableCopilotAgent, options.copilotClient)
+		? options.useRealResumePath
+			? instantiationService.createInstance(ResumePathCopilotAgent, options.copilotClient)
+			: instantiationService.createInstance(TestableCopilotAgent, options.copilotClient, options.now ?? Date.now)
 		: instantiationService.createInstance(CopilotAgent);
 	return { agent, instantiationService, configurationService: configService, managedSettingsService, fileService, stateManager };
 }
@@ -934,14 +970,20 @@ function withoutUndefinedProperties(metadata: IAgentChatMetadata): Record<string
 	return result;
 }
 
-function sdkSession(sessionId: string, cwd?: string): Awaited<ReturnType<ITestCopilotClient['listSessions']>>[number] {
+function sdkSession(sessionId: string, cwd?: string, options?: ITestCopilotSessionOptions): TestCopilotSessionMetadata {
 	return {
 		sessionId,
 		startTime: new Date(1000),
-		modifiedTime: new Date(2000),
+		modifiedTime: options?.modifiedTime ?? new Date(2000),
 		summary: `SDK ${sessionId}`,
 		isRemote: false,
-		...(cwd ? { context: { workingDirectory: cwd } } : {}),
+		...(cwd ? {
+			context: {
+				workingDirectory: cwd,
+				...(options?.repository !== undefined ? { repository: options.repository } : {}),
+			}
+		} : {}),
+		...(options?.clientName !== undefined ? { clientName: options.clientName } : {}),
 	};
 }
 
@@ -5063,11 +5105,15 @@ suite('CopilotAgent', () => {
 
 	suite('external chat discovery', () => {
 
-		test('surfaces an SDK session created by another Copilot client as external', async () => {
+		test('surfaces a standalone Copilot CLI SDK session as external', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/external-discovery-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/external-discovery-cwd-`);
 			const sessionDataService = disposables.add(new TestSessionDataService());
-			const client = new TestCopilotClient([sdkSession('external-cli', workingDirectory)]);
+			const client = new TestCopilotClient([sdkSession('external-cli', workingDirectory, {
+				clientName: 'github/cli',
+				repository: 'owner/repository',
+				modifiedTime: new Date(),
+			})]);
 			// Migration stays off: external discovery must not depend on it.
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
@@ -5085,7 +5131,11 @@ suite('CopilotAgent', () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/external-origin-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/external-origin-cwd-`);
 			const sessionDataService = disposables.add(new TestSessionDataService());
-			const client = new TestCopilotClient([sdkSession('other-origin', workingDirectory)]);
+			const client = new TestCopilotClient([sdkSession('other-origin', workingDirectory, {
+				clientName: 'github/autopilot',
+				repository: 'owner/repository',
+				modifiedTime: new Date(),
+			})]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
 				// The GitHub Copilot app writes the same sidecar with `origin: 'other'`.
@@ -5094,6 +5144,80 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 					{ id: 'other-origin', external: true, adoptable: false },
 				]);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not surface SDK sessions with an unknown or missing client name', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/unsupported-client-discovery-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/unsupported-client-discovery-cwd-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([
+				sdkSession('unknown-client', workingDirectory, { clientName: 'other/client', repository: 'owner/repository', modifiedTime: new Date() }),
+				sdkSession('missing-client', workingDirectory, { repository: 'owner/repository', modifiedTime: new Date() }),
+			]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				assert.deepStrictEqual(await collectDiscoveredChats(agent), []);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('surfaces only sessions modified within the seven-day boundary', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/age-boundary-discovery-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/age-boundary-discovery-cwd-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const now = Date.UTC(2026, 7, 17, 12);
+			const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+			const client = new TestCopilotClient([
+				sdkSession('at-boundary', workingDirectory, { clientName: 'github/cli', repository: 'owner/repository', modifiedTime: new Date(sevenDaysAgo) }),
+				sdkSession('outside-boundary', workingDirectory, { clientName: 'github/cli', repository: 'owner/repository', modifiedTime: new Date(sevenDaysAgo - 1) }),
+			]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, now: () => now });
+			try {
+				assert.deepStrictEqual(await collectDiscoveredChats(agent), [
+					{ id: 'at-boundary', external: true, adoptable: false },
+				]);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not surface a session with missing repository metadata', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/missing-repository-discovery-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/missing-repository-discovery-cwd-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([
+				sdkSession('missing-repository', workingDirectory, { clientName: 'github/cli', modifiedTime: new Date() }),
+			]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				assert.deepStrictEqual(await collectDiscoveredChats(agent), []);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not surface a repository-less session', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/repository-less-discovery-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/repository-less-discovery-cwd-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([
+				sdkSession('repository-less', workingDirectory, { clientName: 'github/autopilot', repository: '', modifiedTime: new Date() }),
+			]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				assert.deepStrictEqual(await collectDiscoveredChats(agent), []);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
@@ -5158,8 +5282,8 @@ suite('CopilotAgent', () => {
 			}
 			const sessionDataService = disposables.add(new FailingSessionDataService());
 			const client = new TestCopilotClient([
-				sdkSession('corrupt', workingDirectory),
-				sdkSession('healthy', workingDirectory),
+				sdkSession('corrupt', workingDirectory, { clientName: 'github/cli', repository: 'owner/repository', modifiedTime: new Date() }),
+				sdkSession('healthy', workingDirectory, { clientName: 'github/cli', repository: 'owner/repository', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
