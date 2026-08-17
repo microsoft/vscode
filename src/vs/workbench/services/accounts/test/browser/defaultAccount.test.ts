@@ -57,9 +57,9 @@ suite('DefaultAccountProvider managed settings', () => {
 			second: second.data,
 		}, {
 			requestCount: 1,
-			// The request carries authorization only: client-identity headers are dropped by
-			// GitHub's edge, so we do not send any.
-			headers: { 'Authorization': 'Bearer token' },
+			// The request carries authorization plus the forced-refresh cache bypass:
+			// client-identity headers are dropped by GitHub's edge, so we do not send any.
+			headers: { 'Authorization': 'Bearer token', 'Cache-Control': 'no-cache' },
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
@@ -158,10 +158,12 @@ suite('DefaultAccountProvider managed settings', () => {
 		assert.deepStrictEqual({
 			status: provider.managedSettingsFetchStatus,
 			refreshState: provider.managedSettingsRefreshState,
+			cacheControl: requestService.requests[0].headers?.['Cache-Control'],
 			data: result.data,
 		}, {
 			status: 'no-response',
 			refreshState: 'blocked',
+			cacheControl: 'no-cache',
 			data: { managedSettings: undefined },
 		});
 	});
