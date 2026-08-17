@@ -44,7 +44,7 @@ const serverToolGroupsForDisplay: readonly IServerToolGroup[] = buildServerToolG
  * prefix such as Claude's `mcp__<server>__<name>` (matched as a `__`-delimited
  * suffix), mirroring the convention in `agentFeedbackAnnotations.ts`.
  */
-function matchesServerToolName(toolName: string, bareName: string): boolean {
+export function matchesServerToolName(toolName: string, bareName: string): boolean {
 	return toolName === bareName || toolName.endsWith(`__${bareName}`);
 }
 

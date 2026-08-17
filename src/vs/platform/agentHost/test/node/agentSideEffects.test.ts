@@ -1522,13 +1522,14 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Continue');
 		});
 
-		test('automatic rename guidance is transient context and never changes the user prompt', async () => {
+		test('automatic rename guidance is transient context and marks its rename tool call', async () => {
 			setupSession();
 			stateManager.dispatchServerAction(ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
 				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
 			});
 			const renameSideEffects = createRenameSideEffects();
+			disposables.add(renameSideEffects.registerProgressListener(agent));
 			renameSideEffects.markTitleAuto(sessionUri.toString(), undefined, 'Automatic title');
 			const action: ChatAction = {
 				type: ActionType.ChatTurnStarted,
@@ -1543,6 +1544,82 @@ suite('AgentSideEffects', () => {
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Keep GitHub casing');
 			assert.ok(!URI.isUri(sendContext) && sendContext?.hostInstructions?.[0].includes('`rename_chat`'));
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId: 'turn-guidance',
+					part: { kind: ResponsePartKind.Markdown, id: 'rename-preamble', content: 'I will rename the chat first.' },
+				},
+			});
+			assert.ok(!stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts.some(part => part.kind === ResponsePartKind.Markdown));
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart,
+					turnId: 'turn-guidance',
+					toolCallId: 'tc-rename',
+					toolName: 'mcp__vscode__rename_chat',
+					displayName: 'Rename Chat',
+				},
+			});
+
+			const responsePart = stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts.find(part =>
+				part.kind === ResponsePartKind.ToolCall && readToolCallMeta(part.toolCall).automaticTitleRename === true
+			);
+			assert.deepStrictEqual({
+				automaticTitleRename: responsePart?.kind === ResponsePartKind.ToolCall ? readToolCallMeta(responsePart.toolCall).automaticTitleRename : undefined,
+				hasPreamble: stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts.some(part => part.kind === ResponsePartKind.Markdown),
+			}, {
+				automaticTitleRename: true,
+				hasPreamble: false,
+			});
+		});
+
+		test('automatic rename guidance flushes buffered text when the turn completes without renaming', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
+			});
+			const renameSideEffects = createRenameSideEffects();
+			disposables.add(renameSideEffects.registerProgressListener(agent));
+			renameSideEffects.markTitleAuto(sessionUri.toString(), undefined, 'Automatic title');
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-without-rename',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Continue without renaming', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(defaultChatUri, action);
+			await waitForSendMessageCalls(1);
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId: 'turn-without-rename',
+					part: { kind: ResponsePartKind.Markdown, id: 'kept-preamble', content: 'A response without a rename.' },
+				},
+			});
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-without-rename', duration: 1 },
+			});
+
+			const completedTurn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
+			assert.deepStrictEqual(completedTurn?.responseParts, [{
+				kind: ResponsePartKind.Markdown,
+				id: 'kept-preamble',
+				content: 'A response without a rename.',
+			}]);
 		});
 
 		test('a message that merely starts with /rename text (no separator) is sent to the agent', async () => {

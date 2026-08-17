@@ -1191,6 +1191,32 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('hides marked automatic title renames but shows explicit renames and failures', () => {
+			const automaticMeta = { automaticTitleRename: true };
+			const completed = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', _meta: automaticMeta }), undefined, URI.file('/'), 'local');
+			const restoredFailure = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', success: false, _meta: automaticMeta }), undefined, URI.file('/'), 'local');
+			const explicit = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat' }), undefined, URI.file('/'), 'local');
+			const liveSuccess = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', _meta: automaticMeta }));
+			const liveFailure = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', _meta: automaticMeta }));
+
+			finalizeToolInvocation(liveSuccess, createCompletedToolCall({ toolName: 'rename_chat', _meta: automaticMeta }));
+			finalizeToolInvocation(liveFailure, createCompletedToolCall({ toolName: 'rename_chat', success: false, _meta: automaticMeta }));
+
+			assert.deepStrictEqual({
+				completed: completed.presentation,
+				restoredFailure: restoredFailure.presentation,
+				explicit: explicit.presentation,
+				liveSuccess: liveSuccess.presentation,
+				liveFailure: liveFailure.presentation,
+			}, {
+				completed: ToolInvocationPresentation.Hidden,
+				restoredFailure: undefined,
+				explicit: undefined,
+				liveSuccess: ToolInvocationPresentation.Hidden,
+				liveFailure: undefined,
+			});
+		});
+
 		test('marks Agent Host input requests for conversational answer rendering', () => {
 			const carousel = createInputRequestCarousel({
 				id: 'input-1',

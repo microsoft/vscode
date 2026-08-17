@@ -71,6 +71,12 @@ function shouldHideCompletedAgentHostAskUserTool(toolCall: ToolCallState): boole
 	return toolCall.status === ToolCallStatus.Cancelled && toolCall.reason === ToolCallCancellationReason.Skipped;
 }
 
+function shouldHideAutomaticTitleRename(toolCall: ToolCallState): boolean {
+	return readToolCallMeta(toolCall).automaticTitleRename === true
+		&& toolCall.status !== ToolCallStatus.Cancelled
+		&& (toolCall.status !== ToolCallStatus.Completed || toolCall.success);
+}
+
 export interface IAgentHostToolInvocationOptions {
 	readonly currentClientId: string;
 	readonly cancelOtherClientToolCall: (toolCall: ToolCallState) => void;
@@ -1768,7 +1774,9 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
-		presentation: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
+		presentation: shouldHideAutomaticTitleRename(tc)
+			? ToolInvocationPresentation.Hidden
+			: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
 		subAgentInvocationId: subAgentInvocationId,
 		toolSpecificData,
 		resultDetails,
@@ -2250,6 +2258,8 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
+	} else if (shouldHideAutomaticTitleRename(tc)) {
+		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (tc.status === ToolCallStatus.AuthRequired) {
 		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority));
@@ -2631,6 +2641,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		invocation.presentation = shouldHideCompletedAgentHostAskUserTool(tc)
 			? ToolInvocationPresentation.HiddenAfterComplete
 			: undefined;
+	} else if (readToolCallMeta(tc).automaticTitleRename === true) {
+		invocation.presentation = shouldHideAutomaticTitleRename(tc) ? ToolInvocationPresentation.Hidden : undefined;
 	}
 
 	// Hide the tool widget when file edits are shown separately via onFileEdits

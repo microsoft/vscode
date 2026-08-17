@@ -28,6 +28,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
+import { SessionServerToolName } from '../common/serverToolNames.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionActiveClient, type SessionInputRequest } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
@@ -89,6 +90,7 @@ import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
+import { matchesServerToolName } from './shared/serverToolGroups.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 /**
@@ -234,6 +236,8 @@ export class AgentSideEffects extends Disposable {
 
 	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
 	private readonly _toolCallAgents = new Map<string, string>();
+	private readonly _automaticRenameTurns = new Set<string>();
+	private readonly _automaticRenamePreambles = new Map<string, StateAction[]>();
 	/** Managed confirmations are human-only and must never seed host-side session permissions. */
 	private readonly _managedApprovalToolCalls = new Set<string>();
 	private _lastAgentInfos: readonly AgentInfo[] = [];
@@ -967,7 +971,20 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 
+		const automaticRenameKey = `${sessionKey}:${turnId}`;
+		if (this._automaticRenameTurns.has(automaticRenameKey) && this._isAutomaticRenamePreambleAction(action)) {
+			const preamble = this._automaticRenamePreambles.get(automaticRenameKey) ?? [];
+			preamble.push(action);
+			this._automaticRenamePreambles.set(automaticRenameKey, preamble);
+			this._turnTracker.markActivity(sessionKey, turnId, action.type);
+			return;
+		}
+
 		if (action.type === ActionType.ChatToolCallStart && agent) {
+			if (matchesServerToolName(action.toolName, SessionServerToolName.RenameChat) && this._automaticRenameTurns.delete(automaticRenameKey)) {
+				this._automaticRenamePreambles.delete(automaticRenameKey);
+				action = { ...action, _meta: { ...action._meta, ...toToolCallMeta({ automaticTitleRename: true }) } };
+			}
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
 			const modelContext = this._turnTracker.getModelTelemetryContext(sessionKey, action.turnId);
 			// Stamp the tool call start for `languageModelToolInvoked` telemetry.
@@ -1016,6 +1033,10 @@ export class AgentSideEffects extends Disposable {
 				}
 
 			}
+		}
+
+		if ((action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError) && this._automaticRenameTurns.has(automaticRenameKey)) {
+			this._flushAutomaticRenamePreamble(sessionKey, turnId);
 		}
 
 		this._stateManager.dispatchServerAction(sessionKey, action);
@@ -1105,9 +1126,29 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): void {
+		const automaticRenameKey = `${channel}:${turnId}`;
+		this._automaticRenameTurns.delete(automaticRenameKey);
+		this._automaticRenamePreambles.delete(automaticRenameKey);
 		const sessionUri = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
 		const folderCount = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.length ?? 0;
 		this._turnTracker.turnCompleted(channel, turnId, result, failure, { isMultiRoot: folderCount > 1, folderCount });
+	}
+
+	private _isAutomaticRenamePreambleAction(action: StateAction): boolean {
+		return action.type === ActionType.ChatDelta
+			|| action.type === ActionType.ChatReasoning
+			|| (action.type === ActionType.ChatResponsePart
+				&& (action.part.kind === ResponsePartKind.Markdown || action.part.kind === ResponsePartKind.Reasoning));
+	}
+
+	private _flushAutomaticRenamePreamble(channel: ProtocolURI, turnId: string): void {
+		const key = `${channel}:${turnId}`;
+		this._automaticRenameTurns.delete(key);
+		const actions = this._automaticRenamePreambles.get(key);
+		this._automaticRenamePreambles.delete(key);
+		for (const action of actions ?? []) {
+			this._stateManager.dispatchServerAction(channel, action);
+		}
 	}
 
 	/**
@@ -2171,6 +2212,9 @@ export class AgentSideEffects extends Disposable {
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			const renameInstruction = await this._titleController.prepareInstructionForAgent(sessionChannel, chat);
+			if (renameInstruction) {
+				this._automaticRenameTurns.add(`${turnChannel}:${turnId}`);
+			}
 			const hostInstructions = [
 				...(this._agentConfigService.getRootValue(platformRootSchema, AgentHostMarkdownPlanRichLinksEnabledConfigKey)
 					? [createMarkdownPlanRichLinksInstruction(chat)]
@@ -2190,6 +2234,7 @@ export class AgentSideEffects extends Disposable {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;
 			this._logService.error(`[AgentSideEffects] ${failureStage} failed for session=${turnChannel}: code=${failure.errorCode}, message=${error.message}, type=${failure.errorName}`, err);
+			this._flushAutomaticRenamePreamble(turnChannel, turnId);
 			this._stateManager.dispatchServerAction(turnChannel, {
 				type: ActionType.ChatError,
 				turnId,

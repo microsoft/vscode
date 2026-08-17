@@ -45,6 +45,8 @@ export interface IToolCallMeta {
 	 * explicit user action), so the client can render it as setting-driven.
 	 */
 	readonly autoApproveBySetting?: boolean;
+	/** Whether this call applies the automatic title requested by the host for a newly named chat. */
+	readonly automaticTitleRename?: boolean;
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
 	readonly autoApproveRuleResolvable?: boolean;
 	/** Transient runtime corpus for the local client tool-search invocation. */
@@ -133,6 +135,7 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta['mcpServerName'] === 'string') { result.mcpServerName = meta['mcpServerName']; }
 	if (typeof meta['mcpToolName'] === 'string') { result.mcpToolName = meta['mcpToolName']; }
 	if (typeof meta['autoApproveBySetting'] === 'boolean') { result.autoApproveBySetting = meta['autoApproveBySetting']; }
+	if (typeof meta['automaticTitleRename'] === 'boolean') { result.automaticTitleRename = meta['automaticTitleRename']; }
 	if (typeof meta['autoApproveRuleResolvable'] === 'boolean') { result.autoApproveRuleResolvable = meta['autoApproveRuleResolvable']; }
 	const toolSearchCandidates = readToolSearchCandidates(meta['toolSearchCandidates']);
 	if (toolSearchCandidates) { result.toolSearchCandidates = toolSearchCandidates; }
