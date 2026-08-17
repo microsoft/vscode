@@ -3069,6 +3069,122 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('re-registering a known discovered chat performs no per-session database I/O', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const session = AgentSession.uri('copilot', 'known-discovered');
+			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
+			await register(agent, [discoveredChat(session)]);
+
+			const opened: string[] = [];
+			const service = perSession.service as { tryOpenDatabase(session: URI): Promise<unknown> };
+			const originalTryOpen = service.tryOpenDatabase;
+			service.tryOpenDatabase = async (s: URI) => {
+				opened.push(s.toString());
+				return originalTryOpen.call(perSession.service, s);
+			};
+			try {
+				const changed = await register(agent, [discoveredChat(session)]);
+
+				assert.deepStrictEqual({ changed, opened }, { changed: false, opened: [] });
+			} finally {
+				service.tryOpenDatabase = originalTryOpen;
+			}
+		});
+
+		test('the known-sessions filter reports registered sessions only, leaving tombstones to registration', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const registered = AgentSession.uri('copilot', 'filter-registered');
+			const deleted = AgentSession.uri('copilot', 'filter-deleted');
+			const unknown = AgentSession.uri('copilot', 'filter-unknown');
+			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
+			await register(agent, [discoveredChat(registered), discoveredChat(deleted)]);
+			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(deleted);
+
+			const known = await (svc as unknown as { _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> })._filterKnownSessions([registered, deleted, unknown]);
+			// The deleted session is not "known", so it still reaches registration — where its tombstone declines it.
+			const reRegistered = await register(agent, [discoveredChat(deleted)]);
+
+			assert.deepStrictEqual({
+				known: [...known],
+				reRegistered,
+				sessions: (await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list()).map(entry => entry.session.toString()),
+			}, {
+				known: [registered.toString()],
+				reRegistered: false,
+				sessions: [registered.toString()],
+			});
+		});
+
+		test('concurrent listSessions calls share one computation and never share their result array', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			await svc.createSession({ provider: 'copilot' });
+			let computations = 0;
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
+			const original = inner._computeSessions;
+			inner._computeSessions = async mode => {
+				computations++;
+				return original.call(svc, mode);
+			};
+
+			const [first, second] = await Promise.all([svc.listSessions(), svc.listSessions()]);
+			const sharedComputations = computations;
+			first.length = 0;
+			const third = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				sharedComputations,
+				// The shared entry is cleared on settle, so a later call recomputes.
+				computations,
+				secondIntact: second.length,
+				thirdIntact: third.length,
+				distinctArrays: first !== second,
+			}, {
+				sharedComputations: 1,
+				computations: 2,
+				secondIntact: 1,
+				thirdIntact: 1,
+				distinctArrays: true,
+			});
+		});
+
+		test('a registry mutation during an in-flight list is not served from the shared computation', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const gate = new DeferredPromise<void>();
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
+			const original = inner._computeSessions;
+			let computations = 0;
+			inner._computeSessions = async mode => {
+				computations++;
+				await gate.p;
+				return original.call(svc, mode);
+			};
+
+			const stale = svc.listSessions();
+			await svc.createSession({ provider: 'copilot' });
+			const fresh = svc.listSessions();
+			gate.complete();
+
+			assert.deepStrictEqual({
+				computations,
+				stale: (await stale).length,
+				fresh: (await fresh).length,
+			}, {
+				// The post-mutation caller started its own pass instead of joining the stale one.
+				computations: 2,
+				stale: 1,
+				fresh: 1,
+			});
+		});
+
 		test('explicitly created sessions are registered as non-external', async () => {
 			service.registerProvider(copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
