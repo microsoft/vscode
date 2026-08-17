@@ -30,7 +30,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -4976,6 +4977,106 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('annotations survive session state restoration', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			const annotation = {
+				id: 'feedback-1',
+				turnId: 'turn-1',
+				resource: URI.file('/workspace/reviewed.ts').toString(),
+				resolved: false,
+				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+			};
+
+			await localService.subscribe(URI.parse(annotationsUri), 'client-before-restart');
+			localService.dispatchAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation,
+			}, 'client-before-restart', 1);
+			localService.stateManager.deleteSession(session.toString());
+
+			const restored = await localService.subscribe(URI.parse(annotationsUri), 'client-after-restart');
+
+			assert.deepStrictEqual(restored.state, { annotations: [annotation] });
+		});
+
+		test('annotations subscribe concurrent with session restore returns persisted feedback', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			const annotation = {
+				id: 'feedback-1',
+				turnId: 'turn-1',
+				resource: URI.file('/workspace/reviewed.ts').toString(),
+				resolved: false,
+				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+			};
+
+			await localService.subscribe(URI.parse(annotationsUri), 'client-before-restart');
+			localService.dispatchAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation,
+			}, 'client-before-restart', 1);
+			localService.stateManager.deleteSession(session.toString());
+
+			// The session restore populates session state before it restores
+			// annotations; a subscribe racing that window must still wait.
+			const [, restored] = await Promise.all([
+				localService.restoreSession(session),
+				localService.subscribe(URI.parse(annotationsUri), 'client-racing-restore'),
+			]);
+
+			assert.deepStrictEqual(restored.state, { annotations: [annotation] });
+		});
+
+		test('subagent annotations persist in the parent session database', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const parent = await localService.createSession({ provider: 'copilot' });
+			const subagent = buildSubagentSessionUri(parent, 'tool-call');
+			localService.stateManager.restoreSession({
+				resource: subagent,
+				provider: 'subagent',
+				title: 'Subagent',
+				status: SessionStatus.Idle,
+				createdAt: new Date(1).toISOString(),
+				modifiedAt: new Date(1).toISOString(),
+			}, []);
+			const annotationsUri = buildAnnotationsUri(subagent);
+
+			await localService.subscribe(URI.parse(annotationsUri), 'client');
+			localService.dispatchAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: {
+					id: 'feedback-1',
+					turnId: 'turn-1',
+					resource: URI.file('/workspace/reviewed.ts').toString(),
+					resolved: false,
+					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+				},
+			}, 'client', 1);
+
+			assert.deepStrictEqual({
+				parentKeys: sessionData.database(parent).setMetadataCalls.map(call => call.key).filter(key => key.startsWith('annotations')),
+				subagentKeys: sessionData.database(URI.parse(subagent)).setMetadataCalls.map(call => call.key).filter(key => key.startsWith('annotations')),
+			}, {
+				parentKeys: [`annotations:${subagent}`],
+				subagentKeys: [],
+			});
+		});
+
 		test('subscribe to an unknown changeset id fails without restoring the parent session', async () => {
 			service.registerProvider(copilotAgent);
 			// Build a changeset URI with a producer-defined id we don't
@@ -9595,6 +9696,77 @@ suite('AgentService (node dispatcher)', () => {
 			service.unsubscribe(sessionResource, 'client-1');
 
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'active-turn session must not be evicted');
+		});
+
+		test('a session with an active peer chat is NOT evicted when its last subscriber drops', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
+				service.stateManager.addChat(sessionResource.toString(), peerChat.toString(), {});
+				service.addSubscriber(sessionResource, 'client-1');
+				service.dispatchAction(
+					peerChat.toString(),
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					'client-1', 1,
+				);
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					hasActiveTurn: service.stateManager.hasActiveTurn(sessionResource.toString()),
+					hasCachedState: service.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+					releaseCalls: copilotAgent.releaseSessionCalls.length,
+				}, {
+					hasActiveTurn: true,
+					hasCachedState: true,
+					releaseCalls: 0,
+				});
+			});
+		});
+
+		test('a peer turn starting during the session data drain re-arms idle eviction', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const whenIdleStarted = new DeferredPromise<void>();
+				const whenIdle = new DeferredPromise<void>();
+				class DelayedIdleDatabase extends TestSessionDatabase {
+					override async whenIdle(): Promise<void> {
+						whenIdleStarted.complete();
+						await whenIdle.p;
+					}
+				}
+				const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new DelayedIdleDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				localService.registerProvider(agent);
+				const sessionResource = await localService.createSession({ provider: 'copilot' });
+				const defaultChat = buildDefaultChatUri(sessionResource);
+				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
+				localService.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'initial-turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'initial', origin: { kind: MessageKind.User } } });
+				localService.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'initial-turn', duration: 1000 });
+				localService.stateManager.addChat(sessionResource.toString(), peerChat.toString(), {});
+				localService.addSubscriber(sessionResource, 'client-1');
+				localService.unsubscribe(sessionResource, 'client-1');
+
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				await whenIdleStarted.p;
+				localService.dispatchAction(
+					peerChat.toString(),
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					'client-1', 1,
+				);
+				whenIdle.complete();
+				await Promise.resolve();
+				localService.dispatchAction(
+					peerChat.toString(),
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+					'client-1', 2,
+				);
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(localService.stateManager.getSessionState(sessionResource.toString()), undefined);
+			});
 		});
 
 		test('a provider can defer idle release without losing cached state', () => {
