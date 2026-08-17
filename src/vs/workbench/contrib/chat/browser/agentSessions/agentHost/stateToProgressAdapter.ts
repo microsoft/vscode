@@ -71,27 +71,8 @@ function shouldHideCompletedAgentHostAskUserTool(toolCall: ToolCallState): boole
 	return toolCall.status === ToolCallStatus.Cancelled && toolCall.reason === ToolCallCancellationReason.Skipped;
 }
 
-function isAutomaticTitleRename(toolCall: ToolCallState): boolean {
-	if (!(toolCall.toolName === 'rename_chat' || toolCall.toolName.endsWith('__rename_chat'))
-		|| toolCall.status === ToolCallStatus.Streaming) {
-		return false;
-	}
-	const toolInput = getInlineToolInput(toolCall.toolInput);
-	if (!toolInput) {
-		return false;
-	}
-	try {
-		const args = JSON.parse(toolInput) as { automatic?: unknown };
-		return args.automatic === true;
-	} catch {
-		return false;
-	}
-}
-
-function shouldHideAutomaticTitleRename(toolCall: ToolCallState): boolean {
-	return isAutomaticTitleRename(toolCall)
-		&& toolCall.status !== ToolCallStatus.Cancelled
-		&& (toolCall.status !== ToolCallStatus.Completed || toolCall.success);
+function shouldHideRenameChatTool(toolCall: ToolCallState): boolean {
+	return toolCall.toolName === 'rename_chat' || toolCall.toolName.endsWith('__rename_chat');
 }
 
 export interface IAgentHostToolInvocationOptions {
@@ -1791,7 +1772,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
-		presentation: shouldHideAutomaticTitleRename(tc)
+		presentation: shouldHideRenameChatTool(tc)
 			? ToolInvocationPresentation.Hidden
 			: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
 		subAgentInvocationId: subAgentInvocationId,
@@ -2275,7 +2256,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
-	} else if (shouldHideAutomaticTitleRename(tc)) {
+	} else if (shouldHideRenameChatTool(tc)) {
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (tc.status === ToolCallStatus.AuthRequired) {
@@ -2385,7 +2366,7 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.asking', "Asking a question...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
-	} else if (shouldHideAutomaticTitleRename(tc)) {
+	} else if (shouldHideRenameChatTool(tc)) {
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (sessionResource && isSubagentTool(tc)) {
@@ -2660,8 +2641,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		invocation.presentation = shouldHideCompletedAgentHostAskUserTool(tc)
 			? ToolInvocationPresentation.HiddenAfterComplete
 			: undefined;
-	} else if (isAutomaticTitleRename(tc)) {
-		invocation.presentation = shouldHideAutomaticTitleRename(tc) ? ToolInvocationPresentation.Hidden : undefined;
+	} else if (shouldHideRenameChatTool(tc)) {
+		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 
 	// Hide the tool widget when file edits are shown separately via onFileEdits

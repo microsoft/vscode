@@ -1191,7 +1191,7 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('hides automatic title renames after input resolves but shows streaming, explicit, and failed renames', () => {
+		test('hides rename chat tools throughout their lifecycle', () => {
 			const automaticInput = JSON.stringify({ title: 'Automatic title', automatic: true });
 			const completed = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'mcp__vscode__rename_chat', toolInput: automaticInput }), undefined, URI.file('/'), 'local');
 			const restoredFailure = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', toolInput: automaticInput, success: false }), undefined, URI.file('/'), 'local');
@@ -1217,11 +1217,11 @@ suite('stateToProgressAdapter', () => {
 				liveFailure: liveFailure.presentation,
 			}, {
 				completed: ToolInvocationPresentation.Hidden,
-				restoredFailure: undefined,
-				explicit: undefined,
-				streaming: undefined,
+				restoredFailure: ToolInvocationPresentation.Hidden,
+				explicit: ToolInvocationPresentation.Hidden,
+				streaming: ToolInvocationPresentation.Hidden,
 				liveSuccess: ToolInvocationPresentation.Hidden,
-				liveFailure: undefined,
+				liveFailure: ToolInvocationPresentation.Hidden,
 			});
 		});
 
