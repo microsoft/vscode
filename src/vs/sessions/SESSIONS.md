@@ -386,11 +386,14 @@ alternative is overwriting a model the user may have picked.
 
 Two invariants follow from that seam:
 
-- The model a conversation is meant to run on is held per conversation, keyed by
-  the chat resource. A choice made in one chat is unreachable from another by
-  construction, not by a scoping check a refactor can drop. A chat's model is
-  read from the chat itself (`IActiveSession.modelId` follows `activeChat`), so
-  switching between peer chats carries each one's own model with it.
+- Everything that describes a conversation's model is held per conversation, keyed by
+  the chat resource: the model it is meant to run on, whether it has been seeded
+  yet, and the authority behind its model. A choice made in one chat is
+  unreachable from another by construction, not by a reset a refactor can drop.
+  A chat's model is read from the chat itself (`IActiveSession.modelId` follows
+  `activeChat`), so switching between peer chats carries each one's own model
+  with it. What the adapter holds per *input* is only a snapshot of the provider
+  and the bound chat, re-read on every refresh rather than carried.
 - A model that the provider's pool has not published yet is waited for rather
   than replaced. Nothing is pushed to the provider while the wanted model is
   pending, so a transient stand-in never reaches the backend. Only
