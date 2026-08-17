@@ -128,7 +128,7 @@ suite('SessionServerTools', () => {
 		);
 		assert.strictEqual(
 			await host.executeTool(buildDefaultChatUri(enabledSession), SessionServerToolName.RenameChat, { title: 'Enabled' }),
-			'Renaming chat.',
+			'',
 		);
 		assert.deepStrictEqual({
 			disabledTools: stateManager.getSessionState(disabledSession)?.serverTools?.map(tool => tool.name),
@@ -169,7 +169,7 @@ suite('SessionServerTools', () => {
 
 		assert.strictEqual(
 			await host.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, { title: 'Still enabled' }),
-			'Renaming chat.',
+			'',
 		);
 		stateManager.dispose();
 	});
@@ -562,7 +562,7 @@ suite('SessionServerTools', () => {
 			targetSession: targetSession.toString(),
 			renameCompletedBeforeRelease: renameCompleted.isSettled,
 		}, {
-			result: 'Renaming chat.',
+			result: '',
 			targetSession: 'copilot:/s1',
 			renameCompletedBeforeRelease: false,
 		});
@@ -598,7 +598,7 @@ suite('SessionServerTools', () => {
 		]);
 		await allRenamesCompleted.p;
 		assert.deepStrictEqual({ results, renames, listSessionsCalls }, {
-			results: ['Renaming chat.', 'Renaming chat.', 'Renaming chat.'],
+			results: ['', '', ''],
 			renames: [
 				{ session: 'copilot:/s1', chat: defaultChat, title: 'Default Focus' },
 				{ session: 'copilot:/s1', chat: peer, title: 'Peer Focus' },
@@ -621,7 +621,7 @@ suite('SessionServerTools', () => {
 			toolName: failure.toolName,
 			error: failure.error instanceof Error ? failure.error.message : failure.error,
 		}, {
-			result: 'Renaming chat.',
+			result: '',
 			toolName: SessionServerToolName.RenameChat,
 			error: 'Invalid rename_chat input: chat must match a known non-default chat.',
 		});
@@ -650,7 +650,7 @@ suite('SessionServerTools', () => {
 		const result = await host.executeTool(peer, SessionServerToolName.RenameChat, { title: 'Peer Focus' });
 
 		assert.deepStrictEqual({ result, renamedChat: await renamedChat.p }, {
-			result: 'Renaming chat.',
+			result: '',
 			renamedChat: peer,
 		});
 		stateManager.dispose();
@@ -675,8 +675,8 @@ suite('SessionServerTools', () => {
 		const second = await applyRenameChatTool(accessor, { chat: 'agent-host-session://copilot/s1', title: 'Renamed Again' });
 		await bothRenamesStarted.p;
 		assert.deepStrictEqual({ first, second, titles }, {
-			first: 'Renaming chat.',
-			second: 'Renaming chat.',
+			first: '',
+			second: '',
 			titles: ['Named Once', 'Renamed Again'],
 		});
 		await releaseFirstRename.complete();

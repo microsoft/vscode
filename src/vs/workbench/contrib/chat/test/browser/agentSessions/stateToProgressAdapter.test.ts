@@ -1196,6 +1196,13 @@ suite('stateToProgressAdapter', () => {
 			const completed = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', _meta: automaticMeta }), undefined, URI.file('/'), 'local');
 			const restoredFailure = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', success: false, _meta: automaticMeta }), undefined, URI.file('/'), 'local');
 			const explicit = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat' }), undefined, URI.file('/'), 'local');
+			const streaming = toolCallStateToStreamingInvocation({
+				toolCallId: 'streaming-rename',
+				toolName: 'rename_chat',
+				displayName: 'Rename Chat',
+				status: ToolCallStatus.Streaming,
+				_meta: automaticMeta,
+			}, undefined);
 			const liveSuccess = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', _meta: automaticMeta }));
 			const liveFailure = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', _meta: automaticMeta }));
 
@@ -1206,12 +1213,14 @@ suite('stateToProgressAdapter', () => {
 				completed: completed.presentation,
 				restoredFailure: restoredFailure.presentation,
 				explicit: explicit.presentation,
+				streaming: streaming.presentation,
 				liveSuccess: liveSuccess.presentation,
 				liveFailure: liveFailure.presentation,
 			}, {
 				completed: ToolInvocationPresentation.Hidden,
 				restoredFailure: undefined,
 				explicit: undefined,
+				streaming: ToolInvocationPresentation.Hidden,
 				liveSuccess: ToolInvocationPresentation.Hidden,
 				liveFailure: undefined,
 			});

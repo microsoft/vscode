@@ -2368,6 +2368,8 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.asking', "Asking a question...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
+	} else if (shouldHideAutomaticTitleRename(tc)) {
+		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (sessionResource && isSubagentTool(tc)) {
 		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;

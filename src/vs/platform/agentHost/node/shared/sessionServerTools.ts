@@ -880,7 +880,7 @@ export async function applyRenameChatTool(accessor: ISessionServerToolAccessor, 
 		const { session, chat, title } = getRenameChatArgs(rawArgs, metadata ? [metadata] : [], currentChannel);
 		await accessor.renameChat(session, chat, title);
 	})().catch(error => accessor.reportToolError(SessionServerToolName.RenameChat, error));
-	return 'Renaming chat.';
+	return '';
 }
 
 interface ISendMessageArgs {
