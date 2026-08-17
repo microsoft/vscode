@@ -13,8 +13,26 @@
 	border-left: none !important;
 }
 
+/*
+ * Keyboard focus is drawn as a ring around the same box the horizontal composite bars use
+ * (tabs.css), so the 2px line the base paints for it goes too. `:focus-visible` keeps the
+ * ring off every mouse path: the base `.clicked` class only suppresses focus feedback for
+ * 800ms after mouse up, so it comes back on its own while the item is still focused.
+ * High contrast keeps the line, since there the box is an outline and the line is that
+ * theme's only focus marker.
+ */
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	border-left: none !important;
+}
+
+.style-override.monaco-workbench:not(:is(.hc-black, .hc-light)) .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus-visible .active-item-indicator {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 /* The indicator owns the inset background for both active and hovered items. */
 .style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator,
+.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus-visible .active-item-indicator,
 .style-override .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover .active-item-indicator {
 	z-index: 0;
 	top: 0;
@@ -50,6 +68,7 @@
 
 /* Compact: minimal horizontal inset — 24×24px box centered in the 28px item. */
 .style-override .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator,
+.style-override .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus-visible .active-item-indicator,
 .style-override .activitybar.compact > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover .active-item-indicator {
 	width: calc(var(--activity-bar-action-height, 28px) - 4px);
 	height: calc(var(--activity-bar-action-height, 28px) - 4px);
@@ -113,8 +132,8 @@
 	display: none;
 }
 
-/* Active item: inset, rounded background box behind the icon. */
-.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) .active-item-indicator {
+/* Active item: inset, rounded background box behind the icon, kept while the item is pressed. */
+.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked .active-item-indicator {
 	z-index: 0;
 	top: 50%;
 	left: var(--vscode-spacing-size20);
@@ -129,7 +148,7 @@
  * shows the box) and while dragging (the action-item `::before`/`::after` are
  * reused for the drop-line indicators).
  */
-.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover .active-item-indicator {
+.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover .active-item-indicator {
 	z-index: 0;
 	top: 50%;
 	left: var(--vscode-spacing-size20);
