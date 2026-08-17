@@ -1197,6 +1197,8 @@ suite('Glob', () => {
 		assertNoGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.js');
 		assertGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.ts', true);
 		assertGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.js', true);
+		assertNoGlobMatch('{**/BAR,**/BAZ}', 'bar');
+		assertGlobMatch('{**/BAR,**/BAZ}', 'bar', true);
 		// T4
 		assertNoGlobMatch('**/FOO/Bar', 'bar/foo/bar');
 		assertGlobMatch('**/FOO/Bar', 'bar/foo/bar', true);
