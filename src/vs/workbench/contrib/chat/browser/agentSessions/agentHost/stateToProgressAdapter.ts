@@ -71,10 +71,6 @@ function shouldHideCompletedAgentHostAskUserTool(toolCall: ToolCallState): boole
 	return toolCall.status === ToolCallStatus.Cancelled && toolCall.reason === ToolCallCancellationReason.Skipped;
 }
 
-function shouldHideRenameChatTool(toolCall: ToolCallState): boolean {
-	return toolCall.toolName === 'rename_chat' || toolCall.toolName.endsWith('__rename_chat');
-}
-
 export interface IAgentHostToolInvocationOptions {
 	readonly currentClientId: string;
 	readonly cancelOtherClientToolCall: (toolCall: ToolCallState) => void;
@@ -1772,9 +1768,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
-		presentation: shouldHideRenameChatTool(tc)
-			? ToolInvocationPresentation.Hidden
-			: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
+		presentation: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
 		subAgentInvocationId: subAgentInvocationId,
 		toolSpecificData,
 		resultDetails,
@@ -2256,8 +2250,6 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
-	} else if (shouldHideRenameChatTool(tc)) {
-		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (tc.status === ToolCallStatus.AuthRequired) {
 		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority));
@@ -2366,8 +2358,6 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.asking', "Asking a question...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
-	} else if (shouldHideRenameChatTool(tc)) {
-		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (sessionResource && isSubagentTool(tc)) {
 		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;
@@ -2641,8 +2631,6 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		invocation.presentation = shouldHideCompletedAgentHostAskUserTool(tc)
 			? ToolInvocationPresentation.HiddenAfterComplete
 			: undefined;
-	} else if (shouldHideRenameChatTool(tc)) {
-		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 
 	// Hide the tool widget when file edits are shown separately via onFileEdits

@@ -1191,40 +1191,6 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('hides rename chat tools throughout their lifecycle', () => {
-			const automaticInput = JSON.stringify({ title: 'Automatic title', automatic: true });
-			const completed = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'mcp__vscode__rename_chat', toolInput: automaticInput }), undefined, URI.file('/'), 'local');
-			const restoredFailure = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', toolInput: automaticInput, success: false }), undefined, URI.file('/'), 'local');
-			const explicit = completedToolCallToSerialized(createCompletedToolCall({ toolName: 'rename_chat', toolInput: '{"title":"Explicit title"}' }), undefined, URI.file('/'), 'local');
-			const streaming = toolCallStateToStreamingInvocation({
-				toolCallId: 'streaming-rename',
-				toolName: 'rename_chat',
-				displayName: 'Rename Chat',
-				status: ToolCallStatus.Streaming,
-			}, undefined);
-			const liveSuccess = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', toolInput: automaticInput }));
-			const liveFailure = toolCallStateToInvocation(createToolCallState({ toolName: 'rename_chat', toolInput: automaticInput }));
-
-			finalizeToolInvocation(liveSuccess, createCompletedToolCall({ toolName: 'rename_chat', toolInput: automaticInput }));
-			finalizeToolInvocation(liveFailure, createCompletedToolCall({ toolName: 'rename_chat', toolInput: automaticInput, success: false }));
-
-			assert.deepStrictEqual({
-				completed: completed.presentation,
-				restoredFailure: restoredFailure.presentation,
-				explicit: explicit.presentation,
-				streaming: streaming.presentation,
-				liveSuccess: liveSuccess.presentation,
-				liveFailure: liveFailure.presentation,
-			}, {
-				completed: ToolInvocationPresentation.Hidden,
-				restoredFailure: ToolInvocationPresentation.Hidden,
-				explicit: ToolInvocationPresentation.Hidden,
-				streaming: ToolInvocationPresentation.Hidden,
-				liveSuccess: ToolInvocationPresentation.Hidden,
-				liveFailure: ToolInvocationPresentation.Hidden,
-			});
-		});
-
 		test('marks Agent Host input requests for conversational answer rendering', () => {
 			const carousel = createInputRequestCarousel({
 				id: 'input-1',

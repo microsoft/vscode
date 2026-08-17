@@ -31,7 +31,7 @@ const MIN_LATIN_LETTER_RATIO = 0.8;
 const HAN_CHARACTER = /\p{sc=Han}/u;
 const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
 const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
-const CHAT_RENAME_REMINDER = 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please call the `rename_chat` tool with `automatic: true` to give it a short, descriptive title based on the user\'s intent. When `automatic` is true, do not say or mention the rename before or after the tool call. Do not skip it.';
+const CHAT_RENAME_REMINDER = 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please call the `rename_chat` tool silently with `automatic: true` to give it a short, descriptive title based on the user\'s intent. Do not skip it.';
 
 /**
  * Soft upper bound, in characters, for the whole context fed to the utility
