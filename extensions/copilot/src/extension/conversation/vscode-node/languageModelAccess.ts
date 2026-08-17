@@ -156,14 +156,8 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boo
 	return { configurationSchema: { properties } };
 }
 
-const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility'];
-
-/**
- * Model ids published under the copilot vendor even when they are not shown in
- * the model picker, so utility callers (e.g. dictation cleanup and its
- * `dictationLlmCleanupModel` experiment) can resolve them by id.
- */
-const alwaysPublishedUtilityModels: ReadonlySet<string> = new Set(['gpt-4o-mini', 'gpt-5.6-luna']);
+const DICTATION_CLEANUP_LUNA_ALIAS = 'copilot-dictation-cleanup-luna';
+const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility', DICTATION_CLEANUP_LUNA_ALIAS];
 
 /**
  * Builds the {@link vscode.LanguageModelChatInformation} entry that publishes a
@@ -302,6 +296,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			// honored while routing goes through `POST /auto`.
 			this._onDidChange.fire();
 		}));
+		void this._refreshUtilityOverrides().catch(err => {
+			this._logService.warn(`[LanguageModelAccess] Failed to pre-resolve internal model aliases: ${err}`);
+		});
 	}
 
 	private async _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
@@ -317,7 +314,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		if (!allEndpoints.length) {
 			return this._currentModels;
 		}
-		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || alwaysPublishedUtilityModels.has(e.model));
+		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
 		const autoEndpoint = await this._automodeService.resolveAutoModePickerEndpoint(allEndpoints);
 		chatEndpoints.push(autoEndpoint);
 		let defaultChatEndpoint: IChatEndpoint;
@@ -548,6 +545,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
+		if (model.id === DICTATION_CLEANUP_LUNA_ALIAS && options.requestInitiator !== 'core') {
+			throw new Error(`Model ${model.id} is only available to VS Code core.`);
+		}
 		let endpoint = await this._getEndpointForModel(model, buildAutoRoutingContext(messages, options));
 		if (!endpoint) {
 			throw new Error(`Endpoint not found for model ${model.id}`);

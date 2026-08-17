@@ -435,7 +435,7 @@ suite('LanguageModelAccess model info', () => {
 		}
 	});
 
-	test('publishes hidden gpt-5.6-luna so the dictation cleanup experiment can resolve it, but not unrelated hidden models', async () => {
+	test('publishes a core-only Luna alias for dictation cleanup without publishing hidden models directly', async () => {
 		const makeHiddenEndpoint = (model: string): IChatEndpoint => ({
 			model,
 			name: model,
@@ -487,17 +487,42 @@ suite('LanguageModelAccess model info', () => {
 		await extensionContext.globalState.update('lmBaseCount/some-hidden-model', { extensionVersion: version, baseCount: 0 });
 		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
 		try {
-			const modelInfo = await raceTimeout((languageModelAccess as unknown as { _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> })._provideLanguageModelChatInfo({ silent: true }, CancellationToken.None), 2_000);
+			const testAccess = languageModelAccess as unknown as {
+				_refreshUtilityOverrides(): Promise<void>;
+				_provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]>;
+				_provideLanguageModelChatResponse(
+					model: vscode.LanguageModelChatInformation,
+					messages: vscode.LanguageModelChatMessage[],
+					options: vscode.ProvideLanguageModelChatResponseOptions,
+					progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
+					token: vscode.CancellationToken,
+				): Promise<void>;
+			};
+			await testAccess._refreshUtilityOverrides();
+			const modelInfo = await raceTimeout(testAccess._provideLanguageModelChatInfo({ silent: true }, CancellationToken.None), 2_000);
 			assert.ok(modelInfo, 'provideLanguageModelChatInfo did not resolve');
+			const dictationAlias = modelInfo.find(m => m.id === 'copilot-dictation-cleanup-luna');
 			assert.deepStrictEqual({
-				lunaPublished: modelInfo.some(m => m.id === 'gpt-5.6-luna'),
-				lunaUserSelectable: modelInfo.find(m => m.id === 'gpt-5.6-luna')?.isUserSelectable,
+				dictationAliasPublished: Boolean(dictationAlias),
+				dictationAliasUserSelectable: dictationAlias?.isUserSelectable,
+				lunaPublishedDirectly: modelInfo.some(m => m.id === 'gpt-5.6-luna'),
 				otherPublished: modelInfo.some(m => m.id === 'some-hidden-model'),
 			}, {
-				lunaPublished: true,
-				lunaUserSelectable: false,
+				dictationAliasPublished: true,
+				dictationAliasUserSelectable: false,
+				lunaPublishedDirectly: false,
 				otherPublished: false,
 			});
+			await assert.rejects(
+				testAccess._provideLanguageModelChatResponse(
+					dictationAlias!,
+					[],
+					{ requestInitiator: 'publisher.extension' } as vscode.ProvideLanguageModelChatResponseOptions,
+					{ report: () => { } },
+					CancellationToken.None,
+				),
+				/only available to VS Code core/,
+			);
 		} finally {
 			languageModelAccess.dispose();
 			await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', undefined);

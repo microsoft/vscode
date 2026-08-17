@@ -126,10 +126,14 @@ const LLM_CLEANUP_MAX_CHARS = 4000;
 const LLM_CLEANUP_TIMEOUT_MS = 1500;
 
 /** Utility model used for transcript cleanup, currently backed by gpt-4o-mini. */
-const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' };
+const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
 
 const LLM_CLEANUP_MODEL_TREATMENT = 'dictationLlmCleanupModel';
+const LLM_CLEANUP_MODEL_SETTING = 'dictation.experimental.llmCleanupModel';
 const LLM_CLEANUP_LUNA_MODEL_ID = 'gpt-5.6-luna';
+const LLM_CLEANUP_LUNA_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' } as const;
+
+type DictationCleanupModel = 'none' | 'copilot-utility-small' | 'gpt-5.6-luna';
 
 /**
  * Which backend transcribes dictation audio:
@@ -160,6 +164,7 @@ type SpeechToTextSessionEvent = {
 	timeToFirstTranscriptMs: number;
 	finalizeMs: number;
 	errorCode: string;
+	cleanupModel: DictationCleanupModel;
 };
 type SpeechToTextSessionClassification = {
 	owner: 'meganrogge';
@@ -174,6 +179,7 @@ type SpeechToTextSessionClassification = {
 	timeToFirstTranscriptMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first streamed audio chunk to the first transcript update; the backend transcription latency (excludes mic acquisition and model download). -1 when no transcript arrived.' };
 	finalizeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the user stopping recording until the final transcript resolved; the post-stop wait. -1 when not applicable.' };
 	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Short error identifier when the session failed, else empty.' };
+	cleanupModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language model used to attempt dictation cleanup, or none when no model request was made.' };
 };
 
 type SpeechToTextModelPrepareEvent = {
@@ -497,6 +503,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _firstTranscriptMs = 0;
 	/** Milliseconds from stopping recording to the final transcript resolving; -1 until measured. */
 	private _finalizeMs = -1;
+	private _sessionCleanupModel: DictationCleanupModel = 'none';
+	private _llmCleanupModelTreatment: string | undefined;
 
 	/** Cancellation for the in-flight experimental LLM cleanup request, aborted when the session is cancelled or disposed. */
 	private readonly _cleanupCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -555,6 +563,26 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				}
 			});
 		}));
+		this._refreshLlmCleanupModelTreatment();
+		this._register(this._assignmentService.onDidRefetchAssignments(() => this._refreshLlmCleanupModelTreatment()));
+	}
+
+	private _refreshLlmCleanupModelTreatment(): void {
+		void this._assignmentService.getTreatment<string>(LLM_CLEANUP_MODEL_TREATMENT).then(treatment => {
+			if (!this._store.isDisposed) {
+				this._llmCleanupModelTreatment = treatment;
+			}
+		}, err => this._logService.warn('[chat-stt] failed to resolve dictation cleanup model treatment', err));
+	}
+
+	private _getLlmCleanupModel(): Exclude<DictationCleanupModel, 'none'> {
+		const configuredModel = this._configurationService.getValue<string>(LLM_CLEANUP_MODEL_SETTING);
+		if (configuredModel === LLM_CLEANUP_LUNA_MODEL_ID || configuredModel === LLM_CLEANUP_MODEL_SELECTOR.id) {
+			return configuredModel;
+		}
+		return this._llmCleanupModelTreatment === LLM_CLEANUP_LUNA_MODEL_ID
+			? LLM_CLEANUP_LUNA_MODEL_ID
+			: LLM_CLEANUP_MODEL_SELECTOR.id;
 	}
 
 	/** Read the configured dictation backend, derived from the selected model. */
@@ -649,6 +677,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			timeToFirstTranscriptMs,
 			finalizeMs: this._finalizeMs,
 			errorCode: this._sessionErrorCode,
+			cleanupModel: this._sessionCleanupModel,
 		});
 		this._sessionStartMs = 0;
 	}
@@ -753,6 +782,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._firstAudioMs = 0;
 		this._firstTranscriptMs = 0;
 		this._finalizeMs = -1;
+		this._sessionCleanupModel = 'none';
 		// Defensively clear any transcript left over from a previous session so a
 		// new dictation never starts by re-emitting the prior transcript (teardown
 		// already clears these, but a start without a clean teardown must not leak).
@@ -1367,22 +1397,25 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			cts.cancel();
 		}, LLM_CLEANUP_TIMEOUT_MS);
 		try {
-			const experimentalModel = await raceCancellation(
-				this._assignmentService.getTreatment<string>(LLM_CLEANUP_MODEL_TREATMENT),
-				cts.token,
-			);
-			if (cts.token.isCancellationRequested) {
-				this._logService.info(`[chat-stt] skipped language model cleanup (reason=${timedOut ? 'timeout' : 'cancelledBeforeRequest'}); using raw transcript`);
-				return undefined;
-			}
-			const modelSelector = experimentalModel === LLM_CLEANUP_LUNA_MODEL_ID
-				? { vendor: 'copilot', id: LLM_CLEANUP_LUNA_MODEL_ID }
+			const cleanupModel = this._getLlmCleanupModel();
+			const modelSelector = cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
+				? LLM_CLEANUP_LUNA_MODEL_SELECTOR
 				: LLM_CLEANUP_MODEL_SELECTOR;
-			const models = await raceCancellation(
+			let models = await raceCancellation(
 				this._languageModelsService.selectLanguageModels(modelSelector),
 				cts.token,
 				[],
 			);
+			let selectedCleanupModel = cleanupModel;
+			if (!models.length && cleanupModel === LLM_CLEANUP_LUNA_MODEL_ID) {
+				this._logService.info('[chat-stt] Luna cleanup model unavailable; falling back to copilot-utility-small');
+				models = await raceCancellation(
+					this._languageModelsService.selectLanguageModels(LLM_CLEANUP_MODEL_SELECTOR),
+					cts.token,
+					[],
+				);
+				selectedCleanupModel = LLM_CLEANUP_MODEL_SELECTOR.id;
+			}
 			if (!models.length) {
 				this._logService.info('[chat-stt] skipped language model cleanup (reason=noModel); using raw transcript');
 				return undefined;
@@ -1391,7 +1424,6 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._logService.info(`[chat-stt] skipped language model cleanup (reason=${timedOut ? 'timeout' : 'cancelledBeforeRequest'}); using raw transcript`);
 				return undefined;
 			}
-
 			const dictationInstructions = await raceCancellation(
 				this._promptsService.getDictationInstructions(cts.token),
 				cts.token,
@@ -1409,6 +1441,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				'</dictation>',
 			].join('\n');
 
+			this._sessionCleanupModel = selectedCleanupModel;
 			const response = await raceCancellation(
 				this._languageModelsService.sendChatRequest(
 					models[0],
