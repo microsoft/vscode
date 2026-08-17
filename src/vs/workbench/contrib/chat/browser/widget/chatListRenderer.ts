@@ -340,9 +340,10 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
  *
  * Returns `undefined` when the provider reported no totals, in which case no
  * hover should be shown at all. The result doubles as managed-hover content and
- * carries an `ariaLabel` with exact, unabbreviated counts.
+ * carries a footer label with exact counts but no completion time, since the
+ * verbose footer already includes it in its accessible name.
  */
-export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined, completedAt?: number): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly ariaLabel: string } | undefined {
+export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined, completedAt?: number): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly footerAriaLabel: string } | undefined {
 	if (!modelTotals?.length) {
 		return undefined;
 	}
@@ -354,12 +355,12 @@ export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTo
 	const formatInputTokens = (count: number | string) => localize('chat.responseTokenStats.input', "Input tokens: {0}", count);
 	const formatOutputTokens = (count: number | string) => localize('chat.responseTokenStats.output', "Output tokens: {0}", count);
 	const formatCachedInputTokens = (count: number | string) => localize('chat.responseTokenStats.cachedInput', "Cached input tokens: {0}", count);
-	const ariaParts: string[] = [title];
+	const tokenDetailsAriaParts: string[] = [];
 	const completion = formatChatRequestTimestamp(completedAt);
+	let completed: string | undefined;
 	if (completion) {
-		const completed = localize('chat.responseTokenStats.completed', "Completed: {0}", completion.fullText);
+		completed = localize('chat.responseTokenStats.completed', "Completed: {0}", completion.fullText);
 		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(completed)}\n\n`);
-		ariaParts.push(completed);
 	}
 
 	for (const total of modelTotals) {
@@ -369,22 +370,23 @@ export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTo
 		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(input)}\n`);
 
 		const exactInput = formatInputTokens(total.inputTokens);
-		ariaParts.push(model, exactInput);
+		tokenDetailsAriaParts.push(model, exactInput);
 		if (total.cachedTokens > 0) {
 			const cachedInput = formatCachedInputTokens(formatTokenCount(total.cachedTokens));
 			const exactCachedInput = formatCachedInputTokens(total.cachedTokens);
 			markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(cachedInput)}\n`);
-			ariaParts.push(exactCachedInput);
+			tokenDetailsAriaParts.push(exactCachedInput);
 		}
 		const output = formatOutputTokens(formatTokenCount(total.outputTokens));
 		const exactOutput = formatOutputTokens(total.outputTokens);
 		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(output)}\n`);
-		ariaParts.push(exactOutput);
+		tokenDetailsAriaParts.push(exactOutput);
 		markdown.appendMarkdown('\n');
 	}
 
-	const ariaLabel = ariaParts.join('. ');
-	return { markdown, markdownNotSupportedFallback: ariaLabel, ariaLabel };
+	const footerAriaLabel = [title, ...tokenDetailsAriaParts].join('. ');
+	const markdownNotSupportedFallback = [title, completed, ...tokenDetailsAriaParts].filter(value => value !== undefined).join('. ');
+	return { markdown, markdownNotSupportedFallback, footerAriaLabel };
 }
 
 export function shouldCollapseCompletedResponsePart(part: IChatRendererContent): boolean {
@@ -1263,7 +1265,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				isResponseVM(element) ? element.model.completionTimestamp : undefined,
 				isResponseVM(element) ? element.model.elapsedMs : undefined,
 				isResponseVM(element) && this.configService.getValue<boolean>(ChatConfiguration.Verbose),
-				tokenStats?.ariaLabel,
+				tokenStats?.footerAriaLabel,
 			);
 			// The container (rather than the stat span) is the hover target because it
 			// is the focusable element, which keeps the breakdown reachable by keyboard

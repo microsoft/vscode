@@ -519,9 +519,14 @@ suite('ChatListRenderer', () => {
 				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
 			], completedAt);
 
-			assert.deepStrictEqual({ markdown: stats?.markdown.value, ariaLabel: stats?.ariaLabel }, {
+			assert.deepStrictEqual({
+				markdown: stats?.markdown.value,
+				markdownNotSupportedFallback: stats?.markdownNotSupportedFallback,
+				footerAriaLabel: stats?.footerAriaLabel,
+			}, {
 				markdown: `**Response details**\n\nCompleted: ${completedAtText}\n\nModel: Claude Opus 4.8\n\n- Input tokens: 12K\n- Cached input tokens: 9K\n- Output tokens: 830\n\nModel: gpt-5.5\n\n- Input tokens: 40\n- Output tokens: 12\n\n`,
-				ariaLabel: `Response details. Completed: ${completedAtText}. Model: Claude Opus 4.8. Input tokens: 12400. Cached input tokens: 9000. Output tokens: 830. Model: gpt-5.5. Input tokens: 40. Output tokens: 12`,
+				markdownNotSupportedFallback: `Response details. Completed: ${completedAtText}. Model: Claude Opus 4.8. Input tokens: 12400. Cached input tokens: 9000. Output tokens: 830. Model: gpt-5.5. Input tokens: 40. Output tokens: 12`,
+				footerAriaLabel: 'Response details. Model: Claude Opus 4.8. Input tokens: 12400. Cached input tokens: 9000. Output tokens: 830. Model: gpt-5.5. Input tokens: 40. Output tokens: 12',
 			});
 		});
 
@@ -535,16 +540,24 @@ suite('ChatListRenderer', () => {
 			]);
 		});
 
-		test('folds the token usage summary into the footer accessible name', () => {
+		test('folds the token usage summary into the footer accessible name without duplicating the completion time', () => {
 			const container = document.createElement('div');
-			const withStats = 'Response details. Model: gpt-5.5. Input tokens: 40. Output tokens: 12';
+			const completedAt = Date.UTC(2026, 7, 17, 19, 39);
+			const completedAtText = formatChatRequestTimestamp(completedAt)?.fullText;
+			const stats = formatResponseTokenStats([
+				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
+			], completedAt);
 
-			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false, withStats);
+			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false, stats?.footerAriaLabel);
 			const included = container.ariaLabel;
 
+			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', completedAt, 24_000, true, stats?.footerAriaLabel);
+			const verbose = container.ariaLabel;
+
 			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false);
-			assert.deepStrictEqual({ included, omitted: container.ariaLabel }, {
-				included: `GPT-5.5 • 2 credits, ${withStats}`,
+			assert.deepStrictEqual({ included, verbose, omitted: container.ariaLabel }, {
+				included: `GPT-5.5 • 2 credits, ${stats?.footerAriaLabel}`,
+				verbose: `Completed ${completedAtText}, Elapsed time 24s, GPT-5.5 • 2 credits, ${stats?.footerAriaLabel}`,
 				omitted: 'GPT-5.5 • 2 credits',
 			});
 		});
