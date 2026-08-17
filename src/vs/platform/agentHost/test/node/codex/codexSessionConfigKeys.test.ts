@@ -9,7 +9,7 @@ import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { CodexSessionConfigKey, collaborationModeKind, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowCodexPermissionsPreset, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowSandboxMode, narrowWebSearchMode, presetForResolvedPermissions, resolveCodexPermissions, resolveCodexPermissionsPreset } from '../../../node/codex/codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowCodexPermissionsPreset, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowSandboxMode, narrowWebSearchMode, presetForResolvedPermissions, resolveCodexPermissions, resolveCodexPermissionsPreset } from '../../../node/codex/codexSessionConfigKeys.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -48,6 +48,16 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 suite('codexSessionConfigKeys', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('selects provider-native autonomous session config and respects policy', () => {
+		assert.deepStrictEqual({
+			selected: getCodexAutonomousSessionConfig(false),
+			restricted: getCodexAutonomousSessionConfig(true),
+		}, {
+			selected: { [CodexSessionConfigKey.PermissionsPreset]: 'auto-review' },
+			restricted: undefined,
+		});
+	});
 
 	test('narrows valid values and rejects invalid values', () => {
 		assert.deepStrictEqual({
