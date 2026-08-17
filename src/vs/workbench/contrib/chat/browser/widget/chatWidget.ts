@@ -2930,6 +2930,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Check if a custom submit handler wants to handle this submission
 		if (this.viewOptions.submitHandler) {
 			const inputValue = !query ? this.getInput() : query.query;
+			// Reflect immediately that the request was accepted so the send button
+			// shows a spinner while editors are saved and the submission is routed.
+			// The handler is intercepted off-model, so the widget's own submit state
+			// never changes on its own; saving editors can otherwise delay any
+			// visible progress after the user presses enter.
+			this.input.setSubmitPending(true, true);
 			await saveAllBeforeChatSend(this.configurationService, this.editorService);
 			savedBeforeSend = true;
 			const attachedContext = this.input.getAttachedContext().asArray();
@@ -2937,6 +2943,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (handled) {
 				return;
 			}
+			// The handler declined to route this submission; restore the send button.
+			this.input.setSubmitPending(false);
 		}
 
 		const isUserQuery = !query;
