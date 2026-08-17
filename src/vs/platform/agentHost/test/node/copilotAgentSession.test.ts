@@ -21,6 +21,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
@@ -38,7 +39,7 @@ import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputR
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
-import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -8984,6 +8985,74 @@ suite('CopilotAgentSession', () => {
 			await session.send('enable Azure');
 
 			assert.deepStrictEqual(mockSession.mcpEnableCalls, [{ serverName }]);
+		});
+
+		test('re-enabling a plugin server with an explicit cwd defers to a session refresh', async () => {
+			const serverName = 'vscode_probe';
+			const pluginUri = 'https://bundle';
+			const pluginDir = URI.file('/bundle');
+			const child: McpServerCustomization = {
+				type: CustomizationType.McpServer,
+				id: 'vscode-probe',
+				uri: URI.joinPath(pluginDir, '.mcp.json').toString(),
+				name: serverName,
+				state: { kind: McpServerStatus.Stopped },
+			};
+			let enabled = false;
+			const customizations = (): readonly Customization[] => [{
+				type: CustomizationType.Plugin,
+				id: 'bundle',
+				uri: pluginUri,
+				name: 'Bundle',
+				children: [child],
+			}];
+			const { session, mockSession, dispatchSessionAction } = await createAgentSession(disposables, {
+				clientSnapshot: {
+					tools: [],
+					plugins: [{
+						format: PluginFormat.Copilot,
+						hooks: [],
+						mcpServers: [{
+							name: serverName,
+							configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
+							defaultCwd: URI.file('/workspace'),
+							uri: URI.joinPath(pluginDir, '.mcp.json'),
+							customization: child,
+						}],
+						disabledMcpServers: [serverName],
+						agents: [],
+						skills: [],
+						instructions: [],
+						pluginDir,
+						sourceUri: URI.parse(pluginUri),
+					}],
+					mcpServers: {},
+				},
+				sessionCustomizations: customizations,
+				resolveCustomizationEnablement: target => ({
+					kind: 'resolved',
+					enablement: target.id === child.id && !enabled
+						? [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }]
+						: [],
+					enabled: target.id === child.id ? enabled : true,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+				},
+			});
+
+			enabled = true;
+			dispatchSessionAction({ type: ActionType.SessionCustomizationsChanged, customizations: [...customizations()] });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				requiresRefresh: session.requiresMcpLaunchConfigurationRefresh,
+				enableCalls: mockSession.mcpEnableCalls,
+			}, {
+				requiresRefresh: true,
+				enableCalls: [],
+			});
 		});
 
 		test('session MCP desired enablement reconciles runtime drift', async () => {

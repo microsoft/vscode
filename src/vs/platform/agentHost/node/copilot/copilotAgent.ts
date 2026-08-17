@@ -3239,8 +3239,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const hadCachedEntry = !!entry;
 			this._logService.info(`[Copilot:${current.configurationId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
 			const rootsChanged = !!entry && workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
-			const structuralConfigChanged = !!entry && !!activeClient && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey);
-			if (entry && (rootsChanged || structuralConfigChanged)) {
+			const currentSnapshot = entry && activeClient ? await activeClient.snapshot(current.chatKey) : undefined;
+			const structuralConfigChanged = !!entry && !!activeClient && !!currentSnapshot && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey, currentSnapshot);
+			const disabledRootMcpServersChanged = !!entry && !!currentSnapshot && !equals(
+				[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
+				[...new Set(this._disabledRootMcpServers(current.configurationResource, entry.sessionId, currentSnapshot))].sort(),
+			);
+			if (entry && (rootsChanged || structuralConfigChanged || disabledRootMcpServersChanged || entry.requiresMcpLaunchConfigurationRefresh)) {
 				this._logService.info(`[Copilot:${current.configurationId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
 				// Finish disconnecting before resuming the SAME SDK session id with
 				// the updated config. Routing is preserved so the session identity
@@ -6007,16 +6012,14 @@ class ActiveClient extends Disposable {
 	}
 
 	/** Returns whether plugins or the chat-scoped structural tool set changed enough to require resume. */
-	async requiresRestart(snap: IActiveClientSnapshot, chatKey?: string): Promise<boolean> {
-		const plugins = await this.pluginController.getAppliedPlugins();
-		if (!parsedPluginsEqual(snap.plugins, plugins)) {
+	async requiresRestart(snap: IActiveClientSnapshot, chatKey?: string, current?: IActiveClientSnapshot): Promise<boolean> {
+		current ??= await this.snapshot(chatKey);
+		if (!parsedPluginsEqual(snap.plugins, current.plugins)) {
 			return true;
 		}
-		if (!equals(snap.mcpServers, this._getMcpServers())) {
+		if (!equals(snap.mcpServers, current.mcpServers)) {
 			return true;
 		}
-		return chatKey === undefined
-			? !this.toolSet.structuralEquals(snap.tools)
-			: !structuralToolsEqual(this.toolsForChat(chatKey), snap.tools);
+		return !structuralToolsEqual(current.tools, snap.tools);
 	}
 }

@@ -27,6 +27,7 @@ import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsSer
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
+import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -70,6 +71,12 @@ function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[],
 		...(disabledRootMcpServers ?? []),
 	])];
 	return disabledMcpServers.length > 0 ? { disabledMcpServers } : {};
+}
+
+export function isMcpServerExplicitlyProjected(plugin: ICopilotPluginInfo, server: IMcpServerDefinition): boolean {
+	return !plugin.pluginDir
+		|| plugin.pluginDir.scheme !== Schemas.file
+		|| server.defaultCwd !== undefined && !isEqual(server.defaultCwd, plugin.pluginDir);
 }
 
 /**
@@ -735,9 +742,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		const explicitMcpServers = plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
 			!plugin.disabledMcpServers?.includes(server.name)
-			&& (!plugin.pluginDir
-				|| plugin.pluginDir.scheme !== Schemas.file
-				|| server.defaultCwd !== undefined && !isEqual(server.defaultCwd, plugin.pluginDir))
+			&& isMcpServerExplicitlyProjected(plugin, server)
 		));
 		const customAgents = await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
