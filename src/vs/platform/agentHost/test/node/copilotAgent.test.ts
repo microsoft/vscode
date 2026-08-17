@@ -475,8 +475,11 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly rpc: ITestCopilotClient['rpc'] = {
 		sessions: {
 			fork: async () => ({ sessionId: 'forked-session' }),
-			list: async () => ({
-				sessions: this._sessions.map(session => ({
+			list: async () => {
+				this.sessionListStarted?.complete();
+				await this.sessionListGate;
+				return {
+					sessions: this._sessions.map(session => ({
 					sessionId: session.sessionId,
 					startTime: session.startTime.toISOString(),
 					modifiedTime: session.modifiedTime.toISOString(),
@@ -491,8 +494,9 @@ class TestCopilotClient implements ITestCopilotClient {
 							branch: session.context.branch,
 						}
 					} : {}),
-				}))
-			}),
+					}))
+				};
+			},
 		},
 		models: {
 			list: async params => {
@@ -514,6 +518,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	startGate: Promise<void> | undefined;
 	startError: Error | undefined;
 	listSessionCallCount = 0;
+	sessionListStarted: DeferredPromise<void> | undefined;
+	sessionListGate: Promise<void> | undefined;
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly modelListErrors: Error[] = [];
 	/** When set, `models.list` records its request then blocks on this until resolved. */
@@ -4905,14 +4911,9 @@ suite('CopilotAgent', () => {
 			const sessionId = 'disabled-during-migration-event';
 			const listStarted = new DeferredPromise<void>();
 			const releaseList = new DeferredPromise<void>();
-			class GatedListClient extends TestCopilotClient {
-				override async listSessions(): ReturnType<ITestCopilotClient['listSessions']> {
-					listStarted.complete();
-					await releaseList.p;
-					return super.listSessions();
-				}
-			}
-			const client = new GatedListClient([sdkSession(sessionId, workingDirectory)]);
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			client.sessionListStarted = listStarted;
+			client.sessionListGate = releaseList.p;
 			await writeExtensionHostMarker(userHome, sessionId);
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
