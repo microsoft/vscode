@@ -213,6 +213,8 @@ export interface IVoiceSessionController {
 	readonly isConnected: IObservable<boolean>;
 	readonly isConnecting: IObservable<boolean>;
 	readonly isReconnecting: IObservable<boolean>;
+	/** Whether the user has muted the microphone while keeping the session connected. */
+	readonly isMuted: IObservable<boolean>;
 	readonly pendingToolConfirmations: IObservable<readonly IPendingToolConfirmation[]>;
 	/** The session resource that transcriptions will be sent to. undefined = active session. */
 	readonly targetSession: IObservable<URI | undefined>;
@@ -244,6 +246,14 @@ export interface IVoiceSessionController {
 	 * without a new handshake. Use `disconnect()` to fully end the session.
 	 */
 	stopListening(source?: 'explicit' | 'internal'): void;
+
+	/**
+	 * Mute or unmute the microphone without ending the session. While muted,
+	 * captured audio is not forwarded to the backend so background noise or
+	 * private speech never reaches transcription, but the WebSocket stays
+	 * connected so the user can unmute and resume instantly.
+	 */
+	setMuted(muted: boolean): void;
 
 	/**
 	 * Hold hands-free auto-listen off until released.
@@ -379,6 +389,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private readonly _isReconnecting = observableValue<boolean>(this, false);
 	readonly isReconnecting: IObservable<boolean> = this._isReconnecting;
+
+	/** User-facing microphone mute. When set, captured audio is not forwarded to
+	 *  the backend, but the session stays connected so the user can unmute and
+	 *  resume without a new handshake. Reset to `false` on (re)connect. */
+	private readonly _isMuted = observableValue<boolean>(this, false);
+	readonly isMuted: IObservable<boolean> = this._isMuted;
 
 	/** Set when the connection closed terminally (e.g. another window took over
 	 *  the session). Suppresses the reconnect display path so the controller
@@ -1200,6 +1216,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.voiceClientService.sendPttStart(this._pttCurrentTurnId, passive);
 		}));
 		this._voiceEventDisposables.add(this.micCaptureService.onPttAudioChunk(b64 => {
+			// While the user has muted the microphone, keep the session alive but
+			// drop captured audio so nothing reaches transcription / the backend.
+			if (this._isMuted.get()) {
+				return;
+			}
 			this.voiceClientService.sendPttAudioChunk(b64);
 		}));
 		this._voiceEventDisposables.add(this.micCaptureService.onPttEnd(() => {
@@ -1758,6 +1779,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._voiceAutorunDisposable.value = connectionDisposables;
 
 				this.micCaptureService.isMuted = false;
+				this._isMuted.set(false, undefined);
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
 
@@ -2463,6 +2485,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._resetTranscriptionTurn();
 		this._bargeInListenActive = false;
 		this._isConnected.set(false, undefined);
+		this._isMuted.set(false, undefined);
 		this._voiceState.set('idle', undefined);
 		this._statusText.set('Tap to start', undefined);
 		this._transcriptTurns.set([], undefined);
@@ -3115,6 +3138,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (this._isConnected.get() && this._isHandsFreeEnabled()) {
 			this._enterAutoListen('connect');
 		}
+	}
+
+	setMuted(muted: boolean): void {
+		if (this._isMuted.get() === muted) {
+			return;
+		}
+		this._isMuted.set(muted, undefined);
+		// Stop the source stream too so muted audio is dropped immediately even
+		// while a push-to-talk press is in flight (the `onPttAudioChunk` gate is
+		// the durable guard because `micCaptureService.isMuted` is reset on each
+		// press). Muting does not tear down the session or the auto-listen loop,
+		// so unmuting resumes instantly.
+		this.micCaptureService.isMuted = muted;
+		this.logService.trace(`[voice] setMuted: ${muted}`);
 	}
 
 	stopListening(source: 'explicit' | 'internal' = 'explicit'): void {

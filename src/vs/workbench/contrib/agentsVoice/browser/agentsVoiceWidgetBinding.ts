@@ -50,6 +50,7 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 		const connected = controller.isConnected.read(reader);
 		const connecting = controller.isConnecting.read(reader);
 		const reconnecting = controller.isReconnecting.read(reader);
+		const muted = controller.isMuted.read(reader);
 		const toolConfirmations = controller.pendingToolConfirmations.read(reader);
 		const speakingSession = voicePlaybackService.speakingSession.read(reader);
 		const statusText = controller.statusText.read(reader);
@@ -60,6 +61,7 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 		widget.setConnected(connected);
 		widget.setConnecting(connecting);
 		widget.setReconnecting(reconnecting);
+		widget.setMuted(muted);
 		widget.setVoiceControlsSuppressed(omniInputOpen);
 		widget.setVoiceState(omniInputOpen ? 'idle' : state);
 		widget.setPendingToolConfirmations(toolConfirmations);
