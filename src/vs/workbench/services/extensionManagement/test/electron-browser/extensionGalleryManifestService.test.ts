@@ -441,6 +441,32 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(indexRequests, 0);
 	});
 
+	test('Microsoft provider — no session → stays RequiresSignIn even when the index would fail', async () => {
+		// Pins the invariant that makes "not signed in" a stable, actionable state: with no session
+		// the index is never probed, so a failing marketplace cannot turn RequiresSignIn into
+		// Unreachable ("check your network connection") and strand the user without a sign-in
+		// affordance. Covers the post-startup re-validation triggered when authentication connects.
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [];
+		let indexRequests = 0;
+		requestHandler = () => {
+			indexRequests++;
+			return mockResponse(400, { message: 'client rejected' });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+
+		// A session change arrives (as it does when the Microsoft provider registers post-startup)
+		// and triggers a re-validation.
+		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(indexRequests, 0);
+	});
+
 	test('Microsoft provider — auth-gated service index, session token presented → Available', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
