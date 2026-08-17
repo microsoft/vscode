@@ -714,6 +714,72 @@ suite('ChatSessionRoutingController', () => {
 		container.remove();
 	});
 
+	test('keeps a bare-URL response preview linking to the correct target', async () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const resource = URI.parse('session:/provider-bare-url');
+		const sessionsChanged = new Emitter<void>();
+		let snapshot: IRoutableSession = {
+			sessionId: 'provider:session',
+			label: 'New session',
+			status: 'working',
+			lastActivity: 1,
+		};
+		const provider = {
+			watchSession: (_resource: URI, listener: () => void) => sessionsChanged.event(listener),
+			getSessionSnapshot: async () => snapshot,
+		} as unknown as IChatSessionRoutingProvider;
+		const controller = new ChatSessionRoutingController(
+			{
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+				getRoutingProvider: () => provider,
+			} as unknown as IChatSessionRoutingHost,
+			'test',
+			{ getSession: () => undefined } as unknown as IChatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
+			label: string,
+			result: { status: 'sent'; resource: URI; reveal: () => Promise<void> },
+		) => void;
+
+		showDeliveryConfirmation.call(controller, 'New session', {
+			status: 'sent',
+			resource,
+			reveal: async () => { },
+		});
+		await Promise.resolve();
+		snapshot = {
+			sessionId: 'provider:session',
+			label: 'Bare URL',
+			status: 'idle',
+			lastActivity: 2,
+			lastResponse: 'https://example.com/page\n\nMore details follow.',
+		};
+		sessionsChanged.fire();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			label: container.querySelector('.chat-routing-badge-label')?.textContent,
+			href: container.querySelector<HTMLAnchorElement>('.chat-routing-badge-response-preview a')?.dataset.href,
+		}, {
+			label: 'Completed bare URL:https://example.com/page\u2026',
+			href: 'https://example.com/page',
+		});
+
+		controller.dispose();
+		sessionsChanged.dispose();
+		container.remove();
+	});
+
 	test('keeps unresolved delivery rows when another request starts', async () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);

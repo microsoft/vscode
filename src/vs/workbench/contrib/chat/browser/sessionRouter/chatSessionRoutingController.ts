@@ -110,12 +110,17 @@ function renderCompletedResponse(labelElement: HTMLElement, sessionLabel: string
 		lowercaseFirstLetter(sessionLabel)
 	);
 	// A trailing ellipsis signals that the previewed line is only the start of a
-	// longer response, since the badge shows just the first line.
-	const markdown = preview.hasMore ? `${preview.text}\u2026` : preview.text;
-	const rendered = renderMarkdown(new MarkdownString(markdown));
+	// longer response. Appending it as a text node after the rendered markdown
+	// keeps it out of the parse, so a bare-URL first line still autolinks to the
+	// correct target instead of swallowing the ellipsis into the href.
+	const rendered = renderMarkdown(new MarkdownString(preview.text));
 	rendered.element.classList.add('chat-routing-badge-response-preview');
 	labelElement.classList.add('chat-routing-badge-completed');
-	labelElement.replaceChildren(prefix, rendered.element);
+	if (preview.hasMore) {
+		labelElement.replaceChildren(prefix, rendered.element, labelElement.ownerDocument.createTextNode('\u2026'));
+	} else {
+		labelElement.replaceChildren(prefix, rendered.element);
+	}
 	return rendered;
 }
 
