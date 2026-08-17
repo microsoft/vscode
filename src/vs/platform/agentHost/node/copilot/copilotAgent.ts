@@ -536,6 +536,8 @@ export function resolveCopilotOtlpMetricsEndpoint(endpoint: string, protocol: 'h
 
 /** `origin` value written by the VS Code extension-host Copilot CLI feature. */
 const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
+const COPILOT_EXTERNAL_SESSION_CLIENT_NAMES = new Set(['github/cli', 'github/autopilot']);
+const COPILOT_EXTERNAL_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Shape of the `vscode.metadata.json` marker written next to a Copilot CLI
@@ -570,6 +572,7 @@ const NANO_AIU_PER_CREDIT = 1_000_000_000;
  */
 export class CopilotAgent extends Disposable implements IAgent {
 	readonly id = 'copilotcli' as const;
+	protected readonly _now = Date.now;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
@@ -2088,7 +2091,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		const sessions = await this._listSdkSessions('chats to migrate');
+		const sessions = await this._listSdkSessions('chats to migrate', client => client.listSessions());
 		if (!sessions) {
 			return undefined;
 		}
@@ -2192,9 +2195,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 *
 	 * - a legacy extension-host Copilot CLI chat is *internal* and adoptable in
 	 *   place (see {@link ensureChatAdopted}), so it keeps `external: false`;
-	 * - anything else was produced by another client sharing the same Copilot
-	 *   home (the standalone CLI, the GitHub Copilot app, another editor) and
-	 *   is therefore `external: true`.
+	 * - a non-adoptable chat is external only when its persisted `clientName`
+	 *   identifies the standalone CLI or GitHub Copilot app. This value records
+	 *   the runtime client that created or last resumed the chat, not immutable
+	 *   creator provenance. External chats must also have repository metadata
+	 *   and have been modified within the last seven days.
 	 *
 	 * A chat counts as already known when it has a per-session database, which
 	 * also keeps peer-chat backings out of the result. A chat the SDK reports
@@ -2211,15 +2216,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * authoritative empty result.
 	 */
 	private async _discoverCopilotChats(): Promise<IAgentDiscoveredChat[] | undefined> {
-		const sessions = await this._listSdkSessions('discoverable chats');
+		const sessions = await this._listSdkSessions('discoverable chats', async client => (await client.rpc.sessions.list({})).sessions);
 		if (!sessions) {
 			return undefined;
 		}
 		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
 		const metadataLimiter = new Limiter<IAgentDiscoveredChat | undefined>(4);
 		const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
+		const earliestExternalModifiedTime = this._now() - COPILOT_EXTERNAL_SESSION_MAX_AGE_MS;
 		let known = 0;
 		let withoutWorkingDirectory = 0;
+		let unsupportedClientName = 0;
+		let outsideImportWindow = 0;
+		let withoutRepository = 0;
 		let failed = 0;
 		const mapped = await Promise.all(sessions.map(s => metadataLimiter.queue(async () => {
 			const session = AgentSession.uri(this.id, s.sessionId);
@@ -2228,18 +2237,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 					known++;
 					return undefined;
 				}
-				if (typeof s.context?.workingDirectory !== 'string') {
+				if (typeof s.context?.cwd !== 'string') {
 					withoutWorkingDirectory++;
 					return undefined;
 				}
 				const adoptable = await this._isExtensionHostCliSession(s.sessionId);
+				const modifiedTime = new Date(s.modifiedTime).getTime();
+				if (!adoptable) {
+					const clientName = s.isRemote ? undefined : s.clientName;
+					if (clientName === undefined || !COPILOT_EXTERNAL_SESSION_CLIENT_NAMES.has(clientName)) {
+						unsupportedClientName++;
+						return undefined;
+					}
+					if (!Number.isFinite(modifiedTime) || modifiedTime < earliestExternalModifiedTime) {
+						outsideImportWindow++;
+						return undefined;
+					}
+					if (typeof s.context.repository !== 'string' || s.context.repository.trim().length === 0) {
+						withoutRepository++;
+						return undefined;
+					}
+				}
 				return {
 					chat: URI.parse(buildDefaultChatUri(session)),
-					startTime: s.startTime.getTime(),
-					modifiedTime: s.modifiedTime.getTime(),
+					startTime: new Date(s.startTime).getTime(),
+					modifiedTime,
 					project: await this._resolveSessionProject(s.context, projectLimiter, projectByContext),
 					summary: s.summary,
-					workingDirectories: [URI.file(s.context.workingDirectory)],
+					workingDirectories: [URI.file(s.context.cwd)],
 					_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
 					external: !adoptable,
 				} satisfies IAgentDiscoveredChat;
@@ -2251,14 +2276,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		})));
 		const chats = mapped.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
 		const external = chats.filter(chat => chat.external).length;
-		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${chats.length - external} adoptable legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${failed} failed to classify`);
+		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${chats.length - external} adoptable legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify`);
 		return chats;
 	}
 
-	private async _listSdkSessions(reason: string): Promise<Awaited<ReturnType<CopilotClient['listSessions']>> | undefined> {
+	private async _listSdkSessions<T>(reason: string, listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
 		this._logService.info(`[Copilot] Listing ${reason}...`);
 		try {
-			const sessions = await this._retryAfterClosedConnection('listSessions', client => client.listSessions());
+			const sessions = await this._retryAfterClosedConnection('listSessions', listSessions);
 			this._logService.info(`[Copilot] Listed ${sessions.length} SDK session(s) for ${reason}`);
 			return sessions;
 		} catch (err) {

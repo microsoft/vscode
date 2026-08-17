@@ -41,8 +41,10 @@ interface IExternalSessionBannerOptions {
 	readonly onDidDismissWithFocus?: () => void;
 }
 
-export function willExternalSessionBeHidden(mode: ChatExternalSessionsMode, updatedAt: Date, now: number): boolean {
+export function shouldConfirmExternalSessionVisibilityChange(mode: ChatExternalSessionsMode, updatedAt: Date, now: number): boolean {
 	switch (mode) {
+		case ChatExternalSessionsMode.Recent:
+			return true;
 		case ChatExternalSessionsMode.None:
 			return true;
 		case ChatExternalSessionsMode.All:
@@ -55,8 +57,19 @@ export function willExternalSessionBeHidden(mode: ChatExternalSessionsMode, upda
 }
 
 export function getExternalSessionVisibilityConfirmation(mode: ChatExternalSessionsMode, updatedAt: Date, now: number, productName: string): IConfirmation {
-	const message = localize('externalSessionBanner.confirm.message', "This session will no longer appear in {0}", productName);
+	const message = mode === ChatExternalSessionsMode.Recent
+		? localize('externalSessionBanner.confirm.recent.message', "This session may no longer appear in {0}", productName)
+		: localize('externalSessionBanner.confirm.message', "This session will no longer appear in {0}", productName);
 	const primaryButton = localize({ key: 'externalSessionBanner.confirm.save', comment: ['&& denotes a mnemonic'] }, "&&Save Anyway");
+
+	if (mode === ChatExternalSessionsMode.Recent) {
+		return {
+			type: 'warning',
+			message,
+			detail: localize('externalSessionBanner.confirm.recent.detail', "Only the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?"),
+			primaryButton,
+		};
+	}
 
 	if (mode === ChatExternalSessionsMode.None) {
 		return {
@@ -209,6 +222,13 @@ export class ExternalSessionBanner extends Disposable {
 				},
 			},
 			{
+				mode: ChatExternalSessionsMode.Recent,
+				item: {
+					text: localize('externalSessionBanner.select.recent', "Recent"),
+					description: localize('externalSessionBanner.select.recent.description', "Show the 2 most recently updated external sessions from the last 7 days."),
+				},
+			},
+			{
 				mode: ChatExternalSessionsMode.Last24Hours,
 				item: {
 					text: localize('externalSessionBanner.select.last24Hours', "Last 24 Hours"),
@@ -219,7 +239,7 @@ export class ExternalSessionBanner extends Disposable {
 				mode: ChatExternalSessionsMode.Last7Days,
 				item: {
 					text: localize('externalSessionBanner.select.last7Days', "Last 7 Days"),
-					description: localize('externalSessionBanner.select.last7Days.description', "Show external sessions updated in the last 7 days. This is the default."),
+					description: localize('externalSessionBanner.select.last7Days.description', "Show external sessions updated in the last 7 days."),
 				},
 			},
 			{
@@ -274,7 +294,7 @@ export class ExternalSessionBanner extends Disposable {
 		try {
 			const now = Date.now();
 			const updatedAt = session.updatedAt.get();
-			if (willExternalSessionBeHidden(mode, updatedAt, now)) {
+			if (shouldConfirmExternalSessionVisibilityChange(mode, updatedAt, now)) {
 				const confirmation = await this._dialogService.confirm(getExternalSessionVisibilityConfirmation(mode, updatedAt, now, this._productService.nameShort));
 				if (!confirmation.confirmed) {
 					return;

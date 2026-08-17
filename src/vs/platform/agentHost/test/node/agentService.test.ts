@@ -2699,6 +2699,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('listSessions discovers provider-native sessions as external and restore preserves provenance', async () => {
 			const db = new TestSessionDatabase();
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 
@@ -2749,23 +2750,161 @@ suite('AgentService (node dispatcher)', () => {
 			svc.registerProvider(agent);
 
 			const listedByMode: Record<AgentHostExternalSessionsMode, string[]> = {
+				[AgentHostExternalSessionsMode.Recent]: [],
 				[AgentHostExternalSessionsMode.None]: [],
 				[AgentHostExternalSessionsMode.All]: [],
 				[AgentHostExternalSessionsMode.Last24Hours]: [],
 				[AgentHostExternalSessionsMode.Last7Days]: [],
 			};
+			const listedByDefault = (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort();
 			let clientSeq = 1;
-			for (const mode of [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.All, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days]) {
+			for (const mode of [AgentHostExternalSessionsMode.Recent, AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.All, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days]) {
 				setExternalSessionsMode(svc, mode, clientSeq++);
 				await waitForSessionListReconciliation(svc);
 				listedByMode[mode] = (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort();
 			}
 
-			assert.deepStrictEqual(listedByMode, {
-				[AgentHostExternalSessionsMode.None]: [],
-				[AgentHostExternalSessionsMode.All]: ['at-24-hours', 'at-7-days', 'older-than-24-hours', 'older-than-7-days', 'recent'],
-				[AgentHostExternalSessionsMode.Last24Hours]: ['at-24-hours', 'recent'],
-				[AgentHostExternalSessionsMode.Last7Days]: ['at-24-hours', 'at-7-days', 'older-than-24-hours', 'recent'],
+			assert.deepStrictEqual({ listedByDefault, listedByMode }, {
+				listedByDefault: [],
+				listedByMode: {
+					[AgentHostExternalSessionsMode.Recent]: ['at-24-hours', 'recent'],
+					[AgentHostExternalSessionsMode.None]: [],
+					[AgentHostExternalSessionsMode.All]: ['at-24-hours', 'at-7-days', 'older-than-24-hours', 'older-than-7-days', 'recent'],
+					[AgentHostExternalSessionsMode.Last24Hours]: ['at-24-hours', 'recent'],
+					[AgentHostExternalSessionsMode.Last7Days]: ['at-24-hours', 'at-7-days', 'older-than-24-hours', 'recent'],
+				},
+			});
+		});
+
+		test('recent replaces the oldest visible external session when a newer session is discovered', async () => {
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
+			await waitForSessionListReconciliation(svc);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const first = agent.addSession('first', now - 1);
+			const second = agent.addSession('second', now - 2);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			await waitForSessionListReconciliation(svc);
+
+			const notifications: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(`add:${AgentSession.id(URI.parse(notification.summary.resource))}`);
+				} else if (notification.type === NotificationType.SessionRemoved) {
+					notifications.push(`remove:${AgentSession.id(URI.parse(notification.session))}`);
+				}
+			}));
+
+			const newest = agent.addSession('newest', now);
+			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [{
+				chat: URI.parse(buildDefaultChatUri(newest)),
+				startTime: now,
+				modifiedTime: now,
+				external: true,
+			}]);
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual({
+				visible: (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort(),
+				notifications,
+			}, {
+				visible: [AgentSession.id(first), AgentSession.id(newest)].sort(),
+				notifications: ['add:newest', `remove:${AgentSession.id(second)}`],
+			});
+		});
+
+		test('external discovery reconciles against a mode change that completes while registration is in flight', async () => {
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 1);
+			await waitForSessionListReconciliation(svc);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			svc.registerProvider(agent);
+			await svc.listSessions();
+
+			const first = agent.addSession('first', now);
+			const second = agent.addSession('second', now - 1);
+			const third = agent.addSession('third', now - 2);
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const originalRegister = registry.register.bind(registry);
+			const registrationGate = new DeferredPromise<void>();
+			let registrationsStarted = 0;
+			registry.register = async (session, sessionOptions, registerOptions) => {
+				registrationsStarted++;
+				await registrationGate.p;
+				return originalRegister(session, sessionOptions, registerOptions);
+			};
+
+			const notifications: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(`add:${AgentSession.id(URI.parse(notification.summary.resource))}`);
+				}
+			}));
+			const registration = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
+				{ chat: URI.parse(buildDefaultChatUri(first)), startTime: now, modifiedTime: now, external: true },
+				{ chat: URI.parse(buildDefaultChatUri(second)), startTime: now - 1, modifiedTime: now - 1, external: true },
+				{ chat: URI.parse(buildDefaultChatUri(third)), startTime: now - 2, modifiedTime: now - 2, external: true },
+			]);
+			for (let attempt = 0; attempt < 20 && registrationsStarted < 3; attempt++) {
+				await timeout(0);
+			}
+
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 2);
+			await waitForSessionListReconciliation(svc);
+			registrationGate.complete();
+			await registration;
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual({
+				visible: (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort(),
+				notifications: notifications.sort(),
+			}, {
+				visible: ['first', 'second'],
+				notifications: ['add:first', 'add:second'],
+			});
+		});
+
+		test('recent reconciles clients when a hidden external session becomes more recent', async () => {
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
+			await waitForSessionListReconciliation(svc);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const first = agent.addSession('first', now - 1);
+			const second = agent.addSession('second', now - 2);
+			const third = agent.addSession('third', now - 3);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			await waitForSessionListReconciliation(svc);
+			await svc.restoreSession(third);
+
+			const notifications: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(`add:${AgentSession.id(URI.parse(notification.summary.resource))}`);
+				} else if (notification.type === NotificationType.SessionRemoved) {
+					notifications.push(`remove:${AgentSession.id(URI.parse(notification.session))}`);
+				}
+			}));
+
+			svc.stateManager.dispatchServerAction(buildDefaultChatUri(third), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-third',
+				startedAt: new Date(now).toISOString(),
+				message: { text: 'Update', origin: { kind: MessageKind.User } },
+			});
+			await timeout(150);
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual({
+				visible: (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort(),
+				notifications,
+			}, {
+				visible: [AgentSession.id(first), AgentSession.id(third)].sort(),
+				notifications: ['add:third', `remove:${AgentSession.id(second)}`],
 			});
 		});
 
@@ -2802,6 +2941,8 @@ suite('AgentService (node dispatcher)', () => {
 		test('unpublishes and republishes a restored external session as the configured mode changes', async () => {
 			const now = Date.now();
 			const svc = createExternalSessionService(() => now);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 1);
+			await waitForSessionListReconciliation(svc);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			const session = agent.addSession('restored-external', now);
 			const notifications: string[] = [];
@@ -2817,10 +2958,10 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.restoreSession(session);
 			notifications.length = 0;
 
-			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 1);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 2);
 			await waitForSessionListReconciliation(svc);
 			const hidden = (await svc.listSessions()).map(entry => entry.session.toString());
-			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 2);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 3);
 			await waitForSessionListReconciliation(svc);
 
 			assert.deepStrictEqual({
@@ -3193,6 +3334,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = disposables.add(new GatedListAgent('copilot'));
 			svc.registerProvider(agent);
 			const legacy = AgentSession.uri('copilot', 'legacy-concurrent');
@@ -3242,6 +3384,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const db = new TestSessionDatabase();
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = disposables.add(new TransientListFailureAgent('copilot'));
 			svc.registerProvider(agent);
 			const legacy = AgentSession.uri('copilot', 'legacy-session');
@@ -3262,6 +3405,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('a late-registered provider gets its own native discovery pass', async () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const early = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(early);
 
@@ -3399,6 +3543,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const providerA = disposables.add(new CountingAgent('copilot'));
 			const providerB = disposables.add(new FailingThenRecoveringAgent('other'));
 
@@ -3449,6 +3594,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = disposables.add(new NotYetEnumerableAgent('copilot'));
 			const originalListExternalChats = agent.listExternalChats.bind(agent);
 			(agent as unknown as { listExternalChats: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listExternalChats = async () => {
@@ -3724,6 +3870,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Simulate an old database whose legacy one-time marker is set.
 			await db.markSessionRegistryBackfilled();
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = disposables.add(new CountingAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'old-db-native-session');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
@@ -3937,6 +4084,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -3982,6 +4130,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -4004,6 +4153,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -4024,6 +4174,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => agent.dispose()));
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -4041,6 +4192,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -4066,6 +4218,7 @@ suite('AgentService (node dispatcher)', () => {
 				return [];
 			};
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -4100,6 +4253,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getWorktreeRoots = async () => [primaryRoot, linkedCheckout, sessionWorktree];
 			const sessionDataService = createSessionDataService(db);
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/test' },
 				gitService,
@@ -4146,6 +4300,7 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
 			const sessionDataService = createSessionDataService(db);
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/test' },
 				gitService,
@@ -10028,6 +10183,7 @@ suite('AgentService (node dispatcher)', () => {
 					{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
 				];
 				await service.restoreSession(sessionResource);
+				await (service as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
 				agent.events.length = 0;
 				service.addSubscriber(sessionResource, 'client-1');
 				service.unsubscribe(sessionResource, 'client-1');
