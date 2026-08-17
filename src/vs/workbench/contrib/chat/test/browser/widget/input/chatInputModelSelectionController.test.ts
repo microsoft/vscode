@@ -340,7 +340,7 @@ suite('ChatInputModelSelectionController', () => {
 		modelChanges.fire('loaded');
 
 		assert.deepStrictEqual({
-			pending: controller.hasPendingIntent(),
+			pending: controller.hasPendingProgrammaticSelection(),
 			applied,
 			current: controller.currentModel.get()?.identifier,
 		}, {
@@ -365,7 +365,7 @@ suite('ChatInputModelSelectionController', () => {
 		modelChanges.fire('loaded');
 
 		assert.deepStrictEqual({
-			pending: controller.hasPendingIntent(),
+			pending: controller.hasPendingProgrammaticSelection(),
 			applied,
 			current: controller.currentModel.get()?.identifier,
 			reason: controller.selectionReason,
@@ -446,7 +446,7 @@ suite('ChatInputModelSelectionController', () => {
 			() => state.models.find(model => model.identifier === requested.identifier),
 			'chat:one',
 		);
-		controller.clearIntent();
+		controller.clearPendingProgrammaticSelection();
 
 		assert.deepStrictEqual({ result: await result, reason: controller.selectionReason }, {
 			result: false,
@@ -535,7 +535,7 @@ suite('ChatInputModelSelectionController', () => {
 			duringRestart,
 			current: controller.currentModel.get()?.identifier,
 			reason: controller.selectionReason,
-			pending: controller.hasPendingIntent(),
+			pending: controller.hasPendingProgrammaticSelection(),
 			applied,
 		}, {
 			duringRestart: other.identifier,
@@ -566,7 +566,7 @@ suite('ChatInputModelSelectionController', () => {
 		assert.deepStrictEqual({
 			duringOutage,
 			current: controller.currentModel.get()?.identifier,
-			pending: controller.hasPendingIntent(),
+			pending: controller.hasPendingProgrammaticSelection(),
 			applied,
 		}, {
 			duringOutage: other.identifier,
@@ -625,7 +625,7 @@ suite('ChatInputModelSelectionController', () => {
 		assert.deepStrictEqual({
 			current: controller.currentModel.get()?.identifier,
 			reason: controller.selectionReason,
-			pending: controller.hasPendingIntent(),
+			pending: controller.hasPendingProgrammaticSelection(),
 			applied,
 		}, {
 			current: chosen.identifier,
@@ -698,7 +698,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
 		controller.initialize(undefined);
-		const pending = controller.hasPendingIntent();
+		const pending = controller.hasPendingProgrammaticSelection();
 		models = [byok, configured];
 		controller.reconcileModelListChange(models);
 
@@ -727,7 +727,7 @@ suite('ChatInputModelSelectionController', () => {
 		modelChanges.fire('loaded');
 
 		assert.deepStrictEqual({
-			pending: controller.hasPendingIntent(),
+			pending: controller.hasPendingProgrammaticSelection(),
 			applied,
 			current: controller.currentModel.get()?.identifier,
 			reason: controller.selectionReason,
@@ -836,7 +836,7 @@ suite('ChatInputModelSelectionController', () => {
 		modelChanges.fire('test');
 
 		assert.deepStrictEqual({
-			pending: controller.hasPendingIntent(),
+			pending: controller.hasPendingProgrammaticSelection(),
 			applied,
 			current: controller.currentModel.get()?.identifier,
 		}, {
@@ -1019,6 +1019,39 @@ suite('ChatInputModelSelectionController', () => {
 			derivedRestoreReason: ModelSelectionReason.RestoredChoice,
 			configuredApplied: false,
 			current: picked.identifier,
+		});
+	});
+
+	test('a restored choice is applied under its own reason, not the one it is replacing', () => {
+		// The surface writing the model through to a backend reads `selectionReason` while
+		// `applyModel` runs, so the reason has to be in force by then. A model the conversation
+		// chose that has to fall back to a match must not be written under a stale reason, or it
+		// persists as something `chat.defaultModel` may later overwrite.
+		// The chat's model is targeted at another pool, so it cannot be applied as-is, but this
+		// pool publishes the same family under another identifier — the equivalent-match path.
+		const chosen = { ...targetedModel('other/chosen', 'other-target') };
+		chosen.metadata = { ...chosen.metadata, family: 'shared-family' };
+		const republished = { ...model('test/chosen') };
+		republished.metadata = { ...republished.metadata, family: 'shared-family' };
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const reasonsAtApply: (ModelSelectionReason | undefined)[] = [];
+		const state: IRuntimeState = { models: [republished], sessionType: 'test' };
+		const runtime = createRuntime(state, modelChanges, applied);
+		const controller = disposables.add(new ChatInputModelSelectionController({
+			...runtime,
+			applyModel: appliedModel => {
+				reasonsAtApply.push(controller.selectionReason);
+				runtime.applyModel(appliedModel);
+			},
+		}));
+
+		controller.beginConversationSwitch();
+		controller.syncFromConversationState(chosen, undefined, 'test', 'chat:one', false, ModelSelectionReason.RestoredChoice);
+
+		assert.deepStrictEqual({ applied, reasonsAtApply }, {
+			applied: [republished.identifier],
+			reasonsAtApply: [ModelSelectionReason.RestoredChoice],
 		});
 	});
 
@@ -1529,7 +1562,7 @@ suite('ChatInputModelSelectionController', () => {
 		state.models = [fallback, staleDesired];
 		modelChanges.fire('test');
 
-		assert.deepStrictEqual({ pending: controller.hasPendingIntent(), applied }, {
+		assert.deepStrictEqual({ pending: controller.hasPendingProgrammaticSelection(), applied }, {
 			pending: false,
 			applied: [fallback.identifier],
 		});
@@ -1678,7 +1711,7 @@ suite('ChatInputModelSelectionController', () => {
 			};
 			const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 			controller.initialize(rememberedId);
-			return controller.hasPendingIntent();
+			return controller.hasPendingProgrammaticSelection();
 		};
 		const first = model('test/first');
 		const remembered = model('test/remembered');

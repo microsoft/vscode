@@ -1957,7 +1957,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/** Resets the language model to the location default and cancels any pending model-selection intent. */
 	public resetLanguageModelToDefault(): void {
-		this._modelSelectionController.clearIntent();
+		this._modelSelectionController.clearPendingProgrammaticSelection();
 		this.setCurrentLanguageModelToDefault();
 	}
 
@@ -2964,7 +2964,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// move away from the model that will be applied when it appears.
 		if (this._modelSelectionController.restorePerTypeModel) {
 			this.initSelectedModel();
-			if (!this._modelSelectionController.hasPendingIntent() && !this._modelSelectionController.isAwaitingRememberedModel()) {
+			if (!this._modelSelectionController.hasPendingProgrammaticSelection() && !this._modelSelectionController.isAwaitingRememberedModel()) {
 				this._modelSelectionController.ensureCurrentModelSupported();
 			}
 		}

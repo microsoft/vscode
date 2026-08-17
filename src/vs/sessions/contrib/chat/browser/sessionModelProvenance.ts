@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isInConversationModelChoice, isRestoredModelReason, ModelSelectionApplyReason, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { isInConversationModelChoice, isRestoredModelReason, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ChatModelSource } from '../../../services/sessions/common/session.js';
 
 /**
@@ -46,7 +46,7 @@ export function restoreReasonForSource(source: ChatModelSource | undefined): Res
  * @param authorityInForce The provenance the conversation is currently understood to have.
  */
 export function sourceForControllerWrite(
-	reason: ModelSelectionApplyReason | undefined,
+	reason: ModelSelectionReason | undefined,
 	authorityInForce: ChatModelSource | undefined,
 ): ChatModelSource {
 	if (reason === ModelSelectionReason.UserSelection) {

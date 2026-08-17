@@ -8,7 +8,7 @@ import { IObservable, observableValue } from '../../../../../../base/common/obse
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IIntendedModelHolder } from '../../../common/model/chatModel.js';
-import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationModelChoice, isRestoredModelReason, ModelSelectionApplyReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, RestoredModelReason } from '../../../common/modelSelection.js';
+import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationModelChoice, isRestoredModelReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, RestoredModelReason } from '../../../common/modelSelection.js';
 import { findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 
@@ -39,8 +39,13 @@ interface IResolvedDraftModelSelection {
 	readonly changed: boolean;
 }
 
-/** A model selection that cannot be applied yet because the catalog has not published it. */
-interface ModelSelectionIntent {
+/**
+ * A programmatic selection waiting for the catalog to publish its model.
+ *
+ * Distinct from the conversation's intended model ({@link IIntendedModelSelection}): this is one
+ * caller's request in flight, discarded once it resolves or the conversation changes.
+ */
+interface IPendingProgrammaticSelection {
 	readonly resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly conversationKey: string | undefined;
 	readonly complete: (applied: boolean) => void;
@@ -55,8 +60,8 @@ export class ChatInputModelSelectionController extends Disposable {
 
 	private readonly _currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>(this, undefined);
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> = this._currentModel;
-	private _selectionReason: ModelSelectionApplyReason | undefined;
-	private _intent: ModelSelectionIntent | undefined;
+	private _selectionReason: ModelSelectionReason | undefined;
+	private _pendingProgrammaticSelection: IPendingProgrammaticSelection | undefined;
 	private _restorePerTypeModel = false;
 
 	constructor(
@@ -65,14 +70,14 @@ export class ChatInputModelSelectionController extends Disposable {
 	) {
 		super();
 		this._register(this._runtime.subscribeToModelChanges(() => this.reconcileModelListChange(this._pool())));
-		this._register(toDisposable(() => this._clearIntent()));
+		this._register(toDisposable(() => this._clearPendingProgrammaticSelection()));
 	}
 
 	get restorePerTypeModel(): boolean {
 		return this._restorePerTypeModel;
 	}
 
-	get selectionReason(): ModelSelectionApplyReason | undefined {
+	get selectionReason(): ModelSelectionReason | undefined {
 		return this._selectionReason;
 	}
 
@@ -86,7 +91,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	 */
 	beginConversationSwitch(): void {
 		this._selectionReason = undefined;
-		this._clearIntent();
+		this._clearPendingProgrammaticSelection();
 	}
 
 	/**
@@ -103,10 +108,6 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._restorePerTypeModel = false;
 	}
 
-	hasPendingIntent(): boolean {
-		return !!this._intent;
-	}
-
 	/**
 	 * True while the remembered model is not selectable, i.e. whatever is currently selected is a
 	 * stand-in that {@link _restoreRememberedModel} will replace once the catalog offers the real
@@ -118,11 +119,11 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	hasPendingProgrammaticSelection(): boolean {
-		return !!this._intent;
+		return !!this._pendingProgrammaticSelection;
 	}
 
-	clearIntent(): void {
-		this._clearIntent();
+	clearPendingProgrammaticSelection(): void {
+		this._clearPendingProgrammaticSelection();
 	}
 
 	/**
@@ -141,7 +142,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			apply();
 			return;
 		}
-		this._clearIntent();
+		this._clearPendingProgrammaticSelection();
 		const previousModel = this._currentModel.get();
 		const previousReason = this._selectionReason;
 		const previousRememberedSelection = this._intendedModel;
@@ -164,7 +165,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	applyProgrammaticSelection(model: ILanguageModelChatMetadataAndIdentifier): void {
-		this._clearIntent();
+		this._clearPendingProgrammaticSelection();
 		this._selectionReason = ModelSelectionReason.ProgrammaticSelection;
 		this._remember({ modelId: model.identifier, model, reason: ModelSelectionReason.ProgrammaticSelection });
 		this._applyModel(model);
@@ -174,11 +175,11 @@ export class ChatInputModelSelectionController extends Disposable {
 		resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined,
 		conversationKey: string | undefined,
 	): Promise<boolean> {
-		this._clearIntent();
+		this._clearPendingProgrammaticSelection();
 		this._selectionReason = ModelSelectionReason.ProgrammaticSelection;
 		return new Promise<boolean>(resolve => {
 			let complete = resolve;
-			this._intent = {
+			this._pendingProgrammaticSelection = {
 				resolveModel,
 				conversationKey,
 				complete: applied => {
@@ -186,12 +187,12 @@ export class ChatInputModelSelectionController extends Disposable {
 					complete = () => { };
 				},
 			};
-			this._reconcileIntent();
+			this._reconcilePendingProgrammaticSelection();
 		});
 	}
 
 	initialize(rememberedModelId: string | undefined): void {
-		this._clearIntent();
+		this._clearPendingProgrammaticSelection();
 		// The profile preference belongs to no conversation, so it seeds one that has not chosen a
 		// model but never displaces one that has — the conversation's own model outranks it, and
 		// re-initializing on a pool rebind must not erase what it is waiting for.
@@ -297,7 +298,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			? isInConversationModelChoice(conversationModelReason)
 			: isInConversationModelChoice(this._selectionReason)
 			|| isInConversationModelChoice(this._intendedModel?.reason)
-			|| !!this._intent;
+			|| !!this._pendingProgrammaticSelection;
 		if (!this._runtime.isEmpty() || claimedByConversation) {
 			return undefined;
 		}
@@ -323,7 +324,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	reconcileModelListChange(models: readonly ILanguageModelChatMetadataAndIdentifier[]): void {
-		if (this.applyConfiguredDefault() || this._reconcileIntent() || this._restoreRememberedModel()) {
+		if (this.applyConfiguredDefault() || this._reconcilePendingProgrammaticSelection() || this._restoreRememberedModel()) {
 			return;
 		}
 		const currentModel = this._currentModel.get();
@@ -427,12 +428,15 @@ export class ChatInputModelSelectionController extends Disposable {
 		// publishing. That says nothing about what the user should be on, so remember it anyway and
 		// show the best stand-in until `_restoreRememberedModel` can claim the real one.
 		this._rememberOnBoundConversation(desiredModel, modelConfiguration, conversationKey, restoredAs);
-		this._clearIntent();
+		this._clearPendingProgrammaticSelection();
 		const pool = this._pool(sessionType);
 		const match = findBestMatchingModel(desiredModel, pool) ?? findBestMatchingModel(currentModel, pool);
 		if (match) {
-			this._applyModel(match);
+			// Reason first: applying writes the model out through the runtime, and a surface that
+			// persists it reads the reason while that call runs. Setting it afterwards would write
+			// the conversation's own model under whatever reason the previous one left behind.
 			this._selectionReason = restoredAs;
+			this._applyModel(match);
 		} else {
 			this.selectDefault(sessionType);
 		}
@@ -559,7 +563,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		conversationKey: string,
 		restoredAs: RestoredModelReason,
 	): void {
-		this._clearIntent();
+		this._clearPendingProgrammaticSelection();
 		this._selectionReason = restoredAs;
 		this._remember({ modelId: model.identifier, model, reason: restoredAs, configuration });
 		if (configuration) {
@@ -570,29 +574,29 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
-	private _reconcileIntent(): boolean {
-		const intent = this._intent;
+	private _reconcilePendingProgrammaticSelection(): boolean {
+		const intent = this._pendingProgrammaticSelection;
 		if (!intent) {
 			return false;
 		}
 		// The conversation moved on while the model was still unpublished, so nobody is waiting.
 		if (this._runtime.getBoundConversationKey() !== intent.conversationKey) {
-			this._clearIntent();
+			this._clearPendingProgrammaticSelection();
 			return true;
 		}
 		const model = intent.resolveModel();
 		if (!model) {
 			return false;
 		}
-		this._intent = undefined;
+		this._pendingProgrammaticSelection = undefined;
 		intent.complete(true);
 		this.applyProgrammaticSelection(model);
 		return true;
 	}
 
-	private _clearIntent(): void {
-		const intent = this._intent;
-		this._intent = undefined;
+	private _clearPendingProgrammaticSelection(): void {
+		const intent = this._pendingProgrammaticSelection;
+		this._pendingProgrammaticSelection = undefined;
 		if (intent) {
 			intent.complete(false);
 			if (this._selectionReason === ModelSelectionReason.ProgrammaticSelection) {

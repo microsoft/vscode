@@ -145,7 +145,6 @@ export function resolveConfiguredModel(
 export const enum ModelSelectionReason {
 	ConfiguredDefault = 'configuredDefault',
 	FirstAvailable = 'firstAvailable',
-	NoModels = 'noModels',
 	ProgrammaticSelection = 'programmaticSelection',
 	Remembered = 'remembered',
 	/** A model carried onto the conversation rather than chosen inside it. */
@@ -154,8 +153,6 @@ export const enum ModelSelectionReason {
 	RestoredChoice = 'restoredChoice',
 	UserSelection = 'userSelection',
 }
-
-export type ModelSelectionApplyReason = Exclude<ModelSelectionReason, ModelSelectionReason.NoModels>;
 
 /**
  * How a model already on a conversation is recorded: as the conversation's own, or as one merely
@@ -169,7 +166,7 @@ export type ModelSelectionApplyReason = Exclude<ModelSelectionReason, ModelSelec
 export type RestoredModelReason = ModelSelectionReason.RestoredChoice | ModelSelectionReason.SessionRestore;
 
 /** Whether a reason describes a model restored onto a conversation, whoever chose it. */
-export function isRestoredModelReason(reason: ModelSelectionApplyReason | undefined): boolean {
+export function isRestoredModelReason(reason: ModelSelectionReason | undefined): boolean {
 	return reason === ModelSelectionReason.SessionRestore
 		|| reason === ModelSelectionReason.RestoredChoice;
 }
@@ -186,7 +183,7 @@ export interface IIntendedModelSelection {
 	readonly modelId: string;
 	/** Present when the model itself was seen; absent when only an id was restored from storage. */
 	readonly model?: ILanguageModelChatMetadataAndIdentifier;
-	readonly reason: ModelSelectionApplyReason;
+	readonly reason: ModelSelectionReason;
 	readonly configuration?: Record<string, unknown>;
 }
 
@@ -197,7 +194,7 @@ export interface IIntendedModelSelection {
  * empty session is spillover from the previous one. A restore the surface can vouch for arrives as
  * {@link ModelSelectionReason.RestoredChoice} instead and does block the default.
  */
-export function isInConversationModelChoice(reason: ModelSelectionApplyReason | undefined): boolean {
+export function isInConversationModelChoice(reason: ModelSelectionReason | undefined): boolean {
 	return reason === ModelSelectionReason.UserSelection
 		|| reason === ModelSelectionReason.ProgrammaticSelection
 		|| reason === ModelSelectionReason.RestoredChoice;
@@ -210,7 +207,7 @@ export interface IPendingModelSelection {
 export type InitialModelSelectionResult =
 	| { readonly kind: 'none' }
 	| { readonly kind: 'pending'; readonly selection: IPendingModelSelection }
-	| { readonly kind: 'apply'; readonly model: ILanguageModelChatMetadataAndIdentifier; readonly reason: ModelSelectionApplyReason };
+	| { readonly kind: 'apply'; readonly model: ILanguageModelChatMetadataAndIdentifier; readonly reason: ModelSelectionReason };
 
 export interface IInitialModelSelectionInput {
 	readonly configuredModel: ILanguageModelChatMetadataAndIdentifier | undefined;
