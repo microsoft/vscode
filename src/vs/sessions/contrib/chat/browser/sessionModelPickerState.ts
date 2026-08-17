@@ -8,10 +8,8 @@ import { IPendingModelSelection } from '../../../../workbench/contrib/chat/commo
 import { ISessionModelPickerOptions } from '../../../services/sessions/common/sessionsProvider.js';
 
 /**
- * What the model picker shows, as opposed to which model the conversation runs on. The two answer
- * different questions — a model the conversation is meant to run on may be one the pool cannot
- * offer yet, and must not be presented as a selection the user could act on — so the display rules
- * live here rather than mixed into selection policy.
+ * What the picker shows, as opposed to what the conversation runs on. A model it is meant to run on
+ * may be one the pool cannot offer yet, which must not look like a selection the user can act on.
  */
 
 export interface INormalizedSessionModelPickerOptions extends ISessionModelPickerOptions {
@@ -58,13 +56,8 @@ export const EMPTY_MODEL_SELECTION_STATE: ISessionModelSelectionState = {
 };
 
 /**
- * The picker state for a pool, the options it is presented under, and whatever model selection has
- * settled on.
- *
- * Only a model the pool actually offers is shown. A pool can empty out with nothing to fall back
- * to, which leaves selection holding the last model it applied; showing it would claim a selection
- * the user cannot act on. The intent survives either way, so the model returns on its own once the
- * pool publishes it again.
+ * Only a model the pool actually offers is shown. A pool can empty out while selection still holds
+ * the last model it applied; the intent survives, so it returns once the pool publishes it again.
  */
 export function createModelSelectionState(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
@@ -79,8 +72,7 @@ export function createModelSelectionState(
 		models,
 		options,
 		hasSelectableModel: hasSelectableModel(models, options),
-		// While a selection is pending nothing is shown: the model the conversation is meant to run
-		// on is the only correct answer, and it is not available to show yet.
+		// Nothing is shown while pending: the only correct answer is not available yet.
 		currentModel: pendingSelection ? undefined : displayedModel,
 		pendingSelection,
 	};

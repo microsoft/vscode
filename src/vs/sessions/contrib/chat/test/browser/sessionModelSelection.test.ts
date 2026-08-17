@@ -515,7 +515,7 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
-	test('requires a registered provider before enabling send', () => {
+	test('publishes empty state when the session has no provider', () => {
 		const testSession = createSession('missing', SessionStatus.Untitled);
 		const selection = disposables.add(new SessionModelSelection(
 			observableValue<IActiveSession | undefined>('session', testSession.session),
@@ -1081,21 +1081,23 @@ suite('SessionModelSelection', () => {
 		const testSession = createSession('provider', SessionStatus.Untitled);
 		const provider = disposables.add(createProvider('provider'));
 		provider.models = [picked, configured];
+		const storage = disposables.add(new InMemoryStorageService());
 		const selection = disposables.add(new SessionModelSelection(
 			observableValue<IActiveSession | undefined>('session', testSession.session),
 			createProvidersService([provider]),
-			disposables.add(new InMemoryStorageService()),
+			storage,
 			createConfigurationService(configured.metadata.id),
 			disposables.add(new NullLogService()),
 		));
 
 		assert.strictEqual(selection.selectModel(picked.identifier), true);
-		// The catalog drops the pick before the provider echoes it, and cannot yet say it is gone.
+		// The catalog drops the pick before the provider echoes it back, and cannot yet say the
+		// model is gone for good.
 		provider.models = [configured];
 		provider.modelsResolved = false;
 		provider.modelChanges.fire();
 
-		assert.strictEqual(selection.state.get().currentModel?.identifier, undefined);
+		assert.strictEqual(selection.state.get().currentModel?.identifier, undefined, 'should still be waiting for the pick, not showing the configured default');
 	});
 
 	test('a conversation that has already run is not given the remembered model', () => {
@@ -1363,7 +1365,7 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
-	test('logs persistence decisions, provider outcomes, and external storage conflicts', () => {
+	test('keeps the user\'s pick when storage is changed externally', () => {
 		const testSession = createSession('provider', SessionStatus.Untitled);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const storage = disposables.add(new InMemoryStorageService());
@@ -1383,26 +1385,17 @@ suite('SessionModelSelection', () => {
 			scope: StorageScope.PROFILE,
 			target: StorageTarget.USER,
 		}], true);
-		const messages = logService.messages.join('\n');
 
 		assert.deepStrictEqual({
 			current: selection.state.get().currentModel?.identifier,
 			writes: provider.writes,
-			loggedInitialSelection: messages.includes('event=initialize') && messages.includes(`storageKey=${JSON.stringify(selectedModelStorageKey)}`) && messages.includes('selection="apply"'),
-			loggedAutomaticOutcome: messages.includes('event=provider-automatic-selection-applied') && messages.includes('reason="firstAvailable"'),
-			loggedExplicitPersistence: messages.includes('event=provider-selection-applied') && messages.includes(`requestedModel=${JSON.stringify(second.identifier)}`) && messages.includes(`storedModelAfter=${JSON.stringify(second.identifier)}`),
-			loggedExternalConflict: messages.includes('event=storage-change') && messages.includes('external=true') && messages.includes('conflictsWithCurrentModel=true') && messages.includes(`storedModel=${JSON.stringify(first.identifier)}`),
 		}, {
 			current: second.identifier,
 			writes: [first.identifier, second.identifier],
-			loggedInitialSelection: true,
-			loggedAutomaticOutcome: true,
-			loggedExplicitPersistence: true,
-			loggedExternalConflict: true,
 		});
 	});
 
-	test('logs unchanged provider state after a selection write', () => {
+	test('shows the pick even when the provider does not reflect the write', () => {
 		const testSession = createSession('provider', SessionStatus.Completed, first.identifier);
 		const provider = disposables.add(createProvider('provider'));
 		const logService = disposables.add(new TestLogService());
@@ -1415,18 +1408,13 @@ suite('SessionModelSelection', () => {
 		));
 
 		selection.selectModel(second.identifier);
-		const appliedMessage = logService.messages.find(message => message.includes('event=provider-selection-applied'));
 
 		assert.deepStrictEqual({
 			selected: selection.state.get().currentModel?.identifier,
 			providerModel: testSession.modelId.get(),
-			loggedProviderModelBefore: appliedMessage?.includes(`providerModelBefore=${JSON.stringify(first.identifier)}`),
-			loggedProviderModelAfter: appliedMessage?.includes(`providerModelAfter=${JSON.stringify(first.identifier)}`),
 		}, {
 			selected: second.identifier,
 			providerModel: first.identifier,
-			loggedProviderModelBefore: true,
-			loggedProviderModelAfter: true,
 		});
 	});
 });

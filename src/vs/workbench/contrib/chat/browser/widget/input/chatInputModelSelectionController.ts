@@ -4,55 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * # Chat model selection
+ * Chat model selection.
  *
- * ## The one rule
+ * A model on a conversation is either that conversation's **choice** — the user picked it, a caller
+ * selected it, or it was restored as its own — or **spillover**: the previous conversation's model
+ * carried in, or an automatic pick. `chat.defaultModel` seeds spillover and yields to a choice.
+ * {@link isInConversationModelChoice} is that line; every "may the default win here?" goes through
+ * it. Which one happened cannot be read off a model identifier, so each surface states it.
  *
- * A model sitting on a conversation is either that conversation's **choice** or **spillover**.
- *
- * - A *choice* was made for this conversation: the user picked it, a caller selected it, or it was
- *   restored as the conversation's own. Nothing may take it away.
- * - *Spillover* is a model merely standing on the conversation: the previous conversation's model
- *   carried in, or a pick made automatically because nothing better was known.
- *
- * `chat.defaultModel` seeds a conversation that has not chosen, and yields to one that has. That is
- * the whole precedence, and {@link isInConversationModelChoice} is the line that draws it — every
- * "may the default win here?" question routes through it, so there is one answer.
- *
- * The distinction cannot be read off a model identifier: the same model arrives by all of these
- * routes. So each surface *states* which happened, in the vocabulary of
- * {@link ModelSelectionReason}, and the controller never infers it.
- *
- * ## The three phases
- *
- * A conversation's model is decided by three kinds of event, and every public operation belongs to
- * one of them:
- *
- * 1. **Initialize** — a conversation is bound and needs a starting model.
- *    {@link ChatInputModelSelectionController.initialize},
- *    {@link ChatInputModelSelectionController.beginConversationSwitch}.
- * 2. **Reconcile** — the catalog or configuration moved, and the selection may no longer hold.
- *    {@link ChatInputModelSelectionController.reconcileModelListChange} and the narrower
- *    revalidation entry points.
- * 3. **Sync** — the conversation's own model changed underneath the input.
- *    {@link ChatInputModelSelectionController.syncFromConversationState}.
- *
- * Explicit selection ({@link ChatInputModelSelectionController.applySelection} and friends) and
- * {@link ChatInputModelSelectionController.resetToDefault} sit outside the three: they are a caller
- * changing the answer rather than the world changing around it.
- *
- * ## What a catalog that arrives late forces
- *
- * Models publish asynchronously and can be republished under new identifiers, so the model a
- * conversation is meant to run on is frequently *not* in the pool yet. That is why the intended
- * model is remembered per conversation and reclaimed later, rather than being resolved once.
- *
- * The two surfaces answer differently, on purpose, and this is the only place they may:
- * Workbench chat may display a stand-in while waiting, because the cost of being wrong is a
- * repaint. The Agents Window writes through to a provider and on to a backend, so it waits instead
- * — a stand-in it wrote would become the conversation's real model.
+ * Models publish late and can be republished under new identifiers, so a conversation's model is
+ * remembered per conversation and reclaimed when it appears. The two surfaces differ only in what
+ * they do while waiting: Workbench chat shows a stand-in, since being wrong costs a repaint, while
+ * the Agents Window waits, since it writes through to a backend.
  */
-
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
@@ -61,11 +25,7 @@ import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationM
 import { findBestMatchingModel, IsModelSupportedHere, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 
-/**
- * Supplies the surface's model catalog and conversation effects. The seam between the shared
- * selection policy and where models come from, so both Workbench chat and the Agents Window drive
- * the same controller.
- */
+/** What a surface supplies: its catalog, its idea of usable, and what to do with a decision. */
 export interface IChatInputModelSelectionRuntime {
 	// -- where models come from
 	readonly getCurrentSessionType: () => string | undefined;
@@ -75,10 +35,7 @@ export interface IChatInputModelSelectionRuntime {
 	readonly isEmpty: () => boolean;
 
 	// -- which of them this surface can use
-	/**
-	 * Whether the surface can run `model` at all. Asked rather than derived so a surface states
-	 * what "usable here" means for it, instead of feeding the controller the inputs to work it out.
-	 */
+	/** Whether this surface can run the model at all. Asked, so surfaces are not second-guessed. */
 	readonly isModelSupportedHere: IsModelSupportedHere;
 	/** The model the surface declares as its default, when the pool declares one. */
 	readonly getDeclaredDefaultModel: (models: readonly ILanguageModelChatMetadataAndIdentifier[]) => ILanguageModelChatMetadataAndIdentifier | undefined;
@@ -90,11 +47,7 @@ export interface IChatInputModelSelectionRuntime {
 	readonly applyModel: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 
 	// -- only for surfaces that have them
-	/**
-	 * Whether the models for `sessionType` have yet to arrive, so defaulting now would pick over a
-	 * pool that is still loading. Omitted by a surface whose pool is already the session's own and
-	 * therefore never partial in this sense.
-	 */
+	/** Whether this session type's models are still loading, so defaulting would pick over them. */
 	readonly isAwaitingSessionModels?: (sessionType: string) => boolean;
 	/** Omitted by a surface that drives reconciliation itself rather than being notified. */
 	readonly subscribeToModelChanges?: (listener: () => void) => IDisposable;
@@ -102,23 +55,14 @@ export interface IChatInputModelSelectionRuntime {
 	readonly restoreModelConfiguration?: (modelId: string, configuration: Record<string, unknown> | undefined) => void;
 }
 
-/**
- * A programmatic selection waiting for the catalog to publish its model.
- *
- * Distinct from the conversation's intended model ({@link IIntendedModelSelection}): this is one
- * caller's request in flight, discarded once it resolves or the conversation changes.
- */
+/** One caller's request waiting for its model to publish. Not the conversation's intended model. */
 interface IPendingProgrammaticSelection {
 	readonly resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly conversationKey: string | undefined;
 	readonly complete: (applied: boolean) => void;
 }
 
-/**
- * The single implementation of "pick and remember the chat model". Owns the precedence between a
- * configured default, a remembered preference, and a conversation's own model; each surface
- * supplies its catalog and effects through {@link IChatInputModelSelectionRuntime}.
- */
+/** The one implementation of "pick and remember the chat model", shared by both surfaces. */
 export class ChatInputModelSelectionController extends Disposable {
 
 	private readonly _currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>(this, undefined);
@@ -142,14 +86,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		return this._selectionReason;
 	}
 
-	/**
-	 * Drops the selection state that spoke for the outgoing conversation — the reason behind its
-	 * model, and any model it was still waiting to be given — so neither outlives it and gets read
-	 * as the incoming conversation's own.
-	 *
-	 * Unpaired, and safe to call on its own. Anything a surface must latch across its own switch
-	 * handshake belongs to that surface, not here.
-	 */
+	/** Drops what spoke for the outgoing conversation, so it is not read as the incoming one's. */
 	beginConversationSwitch(): void {
 		this._selectionReason = undefined;
 		this._clearPendingProgrammaticSelection();
@@ -169,11 +106,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		return !!this._pendingProgrammaticSelection;
 	}
 
-	/**
-	 * Shows `model` and runs `apply`. A user action claims authority over the conversation and is
-	 * rolled back if `apply` throws; anything else is a mechanical follow-on that leaves the
-	 * conversation's intent — and the authority already in force — untouched.
-	 */
+	/** A user action claims the conversation and rolls back if `apply` throws; anything else does not. */
 	applySelection(
 		model: ILanguageModelChatMetadataAndIdentifier,
 		apply: () => void,
@@ -274,13 +207,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
-	/**
-	 * Forgets what the conversation was meant to run on and takes the default instead.
-	 *
-	 * Clearing the intended model is the point: it is the preference the reset overrides, and a
-	 * reset that leaves it in place is undone by the next catalog change, when reconciliation
-	 * restores it.
-	 */
+	/** Takes the default and forgets the preference it overrides, which would otherwise come back. */
 	resetToDefault(sessionType = this._runtime.getCurrentSessionType()): void {
 		this._clearPendingProgrammaticSelection();
 		this._remember(undefined);
@@ -317,8 +244,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!defaultModel) {
 			return;
 		}
-		// A pending programmatic selection keeps its reason: this default is standing in until the
-		// model it is waiting for arrives.
+		// A pending request keeps its reason: this default is only standing in until its model lands.
 		const reason = this.hasPendingProgrammaticSelection()
 			? this._selectionReason
 			: (configuredModel ? ModelSelectionReason.ConfiguredDefault : ModelSelectionReason.FirstAvailable);
@@ -326,27 +252,17 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
-	 * The model `chat.defaultModel` would seed the bound conversation with right now, or
-	 * `undefined` if it would not seed at all.
+	 * What `chat.defaultModel` would seed this conversation with, or nothing if it would not.
 	 *
-	 * A configured default seeds every new (empty) conversation. Only a genuine in-conversation
-	 * choice blocks it; a `SessionRestore` on an empty conversation is spillover from the previous
-	 * one and must yield. A choice the conversation is still waiting to have applied blocks it too:
-	 * while its pool is cold there is nothing on screen to recognize it by, and seeding over it
-	 * would mean the user's own model loses to the default purely for arriving late.
-	 *
-	 * @param conversationModelReason Answers for a conversation whose model this controller has not
-	 * been given yet. A surface that must decide whether to *wait* for an unpublished model cannot
-	 * have adopted it first, so it states how that model stands rather than letting the controller
-	 * infer it from state that does not describe that conversation yet. Omit it to have the
-	 * controller answer from what it has itself applied.
+	 * @param conversationModelReason How the conversation's own model stands, for a caller deciding
+	 * whether to wait for one this controller has not been given yet. Omit to use what it applied.
 	 */
 	configuredDefaultToSeed(conversationModelReason?: RestoredModelReason): ILanguageModelChatMetadataAndIdentifier | undefined {
 		const claimedByConversation = conversationModelReason !== undefined
 			? isInConversationModelChoice(conversationModelReason)
-			: isInConversationModelChoice(this._selectionReason)
-			|| isInConversationModelChoice(this._intendedModel?.reason)
-			|| !!this._pendingProgrammaticSelection;
+			: (isInConversationModelChoice(this._selectionReason)
+				|| isInConversationModelChoice(this._intendedModel?.reason)
+				|| !!this._pendingProgrammaticSelection);
 		if (!this._runtime.isEmpty() || claimedByConversation) {
 			return undefined;
 		}
@@ -397,13 +313,9 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
-	 * Reclaims the conversation's intended model whenever the catalog can offer it, however late
-	 * that is. A model can go missing for reasons unrelated to intent — an agent host publishes its
-	 * catalog in waves, and restarting one drops and republishes all of it — so whatever is shown
-	 * meanwhile is only a stand-in and may be superseded.
-	 *
-	 * The intent is read from the bound conversation, so another conversation's choice is not
-	 * reachable here and cannot be applied to this one.
+	 * Reclaims the conversation's intended model whenever the catalog offers it, however late.
+	 * Catalogs publish in waves, so anything shown meanwhile is a stand-in. Read from the bound
+	 * conversation, so another conversation's choice is unreachable here.
 	 */
 	private _restoreRememberedModel(): boolean {
 		const remembered = this._intendedModel;
@@ -432,13 +344,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		return true;
 	}
 
-	/**
-	 * Adopts the model the bound conversation carries.
-	 *
-	 * `restoredAs` says whether that model was chosen for this conversation or is merely standing on
-	 * it. A surface that cannot tell says nothing and the model is treated as spillover, which
-	 * leaves an empty conversation open to `chat.defaultModel`.
-	 */
+	/** Adopts the model the conversation carries. `restoredAs` says whether it is a choice. */
 	syncFromConversationState(
 		desiredModel: ILanguageModelChatMetadataAndIdentifier,
 		modelConfiguration: Record<string, unknown> | undefined,
@@ -447,10 +353,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		isRemoteEdit = false,
 		restoredAs: RestoredModelReason = ModelSelectionReason.SessionRestore,
 	): void {
-		// A sync that arrives for a conversation this input has already moved off must not decide
-		// the active one's model. Enforced here rather than relying on each caller to check, so the
-		// bound-conversation invariant holds for every entry into this path. An input that has not
-		// bound yet is not "moved off" and still restores.
+		// Ignore a late sync for a conversation this input has left. Not yet bound is not "left".
 		const boundConversationKey = this._runtime.getBoundConversationKey();
 		if (boundConversationKey !== undefined && boundConversationKey !== conversationKey) {
 			this._diagnostics.report('conversation-restore-stale-ignored', {
@@ -477,13 +380,11 @@ export class ChatInputModelSelectionController extends Disposable {
 			action: syncResult.action,
 		}, syncResult.action === 'keep' ? 'debug' : 'info');
 		if (syncResult.action === 'apply' || syncResult.action === 'keep') {
-			this._applySessionRestore(desiredModel, syncResult.action === 'apply', modelConfiguration, conversationKey, restoredAs);
+			this._applySessionRestore(desiredModel, syncResult.action === 'apply', modelConfiguration, restoredAs);
 			return;
 		}
 
-		// The conversation's model is not available yet, usually because its pool is still
-		// publishing. That says nothing about what the user should be on, so remember it anyway and
-		// show the best stand-in until `_restoreRememberedModel` can claim the real one.
+		// Not published yet. Remember it and show the nearest thing until it arrives.
 		this._rememberOnBoundConversation(desiredModel, modelConfiguration, conversationKey, restoredAs);
 		this._clearPendingProgrammaticSelection();
 		const pool = this._pool(sessionType);
@@ -496,15 +397,8 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
-	 * Whether a conversation-state sync is just this controller's own stand-in coming back.
-	 *
-	 * Applying a model writes it into the conversation's input state, which the local sync hands
-	 * straight back. While the real model is still missing, that echo would be mistaken for the
-	 * conversation's own model and overwrite the selection being awaited — the loop that makes a
-	 * transient stand-in stick for good.
-	 *
-	 * Only the model currently standing in counts, and only for a local write: a peer genuinely
-	 * selecting it arrives as {@link ChatInputStateOrigin.Remote} and still wins.
+	 * Whether this sync is our own stand-in coming back. Without this the echo overwrites the model
+	 * being awaited and the stand-in sticks. A peer's genuine pick arrives as remote and still wins.
 	 */
 	private _isEchoOfStandIn(desiredModelId: string, conversationKey: string): boolean {
 		return this._runtime.getBoundConversationKey() === conversationKey
@@ -512,11 +406,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			&& this.isAwaitingRememberedModel();
 	}
 
-	/**
-	 * The model on screen only because the intended one cannot be offered yet — that is, whatever is
-	 * displayed while it differs from the intent. Derived rather than tracked so it cannot fall out
-	 * of step with either.
-	 */
+	/** Whatever is displayed while it differs from the intent. Derived so it cannot fall out of step. */
 	private get _standInModelId(): string | undefined {
 		const intended = this._intendedModel;
 		const displayed = this._currentModel.get()?.identifier;
@@ -543,15 +433,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		return this._runtime.getModels(sessionType);
 	}
 
-	/**
-	 * Records the conversation's model as the one to reclaim, unless this sync belongs to a
-	 * conversation the input has already moved off — a late sync for an outgoing session must not
-	 * dictate the active one's model.
-	 *
-	 * The authority is recorded with it: a model that is only missing because its pool is still
-	 * publishing is no less the conversation's choice, and forgetting that would let
-	 * `chat.defaultModel` claim the conversation the moment the model finally arrives.
-	 */
+	/** Records the model to reclaim, with how it stands — forgetting that lets the default claim it. */
 	private _rememberOnBoundConversation(
 		model: ILanguageModelChatMetadataAndIdentifier,
 		configuration: Record<string, unknown> | undefined,
@@ -589,7 +471,6 @@ export class ChatInputModelSelectionController extends Disposable {
 		model: ILanguageModelChatMetadataAndIdentifier,
 		applyModel: boolean,
 		configuration: Record<string, unknown> | undefined,
-		conversationKey: string,
 		restoredAs: RestoredModelReason,
 	): void {
 		this._clearPendingProgrammaticSelection();
@@ -640,13 +521,8 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
-	 * Shows `model` and hands it to the surface, which may persist it.
-	 *
-	 * The reason is stated rather than assumed, and recorded before the hand-off: a surface that
-	 * writes the model through reads {@link selectionReason} while `applyModel` runs, so a reason
-	 * set afterwards would persist the model under whatever the previous one left behind. Pass
-	 * {@link selectionReason} explicitly to carry the current one over — as canonicalizing an
-	 * identifier does, where the model is the same choice under a new name.
+	 * Shows the model and hands it to the surface. The reason is recorded first because a surface
+	 * that persists reads it during `applyModel`. Pass {@link selectionReason} to carry it over.
 	 */
 	private _applyModel(model: ILanguageModelChatMetadataAndIdentifier, reason: ModelSelectionReason | undefined): void {
 		this._selectionReason = reason;

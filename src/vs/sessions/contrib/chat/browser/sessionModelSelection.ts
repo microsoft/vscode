@@ -24,39 +24,20 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
 import { restoreReasonForSource, sourceForReason } from './sessionModelProvenance.js';
 
-/**
- * How many conversations keep their model selection. Bounded because a long-lived window can bind
- * an input to arbitrarily many chats; what a conversation nobody has looked at in a hundred
- * switches was running on is worth less than the memory it holds.
- */
+/** Bounded: a long-lived window binds arbitrarily many chats, and old ones are not worth the memory. */
 const CONVERSATION_CACHE_SIZE = 50;
 
 type ModelSelectionRefreshTrigger = 'sessionState' | 'configuration' | 'providers' | 'models';
-
-interface IRememberedModelSelection {
-	readonly identifier: string;
-	readonly source: 'stored' | 'legacy';
-}
 
 function legacyModelPickerStorageKey(providerId: string, sessionType: string): string {
 	return `sessions.modelPicker.${providerId}.${sessionType}.selectedModelId`;
 }
 
-/**
- * What this input knows about one conversation's model selection.
- *
- * Held per conversation rather than per input so that none of it can be read as another chat's
- * answer. The alternative — one set of fields cleared whenever the input rebinds — is correct only
- * as long as every rebind path remembers to clear them.
- */
+/** Per conversation, not per input, so none of it can be read as another chat's answer. */
 class ConversationModelSelection {
 	/** The model this conversation is meant to run on, whatever the pool can offer right now. */
 	readonly intent = new IntendedModelSlot();
-	/**
-	 * Whether this conversation has been driven to a model its pool actually offers. An empty or
-	 * half-published pool selects nothing, and treating that as seeded would leave the previous
-	 * conversation's model on display and never write one for this conversation.
-	 */
+	/** True once driven to a model the pool actually offers; a half-published pool does not count. */
 	seeded = false;
 }
 
@@ -69,24 +50,13 @@ export interface ISessionModelSelection {
 }
 
 /**
- * Model selection for the Agents Window, expressed on top of the shared
- * {@link ChatInputModelSelectionController}. It turns the active session and its provider into the
- * runtime the controller expects, and turns what the controller decides back into a provider write
- * and picker state. Precedence between a configured default, a remembered preference, and a
- * conversation's own model lives in the controller, so the two windows cannot drift on it.
+ * Model selection for the Agents Window, on top of the shared
+ * {@link ChatInputModelSelectionController}. Turns the active session and its provider into the
+ * runtime the controller expects, and its decisions back into a provider write and picker state.
+ * Precedence lives in the controller, so the two windows cannot drift on it.
  *
- * Mostly, but not purely, translation: this class still owns when a conversation counts as seeded
- * ({@link ConversationModelSelection.seeded}) and when to wait for a model the pool has not
- * published rather than write a stand-in through to a provider ({@link _canProceedWhilePending}).
- * It no longer answers *whether* a configured default may overtake that wait — that is the
- * controller's {@link ChatInputModelSelectionController.configuredDefaultToSeed}, which this only
- * supplies the conversation's authority to. Presentation lives in `sessionModelPickerState`, and
- * the provider-to-controller vocabulary in `sessionModelProvenance`.
- *
- * What it knows is held per conversation rather than per input: everything that describes a chat's
- * model lives in that chat's {@link ConversationModelSelection}, so none of it can be read as
- * another chat's answer. The instance fields are a snapshot of the provider and the bound chat,
- * re-read on every {@link _refresh} rather than carried.
+ * Mostly translation. What is left here is when a conversation counts as seeded, and when to wait
+ * for an unpublished model rather than write a stand-in through to a backend.
  */
 export class SessionModelSelection extends Disposable implements ISessionModelSelection {
 
@@ -112,16 +82,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	private _modelTarget: string | undefined;
 	private _boundSessionKey: string | undefined;
 	private _boundConversationKey: string | undefined;
-	/**
-	 * Whether the bound conversation has yet to send a request. Read from the active chat rather
-	 * than the session: a session's status is aggregated across its chats, so a brand-new peer chat
-	 * in a finished session is still a fresh conversation for `chat.defaultModel` to seed.
-	 */
+	/** Read from the chat, not the session: session status aggregates across peer chats. */
 	private _chatIsEmpty = false;
-	/**
-	 * Whether the bound conversation's own model is unknown but presumed to exist, so a selection
-	 * may be shown yet must not be written through. See where it is assigned in {@link _refresh}.
-	 */
+	/** The conversation's own model is unknown but presumed to exist: show a selection, never write it. */
 	private _displayOnly = false;
 
 	constructor(
@@ -154,8 +117,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			session?.status.read(reader);
 			const chat = session?.activeChat.read(reader);
 			chat?.status.read(reader);
-			// Provenance decides whether a model outranks `chat.defaultModel`, so a change to it
-			// alone must re-drive selection.
+			// Provenance alone decides whether a model outranks `chat.defaultModel`.
 			chat?.modelSource.read(reader);
 			this._refresh('sessionState', session);
 		}));
@@ -181,8 +143,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			return false;
 		}
 
-		// Validate against a fresh snapshot: the pool the picker was rendered from may already be
-		// stale by the time the user commits to a model.
+		// Fresh snapshot: the pool the picker rendered from may already be stale.
 		const snapshot = provider.getModelsSnapshot(session.sessionId);
 		this._modelTarget = snapshot.modelTarget;
 		this._models = snapshot.models;
@@ -228,31 +189,24 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	private _createRuntime(): IChatInputModelSelectionRuntime {
 		return {
-			// The pool's target, not the session type: it is what the provider scopes its models
-			// (and this window's remembered preference) by.
+			// The pool's target, not the session type: it is what the provider scopes models by.
 			getCurrentSessionType: () => this._modelTarget,
 			isEmpty: () => this._chatIsEmpty,
 			getModels: () => [...this._models],
 			getAllModels: () => [...this._models],
 			getConfiguredModelValue: () => this._configurationService.getValue<string>(ChatConfiguration.DefaultModel),
-			// A session runs whatever its provider published for it. There is no mode to satisfy
-			// and nowhere else it could be shown, so the pool is already the answer.
+			// A session runs whatever its provider published: no mode, nowhere else to show it.
 			isModelSupportedHere: () => true,
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			getBoundConversationKey: () => this._boundConversationKey,
 			getIntentHolder: () => this._conversation().intent,
 			applyModel: model => this._pushModelToProvider(model),
-			// `isAwaitingSessionModels`, `subscribeToModelChanges` and `restoreModelConfiguration`
-			// are deliberately absent: the provider's snapshot is already the session's own pool,
-			// the pool is re-read before the controller is driven so refreshing is owned by
-			// `_refresh`, and sessions have no per-model configuration.
+			// The optional members are absent on purpose: the snapshot is already the session's pool,
+			// `_refresh` owns refreshing, and sessions have no per-model configuration.
 		};
 	}
 
-	/**
-	 * What this input knows about the bound conversation. Nothing here is reachable while another
-	 * chat is bound, so one chat's selection cannot be applied to another by construction.
-	 */
+	/** Unreachable while another chat is bound, so one chat's selection cannot reach another. */
 	private _conversation(): ConversationModelSelection {
 		const conversationKey = this._boundConversationKey;
 		if (!conversationKey) {
@@ -277,8 +231,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._boundConversationKey = undefined;
 			this._chatIsEmpty = false;
 			this._displayOnly = false;
-			// Nothing to clear: what each conversation was running on, and the authority behind it,
-			// belong to that conversation's record and are unreachable until it is bound again.
+			// Nothing to clear: each conversation's state lives in its own record.
 			this._models = [];
 			this._modelTarget = undefined;
 			this._state.set(EMPTY_MODEL_SELECTION_STATE, undefined);
@@ -289,8 +242,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		// Scoped to the active chat: peer chats in one session each keep their own model.
 		const chat = session.activeChat.get();
 		const chatModelId = session.modelId.get();
-		// A stated `undefined` alongside a model means the provider cannot account for it, which is
-		// read as the chat's own. A chat with no model at all has self-evidently not chosen one.
+		// A model the provider cannot account for is read as the chat's own.
 		const chatModelSource = chatModelId ? (chat.modelSource.get() ?? ChatModelSource.Restored) : undefined;
 		// Undefined only when the chat has no model, which is the one case with no authority at all.
 		const chatModelReason = chatModelSource === undefined ? undefined : restoreReasonForSource(chatModelSource);
@@ -301,43 +253,32 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		// A chat's own model always outranks the remembered preference, which only seeds a chat
 		// that has yet to run on anything. Reading it per chat is what keeps one chat's choice out
 		// of another's: the incoming chat brings its own model with it.
-		const desiredModelId = chatModelId ?? remembered?.identifier;
+		const desiredModelId = chatModelId ?? remembered;
 		const snapshot = desiredModelId === chatModelId ? baseSnapshot : provider.getModelsSnapshot(session.sessionId, desiredModelId);
 
 		this._models = snapshot.models;
 		this._modelTarget = snapshot.modelTarget;
 		const options = normalizeModelPickerOptions(provider.getModelPickerOptions(session.sessionId));
-		// The provider — not the identifier — decides what the desired model resolves to. An agent
-		// host republishes the same model under its own session scheme, so the pool may offer it
-		// under a different identifier than the one asked for. Matching on the raw identifier would
-		// miss it and fall back to something unrelated.
+		// The provider resolves the desired model: a host republishes it under its own identifier,
+		// so matching the raw one would miss it.
 		const resolvedDesiredModel = snapshot.desiredModelResolution.kind === 'available'
 			? snapshot.desiredModelResolution.model
 			: undefined;
 
-		// Bind before the controller runs so whatever it intends is recorded against this
-		// conversation and cannot be applied to another.
+		// Bind first, so whatever the controller intends is recorded against this conversation.
 		this._boundSessionKey = session.sessionId;
 		this._boundConversationKey = conversationKey;
 		this._chatIsEmpty = chat.status.get() === SessionStatus.Untitled;
-		// A conversation that has already run has a model of its own; the provider just has not
-		// said what it is yet. Anything selected meanwhile is a stand-in to show, never something
-		// to write: the write goes through to the backend and would change what the conversation
-		// runs on, rather than describe it. Only a conversation that has yet to run can be given a
-		// model by a profile-wide preference.
+		// A conversation that has run has a model of its own, even if the provider has not said what
+		// it is. Show a stand-in, never write one: the write would change what it runs on.
 		this._displayOnly = !chatModelId && !this._chatIsEmpty;
 		if (rebound) {
-			// Unconditionally, including when the pool is still publishing below: the reason and
-			// pending intent behind the previous conversation's model must not outlive it. The pool
-			// belongs to the provider, not to this input, so there is no per-type restore to latch
-			// and nothing to release afterwards.
+			// Unconditional: what spoke for the previous conversation must not outlive it.
 			this._controller.beginConversationSwitch();
 		}
 
 		if (snapshot.desiredModelResolution.kind === 'pending' && !this._controller.configuredDefaultToSeed(chatModelReason)) {
-			// The pool has not published the wanted model yet. Choosing anything now would push a
-			// stand-in through to the provider — and on to the backend — so wait it out instead,
-			// and re-seed once the pool has settled.
+			// Wait rather than push a stand-in through to the backend; re-seed once the pool settles.
 			this._conversation().seeded = false;
 			this._diagnostics.report('await-desired-model', {
 				trigger,
@@ -349,11 +290,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		}
 
 		try {
-			this._drive(rebound, chatModelId, chatModelSource, remembered?.identifier, resolvedDesiredModel, conversationKey);
+			this._drive(rebound, chatModelId, chatModelSource, remembered, resolvedDesiredModel, conversationKey);
 		} catch (error) {
-			// The provider refused the automatic selection (already reported by
-			// `_pushModelToProvider`). Leave the seed unfinished so the next refresh retries, and
-			// publish the model the session actually has rather than the one it refused.
+			// The provider refused the write. Retry on the next refresh, and show what it actually has.
 			this._conversation().seeded = false;
 			this._publish(options, undefined, this._models.find(model => model.identifier === session.modelId.get()));
 			return;
@@ -374,35 +313,26 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		resolvedDesiredModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		conversationKey: string,
 	): void {
-		// `resolvedDesiredModel` is the provider's answer for whichever identifier was asked about:
-		// the chat's own model when it has one, otherwise the remembered preference.
+		// The provider's answer for whatever was asked about: the chat's model, else the preference.
 		const chatModel = chatModelId
 			? (resolvedDesiredModel ?? this._models.find(model => model.identifier === chatModelId))
 			: undefined;
 		const rememberedId = chatModelId ? rememberedModelId : (resolvedDesiredModel?.identifier ?? rememberedModelId);
 		const conversation = this._conversation();
 		if (rebound || !conversation.seeded) {
-			// Set before seeding, not after: applying a model writes it to the provider, which can
-			// echo it back synchronously and re-enter this refresh. That nested pass must see the
-			// seed as already under way, or it would seed a second time and overwrite the
-			// authority the first one established.
+			// Set first: a provider echo can synchronously re-enter here, and must see seeding started.
 			conversation.seeded = true;
 			if (chatModel) {
-				// A model the chat already runs on is a choice made inside it, so it outranks
-				// `chat.defaultModel` — which seeds conversations that have yet to choose.
+				// A model the chat already runs on outranks `chat.defaultModel`.
 				this._claimChatModel(chatModel, chatModelSource, conversationKey);
 			} else {
 				this._controller.initialize(rememberedId);
 			}
-			// A seed only counts once something the pool can actually offer is selected. An empty
-			// or half-published pool selects nothing, and treating that as seeded would leave the
-			// previous conversation's model on display and never write one for this conversation.
+			// Only counts once the pool actually offers what was selected.
 			conversation.seeded = this._isShowingSelectableModel();
 		} else if (chatModel && this._conversationSelectionChanged(chatModel, chatModelSource)) {
-			// The conversation's model or the authority behind it moved without this input asking
-			// — restored by the provider, or chosen on another surface — so adopt it as it now is.
-			// A same-model change of authority counts: a peer promoting this input's automatic pick
-			// to their own choice must stop `chat.defaultModel` from overwriting it.
+			// It moved without this input asking, so adopt it. A peer promoting our automatic pick to
+			// their own choice counts, even on the same model.
 			this._claimChatModel(chatModel, chatModelSource, conversationKey);
 		}
 		this._controller.reconcileModelListChange(this._models);
@@ -416,13 +346,8 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	}
 
 	/**
-	 * Whether the bound conversation's model, or whether that model speaks for the conversation,
-	 * differs from what selection currently holds.
-	 *
-	 * An echo of this input's own write matches on both counts: the source was derived from the
-	 * very reason the controller still holds, and both sides of that mapping fall on the same side
-	 * of the choice/spillover line. A peer promoting this input's automatic pick to their own
-	 * choice does not match, which is the case this has to catch.
+	 * Whether the conversation's model, or whether it counts as a choice, differs from what we hold.
+	 * Our own echo matches on both, since the source came from the reason we still hold.
 	 */
 	private _conversationSelectionChanged(
 		chatModel: ILanguageModelChatMetadataAndIdentifier,
@@ -432,15 +357,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			|| isInConversationModelChoice(restoreReasonForSource(source)) !== isInConversationModelChoice(this._controller.selectionReason);
 	}
 
-	/**
-	 * Adopts the model the bound chat is on, telling the controller who chose it.
-	 *
-	 * A model this input put there — an automatic pick, a stand-in written while the intended model
-	 * was missing, or the previous chat's model a provider seeded a new peer chat with — is not the
-	 * conversation answering for itself, and leaves a fresh conversation open to
-	 * `chat.defaultModel`. Both cases take the same path so the controller, not this adapter,
-	 * decides what that difference means.
-	 */
+	/** Adopts the model the chat is on, telling the controller whether it counts as a choice. */
 	private _claimChatModel(
 		chatModel: ILanguageModelChatMetadataAndIdentifier,
 		source: ChatModelSource | undefined,
@@ -471,13 +388,11 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		}
 		const providerModelBefore = session.modelId.get();
 		if (providerModelBefore === model.identifier) {
-			// Already what the session runs on; re-pushing would round-trip a no-op to the backend.
-			// Deliberately not recorded as this input's own: the model was already there, and
-			// claiming it would mask a choice the conversation made elsewhere.
+			// Already what it runs on. Re-pushing round-trips a no-op, and claiming it would mask a
+			// choice made elsewhere.
 			return;
 		}
-		// The controller records the reason before handing the model over, so this reads the reason
-		// for the write actually being made.
+		// The controller records the reason before handing over, so this is the reason for this write.
 		const source = sourceForReason(this._controller.selectionReason);
 		try {
 			provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, source);
@@ -507,10 +422,11 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		this._state.set(createModelSelectionState(this._models, options, currentModel, pendingSelection), undefined);
 	}
 
-	private _getRememberedModel(session: IActiveSession, modelTarget: string | undefined): IRememberedModelSelection | undefined {
+	/** The remembered preference, migrating the legacy key forward the first time it is seen. */
+	private _getRememberedModel(session: IActiveSession, modelTarget: string | undefined): string | undefined {
 		const storedSelection = getStoredSelectedModel(this._storageService, ChatAgentLocation.Chat, modelTarget);
 		if (storedSelection) {
-			return { identifier: storedSelection, source: 'stored' };
+			return storedSelection;
 		}
 
 		const legacyStorageKey = legacyModelPickerStorageKey(session.providerId, session.sessionType);
@@ -521,7 +437,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 				legacyStorageKey,
 				model: legacyIdentifier,
 			}, 'info');
-			return { identifier: legacyIdentifier, source: 'legacy' };
+			return legacyIdentifier;
 		}
 		return undefined;
 	}

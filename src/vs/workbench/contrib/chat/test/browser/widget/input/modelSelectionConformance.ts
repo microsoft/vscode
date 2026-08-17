@@ -28,12 +28,8 @@ export interface IModelSelectionConformanceScenario {
 }
 
 /**
- * A scenario's inputs with nothing left implicit.
- *
- * A shared matrix is only worth having if both arms answer the same question, and the way that
- * quietly stops being true is one arm never reading a field the other acts on. Each arm destructures
- * this whole shape, so a field it stops consuming becomes an unused local — which `noUnusedLocals`
- * rejects at compile time — rather than a scenario that silently asserts two different things.
+ * A scenario's inputs with nothing left implicit. Both arms destructure the whole shape, so a field
+ * one of them stops reading becomes an unused local and fails to compile.
  */
 export interface IModelSelectionConformanceInputs {
 	readonly isEmpty: boolean;
