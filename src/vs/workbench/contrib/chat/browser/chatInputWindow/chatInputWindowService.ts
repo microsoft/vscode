@@ -5,6 +5,7 @@
 
 import './media/chatInputWindow.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { getZoomFactor } from '../../../../../base/browser/browser.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -1525,8 +1526,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			height: sourceWindow.outerHeight,
 		};
 		const sourceSurfaceBounds = surface.getBoundingClientRect();
-		const sourceTop = sourceBounds.y + sourceSurfaceBounds.top;
-		const sourceRight = sourceBounds.x + sourceSurfaceBounds.right;
+		// `getBoundingClientRect` reports CSS pixels within the zoomed content,
+		// while the native window bounds are in device-independent screen
+		// pixels. Scale the in-content offsets by the source window's zoom
+		// factor so the action widget window stays anchored to the omni surface
+		// at any zoom level.
+		const sourceZoomFactor = getZoomFactor(sourceWindow);
+		const sourceTop = sourceBounds.y + sourceSurfaceBounds.top * sourceZoomFactor;
+		const sourceRight = sourceBounds.x + sourceSurfaceBounds.right * sourceZoomFactor;
 		const sourceAnchorBounds = anchor?.getBoundingClientRect();
 		const screen = sourceWindow.screen;
 		const display = cursorScreenPoint?.display ?? {
@@ -1550,7 +1557,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			? sourceRight + CHAT_INPUT_WINDOW_ACTION_WIDGET_MARGIN
 			: sourceBounds.x;
 		const preferredY = placement === 'right'
-			? sourceBounds.y + (sourceAnchorBounds?.top ?? sourceSurfaceBounds.top)
+			? sourceBounds.y + (sourceAnchorBounds?.top ?? sourceSurfaceBounds.top) * sourceZoomFactor
 			: sourceTop - height - CHAT_INPUT_WINDOW_ACTION_WIDGET_MARGIN;
 		const x = Math.min(Math.max(display.x, preferredX), displayRight - width);
 		const y = Math.min(Math.max(display.y, preferredY), displayBottom - height);
@@ -1576,7 +1583,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		actionWidgetWindow.container.style.backgroundColor = 'transparent';
 		actionWidgetWindow.container.style.overflow = 'hidden';
 		this._actionWidgetPlacement = placement;
-		this._actionWidgetWindowAnchorY = placement === 'right' ? 0 : height;
+		// The action widget window inherits the source window's zoom, so anchor
+		// against the content height in CSS pixels (`clientHeight`) rather than
+		// the device-independent bounds height to keep the picker aligned when
+		// zoomed.
+		this._actionWidgetWindowAnchorY = placement === 'right' ? 0 : actionWidgetWindow.container.clientHeight;
 		this._actionWidgetAnchorPosition = placement === 'right' ? AnchorPosition.BELOW : AnchorPosition.ABOVE;
 		this._actionWidgetWindow.value = actionWidgetWindow;
 	}
