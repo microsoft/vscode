@@ -10,7 +10,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, thenRegisterOrDispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -101,14 +101,14 @@ import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../
 import { IChatPasteTargetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { NewChatInputPasteTarget } from './newChatInputPasteTarget.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService, isDictationActiveOnSurface } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
 import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
-import { notifyDictationSubmitted } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
+import { isDictationActiveForEditor, notifyDictationSubmitted } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
@@ -1032,6 +1032,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
 		const pillContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-input-mode'));
 		const isVoiceInputActive = derived(this, reader => isEqual(this.newChatVoiceTargetService.currentVoiceInputResource.read(reader), NEW_CHAT_VOICE_SENTINEL));
+		const isDictationInputActive = observableFromEvent(
+			this,
+			Event.any(this.chatSpeechToTextService.onDidChangeState, this.chatSpeechToTextService.onDidChangePreparingModel),
+			() => isDictationActiveForEditor(this._editor),
+		);
 		const isVoiceSessionActive = derived(this, reader => isNewChatVoiceSessionActive(
 			this.voiceSessionController.isConnected.read(reader),
 			this.voiceSessionController.isConnecting.read(reader),
@@ -1050,6 +1055,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// chat widget (this composer isn't an `IChatWidget`).
 			toggleDictation: () => { void this.toggleDictation(); },
 			isActive: isVoiceInputActive,
+			isDictationActive: isDictationInputActive,
 			isVoiceActive: isVoiceSessionActive,
 		}));
 		pill.render(pillContainer);
@@ -1078,6 +1084,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _createSpeechToTextButton(container: HTMLElement, onDidChangeVisibility: (visible: boolean) => void): void {
 		const sttService = this.chatSpeechToTextService;
+		const isDictationInputActive = observableFromEvent(
+			this,
+			Event.any(sttService.onDidChangeState, sttService.onDidChangePreparingModel),
+			() => isDictationActiveForEditor(this._editor),
+		);
 
 		const button = dom.append(container, dom.$('.sessions-chat-stt-button'));
 		button.tabIndex = 0;
@@ -1089,16 +1100,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// (which invites the user to click to cancel) so this composer matches
 			// the main chat toolbar affordance. Idle gets the richer description
 			// naming the configured dictation model.
-			content: sttService.currentSurface === 'chat' && sttService.isPreparingModel
+			content: isDictationInputActive.get() && sttService.isPreparingModel
 				? getDictationDownloadHoverMarkdown(sttService)
-				: (isDictationActiveOnSurface(sttService, 'chat') ? stopLabel : getDictationHoverMarkdown(micLabel, this.configurationService)),
+				: (isDictationInputActive.get() ? stopLabel : getDictationHoverMarkdown(micLabel, this.configurationService)),
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true }
 		})));
 
 		const downloadRing = this._register(new MutableDisposable<DictationDownloadRing>());
 		const renderState = () => {
-			const active = isDictationActiveOnSurface(sttService, 'chat');
+			const active = isDictationActiveForEditor(this._editor);
 			const preparing = active && sttService.isPreparingModel;
 			// Only the active Recording state should read as "recording" (filled
 			// mic). Once the user stops, the service enters Transcribing while it
@@ -1135,7 +1146,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
 		this._register(sttService.onDidChangeDownloadingModel(renderState));
-		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService, undefined, this.themeService));
+		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService, isDictationInputActive, this.themeService));
 
 		const updateVisibility = () => {
 			// Mirror the `MenuId.ChatExecute` dictation gate: hide while

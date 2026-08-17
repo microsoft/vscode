@@ -313,6 +313,11 @@ export function activeDictationEditor(): ICodeEditor | undefined {
 	return _active?.editor;
 }
 
+/** Whether `editor` owns the active or finalizing dictation session. */
+export function isDictationActiveForEditor(editor: ICodeEditor): boolean {
+	return _active?.editor === editor || _finalizing?.editor === editor;
+}
+
 /** Start dictating into `editor`, rendering the transcript live. */
 export async function startDictation(service: IChatSpeechToTextService, editor: ICodeEditor, window: Window & typeof globalThis, logService: ILogService, surface: ChatDictationSurface = 'chat'): Promise<void> {
 	// Already dictating into this exact editor: nothing to do (callers toggle
