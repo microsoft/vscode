@@ -14,7 +14,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ILifecycleService, InternalBeforeShutdownEvent, LifecyclePhase, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { ILifecycleService, LifecyclePhase, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
@@ -51,10 +51,7 @@ class PreserveOmniOnAgentsWindowCloseContribution extends Disposable implements 
 		}));
 		this._register(lifecycleService.onBeforeShutdown(event => {
 			if (event.reason === ShutdownReason.CLOSE) {
-				(event as InternalBeforeShutdownEvent).finalVeto(
-					() => controller.preserveOmniOnOwnerClose(),
-					'veto.preserveOmniOnAgentsWindowClose'
-				);
+				event.veto(controller.preserveOmniOnOwnerClose(), 'veto.preserveOmniOnAgentsWindowClose');
 			}
 		}));
 	}
