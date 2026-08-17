@@ -7622,7 +7622,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		await tick();
 		await tick();
 
-		await ctx.agent.chats.abort(defaultChatUri(sessionUri));
+		await ctx.agent.chats.abort(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
 		advance.complete();
 		await longSend.catch(() => { /* cancelled */ });
 
