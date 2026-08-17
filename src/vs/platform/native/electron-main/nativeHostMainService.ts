@@ -374,6 +374,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.win?.minimize();
 	}
 
+	async hideWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.hide();
+	}
+
 	async moveWindowTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.moveTop();

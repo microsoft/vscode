@@ -14,7 +14,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { ILifecycleService, InternalBeforeShutdownEvent, LifecyclePhase, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
@@ -28,6 +28,37 @@ import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTrac
 import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { SessionsWindowStartupExperiment } from '../../sessions/browser/sessionsWindowStartupExperiment.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
+import { IChatInputWindowService } from '../../../../workbench/contrib/chat/common/chatInputWindow.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { Event } from '../../../../base/common/event.js';
+import { OmniWindowCloseController } from './omniWindowCloseController.js';
+
+class PreserveOmniOnAgentsWindowCloseContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.preserveOmniOnAgentsWindowClose';
+
+	constructor(
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IChatInputWindowService chatInputWindowService: IChatInputWindowService,
+		@INativeHostService nativeHostService: INativeHostService,
+	) {
+		super();
+
+		const controller = this._register(new OmniWindowCloseController(chatInputWindowService, {
+			onDidFocus: Event.map(Event.filter(nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => id === nativeHostService.windowId), () => undefined),
+			hide: () => nativeHostService.hideWindow(),
+			close: () => nativeHostService.closeWindow(),
+		}));
+		this._register(lifecycleService.onBeforeShutdown(event => {
+			if (event.reason === ShutdownReason.CLOSE) {
+				(event as InternalBeforeShutdownEvent).finalVeto(
+					() => controller.preserveOmniOnOwnerClose(),
+					'veto.preserveOmniOnAgentsWindowClose'
+				);
+			}
+		}));
+	}
+}
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -226,6 +257,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 }
 
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(PreserveOmniOnAgentsWindowCloseContribution.ID, PreserveOmniOnAgentsWindowCloseContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsWindowStartupExperiment.ID, SessionsWindowStartupExperiment, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContribution.ID, SessionsCopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
 

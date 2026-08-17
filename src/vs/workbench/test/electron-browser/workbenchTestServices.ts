@@ -114,6 +114,7 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
+	async hideWindow(): Promise<void> { }
 	async moveWindowTop(options?: INativeHostOptions): Promise<void> { }
 	async isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean> { return false; }
 	async toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void> { }

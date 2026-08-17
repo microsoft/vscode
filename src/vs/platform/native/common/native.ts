@@ -250,6 +250,7 @@ export interface ICommonNativeHostService {
 	maximizeWindow(options?: INativeHostOptions): Promise<void>;
 	unmaximizeWindow(options?: INativeHostOptions): Promise<void>;
 	minimizeWindow(options?: INativeHostOptions): Promise<void>;
+	hideWindow(options?: INativeHostOptions): Promise<void>;
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
