@@ -5,34 +5,21 @@
 
 import { URI } from '../../../../base/common/uri.js';
 
-/**
- * Identifies which authentication provider gates Private Marketplace access.
- */
+/** The authentication provider that gates Private Marketplace access. */
 export type ExtensionGalleryAccessProviderId = 'github' | 'microsoft';
 
-/**
- * A persisted access verdict for a single account against a single marketplace.
- */
+/** A persisted access verdict for one account against one marketplace. */
 export interface ICachedAccess {
 	authProvider: ExtensionGalleryAccessProviderId;
 	accountId: string;
 	eligible: boolean;
-	/**
-	 * The `extensions.gallery.serviceUrl` the verdict was computed against. A verdict is scoped
-	 * to a specific marketplace (the eligibility endpoint is discovered per-marketplace), so a
-	 * cache written for one service URL must never be applied after the admin points the client
-	 * at a different marketplace.
-	 */
+	/** Scopes the verdict: it must not be reused after an admin repoints the client elsewhere. */
 	serviceUrl: string;
 }
 
 /**
- * Thrown by the service-index (gallery manifest) fetch when the request is rejected for
- * authentication/authorization reasons (HTTP 401/403). The service index MAY be protected
- * at the administrator's discretion, so this is kept distinct from transient/network
- * failures: callers on the Entra path use it to decide whether to prompt for sign-in
- * (no token was presented) or to treat the identity as denied (a token was rejected),
- * rather than mislabeling an auth-gated index as "unreachable".
+ * The service index rejected the request on authentication grounds (401/403). Distinct from a
+ * transient failure so an auth-gated index is not reported as unreachable.
  */
 export class MarketplaceAuthRequiredError extends Error {
 	constructor(readonly statusCode: number) {
@@ -41,11 +28,8 @@ export class MarketplaceAuthRequiredError extends Error {
 }
 
 /**
- * Thrown when the Private Marketplace deployment is misconfigured for the effective auth
- * provider (e.g. a non-HTTPS service index under Entra auth, so the Microsoft token cannot be
- * safely transmitted). Distinct from {@link MarketplaceAuthRequiredError} and transient failures
- * so the validator can surface a durable "misconfigured" status rather than a sign-in prompt or
- * an "unreachable" flash.
+ * The deployment cannot work as configured — e.g. a non-HTTPS service index under Entra auth, so
+ * the token cannot be safely transmitted. Durable, unlike a transient failure.
  */
 export class MarketplaceMisconfiguredError extends Error {
 	constructor(message: string) {
@@ -54,12 +38,8 @@ export class MarketplaceMisconfiguredError extends Error {
 }
 
 /**
- * Thrown when the service index rejects the request for a reason that is durable but not an
- * authorization decision — any 4xx other than 401/403, such as a marketplace refusing a client
- * below its minimum supported version. Retrying cannot resolve it, so callers surface a denial
- * ({@link ExtensionGalleryManifestStatus.AccessDenied}, matching how a rejected marketplace is
- * reported without a Private Marketplace configured) rather than an "unreachable" state that
- * would tell the user to check their network connection.
+ * The marketplace refused this client outright — any 4xx other than 401/403, such as a minimum
+ * client version. Durable, so callers report a denial rather than an unreachable network.
  */
 export class MarketplaceClientRejectedError extends Error {
 	constructor(readonly statusCode: number, message: string) {
@@ -68,22 +48,16 @@ export class MarketplaceClientRejectedError extends Error {
 }
 
 /**
- * Resolves the effective marketplace auth provider, applying the Entra (microsoft) product gate.
- * When Entra auth is not enabled in the product, a configured `microsoft` provider is downgraded to
- * the GitHub/default provider so the Entra path stays dormant until the Private Marketplace is
- * publicly released. Kept dependency-free (primitives in, verdict out) so it never reaches into a
- * service; callers read `extensions.gallery.authProvider` and `product.enableExtensionGalleryEntraAuth`.
+ * The effective auth provider, applying the Entra product gate: a configured `microsoft` provider
+ * is downgraded to `github` until Entra auth is enabled in the product.
  */
 export function getEffectiveAuthProvider(configuredProvider: string | undefined, entraAuthEnabled: boolean): ExtensionGalleryAccessProviderId {
 	return configuredProvider === 'microsoft' && entraAuthEnabled ? 'microsoft' : 'github';
 }
 
 /**
- * Guards bearer-token transport. A token must only ever be attached to a request whose target is
- * (a) HTTPS and (b) same-origin as the admin-configured service index URL. This prevents a
- * compromised or misconfigured gallery manifest from redirecting a resource URL at a foreign or
- * cleartext endpoint and exfiltrating the token. Returns false on any parse failure so callers
- * fail closed.
+ * A bearer token may only be sent to an HTTPS target that is same-origin with the configured
+ * service index, so a tampered manifest cannot redirect it elsewhere. Fails closed.
  */
 export function isSafeTokenTarget(targetUrl: string, baseUrl: string): boolean {
 	let target: URI;

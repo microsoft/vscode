@@ -36,12 +36,6 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	private _onDidChangeExtensionGalleryManifestStatus = this._register(new Emitter<ExtensionGalleryManifestStatus>());
 	override readonly onDidChangeExtensionGalleryManifestStatus = this._onDidChangeExtensionGalleryManifestStatus.event;
 
-	// Resolves which account may access the Private Marketplace and owns the durable verdict +
-	// in-process service-index caches. Injected as a Delayed singleton, so the proxy only
-	// instantiates the real service on first non-event access. It does not depend on
-	// IAuthenticationService — that is connected post-startup by
-	// ExtensionGalleryAccountAuthenticationContribution — so constructing it here cannot re-enter
-	// this service.
 
 	// Fetches and memoizes the service index for the configured marketplace.
 	private readonly serviceIndexFetcher: ExtensionGalleryServiceIndexFetcher;
@@ -136,11 +130,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 	// --- Access resolution ---
 
-	/**
-	 * Resolves who the account is, then fetches the marketplace's service index with it. Owns the
-	 * marketplace side of the flow — the URL, the token-target check and the index fetch — while the
-	 * account service only answers whether an entitled account exists.
-	 */
+	/** Resolves the account, then fetches the marketplace's service index with it. */
 	private async resolve(configuredServiceUrl: string): Promise<void> {
 		const token = this.beginResolution();
 		this.serviceIndexFetcher.invalidate();
@@ -210,9 +200,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	}
 
 	/**
-	 * Maps a failed index fetch to a status. A rejection by the server — an auth-gated index refusing
-	 * the token (401/403), or the marketplace refusing this client (other 4xx) — is durable and is
-	 * reported as a denial. Anything else is transient and never downgrades an available marketplace.
+	 * A rejection by the server (401/403, or another 4xx) is durable and reported as a denial;
+	 * anything else is transient and never downgrades an available marketplace.
 	 */
 	private applyFetchError(error: unknown, configuredServiceUrl: string, accountId: string | undefined): void {
 		if (error instanceof MarketplaceAuthRequiredError) {

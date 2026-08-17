@@ -12,18 +12,9 @@ import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider, ICachedAcce
 const CACHED_ACCESS_KEY = 'marketplace.cachedAccess';
 
 /**
- * Durable store for "was this account allowed to use this marketplace?".
- *
- * Kept out of both the account service (which answers *who* the account is and whether it is
- * entitled) and the manifest service (which fetches and publishes the manifest) so neither carries
- * storage plumbing. Owning it here also keeps the scoping rules in one testable place: a verdict is
- * only ever honoured for the account, marketplace and auth provider it was written for, so it can
- * never leak across a sign-out, an account switch, or an administrator repointing the client at a
- * different marketplace.
- *
- * The effective auth provider is resolved here rather than passed in: {@link getEffectiveAuthProvider}
- * is a pure function of configuration and the product gate, so reading it directly avoids adding a
- * member to the account service's API purely to thread it through.
+ * Durable store for "was this account allowed to use this marketplace?", kept out of both services
+ * so neither carries storage plumbing. A verdict is only honoured for the account, marketplace and
+ * auth provider it was written for, so it cannot leak across a sign-out, switch or repointing.
  */
 export class ExtensionGalleryAccessCache {
 
@@ -39,11 +30,7 @@ export class ExtensionGalleryAccessCache {
 			!!productService.enableExtensionGalleryEntraAuth);
 	}
 
-	/**
-	 * The persisted verdict for `accountId` at `serviceUrl`, or `undefined` when there is no usable
-	 * entry. A malformed entry, or one written for a different account, marketplace or auth provider,
-	 * is dropped rather than reused.
-	 */
+	/** The verdict for `accountId` at `serviceUrl`; a malformed or mismatched entry is dropped. */
 	read(serviceUrl: string, accountId: string): boolean | undefined {
 		const raw = this.storageService.get(CACHED_ACCESS_KEY, StorageScope.APPLICATION);
 		if (!raw) {

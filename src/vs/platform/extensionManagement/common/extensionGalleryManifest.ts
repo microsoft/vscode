@@ -7,12 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { RawContextKey } from '../../contextkey/common/contextkey.js';
 
-/**
- * Context key exposing the effective Marketplace authentication provider (e.g. `github` or
- * `microsoft`) for `when`-clause driven welcome content. Defined here in the platform layer so
- * both the workbench service that sets it and the Extensions contribution that reads it can
- * depend on it without a service-to-contribution dependency.
- */
+/** The effective Marketplace auth provider, for `when`-clause driven welcome content. */
 export const CONTEXT_MARKETPLACE_AUTH_PROVIDER = new RawContextKey<string>('marketplaceAuthProvider', '');
 
 export const enum ExtensionGalleryResourceType {
@@ -78,20 +73,9 @@ export const enum ExtensionGalleryManifestStatus {
 	RequiresSignIn = 'requiresSignIn',
 	AccessDenied = 'accessDenied',
 	Unavailable = 'unavailable',
-	/**
-	 * A marketplace is configured, and the user is (or is presumed) eligible, but its
-	 * gallery manifest could not be fetched — a transient network/server error. Unlike
-	 * {@link Unavailable} (which also means "no gallery configured"), this state is only
-	 * ever set after a failed fetch of a configured marketplace, so it is safe to surface
-	 * an informative message without affecting builds that have no gallery at all.
-	 */
+	/** A configured marketplace could not be reached — transient, unlike {@link Unavailable}. */
 	Unreachable = 'unreachable',
-	/**
-	 * The marketplace is configured for Microsoft (Entra ID) authentication, but the
-	 * deployment is misconfigured — for example the service index URL is not HTTPS, so the
-	 * Microsoft token cannot be safely transmitted. Access is refused (no silent fallback to
-	 * another provider) until the server is corrected.
-	 */
+	/** The deployment cannot work as configured — e.g. a non-HTTPS service index under Entra auth. */
 	Misconfigured = 'misconfigured'
 }
 
@@ -125,19 +109,11 @@ export const ExtensionGalleryServiceUrlConfigKey = 'extensions.gallery.serviceUr
 
 export const ExtensionGalleryAuthProviderConfigKey = 'extensions.gallery.authProvider';
 
-/**
- * Scopes requested when signing in with Microsoft (Entra ID) to establish the
- * user's identity for the Private Marketplace eligibility check.
- *
- * Only standard OpenID Connect sign-in scopes are requested — enough to obtain a
- * Microsoft session that identifies the user.
- */
+/** Standard OpenID Connect scopes — enough to identify the user for the eligibility check. */
 export const PRIVATE_MARKETPLACE_SCOPES: string[] = ['openid', 'profile', 'email', 'offline_access'];
 
 /**
- * Command that drives interactive Microsoft (Entra ID) sign-in for the Private Marketplace and
- * remembers the account the user settles on. It is registered in the Electron account-service layer
- * (which owns account selection and persistence); the browser-layer sign-in action invokes it by id
- * so it does not have to reach across the layer boundary.
+ * Interactive Microsoft sign-in, registered in the Electron layer and invoked by id from the
+ * browser-layer action so it need not cross the layer boundary.
  */
 export const ExtensionGalleryMicrosoftSignInCommandId = 'workbench.extensions.marketplace.signInWithMicrosoft';

@@ -18,12 +18,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { MarketplaceAuthRequiredError, MarketplaceClientRejectedError } from './extensionGalleryAccess.js';
 
 /**
- * Fetches and validates the Private Marketplace service index (gallery manifest) from a
- * configured `serviceUrl`, presenting a bearer token when one is supplied so an auth-gated index
- * is readable. Successful fetches are memoized in-process, keyed by `serviceUrl` alone, so the
- * validator's separate eligibility probe and its subsequent `Available`-rendering fetch do not
- * re-request the same index. The memoized content is token-independent (the index body is the
- * same whether or not a bearer was needed to read it), so a cache hit ignores `accessToken`.
+ * Fetches and validates the service index for a configured `serviceUrl`, presenting a bearer token
+ * when supplied. Memoized per `serviceUrl`; the body does not vary by token, so a hit ignores it.
  */
 export class ExtensionGalleryServiceIndexFetcher {
 
@@ -55,11 +51,9 @@ export class ExtensionGalleryServiceIndexFetcher {
 	}
 
 	/**
-	 * Returns the validated service index for `serviceUrl`. On a memo hit the cached manifest is
-	 * returned without a network request (and `accessToken` is ignored — the content does not vary
-	 * by token). On a miss the index is fetched (presenting `accessToken` when supplied), validated,
-	 * memoized on success, and returned. Throws {@link MarketplaceAuthRequiredError} on 401/403 and a
-	 * generic error on any other non-2xx/malformed response.
+	 * The validated service index for `serviceUrl`, from the memo when present. Throws
+	 * {@link MarketplaceAuthRequiredError} on 401/403, {@link MarketplaceClientRejectedError} on other
+	 * 4xx, and a generic error otherwise.
 	 */
 	async getServiceIndex(serviceUrl: string, token: CancellationToken, accessToken?: string): Promise<IExtensionGalleryManifest> {
 		const cached = this._memo.get(serviceUrl);
@@ -76,11 +70,7 @@ export class ExtensionGalleryServiceIndexFetcher {
 		return manifest;
 	}
 
-	/**
-	 * Drops all memoized service indexes. Called at the start of each validation generation (and on
-	 * sign-out/config change) so a superseded account or a repointed marketplace never observes a
-	 * stale index from a previous generation.
-	 */
+	/** Drops all memoized indexes, so a new resolution never observes a stale one. */
 	invalidate(): void {
 		this._memo.clear();
 	}
@@ -118,11 +108,8 @@ export class ExtensionGalleryServiceIndexFetcher {
 			}
 
 			if (context.res.statusCode && (context.res.statusCode < 200 || context.res.statusCode >= 300)) {
-				// Any other non-2xx (404/5xx/…) is an error, not a manifest. Reject before
-				// parsing so a JSON error body can never be mistaken for a valid service index.
-				// Include the response body: a marketplace that rejects the client (e.g. an
-				// unsupported client version) explains why there, and without it the failure is
-				// indistinguishable from an unreachable network.
+				// Reject before parsing so a JSON error body is never mistaken for a service index. The
+				// body is included because a marketplace rejecting the client explains why there.
 				const detail = await this.readErrorDetail(context);
 				const message = `Service index returned status ${context.res.statusCode}${detail ? `: ${detail}` : ''}`;
 				if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
@@ -140,30 +127,21 @@ export class ExtensionGalleryServiceIndexFetcher {
 			}
 
 			if (!Array.isArray(extensionGalleryManifest.resources)) {
-				// A 200 whose body is valid JSON but not a service index (e.g. a server error
-				// object, or an HTML/JSON captive-portal page) must not be treated as a
-				// manifest — `resources` is required to discover gallery endpoints. Reject here
-				// so callers classify it as a failed fetch, rather than letting resource-URI
-				// discovery throw on a non-iterable `resources` outside this try/catch.
+				// Valid JSON but not a service index (e.g. a captive-portal page). Reject here so it is
+				// classified as a failed fetch rather than throwing later during endpoint discovery.
 				throw new Error('Service index response is not a valid extension gallery manifest.');
 			}
 
 			if (!extensionGalleryManifest.resources.every(resource => resource && typeof resource.id === 'string' && typeof resource.type === 'string')) {
-				// `resources` is an array but at least one entry is malformed (missing/non-string
-				// `id` or `type`). `getExtensionGalleryManifestResourceUri` calls `resource.type.split()`
-				// outside this fetch's try/catch during endpoint discovery, so an undefined `type`
-				// would throw there and reject initialization instead of being classified as a failed
-				// fetch. Reject here so the caller surfaces `Unreachable`.
+				// A malformed entry would throw later in endpoint discovery, outside this try/catch.
 				throw new Error('Service index response contains malformed extension gallery resources.');
 			}
 
 			return extensionGalleryManifest;
 		} catch (error) {
 			if (error instanceof MarketplaceAuthRequiredError) {
-				// Not a failure: an auth-gated service index rejected an unauthenticated (or
-				// stale-token) request. Callers translate this into a RequiresSignIn/AccessDenied
-				// state and the workbench surfaces the corresponding sign-in affordance, so logging
-				// it at `error` would misrepresent the normal "not signed in yet" flow as a fault.
+				// Not a fault: the normal "not signed in yet" flow, which callers turn into a sign-in
+				// affordance. Logging it at `error` would misrepresent it.
 				this.logService.trace('[Marketplace] Extension gallery manifest requires authentication', error.statusCode);
 			} else {
 				this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
@@ -172,11 +150,7 @@ export class ExtensionGalleryServiceIndexFetcher {
 		}
 	}
 
-	/**
-	 * Best-effort read of an error response body for diagnostics. Truncated so a large HTML error
-	 * page cannot flood the log, and never throws: a body that cannot be read must not replace the
-	 * status code we already have.
-	 */
+	/** Best-effort, truncated read of an error body for diagnostics. Never throws. */
 	private async readErrorDetail(context: IRequestContext): Promise<string | undefined> {
 		try {
 			const text = await asText(context);

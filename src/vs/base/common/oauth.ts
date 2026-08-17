@@ -811,11 +811,7 @@ export interface IAuthorizationJWTClaims {
 	 */
 	roles?: string[];
 
-	/**
-	 * OPTIONAL. Microsoft Entra ID tenant id (`tid`). Present on Entra-issued tokens and
-	 * absent from pure OIDC/non-Entra tokens. Used to distinguish work/school (Entra) accounts
-	 * from personal Microsoft Accounts.
-	 */
+	/** Entra ID tenant id; absent on non-Entra tokens. Distinguishes work/school from personal accounts. */
 	tid?: string;
 
 	/**

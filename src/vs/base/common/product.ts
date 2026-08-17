@@ -160,11 +160,8 @@ export interface IProductConfiguration {
 	readonly dictationRuntime?: IDictationRuntimeProductConfig;
 
 	/**
-	 * Hard gate for the Entra ID (Microsoft) authentication path of the Extensions
-	 * Marketplace. When falsy, the `extensions.gallery.authProvider: microsoft`
-	 * setting is ignored and the GitHub/default auth path is used instead. This keeps
-	 * the Entra path dormant on builds where the Private Marketplace has not yet been
-	 * publicly released, independent of any admin policy configuration.
+	 * Hard gate for the Entra ID marketplace auth path. When falsy,
+	 * `extensions.gallery.authProvider: microsoft` is ignored and the GitHub path is used.
 	 */
 	readonly enableExtensionGalleryEntraAuth?: boolean;
 
