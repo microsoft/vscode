@@ -10,7 +10,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionEhcliAdoptable, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 /**
@@ -404,16 +404,14 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/**
 	 * The directories a session may be matched against a workspace folder by: its
-	 * working directories plus its server-owned project (repository) root. A
-	 * worktree-isolated session runs out of a directory outside the repository
-	 * (`<repo>.worktrees/<name>` for agent-host worktrees, `copilot-worktrees/`
-	 * for legacy extension-host ones), so working directories alone would hide it
-	 * from a window opened on that repository; its project root is the primary
-	 * repository root and restores the match.
+	 * working directories plus - for legacy Copilot CLI sessions only - its
+	 * server-owned project (repository) root. Those legacy sessions run out of a
+	 * `copilot-worktrees/` directory outside the repository, so working
+	 * directories alone would hide them from a window opened on that repository.
 	 */
 	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
 		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
-		if (summary.project?.uri) {
+		if (summary.project?.uri && readSessionEhcliAdoptable(summary._meta)) {
 			candidates.push(URI.parse(summary.project.uri));
 		}
 		return candidates;

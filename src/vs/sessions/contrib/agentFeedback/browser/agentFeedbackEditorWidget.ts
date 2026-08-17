@@ -30,12 +30,13 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackReply } from './agentFeedbackModel.js';
 import { ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 
 interface ICommentItemActions {
-	editAction: Action;
-	removeAction: Action;
-	addReplyAction: Action;
+	editAction?: Action;
+	removeAction?: Action;
+	addReplyAction?: Action;
 }
 
 /**
@@ -311,44 +312,47 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			const actionBarContainer = $('div.agent-feedback-widget-item-actions');
 			const actionBar = this._eventStore.add(new ActionBar(actionBarContainer));
 
-			const itemActions: ICommentItemActions = { editAction: undefined!, removeAction: undefined!, addReplyAction: undefined! };
-
-			itemActions.addReplyAction = this._eventStore.add(new Action(
-				'agentFeedback.widget.addReply',
-				nls.localize('addToComment', "Add to Comment"),
-				ThemeIcon.asClassName(Codicon.commentDiscussion),
-				true,
-				(): void => { this._startAddingReply(comment, item, itemActions); },
-			));
-			actionBar.push(itemActions.addReplyAction, { icon: true, label: false });
-
-			itemActions.editAction = this._eventStore.add(new Action(
-				'agentFeedback.widget.edit',
-				nls.localize('editComment', "Edit"),
-				ThemeIcon.asClassName(Codicon.edit),
-				true,
-				(): void => { this._startEditing(comment, text, itemActions); },
-			));
-			actionBar.push(itemActions.editAction, { icon: true, label: false });
-
-			// Comments that can be accepted — either convertible PR review
-			// comments or `created` agent feedback — render their Accept /
-			// Remove affordances in the always-visible bottom button bar, so
-			// those actions are omitted from the hover toolbar to avoid a
-			// duplicate affordance. The convert ("Accept") action is never
-			// shown in the hover toolbar.
+			const itemActions: ICommentItemActions = {};
 			const showActionButtonsBar = comment.canConvertToAgentFeedback
 				|| (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created);
 
-			itemActions.removeAction = this._eventStore.add(new Action(
-				'agentFeedback.widget.remove',
-				nls.localize('removeComment', "Remove"),
-				ThemeIcon.asClassName(Codicon.close),
-				true,
-				() => this._removeComment(comment),
-			));
-			if (!showActionButtonsBar) {
-				actionBar.push(itemActions.removeAction, { icon: true, label: false });
+			if (comment.state === AgentFeedbackState.Resolved) {
+				actionBar.push(this._eventStore.add(new Action(
+					'agentFeedback.widget.hide',
+					nls.localize('hideComment', "Hide"),
+					ThemeIcon.asClassName(Codicon.close),
+					true,
+					() => this._hideComment(comment),
+				)), { icon: true, label: false });
+			} else {
+				itemActions.addReplyAction = this._eventStore.add(new Action(
+					'agentFeedback.widget.addReply',
+					nls.localize('addToComment', "Add to Comment"),
+					ThemeIcon.asClassName(Codicon.commentDiscussion),
+					true,
+					(): void => { this._startAddingReply(comment, item, itemActions); },
+				));
+				actionBar.push(itemActions.addReplyAction, { icon: true, label: false });
+
+				itemActions.editAction = this._eventStore.add(new Action(
+					'agentFeedback.widget.edit',
+					nls.localize('editComment', "Edit"),
+					ThemeIcon.asClassName(Codicon.edit),
+					true,
+					(): void => { this._startEditing(comment, text, itemActions); },
+				));
+				actionBar.push(itemActions.editAction, { icon: true, label: false });
+
+				itemActions.removeAction = this._eventStore.add(new Action(
+					'agentFeedback.widget.remove',
+					nls.localize('removeComment', "Remove"),
+					ThemeIcon.asClassName(Codicon.close),
+					true,
+					() => this._removeComment(comment),
+				));
+				if (!showActionButtonsBar) {
+					actionBar.push(itemActions.removeAction, { icon: true, label: false });
+				}
 			}
 
 			itemHeader.appendChild(actionBarContainer);
@@ -466,13 +470,18 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		return suggestionNode;
 	}
 
-	private _renderReplies(replies: readonly string[]): HTMLElement {
+	private _renderReplies(replies: readonly IAgentFeedbackReply[]): HTMLElement {
 		const repliesNode = $('div.agent-feedback-widget-replies');
 
 		for (const reply of replies) {
 			const replyNode = $('div.agent-feedback-widget-reply');
+			if (reply.author === 'agent') {
+				const author = $('div.agent-feedback-widget-reply-author');
+				author.textContent = nls.localize('agentFeedback.replyFromAgent', "Agent");
+				replyNode.appendChild(author);
+			}
 			const replyText = $('div.agent-feedback-widget-reply-text');
-			const rendered = this._markdownRendererService.render(new MarkdownString(reply));
+			const rendered = this._markdownRendererService.render(new MarkdownString(reply.text));
 			this._eventStore.add(rendered);
 			replyText.appendChild(rendered.element);
 			replyNode.appendChild(replyText);
@@ -561,6 +570,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		this._agentFeedbackService.removeFeedback(this._sessionResource, comment.sourceId);
 	}
 
+	private _hideComment(comment: ISessionEditorComment): void {
+		this._agentFeedbackService.hideFeedbackInEditor(this._sessionResource, comment.sourceId);
+	}
+
 	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement, actions: ICommentItemActions, restoredText?: string): void {
 		const existing = this._activeEditInputs.get(comment.id);
 		if (existing) {
@@ -569,9 +582,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}
 
 		// Disable all actions while editing
-		actions.editAction.enabled = false;
-		actions.removeAction.enabled = false;
-		actions.addReplyAction.enabled = false;
+		this._setItemActionsEnabled(actions, false);
 
 		const editStore = new DisposableStore();
 		this._eventStore.add(editStore);
@@ -637,9 +648,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}
 
 		// Disable item actions while replying so the action bar doesn't conflict.
-		actions.editAction.enabled = false;
-		actions.removeAction.enabled = false;
-		actions.addReplyAction.enabled = false;
+		this._setItemActionsEnabled(actions, false);
 
 		const replyStore = new DisposableStore();
 		this._eventStore.add(replyStore);
@@ -677,9 +686,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		const cleanup = () => {
 			replyStore.dispose();
-			actions.editAction.enabled = true;
-			actions.removeAction.enabled = true;
-			actions.addReplyAction.enabled = true;
+			this._setItemActionsEnabled(actions, true);
 			this._activeReplyInputs.delete(comment.id);
 			replyContainer.remove();
 			this._clearDraft(comment.id);
@@ -769,9 +776,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		this._clearDraft(comment.id);
 
 		// Re-enable actions
-		actions.editAction.enabled = true;
-		actions.removeAction.enabled = true;
-		actions.addReplyAction.enabled = true;
+		this._setItemActionsEnabled(actions, true);
 
 		textContainer.classList.remove('editing');
 		clearNode(textContainer);
@@ -779,6 +784,14 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		this._eventStore.add(rendered);
 		textContainer.appendChild(rendered.element);
 		this._editor.layoutOverlayWidget(this);
+	}
+
+	private _setItemActionsEnabled(actions: ICommentItemActions, enabled: boolean): void {
+		for (const action of [actions.editAction, actions.removeAction, actions.addReplyAction]) {
+			if (action) {
+				action.enabled = enabled;
+			}
+		}
 	}
 
 	private _convertToAgentFeedback(comment: ISessionEditorComment): void {

@@ -95,6 +95,7 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['codeql_checker', 'CodeQL Security Scan'],
 			['addComment', 'Add Comment'],
 			['listComments', 'List Comments'],
+			['replyToComment', 'Reply to Comment'],
 			['deleteComments', 'Delete Comments'],
 			['resolveComments', 'Resolve Comments'],
 			['viewUnreviewedComments', 'View Comments'],

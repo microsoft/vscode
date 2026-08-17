@@ -631,6 +631,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	defineInstance(IAgentFeedbackService, {
 		_serviceBrand: undefined,
 		onDidChangeFeedback: Event.None,
+		onDidChangeFeedbackVisibility: Event.None,
 		onDidChangeNavigation: Event.None,
 		onDidChangeFeedbackScope: Event.None,
 		activeFeedbackSessionResource: constObservable(AGENT_FEEDBACK_NEW_SESSION_RESOURCE),
@@ -645,6 +646,9 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		showFeedbackInEditor: () => { },
+		hideFeedbackInEditor: () => { },
+		getVisibleResolvedFeedbackIds: () => new Set(),
 		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
 		getFeedbackSessionResource: () => undefined,

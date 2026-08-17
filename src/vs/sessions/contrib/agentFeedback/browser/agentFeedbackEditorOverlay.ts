@@ -18,10 +18,15 @@ import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeed
 import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
+import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
 
 export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {
 	readonly editorPaneContainer: HTMLElement;
+}
+
+export function getAgentFeedbackOverlayResourceCandidates(input: Parameters<typeof getActiveResourceCandidates>[0]): ReturnType<typeof getActiveResourceCandidates> {
+	return input instanceof EmptyFileEditorInput ? [] : getActiveResourceCandidates(input);
 }
 
 export class AgentFeedbackOverlayController {
@@ -76,6 +81,7 @@ export class AgentFeedbackOverlayController {
 			group.onDidActiveEditorChange,
 			group.onDidModelChange,
 			agentFeedbackService.onDidChangeFeedback,
+			agentFeedbackService.onDidChangeFeedbackVisibility,
 			agentFeedbackService.onDidChangeNavigation,
 			agentFeedbackService.onDidChangeFeedbackScope,
 		));
@@ -83,7 +89,8 @@ export class AgentFeedbackOverlayController {
 		this._store.add(autorun(r => {
 			activeSignal.read(r);
 
-			const candidates = getActiveResourceCandidates(group.activeEditorPane?.input);
+			const activeInput = group.activeEditorPane?.input;
+			const candidates = getAgentFeedbackOverlayResourceCandidates(activeInput);
 			let navigationBearings = undefined;
 			let acceptedFeedbackCount = 0;
 			for (const candidate of candidates) {
@@ -96,6 +103,7 @@ export class AgentFeedbackOverlayController {
 					sessionResource,
 					agentFeedbackService.getFeedback(sessionResource),
 					codeReviewService.getPRReviewState(sessionResource).read(r),
+					agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
 				);
 				if (comments.length > 0) {
 					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, comments);

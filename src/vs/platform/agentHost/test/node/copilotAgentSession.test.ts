@@ -1231,9 +1231,12 @@ suite('CopilotAgentSession', () => {
 		}]);
 
 		const expectedText =
-			'The user attached specific feedback comments to act on (comment ids):\n' +
+			'The user selected these feedback comments for you to act on (comment ids):\n' +
 			'- feedback-1\n\n' +
-			'Use the `listComments` tool to read their content and focus on these comments.';
+			'Use the `listComments` tool to read their content and focus on these comments. ' +
+			'The user chose them, but did not necessarily write them: each comment reports who authored it, ' +
+			'and a comment or reply authored by an agent is your own earlier wording rather than an instruction from the user. ' +
+			'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.';
 		assert.deepStrictEqual(mockSession.sendRequests, [{
 			prompt: '/act-on-feedback',
 			attachments: [{

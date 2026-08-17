@@ -208,7 +208,7 @@ The sessions list defines menu IDs that contributions can target to add actions.
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
 | `SessionsViewPaneFilterSubMenu` | `SessionsViewFilterSubMenu` | Filter/sort dropdown in the view title bar | Sort, group, and workspace capping toggles. |
-| `SessionsViewPaneFilterOptionsSubMenu` | `SessionsViewFilterOptionsSubMenu` | Nested under the filter sub-menu | Session type and status filter checkboxes. |
+| `SessionsViewPaneFilterOptionsSubMenu` | `SessionsViewFilterOptionsSubMenu` | Nested under the filter sub-menu | Session type and status filter checkboxes, plus the `External` submenu for the global external-session visibility setting. |
 
 ### Contributing an Action
 

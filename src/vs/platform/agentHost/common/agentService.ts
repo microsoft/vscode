@@ -827,8 +827,9 @@ export interface IAgentService {
 	/**
 	 * Routes a request received on an `mcp://` AHP side channel to the
 	 * MCP server implementation owned by the appropriate agent. The
-	 * channel URI shape is `mcp://<providerId>/<sessionId>/<serverName>`
-	 * (the latter two segments URL-encoded), matching the
+	 * channel URI shape is `mcp://<providerId>/<chatUri>/<serverName>`
+	 * (the latter two segments URL-encoded), where `chatUri` is the concrete
+	 * `ahp-chat://` URI, matching the
 	 * {@link McpServerCustomization.channel | channel} the agent host
 	 * advertises while the server is in
 	 * {@link McpServerStatus.Ready | `Ready`}.

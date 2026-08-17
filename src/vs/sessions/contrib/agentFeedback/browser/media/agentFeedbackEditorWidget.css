@@ -328,6 +328,11 @@
 	border-top: 1px dashed color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 60%, transparent);
 }
 
+.agent-feedback-widget-reply-author {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label3);
+}
+
 .agent-feedback-widget-reply-text {
 	color: var(--vscode-foreground);
 	word-wrap: break-word;

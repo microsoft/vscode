@@ -56,7 +56,7 @@ const reviewThreadsQuery = `query AgentHostPullRequestReviewThreads($owner: Stri
 				nodes {
 					id isResolved isOutdated path diffSide line originalLine
 					comments(first: 100) {
-						nodes { id databaseId body url createdAt updatedAt path line originalLine state commit { oid } originalCommit { oid } author { login ... on User { databaseId } } }
+						nodes { id databaseId body url createdAt updatedAt path line originalLine state authorAssociation commit { oid } originalCommit { oid } author { login ... on User { databaseId } ... on Bot { databaseId } } }
 						pageInfo { hasNextPage endCursor }
 					}
 				}
@@ -71,7 +71,7 @@ const reviewThreadCommentsQuery = `query AgentHostPullRequestReviewThreadComment
 	node(id: $threadId) {
 		... on PullRequestReviewThread {
 			comments(first: 100, after: $after) {
-				nodes { id databaseId body url createdAt updatedAt path line originalLine state commit { oid } originalCommit { oid } author { login ... on User { databaseId } } }
+				nodes { id databaseId body url createdAt updatedAt path line originalLine state authorAssociation commit { oid } originalCommit { oid } author { login ... on User { databaseId } ... on Bot { databaseId } } }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
@@ -664,9 +664,11 @@ function toCore(value: unknown, ref: PullRequestRef): PullRequestCore {
 		draft: booleanProperty(item, 'draft') ?? false,
 		headSha: requiredString(head, 'sha'),
 		headRef: requiredString(head, 'ref'),
+		headRepositoryNameWithOwner: optionalObjectProperty(head, 'repo') ? stringProperty(objectProperty(head, 'repo'), 'full_name') : undefined,
+		maintainerCanModify: booleanProperty(item, 'maintainer_can_modify') ?? false,
 		baseSha: requiredString(base, 'sha'),
 		baseRef: requiredString(base, 'ref'),
-		author: toActor(optionalObjectProperty(item, 'user')),
+		author: toActor(optionalObjectProperty(item, 'user'), stringProperty(item, 'author_association')),
 		createdAt: stringProperty(item, 'created_at'),
 		updatedAt: stringProperty(item, 'updated_at'),
 		closedAt: nullableStringProperty(item, 'closed_at'),
@@ -679,7 +681,7 @@ function toComment(value: unknown, includeBody: boolean): PullRequestComment {
 	return {
 		id: requiredId(item, 'id'),
 		nodeId: idProperty(item, 'node_id'),
-		author: toActor(optionalObjectProperty(item, 'user')),
+		author: toActor(optionalObjectProperty(item, 'user'), stringProperty(item, 'author_association')),
 		body: includeBody ? nullableStringProperty(item, 'body') : undefined,
 		url: stringProperty(item, 'html_url'),
 		createdAt: stringProperty(item, 'created_at'),
@@ -692,7 +694,7 @@ function toReview(value: unknown, includeBody: boolean): PullRequestReview {
 	return {
 		id: requiredId(item, 'id'),
 		nodeId: idProperty(item, 'node_id'),
-		author: toActor(optionalObjectProperty(item, 'user')),
+		author: toActor(optionalObjectProperty(item, 'user'), stringProperty(item, 'author_association')),
 		state: stringProperty(item, 'state') ?? 'UNKNOWN',
 		body: includeBody ? nullableStringProperty(item, 'body') : undefined,
 		commitId: stringProperty(item, 'commit_id'),
@@ -722,7 +724,7 @@ function toGraphQLInlineComment(value: unknown, includeBody: boolean, diffSide: 
 	return {
 		id: requiredId(item, 'databaseId', 'id'),
 		nodeId: idProperty(item, 'id'),
-		author: toActor(optionalObjectProperty(item, 'author')),
+		author: toActor(optionalObjectProperty(item, 'author'), stringProperty(item, 'authorAssociation')),
 		body: includeBody ? nullableStringProperty(item, 'body') : undefined,
 		url: stringProperty(item, 'url'),
 		createdAt: stringProperty(item, 'createdAt'),
@@ -804,7 +806,7 @@ function filterChecks(checks: readonly PullRequestCheck[], requirednessAvailable
 	return includeOptional || !requirednessAvailable ? checks : checks.filter(check => check.required !== false);
 }
 
-function toActor(value: object | undefined): { readonly id?: string; readonly login: string } | undefined {
+function toActor(value: object | undefined, association?: string): { readonly id?: string; readonly login: string; readonly association?: string } | undefined {
 	if (!value) {
 		return undefined;
 	}
@@ -813,7 +815,11 @@ function toActor(value: object | undefined): { readonly id?: string; readonly lo
 		return undefined;
 	}
 	const id = idProperty(value, 'databaseId') ?? idProperty(value, 'id');
-	return id ? { id, login } : { login };
+	return {
+		...(id ? { id } : {}),
+		login,
+		...(association ? { association } : {}),
+	};
 }
 
 function addParticipant(

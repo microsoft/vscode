@@ -246,10 +246,10 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 				return;
 			}
 
-			// Only collapse on a **detail-only** hide (editor closed, detail kept). Closing the
-			// whole side pane hides the aux bar too (the toggle hides it *before* the editor,
-			// so it is already hidden here) — leave the editors open so they return when the
-			// side pane is reopened.
+			// Only collapse on a **detail-only** hide (editor closed, detail kept).
+			if (this._ctx.togglingSidePane) {
+				return;
+			}
 			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				void this._sequencer.queue(() => this._collapseNonManagedTabs()).catch(onUnexpectedError);
 			}

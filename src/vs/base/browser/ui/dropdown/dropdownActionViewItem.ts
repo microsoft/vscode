@@ -189,6 +189,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 export interface IActionWithDropdownActionViewItemOptions extends IActionViewItemOptions {
 	readonly menuActionsOrProvider: readonly IAction[] | IActionProvider;
 	readonly menuActionClassNames?: string[];
+	readonly keybindingProvider?: IKeybindingProvider;
 }
 
 export class ActionWithDropdownActionViewItem extends ActionViewItem {
@@ -220,7 +221,11 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 			separator.classList.toggle('prominent', menuActionClassNames.includes('prominent'));
 			append(this.element, separator);
 
-			this.dropdownMenuActionViewItem = this._register(new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames], hoverDelegate: this.options.hoverDelegate }));
+			this.dropdownMenuActionViewItem = this._register(new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, {
+				classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames],
+				hoverDelegate: this.options.hoverDelegate,
+				keybindingProvider: (<IActionWithDropdownActionViewItemOptions>this.options).keybindingProvider,
+			}));
 			this.dropdownMenuActionViewItem.render(this.element);
 
 			this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {

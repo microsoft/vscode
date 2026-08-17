@@ -26,6 +26,7 @@ export const Menus = {
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
+	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),

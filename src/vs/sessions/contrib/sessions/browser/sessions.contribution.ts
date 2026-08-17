@@ -30,6 +30,7 @@ import { OmniChatEnabledSettingId } from '../../../../workbench/contrib/chat/com
 import { Menus } from '../../../browser/menus.js';
 import { OmniCIFailureContribution } from './omniCIFailureContribution.js';
 import { BlockedSessionsCIFixModel, IBlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
+import './sessionDetailsAction.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");

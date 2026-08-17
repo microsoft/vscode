@@ -53,7 +53,7 @@ interface ISeedFeedbackOptions {
 	readonly replies?: readonly string[];
 }
 
-const feedbackToolNames = ['addComment', 'listComments', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
+const feedbackToolNames = ['addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
 const feedbackResourceUri = 'untitled://server-tools/reviewed.ts';
 const sessionToolNames = [
 	SessionServerToolName.ListSessions,
@@ -316,12 +316,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			'Call listComments exactly once, then reply exactly "listed".',
 			'listComments',
 		);
-		const result = JSON.parse(tool.resultText) as { comments: readonly { id: string; replies?: readonly string[] }[]; note?: string };
+		const result = JSON.parse(tool.resultText) as { comments: readonly { id: string; author?: string; replies?: readonly { author: string; text: string }[] }[]; note?: string };
 		assert.deepStrictEqual({
-			comments: result.comments.map(comment => ({ id: comment.id, replies: comment.replies })),
+			comments: result.comments.map(comment => ({ id: comment.id, author: comment.author, replies: comment.replies })),
 			noteMentionsUnreviewed: result.note?.includes('1 code review comment') ?? false,
 		}, {
-			comments: [{ id: 'accepted-comment', replies: ['reply'] }],
+			// The seeded entries carry no author, so the comment falls back to its
+			// `codeReview` origin and the reply to the user.
+			comments: [{ id: 'accepted-comment', author: 'agent', replies: [{ author: 'user', text: 'reply' }] }],
 			noteMentionsUnreviewed: true,
 		});
 	});

@@ -16,7 +16,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraftState } from '../../browser/agentFeedbackEditorWidget.js';
-import { AgentFeedbackKind, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 
 suite('AgentFeedbackEditorWidget', () => {
@@ -41,17 +41,20 @@ suite('AgentFeedbackEditorWidget', () => {
 	interface ITestHarness {
 		/** Comment ids passed to `setNavigationAnchor`, in call order. */
 		readonly navigations: readonly string[];
+		readonly hiddenFeedbackIds: readonly string[];
 		readonly domNode: HTMLElement;
 		/** Tears the widget down and builds a new one, as the contribution does on any feedback change. */
 		rebuild(): HTMLElement;
 	}
 
-	function withWidget(callback: (harness: ITestHarness) => void): void {
+	function withWidget(callback: (harness: ITestHarness) => void, testComment: ISessionEditorComment = comment): void {
 		const navigations: string[] = [];
+		const hiddenFeedbackIds: string[] = [];
 		const services = new ServiceCollection();
 		services.set(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 			override setNavigationAnchor(_sessionResource: URI, commentId: string): void { navigations.push(commentId); }
 			override updateFeedback(): void { }
+			override hideFeedbackInEditor(_sessionResource: URI, feedbackId: string): void { hiddenFeedbackIds.push(feedbackId); }
 		});
 		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() { });
 		services.set(IMarkdownRendererService, new SyncDescriptor(MarkdownRendererService));
@@ -62,7 +65,7 @@ suite('AgentFeedbackEditorWidget', () => {
 			let widget: AgentFeedbackEditorWidget | undefined;
 
 			const createWidget = () => {
-				widget = store.add(instantiationService.createInstance(AgentFeedbackEditorWidget, editor, [comment], sessionResource, draftState));
+				widget = store.add(instantiationService.createInstance(AgentFeedbackEditorWidget, editor, [testComment], sessionResource, draftState));
 				const domNode = widget.getDomNode();
 				// The test editor has no real view, so attach the overlay ourselves for focus to work.
 				mainWindow.document.body.appendChild(domNode);
@@ -81,7 +84,7 @@ suite('AgentFeedbackEditorWidget', () => {
 			};
 
 			try {
-				callback({ navigations, domNode: createWidget(), rebuild });
+				callback({ navigations, hiddenFeedbackIds, domNode: createWidget(), rebuild });
 			} finally {
 				widget?.getDomNode().remove();
 				store.dispose();
@@ -130,6 +133,29 @@ suite('AgentFeedbackEditorWidget', () => {
 
 			assert.deepStrictEqual([...navigations], [comment.id]);
 		});
+	});
+
+	test('resolved feedback only has a hide action', () => {
+		const resolvedComment: ISessionEditorComment = { ...comment, state: AgentFeedbackState.Resolved };
+		withWidget(({ domNode, hiddenFeedbackIds }) => {
+			const actions = [...domNode.querySelectorAll<HTMLElement>('.agent-feedback-widget-item-actions .action-label')];
+			const hideAction = domNode.querySelector<HTMLElement>('.agent-feedback-widget-item-actions .action-label.codicon-close');
+			hideAction?.click();
+
+			assert.deepStrictEqual({
+				actionCount: actions.length,
+				hasEdit: actions.some(action => action.classList.contains('codicon-edit')),
+				hasReply: actions.some(action => action.classList.contains('codicon-comment-discussion')),
+				hideLabel: hideAction?.ariaLabel || hideAction?.title,
+				hiddenFeedbackIds: [...hiddenFeedbackIds],
+			}, {
+				actionCount: 1,
+				hasEdit: false,
+				hasReply: false,
+				hideLabel: 'Hide',
+				hiddenFeedbackIds: [resolvedComment.sourceId],
+			});
+		}, resolvedComment);
 	});
 
 	test('the edit composer survives losing focus and is closed by Escape from the widget', () => {

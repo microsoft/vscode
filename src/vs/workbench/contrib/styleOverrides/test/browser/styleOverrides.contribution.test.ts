@@ -425,6 +425,31 @@ suite('StyleOverridesContribution', () => {
 		});
 	});
 
+	test('uses opaque surface border defaults', () => {
+		const darkTheme = ColorThemeData.createUnloadedTheme('vs-dark');
+		const lightTheme = ColorThemeData.createUnloadedTheme('vs');
+		const darkSurfaceBorder = darkTheme.getColor(SURFACE_BORDER);
+		const darkEditorBorder = darkTheme.getColor(EDITOR_BORDER);
+		const lightSurfaceBorder = lightTheme.getColor(SURFACE_BORDER);
+		const lightEditorBorder = lightTheme.getColor(EDITOR_BORDER);
+
+		assert.deepStrictEqual({
+			darkSurfaceBorderIsOpaque: darkSurfaceBorder?.isOpaque(),
+			darkEditorBorderIsOpaque: darkEditorBorder?.isOpaque(),
+			darkEditorBorderMatchesSurface: darkEditorBorder?.equals(darkSurfaceBorder ?? null),
+			lightSurfaceBorderIsOpaque: lightSurfaceBorder?.isOpaque(),
+			lightEditorBorderIsOpaque: lightEditorBorder?.isOpaque(),
+			lightEditorBorderMatchesSurface: lightEditorBorder?.equals(lightSurfaceBorder ?? null),
+		}, {
+			darkSurfaceBorderIsOpaque: true,
+			darkEditorBorderIsOpaque: true,
+			darkEditorBorderMatchesSurface: true,
+			lightSurfaceBorderIsOpaque: true,
+			lightEditorBorderIsOpaque: true,
+			lightEditorBorderMatchesSurface: true,
+		});
+	});
+
 	test('hides collapsed primary side bar grips without hiding constrained auxiliary sash grips', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench style-override nosidebar nopanel';

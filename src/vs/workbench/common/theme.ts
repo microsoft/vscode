@@ -676,8 +676,8 @@ export const SURFACE_BACKGROUND = registerColor('surface.background', {
 export const SURFACE_FOREGROUND = registerColor('surface.foreground', SIDE_BAR_FOREGROUND, localize('surfaceForeground', "Foreground color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
 
 export const SURFACE_BORDER = registerColor('surface.border', {
-	dark: transparent(foreground, 0.1),
-	light: transparent(foreground, 0.1),
+	dark: opaque(transparent(foreground, 0.1), SURFACE_BACKGROUND),
+	light: opaque(transparent(foreground, 0.1), SURFACE_BACKGROUND),
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('surfaceBorder', "Border color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));

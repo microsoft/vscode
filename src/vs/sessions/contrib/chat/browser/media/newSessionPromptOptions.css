@@ -101,6 +101,7 @@
 }
 
 .new-session-prompt-option-title {
+	color: var(--vscode-descriptionForeground);
 	display: flex;
 	font-size: var(--vscode-agents-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);

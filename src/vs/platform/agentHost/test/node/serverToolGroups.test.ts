@@ -27,12 +27,14 @@ suite('serverToolGroups display', () => {
 		assert.deepStrictEqual({
 			add: display('addComment'),
 			list: display('listComments'),
+			reply: display('replyToComment'),
 			del: display('deleteComments'),
 			resolve: display('resolveComments'),
 			view: display('viewUnreviewedComments'),
 		}, {
 			add: { displayName: 'Add Comment', invocation: 'Add comment' },
 			list: { displayName: 'List Comments', invocation: 'List comments' },
+			reply: { displayName: 'Reply to Comment', invocation: 'Reply to comment' },
 			del: { displayName: 'Delete Comments', invocation: 'Delete comments' },
 			resolve: { displayName: 'Resolve Comments', invocation: 'Resolve comments' },
 			view: { displayName: 'View Comments', invocation: 'View comments' },

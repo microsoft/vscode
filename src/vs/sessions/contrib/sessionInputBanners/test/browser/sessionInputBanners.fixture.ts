@@ -23,6 +23,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 		render: (context) => renderBanners(context, [commentsBanner(3, 'mixed')]),
 	}),
 
+	CommentsLoading: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanners(context, [commentsBanner(3, 'mixed')], 480, true),
+	}),
+
 	PRComments: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderBanners(context, [commentsBanner(2, 'pr')]),

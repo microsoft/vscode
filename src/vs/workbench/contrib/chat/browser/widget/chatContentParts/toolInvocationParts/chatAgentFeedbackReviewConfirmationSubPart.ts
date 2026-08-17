@@ -181,8 +181,6 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 			{ fileKind: FileKind.FILE, title: fileUri.fsPath || fileUri.path },
 		);
 
-		this._renderCommentText(rowStore, main, comment.text);
-
 		const actionsContainer = dom.append(rowElement, dom.$('.chat-agent-feedback-review-actions'));
 		const actionBar = rowStore.add(new ActionBar(actionsContainer));
 		actionBar.push(rowStore.add(new Action(
@@ -200,6 +198,8 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 			() => this._delete(comment.id),
 		)), { icon: true, label: false });
 
+		this._renderCommentText(rowStore, main, actionsContainer, comment.text);
+
 		this._rows.set(comment.id, { comment, checkbox, element: rowElement });
 		rowStore.add(checkbox.onChange(() => this._updateRevealButtonDisablement()));
 		this._updateRevealButtonDisablement();
@@ -211,16 +211,15 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 
 	/**
 	 * Renders the comment body clamped to two visual lines by default, with an
-	 * expand/collapse toggle in the bottom-right corner. The toggle and the
-	 * fade/ellipsis affordance only appear when the text actually overflows two
-	 * lines; overflow is re-evaluated whenever the available width changes.
+	 * expand/collapse toggle below the row actions. The toggle and fade affordance
+	 * only appear when the text overflows two lines.
 	 */
-	private _renderCommentText(rowStore: DisposableStore, main: HTMLElement, text: string): void {
+	private _renderCommentText(rowStore: DisposableStore, main: HTMLElement, actionsContainer: HTMLElement, text: string): void {
 		const container = dom.append(main, dom.$('.chat-agent-feedback-review-text-container'));
 		const textElement = dom.append(container, dom.$('.chat-agent-feedback-review-text'));
 		textElement.textContent = text;
 
-		const toggle = dom.append(container, dom.$<HTMLButtonElement>('button.chat-agent-feedback-review-expand-toggle'));
+		const toggle = dom.append(actionsContainer, dom.$<HTMLButtonElement>('button.chat-agent-feedback-review-expand-toggle'));
 		toggle.type = 'button';
 		toggle.tabIndex = 0;
 		const toggleIcon = dom.append(toggle, dom.$('span.codicon'));
@@ -261,6 +260,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		const updateOverflow = () => {
 			const overflowing = isOverflowing();
 			container.classList.toggle('overflowing', overflowing);
+			toggle.classList.toggle('visible', overflowing);
 			if (!overflowing && expanded) {
 				expanded = false;
 				renderState();

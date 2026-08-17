@@ -18,6 +18,7 @@ import { addStandardDisposableListener, getWindow, isHTMLElement } from '../../.
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Keybinding, KeyCodeChord, ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -25,7 +26,9 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { FeedbackInputWidget } from './feedbackInputWidget.js';
@@ -54,24 +57,41 @@ export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidg
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super();
+		const enterKeybinding = this._resolveKeybinding(keybindingService, false);
+		const altEnterKeybinding = this._resolveKeybinding(keybindingService, true);
 		this._core = this._register(new FeedbackInputWidget({
 			placeholder: localize('agentFeedback.addFeedback', "Add Feedback"),
 			getMaxContentWidth: () => this._computeContentWidth(),
 			primaryAction: {
-				label: localize('agentFeedback.add', "Add Feedback"),
+				label: localize('agentFeedback.addAction', "Add"),
 				icon: Codicon.plus,
 				keybindingLabel: localize('enter', "Enter"),
+				menuKeybinding: enterKeybinding,
 			},
 			secondaryAction: {
-				label: localize('agentFeedback.addAndSubmit', "Add Feedback and Submit"),
+				label: localize('agentFeedback.addAndSubmit', "Add and Submit"),
 				icon: Codicon.send,
 				keybindingLabel: localize('altEnter', "Alt+Enter"),
+				menuKeybinding: altEnterKeybinding,
 			},
+			contextMenuProvider: contextMenuService,
 		}));
 		this.onDidTriggerAdd = this._core.onDidTriggerPrimary;
 		this.onDidTriggerAddAndSubmit = this._core.onDidTriggerSecondary;
+	}
+
+	private _resolveKeybinding(keybindingService: IKeybindingService, altKey: boolean): ResolvedKeybinding {
+		const [resolvedKeybinding] = keybindingService.resolveKeybinding(new Keybinding([
+			new KeyCodeChord(false, false, altKey, false, KeyCode.Enter),
+		]));
+		if (!resolvedKeybinding) {
+			throw new Error('Unable to resolve the feedback input keybinding');
+		}
+		return resolvedKeybinding;
 	}
 
 	getId(): string {
@@ -150,6 +170,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -240,7 +261,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _ensureWidget(): AgentFeedbackInputWidget {
 		if (!this._widget) {
-			this._widget = new AgentFeedbackInputWidget(this._editor);
+			this._widget = this._instantiationService.createInstance(AgentFeedbackInputWidget, this._editor);
 			this._store.add(this._widget.onDidTriggerAdd(() => this._addFeedback()));
 			this._store.add(this._widget.onDidTriggerAddAndSubmit(() => this._addFeedbackAndSubmit()));
 			this._editor.addOverlayWidget(this._widget);

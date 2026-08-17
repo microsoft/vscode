@@ -246,6 +246,8 @@ export interface IDockedEditorLayout {
 	 */
 	getDockedAuxiliaryBarWidth(): number;
 	setDockedAuxiliaryBarWidth(width: number): void;
+	/** Returns the preferred editor-part width for an outer sash reset. */
+	getPreferredEditorPartWidth(): number | undefined;
 }
 
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
@@ -843,19 +845,16 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const editorNodeVisible = this._editorNodeShouldBeVisible();
 		const editorGridWidth = this._persistedGridViewSize(this.editorPartView, 'width', editorNodeVisible);
 		let editorWidth = this._persistedEditorWidth(editorGridWidth);
+		const savedEditorWidth = this._savedPartSizes.editor !== undefined && this._savedPartSizes.editor >= EDITOR_PART_MINIMUM_WIDTH
+			? this._savedPartSizes.editor
+			: undefined;
 
-		// A sub-minimum measurement is never a real user width: the editor may be
-		// hidden (single-pane returns the detail-only node minus the detail width,
-		// i.e. ~0), or the high-priority sessions part may have transiently squeezed
-		// the node below its minimum. Persisting it would rebuild the editor at its
-		// 300px minimum on reload and lose the last user-selected width. Preserve the
-		// last valid global width instead (or omit it so the default is used). The
-		// descriptor keeps the editor contribution at zero while the editor part is
-		// hidden, so keeping a valid width here is safe.
-		if (editorWidth === undefined || editorWidth < EDITOR_PART_MINIMUM_WIDTH) {
-			editorWidth = (this._savedPartSizes.editor !== undefined && this._savedPartSizes.editor >= EDITOR_PART_MINIMUM_WIDTH)
-				? this._savedPartSizes.editor
-				: undefined;
+		// A hidden editor has no current user-chosen width. In single-pane its cached
+		// grid size can be the 300px detail-only node even after the whole side pane
+		// closes, while a sub-minimum measurement can also come from a transient
+		// sessions-part squeeze. Preserve the last valid editor-content width instead.
+		if ((this.isSinglePaneLayoutEnabled && !this.partVisibility.editor) || editorWidth === undefined || editorWidth < EDITOR_PART_MINIMUM_WIDTH) {
+			editorWidth = savedEditorWidth;
 		} else {
 			// Track the latest good width so a later shutdown-time squeeze falls back to it.
 			this._savedPartSizes = { ...this._savedPartSizes, editor: editorWidth };
@@ -1919,6 +1918,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	setDockedAuxiliaryBarWidth(_width: number): void { }
+
+	getPreferredEditorPartWidth(): number | undefined {
+		return undefined;
+	}
 
 	private layoutMobileSidebar(): void {
 		const sidebarContainer = this.getContainer(mainWindow, Parts.SIDEBAR_PART);

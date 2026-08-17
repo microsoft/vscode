@@ -346,6 +346,7 @@ export interface IAgentHostTurnHungEvent extends IAgentHostInitiatorTelemetry {
 	isExpected: boolean;
 	hadAnyProgress: boolean;
 	lastActivityKind: AgentHostTurnActivityTelemetryKind;
+	currentStage: AgentHostTurnFailureStage;
 	blockedOn: SessionInputRequestKind | undefined;
 	toolId: string | undefined;
 	toolSourceKind: string | undefined;
@@ -367,6 +368,7 @@ export type IAgentHostTurnHungClassification = IAgentHostInitiatorClassification
 	isExpected: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the quiet period is explained by a legitimate wait (blocked on the user or running a tool) rather than an unexplained hang.' };
 	hadAnyProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether any turn activity at all was observed before the watchdog fired.' };
 	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'A bounded category for the last observed turn activity, preserving the AHP action namespace and action name without slash-like syntax. Values are none, other, or categories such as chat.delta and chat.toolCallReady.' };
+	currentStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded turn stage active when the hang watchdog fired.' };
 	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding user-blocking session input request, when there is one. Client tool execution is not counted, since it is delegated work rather than a prompt.' };
 	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the tool the turn appears to be stuck on. When hangReason is waitingOnUser this is the tool gated by the blocking request, which is exact; when it is runningTool this is the longest-running in-flight tool call, which is a best guess when several are running. Undefined when no tool explains the hang.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stuck tool is provided by the agent host, an MCP server, or a client.' };
@@ -387,6 +389,7 @@ export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport
 	hangReason: AgentHostTurnHangReason;
 	hadAnyProgress: boolean;
 	lastActivityKind: string;
+	currentStage: AgentHostTurnFailureStage;
 	blockedOn: SessionInputRequestKind | undefined;
 	toolId: string | undefined;
 	toolSourceKind: string | undefined;
@@ -1179,6 +1182,7 @@ export class AgentHostTelemetryReporter {
 			isExpected: report.hangReason === 'waitingOnUser' || report.hangReason === 'runningTool',
 			hadAnyProgress: report.hadAnyProgress,
 			lastActivityKind: normalizeTurnActivityKind(report.lastActivityKind),
+			currentStage: report.currentStage,
 			blockedOn: report.blockedOn,
 			toolId: report.toolId,
 			toolSourceKind: report.toolSourceKind,
