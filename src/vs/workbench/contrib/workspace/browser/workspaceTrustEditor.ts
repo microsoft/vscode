@@ -179,7 +179,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			const uri = await this.fileDialogService.showOpenDialog({
 				canSelectFiles: false,
 				canSelectFolders: true,
-				canSelectMany: false,
+				canSelectMany: true,
 				defaultUri: this.currentWorkspaceUri,
 				openLabel: localize('trustUri', "Trust Folder"),
 				title: localize('selectTrustedUri', "Select Folder To Trust")
