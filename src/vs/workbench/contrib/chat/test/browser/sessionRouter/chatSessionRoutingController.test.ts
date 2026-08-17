@@ -648,6 +648,72 @@ suite('ChatSessionRoutingController', () => {
 		container.remove();
 	});
 
+	test('flattens a heading response preview and indicates more content', async () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const resource = URI.parse('session:/provider-heading');
+		const sessionsChanged = new Emitter<void>();
+		let snapshot: IRoutableSession = {
+			sessionId: 'provider:session',
+			label: 'New session',
+			status: 'working',
+			lastActivity: 1,
+		};
+		const provider = {
+			watchSession: (_resource: URI, listener: () => void) => sessionsChanged.event(listener),
+			getSessionSnapshot: async () => snapshot,
+		} as unknown as IChatSessionRoutingProvider;
+		const controller = new ChatSessionRoutingController(
+			{
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+				getRoutingProvider: () => provider,
+			} as unknown as IChatSessionRoutingHost,
+			'test',
+			{ getSession: () => undefined } as unknown as IChatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
+			label: string,
+			result: { status: 'sent'; resource: URI; reveal: () => Promise<void> },
+		) => void;
+
+		showDeliveryConfirmation.call(controller, 'New session', {
+			status: 'sent',
+			resource,
+			reveal: async () => { },
+		});
+		await Promise.resolve();
+		snapshot = {
+			sessionId: 'provider:session',
+			label: 'Session activity',
+			status: 'idle',
+			lastActivity: 2,
+			lastResponse: '# Current session activity\n\nThree sessions are running.',
+		};
+		sessionsChanged.fire();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			label: container.querySelector('.chat-routing-badge-label')?.textContent,
+			heading: container.querySelector('.chat-routing-badge-response-preview h1'),
+		}, {
+			label: 'Completed session activity:Current session activity\u2026',
+			heading: null,
+		});
+
+		controller.dispose();
+		sessionsChanged.dispose();
+		container.remove();
+	});
+
 	test('keeps unresolved delivery rows when another request starts', async () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
