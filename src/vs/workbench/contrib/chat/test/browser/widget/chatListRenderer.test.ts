@@ -512,14 +512,21 @@ suite('ChatListRenderer', () => {
 		});
 
 		test('summarizes per-model token usage for the footer stat hover', () => {
+			const completedAt = Date.UTC(2026, 7, 17, 19, 39);
+			const completedAtText = formatChatRequestTimestamp(completedAt)?.fullText;
 			const stats = formatResponseTokenStats([
 				{ model: 'Claude Opus 4.8', inputTokens: 12_400, cachedTokens: 9_000, outputTokens: 830 },
 				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
-			]);
+			], completedAt);
 
-			assert.deepStrictEqual({ markdown: stats?.markdown.value, ariaLabel: stats?.ariaLabel }, {
-				markdown: '**Tokens used this turn**\n\nClaude Opus 4.8 — 12K in, 830 out, 9K cached\n\ngpt-5.5 — 40 in, 12 out\n\n',
-				ariaLabel: 'Tokens used this turn. Claude Opus 4.8: 12400 input tokens, 830 output tokens, 9000 cached tokens. gpt-5.5: 40 input tokens, 12 output tokens',
+			assert.deepStrictEqual({
+				markdown: stats?.markdown.value,
+				markdownNotSupportedFallback: stats?.markdownNotSupportedFallback,
+				footerAriaLabel: stats?.footerAriaLabel,
+			}, {
+				markdown: `**Response details**\n\nCompleted: ${completedAtText}\n\nModel: Claude Opus 4.8\n\n- Input tokens: 12K\n- Cached input tokens: 9K\n- Output tokens: 830\n\nModel: gpt-5.5\n\n- Input tokens: 40\n- Output tokens: 12\n\n`,
+				markdownNotSupportedFallback: `Response details. Completed: ${completedAtText}. Model: Claude Opus 4.8. Input tokens: 12400. Cached input tokens: 9000. Output tokens: 830. Model: gpt-5.5. Input tokens: 40. Output tokens: 12`,
+				footerAriaLabel: 'Response details. Model: Claude Opus 4.8. Input tokens: 12400. Cached input tokens: 9000. Output tokens: 830. Model: gpt-5.5. Input tokens: 40. Output tokens: 12',
 			});
 		});
 
@@ -533,16 +540,24 @@ suite('ChatListRenderer', () => {
 			]);
 		});
 
-		test('folds the token usage summary into the footer accessible name', () => {
+		test('folds the token usage summary into the footer accessible name without duplicating the completion time', () => {
 			const container = document.createElement('div');
-			const withStats = 'Tokens used this turn. gpt-5.5: 40 input tokens, 12 output tokens';
+			const completedAt = Date.UTC(2026, 7, 17, 19, 39);
+			const completedAtText = formatChatRequestTimestamp(completedAt)?.fullText;
+			const stats = formatResponseTokenStats([
+				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
+			], completedAt);
 
-			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false, withStats);
+			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false, stats?.footerAriaLabel);
 			const included = container.ariaLabel;
 
+			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', completedAt, 24_000, true, stats?.footerAriaLabel);
+			const verbose = container.ariaLabel;
+
 			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false);
-			assert.deepStrictEqual({ included, omitted: container.ariaLabel }, {
-				included: `GPT-5.5 • 2 credits, ${withStats}`,
+			assert.deepStrictEqual({ included, verbose, omitted: container.ariaLabel }, {
+				included: `GPT-5.5 • 2 credits, ${stats?.footerAriaLabel}`,
+				verbose: `Completed ${completedAtText}, Elapsed time 24s, GPT-5.5 • 2 credits, ${stats?.footerAriaLabel}`,
 				omitted: 'GPT-5.5 • 2 credits',
 			});
 		});
