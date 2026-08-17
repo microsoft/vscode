@@ -777,7 +777,7 @@ export class ClaudeAgentSession extends Disposable {
 	): Promise<{ mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined; allowedTools: readonly string[] | undefined }> {
 		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
 		const serverToolServer = serverToolHost
-			? await buildServerToolMcpServer(serverToolHost, resource.toString(), this._sdkService)
+			? await buildServerToolMcpServer(serverToolHost, this._chatChannelUri.toString(), this._sdkService)
 			: undefined;
 		const mcpServers = (!clientServers && !serverToolServer)
 			? undefined

@@ -39,7 +39,7 @@ import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
@@ -365,6 +365,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 			if (Object.keys(patch).length) {
 				this._dispatchRootConfig(patch);
+			}
+			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
+				this._updateAutoApprovePolicyRestriction();
 			}
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
 				this._updateTelemetryLevel();
@@ -815,10 +818,16 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._updateTelemetryLevel();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
+		this._updateAutoApprovePolicyRestriction();
 		this._updateDisableRepoInfoTelemetry();
 		if (includeManagedSettings) {
 			void this._updateManagedSettingsPermissions();
 		}
+	}
+
+	private _updateAutoApprovePolicyRestriction(): void {
+		const policyRestricted = this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID)?.policyValue === false;
+		this._dispatchRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: policyRestricted });
 	}
 
 	/**
@@ -839,7 +848,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				if (envelope.origin?.clientId === this._clientId
 					&& envelope.origin.clientSeq !== undefined
 					&& !envelope.rejectionReason) {
-					this._subscriptionManager.dropPendingSessionAction(envelope.channel, envelope.origin.clientSeq);
+					this._subscriptionManager.dropPendingAction(envelope.channel, envelope.origin.clientSeq);
 				}
 				if (envelope.serverSeq > maxSeq) {
 					maxSeq = envelope.serverSeq;
@@ -868,7 +877,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 *
 	 * 1. Resend pending optimistic session actions that the server did NOT
 	 *    echo back in the replay buffer (i.e. anything still on
-	 *    {@link AgentSubscriptionManager.getPendingSessionActions}).
+	 *    {@link AgentSubscriptionManager.getPendingActions}).
 	 * 2. Flush every message that {@link _sendNotification} queued onto the
 	 *    outbox while the gate was engaged.
 	 *
@@ -889,7 +898,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 
 		const replays: ProtocolMessage[] = [];
-		for (const entry of this._subscriptionManager.getPendingSessionActions()) {
+		for (const entry of this._subscriptionManager.getPendingActions()) {
 			if (queuedSeqs.has(entry.clientSeq)) {
 				continue;
 			}

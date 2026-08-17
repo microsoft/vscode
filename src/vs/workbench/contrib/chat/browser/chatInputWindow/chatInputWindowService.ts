@@ -325,6 +325,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const border = theme.getColor(inputBorder)?.toString() ?? 'transparent';
 			auxiliaryWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
 			surface.style.backgroundColor = surfaceColor;
+			surface.style.setProperty('--omni-input-editor-background', surfaceColor);
 			surface.style.border = `1px solid ${border}`;
 		};
 
@@ -491,7 +492,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const widget: ChatWidget = this._windowDisposables.add(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
-			{ isQuickChat: true },
+			{ isQuickChat: true, isChatInputWindow: true },
 			{
 				autoScroll: true,
 				renderInputOnTop: true,
@@ -933,7 +934,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const widget = this._windowDisposables.add(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
-			{ isQuickChat: true },
+			{ isQuickChat: true, isChatInputWindow: true },
 			{
 				autoScroll: true,
 				renderInputOnTop: true,

@@ -13,7 +13,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './agentHostToolCallTracker.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import type { ToolCallContributor } from '../common/state/sessionState.js';
-import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, AgentHostTurnHangReason, AgentHostTurnResult, IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, AgentHostTurnFailureStage, AgentHostTurnHangReason, AgentHostTurnResult, IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
  * How long a turn must go without any observed activity before the watchdog
@@ -61,6 +61,7 @@ interface ITurnTiming {
 	readonly interactionMode: SessionMode | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	firstProgressMs: number | undefined;
+	currentStage: AgentHostTurnFailureStage;
 
 	// Hang watchdog state
 	/** Reset on every observed activity; measures the current quiet period. */
@@ -149,6 +150,7 @@ export class AgentHostTurnTracker extends Disposable {
 			interactionMode,
 			clientContext,
 			firstProgressMs: undefined,
+			currentStage: 'validation',
 			quietStopWatch: StopWatch.create(false),
 			lastActivityKind: TURN_ACTIVITY_NONE,
 			inFlightToolCalls: new Map(),
@@ -188,6 +190,13 @@ export class AgentHostTurnTracker extends Disposable {
 		}
 		timing.lastActivityKind = activityKind;
 		this._touch(key, timing);
+	}
+
+	setCurrentStage(session: string, turnId: string, stage: AgentHostTurnFailureStage): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			timing.currentStage = stage;
+		}
 	}
 
 	/** Resets the quiet period and re-arms the watchdog for a live turn. */
@@ -414,6 +423,7 @@ export class AgentHostTurnTracker extends Disposable {
 				hangReason,
 				hadAnyProgress: timing.lastActivityKind !== TURN_ACTIVITY_NONE,
 				lastActivityKind: timing.lastActivityKind,
+				currentStage: timing.currentStage,
 				blockedOn: userBlocker?.kind,
 				toolId: stuckTool?.toolId,
 				toolSourceKind: stuckTool?.toolSourceKind,
