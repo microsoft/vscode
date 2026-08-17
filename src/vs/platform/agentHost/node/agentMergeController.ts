@@ -16,6 +16,7 @@ import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergePromptContext, AgentMergeRepairAction, AgentMergeSessionState, AgentMergeTarget, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { deriveGitHubEndpoints } from '../common/githubEndpoints.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
@@ -520,12 +521,6 @@ export class AgentMergeController extends Disposable {
 			runtime.backstopScheduler.schedule();
 			return;
 		}
-		// `prepareMerge` refreshes everything the merge gate reads except top-level
-		// comments, which would otherwise let a merge race a new maintainer comment.
-		await runtime.subscription.value?.refresh('topLevelComments', runtime.cancellation.token, { authoritative: true });
-		if (!this._isCurrentRuntime(session, runtime)) {
-			return;
-		}
 		const preparation = await this._gitHubService.mutations.prepareMerge(ref, headSha, runtime.abortController.signal);
 		this._logService.debug(`[AgentMergeController] Native merge preparation completed: session=${session}`);
 		if (!this._isCurrentRuntime(session, runtime) || this._stateManager.hasActiveTurn(session)) {
@@ -550,11 +545,9 @@ export class AgentMergeController extends Disposable {
 			runtime.backstopScheduler.schedule();
 			return;
 		}
-		const snapshotWithComments: PullRequestSnapshot = {
-			...preparation.snapshot,
-			topLevelComments: runtime.subscription.value?.resource.snapshot.get().topLevelComments ?? preparation.snapshot.topLevelComments,
-		};
-		const freshGate = evaluateAgentMerge(snapshotWithComments, currentConfiguration, currentTarget.commentWatermark);
+		// `prepareMerge` captures an authoritative snapshot of every fragment the gate
+		// reads, with top-level comments refreshed last, so it is re-evaluated as-is.
+		const freshGate = evaluateAgentMerge(preparation.snapshot, currentConfiguration, currentTarget.commentWatermark);
 		if (freshGate.kind !== 'merge') {
 			this._logService.info(`[AgentMergeController] Native merge aborted after fresh readiness check: session=${session}, outcome=${freshGate.kind}`);
 			this._schedule(session, 0);
@@ -695,7 +688,7 @@ interface IParsedPullRequestUrl {
 	readonly apiHost: string;
 }
 
-function parsePullRequestUrl(value: string): IParsedPullRequestUrl | undefined {
+export function parsePullRequestUrl(value: string): IParsedPullRequestUrl | undefined {
 	let url: URL;
 	try {
 		url = new URL(value);
@@ -712,7 +705,9 @@ function parsePullRequestUrl(value: string): IParsedPullRequestUrl | undefined {
 		owner: match.groups.owner,
 		repo: match.groups.repo,
 		number,
-		apiHost: host === 'github.com' || host === 'www.github.com' ? 'api.github.com' : host,
+		// Derived rather than hard-coded so GitHub Enterprise Cloud web hosts
+		// (`tenant.ghe.com`) canonicalize to the `api.` host the credential reports.
+		apiHost: new URL(deriveGitHubEndpoints(`${url.protocol}//${host}`).apiBaseUri).host.toLowerCase(),
 	};
 }
 

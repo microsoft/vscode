@@ -17,7 +17,7 @@ import { SessionStatus, buildDefaultChatUri, MessageKind, type SessionSummary } 
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
-import { AgentMergeController } from '../../node/agentMergeController.js';
+import { AgentMergeController, parsePullRequestUrl } from '../../node/agentMergeController.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 let sessionCounter = 0;
@@ -258,6 +258,28 @@ suite('AgentMergeController', () => {
 		});
 		return { stateManager, configurationService, session };
 	}
+
+	test('resolves the API host a credential must match for every GitHub deployment', () => {
+		assert.deepStrictEqual({
+			dotCom: parsePullRequestUrl('https://github.com/octo/repo/pull/1')?.apiHost,
+			www: parsePullRequestUrl('https://www.github.com/octo/repo/pull/1')?.apiHost,
+			// GitHub Enterprise Cloud serves its API from an `api.` subdomain, which is
+			// the host the credential reports; comparing the web host rejects every PR.
+			enterpriseCloud: parsePullRequestUrl('https://tenant.ghe.com/octo/repo/pull/1')?.apiHost,
+			enterpriseServer: parsePullRequestUrl('https://ghe.corp.example/octo/repo/pull/1')?.apiHost,
+			parsed: parsePullRequestUrl('https://tenant.ghe.com/octo/repo/pull/42'),
+			notAPullRequest: parsePullRequestUrl('https://github.com/octo/repo/issues/1'),
+			notAUrl: parsePullRequestUrl('octo/repo#1'),
+		}, {
+			dotCom: 'api.github.com',
+			www: 'api.github.com',
+			enterpriseCloud: 'api.tenant.ghe.com',
+			enterpriseServer: 'ghe.corp.example',
+			parsed: { owner: 'octo', repo: 'repo', number: 42, apiHost: 'api.tenant.ghe.com' },
+			notAPullRequest: undefined,
+			notAUrl: undefined,
+		});
+	});
 });
 
 function summary(resource: string): SessionSummary {
