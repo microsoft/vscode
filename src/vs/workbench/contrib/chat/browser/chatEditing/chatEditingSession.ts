@@ -28,7 +28,7 @@ import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -1210,6 +1210,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		} catch (err) {
 			if (ifNotExists === NotExistBehavior.Abort) {
 				return undefined;
+			}
+
+			// Only create the resource when it is confirmed not to exist; entry creation may fail for unrelated reasons.
+			if (toFileOperationResult(err) !== FileOperationResult.FILE_NOT_FOUND) {
+				throw err;
 			}
 
 			// this file does not exist yet, create it and try again
