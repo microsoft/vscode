@@ -2740,17 +2740,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 
-		if (!options?.preserveInput) {
-			// preserveInput submissions (e.g. /compact or programmatic maintenance
-			// requests) leave the input draft untouched, so they must not stop an
-			// unrelated dictation and flush its final transcript into that draft.
-			await stopDictationForEditor(this.inputEditor);
+		const hasCustomSubmitHandler = !!this.viewOptions.submitHandler;
+		if (hasCustomSubmitHandler) {
+			this.input.setSubmitPending(true, true);
 		}
 
-		if (this.viewModel) {
-			markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
+		try {
+			if (!options?.preserveInput) {
+				// preserveInput submissions (e.g. /compact or programmatic maintenance
+				// requests) leave the input draft untouched, so they must not stop an
+				// unrelated dictation and flush its final transcript into that draft.
+				await stopDictationForEditor(this.inputEditor);
+				if (hasCustomSubmitHandler) {
+					// Finalizing dictation can edit the input, which clears pending state.
+					this.input.setSubmitPending(true, true);
+				}
+			}
+
+			if (this.viewModel) {
+				markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
+			}
+			return await this._acceptInput(query ? { query } : undefined, options);
+		} catch (error) {
+			if (hasCustomSubmitHandler) {
+				this.input.setSubmitPending(false);
+			}
+			throw error;
 		}
-		return this._acceptInput(query ? { query } : undefined, options);
 	}
 
 	async rerunLastRequest(): Promise<void> {
@@ -2908,6 +2924,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const start = Date.now();
 			await this.input.generating;
 			if (Date.now() - start > generatingAutoSubmitWindow) {
+				if (this.viewOptions.submitHandler) {
+					this.input.setSubmitPending(false);
+				}
 				return;
 			}
 		}
@@ -2917,6 +2936,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (!this.viewModel) {
+			if (this.viewOptions.submitHandler) {
+				this.input.setSubmitPending(false);
+			}
 			return;
 		}
 
@@ -2931,6 +2953,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (handled) {
 				return;
 			}
+			// The handler declined to route this submission; restore the send button.
+			this.input.setSubmitPending(false);
 		}
 
 		const isUserQuery = !query;
