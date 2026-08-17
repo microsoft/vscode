@@ -253,26 +253,8 @@ export class TextModelSearch {
 	}
 
 	private static _findMatchesInLine(searchData: SearchData, text: string, lineNumber: number, deltaOffset: number, resultLen: number, result: FindMatch[], captureMatches: boolean, limitResultCount: number): number {
-		const wordSeparators = searchData.wordSeparators;
 		if (!captureMatches && searchData.simpleSearch) {
-			const searchString = searchData.simpleSearch;
-			const searchStringLen = searchString.length;
-			const textLength = text.length;
-
-			let lastMatchIndex = text.indexOf(searchString);
-			while (lastMatchIndex !== -1) {
-				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
-					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
-					if (resultLen >= limitResultCount) {
-						return resultLen;
-					}
-					lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen);
-				} else {
-					// Not a whole-word match; advance by one so overlapping whole-word matches aren't skipped.
-					lastMatchIndex = text.indexOf(searchString, lastMatchIndex + 1);
-				}
-			}
-			return resultLen;
+			return findSimpleMatchesInLine(searchData.wordSeparators, searchData.simpleSearch, text, lineNumber, deltaOffset, resultLen, result, limitResultCount);
 		}
 
 		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
@@ -493,6 +475,29 @@ export function isValidMatch(wordSeparators: WordCharacterClassifier, text: stri
 		leftIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
 		&& rightIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
 	);
+}
+
+/**
+ * Finds all occurrences of a plain (non-regex) search string in a single line.
+ */
+export function findSimpleMatchesInLine(wordSeparators: WordCharacterClassifier | null, searchString: string, text: string, lineNumber: number, deltaOffset: number, resultLen: number, result: FindMatch[], limitResultCount: number): number {
+	const searchStringLen = searchString.length;
+	const textLength = text.length;
+
+	let lastMatchIndex = text.indexOf(searchString);
+	while (lastMatchIndex !== -1) {
+		if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
+			result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
+			if (resultLen >= limitResultCount) {
+				return resultLen;
+			}
+			lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen);
+		} else {
+			// a rejected candidate can still contain a whole-word match starting inside it
+			lastMatchIndex = text.indexOf(searchString, lastMatchIndex + 1);
+		}
+	}
+	return resultLen;
 }
 
 export class Searcher {
