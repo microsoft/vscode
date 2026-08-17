@@ -30,8 +30,7 @@
  *
  * 1. **Initialize** — a conversation is bound and needs a starting model.
  *    {@link ChatInputModelSelectionController.initialize},
- *    {@link ChatInputModelSelectionController.beginConversationSwitch},
- *    {@link ChatInputModelSelectionController.beginSessionSwitch}.
+ *    {@link ChatInputModelSelectionController.beginConversationSwitch}.
  * 2. **Reconcile** — the catalog or configuration moved, and the selection may no longer hold.
  *    {@link ChatInputModelSelectionController.reconcileModelListChange} and the narrower
  *    revalidation entry points.
@@ -148,8 +147,8 @@ export class ChatInputModelSelectionController extends Disposable {
 	 * model, and any model it was still waiting to be given — so neither outlives it and gets read
 	 * as the incoming conversation's own.
 	 *
-	 * Unpaired, and safe to call on its own. A surface that also owns its model pool wants
-	 * {@link beginSessionSwitch} instead.
+	 * Unpaired, and safe to call on its own. Anything a surface must latch across its own switch
+	 * handshake belongs to that surface, not here.
 	 */
 	beginConversationSwitch(): void {
 		this._selectionReason = undefined;
