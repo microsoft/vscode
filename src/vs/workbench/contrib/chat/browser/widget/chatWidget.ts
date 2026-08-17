@@ -51,7 +51,6 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
@@ -101,7 +100,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { ChatPetWidget, isChatPetVisible, isChatPetWindowActive } from './chatPetWidget.js';
+import { ChatPetWidget, shouldReserveChatPetSpace } from './chatPetWidget.js';
 import { IChatPetService } from '../chatPetService.js';
 import { stopDictationForEditor } from '../speechToText/dictationSession.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
@@ -536,7 +535,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 
@@ -958,18 +956,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
 			const targetWindow = dom.getWindow(this.container);
-			const targetWindowId = dom.getWindowId(targetWindow);
 			const isLatestFocusedWidgetInWindow = observableValue(this, this.chatWidgetService.lastFocusedWidget === this);
-			const applicationFocused = observableFromEvent(this, this.hostService.onDidChangeFocus, () => this.hostService.hasFocus);
-			const activeWindowId = observableFromEvent(this, this.hostService.onDidChangeActiveWindow, windowId => windowId ?? dom.getWindowId(dom.getActiveWindow()));
-			const windowFocused = derived(this, reader => isChatPetWindowActive(applicationFocused.read(reader), activeWindowId.read(reader), targetWindowId));
 			this._register(this.chatWidgetService.onDidChangeFocusedWidget(focusedWidget => {
 				if (focusedWidget && dom.getWindow(focusedWidget.domNode) === targetWindow) {
 					isLatestFocusedWidgetInWindow.set(focusedWidget === this, undefined);
 				}
 			}));
-			const petVisible = derived(this, reader => isChatPetVisible(this.chatPetService.enabled.read(reader), isLatestFocusedWidgetInWindow.read(reader), windowFocused.read(reader)));
-			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petVisible.read(reader))));
+			const petSpaceReserved = derived(this, reader => shouldReserveChatPetSpace(this.chatPetService.enabled.read(reader), isLatestFocusedWidgetInWindow.read(reader)));
+			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petSpaceReserved.read(reader))));
 			const petWidget = this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, petMovementBounds ?? parent, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, isLatestFocusedWidgetInWindow, this.inputEditor.onDidChangeModelContent));
 			petWidget.setPlatformTopProvider(() => this.inputPart.getChatPetPlatformTop());
 		}
