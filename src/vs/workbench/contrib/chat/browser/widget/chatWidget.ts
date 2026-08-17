@@ -2757,6 +2757,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// requests) leave the input draft untouched, so they must not stop an
 				// unrelated dictation and flush its final transcript into that draft.
 				await stopDictationForEditor(this.inputEditor);
+				if (hasCustomSubmitHandler) {
+					// Finalizing dictation can edit the input, which clears pending state.
+					this.input.setSubmitPending(true, true);
+				}
 			}
 
 			if (this.viewModel) {

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { heuristicScore } from '../../../common/sessionRouter.js';
 import { parseExplicitNewSessionRequest, resolveMentionedWorkspaceFolder, resolveNewSessionWorkspaceFolder, resolveSessionWorkspaceFolder, selectBestSessionRoute, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingHelpers.js';
 
 suite('Chat session routing helpers', () => {
@@ -97,6 +98,30 @@ suite('Chat session routing helpers', () => {
 			second: 's3',
 			third: 's12',
 			excluded: ['s1'],
+		});
+	});
+
+	test('falls back to working and recent sessions when heuristic scores are all zero', () => {
+		const candidates = Array.from({ length: 13 }, (_, index) => ({
+			sessionId: `s${index}`,
+			label: `Session ${index}`,
+			status: index === 12 ? 'working' : 'idle',
+			lastActivity: index,
+		}));
+		const preliminaryResults = heuristicScore({
+			utterance: 'work on this with the agent',
+			sessions: candidates,
+		});
+		const shortlist = selectRouterShortlist(candidates, preliminaryResults);
+
+		assert.deepStrictEqual({
+			positiveResults: preliminaryResults.filter(result => result.confidence > 0).length,
+			first: shortlist[0].sessionId,
+			excluded: candidates.filter(candidate => !shortlist.includes(candidate)).map(candidate => candidate.sessionId),
+		}, {
+			positiveResults: 0,
+			first: 's12',
+			excluded: ['s0'],
 		});
 	});
 

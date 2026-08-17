@@ -2288,9 +2288,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * change clears this automatically.
 	 */
 	setSubmitPending(pending: boolean, routing = pending): void {
+		const changed = this.inputSubmitPending.get() !== pending || this.inputRouting.get() !== routing;
 		this.inputSubmitPending.set(pending);
 		this.inputRouting.set(routing);
-		this.executeToolbar?.refresh();
+		if (changed) {
+			this.executeToolbar?.refresh();
+		}
 	}
 
 	private _updateInputContentContextKeys(): void {
