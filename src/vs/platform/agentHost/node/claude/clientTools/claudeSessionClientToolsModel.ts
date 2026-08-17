@@ -35,17 +35,27 @@ export class SessionClientToolsModel {
 	readonly merged: IObservable<readonly ToolDefinition[]> = this._merged;
 
 	/**
-	 * The client that most recently contributed tools. A reconnecting window
-	 * arrives with a new `clientId` and re-pushes its tool list, so this is the
-	 * contributor most recently known to be alive.
+	 * Contributors in recency order, most recent first. A reconnecting window
+	 * arrives with a new `clientId` and re-pushes its tool list, so the front of
+	 * this list is the contributor most recently known to be alive. Kept as an
+	 * order rather than a single id so that removing one falls back to the next
+	 * most recent rather than to insertion order.
 	 */
-	private _latestContributor: string | undefined;
+	private readonly _recency: string[] = [];
 
 	/** Replace `clientId`'s contributed tools (full replacement). */
 	setTools(clientId: string, tools: readonly ToolDefinition[]): void {
-		this._latestContributor = clientId;
+		this._touch(clientId);
 		this._toolSet.set(clientId, tools);
 		this._merged.set(this._toolSet.merged(), undefined);
+	}
+
+	private _touch(clientId: string): void {
+		const existing = this._recency.indexOf(clientId);
+		if (existing !== -1) {
+			this._recency.splice(existing, 1);
+		}
+		this._recency.unshift(clientId);
 	}
 
 	/** This client's contributed tools (empty when absent). */
@@ -55,8 +65,9 @@ export class SessionClientToolsModel {
 
 	/** Remove a client's tool contribution. */
 	removeClient(clientId: string): void {
-		if (this._latestContributor === clientId) {
-			this._latestContributor = undefined;
+		const existing = this._recency.indexOf(clientId);
+		if (existing !== -1) {
+			this._recency.splice(existing, 1);
 		}
 		if (this._toolSet.delete(clientId)) {
 			this._merged.set(this._toolSet.merged(), undefined);
@@ -74,7 +85,13 @@ export class SessionClientToolsModel {
 	 * session.
 	 */
 	ownerOf(toolName: string, preferredClientId?: string): string | undefined {
-		return this._toolSet.ownerOf(toolName, preferredClientId ?? this._latestContributor);
+		const candidates = preferredClientId ? [preferredClientId, ...this._recency] : this._recency;
+		for (const clientId of candidates) {
+			if (this._toolSet.get(clientId).some(tool => tool.name === toolName)) {
+				return clientId;
+			}
+		}
+		return this._toolSet.ownerOf(toolName, preferredClientId);
 	}
 }
 

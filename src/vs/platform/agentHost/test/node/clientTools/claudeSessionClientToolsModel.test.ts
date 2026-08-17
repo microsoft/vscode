@@ -154,6 +154,34 @@ suite('SessionClientToolsDiff', () => {
 		assert.strictEqual(diff.model.ownerOf('shared'), 'c1');
 	});
 
+	test('with several contributors, removing the latest falls back to the next most recent', () => {
+		const diff = disposables.add(new SessionClientToolsDiff());
+		diff.model.setTools('c1', [tool({ name: 'shared' })]);
+		diff.model.setTools('c2', [tool({ name: 'shared' })]);
+		diff.model.setTools('c3', [tool({ name: 'shared' })]);
+
+		assert.strictEqual(diff.model.ownerOf('shared'), 'c3');
+
+		// Not c1: insertion order is what stamped tool calls with a client that
+		// had gone away in the first place.
+		diff.model.removeClient('c3');
+		assert.strictEqual(diff.model.ownerOf('shared'), 'c2');
+
+		diff.model.removeClient('c2');
+		assert.strictEqual(diff.model.ownerOf('shared'), 'c1');
+	});
+
+	test('re-contributing moves a client back to the front of the order', () => {
+		const diff = disposables.add(new SessionClientToolsDiff());
+		diff.model.setTools('c1', [tool({ name: 'shared' })]);
+		diff.model.setTools('c2', [tool({ name: 'shared' })]);
+		// A reconnect re-pushes an identical list, which the merged observable
+		// dedupes — recency must still update.
+		diff.model.setTools('c1', [tool({ name: 'shared' })]);
+
+		assert.strictEqual(diff.model.ownerOf('shared'), 'c1');
+	});
+
 	test('removeClient drops that client and re-flips dirty when the merged set changes', () => {
 		const diff = disposables.add(new SessionClientToolsDiff());
 		diff.model.setTools('c1', [tool({ name: 'a' })]);
