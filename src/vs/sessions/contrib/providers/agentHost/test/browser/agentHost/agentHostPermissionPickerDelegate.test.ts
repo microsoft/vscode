@@ -180,7 +180,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		]);
 	});
 
-	test('offers Default permissions, Assisted permissions, and Allow all in order', () => {
+	test('offers Manual permissions, Assisted permissions, and Allow all in order', () => {
 		const { delegate } = setup(store, makeActiveSession(), 'assisted');
 
 		assert.deepStrictEqual({
@@ -194,7 +194,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		}, {
 			current: ChatPermissionLevel.Assisted,
 			metadata: [
-				{ label: 'Default permissions', detail: 'Asks when approval settings don\'t apply', hover: undefined },
+				{ label: 'Manual permissions', detail: 'Asks when approval settings don\'t apply', hover: undefined },
 				{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', hover: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.' },
 				{ label: 'Allow all', detail: 'Runs tool calls without asking', hover: undefined },
 			],

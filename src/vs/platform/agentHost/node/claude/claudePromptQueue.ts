@@ -8,6 +8,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../log/common/log.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 
 /**
  * One {@link SDKUserMessage} the queue has handed to (or is about to
@@ -24,6 +25,7 @@ export interface IPendingSdkMessage {
 	readonly sdkUuid: string;
 	/** Protocol turn these events belong to; reassigned by {@link ClaudePromptQueue.retargetTurn}. */
 	turnId: string;
+	readonly clientContext?: IAgentHostClientTelemetryContext;
 	/** Times the protocol turn; replaced along with {@link turnId}. */
 	stopWatch: StopWatch;
 	readonly deferred: DeferredPromise<void>;

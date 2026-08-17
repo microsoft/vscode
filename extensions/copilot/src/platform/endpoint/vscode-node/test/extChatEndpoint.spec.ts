@@ -39,6 +39,32 @@ describe('ExtensionContributedChatEndpoint', () => {
 		expect(capturedOptions?.modelOptions?._telemetryTurn).toBe(5);
 	});
 
+	it('issue #330712: forwards the request thinking capability through model options', async () => {
+		const capturedOptions: vscode.LanguageModelChatRequestOptions[] = [];
+		const languageModel = createLanguageModel(options => capturedOptions.push(options));
+		const endpoint = new ExtensionContributedChatEndpoint(
+			languageModel,
+			createInstantiationService(),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+		);
+
+		for (const enableThinking of [true, false, undefined]) {
+			await endpoint.makeChatRequest2({
+				debugName: 'test',
+				messages: [{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+				}],
+				finishedCb: undefined,
+				location: ChatLocation.Agent,
+				requestOptions: {},
+				modelCapabilities: enableThinking === undefined ? undefined : { enableThinking },
+			}, new vscode.CancellationTokenSource().token);
+		}
+
+		expect(capturedOptions.map(options => options.modelOptions?._enableThinking)).toEqual([true, false, undefined]);
+	});
+
 	it('only forwards telemetry turn for base-10 non-negative integer request properties', async () => {
 		const capturedOptions: vscode.LanguageModelChatRequestOptions[] = [];
 		const languageModel = createLanguageModel(options => capturedOptions.push(options));

@@ -5,6 +5,7 @@
 
 import type { McpSdkServerConfigWithInstance, OnElicitation, Options, PermissionMode, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -19,13 +20,15 @@ import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
+import type { ClientPluginCustomization, CustomizationEnablement } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationType, parseRequiredSessionUriFromChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
 import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
@@ -35,10 +38,12 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
-import { applyMcpServerEnablement, findMcpChildId, findMcpServerName, getEffectiveMcpServerCustomizations } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, findMcpChildId, findMcpServerName } from '../shared/mcpCustomizationController.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
+import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMultiRootCustomizationDiscovery.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
@@ -46,6 +51,7 @@ import type { ClaudeTransport } from './claudeProxyService.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
+import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 
 // Re-export for callers that import IRematerializer from the session.
 export type { IRematerializer } from './claudeSdkPipeline.js';
@@ -123,12 +129,19 @@ function resolveCurrentPermissionMode(
  *     surfaced via `requestPermission` / `requestUserInput`.
  */
 export class ClaudeAgentSession extends Disposable {
+	private _hostInstructions: readonly string[] | undefined;
 
 	private _pipeline: ClaudeSdkPipeline | undefined;
 	private _chatChannelUri: URI;
+	private readonly _mcpEnablementSequencer = new Sequencer();
+	private _lastReconciledMcpEnablement: ReadonlyMap<string, boolean> | undefined;
 
 	get chatChannelUri(): URI {
 		return this._chatChannelUri;
+	}
+
+	private get _configurationResource(): URI {
+		return URI.parse(parseRequiredSessionUriFromChatUri(this._chatChannelUri.toString()));
 	}
 
 	bindChatChannel(chatChannelUri: URI): void {
@@ -416,6 +429,7 @@ export class ClaudeAgentSession extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 	) {
 		super();
 		this._chatChannelUri = chatChannelUri;
@@ -429,6 +443,15 @@ export class ClaudeAgentSession extends Disposable {
 		this._hostCustomizations = [];
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
+		this._register(this._customizationEnablementService.onDidChange(event => {
+			if (!event.sessions.includes(this._configurationResource.toString())) {
+				return;
+			}
+			this._onDidCustomizationsChange.fire();
+			if (this._pipeline) {
+				this._reconcileMcpServerEnablement(true).catch(error => this._logService.error(error, `[Claude:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
+			}
+		}));
 
 		this._watchCustomizations(this.workingDirectories);
 	}
@@ -513,6 +536,7 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._pipeline) {
 			throw new Error('ClaudeAgentSession is already materialized');
 		}
+		await this._customizationEnablementService.initializeSession(this._configurationResource.toString());
 		// `ctx.customizations` is the host's last published snapshot for the
 		// owning session. Absent means "the host has published none yet", which
 		// is not the same as an empty list — keep whatever was already
@@ -572,6 +596,7 @@ export class ClaudeAgentSession extends Disposable {
 				agent: agentName,
 				telemetry,
 				traceContext,
+				getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
 			},
 			ctx.transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -679,6 +704,7 @@ export class ClaudeAgentSession extends Disposable {
 						agent: rebuildAgentName,
 						telemetry,
 						traceContext,
+						getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
 					},
 					rebuildTransport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -854,7 +880,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * model / effort (set eagerly via {@link setModel}) is whatever
 	 * the SDK has been told.
 	 */
-	async send(prompt: SDKUserMessage, turnId: string, resource: URI, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string, resource: URI, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport, hostInstructions?: readonly string[], clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		const pipeline = this._requirePipeline();
 		if (workingDirectories) {
 			this._replaceDesiredWorkingDirectories(workingDirectories);
@@ -877,7 +903,12 @@ export class ClaudeAgentSession extends Disposable {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._inheritedPermissionMode, this._permissionModeFallback));
 		}
 		await this._reconcileMcpServerEnablement();
-		return pipeline.send(prompt, turnId);
+		this._hostInstructions = hostInstructions;
+		try {
+			await pipeline.send(prompt, turnId, clientContext);
+		} finally {
+			this._hostInstructions = undefined;
+		}
 	}
 
 	private _replaceDesiredWorkingDirectories(workingDirectories: readonly URI[]): void {
@@ -1150,6 +1181,9 @@ export class ClaudeAgentSession extends Disposable {
 	/** Remove a client's customization contribution from this session. */
 	removeClientCustomizations(clientId: string): void {
 		this.clientCustomizationsDiff.model.removeClient(clientId);
+		if (this._clientCustomizationEnablement.delete(clientId)) {
+			this._rebuildClientCustomizationEnablement();
+		}
 	}
 
 	/**
@@ -1205,8 +1239,21 @@ export class ClaudeAgentSession extends Disposable {
 	 * the resulting snapshot down here. Flips the client-side dirty bit
 	 * so the next {@link send} pre-flight reloads SDK plugins.
 	 */
-	adoptClientCustomizations(clientId: string, synced: readonly ISyncedCustomization[]): void {
+	adoptClientCustomizations(clientId: string, synced: readonly ISyncedCustomization[], customizations: readonly ClientPluginCustomization[]): void {
 		this.clientCustomizationsDiff.model.setSyncedCustomizations(clientId, synced);
+		const pluginEnablement = new Map<string, ClientPluginCustomization>();
+		const childEnablement = new Map<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>();
+		for (const customization of customizations) {
+			pluginEnablement.set(customization.uri.toString(), customization);
+			if (customization.childEnablement !== undefined) {
+				childEnablement.set(customization.uri.toString(), customization.childEnablement);
+			}
+		}
+		// Re-inserting moves the latest client snapshot to the end, preserving
+		// the previous last-write-wins merge precedence across clients.
+		this._clientCustomizationEnablement.delete(clientId);
+		this._clientCustomizationEnablement.set(clientId, { pluginEnablement, childEnablement });
+		this._rebuildClientCustomizationEnablement();
 	}
 
 	/**
@@ -1220,6 +1267,25 @@ export class ClaudeAgentSession extends Disposable {
 
 	/** Snapshot of the last {@link getSessionCustomizations} result, read by {@link _enrichSignalWithMcpContributor}. */
 	private _lastCustomizations: readonly Customization[] = [];
+	private readonly _clientChildEnablement = new Map<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>();
+	private readonly _clientPluginEnablement = new Map<string, ClientPluginCustomization>();
+	private readonly _clientCustomizationEnablement = new Map<string, {
+		readonly pluginEnablement: ReadonlyMap<string, ClientPluginCustomization>;
+		readonly childEnablement: ReadonlyMap<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>;
+	}>();
+
+	private _rebuildClientCustomizationEnablement(): void {
+		this._clientChildEnablement.clear();
+		this._clientPluginEnablement.clear();
+		for (const enablement of this._clientCustomizationEnablement.values()) {
+			for (const [uri, plugin] of enablement.pluginEnablement) {
+				this._clientPluginEnablement.set(uri, plugin);
+			}
+			for (const [uri, children] of enablement.childEnablement) {
+				this._clientChildEnablement.set(uri, children);
+			}
+		}
+	}
 
 	/**
 	 * Project the union of (a) **client-pushed** customizations and
@@ -1266,38 +1332,87 @@ export class ClaudeAgentSession extends Disposable {
 		// Final projection: the client-pushed tier first, then the discovered
 		// tier, with session MCP enablement applied to both.
 		const state = this._hostCustomizations;
-		const desiredById = new Map(state.map(customization => [customization.id, customization.enabled]));
-		const result: Customization[] = synced.map(item => ({
-			...item.customization,
-			enabled: desiredById.get(item.customization.id) ?? item.customization.enabled,
-		}));
+		const result: Customization[] = synced.map(item => {
+			const desired = state.find(customization => customization.id === item.customization.id);
+			if (desired?.type !== CustomizationType.Plugin) {
+				return item.customization;
+			}
+			if (desired.enablement?.length) {
+				return { ...item.customization, enablement: [...desired.enablement] };
+			}
+			const { enablement: _enablement, ...withoutEnablement } = item.customization;
+			return withoutEnablement;
+		});
 		result.push(...discoveredCustomizations);
 		// Cache for the MCP-contributor signal enrichment (see
 		// {@link _enrichSignalWithMcpContributor}).
 		const projected = applyMcpServerEnablement(result, state);
-		this._lastCustomizations = projected;
-		return projected;
+		const enabled = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, projected, this._clientChildEnablement, this._clientPluginEnablement);
+		this._lastCustomizations = enabled.customizations;
+		return enabled.customizations;
 	}
 
-	private async _reconcileMcpServerEnablement(): Promise<void> {
-		const pipeline = this._requirePipeline();
-		const state = this._hostCustomizations;
-		const desired = new Map(getEffectiveMcpServerCustomizations(state).map(server => [server.name, server.enabled]));
+	private _reconcileMcpServerEnablement(fromCustomizationChange = false): Promise<void> {
+		const desired = this._getDesiredMcpServerEnablement();
 		if (desired.size === 0) {
+			this._lastReconciledMcpEnablement = desired;
+			return Promise.resolve();
+		}
+		if (fromCustomizationChange && this._isMcpEnablementUnchanged(desired)) {
+			return Promise.resolve();
+		}
+		return this._mcpEnablementSequencer.queue(() => this._doReconcileMcpServerEnablement());
+	}
+
+	private async _doReconcileMcpServerEnablement(): Promise<void> {
+		const pipeline = this._requirePipeline();
+		const desired = this._getDesiredMcpServerEnablement();
+		if (desired.size === 0) {
+			this._lastReconciledMcpEnablement = desired;
 			return;
 		}
 
 		if (!await pipeline.reconcileMcpServerEnablement(desired)) {
 			throw new Error(`Claude SDK cannot reconcile MCP server enablement`);
 		}
+		this._lastReconciledMcpEnablement = desired;
+	}
+
+	private _getDesiredMcpServerEnablement(): Map<string, boolean> {
+		const resolved = resolveCustomizationEnablement(
+			this._customizationEnablementService,
+			this._configurationResource,
+			this._hostCustomizations,
+			this._clientChildEnablement,
+			this._clientPluginEnablement,
+		);
+		const enabledById = getSdkMcpServerEnablement(resolved);
+		return new Map(resolved.customizations.flatMap(customization => {
+			if (customization.type === CustomizationType.McpServer) {
+				return [[customization.name, enabledById.get(customization.id) ?? false] as const];
+			}
+			return (customization.children ?? []).flatMap(child =>
+				child.type === CustomizationType.McpServer
+					? [[child.name, enabledById.get(child.id) ?? false] as const]
+					: []);
+		}));
+	}
+
+	private _isMcpEnablementUnchanged(desired: ReadonlyMap<string, boolean>): boolean {
+		if (!this._lastReconciledMcpEnablement || desired.size !== this._lastReconciledMcpEnablement.size) {
+			return false;
+		}
+		return [...desired].every(([name, enabled]) => this._lastReconciledMcpEnablement!.get(name) === enabled);
 	}
 
 	private _desiredClientPluginPaths(): readonly URI[] {
-		const state = this._hostCustomizations;
-		const desiredById = new Map(state.map(customization => [customization.id, customization.enabled]));
+		const resolved = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, this.clientCustomizationsDiff.model.state.get().synced.map(item => item.customization), this._clientChildEnablement, this._clientPluginEnablement);
+		const desiredById = new Map(resolved.customizations
+			.filter(customization => isCustomizationSdkEligible(resolved, customization))
+			.map(customization => [customization.id, customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization)]));
 		const paths: URI[] = [];
 		for (const synced of this.clientCustomizationsDiff.model.state.get().synced) {
-			if (synced.pluginDir && (desiredById.get(synced.customization.id) ?? synced.customization.enabled) !== false) {
+			if (synced.pluginDir && (desiredById.get(synced.customization.id) ?? isCustomizationEnabled(synced.customization)) !== false) {
 				paths.push(synced.pluginDir);
 			}
 		}

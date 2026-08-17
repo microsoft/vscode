@@ -26,8 +26,28 @@
 	text-overflow: ellipsis;
 }
 
-.chat-routing-badge-response,
-.chat-routing-badge-response > * {
+.chat-routing-badge .chat-routing-badge-label.chat-routing-badge-completed {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size20);
+}
+
+.chat-routing-badge-response-prefix {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-routing-badge-response-preview {
+	display: block;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-routing-badge-response-preview > * {
 	display: inline;
 	margin: 0;
 	white-space: inherit;
@@ -36,14 +56,6 @@
 .chat-routing-badge .chat-routing-badge-countdown {
 	color: var(--vscode-descriptionForeground);
 	font-variant-numeric: tabular-nums;
-}
-
-.chat-routing-badge.chat-routing-badge-command {
-	border-top-color: var(--vscode-focusBorder);
-}
-
-.chat-routing-badge-command .chat-routing-badge-label {
-	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .chat-routing-badge .chat-routing-badge-action {

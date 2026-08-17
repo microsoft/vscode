@@ -164,6 +164,7 @@ export class AgentsVoiceWidget extends Disposable {
 	private readonly _pttKeyLabel: ISettableObservable<string | undefined> = observableValue(this, undefined);
 	private readonly _statusText: ISettableObservable<string> = observableValue(this, '');
 	private readonly _popoutAvailable: ISettableObservable<boolean> = observableValue(this, true);
+	private readonly _voiceControlsSuppressed: ISettableObservable<boolean> = observableValue(this, false);
 	private readonly _feedbackDialogState: ISettableObservable<FeedbackDialogState | null> = observableValue(this, null);
 	private readonly _showOnboarding: ISettableObservable<boolean> = observableValue(this, false);
 	private readonly _onboardingPendingConnect: ISettableObservable<boolean> = observableValue(this, false);
@@ -617,6 +618,7 @@ export class AgentsVoiceWidget extends Disposable {
 
 	private _updateDOMInputBoxLayout(reader: IReader): void {
 		const voiceState = this._voiceState.read(reader);
+		const voiceControlsSuppressed = this._voiceControlsSuppressed.read(reader);
 		const isConnected = this._isConnected.read(reader);
 		const isConnecting = this._isConnecting.read(reader);
 		const isReconnecting = this._isReconnecting.read(reader);
@@ -674,19 +676,19 @@ export class AgentsVoiceWidget extends Disposable {
 		this._feedbackDialogComponent.element.style.display = 'none';
 
 		// Input box container — show transcript inside or placeholder
-		this._inputBoxContainer!.style.display = 'flex';
+		this._inputBoxContainer!.style.display = voiceControlsSuppressed ? 'none' : 'flex';
 		const transcriptTurns = this._transcriptTurns.read(reader);
 		const hasTranscript = transcriptTurns.some(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
 		// The ambient glow is owned by the glow controller; clear it whenever the
 		// input box shouldn't be lit so no stale frame is left behind.
-		const shouldShowInputGlow = showConnected && (voiceState === 'listening' || voiceState === 'speaking');
+		const shouldShowInputGlow = !voiceControlsSuppressed && showConnected && (voiceState === 'listening' || voiceState === 'speaking');
 		if (!shouldShowInputGlow) {
 			this._glowController?.clear();
 		}
 
 		// Toggle processing comet animation when agent is thinking
-		this._inputBoxContainer!.classList.toggle('processing', voiceState === 'processing');
+		this._inputBoxContainer!.classList.toggle('processing', !voiceControlsSuppressed && voiceState === 'processing');
 
 		if (hasTranscript) {
 			if (showExpanded) {
@@ -771,7 +773,7 @@ export class AgentsVoiceWidget extends Disposable {
 		this._inputBoxToolbar!.style.display = 'flex';
 
 		// Mic button — always visible (primary action)
-		this._inputBoxMicBtn!.style.display = '';
+		this._inputBoxMicBtn!.style.display = voiceControlsSuppressed ? 'none' : '';
 		const keyLabel = this._pttKeyLabel.read(reader);
 		const micTooltip = keyLabel
 			? localize('agentsVoice.pushToTalkKey', "Push to talk ({0})", keyLabel)
@@ -794,10 +796,11 @@ export class AgentsVoiceWidget extends Disposable {
 		this._inputBoxMicBtn!.onmouseup = (e: MouseEvent) => { if (isSecondaryPointerGesture(e)) { return; } this.callbacks.pttUp(); };
 
 		// Connection indicator — visible when connected
-		this._inputBoxConnIndicator!.style.display = showConnected ? '' : 'none';
+		this._inputBoxConnIndicator!.style.display = !voiceControlsSuppressed && showConnected ? '' : 'none';
 		this._inputBoxConnIndicator!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); };
 
 		// Feedback button — always visible
+		this._inputBoxFeedbackBtn!.style.display = voiceControlsSuppressed ? 'none' : '';
 		this._inputBoxFeedbackBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); };
 
 		// Sessions button — always visible, icon toggles with expanded state
@@ -1012,6 +1015,10 @@ export class AgentsVoiceWidget extends Disposable {
 
 	setStatusText(text: string): void {
 		this._statusText.set(text, undefined);
+	}
+
+	setVoiceControlsSuppressed(suppressed: boolean): void {
+		this._voiceControlsSuppressed.set(suppressed, undefined);
 	}
 
 	setPopoutAvailable(available: boolean): void {

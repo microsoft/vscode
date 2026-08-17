@@ -257,6 +257,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return undefined;
 	}
 
+	async getWindowPosition(windowId: number | undefined, options?: INativeHostOptions): Promise<IRectangle | undefined> {
+		return this.windowById(options?.targetWindowId, windowId)?.win?.getBounds();
+	}
+
 	async getNativeWindowHandle(fallbackWindowId: number | undefined, windowId: number): Promise<VSBuffer | undefined> {
 		const window = this.windowById(windowId, fallbackWindowId);
 		if (window?.win) {

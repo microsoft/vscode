@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
@@ -25,7 +25,8 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChatRequestSubmittedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModelReference, IChatRequestSubmittedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -116,6 +117,18 @@ class TestChatService extends mock<IChatService>() {
 	private readonly _onDidSubmitRequest = new Emitter<IChatRequestSubmittedEvent>();
 	override readonly onDidSubmitRequest = this._onDidSubmitRequest.event;
 	readonly cancelledResources: URI[] = [];
+	readonly loadedResources: URI[] = [];
+	disposedModelRefs = 0;
+	cancelError: Error | undefined;
+	modelRefAvailable = true;
+
+	override async acquireOrLoadSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
+		this.loadedResources.push(sessionResource);
+		if (!this.modelRefAvailable) {
+			return undefined;
+		}
+		return { object: {} as IChatModel, dispose: () => { this.disposedModelRefs++; } } as IChatModelReference;
+	}
 
 	submitRequest(event: IChatRequestSubmittedEvent): void {
 		this._onDidSubmitRequest.fire(event);
@@ -127,6 +140,9 @@ class TestChatService extends mock<IChatService>() {
 
 	override async cancelCurrentRequestForSession(sessionResource: URI): Promise<void> {
 		this.cancelledResources.push(sessionResource);
+		if (this.cancelError) {
+			throw this.cancelError;
+		}
 	}
 }
 
@@ -263,13 +279,57 @@ suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('cancelCurrentRequest cancels the main chat request', async () => {
+	test('cancelCurrentRequest loads the chat model then cancels the main chat request', async () => {
 		const session = stubSession({ sessionId: 'session', providerId: 'test' });
 		const { service, chatService } = createSessionsManagementService(session, disposables);
 
 		await service.cancelCurrentRequest(session);
 
-		assert.deepStrictEqual(chatService.cancelledResources, [stubChat.resource]);
+		assert.deepStrictEqual({
+			loaded: chatService.loadedResources,
+			cancelled: chatService.cancelledResources,
+			disposedModelRefs: chatService.disposedModelRefs,
+		}, {
+			loaded: [stubChat.resource],
+			cancelled: [stubChat.resource],
+			disposedModelRefs: 1,
+		});
+	});
+
+	test('cancelCurrentRequest disposes the loaded model when cancellation fails', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const { service, chatService } = createSessionsManagementService(session, disposables);
+		chatService.cancelError = new Error('cancel failed');
+
+		await assert.rejects(() => service.cancelCurrentRequest(session), /cancel failed/);
+
+		assert.deepStrictEqual({
+			loaded: chatService.loadedResources,
+			cancelled: chatService.cancelledResources,
+			disposedModelRefs: chatService.disposedModelRefs,
+		}, {
+			loaded: [stubChat.resource],
+			cancelled: [stubChat.resource],
+			disposedModelRefs: 1,
+		});
+	});
+
+	test('cancelCurrentRequest rejects when the chat model cannot be loaded', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const { service, chatService } = createSessionsManagementService(session, disposables);
+		chatService.modelRefAvailable = false;
+
+		await assert.rejects(() => service.cancelCurrentRequest(session), /Failed to load chat session for cancellation/);
+
+		assert.deepStrictEqual({
+			loaded: chatService.loadedResources,
+			cancelled: chatService.cancelledResources,
+			disposedModelRefs: chatService.disposedModelRefs,
+		}, {
+			loaded: [stubChat.resource],
+			cancelled: [],
+			disposedModelRefs: 0,
+		});
 	});
 
 	test('openSession waits for a loading session before opening chat content', async () => {
@@ -1094,8 +1154,9 @@ suite('SessionsManagementService', () => {
 				events.push('create');
 				return session;
 			}
-			override startNewSessionRequest(): void {
-				events.push('start');
+			override startNewSessionRequest(_sessionId: string, activity?: string) {
+				events.push(`start:${activity}`);
+				return { dispose: () => events.push('clear') };
 			}
 			override async setWorktreeConfiguration(): Promise<void> {
 				events.push('configure');
@@ -1108,11 +1169,15 @@ suite('SessionsManagementService', () => {
 		}(session);
 		const { service, view } = createSessionsManagementService(session, disposables, provider);
 
-		const sendPromise = service.createAndSendNewChatRequest(URI.parse('test:///folder'), async () => {
-			events.push('prepare');
-			requestPreparationStarted.complete();
-			await requestOptionsBarrier.p;
-			return { query: 'prepared' };
+		const sendPromise = service.createAndSendNewChatRequest(URI.parse('test:///folder'), {
+			kind: 'deferred',
+			activity: 'Fetching pull request...',
+			async resolve() {
+				events.push('prepare');
+				requestPreparationStarted.complete();
+				await requestOptionsBarrier.p;
+				return { query: 'prepared' };
+			},
 		}, {
 			isolationMode: 'worktree',
 			metadata: { github: { pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
@@ -1131,9 +1196,103 @@ suite('SessionsManagementService', () => {
 			events,
 			createMetadata,
 		}, {
-			eventsWhilePreparingRequest: ['create', 'start', 'show:s1', 'prepare', 'configure'],
-			events: ['create', 'start', 'show:s1', 'prepare', 'configure', 'send:prepared'],
+			eventsWhilePreparingRequest: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure'],
+			events: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure', 'clear', 'send:prepared'],
 			createMetadata: { github: { pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+		});
+	});
+
+	test('createAndSendNewChatRequest clears request activity when already cancelled', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		let requestOptionsResolved = false;
+		let activityCleared = 0;
+		let deleted = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace {
+				return {
+					uri: URI.parse('test:///folder'),
+					label: 'Test',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+			}
+			override startNewSessionRequest() {
+				return { dispose: () => activityCleared++ };
+			}
+			override deleteNewSession(): void {
+				deleted++;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await assert.rejects(service.createAndSendNewChatRequest(URI.parse('test:///folder'), {
+			kind: 'deferred',
+			activity: 'Fetching pull request...',
+			async resolve() {
+				requestOptionsResolved = true;
+				return { query: 'prepared' };
+			},
+		}, undefined, CancellationToken.Cancelled), /Canceled/);
+
+		assert.deepStrictEqual({
+			requestOptionsResolved,
+			activityCleared,
+			deleted,
+		}, {
+			requestOptionsResolved: false,
+			activityCleared: 1,
+			deleted: 1,
+		});
+	});
+
+	test('createAndSendNewChatRequest disposes the draft when request activity startup fails', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		let deleted = 0;
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] {
+				return [];
+			}
+			override resolveWorkspace(): ISessionWorkspace {
+				return {
+					uri: URI.parse('test:///folder'),
+					label: 'Test',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+			}
+			override startNewSessionRequest(): never {
+				throw new Error('start failed');
+			}
+			override deleteNewSession(): void {
+				deleted++;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await assert.rejects(service.createAndSendNewChatRequest(URI.parse('test:///folder'), {
+			kind: 'deferred',
+			activity: 'Fetching pull request...',
+			async resolve() {
+				return { query: 'prepared' };
+			},
+		}), /start failed/);
+
+		assert.deepStrictEqual({
+			deleted,
+			session: service.getSession(session.resource),
+		}, {
+			deleted: 1,
+			session: undefined,
 		});
 	});
 

@@ -29,11 +29,10 @@ import { ICommandDetectionCapability, TerminalCapability } from '../../../../../
 import { ITerminalLogService, ITerminalProfile, TerminalExitReason } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, ChatRequestQueueKind, ElicitationState, type IChatExternalToolInvocationUpdate, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
-import { autorun, constObservable, type IObservable } from '../../../../../../base/common/observable.js';
-import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
-import { ChatConfiguration, ChatPermissionLevel, isAutoApproveLevel } from '../../../../chat/common/constants.js';
-import type { UserSelectedTools } from '../../../../chat/common/participants/chatAgents.js';
+import { IChatService, ChatRequestQueueKind, ElicitationState, type IChatExternalToolInvocationUpdate, type IChatSendRequestOptions, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { ChatModel } from '../../../../chat/common/model/chatModel.js';
+import { ChatConfiguration, ChatModeKind, ChatPermissionLevel, isAutoApproveLevel } from '../../../../chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -88,6 +87,7 @@ import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { getSandboxPrecheckInputsForToolInvocation } from '../../../../chat/browser/tools/toolHelpers.js';
 import { compact } from './consoleCompactor/consoleCompactor.js';
+import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 
 // #region Tool data
 
@@ -866,6 +866,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
@@ -3032,11 +3033,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// assess the command output or continue the agentic tool loop, which
 		// left the agent silent after a backgrounded command finished.
 		const lastRequest = sessionRef.object.lastRequest;
-		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools>; agentIdSilent?: string } = {};
+		const sendOptions: Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'modeInfo' | 'userSelectedTools' | 'agentIdSilent' | 'instructionContext'> = {};
 		if (lastRequest) {
 			sendOptions.userSelectedModelId = lastRequest.modelId;
 			sendOptions.modeInfo = lastRequest.modeInfo;
-			sendOptions.agentIdSilent = lastRequest.response?.agent?.id;
+			const previousAgentId = lastRequest.response?.agent?.id;
+			sendOptions.agentIdSilent = previousAgentId;
+			const contribution = previousAgentId ? this._chatSessionsService.getChatSessionContribution(previousAgentId) : undefined;
+			const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
+			if (autoAttachEnabled) {
+				sendOptions.instructionContext = {
+					modeKind: lastRequest.modeInfo?.kind ?? ChatModeKind.Agent,
+					enabledTools: lastRequest.userSelectedTools,
+				};
+			}
 			if (lastRequest.userSelectedTools) {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
