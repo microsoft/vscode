@@ -196,17 +196,6 @@ export function findBestMatchingModel(
 }
 
 /**
- * Find the default model for a given location from a list of models.
- * Prefers the model marked as default for the location, falls back to the first model.
- */
-export function findDefaultModel(
-	models: ILanguageModelChatMetadataAndIdentifier[],
-	location: ChatAgentLocation,
-): ILanguageModelChatMetadataAndIdentifier | undefined {
-	return models.find(m => m.metadata.isDefaultForLocation[location]) || models[0];
-}
-
-/**
  * Determines whether the current model should be reset because it is no longer
  * compatible with the current mode, session, or availability.
  *

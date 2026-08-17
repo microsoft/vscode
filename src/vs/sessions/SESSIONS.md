@@ -383,7 +383,7 @@ A provider that genuinely cannot account for a model states `undefined`, and the
 model is then treated as the conversation's own — the safe reading, since the
 alternative is overwriting a model the user may have picked.
 
-Two invariants follow from that seam:
+Three invariants follow from that seam:
 
 - Everything that describes a conversation's model is held per conversation, keyed by
   the chat resource: the model it is meant to run on, whether it has been seeded

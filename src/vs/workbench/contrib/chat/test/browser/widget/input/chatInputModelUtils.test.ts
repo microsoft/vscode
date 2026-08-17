@@ -13,7 +13,6 @@ import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import {
 	filterModelsForSession,
 	findBestMatchingModel,
-	findDefaultModel,
 	getAgentHostByokManageModelsIdentifier,
 	hasModelsTargetingSession,
 	isModelHiddenInPicker,
@@ -46,6 +45,19 @@ function computeAvailableModels(
 	const merged = mergeModelsWithCache(liveModels, cachedModels, contributedVendors, resolvedVendors);
 	merged.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 	return filterModelsForSession(merged, sessionType, currentModeKind, location);
+}
+
+/**
+ * The model a reset lands on, mirroring what `ChatInputPart` supplies as the runtime's
+ * `getDeclaredDefaultModel` plus the controller's own `?? models[0]` fallback. Composed here
+ * because these tests assert what a reset *would* pick; the rule itself is exercised against the
+ * real thing in `chatInputModelSelectionController.test.ts`.
+ */
+function findDefaultModel(
+	models: ILanguageModelChatMetadataAndIdentifier[],
+	location: ChatAgentLocation,
+): ILanguageModelChatMetadataAndIdentifier | undefined {
+	return models.find(m => m.metadata.isDefaultForLocation[location]) ?? models[0];
 }
 
 function createModel(
@@ -429,44 +441,6 @@ suite('ChatInputModelUtils', () => {
 			const target = createSessionModel('claude-sonnet-4.6', 'claude sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet-4.6' });
 			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
 		});
-	});
-
-	suite('findDefaultModel', () => {
-
-		test('returns model marked as default for location', () => {
-			const regular = createModel('gpt', 'GPT');
-			const defaultModel = createDefaultModelForLocation('claude', 'Claude', ChatAgentLocation.Chat);
-			const result = findDefaultModel([regular, defaultModel], ChatAgentLocation.Chat);
-			assert.strictEqual(result?.metadata.id, 'claude');
-		});
-
-		test('falls back to first model when no default for location', () => {
-			const modelA = createModel('gpt', 'GPT');
-			const modelB = createModel('claude', 'Claude');
-			const result = findDefaultModel([modelA, modelB], ChatAgentLocation.Chat);
-			assert.strictEqual(result?.metadata.id, 'gpt');
-		});
-
-		test('returns undefined for empty models array', () => {
-			const result = findDefaultModel([], ChatAgentLocation.Chat);
-			assert.strictEqual(result, undefined);
-		});
-
-		test('returns location-specific default when multiple defaults exist', () => {
-			const chatDefault = createDefaultModelForLocation('chat-default', 'Chat Default', ChatAgentLocation.Chat);
-			const terminalDefault = createDefaultModelForLocation('terminal-default', 'Terminal Default', ChatAgentLocation.Terminal);
-			const result = findDefaultModel([chatDefault, terminalDefault], ChatAgentLocation.Chat);
-			assert.strictEqual(result?.metadata.id, 'chat-default');
-		});
-
-		test('does not pick terminal default when looking for chat default', () => {
-			const terminalDefault = createDefaultModelForLocation('terminal-default', 'Terminal Default', ChatAgentLocation.Terminal);
-			const regular = createModel('gpt', 'GPT');
-			const result = findDefaultModel([terminalDefault, regular], ChatAgentLocation.Chat);
-			// Falls back to first model since none is default for Chat
-			assert.strictEqual(result?.metadata.id, 'terminal-default');
-		});
-
 	});
 
 	suite('shouldResetModelToDefault', () => {
@@ -1305,26 +1279,6 @@ suite('ChatInputModelUtils', () => {
 				capabilities: {},
 			});
 			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel], supportedHere(ChatAgentLocation.EditorInline), [noToolModel], undefined), true);
-		});
-	});
-
-	suite('findDefaultModel edge cases', () => {
-
-		test('when all models are session-targeted and none is default, first model wins', () => {
-			const m1 = createSessionModel('s1', 'Session 1', 'cloud');
-			const m2 = createSessionModel('s2', 'Session 2', 'cloud');
-			const result = findDefaultModel([m1, m2], ChatAgentLocation.Chat);
-			assert.strictEqual(result?.metadata.id, 's1');
-		});
-
-		test('default for one location does not leak to another', () => {
-			const chatDefault = createDefaultModelForLocation('chat-def', 'Chat Default', ChatAgentLocation.Chat);
-			const noDefault = createModel('no-def', 'No Default');
-
-			// For Chat: chatDefault wins
-			assert.strictEqual(findDefaultModel([noDefault, chatDefault], ChatAgentLocation.Chat)?.metadata.id, 'chat-def');
-			// For Terminal: no model is default, so first model wins
-			assert.strictEqual(findDefaultModel([noDefault, chatDefault], ChatAgentLocation.Terminal)?.metadata.id, 'no-def');
 		});
 	});
 

@@ -1856,6 +1856,70 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(session!.mode.get(), { id: 'agent://live', kind: 'agent' });
 	});
 
+	test('restores the selected model from the default chat draft on resume', () => {
+		// Mirrors the draft agent restore. Without it a reopened session reports no model at all,
+		// which model selection reads as "this conversation never chose one" and seeds from a
+		// profile-wide preference — writing that through and changing what the session runs on.
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'resume-model', { title: 'Resume Model Session' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Resume Model Session');
+		assert.ok(session);
+		assert.strictEqual(session!.modelId.get(), undefined);
+
+		provider.getSessionConfig(session!.sessionId);
+
+		const defaultChatUri = buildDefaultChatUri(AgentSession.uri('copilotcli', 'resume-model'));
+		agentHost.setChatState(defaultChatUri, {
+			resource: defaultChatUri,
+			title: 'Resume Model Session',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+			turns: [],
+			draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'resumed-model' } },
+		});
+
+		assert.deepStrictEqual({
+			modelId: session!.modelId.get(),
+			// The conversation's own model, read back from where the host persisted it — so it
+			// outranks `chat.defaultModel` rather than inviting it.
+			modelSource: session!.mainChat.get().modelSource.get(),
+		}, {
+			modelId: 'agent-host-copilotcli:resumed-model',
+			modelSource: ChatModelSource.Restored,
+		});
+	});
+
+	test('does not override a live model selection with the persisted draft model', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'resume-model-nooverride', { title: 'Resume Model No Override' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Resume Model No Override');
+		assert.ok(session);
+
+		// A live pick wins; a later draft snapshot must not clobber it.
+		provider.setModel(session!.sessionId, session!.resource, 'agent-host-copilotcli:live-model', ChatModelSource.User);
+		provider.getSessionConfig(session!.sessionId);
+
+		const defaultChatUri = buildDefaultChatUri(AgentSession.uri('copilotcli', 'resume-model-nooverride'));
+		agentHost.setChatState(defaultChatUri, {
+			resource: defaultChatUri,
+			title: 'Resume Model No Override',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+			turns: [],
+			draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'resumed-model' } },
+		});
+
+		assert.deepStrictEqual({
+			modelId: session!.modelId.get(),
+			modelSource: session!.mainChat.get().modelSource.get(),
+		}, {
+			modelId: 'agent-host-copilotcli:live-model',
+			modelSource: ChatModelSource.User,
+		});
+	});
+
 	test('rebases the selected agent to its worktree twin from the agent list before the working directory flips', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'rebase-worktree', { title: 'Rebase Worktree', workingDirectory: 'file:///Users/me/vscode' });
@@ -4293,6 +4357,65 @@ suite('LocalAgentHostSessionsProvider', () => {
 				forkTurnId: 'turn-1',
 				forkedIsPeer: true,
 				forkedInCatalog: true,
+			});
+		}));
+
+		test('forkChat starts the new chat on the source peer chat\'s model', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			// A fork continues the chat it was taken from, so it starts on that chat's model rather
+			// than the session-level default it used to take.
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
+			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+			const inputStates: { resource: string; state: Partial<IChatModelInputState> }[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				activeSession,
+				lookupLanguageModel: createTestLanguageModel,
+				acquireOrLoadSession: async resource => {
+					const inputModel = new class extends mock<IInputModel>() {
+						override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+						override setState(state: Partial<IChatModelInputState>): void {
+							inputStates.push({ resource: resource.toString(), state });
+						}
+						override clearState(): void { }
+						override toJSON(): undefined { return undefined; }
+					}();
+					const chatModel = new class extends mock<IChatModel>() {
+						override readonly inputModel = inputModel;
+					}();
+					return {
+						object: chatModel,
+						dispose() { },
+					} satisfies IChatModelReference;
+				},
+			});
+			const session = setupMultiChatSession(provider, 'multi-fork-peer-selection');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork-peer-selection').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			agentHost.setSessionState('multi-fork-peer-selection', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat }));
+
+			const peer = session.chats.get().find(c => c.resource.fragment === 'peer-1');
+			assert.ok(peer);
+			activeSession.set({ sessionId: session.sessionId, activeChat: constObservable(peer!) } as IActiveSession, undefined);
+			provider.setModel(session.sessionId, peer!.resource, 'agent-host-copilotcli:peer-model', ChatModelSource.User);
+
+			const forked = await provider.forkChat(session.sessionId, peer!.resource, 'turn-1');
+			const call = agentHost.createdChats.at(-1);
+
+			assert.deepStrictEqual({
+				forkSource: call?.options?.fork?.source.toString(),
+				// The source peer's model, not the session-level default the fork used to take.
+				createdModel: call?.options?.model,
+				forkedInputSelectedModels: inputStates
+					.filter(entry => entry.resource === forked.resource.toString())
+					.map(entry => entry.state.selectedModel?.identifier)
+					.filter((id): id is string => id !== undefined),
+			}, {
+				forkSource: peerChat,
+				createdModel: { id: 'peer-model' },
+				forkedInputSelectedModels: ['agent-host-copilotcli:peer-model'],
 			});
 		}));
 
