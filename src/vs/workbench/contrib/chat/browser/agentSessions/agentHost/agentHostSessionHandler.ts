@@ -716,6 +716,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	 * Marks the active turn as complete.
 	 */
 	complete(): void {
+		this._responseTurnId = undefined;
 		this.isCompleteObs.set(true, undefined);
 	}
 
@@ -729,12 +730,18 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	 * it. Turns are ordinarily sequential; they overlap when one turn is
 	 * preempted by another, and a turn ending tool calls can trail the next
 	 * turn's start by a few milliseconds.
+	 *
+	 * Completing releases the claim, so the response a later turn renders into
+	 * is owned by whichever turn claims it next. Holding the claim past the
+	 * response it describes would suppress the completion of every subsequent
+	 * client-dispatched turn, which never claims one.
 	 */
 	completeTurn(turnId: string): void {
 		if (!completionAppliesToResponse(this._responseTurnId, turnId)) {
 			this._logService.trace(`[AgentHost] ignoring turn ${turnId} completion; response belongs to ${this._responseTurnId}`);
 			return;
 		}
+		this._responseTurnId = undefined;
 		this.isCompleteObs.set(true, undefined);
 	}
 

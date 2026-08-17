@@ -27,4 +27,13 @@ suite('completionAppliesToResponse', () => {
 			predecessor: false,
 		});
 	});
+
+	test('a released claim lets the next turn complete its own response', () => {
+		// Completing releases the claim. A client-dispatched turn never claims
+		// one, so a claim held past its own response would suppress every
+		// later completion and leave the response open forever.
+		const afterRelease = completionAppliesToResponse(undefined, 'turn-3');
+
+		assert.strictEqual(afterRelease, true);
+	});
 });
