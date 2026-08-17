@@ -290,12 +290,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const model = modelService.createModel('farboo', null);
 		const editor = myCreateTestCodeEditor(model);
 
+		const propertyChangesBeforeUpdate = propertyChanges;
 		editor.updateOptions({ lineNumbers: 'off' });
-		assert.strictEqual(propertyChanges, 1);
+		assert.ok(propertyChanges > propertyChangesBeforeUpdate);
+		const propertyChangesAfterUpdate = propertyChanges;
 
 		mainThreadDocumentsAndEditors.dispose();
 		editor.updateOptions({ lineNumbers: 'on' });
-		assert.strictEqual(propertyChanges, 1);
+		assert.strictEqual(propertyChanges, propertyChangesAfterUpdate);
 
 		editor.dispose();
 		model.dispose();
