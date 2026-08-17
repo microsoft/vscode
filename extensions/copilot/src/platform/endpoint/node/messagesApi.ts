@@ -986,7 +986,7 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 
 		if (parsed.stop_reason === 'refusal') {
 			const category = parsed.stop_details?.category ?? 'unknown';
-			logService.warn(`[messagesAPI] non-streaming: Refusal received: category='${category}' explanation='${parsed.stop_details?.explanation ?? ''}' for model ${parsed.model}`);
+			logService.warn(`[messagesAPI] non-streaming: Refusal received: category='${category}' for model ${parsed.model}`);
 
 			/* __GDPR__
 				"messagesApi.refusal" : {
@@ -1344,7 +1344,7 @@ export class AnthropicMessagesProcessor {
 				}
 				if (this.stopReason === 'refusal') {
 					const category = this.stopDetails?.category ?? 'unknown';
-					this.logService.warn(`[messagesAPI] Refusal received: category='${category}' explanation='${this.stopDetails?.explanation ?? ''}' for model ${this.model}`);
+					this.logService.warn(`[messagesAPI] Refusal received: category='${category}' for model ${this.model}`);
 
 					/* __GDPR__
 						"messagesApi.refusal" : {

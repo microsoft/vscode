@@ -23,6 +23,14 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 
+class RecordingLogService extends TestLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
+}
+
 function assertContentArray(content: MessageParam['content']): ContentBlockParam[] {
 	expect(Array.isArray(content)).toBe(true);
 	return content as ContentBlockParam[];
@@ -1973,6 +1981,7 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 	});
 
 	test('maps refusal stop_reason to Refusal, keeping any text the model did produce', async () => {
+		const explanation = 'API integrators: configure a fallback model.\n</pre>';
 		const response = createNonStreamingResponse({
 			id: 'msg_refusal',
 			type: 'message',
@@ -1980,14 +1989,15 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 			content: [{ type: 'text', text: 'refused' }],
 			model: 'claude-sonnet-4-20250514',
 			stop_reason: 'refusal',
-			stop_details: { type: 'refusal', category: 'cyber', explanation: 'API integrators: configure a fallback model.' },
+			stop_details: { type: 'refusal', category: 'cyber', explanation },
 			usage: { input_tokens: 10, output_tokens: 5 },
 		});
 		const telemetryData = TelemetryData.createAndMarkAsIssued();
 		const deltas: IResponseDelta[] = [];
+		const logService = new RecordingLogService();
 		const completions = await processNonStreamingResponseFromMessagesEndpoint(
 			new NullTelemetryService(),
-			new TestLogService(),
+			logService,
 			response,
 			async (_text, _idx, delta) => { deltas.push(delta); return undefined; },
 			telemetryData,
@@ -2000,10 +2010,12 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 			finishReason: results[0].finishReason,
 			content: results[0].message.content,
 			copilotErrors: deltas.flatMap(d => d.copilotErrors ?? []),
+			loggedExplanation: logService.warnings.some(message => message.includes(explanation)),
 		}).toEqual({
 			finishReason: 'refusal',
 			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'refused' }],
 			copilotErrors: [],
+			loggedExplanation: false,
 		});
 	});
 
@@ -2094,13 +2106,13 @@ suite('processResponseFromMessagesEndpoint routing', () => {
 });
 
 suite('AnthropicMessagesProcessor streaming cache_creation', () => {
-	function makeProcessor(): AnthropicMessagesProcessor {
+	function makeProcessor(logService: TestLogService = new TestLogService()): AnthropicMessagesProcessor {
 		return new AnthropicMessagesProcessor(
 			TelemetryData.createAndMarkAsIssued(),
 			'req-1',
 			'gh-req-1',
 			'',
-			new TestLogService(),
+			logService,
 			new NullTelemetryService(),
 		);
 	}
@@ -2283,10 +2295,11 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 	});
 
 	test('refusal stop_reason maps to Refusal even when it arrives alongside context management', () => {
-		const processor = makeProcessor();
+		const logService = new RecordingLogService();
+		const processor = makeProcessor(logService);
 		const deltas: IResponseDelta[] = [];
 		const capture: FinishedCallback = async (_text, _idx, delta) => { deltas.push(delta); return undefined; };
-		const explanation = 'API integrators: configure a fallback model.';
+		const explanation = 'API integrators: configure a fallback model.\n</pre>';
 
 		processor.push({
 			type: 'message_start',
@@ -2315,10 +2328,12 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 			finishReason: completion!.finishReason,
 			contextManagement: deltas.find(d => d.contextManagement)?.contextManagement,
 			copilotErrors: deltas.flatMap(d => d.copilotErrors ?? []),
+			loggedExplanation: logService.warnings.some(message => message.includes(explanation)),
 		}).toEqual({
 			finishReason: 'refusal',
 			contextManagement: { applied_edits: [] },
 			copilotErrors: [],
+			loggedExplanation: false,
 		});
 	});
 });
