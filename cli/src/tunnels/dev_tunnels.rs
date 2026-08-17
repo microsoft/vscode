@@ -18,6 +18,7 @@ use http::StatusCode;
 use rand::prelude::IteratorRandom;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 use std::future::Future;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
@@ -35,6 +36,7 @@ use tunnels::management::{
 };
 
 static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
+static TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL: &str = "The tunnel port protocol cannot be changed.";
 
 #[allow(dead_code)]
 mod tunnel_flags {
@@ -1026,17 +1028,29 @@ impl ActiveTunnelManager {
 		privacy: PortPrivacy,
 		protocol: PortProtocol,
 	) -> Result<(), WrappedError> {
-		self.relay
-			.lock()
-			.await
-			.add_port(&TunnelPort {
-				port_number,
-				protocol: Some(protocol.to_contract_str().to_string()),
-				access_control: Some(privacy_to_tunnel_acl(privacy)),
-				..Default::default()
-			})
-			.await
-			.map_err(|e| wrap(e, "error adding port to relay"))?;
+		let relay = self.relay.lock().await;
+		let port = TunnelPort {
+			port_number,
+			protocol: Some(protocol.to_contract_str().to_string()),
+			access_control: Some(privacy_to_tunnel_acl(privacy)),
+			..Default::default()
+		};
+
+		match relay.add_port(&port).await {
+			Ok(()) => {}
+			Err(error) if is_tunnel_port_protocol_conflict(&error) => {
+				relay
+					.remove_port(port_number)
+					.await
+					.map_err(|e| wrap(e, "error replacing port protocol in relay"))?;
+				relay
+					.add_port(&port)
+					.await
+					.map_err(|e| wrap(e, "error adding port to relay"))?;
+			}
+			Err(error) => return Err(wrap(error, "error adding port to relay")),
+		}
+
 		Ok(())
 	}
 
@@ -1045,17 +1059,28 @@ impl ActiveTunnelManager {
 		&self,
 		port_number: u16,
 	) -> Result<mpsc::UnboundedReceiver<ForwardedPortConnection>, WrappedError> {
-		self.relay
-			.lock()
-			.await
-			.add_port_raw(&TunnelPort {
-				port_number,
-				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
-				access_control: Some(privacy_to_tunnel_acl(PortPrivacy::Private)),
-				..Default::default()
-			})
-			.await
-			.map_err(|e| wrap(e, "error adding port to relay"))
+		let relay = self.relay.lock().await;
+		let port = TunnelPort {
+			port_number,
+			protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
+			access_control: Some(privacy_to_tunnel_acl(PortPrivacy::Private)),
+			..Default::default()
+		};
+
+		match relay.add_port_raw(&port).await {
+			Ok(receiver) => Ok(receiver),
+			Err(error) if is_tunnel_port_protocol_conflict(&error) => {
+				relay
+					.remove_port(port_number)
+					.await
+					.map_err(|e| wrap(e, "error replacing port protocol in relay"))?;
+				relay
+					.add_port_raw(&port)
+					.await
+					.map_err(|e| wrap(e, "error adding port to relay"))
+			}
+			Err(error) => Err(wrap(error, "error adding port to relay")),
+		}
 	}
 
 	/// Removes a port from TCP/IP forwarding.
@@ -1251,6 +1276,24 @@ fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
 	true
 }
 
+// This is only relevant for Node-owned tunnels created before
+// https://github.com/microsoft/vscode/pull/329066 was merged.
+fn is_tunnel_port_protocol_conflict(error: &(impl Error + 'static)) -> bool {
+	let Some(HttpError::ResponseError(response)) = error
+		.source()
+		.and_then(|source| source.downcast_ref::<HttpError>())
+	else {
+		return false;
+	};
+
+	response.status_code == StatusCode::BAD_REQUEST
+		&& response
+			.get_details()
+			.and_then(|details| details.detail)
+			.as_deref()
+			== Some(TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL)
+}
+
 fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
 	TunnelAccessControl {
 		entries: vec![match privacy {
@@ -1293,6 +1336,23 @@ fn tunnel_has_host_connection(tunnel: &Tunnel) -> bool {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use tunnels::management::ResponseError;
+	use url::Url;
+
+	#[derive(Debug)]
+	struct ErrorWithSource(HttpError);
+
+	impl std::fmt::Display for ErrorWithSource {
+		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+			self.0.fmt(f)
+		}
+	}
+
+	impl Error for ErrorWithSource {
+		fn source(&self) -> Option<&(dyn Error + 'static)> {
+			Some(&self.0)
+		}
+	}
 
 	#[test]
 	fn test_clean_hostname_for_tunnel() {
@@ -1309,5 +1369,27 @@ mod test {
 			"coolname-with-chars".to_string()
 		);
 		assert_eq!(clean_hostname_for_tunnel("z"), "remote-machine".to_string());
+	}
+
+	#[test]
+	fn test_is_tunnel_port_protocol_conflict() {
+		let error = ErrorWithSource(HttpError::ResponseError(ResponseError {
+			url: Url::parse("https://example.com/tunnels/test/ports/3000").unwrap(),
+			status_code: StatusCode::BAD_REQUEST,
+			data: Some(format!(
+				r#"{{"detail":"{TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL}"}}"#
+			)),
+			request_id: None,
+		}));
+
+		assert!(is_tunnel_port_protocol_conflict(&error));
+		assert!(!is_tunnel_port_protocol_conflict(&ErrorWithSource(
+			HttpError::ResponseError(ResponseError {
+				url: Url::parse("https://example.com/tunnels/test/ports/3000").unwrap(),
+				status_code: StatusCode::BAD_REQUEST,
+				data: Some(r#"{"detail":"Another validation error."}"#.to_string()),
+				request_id: None,
+			})
+		)));
 	}
 }
