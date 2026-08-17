@@ -10,13 +10,13 @@ import { AsyncIterableObject } from '../../../util/vs/base/common/async';
 import { SSEParser } from '../../../util/vs/base/common/sseParser';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation, getDefaultRefusalMessage } from '../../chat/common/commonTypes';
+import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled } from '../../networking/common/anthropic';
-import { FinishedCallback, getRequestId, ICopilotError, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
-import { ChatCompletion, ChatRefusal, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
+import { ChatCompletion, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
 import { sendEngineMessagesTelemetry } from '../../networking/node/chatStream';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
@@ -758,7 +758,6 @@ interface AnthropicCompletionState {
 	readonly model: string;
 	readonly messageId: string;
 	readonly stopReason: string | null | undefined;
-	readonly refusal?: ChatRefusal;
 	readonly textContent: string;
 	readonly toolCalls: readonly { id: string; name: string; arguments: string }[];
 	readonly inputTokens: number;
@@ -794,23 +793,6 @@ function mapStopReason(stopReason: string | null | undefined): FinishedCompletio
 		default:
 			return FinishedCompletionReason.Stop;
 	}
-}
-
-function buildRefusal(stopDetails: RefusalStopDetails | null | undefined): ChatRefusal {
-	return {
-		message: stopDetails?.explanation?.trim() || getDefaultRefusalMessage(),
-		category: stopDetails?.category ?? undefined,
-	};
-}
-
-function buildRefusalError(refusal: ChatRefusal): ICopilotError {
-	return {
-		agent: 'anthropic',
-		code: 'refusal',
-		message: refusal.message,
-		type: 'error',
-		identifier: refusal.category,
-	};
 }
 
 /**
@@ -865,7 +847,6 @@ function buildAnthropicCompletion(state: AnthropicCompletionState, logService: I
 			copilot_usage: state.copilotUsage,
 		},
 		finishReason: mapStopReason(state.stopReason),
-		...(state.refusal ? { refusal: state.refusal } : {}),
 		message: {
 			role: Raw.ChatRole.Assistant,
 			content: state.textContent ? [{
@@ -1003,10 +984,9 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 			}
 		}
 
-		const refusal = parsed.stop_reason === 'refusal' ? buildRefusal(parsed.stop_details) : undefined;
-		if (refusal) {
-			const category = refusal.category ?? 'unknown';
-			logService.warn(`[messagesAPI] non-streaming: Refusal received for model ${parsed.model}`);
+		if (parsed.stop_reason === 'refusal') {
+			const category = parsed.stop_details?.category ?? 'unknown';
+			logService.warn(`[messagesAPI] non-streaming: Refusal received: category='${category}' explanation='${parsed.stop_details?.explanation ?? ''}' for model ${parsed.model}`);
 
 			/* __GDPR__
 				"messagesApi.refusal" : {
@@ -1036,7 +1016,6 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 					arguments: tc.arguments,
 				})),
 			} : {}),
-			...(refusal ? { copilotErrors: [buildRefusalError(refusal)] } : {}),
 		};
 		await finishCallback(textContent, 0, delta);
 
@@ -1045,7 +1024,6 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 			model: parsed.model,
 			messageId: parsed.id,
 			stopReason: parsed.stop_reason,
-			refusal,
 			textContent,
 			toolCalls,
 			inputTokens: usage?.input_tokens ?? 0,
@@ -1364,10 +1342,9 @@ export class AnthropicMessagesProcessor {
 						}
 					);
 				}
-				const refusal = this.stopReason === 'refusal' ? buildRefusal(this.stopDetails) : undefined;
-				if (refusal) {
-					const category = refusal.category ?? 'unknown';
-					this.logService.warn(`[messagesAPI] Refusal received: category='${category}' for model ${this.model}`);
+				if (this.stopReason === 'refusal') {
+					const category = this.stopDetails?.category ?? 'unknown';
+					this.logService.warn(`[messagesAPI] Refusal received: category='${category}' explanation='${this.stopDetails?.explanation ?? ''}' for model ${this.model}`);
 
 					/* __GDPR__
 						"messagesApi.refusal" : {
@@ -1385,18 +1362,12 @@ export class AnthropicMessagesProcessor {
 							category,
 						}
 					);
-
-					onProgress({
-						text: '',
-						copilotErrors: [buildRefusalError(refusal)],
-					});
 				}
 
 				return buildAnthropicCompletion({
 					model: this.model,
 					messageId: this.messageId,
 					stopReason: this.stopReason,
-					refusal,
 					textContent: this.textAccumulator,
 					toolCalls: this.completedToolCalls,
 					inputTokens: this.inputTokens,

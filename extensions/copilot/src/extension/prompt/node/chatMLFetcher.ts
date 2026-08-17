@@ -10,7 +10,7 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
 import { FetchStreamRecorder, IChatMLFetcher, IFetchMLOptions, Source } from '../../../platform/chat/common/chatMLFetcher';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
-import { ChatFetchError, ChatFetchResponseType, ChatFetchRetriableError, ChatLocation, ChatResponse, ChatResponses, getDefaultRefusalMessage, RESPONSE_CONTAINED_NO_CHOICES } from '../../../platform/chat/common/commonTypes';
+import { ChatFetchError, ChatFetchResponseType, ChatFetchRetriableError, ChatLocation, ChatResponse, ChatResponses, RESPONSE_CONTAINED_NO_CHOICES } from '../../../platform/chat/common/commonTypes';
 import { IConversationOptions } from '../../../platform/chat/common/conversationOptions';
 import { getTextPart, toTextParts } from '../../../platform/chat/common/globalStringUtils';
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
@@ -1921,8 +1921,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			case FinishedCompletionReason.Refusal:
 				return {
 					type: ChatFetchResponseType.Refusal,
-					reason: result.refusal?.message ?? getDefaultRefusalMessage(),
-					category: result.refusal?.category,
+					reason: 'Model declined to respond.',
 					requestId: requestId,
 					serverRequestId: result.requestId.headerRequestId,
 				};

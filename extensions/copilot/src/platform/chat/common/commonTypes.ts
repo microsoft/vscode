@@ -116,11 +116,6 @@ export enum ChatFetchResponseType {
 
 export const RESPONSE_CONTAINED_NO_CHOICES = 'Response contained no choices.';
 
-/** A function rather than a constant so it resolves after the l10n bundle loads. */
-export function getDefaultRefusalMessage(): string {
-	return l10n.t('The model declined to complete this request.');
-}
-
 export type ChatFetchError =
 	/**
 	 * We requested conversation, but the message was deemed off topic by the intent classifier.
@@ -149,9 +144,9 @@ export type ChatFetchError =
 	 */
 	| { type: ChatFetchResponseType.PromptFiltered; reason: string; reasonDetail?: string; category: FilterReason; requestId: string; serverRequestId: string | undefined }
 	/**
-	 * The model declined to answer. `reason` is its own explanation, shown to the user verbatim.
+	 * We requested conversation, but the model declined to answer.
 	 */
-	| { type: ChatFetchResponseType.Refusal; reason: string; reasonDetail?: string; category?: string; requestId: string; serverRequestId: string | undefined }
+	| { type: ChatFetchResponseType.Refusal; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
 	/**
 	 * We requested conversation, but the response was too long.
 	 */
@@ -464,7 +459,7 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			break;
 		case ChatFetchResponseType.Refusal:
 			details = {
-				message: fetchResult.reason,
+				message: l10n.t(`Sorry, the model declined to complete this request. Please rephrase your prompt.`),
 				level: ChatErrorLevel.Info,
 			};
 			break;

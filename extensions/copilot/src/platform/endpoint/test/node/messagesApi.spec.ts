@@ -1972,17 +1972,16 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		expect(results[0].message.content).toHaveLength(0);
 	});
 
-	test('carries the refusal explanation on the completion so it reaches the user', async () => {
-		const explanation = 'I cannot assist with this request.';
+	test('maps refusal stop_reason to Refusal, keeping any text the model did produce', async () => {
 		const response = createNonStreamingResponse({
-			id: 'msg_refusal_error',
+			id: 'msg_refusal',
 			type: 'message',
 			role: 'assistant',
-			content: [],
+			content: [{ type: 'text', text: 'refused' }],
 			model: 'claude-sonnet-4-20250514',
 			stop_reason: 'refusal',
-			stop_details: { type: 'refusal', category: 'cyber', explanation },
-			usage: { input_tokens: 10, output_tokens: 0 },
+			stop_details: { type: 'refusal', category: 'cyber', explanation: 'API integrators: configure a fallback model.' },
+			usage: { input_tokens: 10, output_tokens: 5 },
 		});
 		const telemetryData = TelemetryData.createAndMarkAsIssued();
 		const deltas: IResponseDelta[] = [];
@@ -1999,45 +1998,12 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		}
 		expect({
 			finishReason: results[0].finishReason,
-			refusal: results[0].refusal,
-			copilotError: deltas.find(d => d.copilotErrors?.length)?.copilotErrors?.[0],
-		}).toEqual({
-			finishReason: 'refusal',
-			refusal: { message: explanation, category: 'cyber' },
-			copilotError: { agent: 'anthropic', code: 'refusal', type: 'error', identifier: 'cyber', message: explanation },
-		});
-	});
-
-	test('falls back to a generic refusal message and keeps any text the model did produce', async () => {
-		const response = createNonStreamingResponse({
-			id: 'msg_refusal',
-			type: 'message',
-			role: 'assistant',
-			content: [{ type: 'text', text: 'refused' }],
-			model: 'claude-sonnet-4-20250514',
-			stop_reason: 'refusal',
-			usage: { input_tokens: 10, output_tokens: 5 },
-		});
-		const telemetryData = TelemetryData.createAndMarkAsIssued();
-		const completions = await processNonStreamingResponseFromMessagesEndpoint(
-			new NullTelemetryService(),
-			new TestLogService(),
-			response,
-			async () => undefined,
-			telemetryData,
-		);
-		const results = [];
-		for await (const c of completions) {
-			results.push(c);
-		}
-		expect({
-			finishReason: results[0].finishReason,
-			refusal: results[0].refusal,
 			content: results[0].message.content,
+			copilotErrors: deltas.flatMap(d => d.copilotErrors ?? []),
 		}).toEqual({
 			finishReason: 'refusal',
-			refusal: { message: 'The model declined to complete this request.', category: undefined },
 			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'refused' }],
+			copilotErrors: [],
 		});
 	});
 
@@ -2316,11 +2282,11 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 		expect(completion!.usage?.completion_tokens_details?.reasoning_tokens).toBe(639);
 	});
 
-	test('refusal stop_reason surfaces the explanation on both the delta and the completion', () => {
+	test('refusal stop_reason maps to Refusal even when it arrives alongside context management', () => {
 		const processor = makeProcessor();
 		const deltas: IResponseDelta[] = [];
 		const capture: FinishedCallback = async (_text, _idx, delta) => { deltas.push(delta); return undefined; };
-		const explanation = 'I cannot assist with this request.';
+		const explanation = 'API integrators: configure a fallback model.';
 
 		processor.push({
 			type: 'message_start',
@@ -2347,14 +2313,12 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 
 		expect({
 			finishReason: completion!.finishReason,
-			refusal: completion!.refusal,
 			contextManagement: deltas.find(d => d.contextManagement)?.contextManagement,
-			copilotError: deltas.find(d => d.copilotErrors?.length)?.copilotErrors?.[0],
+			copilotErrors: deltas.flatMap(d => d.copilotErrors ?? []),
 		}).toEqual({
 			finishReason: 'refusal',
-			refusal: { message: explanation, category: 'cyber' },
 			contextManagement: { applied_edits: [] },
-			copilotError: { agent: 'anthropic', code: 'refusal', type: 'error', identifier: 'cyber', message: explanation },
+			copilotErrors: [],
 		});
 	});
 });
