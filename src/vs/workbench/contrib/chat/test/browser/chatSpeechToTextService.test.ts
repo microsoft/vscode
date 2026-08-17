@@ -32,17 +32,27 @@ suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('requires a paid plan and restricts MAI for external Enterprise users', () => {
+	test('allows dictation without a paid plan and restricts MAI for external Enterprise users', () => {
 		assert.deepStrictEqual({
+			signedOutLocal: isDictationEntitled(ChatEntitlement.Unknown, false, false),
+			byokLocal: isDictationEntitled(ChatEntitlement.Unavailable, false, false),
 			freeLocal: isDictationEntitled(ChatEntitlement.Free, false, false),
 			proLocal: isDictationEntitled(ChatEntitlement.Pro, false, false),
+			signedOutMai: isDictationEntitled(ChatEntitlement.Unknown, false, true),
+			byokMai: isDictationEntitled(ChatEntitlement.Unavailable, false, true),
+			freeMai: isDictationEntitled(ChatEntitlement.Free, false, true),
 			proMai: isDictationEntitled(ChatEntitlement.Pro, false, true),
 			enterpriseLocal: isDictationEntitled(ChatEntitlement.Enterprise, false, false),
 			enterpriseMai: isDictationEntitled(ChatEntitlement.Enterprise, false, true),
 			internalEnterpriseMai: isDictationEntitled(ChatEntitlement.Enterprise, true, true),
 		}, {
-			freeLocal: false,
+			signedOutLocal: true,
+			byokLocal: true,
+			freeLocal: true,
 			proLocal: true,
+			signedOutMai: true,
+			byokMai: true,
+			freeMai: true,
 			proMai: true,
 			enterpriseLocal: true,
 			enterpriseMai: false,

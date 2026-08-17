@@ -283,6 +283,11 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 			: session);
 	}
 
+	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		const value = this._sessions.get(session);
+		return value && this._sessionsWithoutExternal.has(session) ? { ...value, external: undefined } : value;
+	}
+
 	async isSessionRegistryEmpty(): Promise<boolean> {
 		return this._sessions.size === 0;
 	}
@@ -3066,6 +3071,120 @@ suite('AgentService (node dispatcher)', () => {
 				title: 'Provider chat',
 				external: false,
 				adoptable: true,
+			});
+		});
+
+		test('re-registering a known discovered chat performs no per-session database I/O', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const session = AgentSession.uri('copilot', 'known-discovered');
+			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
+			await register(agent, [discoveredChat(session)]);
+
+			const opened: string[] = [];
+			const service = perSession.service as { tryOpenDatabase(session: URI): Promise<unknown> };
+			const originalTryOpen = service.tryOpenDatabase;
+			service.tryOpenDatabase = async (s: URI) => {
+				opened.push(s.toString());
+				return originalTryOpen.call(perSession.service, s);
+			};
+			try {
+				const changed = await register(agent, [discoveredChat(session)]);
+
+				assert.deepStrictEqual({ changed, opened }, { changed: false, opened: [] });
+			} finally {
+				service.tryOpenDatabase = originalTryOpen;
+			}
+		});
+
+		test('the known-sessions filter reports registered sessions only, leaving tombstones to registration', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const registered = AgentSession.uri('copilot', 'filter-registered');
+			const deleted = AgentSession.uri('copilot', 'filter-deleted');
+			const unknown = AgentSession.uri('copilot', 'filter-unknown');
+			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
+			await register(agent, [discoveredChat(registered), discoveredChat(deleted)]);
+			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(deleted);
+
+			const known = await (svc as unknown as { _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> })._filterKnownSessions([registered, deleted, unknown]);
+			const reRegistered = await register(agent, [discoveredChat(deleted)]);
+
+			assert.deepStrictEqual({
+				known: [...known],
+				reRegistered,
+				sessions: (await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list()).map(entry => entry.session.toString()),
+			}, {
+				known: [registered.toString()],
+				reRegistered: false,
+				sessions: [registered.toString()],
+			});
+		});
+
+		test('concurrent listSessions calls share one computation and never share their result array', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			await svc.createSession({ provider: 'copilot' });
+			let computations = 0;
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
+			const original = inner._computeSessions;
+			inner._computeSessions = async mode => {
+				computations++;
+				return original.call(svc, mode);
+			};
+
+			const [first, second] = await Promise.all([svc.listSessions(), svc.listSessions()]);
+			const sharedComputations = computations;
+			first.length = 0;
+			const third = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				sharedComputations,
+
+				computations,
+				secondIntact: second.length,
+				thirdIntact: third.length,
+				distinctArrays: first !== second,
+			}, {
+				sharedComputations: 1,
+				computations: 2,
+				secondIntact: 1,
+				thirdIntact: 1,
+				distinctArrays: true,
+			});
+		});
+
+		test('a registry mutation during an in-flight list is not served from the shared computation', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const gate = new DeferredPromise<void>();
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
+			const original = inner._computeSessions;
+			let computations = 0;
+			inner._computeSessions = async mode => {
+				computations++;
+				await gate.p;
+				return original.call(svc, mode);
+			};
+
+			const stale = svc.listSessions();
+			await svc.createSession({ provider: 'copilot' });
+			const fresh = svc.listSessions();
+			gate.complete();
+
+			assert.deepStrictEqual({
+				computations,
+				stale: (await stale).length,
+				fresh: (await fresh).length,
+			}, {
+				computations: 2,
+				stale: 1,
+				fresh: 1,
 			});
 		});
 
@@ -9652,6 +9771,17 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('rename server tools', () => {
 		test('rename_chat replaces live and persisted default and peer chat titles', async () => {
+			class RecordingTitleDatabase extends TestSessionDatabase {
+				readonly finalRenamePersisted = new DeferredPromise<void>();
+				finalRenameKey: string | undefined;
+
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					await super.setMetadataValues(values);
+					if (this.finalRenameKey && values[this.finalRenameKey] === 'Complete replacement peer chat title') {
+						await this.finalRenamePersisted.complete();
+					}
+				}
+			}
 			class ServerToolAgent extends MockAgent {
 				serverToolHost: IAgentServerToolHost | undefined;
 
@@ -9660,7 +9790,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 
-			const db = new TestSessionDatabase();
+			const db = new RecordingTitleDatabase();
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
 			const agent = disposables.add(new ServerToolAgent('copilot'));
@@ -9669,6 +9799,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionUri = session.toString();
 			const defaultChat = buildDefaultChatUri(session);
 			const peerChat = buildChatUri(sessionUri, 'peer-rename');
+			db.finalRenameKey = `customChatTitle:${peerChat}`;
 			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Previous user title' });
 			await db.setMetadata('customTitle', 'Previous user title');
 			await db.setMetadata('customTitleSource', 'user');
@@ -9691,6 +9822,8 @@ suite('AgentService (node dispatcher)', () => {
 				chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-rename`,
 				title: 'Complete replacement peer chat title',
 			});
+			await db.finalRenamePersisted.p;
+			await timeout(0);
 
 			assert.deepStrictEqual({
 				singleChatResult,
@@ -9706,9 +9839,9 @@ suite('AgentService (node dispatcher)', () => {
 				persistedChatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
 				persistedChatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
 			}, {
-				singleChatResult: 'Renamed chat to "Single-chat title".',
-				multiChatDefaultResult: 'Renamed chat to "Complete replacement default chat title".',
-				chatResult: 'Renamed chat to "Complete replacement peer chat title".',
+				singleChatResult: 'Renaming chat.',
+				multiChatDefaultResult: 'Renaming chat.',
+				chatResult: 'Renaming chat.',
 				liveSessionTitle: 'Multi-chat session title',
 				liveDefaultChatTitle: 'Complete replacement default chat title',
 				liveChatTitle: 'Complete replacement peer chat title',
@@ -9723,8 +9856,14 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('rename failures preserve live state and both persisted metadata values', async () => {
 			class FailingTitleDatabase extends TestSessionDatabase {
+				readonly allFailuresObserved = new DeferredPromise<void>();
+				private failureCount = 0;
+
 				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
 					if (Object.keys(values).some(key => key.startsWith('customTitle') || key.startsWith('customChatTitle'))) {
+						if (++this.failureCount === 3) {
+							await this.allFailuresObserved.complete();
+						}
 						throw new Error('title persistence failed');
 					}
 					return super.setMetadataValues(values);
@@ -9751,10 +9890,7 @@ suite('AgentService (node dispatcher)', () => {
 			await db.setMetadata('customTitle', 'Original session');
 			await db.setMetadata('customTitleSource', 'user');
 
-			await assert.rejects(
-				async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Session-backed title will fail' }),
-				/title persistence failed/,
-			);
+			const sessionResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Session-backed title will fail' });
 
 			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Original chat' });
 			await db.setMetadata(`customChatTitle:${defaultChat}`, 'Original session');
@@ -9762,18 +9898,16 @@ suite('AgentService (node dispatcher)', () => {
 			await db.setMetadata(`customChatTitle:${peerChat}`, 'Original chat');
 			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
 
-			await assert.rejects(
-				async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Chat-backed title will fail' }),
-				/title persistence failed/,
-			);
-			await assert.rejects(
-				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, {
-					chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-failure`,
-					title: 'Chat will fail',
-				}),
-				/title persistence failed/,
-			);
+			const defaultChatResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Chat-backed title will fail' });
+			const peerChatResult = await agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, {
+				chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-failure`,
+				title: 'Chat will fail',
+			});
+			await db.allFailuresObserved.p;
 			assert.deepStrictEqual({
+				sessionResult,
+				defaultChatResult,
+				peerChatResult,
 				liveSession: localService.stateManager.getSessionState(sessionUri)?.title,
 				sessionTitle: await db.getMetadata('customTitle'),
 				sessionSource: await db.getMetadata('customTitleSource'),
@@ -9784,6 +9918,9 @@ suite('AgentService (node dispatcher)', () => {
 				chatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
 				chatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
 			}, {
+				sessionResult: 'Renaming chat.',
+				defaultChatResult: 'Renaming chat.',
+				peerChatResult: 'Renaming chat.',
 				liveSession: 'Original session',
 				sessionTitle: 'Original session',
 				sessionSource: 'user',

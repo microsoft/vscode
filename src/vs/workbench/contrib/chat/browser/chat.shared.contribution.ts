@@ -126,6 +126,7 @@ import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSumma
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
+import './sessionRouter/chatSessionRoutingProviderService.js';
 import { SessionRouterService } from './sessionRouter/sessionRouterService.js';
 import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import './telemetry/chatModelCountTelemetry.js';
