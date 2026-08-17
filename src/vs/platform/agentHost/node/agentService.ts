@@ -568,6 +568,15 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._trackPendingSubagentChatFromEnvelope(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._persistAnnotations(e)));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
+		this._register(this._stateManager.onDidChangeSessionSummary(({ session, changes }) => {
+			const meta = this._stateManager.getSessionSummary(session)?._meta;
+			if (changes.modifiedAt !== undefined
+				&& this._getExternalSessionsMode() === AgentHostExternalSessionsMode.Recent
+				&& readSessionExternal(meta)
+				&& !readSessionEhcliAdoptable(meta)) {
+				this._queueSessionListReconciliation();
+			}
+		}));
 
 		// Build a local instantiation scope so downstream components can
 		// consume {@link IAgentConfigurationService} (and later {@link ILogService})
@@ -1323,9 +1332,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> {
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
-		const deferExternalAnnouncements = this._getExternalSessionsMode() === AgentHostExternalSessionsMode.Recent;
 		const discoveryLimiter = new Limiter<boolean>(4);
 		let suppressed = 0;
+		let registeredExternal = false;
 		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
@@ -1344,7 +1353,9 @@ export class AgentService extends Disposable implements IAgentService {
 						await this._initializeExternalSessionReadState(session);
 					}
 					existing.set(session.toString(), external);
-					if (!external || !deferExternalAnnouncements) {
+					if (external && !readSessionEhcliAdoptable(sessionMetadata._meta)) {
+						registeredExternal = true;
+					} else {
 						await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
 					}
 				} else {
@@ -1357,7 +1368,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		})));
 		const registered = results.filter(changed => changed).length;
-		if (deferExternalAnnouncements && registered > 0 && chats.some(chat => chat.external)) {
+		if (registeredExternal) {
 			this._queueSessionListReconciliation();
 		}
 		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${suppressed} suppressed as subagent/chat backing`);
@@ -1378,7 +1389,6 @@ export class AgentService extends Disposable implements IAgentService {
 		if (sessions === undefined) {
 			return;
 		}
-		const deferExternalAnnouncements = this._getExternalSessionsMode() === AgentHostExternalSessionsMode.Recent;
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
 		const migrationLimiter = new Limiter<IRegisteredSession | undefined>(4);
 		const identities = await Promise.all(sessions.map(s => migrationLimiter.queue(async (): Promise<IRegisteredSession | undefined> => {
@@ -1401,7 +1411,7 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._initializeExternalSessionReadState(identity.session);
 				}
 				existing.set(identity.session.toString(), identity.external);
-				if (identity.external && deferExternalAnnouncements) {
+				if (identity.external && !readSessionEhcliAdoptable(metadata._meta)) {
 					registeredExternal = true;
 				} else {
 					await this._announceSurfacedSession({ ...metadata, _meta: withSessionExternal(metadata._meta, identity.external) }, provider.id);

@@ -2743,6 +2743,99 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('external discovery reconciles against a mode change that completes while registration is in flight', async () => {
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 1);
+			await waitForSessionListReconciliation(svc);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			svc.registerProvider(agent);
+			await svc.listSessions();
+
+			const first = agent.addSession('first', now);
+			const second = agent.addSession('second', now - 1);
+			const third = agent.addSession('third', now - 2);
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const originalRegister = registry.register.bind(registry);
+			const registrationGate = new DeferredPromise<void>();
+			let registrationsStarted = 0;
+			registry.register = async (session, sessionOptions, registerOptions) => {
+				registrationsStarted++;
+				await registrationGate.p;
+				return originalRegister(session, sessionOptions, registerOptions);
+			};
+
+			const notifications: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(`add:${AgentSession.id(URI.parse(notification.summary.resource))}`);
+				}
+			}));
+			const registration = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
+				{ chat: URI.parse(buildDefaultChatUri(first)), startTime: now, modifiedTime: now, external: true },
+				{ chat: URI.parse(buildDefaultChatUri(second)), startTime: now - 1, modifiedTime: now - 1, external: true },
+				{ chat: URI.parse(buildDefaultChatUri(third)), startTime: now - 2, modifiedTime: now - 2, external: true },
+			]);
+			for (let attempt = 0; attempt < 20 && registrationsStarted < 3; attempt++) {
+				await timeout(0);
+			}
+
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 2);
+			await waitForSessionListReconciliation(svc);
+			registrationGate.complete();
+			await registration;
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual({
+				visible: (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort(),
+				notifications: notifications.sort(),
+			}, {
+				visible: ['first', 'second'],
+				notifications: ['add:first', 'add:second'],
+			});
+		});
+
+		test('recent reconciles clients when a hidden external session becomes more recent', async () => {
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
+			await waitForSessionListReconciliation(svc);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const first = agent.addSession('first', now - 1);
+			const second = agent.addSession('second', now - 2);
+			const third = agent.addSession('third', now - 3);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			await waitForSessionListReconciliation(svc);
+			await svc.restoreSession(third);
+
+			const notifications: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(`add:${AgentSession.id(URI.parse(notification.summary.resource))}`);
+				} else if (notification.type === NotificationType.SessionRemoved) {
+					notifications.push(`remove:${AgentSession.id(URI.parse(notification.session))}`);
+				}
+			}));
+
+			svc.stateManager.dispatchServerAction(buildDefaultChatUri(third), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-third',
+				startedAt: new Date(now).toISOString(),
+				message: { text: 'Update', origin: { kind: MessageKind.User } },
+			});
+			await timeout(150);
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual({
+				visible: (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort(),
+				notifications,
+			}, {
+				visible: [AgentSession.id(first), AgentSession.id(third)].sort(),
+				notifications: ['add:third', `remove:${AgentSession.id(second)}`],
+			});
+		});
+
 		test('configuration changes add and remove non-live external sessions immediately', async () => {
 			const now = Date.now();
 			const svc = createExternalSessionService(() => now);
@@ -10018,6 +10111,7 @@ suite('AgentService (node dispatcher)', () => {
 					{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
 				];
 				await service.restoreSession(sessionResource);
+				await (service as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
 				agent.events.length = 0;
 				service.addSubscriber(sessionResource, 'client-1');
 				service.unsubscribe(sessionResource, 'client-1');
