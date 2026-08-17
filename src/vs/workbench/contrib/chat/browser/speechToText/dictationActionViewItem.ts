@@ -60,7 +60,7 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
-		if (this._speechToTextService.isPreparingModel) {
+		if (this._isActive.get() && this._speechToTextService.isPreparingModel) {
 			return getDictationDownloadHoverContent(this._speechToTextService);
 		}
 		return getDictationHoverContent(this.getTooltip() ?? '', this._configurationService);

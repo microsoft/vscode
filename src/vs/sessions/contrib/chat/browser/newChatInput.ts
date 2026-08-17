@@ -108,7 +108,7 @@ import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../..
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
-import { isDictationActiveForEditor, notifyDictationSubmitted } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
+import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
@@ -1034,7 +1034,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const isVoiceInputActive = derived(this, reader => isEqual(this.newChatVoiceTargetService.currentVoiceInputResource.read(reader), NEW_CHAT_VOICE_SENTINEL));
 		const isDictationInputActive = observableFromEvent(
 			this,
-			Event.any(this.chatSpeechToTextService.onDidChangeState, this.chatSpeechToTextService.onDidChangePreparingModel),
+			Event.any(this.chatSpeechToTextService.onDidChangeState, this.chatSpeechToTextService.onDidChangePreparingModel, onDidChangeDictationEditor),
 			() => isDictationActiveForEditor(this._editor),
 		);
 		const isVoiceSessionActive = derived(this, reader => isNewChatVoiceSessionActive(
@@ -1086,7 +1086,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const sttService = this.chatSpeechToTextService;
 		const isDictationInputActive = observableFromEvent(
 			this,
-			Event.any(sttService.onDidChangeState, sttService.onDidChangePreparingModel),
+			Event.any(sttService.onDidChangeState, sttService.onDidChangePreparingModel, onDidChangeDictationEditor),
 			() => isDictationActiveForEditor(this._editor),
 		);
 

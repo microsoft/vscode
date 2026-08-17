@@ -119,7 +119,7 @@ import { DictationActionViewItem } from '../../speechToText/dictationActionViewI
 import { DictationDownloadActionViewItem } from '../../speechToText/dictationDownloadActionViewItem.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../speechToText/chatSpeechToTextService.js';
 import { IDictationOnboardingService } from '../../speechToText/dictationOnboarding.js';
-import { isDictationActiveForEditor, notifyDictationSubmitted } from '../../speechToText/dictationSession.js';
+import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
@@ -3179,7 +3179,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const dictationPreparing = ChatContextKeys.speechToTextPreparing.bindTo(this.contextKeyService);
 		const isDictationInputActive = observableFromEvent(
 			this,
-			Event.any(this.speechToTextService.onDidChangeState, this.speechToTextService.onDidChangePreparingModel),
+			Event.any(this.speechToTextService.onDidChangeState, this.speechToTextService.onDidChangePreparingModel, onDidChangeDictationEditor),
 			() => isDictationActiveForEditor(this._inputEditor),
 		);
 		const updateDictationContextKeys = () => {
@@ -3187,7 +3187,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dictationRecording.set(active && this.speechToTextService.state === ChatSpeechToTextState.Recording);
 			dictationPreparing.set(active && this.speechToTextService.isPreparingModel);
 		};
-		this._register(Event.any(this.speechToTextService.onDidChangeState, this.speechToTextService.onDidChangePreparingModel)(updateDictationContextKeys));
+		this._register(Event.any(this.speechToTextService.onDidChangeState, this.speechToTextService.onDidChangePreparingModel, onDidChangeDictationEditor)(updateDictationContextKeys));
 		updateDictationContextKeys();
 
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
