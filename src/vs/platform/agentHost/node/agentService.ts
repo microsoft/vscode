@@ -116,6 +116,8 @@ import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const RECENT_EXTERNAL_SESSION_LIMIT = 2;
 
 type AgentHostLegacyMigrationEvent = {
 	provider: string;
@@ -1321,6 +1323,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> {
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
+		const deferExternalAnnouncements = this._getExternalSessionsMode() === AgentHostExternalSessionsMode.Recent;
 		const discoveryLimiter = new Limiter<boolean>(4);
 		let suppressed = 0;
 		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
@@ -1341,7 +1344,9 @@ export class AgentService extends Disposable implements IAgentService {
 						await this._initializeExternalSessionReadState(session);
 					}
 					existing.set(session.toString(), external);
-					await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
+					if (!external || !deferExternalAnnouncements) {
+						await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
+					}
 				} else {
 					this._logService.trace(`[AgentService] discovery: ${session.toString()} was not registered (tombstoned)`);
 				}
@@ -1352,6 +1357,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		})));
 		const registered = results.filter(changed => changed).length;
+		if (deferExternalAnnouncements && registered > 0 && chats.some(chat => chat.external)) {
+			this._queueSessionListReconciliation();
+		}
 		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${suppressed} suppressed as subagent/chat backing`);
 		return registered > 0;
 	}
@@ -1370,6 +1378,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (sessions === undefined) {
 			return;
 		}
+		const deferExternalAnnouncements = this._getExternalSessionsMode() === AgentHostExternalSessionsMode.Recent;
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
 		const migrationLimiter = new Limiter<IRegisteredSession | undefined>(4);
 		const identities = await Promise.all(sessions.map(s => migrationLimiter.queue(async (): Promise<IRegisteredSession | undefined> => {
@@ -1379,6 +1388,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const external = await this._isExternalProviderChat(s.session);
 			return { session: s.session, provider: provider.id, startTime: s.startTime, external, source: external ? 'discovery' : 'restore' };
 		})));
+		let registeredExternal = false;
 		for (let index = 0; index < identities.length; index++) {
 			const identity = identities[index];
 			if (!identity) {
@@ -1391,10 +1401,17 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._initializeExternalSessionReadState(identity.session);
 				}
 				existing.set(identity.session.toString(), identity.external);
-				await this._announceSurfacedSession({ ...metadata, _meta: withSessionExternal(metadata._meta, identity.external) }, provider.id);
+				if (identity.external && deferExternalAnnouncements) {
+					registeredExternal = true;
+				} else {
+					await this._announceSurfacedSession({ ...metadata, _meta: withSessionExternal(metadata._meta, identity.external) }, provider.id);
+				}
 			}
 		}
 		await this._sessionRegistry.markProviderBackfilled(provider.id);
+		if (registeredExternal) {
+			this._queueSessionListReconciliation();
+		}
 	}
 
 	private async _initializeExternalSessionReadState(session: URI): Promise<void> {
@@ -1688,11 +1705,15 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 		}
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
+		const now = this._now();
+		const recentSessionKeys = mode === AgentHostExternalSessionsMode.Recent
+			? this._getRecentSessionKeys(combined, now)
+			: undefined;
 		const visible: IAgentSessionMetadata[] = [];
 		// Adoptable-legacy rows are withheld by migrate-legacy, not by the external mode.
 		let hiddenByExternalMode = 0;
 		for (const session of combined) {
-			if (this._shouldIncludeSession(session, mode)) {
+			if (this._shouldIncludeSession(session, mode, now, recentSessionKeys)) {
 				visible.push(session);
 			} else if (!readSessionEhcliAdoptable(session._meta)) {
 				hiddenByExternalMode++;
@@ -1726,10 +1747,33 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _getExternalSessionsMode(): AgentHostExternalSessionsMode {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey) ?? AgentHostExternalSessionsMode.Last7Days;
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey) ?? AgentHostExternalSessionsMode.None;
 	}
 
-	private _shouldIncludeSession(session: IAgentSessionMetadata, mode = this._getExternalSessionsMode()): boolean {
+	private _getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number): ReadonlySet<string> {
+		const recentExternalSessions = sessions
+			.filter(session => readSessionExternal(session._meta)
+				&& !readSessionEhcliAdoptable(session._meta)
+				&& session.modifiedTime >= now - 7 * DAY_MS)
+			.sort((a, b) => {
+				const timeDifference = b.modifiedTime - a.modifiedTime;
+				if (timeDifference !== 0) {
+					return timeDifference;
+				}
+				const aKey = a.session.toString();
+				const bKey = b.session.toString();
+				return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
+			})
+			.slice(0, RECENT_EXTERNAL_SESSION_LIMIT);
+		return new Set(recentExternalSessions.map(session => session.session.toString()));
+	}
+
+	private _shouldIncludeSession(
+		session: IAgentSessionMetadata,
+		mode = this._getExternalSessionsMode(),
+		now = this._now(),
+		recentSessionKeys?: ReadonlySet<string>,
+	): boolean {
 		// While migration is off, un-adopted adoptable-legacy sessions belong to the extension-host provider — exclude so a refresh cannot re-surface an unopenable row.
 		if (readSessionEhcliAdoptable(session._meta) && !this._isMigrateLegacyEnabled()) {
 			return false;
@@ -1738,12 +1782,15 @@ export class AgentService extends Disposable implements IAgentService {
 			return true;
 		}
 		switch (mode) {
+			case AgentHostExternalSessionsMode.Recent:
+				return session.modifiedTime >= now - 7 * DAY_MS
+					&& (recentSessionKeys === undefined || recentSessionKeys.has(session.session.toString()));
 			case AgentHostExternalSessionsMode.All:
 				return true;
 			case AgentHostExternalSessionsMode.Last24Hours:
-				return session.modifiedTime >= this._now() - 24 * 60 * 60 * 1000;
+				return session.modifiedTime >= now - DAY_MS;
 			case AgentHostExternalSessionsMode.Last7Days:
-				return session.modifiedTime >= this._now() - 7 * 24 * 60 * 60 * 1000;
+				return session.modifiedTime >= now - 7 * DAY_MS;
 			case AgentHostExternalSessionsMode.None:
 				return false;
 		}
