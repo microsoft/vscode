@@ -724,7 +724,10 @@ suite('ChatListRenderer', () => {
 				setEditing: () => { },
 				renderAttachedContext: () => { },
 				setValue: () => { },
-				attachmentModel: { addContext: () => { } },
+				attachmentModel: {
+					addContext: () => { },
+					getAttachmentIDs: () => new Set<string>(),
+				},
 				inputEditor: {
 					getModel: () => undefined,
 					focus: () => { },
@@ -742,6 +745,7 @@ suite('ChatListRenderer', () => {
 			},
 			_editingAutoScrollHold: disposables.add(new MutableDisposable()),
 			createInput: () => { },
+			getInput: () => text,
 			onDidChangeItems: () => { },
 			getContrib: () => undefined,
 			_onDidChangeActiveInputEditor: { fire: () => { } },
