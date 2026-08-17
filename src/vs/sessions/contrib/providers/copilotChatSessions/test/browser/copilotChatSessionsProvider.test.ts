@@ -1080,7 +1080,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 		const provider = createProvider(disposables, model);
 		const session = provider.getSessions()[0];
-		provider.setModel(session.sessionId, 'copilot/gpt-4o', ChatModelSource.User);
+		provider.setModel(session.sessionId, session.resource, 'copilot/gpt-4o', ChatModelSource.User);
 
 		assert.strictEqual(session.modelId.get(), 'copilot/gpt-4o');
 

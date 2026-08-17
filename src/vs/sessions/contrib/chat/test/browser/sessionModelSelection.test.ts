@@ -159,7 +159,7 @@ function createProvider(id: string, onSetModel?: (modelIdentifier: string, sourc
 				showManageModelsAction: false,
 			};
 		},
-		setModel(_sessionId: string, modelIdentifier: string, source: ChatModelSource) {
+		setModel(_sessionId: string, _chatResource: URI, modelIdentifier: string, source: ChatModelSource) {
 			provider.writes.push(modelIdentifier);
 			onSetModel?.(modelIdentifier, source);
 		},

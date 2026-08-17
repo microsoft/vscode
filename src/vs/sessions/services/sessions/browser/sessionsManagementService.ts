@@ -826,7 +826,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	): Promise<void> {
 		if (createOptions?.modelId) {
 			const resolvedModelId = await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
-			provider.setModel(session.sessionId, resolvedModelId, ChatModelSource.User);
+			provider.setModel(session.sessionId, session.mainChat.get().resource, resolvedModelId, ChatModelSource.User);
 		}
 		if (createOptions?.modeId) {
 			provider.setMode?.(session.sessionId, createOptions.modeId);

@@ -208,7 +208,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		conversation.authority = ChatModelSource.User;
 		try {
 			this._controller.applySelection(model, () => {
-				provider.setModel(session.sessionId, model.identifier, ChatModelSource.User);
+				provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.User);
 				storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
 			}, true, true);
 		} catch (error) {
@@ -495,7 +495,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const previousAuthority = conversation.authority;
 		conversation.authority = source;
 		try {
-			provider.setModel(session.sessionId, model.identifier, source);
+			provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, source);
 		} catch (error) {
 			conversation.authority = previousAuthority;
 			this._diagnostics.report('provider-automatic-selection-failed', {

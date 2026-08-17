@@ -301,14 +301,18 @@ export interface ISessionsProvider {
 	readonly onDidChangeModels: Event<void>;
 
 	/**
-	 * Set the model for a session's active chat.
+	 * Set the model for one of a session's chats.
 	 * @param sessionId The ID of the session.
-	 * @param modelId The ID of the model to set for the session.
+	 * @param chatResource The chat to set the model on. Passed explicitly because a session id
+	 * cannot identify one of its chats, and a picker is always scoped to the chat it is shown in —
+	 * inferring the chat from whichever session is active would let a visible peer chat's picker
+	 * write to a different conversation.
+	 * @param modelId The ID of the model to set.
 	 * @param source Why the model is being set, surfaced back as {@link IChat.modelSource}. A
 	 * client that picks a model on the user's behalf must say so, or the chat becomes
 	 * indistinguishable from one the user chose for.
 	 */
-	setModel(sessionId: string, modelId: string, source: ChatModelSource): void;
+	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void;
 
 	/**
 	 * Set the chat mode for a session.

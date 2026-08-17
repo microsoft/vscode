@@ -995,7 +995,24 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				|| summary.origin?.kind === ProtocolChatOriginKind.Tool
 				|| summary.origin?.kind === ProtocolChatOriginKind.SideChat);
 
-		if (!state.chats.some(surfacesAsPeer)) {
+		const survivingPeers = new Set<string>();
+		for (const summary of state.chats) {
+			if (surfacesAsPeer(summary)) {
+				survivingPeers.add(parseChatUri(summary.resource)!.chatId);
+			}
+		}
+		// A peer chat the catalog no longer lists is gone for good, so its remembered selection is
+		// too. Pruned here, before either branch returns, because peers disappearing is exactly
+		// what takes a session back down to a single chat. Only chats this session had already
+		// materialized count as gone: a selection recorded for one that has never appeared is
+		// waiting for the state that creates it, which {@link setChatModelId} allows.
+		for (const chatId of this._additionalChats.keys()) {
+			if (!survivingPeers.has(chatId)) {
+				this._chatModelSelections.delete(chatId);
+			}
+		}
+
+		if (survivingPeers.size === 0) {
 			// Single visible chat: the default chat is the session, so let it
 			// reflect the aggregated session status directly (clear any override).
 			this._defaultChatStatusOverride.set(undefined, undefined);
@@ -1015,7 +1032,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// session aggregate which may have been promoted by a running peer chat.
 		this._defaultChatStatusOverride.set(defaultSummary ? mapProtocolStatus(defaultSummary.status) : undefined, undefined);
 
-		const seen = new Set<string>();
 		const ordered: IChat[] = [];
 		for (const summary of state.chats) {
 			if (isDefault(summary)) {
@@ -1026,7 +1042,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				continue;
 			}
 			const chatId = parseChatUri(summary.resource)!.chatId;
-			seen.add(chatId);
 			let entry = this._additionalChats.get(chatId);
 			if (!entry) {
 				entry = this._createAdditionalChat(chatId, summary);
@@ -1038,14 +1053,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		}
 
 		for (const chatId of [...this._additionalChats.keys()]) {
-			if (!seen.has(chatId)) {
+			if (!survivingPeers.has(chatId)) {
 				this._additionalChats.deleteAndDispose(chatId);
-			}
-		}
-		// A chat the catalog no longer lists is gone for good, so its remembered selection is too.
-		for (const chatId of [...this._chatModelSelections.keys()]) {
-			if (!seen.has(chatId)) {
-				this._chatModelSelections.delete(chatId);
 			}
 		}
 
@@ -3690,7 +3699,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return cached?.resource.scheme;
 	}
 
-	setModel(sessionId: string, modelId: string, source: ChatModelSource): void {
+	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			newSession.setSelectedModelId(modelId, source);
@@ -3701,7 +3710,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (cached && rawId && connection) {
-			const chatResource = this._activeChatResource(cached);
 			cached.setChatModelId(chatResource, modelId, source);
 			this._updateChatSessionState(chatResource, modelId, cached.getChatMode(chatResource)?.id).catch(err => this._logService.error(`[${this.id}] Failed to update chat model state for ${chatResource.toString()}`, err));
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
@@ -4513,6 +4521,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	/**
+	 * Guesses which of a session's chats an operation meant, for APIs that are keyed by session id
+	 * alone and so cannot say.
+	 *
+	 * A guess, not an answer: it reads whichever session is globally active, so an operation on a
+	 * visible peer chat that is not the active one lands on the wrong conversation. Callers that
+	 * can name their chat should take it as a parameter instead, as
+	 * {@link ISessionsProvider.setModel} does.
+	 */
 	private _activeChatResource(session: AgentHostSessionAdapter): URI {
 		const activeSession = this._sessionsService.activeSession.get();
 		return activeSession?.sessionId === session.sessionId ? activeSession.activeChat.get().resource : session.resource;

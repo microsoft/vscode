@@ -1669,7 +1669,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		};
 	}
 
-	setModel(sessionId: string, modelId: string, source: ChatModelSource): void {
+	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			newSession.setModelId(modelId, source);
@@ -1686,7 +1686,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		this._ensureSessionCache();
-		this._findChatSession(sessionId)?.setModelId(modelId, source);
+		// Resolved from the chat, not the session: a grouped session id resolves to the group's
+		// first chat, which is not necessarily the one whose picker was used.
+		const chatSession = this._sessionCache.get(chatResource.toString()) ?? this._findChatSession(sessionId);
+		chatSession?.setModelId(modelId, source);
 	}
 
 	setMode(sessionId: string, modeId: string): void {
