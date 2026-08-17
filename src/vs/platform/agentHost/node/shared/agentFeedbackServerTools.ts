@@ -653,17 +653,17 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 	canRequireConfirmation(toolName): boolean {
 		return feedbackToolRequiresConfirmation(toolName);
 	},
-	requiresConfirmation(stateManager, chatUri, toolName): boolean {
+	requiresConfirmation(stateManager, context, toolName): boolean {
 		if (!feedbackToolRequiresConfirmation(toolName)) {
 			return false;
 		}
-		return hasRevealableComments(getFeedbackToolState(stateManager, chatUri).state);
+		return hasRevealableComments(getFeedbackToolState(stateManager, context.chatUri).state);
 	},
 	getDisplay(toolName, args, result): IServerToolDisplay | undefined {
 		return getFeedbackToolDisplay(toolName, args, result);
 	},
-	execute(stateManager, chatUri, toolName, rawArgs): string {
-		const { mainSessionUri, annotationsUri, state } = getFeedbackToolState(stateManager, chatUri);
+	execute(stateManager, context, toolName, rawArgs): string {
+		const { mainSessionUri, annotationsUri, state } = getFeedbackToolState(stateManager, context.chatUri);
 		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs);
 		for (const action of outcome.actions) {
 			stateManager.dispatchServerAction(annotationsUri, action);

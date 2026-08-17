@@ -1239,20 +1239,21 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		getDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 			return getSessionToolDisplay(toolName, args, result);
 		},
-		async execute(_stateManager: AgentHostStateManager, sessionUri: ProtocolURI, toolName: string, rawArgs: unknown): Promise<string> {
+		async execute(_stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown): Promise<string> {
 			if (!accessor) {
 				throw new Error(`Session server tool "${toolName}" cannot run: the group was built without a session accessor.`);
 			}
+			const currentChannel = context.chatUri;
 			switch (toolName) {
 				case SessionServerToolName.ListSessions:
 					return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs)));
 				case SessionServerToolName.GetCurrentSession:
-					return serializeCurrentSession(currentSessionUri(sessionUri), await accessor.listSessions());
+					return serializeCurrentSession(currentSessionUri(currentChannel), await accessor.listSessions());
 				case SessionServerToolName.CreateSession: {
 					if (createdSessionCount >= maxCreatedSessions) {
 						throw new Error(`Refusing to create more than ${maxCreatedSessions} sessions from server tools in this process.`);
 					}
-					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(sessionUri));
+					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel));
 					createdSessionCount++;
 					return formatCreateSessionResult(result);
 				}
@@ -1260,24 +1261,24 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (createdChatCount >= maxCreatedChats) {
 						throw new Error(`Refusing to create more than ${maxCreatedChats} chats from server tools in this process.`);
 					}
-					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(sessionUri));
+					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel));
 					createdChatCount++;
 					return formatCreateChatResult(result);
 				}
 				case SessionServerToolName.RenameChat:
-					return applyRenameChatTool(accessor, rawArgs, sessionUri);
+					return applyRenameChatTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.SendMessage: {
 					if (sentMessageCount >= maxSentMessages) {
 						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
 					}
-					const result = await applySendMessageTool(accessor, rawArgs, sessionUri);
+					const result = await applySendMessageTool(accessor, rawArgs, currentChannel);
 					sentMessageCount++;
 					return result;
 				}
 				case SessionServerToolName.GetSessionContext:
 					return applyGetSessionContextTool(accessor, rawArgs);
 				case SessionServerToolName.DeleteSession:
-					return applyDeleteSessionTool(accessor, rawArgs, currentSessionUri(sessionUri));
+					return applyDeleteSessionTool(accessor, rawArgs, currentSessionUri(currentChannel));
 				default:
 					throw new Error(`Unknown session server tool: ${toolName}`);
 			}
