@@ -1036,7 +1036,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const requestUrl = appendManagedSettingsClientIdentity(managedSettingsUrl, this.productService);
 		this.logService.debug('[DefaultAccount] Fetching managed settings from:', requestUrl);
 		const rateLimitBackoffActive = Date.now() < this._rateLimitBackoffUntil;
-		const response = await this.request(requestUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS, forceRefresh ? { 'Cache-Control': 'no-cache' } : undefined);
+		// A forced refresh must not be satisfied by a stale cached copy. `disableCache` only bypasses
+		// our own HTTP cache (fetch `no-store` appends no request header), so intermediary caches such
+		// as corporate proxies still need an explicit directive. Unlike the client-identity headers
+		// removed in #330762, this one is not aimed at the GitHub service — it is honored by the
+		// intermediaries that sit in front of it, so the edge header allow-list does not apply.
+		const cacheBypassHeaders: IHeaders | undefined = forceRefresh ? { 'Cache-Control': 'no-cache' } : undefined;
+		const response = await this.request(requestUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS, cacheBypassHeaders);
 		if (!response) {
 			this.logService.debug('[DefaultAccount] Managed settings fetch returned no response (network error, all sessions rejected, or active rate-limit backoff); falling back to local-only policy');
 			this.reportManagedSettingsOutcome('no-response', rateLimitBackoffActive);
