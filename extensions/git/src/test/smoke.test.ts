@@ -5,7 +5,7 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputNotebook, TabInputNotebookDiff, ConfigurationTarget } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -145,6 +145,37 @@ suite('git smoke test', function () {
 
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
+	});
+
+	test('respects Git configuration for untracked changes', async function () {
+		const config = workspace.getConfiguration('git', Uri.file(cwd));
+		const untrackedFile = file('inherited-untracked.txt');
+		const workingTreeChanges = () => repository.state.workingTreeChanges;
+
+		try {
+			await config.update('untrackedChanges', 'inherit', ConfigurationTarget.Global);
+			cp.execSync('git config --local status.showUntrackedFiles no', { cwd });
+			fs.writeFileSync(untrackedFile, 'untracked');
+			await repository.status();
+
+			assert.deepStrictEqual(workingTreeChanges(), []);
+
+			cp.execSync('git config --local status.showUntrackedFiles all', { cwd });
+			await repository.status();
+
+			assert.deepStrictEqual(workingTreeChanges().map(change => ({
+				path: change.uri.fsPath,
+				status: change.status
+			})), [{
+				path: untrackedFile,
+				status: Status.UNTRACKED
+			}]);
+		} finally {
+			fs.rmSync(untrackedFile, { force: true });
+			cp.execSync('git config --local --unset status.showUntrackedFiles', { cwd });
+			await config.update('untrackedChanges', undefined, ConfigurationTarget.Global);
+			await repository.status();
+		}
 	});
 
 	// diabled because of https://github.com/microsoft/vscode/issues/327142

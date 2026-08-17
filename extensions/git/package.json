@@ -2298,42 +2298,42 @@
         },
         {
           "command": "git.cleanAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && (config.git.untrackedChanges == mixed || config.git.untrackedChanges == inherit)",
           "group": "1_modification"
         },
         {
           "command": "git.stageAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && (config.git.untrackedChanges == mixed || config.git.untrackedChanges == inherit)",
           "group": "1_modification"
         },
         {
           "command": "git.cleanAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && (config.git.untrackedChanges == mixed || config.git.untrackedChanges == inherit)",
           "group": "inline@2"
         },
         {
           "command": "git.stageAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && (config.git.untrackedChanges == mixed || config.git.untrackedChanges == inherit)",
           "group": "inline@2"
         },
         {
           "command": "git.cleanAllTracked",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed && config.git.untrackedChanges != inherit",
           "group": "1_modification"
         },
         {
           "command": "git.stageAllTracked",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed && config.git.untrackedChanges != inherit",
           "group": "1_modification"
         },
         {
           "command": "git.cleanAllTracked",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed && config.git.untrackedChanges != inherit",
           "group": "inline@2"
         },
         {
           "command": "git.stageAllTracked",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed && config.git.untrackedChanges != inherit",
           "group": "inline@2"
         },
         {
@@ -3904,12 +3904,14 @@
           "enum": [
             "mixed",
             "separate",
-            "hidden"
+            "hidden",
+            "inherit"
           ],
           "enumDescriptions": [
             "%config.untrackedChanges.mixed%",
             "%config.untrackedChanges.separate%",
-            "%config.untrackedChanges.hidden%"
+            "%config.untrackedChanges.hidden%",
+            "%config.untrackedChanges.inherit%"
           ],
           "default": "mixed",
           "description": "%config.untrackedChanges%",

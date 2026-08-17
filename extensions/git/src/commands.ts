@@ -9,7 +9,7 @@ import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem,
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
-import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
+import { Git, GitError, Repository as GitRepository, showsUntrackedChangesInWorkingTree, Stash, UntrackedChanges, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
@@ -1579,8 +1579,8 @@ export class CommandCenter {
 
 		if (uris.length > 0) {
 			const config = workspace.getConfiguration('git', Uri.file(repository.root));
-			const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
-			await repository.add(uris, untrackedChanges === 'mixed' ? undefined : { update: true });
+			const untrackedChanges = config.get<UntrackedChanges>('untrackedChanges');
+			await repository.add(uris, showsUntrackedChangesInWorkingTree(untrackedChanges) ? undefined : { update: true });
 		}
 	}
 
@@ -2525,7 +2525,7 @@ export class CommandCenter {
 			opts.all = 'tracked';
 		}
 
-		if (opts.all && config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges') !== 'mixed') {
+		if (opts.all && !showsUntrackedChangesInWorkingTree(config.get<UntrackedChanges>('untrackedChanges'))) {
 			opts.all = 'tracked';
 		}
 

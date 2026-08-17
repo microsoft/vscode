@@ -40,6 +40,12 @@ export interface IFileStatus {
 	rename?: string;
 }
 
+export type UntrackedChanges = 'mixed' | 'separate' | 'hidden' | 'inherit';
+
+export function showsUntrackedChangesInWorkingTree(value: UntrackedChanges | undefined): boolean {
+	return value === 'mixed' || value === 'inherit';
+}
+
 export interface Stash {
 	readonly hash: string;
 	readonly parents: string[];
@@ -2735,7 +2741,7 @@ export class Repository {
 		}
 	}
 
-	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; similarityThreshold?: number; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; similarityThreshold?: number; untrackedChanges?: UntrackedChanges; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -2747,7 +2753,7 @@ export class Repository {
 
 		if (opts?.untrackedChanges === 'hidden') {
 			args.push('-uno');
-		} else {
+		} else if (opts?.untrackedChanges !== 'inherit') {
 			args.push('-uall');
 		}
 
