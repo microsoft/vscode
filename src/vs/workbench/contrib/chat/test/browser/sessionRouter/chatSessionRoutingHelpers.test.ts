@@ -73,7 +73,7 @@ suite('Chat session routing helpers', () => {
 		});
 	});
 
-	test('bounds transcript enrichment after every candidate receives model scoring', () => {
+	test('bounds transcript enrichment using preliminary scores', () => {
 		const candidates = Array.from({ length: 13 }, (_, index) => ({
 			sessionId: `s${index}`,
 			label: `Session ${index}`,

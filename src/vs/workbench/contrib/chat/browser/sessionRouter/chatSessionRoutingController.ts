@@ -325,11 +325,8 @@ export class ChatSessionRoutingController extends Disposable {
 			return;
 		}
 
-		// Every candidate receives a lightweight semantic pass before we bound the
-		// more expensive transcript enrichment. This prevents an older, generically
-		// named but relevant session from being excluded by local metadata alone.
 		const preliminaryResults = candidates.length > ROUTE_ENRICH_MAX_CANDIDATES
-			? await this._route(candidates, utterance, token)
+			? heuristicScore({ utterance, sessions: candidates })
 			: [];
 		if (token.isCancellationRequested) {
 			return;
