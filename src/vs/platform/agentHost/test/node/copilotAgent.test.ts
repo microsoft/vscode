@@ -480,20 +480,20 @@ class TestCopilotClient implements ITestCopilotClient {
 				await this.sessionListGate;
 				return {
 					sessions: this._sessions.map(session => ({
-					sessionId: session.sessionId,
-					startTime: session.startTime.toISOString(),
-					modifiedTime: session.modifiedTime.toISOString(),
-					summary: session.summary,
-					clientName: session.clientName,
-					isRemote: false,
-					...(session.context ? {
-						context: {
-							cwd: session.context.workingDirectory,
-							gitRoot: session.context.gitRoot,
-							repository: session.context.repository,
-							branch: session.context.branch,
-						}
-					} : {}),
+						sessionId: session.sessionId,
+						startTime: session.startTime.toISOString(),
+						modifiedTime: session.modifiedTime.toISOString(),
+						summary: session.summary,
+						clientName: session.clientName,
+						isRemote: false,
+						...(session.context ? {
+							context: {
+								cwd: session.context.workingDirectory,
+								gitRoot: session.context.gitRoot,
+								repository: session.context.repository,
+								branch: session.context.branch,
+							}
+						} : {}),
 					}))
 				};
 			},
