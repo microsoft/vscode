@@ -156,7 +156,9 @@ export class ChatGroupsView extends Themable {
 		const dropDelegate: IChatGroupDropTargetDelegate = {
 			isChatDrag: event => isSessionChatDrag(event, session.sessionId),
 			findTargetGroup: child => this._findTargetGroup(child),
-			onChatDrop: (groupId, zone, data) => this._onChatDrop(groupId, zone, data),
+			onChatDrop: (groupId, zone, data) => {
+				this._onChatDrop(groupId, zone, data).catch(onUnexpectedError);
+			},
 		};
 		store.add(this._instantiationService.createInstance(ChatGroupDropTarget, this.element, dropDelegate));
 
@@ -413,7 +415,7 @@ export class ChatGroupsView extends Themable {
 		return undefined;
 	}
 
-	private _onChatDrop(targetGroupId: number, zone: ChatDropZone, data: IDraggedSessionChat | undefined): void {
+	private async _onChatDrop(targetGroupId: number, zone: ChatDropZone, data: IDraggedSessionChat | undefined): Promise<void> {
 		if (!data || !this._session) {
 			return;
 		}
@@ -424,8 +426,20 @@ export class ChatGroupsView extends Themable {
 
 		const id = data.resource;
 		const resource = URI.parse(id);
-		const target = this._groups.find(g => g.id === targetGroupId);
-		const source = this._groups.find(g => g.resourceIds.get().includes(id));
+		let target = this._groups.find(g => g.id === targetGroupId);
+		let source = this._groups.find(g => g.resourceIds.get().includes(id));
+		if (!source) {
+			const session = this._session;
+			if (!session.chats.get().some(chat => chat.resource.toString() === id)) {
+				return;
+			}
+			await this._sessionsService.openChat(session, resource);
+			if (this._session !== session) {
+				return;
+			}
+			target = this._groups.find(g => g.id === targetGroupId);
+			source = this._groups.find(g => g.resourceIds.get().includes(id));
+		}
 		if (!target || !source) {
 			return;
 		}
