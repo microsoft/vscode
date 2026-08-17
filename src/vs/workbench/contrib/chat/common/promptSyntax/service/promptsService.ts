@@ -392,7 +392,17 @@ export interface IChatPromptSlashCommand {
 }
 
 export interface IResolvedChatPromptSlashCommand extends IChatPromptSlashCommand {
-	readonly parsedPromptFile: ParsedPromptFile;
+	/**
+	 * The parsed prompt file, when the command is backed by readable content.
+	 *
+	 * Undefined for a command whose {@link IChatPromptSlashCommand.uri} is a
+	 * discovery-only identity rather than a file — built-in skills are published
+	 * on the `agent-builtin` scheme purely to carry a name and description — and
+	 * for a file-backed command that has since been deleted or become
+	 * unreadable. The command still resolves in both cases; only its body is
+	 * unavailable.
+	 */
+	readonly parsedPromptFile?: ParsedPromptFile;
 }
 
 

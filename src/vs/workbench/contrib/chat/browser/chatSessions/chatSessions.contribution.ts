@@ -1811,8 +1811,10 @@ async function resolvePromptSlashCommand(prompt: string, sessionResource: URI, c
 	if (slashMatch) {
 		// need to resolve the slash command to get the prompt file
 		const slashCommand = await customizationHarnessService.resolvePromptSlashCommand(slashMatch[1], sessionResource, CancellationToken.None);
-		if (slashCommand) {
-			const parseResult = slashCommand.parsedPromptFile;
+		// A discovery-only command (e.g. a built-in skill) resolves but has no
+		// prompt file to contribute, so there is no variable entry to return.
+		const parseResult = slashCommand?.parsedPromptFile;
+		if (parseResult) {
 			// add the prompt file to the context
 			const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
 			const toolReferences = toolsService.toToolReferences(refs);

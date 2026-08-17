@@ -43,7 +43,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstru
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentDiscoveryResult, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -3915,6 +3915,36 @@ suite('PromptsService', () => {
 			assert.strictEqual(discoveryInfo.files.length, 1);
 			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
 			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
+		});
+	});
+
+	suite('resolvePromptSlashCommand - unreadable command content', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('resolves a command whose content cannot be read, with no parsed file', async () => {
+			// A built-in skill is published as a discovery-only identity: it
+			// carries a name and description and there is nothing to read behind
+			// its URI. Resolution must still succeed — rejecting here rejects the
+			// whole input-decoration update, and the user can no longer send any
+			// message containing that slash command.
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			const promptUri = URI.parse('file://extensions/my-extension/discovery-only.prompt.md');
+			sinon.stub(service, 'getPromptSlashCommands').resolves([{
+				name: 'discovery-only',
+				uri: promptUri,
+				storage: PromptsStorage.local,
+				type: PromptsType.prompt,
+			} as IChatPromptSlashCommand]);
+			sinon.stub(service, 'parseNew').rejects(new Error('Unable to resolve nonexistent file'));
+
+			const resolved = await service.resolvePromptSlashCommand('discovery-only', undefined, CancellationToken.None);
+
+			assert.ok(resolved, 'the command should still resolve');
+			assert.strictEqual(resolved.name, 'discovery-only');
+			assert.strictEqual(resolved.parsedPromptFile, undefined, 'no prompt file should be reported');
 		});
 	});
 

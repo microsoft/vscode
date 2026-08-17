@@ -652,9 +652,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const commands = await this.getPromptSlashCommands(token);
 		const command = commands.find(cmd => cmd.name === name && matchesSessionType(cmd.sessionTypes, sessionType));
 		if (command) {
+			// Best-effort, for the same reason as the harness resolver: a command
+			// can be discovery-only or its file can have gone away, and neither
+			// should make resolving the command itself fail.
 			return {
 				...command,
-				parsedPromptFile: await this.parseNew(command.uri, token),
+				parsedPromptFile: await this.parseNew(command.uri, token).catch(() => undefined),
 			};
 		}
 		return undefined;
