@@ -34,8 +34,16 @@ export class SessionClientToolsModel {
 	);
 	readonly merged: IObservable<readonly ToolDefinition[]> = this._merged;
 
+	/**
+	 * The client that most recently contributed tools. A reconnecting window
+	 * arrives with a new `clientId` and re-pushes its tool list, so this is the
+	 * contributor most recently known to be alive.
+	 */
+	private _latestContributor: string | undefined;
+
 	/** Replace `clientId`'s contributed tools (full replacement). */
 	setTools(clientId: string, tools: readonly ToolDefinition[]): void {
+		this._latestContributor = clientId;
 		this._toolSet.set(clientId, tools);
 		this._merged.set(this._toolSet.merged(), undefined);
 	}
@@ -47,14 +55,26 @@ export class SessionClientToolsModel {
 
 	/** Remove a client's tool contribution. */
 	removeClient(clientId: string): void {
+		if (this._latestContributor === clientId) {
+			this._latestContributor = undefined;
+		}
 		if (this._toolSet.delete(clientId)) {
 			this._merged.set(this._toolSet.merged(), undefined);
 		}
 	}
 
-	/** The `clientId` that owns the tool named `toolName`, or `undefined`. */
+	/**
+	 * The `clientId` that owns the tool named `toolName`, or `undefined`.
+	 *
+	 * Without a caller-supplied preference the most recent contributor wins
+	 * rather than the first-inserted one. A window reload connects with a new
+	 * `clientId` and re-pushes the same tools, and the departed client's entry
+	 * can outlive it here — resolving to the older entry stamps tool calls with
+	 * a client that is gone, and those fail on arrival for the life of the
+	 * session.
+	 */
 	ownerOf(toolName: string, preferredClientId?: string): string | undefined {
-		return this._toolSet.ownerOf(toolName, preferredClientId);
+		return this._toolSet.ownerOf(toolName, preferredClientId ?? this._latestContributor);
 	}
 }
 

@@ -117,7 +117,7 @@ suite('SessionClientToolsDiff', () => {
 		diff.model.setTools('c1', [tool({ name: 'shared', description: 'from c1' }), tool({ name: 'a' })]);
 		diff.model.setTools('c2', [tool({ name: 'shared', description: 'from c2' }), tool({ name: 'b' })]);
 		assert.deepStrictEqual(diff.model.merged.get().map(t => t.name), ['shared', 'a', 'b']);
-		assert.strictEqual(diff.model.ownerOf('shared'), 'c1', 'first-inserted client wins the shared name');
+		assert.strictEqual(diff.model.ownerOf('shared'), 'c2', 'the most recent contributor owns the shared name');
 	});
 
 	test('ownerOf prefers the requested client when it provides the shared tool', () => {
@@ -126,13 +126,32 @@ suite('SessionClientToolsDiff', () => {
 		diff.model.setTools('c2', [tool({ name: 'shared', description: 'from c2' })]);
 		assert.deepStrictEqual({
 			defaultOwner: diff.model.ownerOf('shared'),
-			preferredOwner: diff.model.ownerOf('shared', 'c2'),
+			preferredOwner: diff.model.ownerOf('shared', 'c1'),
 			missingPreferredOwner: diff.model.ownerOf('shared', 'missing'),
 		}, {
-			defaultOwner: 'c1',
-			preferredOwner: 'c2',
-			missingPreferredOwner: 'c1',
+			defaultOwner: 'c2',
+			preferredOwner: 'c1',
+			missingPreferredOwner: 'c2',
 		});
+	});
+
+	test('a reconnected client owns the tools it re-pushed, even while the old entry lingers', () => {
+		const diff = disposables.add(new SessionClientToolsDiff());
+		diff.model.setTools('old-client', [tool({ name: 'openBrowserPage' })]);
+		// The window reloads and reconnects with a new id, re-pushing the same
+		// tools. The departed client's entry has not been cleaned up yet.
+		diff.model.setTools('new-client', [tool({ name: 'openBrowserPage' })]);
+
+		assert.strictEqual(diff.model.ownerOf('openBrowserPage'), 'new-client');
+	});
+
+	test('ownership falls back to a remaining client once the latest contributor is removed', () => {
+		const diff = disposables.add(new SessionClientToolsDiff());
+		diff.model.setTools('c1', [tool({ name: 'shared' })]);
+		diff.model.setTools('c2', [tool({ name: 'shared' })]);
+		diff.model.removeClient('c2');
+
+		assert.strictEqual(diff.model.ownerOf('shared'), 'c1');
 	});
 
 	test('removeClient drops that client and re-flips dirty when the merged set changes', () => {
