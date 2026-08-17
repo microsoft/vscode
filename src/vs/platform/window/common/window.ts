@@ -229,6 +229,7 @@ export interface IWindowSettings {
 	readonly openWithoutArgumentsInNewWindow: 'on' | 'off';
 	readonly restoreWindows: 'preserve' | 'all' | 'folders' | 'one' | 'none';
 	readonly restoreFullscreen: boolean;
+	readonly removeRecentEntriesWhenUnavailable: boolean;
 	readonly zoomLevel: number;
 	readonly titleBarStyle: TitlebarStyle;
 	readonly controlsStyle: WindowControlsStyle;
