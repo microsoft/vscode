@@ -791,6 +791,17 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expr, 'bar'), null);
 	});
 
+	test('expression with cached basename globs ignores case', function () {
+		glob.parse('**/bar', { ignoreCase: true });
+
+		const expr = {
+			'**/BAR': true,
+			'**/BAZ': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'BaR', { ignoreCase: true }), '**/BAR');
+	});
+
 	test('expression with two basename globs and a siblings expression', function () {
 		const expr = {
 			'**/bar': true,

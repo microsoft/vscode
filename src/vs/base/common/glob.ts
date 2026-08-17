@@ -334,7 +334,7 @@ export function isEmptyPattern(pattern: ParsedPattern | ParsedExpression): patte
 	return false;
 }
 
-function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
+function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions, cacheKey?: string): ParsedStringPattern {
 	if (!arg1) {
 		return NULL;
 	}
@@ -359,7 +359,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	};
 
 	// Check cache
-	const patternKey = `${ignoreCase ? pattern.toLowerCase() : pattern}_${!!options.trimForExclusions}_${ignoreCase}`;
+	const patternKey = `${cacheKey ?? (ignoreCase ? pattern.toLowerCase() : pattern)}_${!!options.trimForExclusions}_${ignoreCase}`;
 	let parsedPattern = CACHE.get(patternKey);
 	if (parsedPattern) {
 		return wrapRelativePattern(parsedPattern, arg1, internalOptions);
@@ -750,7 +750,7 @@ function parseExpressionPattern(pattern: string, value: boolean | SiblingClause,
 		return NULL; // pattern is disabled
 	}
 
-	const parsedPattern = parsePattern(pattern, options);
+	const parsedPattern = parsePattern(pattern, options, pattern);
 	if (parsedPattern === NULL) {
 		return NULL;
 	}
