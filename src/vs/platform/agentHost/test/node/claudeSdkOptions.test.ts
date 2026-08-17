@@ -284,13 +284,13 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 		const opts = await buildOptions({
 			...input(undefined),
 			deniedMcpServers: [
-				{ serverName: 'stdio-disabled', serverCommand: ['node', 'server.js'] },
-				{ serverName: 'http-disabled', serverUrl: 'https://disabled.example.com/mcp' },
+				{ serverCommand: ['node', 'server.js'] },
+				{ serverUrl: 'https://disabled.example.com/mcp' },
 			],
 		}, proxyTransport, () => { });
 		assert.deepStrictEqual(typeof opts.settings === 'string' ? undefined : opts.settings?.deniedMcpServers, [
-			{ serverName: 'stdio-disabled', serverCommand: ['node', 'server.js'] },
-			{ serverName: 'http-disabled', serverUrl: 'https://disabled.example.com/mcp' },
+			{ serverCommand: ['node', 'server.js'] },
+			{ serverUrl: 'https://disabled.example.com/mcp' },
 		]);
 	});
 

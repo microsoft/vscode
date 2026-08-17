@@ -25,7 +25,13 @@ import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginPa
 import { isEqual } from '../../../../base/common/resources.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
-export type ClaudeDeniedMcpServerSpec = NonNullable<Settings['deniedMcpServers']>[number];
+type ClaudeSdkDeniedMcpServerSpec = NonNullable<Settings['deniedMcpServers']>[number];
+
+/** The Claude SDK validator accepts exactly one matching strategy per deny entry. */
+export type ClaudeDeniedMcpServerSpec =
+	| { readonly serverName: string; readonly serverCommand?: never; readonly serverUrl?: never }
+	| { readonly serverName?: never; readonly serverCommand: NonNullable<ClaudeSdkDeniedMcpServerSpec['serverCommand']>; readonly serverUrl?: never }
+	| { readonly serverName?: never; readonly serverCommand?: never; readonly serverUrl: string };
 
 /**
  * Inputs to {@link buildOptions} that vary per startup. Pure-data: no

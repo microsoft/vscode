@@ -37,7 +37,7 @@ import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
-import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
+import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, createClaudeInternalMcpServerCustomization, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
 import { applyMcpServerEnablement, findMcpChildId, findMcpServerName } from '../shared/mcpCustomizationController.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
@@ -55,7 +55,6 @@ import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } f
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
-import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 
 // Re-export for callers that import IRematerializer from the session.
 export type { IRematerializer } from './claudeSdkPipeline.js';
@@ -123,10 +122,7 @@ function resolveCurrentPermissionMode(
 }
 
 function toClaudeDeniedMcpServer(definition: IMcpServerDefinition): ClaudeDeniedMcpServerSpec {
-	const configuration = definition.configuration;
-	return configuration.type === McpServerType.LOCAL
-		? { serverName: definition.name, serverCommand: [configuration.command, ...(configuration.args ?? [])] }
-		: { serverName: definition.name, serverUrl: configuration.url };
+	return { serverName: definition.name };
 }
 
 /**
@@ -871,8 +867,13 @@ export class ClaudeAgentSession extends Disposable {
 					continue;
 				}
 				const enabledById = getSdkMcpServerEnablement(resolved);
-				for (const definition of parsed.mcpServers) {
-					if (enabledById.get(definition.customization.id) !== true) {
+				const internalCandidates = parsed.mcpServers.map(definition => createClaudeInternalMcpServerCustomization(definition.name));
+				const internalResolution = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, internalCandidates);
+				const internalEnablement = getSdkMcpServerEnablement(internalResolution);
+				for (let index = 0; index < parsed.mcpServers.length; index++) {
+					const definition = parsed.mcpServers[index];
+					if (enabledById.get(definition.customization.id) !== true || internalEnablement.get(internalCandidates[index].id) !== true) {
+						deniedServers.push(toClaudeDeniedMcpServer(definition));
 						continue;
 					}
 					definitions.set(definition.name, {

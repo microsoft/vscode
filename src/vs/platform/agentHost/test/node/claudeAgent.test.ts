@@ -73,6 +73,7 @@ import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js'
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
+import { createClaudeInternalMcpServerCustomization } from '../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
@@ -8152,10 +8153,11 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 	test('disabled bundled MCP children are excluded from initial SDK startup', async () => {
 		const pm = new FakeAgentPluginManager();
-		const { agent, sdk, fileService } = buildCtxWith(pm);
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const pluginUri = 'https://bundle';
 		const pluginDir = URI.file('/p/bundle');
+		const workspace = URI.file('/work');
 		await fileService.createFolder(URI.joinPath(pluginDir, '.claude-plugin'));
 		await fileService.writeFile(
 			URI.joinPath(pluginDir, '.claude-plugin', 'plugin.json'),
@@ -8165,17 +8167,19 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			URI.joinPath(pluginDir, '.mcp.json'),
 			VSBuffer.fromString(JSON.stringify({
 				enabled: { type: 'http', url: 'https://enabled.example.com/mcp' },
-				disabled: { type: 'http', url: 'https://disabled.example.com/mcp' },
+				disabled: { type: 'stdio', command: 'node', args: ['server.js'] },
 			})),
 		);
-		const synced = makeSyncedRef(pluginUri, pluginDir.fsPath);
+		const disabledChild = makeMcpServerCustomization(URI.joinPath(pluginDir, '.mcp.json'), 'disabled');
+		const publishedDisabledChild = createClaudeInternalMcpServerCustomization('disabled');
+		const synced = makeSyncedRef(pluginUri, pluginDir.fsPath, [disabledChild]);
 		const mcpDefaultCwds = toClientPluginMcpDefaultCwdsMeta({ enabled: null, disabled: null });
 		pm.syncResult = [{
 			...synced,
 			customization: { ...synced.customization, _meta: mcpDefaultCwds },
 		}];
 		const created = await createSession(agent, {
-			workingDirectories: [URI.file('/work')],
+			workingDirectories: [workspace],
 			activeClient: {
 				clientId: 'client-1',
 				tools: [],
@@ -8183,16 +8187,36 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 					...makeClientCustomization(pluginUri, 'Bundle'),
 					_meta: mcpDefaultCwds,
 					childEnablement: {
-						disabled: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+						disabled: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 					},
 				}],
 			},
 		});
+		publishReducerCustomizations(stateManager, created.session, [publishedDisabledChild]);
+		stateManager.dispatchServerAction(created.session.toString(), {
+			type: ActionType.SessionCustomizationToggled,
+			id: publishedDisabledChild.id,
+			enablement: [
+				{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false },
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+			],
+		});
 
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [];
 		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
-		assert.deepStrictEqual(Object.keys(sdk.capturedStartupOptions[0].mcpServers ?? {}).sort(), ['enabled']);
+		const startupOptions = sdk.capturedStartupOptions[0];
+		assert.deepStrictEqual({
+			explicitServers: Object.keys(startupOptions.mcpServers ?? {}).sort(),
+			deniedServers: typeof startupOptions.settings === 'string' ? undefined : startupOptions.settings?.deniedMcpServers,
+		}, {
+			explicitServers: ['enabled'],
+			deniedServers: [{
+				serverName: 'disabled',
+			}],
+		});
 	});
 
 	test('workspace MCP enablement gates SDK startup and rebuilds after re-enable', async () => {
@@ -8246,7 +8270,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			explicitServers: ['additional-enabled'],
 			deniedServers: [{
 				serverName: 'primary-disabled',
-				serverUrl: 'https://primary-disabled.example.com/mcp',
 			}],
 		});
 
