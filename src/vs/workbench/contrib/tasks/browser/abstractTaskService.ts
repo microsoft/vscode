@@ -879,7 +879,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public registerTaskSystem(key: string, info: ITaskSystemInfo): IDisposable {
-		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
+		// Ideally the Web caller of registerTaskSystem would use the correct key.
 		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
 		if (info.platform === Platform.Platform.Web) {
 			key = this.workspaceFolders.length ? this.workspaceFolders[0].uri.scheme : key;
@@ -906,12 +906,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				return;
 			}
 			const index = infos.indexOf(info);
-			if (index !== -1) {
-				infos.splice(index, 1);
+			if (index === -1) {
+				return;
 			}
+			infos.splice(index, 1);
 			if (infos.length === 0) {
 				this._taskSystemInfos.delete(key);
 			}
+			this._onDidChangeTaskSystemInfo.fire();
 		});
 	}
 
