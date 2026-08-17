@@ -386,24 +386,16 @@ export function flattenMcpServerCustomizations(customizations: readonly Customiz
 /**
  * The MCP servers to *show* for a session: one entry per server.
  *
- * A session can carry two customizations for a single server. The agent host publishes the
- * declaration as a child of whatever declared it -- a plugin, or the `.mcp.json` VS Code syncs
- * into the agent -- and separately mints a top-level customization for any server the SDK reports
- * before that child can be resolved by name. Once minted, the top-level entry stays for the
- * session, so both remain: the child holds the declaration and never leaves `stopped`, while the
- * top-level entry is the one the host keeps up to date. Rendering both showed the same server
- * twice, with contradictory status, and it was worse than a repeat -- the list refuses to match a
- * local row to its session twin when two candidates answer to one name, so both copies fell
- * through as extra rows.
+ * A session can carry two customizations for one server: the declaration, published as a child of
+ * whatever declared it, and a top-level entry the agent host mints for a server the SDK reports
+ * before that child resolves by name. A child is dropped when a top-level customization already
+ * speaks for its name, because the top-level copy is the one the host keeps live and resolves for
+ * lifecycle and enablement.
  *
- * A child is therefore dropped when a top-level customization already speaks for that name,
- * because that is the copy the agent host treats as live: it carries the running state and
- * channel, and its id is what the host resolves for lifecycle and enablement. Position in the tree
- * is the signal rather than the shape of the minted id, which is the host's own business.
- *
- * Nothing else is collapsed. Two plugins that each declare a server named `search` stay two
- * entries, because they are two servers and this is not the place to decide otherwise. Lookups
- * elsewhere still walk every customization, so an id from either copy continues to resolve.
+ * Tree position is the signal, not the shape of the minted id and not the absence of an owning
+ * plugin -- a directory-declared child has none either. Only presentation dedupes; lookups
+ * elsewhere walk every customization, so an id from either copy still resolves. Servers of the
+ * same name from different containers are left alone, because they are different servers.
  */
 export function getPresentableMcpServerCustomizations(customizations: readonly Customization[]): readonly IMcpServerCustomizationEntry[] {
 	const entries = flattenMcpServerCustomizations(customizations);

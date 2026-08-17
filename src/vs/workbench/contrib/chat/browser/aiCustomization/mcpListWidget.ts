@@ -171,7 +171,13 @@ interface IMcpServerItemTemplateData {
 /**
  * Renderer for local MCP server list items.
  */
-class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, IMcpServerItemTemplateData> {
+/**
+ * Renderer for local MCP server list items.
+ *
+ * Exported for testing: the guard that keeps a row's actions alive across no-op updates is only
+ * observable by driving the renderer itself.
+ */
+export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, IMcpServerItemTemplateData> {
 	readonly templateId = 'mcpServerItem';
 
 	constructor(
@@ -524,17 +530,12 @@ export interface IMcpStatusRenderInput {
 }
 
 /**
- * Reduces a row's status actions to a comparable value, so they are only rebuilt when something
- * about them actually changed.
+ * Reduces a row's status actions to a comparable value, so they are rebuilt only when they would
+ * actually differ. Rebuilding replaces the button nodes, and a node replaced between mousedown and
+ * mouseup never receives the click.
  *
- * The status update runs from an autorun over the server's connection state, which for an erroring
- * server fires about twice a second while producing byte-identical content. Tearing the actions
- * down and rebuilding them anyway meant a node could be replaced between mousedown and mouseup,
- * and a node replaced mid-click never receives the click -- so the inline `Show Output` button did
- * nothing on precisely the rows that needed it.
- *
- * The signature therefore has to cover every value the actions are built from, both what they
- * render and what they act on, or an update that matters would be dropped.
+ * Must cover every value the actions are built from -- what they render and what they act on --
+ * or a change that matters is dropped. The tests enforce completeness at compile time.
  */
 export function getMcpStatusRenderSignature(input: IMcpStatusRenderInput): string {
 	return JSON.stringify([
