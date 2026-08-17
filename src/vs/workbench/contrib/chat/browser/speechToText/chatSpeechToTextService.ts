@@ -1381,12 +1381,12 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				cts.token,
 				[],
 			);
-			if (!models.length) {
-				this._logService.info(`[chat-stt] skipped language model cleanup (reason=noModel, phase=${phase}, elapsedMs=${Date.now() - cleanupStartMs}); using raw transcript`);
-				return undefined;
-			}
 			if (cts.token.isCancellationRequested) {
 				this._logService.info(`[chat-stt] skipped language model cleanup (reason=${timedOut ? 'timeout' : 'cancelledBeforeRequest'}, phase=${phase}, elapsedMs=${Date.now() - cleanupStartMs}); using raw transcript`);
+				return undefined;
+			}
+			if (!models.length) {
+				this._logService.info(`[chat-stt] skipped language model cleanup (reason=noModel, phase=${phase}, elapsedMs=${Date.now() - cleanupStartMs}); using raw transcript`);
 				return undefined;
 			}
 			this._logService.trace(`[chat-stt] language model cleanup selected model (elapsedMs=${Date.now() - cleanupStartMs}, modelCount=${models.length})`);

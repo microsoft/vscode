@@ -183,6 +183,41 @@ suite('ChatSpeechToTextService', () => {
 		}
 	});
 
+	test('reports a timeout during model selection instead of no model', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const logs: string[] = [];
+			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+			service._languageModelsService = {
+				selectLanguageModels: () => new Promise<string[]>(() => { }),
+				sendChatRequest: async () => { throw new Error('Unexpected request'); },
+			};
+			service._promptsService = {
+				getDictationInstructions: async () => undefined,
+			};
+			service._logService = {
+				info: message => logs.push(message),
+				warn: message => logs.push(message),
+				trace: message => logs.push(message),
+			};
+
+			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
+			await clock.tickAsync(5000);
+
+			assert.deepStrictEqual({
+				result: await cleanupPromise,
+				timedOutSelectingModel: logs.some(log => log.includes('reason=timeout, phase=selectModel, elapsedMs=5000')),
+				reportedNoModel: logs.some(log => log.includes('reason=noModel')),
+			}, {
+				result: undefined,
+				timedOutSelectingModel: true,
+				reportedNoModel: false,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('allows language model cleanup to complete after 1.5 seconds', async () => {
 		const clock = sinon.useFakeTimers();
 		try {
