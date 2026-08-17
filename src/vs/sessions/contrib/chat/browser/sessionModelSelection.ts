@@ -16,7 +16,7 @@ import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel 
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IPendingModelSelection, isInConversationModelChoice } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -334,7 +334,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._controller.beginConversationSwitch();
 		}
 
-		if (snapshot.desiredModelResolution.kind === 'pending' && !this._canProceedWhilePending(chatModelReason)) {
+		if (snapshot.desiredModelResolution.kind === 'pending' && !this._controller.configuredDefaultToSeed(chatModelReason)) {
 			// The pool has not published the wanted model yet. Choosing anything now would push a
 			// stand-in through to the provider — and on to the backend — so wait it out instead,
 			// and re-seed once the pool has settled.
@@ -359,19 +359,6 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			return;
 		}
 		this._publish(options, undefined);
-	}
-
-	/**
-	 * Whether selection may proceed while the wanted model is still unpublished.
-	 *
-	 * Only `chat.defaultModel` may overtake the wait, and whether it may is the controller's
-	 * question, not this adapter's — asking it here in a second vocabulary is how the two would
-	 * drift. All this supplies is how the chat's model stands, because that model is precisely what
-	 * cannot be adopted yet: no model at all means the chat has nothing of its own, so there is
-	 * nothing for the configured default to override.
-	 */
-	private _canProceedWhilePending(chatModelReason: RestoredModelReason | undefined): boolean {
-		return !!this._controller.configuredDefaultToSeed(chatModelReason ?? ModelSelectionReason.SessionRestore);
 	}
 
 	/**

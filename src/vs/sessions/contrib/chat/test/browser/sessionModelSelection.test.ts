@@ -1074,6 +1074,30 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
+	test('a just-picked model is not replaced by the configured default while it is unpublished', () => {
+		// The user's pick owns the conversation even before the provider echoes it back.
+		const picked = model('test/picked');
+		const configured = model('test/configured');
+		const testSession = createSession('provider', SessionStatus.Untitled);
+		const provider = disposables.add(createProvider('provider'));
+		provider.models = [picked, configured];
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			createProvidersService([provider]),
+			disposables.add(new InMemoryStorageService()),
+			createConfigurationService(configured.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.strictEqual(selection.selectModel(picked.identifier), true);
+		// The catalog drops the pick before the provider echoes it, and cannot yet say it is gone.
+		provider.models = [configured];
+		provider.modelsResolved = false;
+		provider.modelChanges.fire();
+
+		assert.strictEqual(selection.state.get().currentModel?.identifier, undefined);
+	});
+
 	test('a conversation that has already run is not given the remembered model', () => {
 		// A finished session is reopened while the provider has not yet said what it was running on.
 		// The profile-wide preference may be shown meanwhile, but writing it would travel to the
