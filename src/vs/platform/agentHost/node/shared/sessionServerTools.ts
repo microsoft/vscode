@@ -91,6 +91,7 @@ const renameChatInputSchema: ToolDefinition['inputSchema'] = {
 		session: { type: 'string', description: 'Optional owning session: a session URI from `list_sessions` or an `agent-host-session://` link. When provided with `chat`, it must match that chat\'s session.' },
 		chat: { type: 'string', description: 'The chat to rename: pass an `agent-host-session://` session or chat link. Omit when renaming the chat in which this tool is running.' },
 		title: { type: 'string', maxLength: 200, description: 'Short, descriptive chat title, ideally 1-4 words.' },
+		automatic: { type: 'boolean', description: 'Set to true only when this call is fulfilling the host\'s automatic title reminder. Omit for user-requested renames.' },
 	},
 	required: ['title'],
 };
@@ -773,6 +774,7 @@ interface IRenameChatArgs {
 	readonly session?: unknown;
 	readonly chat?: unknown;
 	readonly title?: unknown;
+	readonly automatic?: unknown;
 }
 
 export interface IResolvedRenameChatArgs {
@@ -874,13 +876,20 @@ function getRenameChatSession(rawArgs: unknown, currentChannel?: ProtocolURI): U
 }
 
 export async function applyRenameChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): Promise<string> {
-	void (async () => {
+	const args = (rawArgs ?? {}) as IRenameChatArgs;
+	const isAutomaticTitleRename = getOptionalBoolean(args.automatic, 'automatic', SessionServerToolName.RenameChat) === true;
+	const rename = async (): Promise<IRenameTitleResult> => {
 		const targetSession = getRenameChatSession(rawArgs, currentChannel);
 		const metadata = await accessor.getSession(targetSession);
 		const { session, chat, title } = getRenameChatArgs(rawArgs, metadata ? [metadata] : [], currentChannel);
-		await accessor.renameChat(session, chat, title);
-	})().catch(error => accessor.reportToolError(SessionServerToolName.RenameChat, error));
-	return '';
+		return accessor.renameChat(session, chat, title);
+	};
+	if (isAutomaticTitleRename) {
+		void rename().catch(error => accessor.reportToolError(SessionServerToolName.RenameChat, error));
+		return 'Renaming chat.';
+	}
+	const result = await rename();
+	return `Renamed chat to "${result.title}".`;
 }
 
 interface ISendMessageArgs {

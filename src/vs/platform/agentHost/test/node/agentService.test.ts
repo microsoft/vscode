@@ -9839,9 +9839,9 @@ suite('AgentService (node dispatcher)', () => {
 				persistedChatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
 				persistedChatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
 			}, {
-				singleChatResult: '',
-				multiChatDefaultResult: '',
-				chatResult: '',
+				singleChatResult: 'Renamed chat to "Single-chat title".',
+				multiChatDefaultResult: 'Renamed chat to "Complete replacement default chat title".',
+				chatResult: 'Renamed chat to "Complete replacement peer chat title".',
 				liveSessionTitle: 'Multi-chat session title',
 				liveDefaultChatTitle: 'Complete replacement default chat title',
 				liveChatTitle: 'Complete replacement peer chat title',
@@ -9890,7 +9890,10 @@ suite('AgentService (node dispatcher)', () => {
 			await db.setMetadata('customTitle', 'Original session');
 			await db.setMetadata('customTitleSource', 'user');
 
-			const sessionResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Session-backed title will fail' });
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Session-backed title will fail' }),
+				/title persistence failed/
+			);
 
 			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Original chat' });
 			await db.setMetadata(`customChatTitle:${defaultChat}`, 'Original session');
@@ -9898,16 +9901,19 @@ suite('AgentService (node dispatcher)', () => {
 			await db.setMetadata(`customChatTitle:${peerChat}`, 'Original chat');
 			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
 
-			const defaultChatResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Chat-backed title will fail' });
-			const peerChatResult = await agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, {
-				chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-failure`,
-				title: 'Chat will fail',
-			});
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Chat-backed title will fail' }),
+				/title persistence failed/
+			);
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, {
+					chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-failure`,
+					title: 'Chat will fail',
+				}),
+				/title persistence failed/
+			);
 			await db.allFailuresObserved.p;
 			assert.deepStrictEqual({
-				sessionResult,
-				defaultChatResult,
-				peerChatResult,
 				liveSession: localService.stateManager.getSessionState(sessionUri)?.title,
 				sessionTitle: await db.getMetadata('customTitle'),
 				sessionSource: await db.getMetadata('customTitleSource'),
@@ -9918,9 +9924,6 @@ suite('AgentService (node dispatcher)', () => {
 				chatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
 				chatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
 			}, {
-				sessionResult: '',
-				defaultChatResult: '',
-				peerChatResult: '',
 				liveSession: 'Original session',
 				sessionTitle: 'Original session',
 				sessionSource: 'user',
