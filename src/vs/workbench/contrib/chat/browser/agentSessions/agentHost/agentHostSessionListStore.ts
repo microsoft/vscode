@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -21,6 +22,30 @@ export interface IAgentHostSessionListConnection {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	disposeSession(session: URI): Promise<void>;
 	dispatch(channel: string, action: SessionAction): void;
+}
+
+/**
+ * Reinterpret a working directory in the folder's namespace when the two
+ * describe the same filesystem under different schemes.
+ *
+ * An agent host reports working directories as paths on the machine it runs
+ * on, so a host running in a remote (a dev container, say) reports `file:`
+ * while the window's folder for that same directory is `vscode-remote:`.
+ * `isEqualOrParent` compares schemes before anything else, so the two can
+ * never match however identical their paths, and every session on the
+ * workspace folder is filtered out of the list.
+ *
+ * Only a `file:` directory against a folder with an authority is rewritten:
+ * a local window compares `file:` to `file:` and is untouched. The sessions
+ * being matched all come from this store's single host connection, which in
+ * such a window is the remote's own host, so its paths belong to the same
+ * filesystem the folder names.
+ */
+export function inFolderNamespace(directory: URI, folder: URI): URI {
+	if (directory.scheme !== Schemas.file || folder.scheme === Schemas.file || !folder.authority) {
+		return directory;
+	}
+	return folder.with({ path: directory.path, query: null, fragment: null });
 }
 
 /**
@@ -398,7 +423,7 @@ export class AgentHostSessionListStore extends Disposable {
 
 	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
 		return workingDirectories.some(directory =>
-			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
+			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(inFolderNamespace(directory, folder.uri), folder.uri))
 		);
 	}
 
