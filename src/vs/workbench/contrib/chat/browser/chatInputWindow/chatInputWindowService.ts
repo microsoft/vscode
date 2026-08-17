@@ -325,6 +325,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const border = theme.getColor(inputBorder)?.toString() ?? 'transparent';
 			auxiliaryWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
 			surface.style.backgroundColor = surfaceColor;
+			surface.style.setProperty('--omni-input-editor-background', surfaceColor);
 			surface.style.border = `1px solid ${border}`;
 		};
 
