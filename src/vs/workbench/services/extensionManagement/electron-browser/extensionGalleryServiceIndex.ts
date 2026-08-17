@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IHeaders } from '../../../../base/parts/request/common/request.js';
+import { IHeaders, IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionGalleryManifest } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
@@ -12,7 +12,7 @@ import { resolveMarketplaceHeaders } from '../../../../platform/externalServices
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
+import { asJson, asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { MarketplaceAuthRequiredError } from './extensionGalleryAccess.js';
@@ -120,7 +120,11 @@ export class ExtensionGalleryServiceIndexFetcher {
 			if (context.res.statusCode && (context.res.statusCode < 200 || context.res.statusCode >= 300)) {
 				// Any other non-2xx (404/5xx/…) is an error, not a manifest. Reject before
 				// parsing so a JSON error body can never be mistaken for a valid service index.
-				throw new Error(`Service index returned status ${context.res.statusCode}`);
+				// Include the response body: a marketplace that rejects the client (e.g. an
+				// unsupported client version) explains why there, and without it the failure is
+				// indistinguishable from an unreachable network.
+				const detail = await this.readErrorDetail(context);
+				throw new Error(`Service index returned status ${context.res.statusCode}${detail ? `: ${detail}` : ''}`);
 			}
 
 			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);
@@ -159,6 +163,24 @@ export class ExtensionGalleryServiceIndexFetcher {
 				this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
 			}
 			throw error;
+		}
+	}
+
+	/**
+	 * Best-effort read of an error response body for diagnostics. Truncated so a large HTML error
+	 * page cannot flood the log, and never throws: a body that cannot be read must not replace the
+	 * status code we already have.
+	 */
+	private async readErrorDetail(context: IRequestContext): Promise<string | undefined> {
+		try {
+			const text = await asText(context);
+			const trimmed = text?.trim();
+			if (!trimmed) {
+				return undefined;
+			}
+			return trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
+		} catch {
+			return undefined;
 		}
 	}
 }
