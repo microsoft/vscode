@@ -285,6 +285,44 @@
 	opacity: .35;
 }
 
+.chat-input-window .chat-input-window-pending-session {
+	display: flex;
+	align-items: center;
+	gap: var(--omni-row-gap);
+	padding: 6px var(--omni-rail) 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+.chat-input-window .chat-input-window-pending-session.hidden {
+	display: none;
+}
+
+.chat-input-window .chat-input-window-pending-session-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-input-window .chat-input-window-pending-session-show {
+	flex: 0 0 auto;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.chat-input-window .chat-input-window-pending-session-show:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.chat-input-window .chat-input-window-pending-session-show:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .chat-input-window .chat-input-window-pending-widget {
 	width: 100%;
 	min-width: 0;
