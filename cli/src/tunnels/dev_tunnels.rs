@@ -18,7 +18,6 @@ use http::StatusCode;
 use rand::prelude::IteratorRandom;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 use std::future::Future;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
@@ -1277,21 +1276,13 @@ fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
 }
 
 // This is only relevant for Node-owned tunnels created before
-// https://github.com/microsoft/vscode/pull/329066 was merged.
-fn is_tunnel_port_protocol_conflict(error: &(impl Error + 'static)) -> bool {
-	let Some(HttpError::ResponseError(response)) = error
-		.source()
-		.and_then(|source| source.downcast_ref::<HttpError>())
-	else {
-		return false;
-	};
-
-	response.status_code == StatusCode::BAD_REQUEST
-		&& response
-			.get_details()
-			.and_then(|details| details.detail)
-			.as_deref()
-			== Some(TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL)
+// https://github.com/microsoft/vscode/pull/329066 was merged. The pinned dev-tunnels
+// revision does not expose the inner HttpError as Error::source(), so match its detail
+// in the formatted error until the SDK provides a structured error code.
+fn is_tunnel_port_protocol_conflict(error: &impl std::fmt::Display) -> bool {
+	error
+		.to_string()
+		.contains(TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL)
 }
 
 fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
@@ -1336,23 +1327,6 @@ fn tunnel_has_host_connection(tunnel: &Tunnel) -> bool {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use tunnels::management::ResponseError;
-	use url::Url;
-
-	#[derive(Debug)]
-	struct ErrorWithSource(HttpError);
-
-	impl std::fmt::Display for ErrorWithSource {
-		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-			self.0.fmt(f)
-		}
-	}
-
-	impl Error for ErrorWithSource {
-		fn source(&self) -> Option<&(dyn Error + 'static)> {
-			Some(&self.0)
-		}
-	}
 
 	#[test]
 	fn test_clean_hostname_for_tunnel() {
@@ -1373,23 +1347,12 @@ mod test {
 
 	#[test]
 	fn test_is_tunnel_port_protocol_conflict() {
-		let error = ErrorWithSource(HttpError::ResponseError(ResponseError {
-			url: Url::parse("https://example.com/tunnels/test/ports/3000").unwrap(),
-			status_code: StatusCode::BAD_REQUEST,
-			data: Some(format!(
-				r#"{{"detail":"{TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL}"}}"#
-			)),
-			request_id: None,
-		}));
-
-		assert!(is_tunnel_port_protocol_conflict(&error));
-		assert!(!is_tunnel_port_protocol_conflict(&ErrorWithSource(
-			HttpError::ResponseError(ResponseError {
-				url: Url::parse("https://example.com/tunnels/test/ports/3000").unwrap(),
-				status_code: StatusCode::BAD_REQUEST,
-				data: Some(r#"{"detail":"Another validation error."}"#.to_string()),
-				request_id: None,
-			})
+		assert!(is_tunnel_port_protocol_conflict(&format!(
+			"failed to add port to tunnel: response error: HTTP status 400: \
+			 {{\"detail\":\"{TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL}\"}}"
 		)));
+		assert!(!is_tunnel_port_protocol_conflict(
+			&"response error: Another validation error."
+		));
 	}
 }
