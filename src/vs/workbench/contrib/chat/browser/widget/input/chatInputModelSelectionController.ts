@@ -59,7 +59,7 @@ import { IObservable, observableValue } from '../../../../../../base/common/obse
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IIntendedModelHolder } from '../../../common/model/chatModel.js';
 import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationModelChoice, isRestoredModelReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, RestoredModelReason } from '../../../common/modelSelection.js';
-import { findBestMatchingModel, IsModelSupportedHere, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
+import { findBestMatchingModel, IsModelSupportedHere, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 
 /**
@@ -103,11 +103,6 @@ export interface IChatInputModelSelectionRuntime {
 	readonly restoreModelConfiguration?: (modelId: string, configuration: Record<string, unknown> | undefined) => void;
 }
 
-interface IResolvedDraftModelSelection {
-	readonly model: ILanguageModelChatMetadataAndIdentifier | undefined;
-	readonly changed: boolean;
-}
-
 /**
  * A programmatic selection waiting for the catalog to publish its model.
  *
@@ -131,7 +126,6 @@ export class ChatInputModelSelectionController extends Disposable {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> = this._currentModel;
 	private _selectionReason: ModelSelectionReason | undefined;
 	private _pendingProgrammaticSelection: IPendingProgrammaticSelection | undefined;
-	private _restorePerTypeModel = false;
 
 	constructor(
 		private readonly _runtime: IChatInputModelSelectionRuntime,
@@ -143,10 +137,6 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._register(subscribe(() => this.reconcileModelListChange(this._pool())));
 		}
 		this._register(toDisposable(() => this._clearPendingProgrammaticSelection()));
-	}
-
-	get restorePerTypeModel(): boolean {
-		return this._restorePerTypeModel;
 	}
 
 	get selectionReason(): ModelSelectionReason | undefined {
@@ -164,20 +154,6 @@ export class ChatInputModelSelectionController extends Disposable {
 	beginConversationSwitch(): void {
 		this._selectionReason = undefined;
 		this._clearPendingProgrammaticSelection();
-	}
-
-	/**
-	 * As {@link beginConversationSwitch}, and additionally latches whether the destination should
-	 * restore the model remembered for its session type. Paired with {@link endSessionSwitch},
-	 * which releases that latch once the switch has been carried out.
-	 */
-	beginSessionSwitch(isEmpty: boolean, ownsPool: boolean, hadIncomingModel: boolean): void {
-		this.beginConversationSwitch();
-		this._restorePerTypeModel = isEmpty && ownsPool && !hadIncomingModel;
-	}
-
-	endSessionSwitch(): void {
-		this._restorePerTypeModel = false;
 	}
 
 	/**
@@ -589,20 +565,6 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._remember({ modelId: model.identifier, model, reason: restoredAs, configuration });
 	}
 
-	/**
-	 * Re-seeds from storage when the current model is absent from the destination session's pool,
-	 * restoring the user's previous selection for that pool. Uses the filtered pool so a model that
-	 * is catalogued but not valid for the destination is caught before targeted models load.
-	 */
-	reinitializeIfOutsidePool(initialize: () => void): void {
-		const currentModel = this._currentModel.get();
-		if (!currentModel || this._pool().some(model => model.identifier === currentModel.identifier)) {
-			return;
-		}
-		initialize();
-		this.ensureCurrentModelSupported();
-	}
-
 	revalidateForSessionType(initialize: () => void): void {
 		const previousModel = this._currentModel.get();
 		this._selectionReason = undefined;
@@ -622,22 +584,6 @@ export class ChatInputModelSelectionController extends Disposable {
 		} else {
 			this.selectDefault(sessionType);
 		}
-	}
-
-	resolveDraftModel(
-		draftModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		sessionTypeForValidation: string | undefined,
-		validatePool: boolean,
-	): IResolvedDraftModelSelection {
-		let model = draftModel;
-		if (validatePool && shouldDropAgnosticDraftModel(model, this._runtime.getAllModels(), sessionTypeForValidation)) {
-			model = undefined;
-		}
-		const configuredValue = this._runtime.getConfiguredModelValue();
-		if (configuredValue) {
-			model = resolveConfiguredModel(configuredValue, this._pool());
-		}
-		return { model, changed: model?.identifier !== draftModel?.identifier };
 	}
 
 	private _applySessionRestore(

@@ -210,30 +210,6 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
-	test('restores only for fresh own-pool session switches', () => {
-		const modelChanges = disposables.add(new Emitter<string>());
-		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({
-			models: [],
-			sessionType: 'test',
-		}, modelChanges, [])));
-
-		controller.beginSessionSwitch(true, true, false);
-		const restoreDuringFreshSwitch = controller.restorePerTypeModel;
-		controller.endSessionSwitch();
-		const restoreAfterSwitch = controller.restorePerTypeModel;
-		controller.beginSessionSwitch(true, true, true);
-
-		assert.deepStrictEqual({
-			restoreDuringFreshSwitch,
-			restoreAfterSwitch,
-			carriedModelRestore: controller.restorePerTypeModel,
-		}, {
-			restoreDuringFreshSwitch: true,
-			restoreAfterSwitch: false,
-			carriedModelRestore: false,
-		});
-	});
-
 	test('applies a fallback while waiting for a remembered model, then restores it', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
 		const first = model('test/first');
@@ -964,7 +940,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(
 			createRuntime({ models: [gpt, opus], sessionType: 'test', configuredModel: gpt.metadata.id }, modelChanges, applied)));
 
-		controller.beginSessionSwitch(true, false, false);
+		controller.beginConversationSwitch();
 		controller.syncFromConversationState(opus, undefined, 'test', 'chat:one');
 		const afterSpillover = controller.currentModel.get()?.identifier;
 		const configuredApplied = controller.applyConfiguredDefault();
@@ -1104,7 +1080,7 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.beginSessionSwitch(true, false, true);
+		controller.beginConversationSwitch();
 		controller.syncFromConversationState(chosen, undefined, 'test', 'chat:one', false, ModelSelectionReason.RestoredChoice);
 		// Both the conversation's model and the configured default publish together.
 		state.models = [chosen, configured];
@@ -1127,7 +1103,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(
 			createRuntime({ models: [gpt, opus], sessionType: 'test', configuredModel: gpt.metadata.id }, modelChanges, applied)));
 
-		controller.beginSessionSwitch(true, false, false);
+		controller.beginConversationSwitch();
 		controller.syncFromConversationState(opus, undefined, 'test', 'chat:one', false, ModelSelectionReason.RestoredChoice);
 		const afterRestore = controller.currentModel.get()?.identifier;
 		const configuredApplied = controller.applyConfiguredDefault();
@@ -1152,7 +1128,7 @@ suite('ChatInputModelSelectionController', () => {
 			modelChanges,
 			applied)));
 
-		controller.beginSessionSwitch(false, false, true);
+		controller.beginConversationSwitch();
 		controller.initialize(opus.identifier);
 		const configuredApplied = controller.applyConfiguredDefault();
 
@@ -1171,7 +1147,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(
 			createRuntime({ models: [gpt, opus], sessionType: 'test', configuredModel: gpt.metadata.id }, modelChanges, applied)));
 
-		controller.beginSessionSwitch(true, false, false);
+		controller.beginConversationSwitch();
 		controller.applySelection(opus, () => applied.push(opus.identifier), true, false);
 		const configuredApplied = controller.applyConfiguredDefault();
 
@@ -1222,7 +1198,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(
 			createRuntime({ models: [gpt, opus], sessionType: 'test' }, modelChanges, applied)));
 
-		controller.beginSessionSwitch(true, false, false);
+		controller.beginConversationSwitch();
 		controller.syncFromConversationState(opus, undefined, 'test', 'chat:one');
 		const configuredApplied = controller.applyConfiguredDefault();
 
@@ -1273,9 +1249,8 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
-	test('drops cross-pool drafts and waits for a cold conversation model', () => {
+	test('waits for a cold conversation model rather than settling for a stand-in', () => {
 		const sessionType = 'agent-host-test';
-		const general = model('test/general');
 		const fallback = targetedModel('test/fallback', sessionType);
 		const desired = targetedModel('test/desired', sessionType);
 		const modelChanges = disposables.add(new Emitter<string>());
@@ -1301,7 +1276,6 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
-		const draft = controller.resolveDraftModel(general, sessionType, true);
 		models = [];
 		controller.syncFromConversationState(desired, { effort: 'high' }, sessionType, 'chat:one');
 		const awaiting = controller.isAwaitingRememberedModel();
@@ -1309,13 +1283,11 @@ suite('ChatInputModelSelectionController', () => {
 		modelChanges.fire('test');
 
 		assert.deepStrictEqual({
-			draft: { model: draft.model?.identifier, changed: draft.changed },
 			awaiting,
 			awaitingAfterResolve: controller.isAwaitingRememberedModel(),
 			applied,
 			restored,
 		}, {
-			draft: { model: undefined, changed: true },
 			awaiting: true,
 			awaitingAfterResolve: false,
 			applied: [desired.identifier],
@@ -1816,9 +1788,8 @@ suite('ChatInputModelSelectionController', () => {
 		// The input rebinds to a different conversation, which lands on `first`. That
 		// conversation carries no model of its own, so nothing re-remembers here.
 		state.conversationKey = 'chat:two';
-		controller.beginSessionSwitch(false, true, true);
+		controller.beginConversationSwitch();
 		controller.applySelection(first, () => { }, false);
-		controller.endSessionSwitch();
 		const afterSwitch = controller.currentModel.get()?.identifier;
 
 		// The agent host republishes its catalog, as it does periodically. The pick belongs

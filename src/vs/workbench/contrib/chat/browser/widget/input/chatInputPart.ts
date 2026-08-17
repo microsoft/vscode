@@ -106,8 +106,8 @@ import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { ChatInputStateOrigin, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../common/modelSelection.js';
-import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, mergeModelsWithCache, shouldResetOnModelListChange } from './chatInputModelUtils.js';
+import { isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, RestoredModelReason } from '../../../common/modelSelection.js';
+import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, mergeModelsWithCache, shouldDropAgnosticDraftModel, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -533,6 +533,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * alone.
 	 */
 	private readonly _unboundIntent = new IntendedModelSlot();
+
+	/**
+	 * Whether the session being switched to should restore the model remembered for its type.
+	 * Latched while the switch is in flight because the decision is made before the view model
+	 * arrives and acted on after. Held here rather than in the shared selection controller: it
+	 * describes this widget's handshake, not what a conversation runs on.
+	 */
+	private _restorePerTypeModel = false;
 
 	/** Whoever speaks for the intended model right now: the bound conversation, else this input part. */
 	private get _intentHolder(): IIntendedModelHolder {
@@ -1527,7 +1535,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// input and view model finish wiring together, then cleared in the view-model-change finally.
 		const ownsPool = !!this._currentSessionType && this.sessionTypeHasOwnModelPool(this._currentSessionType);
 		const hadIncomingModel = !!model.state.get()?.selectedModel;
-		this._modelSelectionController.beginSessionSwitch(this._chatSessionIsEmpty, ownsPool, hadIncomingModel);
+		this._modelSelectionController.beginConversationSwitch();
+		this._restorePerTypeModel = this._chatSessionIsEmpty && ownsPool && !hadIncomingModel;
 
 		if (this._chatSessionIsEmpty) {
 			const persistedState = model.state.get() ? undefined : this._getPersistedEmptyInputState();
@@ -1567,7 +1576,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				state = this._getPersistedEmptyInputState();
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
 				if (state) {
-					const resolved = this._modelSelectionController.resolveDraftModel(state.selectedModel, this._currentSessionType, false);
+					const resolved = this.resolveDraftModel(state.selectedModel, this._currentSessionType, false);
 					if (resolved.changed) {
 						state = { ...state, selectedModel: resolved.model, modelConfiguration: undefined };
 					}
@@ -1610,7 +1619,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			attachments: persistedAttachments.length > 0 ? persistedAttachments : state.attachments,
 		};
 
-		const resolved = this._modelSelectionController.resolveDraftModel(state.selectedModel, this._currentSessionType, true);
+		const resolved = this.resolveDraftModel(state.selectedModel, this._currentSessionType, true);
 		if (resolved.changed) {
 			state = { ...state, selectedModel: resolved.model, modelConfiguration: undefined };
 		}
@@ -1957,6 +1966,40 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private getConfiguredModelValue(): string | undefined {
 		const model = this.configurationService.getValue<string>(ChatConfiguration.DefaultModel)?.trim();
 		return model ? model : undefined;
+	}
+
+	/**
+	 * The model a draft should open on: the draft's own, unless it belongs to another session's
+	 * pool, and always superseded by a configured default.
+	 */
+	private resolveDraftModel(
+		draftModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		sessionTypeForValidation: string | undefined,
+		validatePool: boolean,
+	): { readonly model: ILanguageModelChatMetadataAndIdentifier | undefined; readonly changed: boolean } {
+		let model = draftModel;
+		if (validatePool && shouldDropAgnosticDraftModel(model, this.getAllMergedModels(), sessionTypeForValidation)) {
+			model = undefined;
+		}
+		const configuredValue = this.getConfiguredModelValue();
+		if (configuredValue) {
+			model = resolveConfiguredModel(configuredValue, this.getModelsForSessionType(this._currentSessionType ?? this.getCurrentSessionType()));
+		}
+		return { model, changed: model?.identifier !== draftModel?.identifier };
+	}
+
+	/**
+	 * Re-seeds from storage when the current model is absent from the destination session's pool,
+	 * restoring the preference remembered for that pool.
+	 */
+	private reinitializeIfOutsidePool(initialize: () => void): void {
+		const currentModel = this._modelSelectionController.currentModel.get();
+		const pool = this.getModelsForSessionType(this._currentSessionType ?? this.getCurrentSessionType());
+		if (!currentModel || pool.some(model => model.identifier === currentModel.identifier)) {
+			return;
+		}
+		initialize();
+		this._modelSelectionController.ensureCurrentModelSupported();
 	}
 
 	/** Resets the language model to the location default, forgetting what was preferred before. */
@@ -2858,7 +2901,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} finally {
 				// Always finish the session switch, even on an exception before this point, so an
 				// explicit user model pick after the switch persists normally.
-				this._modelSelectionController.endSessionSwitch();
+				this._restorePerTypeModel = false;
 			}
 		});
 
@@ -2953,7 +2996,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.restorePerTypeModelAfterViewModelAssignment();
 			// Re-initialize from storage first so the user's previous selection for
 			// this pool is restored
-			this._modelSelectionController.reinitializeIfOutsidePool(() => this.initSelectedModel());
+			this.reinitializeIfOutsidePool(() => this.initSelectedModel());
 		}
 	}
 
@@ -2965,7 +3008,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// the remembered preference is written exclusively by explicit user picks.
 		// If the remembered model has not loaded yet, skip pool validation so the picker does not
 		// move away from the model that will be applied when it appears.
-		if (this._modelSelectionController.restorePerTypeModel) {
+		if (this._restorePerTypeModel) {
 			this.initSelectedModel();
 			if (!this._modelSelectionController.hasPendingProgrammaticSelection() && !this._modelSelectionController.isAwaitingRememberedModel()) {
 				this._modelSelectionController.ensureCurrentModelSupported();
