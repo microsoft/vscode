@@ -393,6 +393,13 @@ Two invariants follow from that seam:
   `activeChat`), so switching between peer chats carries each one's own model
   with it. What the adapter holds per *input* is only a snapshot of the provider
   and the bound chat, re-read on every refresh rather than carried.
+- A conversation that has already run is never *given* a model. Its own model may
+  not have arrived yet — an agent-host session reports none until the provider
+  hydrates it from the persisted draft — and a profile-wide remembered preference
+  is not an answer for it, because writing one travels to the backend and changes
+  what the conversation runs on. Such a preference may be shown so the picker is
+  not blank, but only a conversation that has yet to run can be seeded with one.
+  A pick the user makes is unaffected: that is an answer for this conversation.
 - A model that the provider's pool has not published yet is waited for rather
   than replaced. Nothing is pushed to the provider while the wanted model is
   pending, so a transient stand-in never reaches the backend. Only

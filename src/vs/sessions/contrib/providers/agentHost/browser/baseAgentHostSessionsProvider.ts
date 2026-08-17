@@ -1233,6 +1233,21 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.setChatAgent(this.resource, { uri: agentUri, name: '' });
 	}
 
+	/**
+	 * As {@link hydrateSelectedAgent}, for the model the session was last running on.
+	 *
+	 * Recorded as {@link ChatModelSource.Restored} because that is what it is: the conversation's
+	 * own model, read back from where the host persisted it. Without this the session reports no
+	 * model at all, and model selection has nothing to tell "this conversation chose something"
+	 * from "this conversation has never chosen".
+	 */
+	hydrateSelectedModel(selection: ModelSelection): void {
+		if (this.modelId.get() !== undefined) {
+			return;
+		}
+		this.setChatModelId(this.resource, `${this._resourceScheme}:${selection.id}`, ChatModelSource.Restored);
+	}
+
 	getChatModelId(chatResource: URI): string | undefined {
 		return chatResource.fragment
 			? this._getAdditionalChat(chatResource)?.chat.modelId.get()
@@ -4663,6 +4678,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		this._hydrateAgentFromDraft(connection, cached, sessionId, sessionUri, store);
+		this._hydrateModelFromDraft(connection, cached, sessionId, sessionUri, store);
 	}
 
 	/**
@@ -4699,6 +4715,43 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 			if (cached.mode.get() !== undefined) {
+				listener.clear(); // hydration is one-shot; stop observing
+			}
+		};
+		listener.value = chatRef.object.onDidChange(() => tryHydrate());
+		tryHydrate();
+	}
+
+	/**
+	 * Resume hydration for the model, mirroring {@link _hydrateAgentFromDraft}.
+	 *
+	 * A reloaded session reports `modelId === undefined` until something tells it otherwise, and an
+	 * undefined model reads as "this conversation has never chosen one" — which invites model
+	 * selection to seed it from a profile-wide preference and write that through to the backend.
+	 * The model the session was actually running on is on the default chat's `ChatState.draft`, so
+	 * it is read back the same way the draft agent is.
+	 *
+	 * One-shot and guarded inside {@link AgentHostSessionAdapter.hydrateSelectedModel}, so it
+	 * neither leaks nor overrides a selection made in the meantime.
+	 */
+	private _hydrateModelFromDraft(connection: IAgentConnection, cached: AgentHostSessionAdapter, sessionId: string, sessionUri: URI, store: DisposableStore): void {
+		if (cached.modelId.get() !== undefined) {
+			return;
+		}
+		const lastDefaultChat = this._lastSessionStates.get(sessionId)?.defaultChat;
+		const defaultChatUri = lastDefaultChat ? URI.parse(lastDefaultChat.toString()) : URI.parse(buildDefaultChatUri(sessionUri));
+		const chatRef = connection.getSubscription(StateComponents.Chat, defaultChatUri, 'BaseAgentHostSessionsProvider.draftModel');
+		store.add(chatRef);
+		const listener = store.add(new MutableDisposable());
+		const tryHydrate = () => {
+			if (cached.modelId.get() === undefined) {
+				const chatState = chatRef.object.value;
+				const model = chatState && !(chatState instanceof Error) ? chatState.draft?.model : undefined;
+				if (model) {
+					cached.hydrateSelectedModel(model);
+				}
+			}
+			if (cached.modelId.get() !== undefined) {
 				listener.clear(); // hydration is one-shot; stop observing
 			}
 		};

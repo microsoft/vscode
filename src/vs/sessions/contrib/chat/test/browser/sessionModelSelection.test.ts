@@ -1041,6 +1041,88 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
+	test('a pick made in a conversation that has already run still reaches the provider', () => {
+		// Withholding automatic writes must not withhold the user's own. A session whose model the
+		// provider has not reported yet is still one the user can change.
+		const opus = model('test/opus');
+		const gpt = model('test/gpt');
+		const testSession = createSession('provider', SessionStatus.Completed, undefined);
+		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
+		provider.models = [gpt, opus];
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, opus.identifier);
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(undefined),
+			disposables.add(new NullLogService()),
+		));
+
+		const accepted = selection.selectModel(gpt.identifier);
+
+		assert.deepStrictEqual({
+			accepted,
+			writes: provider.writes,
+			sessionModel: testSession.modelId.get(),
+			source: (testSession.activeChat.get() as ITestChat).modelSource.get(),
+		}, {
+			accepted: true,
+			writes: [gpt.identifier],
+			sessionModel: gpt.identifier,
+			source: ChatModelSource.User,
+		});
+	});
+
+	test('a conversation that has already run is not given the remembered model', () => {
+		// A finished session is reopened while the provider has not yet said what it was running on.
+		// The profile-wide preference may be shown meanwhile, but writing it would travel to the
+		// backend and change the conversation — the session would come back on the wrong model.
+		const opus = model('test/opus');
+		const gpt = model('test/gpt');
+		const testSession = createSession('provider', SessionStatus.Completed, undefined);
+		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
+		provider.models = [gpt, opus];
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, opus.identifier);
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(undefined),
+			disposables.add(new NullLogService()),
+		));
+
+		const beforeHydration = {
+			shown: selection.state.get().currentModel?.identifier,
+			writes: [...provider.writes],
+			sessionModel: testSession.modelId.get(),
+		};
+		// The provider hydrates the model the session was actually running on.
+		testSession.modelId.set(gpt.identifier, undefined, ChatModelSource.Restored);
+
+		assert.deepStrictEqual({
+			beforeHydration,
+			afterHydration: {
+				shown: selection.state.get().currentModel?.identifier,
+				writes: provider.writes,
+				sessionModel: testSession.modelId.get(),
+			},
+		}, {
+			beforeHydration: {
+				// Shown so the picker is not blank, but the conversation is left as it was.
+				shown: opus.identifier,
+				writes: [],
+				sessionModel: undefined,
+			},
+			afterHydration: {
+				shown: gpt.identifier,
+				writes: [],
+				sessionModel: gpt.identifier,
+			},
+		});
+	});
+
 	test('a canonicalized user choice is still written as the conversation\'s own', () => {
 		// Re-applying the conversation's own model under the identifier its pool publishes it as is
 		// bookkeeping, not a fresh pick. Writing it back as automatic would demote the user's

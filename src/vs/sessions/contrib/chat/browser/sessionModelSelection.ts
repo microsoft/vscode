@@ -118,6 +118,11 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	 * in a finished session is still a fresh conversation for `chat.defaultModel` to seed.
 	 */
 	private _chatIsEmpty = false;
+	/**
+	 * Whether the bound conversation's own model is unknown but presumed to exist, so a selection
+	 * may be shown yet must not be written through. See where it is assigned in {@link _refresh}.
+	 */
+	private _displayOnly = false;
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
@@ -271,6 +276,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._boundSessionKey = undefined;
 			this._boundConversationKey = undefined;
 			this._chatIsEmpty = false;
+			this._displayOnly = false;
 			// Nothing to clear: what each conversation was running on, and the authority behind it,
 			// belong to that conversation's record and are unreachable until it is bound again.
 			this._models = [];
@@ -314,6 +320,12 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		this._boundSessionKey = session.sessionId;
 		this._boundConversationKey = conversationKey;
 		this._chatIsEmpty = chat.status.get() === SessionStatus.Untitled;
+		// A conversation that has already run has a model of its own; the provider just has not
+		// said what it is yet. Anything selected meanwhile is a stand-in to show, never something
+		// to write: the write goes through to the backend and would change what the conversation
+		// runs on, rather than describe it. Only a conversation that has yet to run can be given a
+		// model by a profile-wide preference.
+		this._displayOnly = !chatModelId && !this._chatIsEmpty;
 		if (rebound) {
 			// Unconditionally, including when the pool is still publishing below: the reason and
 			// pending intent behind the previous conversation's model must not outlive it. The pool
@@ -461,6 +473,13 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const session = this._activeSession;
 		const provider = this._activeProvider;
 		if (!session || !provider) {
+			return;
+		}
+		if (this._displayOnly) {
+			this._diagnostics.report('provider-write-withheld', {
+				model: model.identifier,
+				reason: this._controller.selectionReason,
+			}, 'info');
 			return;
 		}
 		const providerModelBefore = session.modelId.get();
