@@ -834,7 +834,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			isEmpty: () => !this._inputModel || this._chatSessionIsEmpty,
 			getModels: sessionType => this.getModelsForSessionType(sessionType),
 			getAllModels: () => this.getAllMergedModels(),
-			requiresCustomModels: sessionType => this.chatSessionsService.requiresCustomModelsForSessionType(sessionType),
+			// A session type with its own models must not be defaulted over while they are still
+			// loading, or the pick lands on the general catalog instead.
+			isAwaitingSessionModels: sessionType => this.chatSessionsService.requiresCustomModelsForSessionType(sessionType)
+				&& !hasModelsTargetingSession(this.getAllMergedModels(), sessionType),
 			getConfiguredModelValue: () => this.getConfiguredModelValue(),
 			// Workbench chat runs a mode, and can be shown inline, so both bear on what it can run.
 			isModelSupportedHere: model => isModelSupportedForMode(model, this.currentModeKind) && isModelSupportedForInlineChat(model, this.location),

@@ -16,13 +16,13 @@ import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel 
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IPendingModelSelection, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
-import { restoreReasonForSource, sourceForControllerWrite } from './sessionModelProvenance.js';
+import { restoreReasonForSource, sourceForReason } from './sessionModelProvenance.js';
 
 /**
  * How many conversations keep their model selection. Bounded because a long-lived window can bind
@@ -58,12 +58,6 @@ class ConversationModelSelection {
 	 * conversation's model on display and never write one for this conversation.
 	 */
 	seeded = false;
-	/**
-	 * The provenance this conversation is currently understood to have — what this input last saw
-	 * on the chat, or last wrote to it. Keeping the two in one field means an echo of this input's
-	 * own write is not mistaken for the conversation changing underneath it.
-	 */
-	authority: ChatModelSource | undefined;
 }
 
 export const ISessionModelSelection = createDecorator<ISessionModelSelection>('sessionModelSelection');
@@ -201,18 +195,12 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const providerModelBefore = session.modelId.get();
 		const storageKey = getSelectedModelStorageKey(ChatAgentLocation.Chat, snapshot.modelTarget);
 		const conversation = this._conversation();
-		// Recorded before the write for the same reason automatic writes are: the provider echoes
-		// this back synchronously, and that pass must recognize the user's own pick rather than
-		// re-adopting it as an external change and demoting the authority behind it.
-		const previousAuthority = conversation.authority;
-		conversation.authority = ChatModelSource.User;
 		try {
 			this._controller.applySelection(model, () => {
 				provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.User);
 				storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
 			}, true, true);
 		} catch (error) {
-			conversation.authority = previousAuthority;
 			this._diagnostics.report('provider-selection-failed', {
 				requestedModel: modelIdentifier,
 				providerModelBefore,
@@ -241,9 +229,6 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			isEmpty: () => this._chatIsEmpty,
 			getModels: () => [...this._models],
 			getAllModels: () => [...this._models],
-			// The provider's snapshot is already scoped to the session, so there is no wider
-			// catalog a targeted pool would have to be waited for.
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => this._configurationService.getValue<string>(ChatConfiguration.DefaultModel),
 			// A session runs whatever its provider published for it. There is no mode to satisfy
 			// and nowhere else it could be shown, so the pool is already the answer.
@@ -252,9 +237,10 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			getBoundConversationKey: () => this._boundConversationKey,
 			getIntentHolder: () => this._conversation().intent,
 			applyModel: model => this._pushModelToProvider(model),
-			// `subscribeToModelChanges` and `restoreModelConfiguration` are deliberately absent:
-			// the pool is re-read from the provider before the controller is driven, so refreshing
-			// is owned by `_refresh`, and sessions have no per-model configuration.
+			// `isAwaitingSessionModels`, `subscribeToModelChanges` and `restoreModelConfiguration`
+			// are deliberately absent: the provider's snapshot is already the session's own pool,
+			// the pool is re-read before the controller is driven so refreshing is owned by
+			// `_refresh`, and sessions have no per-model configuration.
 		};
 	}
 
@@ -329,10 +315,6 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		this._boundConversationKey = conversationKey;
 		this._chatIsEmpty = chat.status.get() === SessionStatus.Untitled;
 		if (rebound) {
-			// Take up what the chat itself now says. Seeding below may re-state it, but a chat with
-			// no model of its own never reaches that path and would otherwise be read through
-			// whatever this conversation was last known to be running on.
-			this._conversation().authority = chatModelSource;
 			// Unconditionally, including when the pool is still publishing below: the reason and
 			// pending intent behind the previous conversation's model must not outlive it. The pool
 			// belongs to the provider, not to this input, so there is no per-type restore to latch
@@ -417,7 +399,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			// or half-published pool selects nothing, and treating that as seeded would leave the
 			// previous conversation's model on display and never write one for this conversation.
 			conversation.seeded = this._isShowingSelectableModel();
-		} else if (chatModel && this._conversationAuthorityChanged(chatModel, chatModelSource)) {
+		} else if (chatModel && this._conversationSelectionChanged(chatModel, chatModelSource)) {
 			// The conversation's model or the authority behind it moved without this input asking
 			// — restored by the provider, or chosen on another surface — so adopt it as it now is.
 			// A same-model change of authority counts: a peer promoting this input's automatic pick
@@ -435,16 +417,20 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	}
 
 	/**
-	 * Whether the bound conversation's model, or the authority behind it, differs from what this
-	 * input last saw or wrote. An echo of this input's own write matches on both counts and is
-	 * therefore not treated as the conversation changing.
+	 * Whether the bound conversation's model, or whether that model speaks for the conversation,
+	 * differs from what selection currently holds.
+	 *
+	 * An echo of this input's own write matches on both counts: the source was derived from the
+	 * very reason the controller still holds, and both sides of that mapping fall on the same side
+	 * of the choice/spillover line. A peer promoting this input's automatic pick to their own
+	 * choice does not match, which is the case this has to catch.
 	 */
-	private _conversationAuthorityChanged(
+	private _conversationSelectionChanged(
 		chatModel: ILanguageModelChatMetadataAndIdentifier,
 		source: ChatModelSource | undefined,
 	): boolean {
 		return chatModel.identifier !== this._controller.currentModel.get()?.identifier
-			|| source !== this._conversation().authority;
+			|| isInConversationModelChoice(restoreReasonForSource(source)) !== isInConversationModelChoice(this._controller.selectionReason);
 	}
 
 	/**
@@ -461,7 +447,6 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		source: ChatModelSource | undefined,
 		conversationKey: string,
 	): void {
-		this._conversation().authority = source;
 		this._controller.syncFromConversationState(
 			chatModel,
 			undefined,
@@ -485,17 +470,12 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			// claiming it would mask a choice the conversation made elsewhere.
 			return;
 		}
-		const conversation = this._conversation();
-		const source = sourceForControllerWrite(this._controller.selectionReason, conversation.authority);
-		// Recorded before the write, not after: a provider may echo the new model back
-		// synchronously, and that re-entrant pass must already see this provenance as the
-		// conversation's own or it would mistake this input's write for an external change.
-		const previousAuthority = conversation.authority;
-		conversation.authority = source;
+		// The controller records the reason before handing the model over, so this reads the reason
+		// for the write actually being made.
+		const source = sourceForReason(this._controller.selectionReason);
 		try {
 			provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, source);
 		} catch (error) {
-			conversation.authority = previousAuthority;
 			this._diagnostics.report('provider-automatic-selection-failed', {
 				model: model.identifier,
 				reason: this._controller.selectionReason,

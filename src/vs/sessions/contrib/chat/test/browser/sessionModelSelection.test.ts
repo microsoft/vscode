@@ -15,8 +15,9 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { getSelectedModelStorageKey, storeSelectedModel } from '../../../../../workbench/contrib/chat/common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
+import { isInConversationModelChoice, resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from '../../../../../workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.js';
+import { restoreReasonForSource } from '../../browser/sessionModelProvenance.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -1040,10 +1041,14 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
-	test('a canonicalized user choice keeps its authority instead of becoming automatic', () => {
+	test('a canonicalized user choice is still written as the conversation\'s own', () => {
 		// Re-applying the conversation's own model under the identifier its pool publishes it as is
 		// bookkeeping, not a fresh pick. Writing it back as automatic would demote the user's
 		// choice to something `chat.defaultModel` may overwrite on the next rebind.
+		//
+		// It comes back as `Restored` rather than `User`: provenance is derived from the reason
+		// selection is acting on, which records that the model is the conversation's own but not
+		// which of the ways it became so. Both are choices, which is what the rule turns on.
 		const canonical = model('scheme:test/second');
 		const testSession = createSession('provider', SessionStatus.Untitled, second.identifier);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
@@ -1059,12 +1064,16 @@ suite('SessionModelSelection', () => {
 			disposables.add(new NullLogService()),
 		));
 
+		const writtenSource = (testSession.activeChat.get() as ITestChat).modelSource.get();
 		assert.deepStrictEqual({
 			current: selection.state.get().currentModel?.identifier,
-			source: (testSession.activeChat.get() as ITestChat).modelSource.get(),
+			source: writtenSource,
+			// The property the rule actually turns on, asserted rather than inferred from the label.
+			countsAsConversationChoice: isInConversationModelChoice(restoreReasonForSource(writtenSource)),
 		}, {
 			current: canonical.identifier,
-			source: ChatModelSource.User,
+			source: ChatModelSource.Restored,
+			countsAsConversationChoice: true,
 		});
 	});
 

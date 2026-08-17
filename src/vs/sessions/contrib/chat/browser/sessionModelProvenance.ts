@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isInConversationModelChoice, isRestoredModelReason, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ChatModelSource } from '../../../services/sessions/common/session.js';
 
 /**
@@ -37,26 +37,29 @@ export function restoreReasonForSource(source: ChatModelSource | undefined): Res
 /**
  * The provenance to attribute a controller-driven write to.
  *
- * The controller applies a model for several reasons, and only some of them are the input choosing
- * on the conversation's behalf. Reclaiming the conversation's own model — or re-applying it under
- * the identifier its pool publishes it as — carries the authority the conversation already had, so
- * writing it back as {@link ChatModelSource.Automatic} would quietly demote a user's pick to
- * something `chat.defaultModel` may overwrite.
+ * Derived from the reason alone, so there is one record of how a chat came by its model — the
+ * conversation's intended selection — rather than a second copy kept in step with it. What must
+ * survive the round trip is whether the model speaks for the conversation, and it does:
+ * {@link restoreReasonForSource} maps every source back to a reason on the same side of that line.
  *
- * @param authorityInForce The provenance the conversation is currently understood to have.
+ * A user's own pick returns as `Restored` rather than `User` once it has been written and read
+ * back. Both are the conversation's own, so nothing that reads provenance can tell them apart in a
+ * way that changes an outcome; only the label is coarser.
  */
-export function sourceForControllerWrite(
-	reason: ModelSelectionReason | undefined,
-	authorityInForce: ChatModelSource | undefined,
-): ChatModelSource {
-	if (reason === ModelSelectionReason.UserSelection) {
-		return ChatModelSource.User;
+export function sourceForReason(reason: ModelSelectionReason | undefined): ChatModelSource {
+	switch (reason) {
+		case ModelSelectionReason.UserSelection:
+			return ChatModelSource.User;
+		// Chosen for this conversation, if not by the user directly.
+		case ModelSelectionReason.ProgrammaticSelection:
+		case ModelSelectionReason.RestoredChoice:
+			return ChatModelSource.Restored;
+		// Carried onto the conversation rather than chosen in it.
+		case ModelSelectionReason.SessionRestore:
+			return ChatModelSource.Inherited;
+		// A configured default, a remembered preference, or the first available model: chosen for a
+		// conversation that had not chosen for itself.
+		default:
+			return ChatModelSource.Automatic;
 	}
-	// Acting on the model the conversation already had, so its authority carries over.
-	if (isInConversationModelChoice(reason) || isRestoredModelReason(reason)) {
-		return authorityInForce ?? ChatModelSource.Restored;
-	}
-	// A configured default, a remembered preference, or the first available model: chosen for a
-	// conversation that had not chosen for itself.
-	return ChatModelSource.Automatic;
 }

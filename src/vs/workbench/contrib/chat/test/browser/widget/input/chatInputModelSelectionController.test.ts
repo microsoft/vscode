@@ -12,7 +12,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { ModelSelectionReason, resolveModelIdentifierFromCatalog, type IIntendedModelSelection } from '../../../../common/modelSelection.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from '../../../../browser/widget/input/chatInputModelSelectionController.js';
-import { isModelSupportedForInlineChat, isModelSupportedForMode } from '../../../../browser/widget/input/chatInputModelUtils.js';
+import { hasModelsTargetingSession, isModelSupportedForInlineChat, isModelSupportedForMode } from '../../../../browser/widget/input/chatInputModelUtils.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from './modelSelectionConformance.js';
 
 function model(identifier: string): ILanguageModelChatMetadataAndIdentifier {
@@ -81,7 +81,6 @@ function createRuntime(
 		isEmpty: () => state.isEmpty ?? true,
 		getModels: () => state.models,
 		getAllModels: () => state.models,
-		requiresCustomModels: () => false,
 		getConfiguredModelValue: () => state.configuredModel,
 		isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 		getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -247,7 +246,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -287,7 +285,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -684,7 +681,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => configured.metadata.id,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -780,7 +776,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => configured.metadata.id,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -817,7 +812,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -860,7 +854,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => configured.metadata.id,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -903,7 +896,6 @@ suite('ChatInputModelSelectionController', () => {
 				isEmpty: () => true,
 				getModels: () => models,
 				getAllModels: () => models,
-				requiresCustomModels: () => false,
 				getConfiguredModelValue: () => configuredModel,
 				isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 				getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -937,7 +929,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: () => [first, second],
 			getAllModels: () => [first, second],
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => configuration.model,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1043,6 +1034,25 @@ suite('ChatInputModelSelectionController', () => {
 		assert.deepStrictEqual({ afterReset, afterCatalogChange: controller.currentModel.get()?.identifier }, {
 			afterReset: fallback.identifier,
 			afterCatalogChange: fallback.identifier,
+		});
+	});
+
+	test('a sync for a conversation the input has left does not move the active one', () => {
+		// Conversation state can arrive late, after the input has rebound elsewhere. Acting on it
+		// would apply the outgoing conversation's model to the incoming one.
+		const outgoing = model('test/outgoing');
+		const active = model('test/active');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const state: IRuntimeState = { models: [outgoing, active], sessionType: 'test', conversationKey: 'chat:active' };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.syncFromConversationState(active, undefined, 'test', 'chat:active', false, ModelSelectionReason.RestoredChoice);
+		controller.syncFromConversationState(outgoing, undefined, 'test', 'chat:outgoing', false, ModelSelectionReason.RestoredChoice);
+
+		assert.deepStrictEqual({ applied, current: controller.currentModel.get()?.identifier }, {
+			applied: [active.identifier],
+			current: active.identifier,
 		});
 	});
 
@@ -1182,7 +1192,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => false,
 			getModels: () => [gpt, opus],
 			getAllModels: () => [gpt, opus],
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => gpt.metadata.id,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1241,7 +1250,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1279,7 +1287,7 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => true,
+			isAwaitingSessionModels: type => !hasModelsTargetingSession(models, type),
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1336,7 +1344,7 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => true,
+			isAwaitingSessionModels: type => !hasModelsTargetingSession(models, type),
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1398,7 +1406,7 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => true,
+			isAwaitingSessionModels: type => !hasModelsTargetingSession(models, type),
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1454,7 +1462,7 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => true,
+			isAwaitingSessionModels: type => !hasModelsTargetingSession(models, type),
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1498,7 +1506,7 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => true,
+			isAwaitingSessionModels: type => !hasModelsTargetingSession(models, type),
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1602,7 +1610,7 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: type => type ? [targeted] : [general],
 			getAllModels: () => [general, targeted],
-			requiresCustomModels: () => true,
+			isAwaitingSessionModels: type => !hasModelsTargetingSession([general, targeted], type),
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1641,7 +1649,7 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: sessionType => sessionType ? state.targetedModels : [general],
 			getAllModels: () => [general, ...state.targetedModels],
-			requiresCustomModels: sessionType => sessionType === state.sessionType,
+			isAwaitingSessionModels: type => type === state.sessionType && !hasModelsTargetingSession([general, ...state.targetedModels], type),
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1679,7 +1687,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1721,7 +1728,6 @@ suite('ChatInputModelSelectionController', () => {
 				isEmpty: () => true,
 				getModels: () => models,
 				getAllModels: () => models,
-				requiresCustomModels: () => false,
 				getConfiguredModelValue: () => undefined,
 				isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 				getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
@@ -1763,7 +1769,6 @@ suite('ChatInputModelSelectionController', () => {
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
-			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
 			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),

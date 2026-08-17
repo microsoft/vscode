@@ -59,7 +59,7 @@ import { IObservable, observableValue } from '../../../../../../base/common/obse
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IIntendedModelHolder } from '../../../common/model/chatModel.js';
 import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationModelChoice, isRestoredModelReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, RestoredModelReason } from '../../../common/modelSelection.js';
-import { findBestMatchingModel, hasModelsTargetingSession, IsModelSupportedHere, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
+import { findBestMatchingModel, IsModelSupportedHere, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 
 /**
@@ -74,7 +74,6 @@ export interface IChatInputModelSelectionRuntime {
 	readonly getAllModels: () => ILanguageModelChatMetadataAndIdentifier[];
 	readonly getConfiguredModelValue: () => string | undefined;
 	readonly isEmpty: () => boolean;
-	readonly requiresCustomModels: (sessionType: string) => boolean;
 
 	// -- which of them this surface can use
 	/**
@@ -92,6 +91,12 @@ export interface IChatInputModelSelectionRuntime {
 	readonly applyModel: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 
 	// -- only for surfaces that have them
+	/**
+	 * Whether the models for `sessionType` have yet to arrive, so defaulting now would pick over a
+	 * pool that is still loading. Omitted by a surface whose pool is already the session's own and
+	 * therefore never partial in this sense.
+	 */
+	readonly isAwaitingSessionModels?: (sessionType: string) => boolean;
 	/** Omitted by a surface that drives reconciliation itself rather than being notified. */
 	readonly subscribeToModelChanges?: (listener: () => void) => IDisposable;
 	/** Omitted by a surface with no per-model configuration to restore. */
@@ -229,9 +234,8 @@ export class ChatInputModelSelectionController extends Disposable {
 
 	applyProgrammaticSelection(model: ILanguageModelChatMetadataAndIdentifier): void {
 		this._clearPendingProgrammaticSelection();
-		this._selectionReason = ModelSelectionReason.ProgrammaticSelection;
 		this._remember({ modelId: model.identifier, model, reason: ModelSelectionReason.ProgrammaticSelection });
-		this._applyModel(model);
+		this._applyModel(model, ModelSelectionReason.ProgrammaticSelection);
 	}
 
 	requestProgrammaticSelection(
@@ -283,16 +287,14 @@ export class ChatInputModelSelectionController extends Disposable {
 		const selection = resolveSelection();
 		this._reportInitialization(this._runtime.getConfiguredModelValue(), rememberedModelId, selection);
 		if (selection.kind === 'apply') {
-			this._selectionReason = selection.reason;
-			this._applyModel(selection.model);
+			this._applyModel(selection.model, selection.reason);
 			this.ensureCurrentModelSupported();
 		} else if (selection.kind === 'pending') {
 			// The remembered model isn't in the catalog yet. Show the default meanwhile;
 			// `_restoreRememberedModel` claims the real one as soon as it is published.
 			const fallbackModel = this._defaultModel(this._pool());
 			if (fallbackModel) {
-				this._selectionReason = ModelSelectionReason.FirstAvailable;
-				this._applyModel(fallbackModel);
+				this._applyModel(fallbackModel, ModelSelectionReason.FirstAvailable);
 			}
 		}
 	}
@@ -326,8 +328,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	selectDefault(sessionType = this._runtime.getCurrentSessionType()): void {
-		const allModels = this._runtime.getAllModels();
-		if (sessionType && this._runtime.requiresCustomModels(sessionType) && !hasModelsTargetingSession(allModels, sessionType)) {
+		if (sessionType && this._runtime.isAwaitingSessionModels?.(sessionType)) {
 			return;
 		}
 		const models = this._pool(sessionType);
@@ -341,10 +342,12 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!defaultModel) {
 			return;
 		}
-		if (!this.hasPendingProgrammaticSelection()) {
-			this._selectionReason = configuredModel ? ModelSelectionReason.ConfiguredDefault : ModelSelectionReason.FirstAvailable;
-		}
-		this._applyModel(defaultModel);
+		// A pending programmatic selection keeps its reason: this default is standing in until the
+		// model it is waiting for arrives.
+		const reason = this.hasPendingProgrammaticSelection()
+			? this._selectionReason
+			: (configuredModel ? ModelSelectionReason.ConfiguredDefault : ModelSelectionReason.FirstAvailable);
+		this._applyModel(defaultModel, reason);
 	}
 
 	/**
@@ -387,8 +390,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			}
 			return false;
 		}
-		this._selectionReason = ModelSelectionReason.ConfiguredDefault;
-		this._applyModel(configuredModel);
+		this._applyModel(configuredModel, ModelSelectionReason.ConfiguredDefault);
 		this.ensureCurrentModelSupported();
 		return true;
 	}
@@ -403,7 +405,8 @@ export class ChatInputModelSelectionController extends Disposable {
 			&& this._selectionReason === ModelSelectionReason.FirstAvailable
 			&& declaredDefault
 			&& currentModel?.identifier !== declaredDefault.identifier) {
-			this._applyModel(declaredDefault);
+			// Still the first thing on offer, only now the pool has said which that is.
+			this._applyModel(declaredDefault, ModelSelectionReason.FirstAvailable);
 			return;
 		}
 		if (!shouldResetOnModelListChange(currentModel?.identifier, [...models])) {
@@ -411,7 +414,8 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 		const match = findBestMatchingModel(currentModel, models);
 		if (match) {
-			this._applyModel(match);
+			// The same selection republished under another identifier, so whoever chose it still has.
+			this._applyModel(match, this._selectionReason);
 		} else {
 			this.selectDefault();
 		}
@@ -446,11 +450,10 @@ export class ChatInputModelSelectionController extends Disposable {
 			return false;
 		}
 		this._diagnostics.report('restore-remembered-model', { model: model.identifier, remembered: remembered.modelId, reason: remembered.reason }, 'info');
-		this._selectionReason = remembered.reason;
 		if (exact && remembered.configuration) {
 			this._runtime.restoreModelConfiguration?.(remembered.modelId, remembered.configuration);
 		}
-		this._applyModel(model);
+		this._applyModel(model, remembered.reason);
 		return true;
 	}
 
@@ -469,6 +472,19 @@ export class ChatInputModelSelectionController extends Disposable {
 		isRemoteEdit = false,
 		restoredAs: RestoredModelReason = ModelSelectionReason.SessionRestore,
 	): void {
+		// A sync that arrives for a conversation this input has already moved off must not decide
+		// the active one's model. Enforced here rather than relying on each caller to check, so the
+		// bound-conversation invariant holds for every entry into this path. An input that has not
+		// bound yet is not "moved off" and still restores.
+		const boundConversationKey = this._runtime.getBoundConversationKey();
+		if (boundConversationKey !== undefined && boundConversationKey !== conversationKey) {
+			this._diagnostics.report('conversation-restore-stale-ignored', {
+				desiredModel: desiredModel.identifier,
+				conversation: conversationKey,
+				boundConversation: boundConversationKey,
+			}, 'info');
+			return;
+		}
 		if (!isRemoteEdit && this._isEchoOfStandIn(desiredModel.identifier, conversationKey)) {
 			this._diagnostics.report('conversation-restore-echo-ignored', {
 				desiredModel: desiredModel.identifier,
@@ -498,11 +514,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		const pool = this._pool(sessionType);
 		const match = findBestMatchingModel(desiredModel, pool) ?? findBestMatchingModel(currentModel, pool);
 		if (match) {
-			// Reason first: applying writes the model out through the runtime, and a surface that
-			// persists it reads the reason while that call runs. Setting it afterwards would write
-			// the conversation's own model under whatever reason the previous one left behind.
-			this._selectionReason = restoredAs;
-			this._applyModel(match);
+			this._applyModel(match, restoredAs);
 		} else {
 			this.selectDefault(sessionType);
 		}
@@ -603,7 +615,8 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 		const match = findBestMatchingModel(previousModel, models);
 		if (match) {
-			this._applyModel(match);
+			// Carried across a session-type change, so it is a restore rather than a fresh pick.
+			this._applyModel(match, ModelSelectionReason.SessionRestore);
 		} else if (models.length === 0) {
 			this._currentModel.set(undefined, undefined);
 		} else {
@@ -641,7 +654,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._runtime.restoreModelConfiguration?.(model.identifier, configuration);
 		}
 		if (applyModel) {
-			this._applyModel(model);
+			this._applyModel(model, restoredAs);
 		}
 	}
 
@@ -681,7 +694,17 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._currentModel.set(model, undefined);
 	}
 
-	private _applyModel(model: ILanguageModelChatMetadataAndIdentifier): void {
+	/**
+	 * Shows `model` and hands it to the surface, which may persist it.
+	 *
+	 * The reason is stated rather than assumed, and recorded before the hand-off: a surface that
+	 * writes the model through reads {@link selectionReason} while `applyModel` runs, so a reason
+	 * set afterwards would persist the model under whatever the previous one left behind. Pass
+	 * {@link selectionReason} explicitly to carry the current one over — as canonicalizing an
+	 * identifier does, where the model is the same choice under a new name.
+	 */
+	private _applyModel(model: ILanguageModelChatMetadataAndIdentifier, reason: ModelSelectionReason | undefined): void {
+		this._selectionReason = reason;
 		this._display(model);
 		this._runtime.applyModel(model);
 	}
