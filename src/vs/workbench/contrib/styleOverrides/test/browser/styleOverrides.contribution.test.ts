@@ -658,13 +658,13 @@ suite('StyleOverridesContribution', () => {
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
-			reservedActive: targetWindow.getComputedStyle(reservedActive).opacity,
-			reservedInactiveGroup: targetWindow.getComputedStyle(reservedInactiveGroup).opacity,
-			transientActive: targetWindow.getComputedStyle(transientActive).opacity,
+			reservedActive: { opacity: targetWindow.getComputedStyle(reservedActive).opacity, pointerEvents: targetWindow.getComputedStyle(reservedActive.parentElement!).pointerEvents },
+			reservedInactiveGroup: { opacity: targetWindow.getComputedStyle(reservedInactiveGroup).opacity, pointerEvents: targetWindow.getComputedStyle(reservedInactiveGroup.parentElement!).pointerEvents },
+			transientActive: { opacity: targetWindow.getComputedStyle(transientActive).opacity, pointerEvents: targetWindow.getComputedStyle(transientActive.parentElement!).pointerEvents },
 		}, {
-			reservedActive: '1',
-			reservedInactiveGroup: '0.5',
-			transientActive: '0',
+			reservedActive: { opacity: '1', pointerEvents: 'auto' },
+			reservedInactiveGroup: { opacity: '0.5', pointerEvents: 'auto' },
+			transientActive: { opacity: '0', pointerEvents: 'none' },
 		});
 	});
 
