@@ -537,7 +537,7 @@ class AdditionalChat extends Disposable {
 
 	setModelId(modelId: string | undefined, source: ChatModelSource): void {
 		// One update: a model and where it came from are only meaningful as a pair, and an
-		// observer woken by half of it would act on a model with the wrong provenance.
+		// observer woken by half of it would act on a model credited to the wrong source.
 		transaction(tx => {
 			this._modelSource.set(modelId ? source : undefined, tx);
 			this._modelId.set(modelId, tx);
@@ -669,8 +669,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * Held outside {@link _additionalChats} because that map is rebuilt from session state: a chat
 	 * created locally can have its model set before the state carrying it arrives, and the entry
 	 * that write would have landed on may not exist yet. Seeding from here at construction keeps
-	 * the selection — and the provenance the model-picker's precedence depends on — from being
-	 * silently dropped.
+	 * the selection — and the record of where it came from, which the model-picker's precedence
+	 * depends on — from being silently dropped.
 	 */
 	private readonly _chatModelSelections = new Map<string, { readonly modelId: string | undefined; readonly source: ChatModelSource }>();
 	/**

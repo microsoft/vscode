@@ -465,7 +465,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	setModelId(modelId: string | undefined, source: ChatModelSource): void {
 		this._modelId = modelId;
 		// One update: a model and where it came from are only meaningful as a pair, and an
-		// observer woken by half of it would act on a model with the wrong provenance.
+		// observer woken by half of it would act on a model credited to the wrong source.
 		transaction(tx => {
 			this._modelSourceObservable.set(modelId ? source : undefined, tx);
 			this._modelIdObservable.set(modelId, tx);
@@ -694,7 +694,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	setModelId(modelId: string | undefined, source: ChatModelSource): void {
 		this._modelId = modelId;
 		// One update, and both halves of it: a model and where it came from are only meaningful as
-		// a pair, so publishing provenance for a model the observable never reports would leave the
+		// a pair, so naming a source for a model the observable never reports would leave the
 		// picker and the conversation disagreeing.
 		transaction(tx => {
 			this._modelSourceObservable.set(modelId ? source : undefined, tx);

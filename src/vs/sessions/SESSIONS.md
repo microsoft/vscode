@@ -365,10 +365,10 @@ does not decide is whether `chat.defaultModel` may overtake that wait — it ask
 `ChatInputModelSelectionController.configuredDefaultToSeed` and supplies only
 how the chat's own model stands, so that precedence is stated once. Presentation
 lives in `sessionModelPickerState.ts` and the provider-to-controller vocabulary
-in `sessionModelProvenance.ts`, leaving this file about selection alone.
+in `sessionModelSource.ts`, leaving this file about selection alone.
 
 What it no longer does is *infer* where a chat's model came from, or decide what
-that means: `IChat.modelSource` carries the provenance, so
+that means: `IChat.modelSource` says so outright, so
 `ISessionsProvider.setModel` requires the caller to state why the model is being
 set, and the adapter translates that into the `RestoredChoice`/`SessionRestore`
 distinction the controller already records. A client picking a model on the user's behalf says

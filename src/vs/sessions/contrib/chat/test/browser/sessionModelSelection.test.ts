@@ -17,7 +17,7 @@ import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/c
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { isInConversationModelChoice, resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from '../../../../../workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.js';
-import { restoreReasonForSource } from '../../browser/sessionModelProvenance.js';
+import { restoreReasonForSource } from '../../browser/sessionModelSource.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -64,7 +64,7 @@ interface ITestChat extends IChat {
 	readonly modelSource: ISettableObservable<ChatModelSource | undefined>;
 }
 
-/** A chat whose model carries the provenance a real provider reports. */
+/** A chat whose model says where it came from, as a real provider reports. */
 function createChat(resource: string, selectedModelId?: string, source = ChatModelSource.Restored, status = SessionStatus.Untitled): ITestChat {
 	return {
 		resource: URI.parse(resource),
@@ -89,8 +89,8 @@ function createSession(providerId: string, status: SessionStatus, selectedModelI
 	const activeChat = observableValue<IChat>(`${providerId}.activeChat`, createChat(`chat:/${providerId}/one`, selectedModelId, ChatModelSource.Restored, status));
 	const modelId = {
 		get: () => activeChat.get().modelId.get(),
-		// Atomic, as the real providers are: an observer must never see a model paired with the
-		// previous model's provenance.
+		// Atomic, as the real providers are: an observer must never see a model paired with where
+		// the previous model came from.
 		set: (value: string | undefined, _tx: undefined, source = ChatModelSource.Restored) => {
 			const chat = activeChat.get() as ITestChat;
 			transaction(tx => {
@@ -1189,9 +1189,9 @@ suite('SessionModelSelection', () => {
 		// bookkeeping, not a fresh pick. Writing it back as automatic would demote the user's
 		// choice to something `chat.defaultModel` may overwrite on the next rebind.
 		//
-		// It comes back as `Restored` rather than `User`: provenance is derived from the reason
-		// selection is acting on, which records that the model is the conversation's own but not
-		// which of the ways it became so. Both are choices, which is what the rule turns on.
+		// It comes back as `Restored` rather than `User`: where a model came from is derived from
+		// the reason selection is acting on, which records that the model is the conversation's own
+		// but not which of the ways it became so. Both are choices, which is what the rule turns on.
 		const canonical = model('scheme:test/second');
 		const testSession = createSession('provider', SessionStatus.Untitled, second.identifier);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
@@ -1252,9 +1252,9 @@ suite('SessionModelSelection', () => {
 	});
 
 	test('a peer promoting this input\'s automatic pick to their own choice blocks the default', () => {
-		// Only the provenance changes: the identifier is the model this input already applied. The
-		// promotion still has to register, or the model stays an automatic pick that the location
-		// default replaces as soon as it publishes.
+		// Only where the model came from changes: the identifier is the model this input already
+		// applied. The promotion still has to register, or the model stays an automatic pick that
+		// the location default replaces as soon as it publishes.
 		const testSession = createSession('provider', SessionStatus.Untitled);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		provider.models = [first];

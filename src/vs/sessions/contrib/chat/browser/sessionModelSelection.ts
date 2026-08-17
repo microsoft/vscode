@@ -22,7 +22,7 @@ import { ChatModelSource, SessionStatus } from '../../../services/sessions/commo
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
-import { restoreReasonForSource, sourceForReason } from './sessionModelProvenance.js';
+import { restoreReasonForSource, sourceForReason } from './sessionModelSource.js';
 
 /** Bounded: a long-lived window binds arbitrarily many chats, and old ones are not worth the memory. */
 const CONVERSATION_CACHE_SIZE = 50;
@@ -117,7 +117,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			session?.status.read(reader);
 			const chat = session?.activeChat.read(reader);
 			chat?.status.read(reader);
-			// Provenance alone decides whether a model outranks `chat.defaultModel`.
+			// Where the model came from is what decides whether it outranks `chat.defaultModel`.
 			chat?.modelSource.read(reader);
 			this._refresh('sessionState', session);
 		}));

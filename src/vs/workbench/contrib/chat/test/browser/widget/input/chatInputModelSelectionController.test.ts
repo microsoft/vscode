@@ -1095,7 +1095,7 @@ suite('ChatInputModelSelectionController', () => {
 	test('a restored model the surface vouches for outranks the configured default on an empty session', () => {
 		// Same shape as the spilled-over case above, but the surface can say the conversation chose
 		// this model. That is the difference the Agents Window could always see (its providers
-		// report provenance) and Workbench could not, so the two used to disagree here.
+		// report where a model came from) and Workbench could not, so the two used to disagree here.
 		const gpt = model('test/gpt');
 		const opus = model('test/opus');
 		const modelChanges = disposables.add(new Emitter<string>());

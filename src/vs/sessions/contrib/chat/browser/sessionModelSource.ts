@@ -7,12 +7,12 @@ import { ModelSelectionReason, RestoredModelReason } from '../../../../workbench
 import { ChatModelSource } from '../../../services/sessions/common/session.js';
 
 /**
- * Translates between a provider's account of a chat's model ({@link ChatModelSource}, four answers)
- * and how the shared controller records one ({@link RestoredModelReason}, two). Kept in one place
- * so the collapse from four to two happens once.
+ * Translates between a provider's account of where a chat's model came from ({@link ChatModelSource},
+ * four answers) and how the shared controller records one ({@link RestoredModelReason}, two). Kept
+ * in one place so the collapse from four to two happens once.
  */
 
-/** Missing provenance counts as the chat's own, so `chat.defaultModel` cannot overwrite it. */
+/** A model the provider cannot account for counts as the chat's own, so `chat.defaultModel` cannot overwrite it. */
 export function restoreReasonForSource(source: ChatModelSource | undefined): RestoredModelReason {
 	switch (source) {
 		case ChatModelSource.Automatic:
@@ -24,7 +24,7 @@ export function restoreReasonForSource(source: ChatModelSource | undefined): Res
 }
 
 /**
- * The provenance to write a controller decision under. Derived from the reason so provenance has a
+ * Where to record a controller decision as having come from. Derived from the reason so there is a
  * single source of truth. A user's pick reads back as `Restored`: both count as the conversation's
  * own, so no outcome changes, only the label.
  */
