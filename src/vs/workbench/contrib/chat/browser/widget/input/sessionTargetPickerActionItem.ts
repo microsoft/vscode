@@ -25,6 +25,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -189,7 +190,10 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EditorPreferCopilotHarness) ||
 				e.affectsConfiguration(ChatConfiguration.DefaultToCopilotHarness) ||
-				e.affectsConfiguration(ChatConfiguration.EditorLocalAgentEnabled)) {
+				e.affectsConfiguration(ChatConfiguration.EditorLocalAgentEnabled) ||
+				// A policy-enforced sandbox hides the local harness and forces the Copilot SDK.
+				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) ||
+				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled)) {
 				this._updateAgentSessionItems();
 				if (this.element) {
 					this.renderLabel(this.element);

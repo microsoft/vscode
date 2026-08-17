@@ -50,6 +50,7 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService, PolicyValueSource } from '../../../platform/policy/common/policy.js';
+import { AgentSandboxSettingId } from '../../../platform/sandbox/common/settings.js';
 import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
@@ -58,7 +59,7 @@ import { isObject } from '../../../base/common/types.js';
 import * as json from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 import { IAgentHostService } from '../../../platform/agentHost/common/agentService.js';
-import { IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js';
+import { getManagedSandboxHarnessEnforcement, IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { markdownDetails, markdownJsonBlock, markdownTable, markdownText } from './policyDiagnosticsMarkdown.js';
@@ -735,6 +736,7 @@ interface IPolicyDiagnosticsSummary {
 	effectiveManagedSettings: string;
 	managedSettingsIssues: string;
 	agentRuntime: string;
+	chatHarnessEnforcement: string;
 	policyControlledSettings: string;
 }
 
@@ -845,6 +847,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			effectiveManagedSettings: 'Unavailable',
 			managedSettingsIssues: 'Unavailable',
 			agentRuntime: 'Unavailable',
+			chatHarnessEnforcement: 'Unavailable',
 			policyControlledSettings: 'Unavailable'
 		};
 
@@ -1229,6 +1232,38 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '*No policy-controlled settings found*\n\n';
 		}
 
+		content += '## Chat Harness Enforcement\n\n';
+		content += '*An agent sandbox that is turned on through managed settings retires the legacy local harness for this user: new chats use the Agent Host Copilot SDK and the local harness is hidden from the pickers. A user- or workspace-level sandbox opt-in does not trigger this, and existing local chat sessions keep running on the local harness.*\n\n';
+		try {
+			const sandboxEnforcement = getManagedSandboxHarnessEnforcement(configurationService);
+			const policySourceLabel = (settingKey: string, policyValue: unknown): string => {
+				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
+				const policyName = property?.policy?.name;
+				return policyValue !== undefined && policyName ? policyValueSourceLabel(policyService.getPolicyValueSource(policyName)) : 'n/a';
+			};
+			const policyValueLabel = (policyValue: unknown): string => policyValue !== undefined ? formatDiagnosticValue(policyValue) : 'not set';
+			summary.chatHarnessEnforcement = sandboxEnforcement.enforced
+				? 'Agent Host Copilot SDK forced by managed sandbox'
+				: 'Not enforced';
+			content += markdownTable(
+				['Property', 'Value'],
+				[
+					[`${AgentSandboxSettingId.AgentSandboxEnabled} (effective)`, formatDiagnosticValue(configurationService.inspect(AgentSandboxSettingId.AgentSandboxEnabled).value)],
+					[`${AgentSandboxSettingId.AgentSandboxEnabled} (policy)`, policyValueLabel(sandboxEnforcement.sandboxPolicyValue)],
+					[`${AgentSandboxSettingId.AgentSandboxEnabled} (policy source)`, policySourceLabel(AgentSandboxSettingId.AgentSandboxEnabled, sandboxEnforcement.sandboxPolicyValue)],
+					[`${AgentSandboxSettingId.AgentSandboxWindowsEnabled} (effective)`, formatDiagnosticValue(configurationService.inspect(AgentSandboxSettingId.AgentSandboxWindowsEnabled).value)],
+					[`${AgentSandboxSettingId.AgentSandboxWindowsEnabled} (policy)`, policyValueLabel(sandboxEnforcement.windowsSandboxPolicyValue)],
+					[`${AgentSandboxSettingId.AgentSandboxWindowsEnabled} (policy source)`, policySourceLabel(AgentSandboxSettingId.AgentSandboxWindowsEnabled, sandboxEnforcement.windowsSandboxPolicyValue)],
+					['Legacy local harness', sandboxEnforcement.enforced ? 'Hidden (forced by managed sandbox)' : 'Follows chat.editor.localAgent.enabled'],
+					['New chat harness', sandboxEnforcement.enforced ? 'Agent Host Copilot SDK (forced by managed sandbox)' : 'Follows chat.defaultToCopilotHarness / chat.editor.preferCopilotHarness']
+				]
+			);
+		} catch (error) {
+			const message = getErrorMessage(error);
+			summary.chatHarnessEnforcement = `Unavailable (${message})`;
+			content += `*Error resolving chat harness enforcement: ${markdownText(message)}*\n\n`;
+		}
+
 		// Authentication diagnostics
 		content += '## Authentication Information\n\n';
 		try {
@@ -1292,6 +1327,7 @@ class PolicyDiagnosticsAction extends Action2 {
 					['Effective managed settings', summary.effectiveManagedSettings],
 					['Managed-settings issues', summary.managedSettingsIssues],
 					['Agent Runtime', summary.agentRuntime],
+					['Chat harness enforcement', summary.chatHarnessEnforcement],
 					['Policy-controlled settings', summary.policyControlledSettings]
 				]
 			) +

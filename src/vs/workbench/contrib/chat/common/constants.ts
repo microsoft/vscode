@@ -16,7 +16,7 @@ import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../comm
 import { URI } from '../../../../base/common/uri.js';
 import { getNewChatSessionResource } from './model/chatUri.js';
 import { clearUserSelectedSessionType, getRememberedSessionType, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
-import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostEnablementService, isCopilotHarnessForcedByManagedSandbox } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 export { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
@@ -302,9 +302,9 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
  * editor window.
  *
  * Virtual workspaces always default to {@link localChatSessionType}. Otherwise,
- * when the agent host is enabled and `chat.defaultToCopilotHarness` is opted in,
- * Agent Host Copilot CLI is the default. It falls back to the local harness
- * when enabled, or to the first visible non-local provider.
+ * when the agent host is enabled and either `chat.defaultToCopilotHarness` is opted in or the
+ * agent sandbox is enforced by policy, Agent Host Copilot CLI is the default. It falls back to
+ * the local harness when enabled, or to the first visible non-local provider.
  */
 export function getComputedDefaultSessionType(
 	configurationService: IConfigurationService,
@@ -316,7 +316,7 @@ export function getComputedDefaultSessionType(
 		return localChatSessionType;
 	}
 
-	if (agentHostEnabled && configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness)) {
+	if (agentHostEnabled && isCopilotHarnessDefault(configurationService)) {
 		return SessionType.AgentHostCopilot;
 	}
 
@@ -416,7 +416,7 @@ export function resolveDefaultNewChatSessionType(
 
 	if (options?.currentSessionType === localChatSessionType
 		&& agentHostEnabled
-		&& configurationService.getValue<boolean>(ChatConfiguration.EditorPreferCopilotHarness)) {
+		&& isCopilotHarnessPreferred(configurationService)) {
 		return { sessionType: SessionType.AgentHostCopilot };
 	}
 
@@ -461,8 +461,38 @@ export function recordUserSelectedSessionType(
 	}
 }
 
+/**
+ * Whether new editor and panel chats should default to the Agent Host Copilot SDK. Enterprises
+ * that enforce the agent sandbox through policy get this behavior without opting into
+ * `chat.defaultToCopilotHarness`.
+ */
+export function isCopilotHarnessDefault(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness) === true
+		|| isCopilotHarnessForcedByManagedSandbox(configurationService);
+}
+
+/**
+ * Whether the Agent Host Copilot SDK replaces the local harness whenever the local harness would
+ * otherwise be picked for a new chat. Implied by an enterprise-enforced agent sandbox.
+ */
+export function isCopilotHarnessPreferred(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(ChatConfiguration.EditorPreferCopilotHarness) === true
+		|| isCopilotHarnessForcedByManagedSandbox(configurationService);
+}
+
 export function isEditorLocalAgentEnabled(configurationService: IConfigurationService, workspace: IWorkspace): boolean {
-	return isVirtualWorkspace(workspace) || (configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true);
+	if (isVirtualWorkspace(workspace)) {
+		return true;
+	}
+
+	// An enterprise-enforced agent sandbox retires the legacy local harness for that user: the
+	// enterprise has declared these users governed, and sandboxing is being built out on the
+	// Agent Host.
+	if (isCopilotHarnessForcedByManagedSandbox(configurationService)) {
+		return false;
+	}
+
+	return configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true;
 }
 
 export function isVisibleEditorChatSessionType(
