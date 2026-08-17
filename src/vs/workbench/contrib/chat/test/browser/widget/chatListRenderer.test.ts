@@ -512,14 +512,16 @@ suite('ChatListRenderer', () => {
 		});
 
 		test('summarizes per-model token usage for the footer stat hover', () => {
+			const completedAt = Date.UTC(2026, 7, 17, 19, 39);
+			const completedAtText = formatChatRequestTimestamp(completedAt)?.fullText;
 			const stats = formatResponseTokenStats([
 				{ model: 'Claude Opus 4.8', inputTokens: 12_400, cachedTokens: 9_000, outputTokens: 830 },
 				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
-			]);
+			], completedAt);
 
 			assert.deepStrictEqual({ markdown: stats?.markdown.value, ariaLabel: stats?.ariaLabel }, {
-				markdown: '**Tokens used this turn**\n\nClaude Opus 4.8 — 12K in, 830 out, 9K cached\n\ngpt-5.5 — 40 in, 12 out\n\n',
-				ariaLabel: 'Tokens used this turn. Claude Opus 4.8: 12400 input tokens, 830 output tokens, 9000 cached tokens. gpt-5.5: 40 input tokens, 12 output tokens',
+				markdown: `**Response details**\n\nCompleted: ${completedAtText}\n\nModel: Claude Opus 4.8\n\n- Input tokens: 12K\n- Cached input tokens: 9K\n- Output tokens: 830\n\nModel: gpt-5.5\n\n- Input tokens: 40\n- Output tokens: 12\n\n`,
+				ariaLabel: `Response details. Completed: ${completedAtText}. Model: Claude Opus 4.8. Input tokens: 12400. Cached input tokens: 9000. Output tokens: 830. Model: gpt-5.5. Input tokens: 40. Output tokens: 12`,
 			});
 		});
 
@@ -535,7 +537,7 @@ suite('ChatListRenderer', () => {
 
 		test('folds the token usage summary into the footer accessible name', () => {
 			const container = document.createElement('div');
-			const withStats = 'Tokens used this turn. gpt-5.5: 40 input tokens, 12 output tokens';
+			const withStats = 'Response details. Model: gpt-5.5. Input tokens: 40. Output tokens: 12';
 
 			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, undefined, false, withStats);
 			const included = container.ariaLabel;

@@ -334,41 +334,53 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
 }
 
 /**
- * Token consumption summary shown when hovering the response footer's model and
- * credits stat. Provider call-level reports are aggregated by model for the
- * whole turn.
+ * Response details shown when hovering the response footer's model and credits
+ * stat. Provider call-level token reports are aggregated by model for the whole
+ * turn.
  *
  * Returns `undefined` when the provider reported no totals, in which case no
  * hover should be shown at all. The result doubles as managed-hover content and
  * carries an `ariaLabel` with exact, unabbreviated counts.
  */
-export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly ariaLabel: string } | undefined {
+export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined, completedAt?: number): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly ariaLabel: string } | undefined {
 	if (!modelTotals?.length) {
 		return undefined;
 	}
 
-	const title = localize('chat.responseTokenStats.title', "Tokens used this turn");
+	const title = localize('chat.responseTokenStats.title', "Response details");
 	const markdown = new MarkdownString();
 	markdown.appendMarkdown(`**${escapeMarkdownSyntaxTokens(title)}**\n\n`);
 
+	const formatInputTokens = (count: number | string) => localize('chat.responseTokenStats.input', "Input tokens: {0}", count);
+	const formatOutputTokens = (count: number | string) => localize('chat.responseTokenStats.output', "Output tokens: {0}", count);
+	const formatCachedInputTokens = (count: number | string) => localize('chat.responseTokenStats.cachedInput', "Cached input tokens: {0}", count);
 	const ariaParts: string[] = [title];
-	for (const total of modelTotals) {
-		// Cached tokens are the portion of the input a provider served from cache; a
-		// zero is noise rather than information, so it gets its own shorter phrasing.
-		const line = total.cachedTokens > 0
-			? localize('chat.responseTokenStats.modelLineCached', "{0} — {1} in, {2} out, {3} cached",
-				total.model, formatTokenCount(total.inputTokens), formatTokenCount(total.outputTokens), formatTokenCount(total.cachedTokens))
-			: localize('chat.responseTokenStats.modelLine', "{0} — {1} in, {2} out",
-				total.model, formatTokenCount(total.inputTokens), formatTokenCount(total.outputTokens));
-		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(line)}\n\n`);
+	const completion = formatChatRequestTimestamp(completedAt);
+	if (completion) {
+		const completed = localize('chat.responseTokenStats.completed', "Completed: {0}", completion.fullText);
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(completed)}\n\n`);
+		ariaParts.push(completed);
+	}
 
-		// Screen readers get exact counts and spelled-out units; the visible line
-		// abbreviates (e.g. "12K") to stay compact.
-		ariaParts.push(total.cachedTokens > 0
-			? localize('chat.responseTokenStats.modelAriaCached', "{0}: {1} input tokens, {2} output tokens, {3} cached tokens",
-				total.model, total.inputTokens, total.outputTokens, total.cachedTokens)
-			: localize('chat.responseTokenStats.modelAria', "{0}: {1} input tokens, {2} output tokens",
-				total.model, total.inputTokens, total.outputTokens));
+	for (const total of modelTotals) {
+		const model = localize('chat.responseTokenStats.model', "Model: {0}", total.model);
+		const input = formatInputTokens(formatTokenCount(total.inputTokens));
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(model)}\n\n`);
+		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(input)}\n`);
+
+		const exactInput = formatInputTokens(total.inputTokens);
+		ariaParts.push(model, exactInput);
+		if (total.cachedTokens > 0) {
+			const cachedInput = formatCachedInputTokens(formatTokenCount(total.cachedTokens));
+			const exactCachedInput = formatCachedInputTokens(total.cachedTokens);
+			markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(cachedInput)}\n`);
+			ariaParts.push(exactCachedInput);
+		}
+		const output = formatOutputTokens(formatTokenCount(total.outputTokens));
+		const exactOutput = formatOutputTokens(total.outputTokens);
+		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(output)}\n`);
+		ariaParts.push(exactOutput);
+		markdown.appendMarkdown('\n');
 	}
 
 	const ariaLabel = ariaParts.join('. ');
@@ -1243,7 +1255,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// rendered, so the breakdown is recomputed on every render pass. Sessions
 			// whose provider reports no totals get no hover rather than an empty one.
 			const tokenStats = isResponseVM(element)
-				? formatResponseTokenStats(element.model.usage?.modelTotals)
+				? formatResponseTokenStats(element.model.usage?.modelTotals, element.model.completionTimestamp)
 				: undefined;
 			const completedAtElement = renderChatResponseDetails(
 				templateData.footerDetailsContainer,
