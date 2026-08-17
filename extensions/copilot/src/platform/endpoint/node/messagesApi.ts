@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContentBlockParam, DocumentBlockParam, ImageBlockParam, MessageParam, RedactedThinkingBlockParam, TextBlockParam, ThinkingBlockParam, ToolReferenceBlockParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources';
+import { ContentBlockParam, DocumentBlockParam, ImageBlockParam, MessageParam, RedactedThinkingBlockParam, RefusalStopDetails, TextBlockParam, ThinkingBlockParam, ToolReferenceBlockParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources';
 import { Raw } from '@vscode/prompt-tsx';
 import { Response } from '../../../platform/networking/common/fetcherService';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
 import { SSEParser } from '../../../util/vs/base/common/sseParser';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation } from '../../chat/common/commonTypes';
+import { ChatLocation, getDefaultRefusalMessage } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled } from '../../networking/common/anthropic';
-import { FinishedCallback, getRequestId, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, ICopilotError, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
-import { ChatCompletion, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
+import { ChatCompletion, ChatRefusal, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
 import { sendEngineMessagesTelemetry } from '../../networking/node/chatStream';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
@@ -137,11 +137,7 @@ interface AnthropicStreamEvent {
 		signature?: string;
 		stop_reason?: string;
 		stop_sequence?: string;
-		stop_details?: {
-			category?: string;
-			explanation?: string;
-			type?: string;
-		};
+		stop_details?: RefusalStopDetails | null;
 	};
 	copilot_annotations?: {
 		IPCodeCitations?: AnthropicIPCodeCitation[];
@@ -762,6 +758,7 @@ interface AnthropicCompletionState {
 	readonly model: string;
 	readonly messageId: string;
 	readonly stopReason: string | null | undefined;
+	readonly refusal?: ChatRefusal;
 	readonly textContent: string;
 	readonly toolCalls: readonly { id: string; name: string; arguments: string }[];
 	readonly inputTokens: number;
@@ -790,13 +787,30 @@ interface AnthropicCompletionState {
 function mapStopReason(stopReason: string | null | undefined): FinishedCompletionReason {
 	switch (stopReason) {
 		case 'refusal':
-			return FinishedCompletionReason.ClientDone;
+			return FinishedCompletionReason.Refusal;
 		case 'max_tokens':
 		case 'model_context_window_exceeded':
 			return FinishedCompletionReason.Length;
 		default:
 			return FinishedCompletionReason.Stop;
 	}
+}
+
+function buildRefusal(stopDetails: RefusalStopDetails | null | undefined): ChatRefusal {
+	return {
+		message: stopDetails?.explanation?.trim() || getDefaultRefusalMessage(),
+		category: stopDetails?.category ?? undefined,
+	};
+}
+
+function buildRefusalError(refusal: ChatRefusal): ICopilotError {
+	return {
+		agent: 'anthropic',
+		code: 'refusal',
+		message: refusal.message,
+		type: 'error',
+		identifier: refusal.category,
+	};
 }
 
 /**
@@ -851,6 +865,7 @@ function buildAnthropicCompletion(state: AnthropicCompletionState, logService: I
 			copilot_usage: state.copilotUsage,
 		},
 		finishReason: mapStopReason(state.stopReason),
+		...(state.refusal ? { refusal: state.refusal } : {}),
 		message: {
 			role: Raw.ChatRole.Assistant,
 			content: state.textContent ? [{
@@ -889,6 +904,7 @@ type AnthropicNonStreamingResponse =
 		)[];
 		model: string;
 		stop_reason: string | null;
+		stop_details?: RefusalStopDetails | null;
 		usage: {
 			input_tokens: number;
 			output_tokens: number;
@@ -987,22 +1003,9 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 			}
 		}
 
-		// Report text and tool calls to finishedCb so callers that rely on
-		// the callback (e.g. for OTEL tracing, progress, langModelServer SSE
-		// forwarding) see the complete response — matching the streaming path.
-		const delta: IResponseDelta = {
-			text: textContent,
-			...(toolCalls.length > 0 ? {
-				copilotToolCalls: toolCalls.map(tc => ({
-					id: tc.id,
-					name: tc.name,
-					arguments: tc.arguments,
-				})),
-			} : {}),
-		};
-		await finishCallback(textContent, 0, delta);
-
-		if (parsed.stop_reason === 'refusal') {
+		const refusal = parsed.stop_reason === 'refusal' ? buildRefusal(parsed.stop_details) : undefined;
+		if (refusal) {
+			const category = refusal.category ?? 'unknown';
 			logService.warn(`[messagesAPI] non-streaming: Refusal received for model ${parsed.model}`);
 
 			/* __GDPR__
@@ -1018,16 +1021,31 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 				{
 					requestId,
 					model: parsed.model,
-					category: 'unknown',
+					category,
 				}
 			);
 		}
+
+		// There are no incremental deltas here, so callback-only consumers need the whole response.
+		const delta: IResponseDelta = {
+			text: textContent,
+			...(toolCalls.length > 0 ? {
+				copilotToolCalls: toolCalls.map(tc => ({
+					id: tc.id,
+					name: tc.name,
+					arguments: tc.arguments,
+				})),
+			} : {}),
+			...(refusal ? { copilotErrors: [buildRefusalError(refusal)] } : {}),
+		};
+		await finishCallback(textContent, 0, delta);
 
 		const usage = parsed.usage;
 		const completion = buildAnthropicCompletion({
 			model: parsed.model,
 			messageId: parsed.id,
 			stopReason: parsed.stop_reason,
+			refusal,
 			textContent,
 			toolCalls,
 			inputTokens: usage?.input_tokens ?? 0,
@@ -1091,7 +1109,7 @@ export class AnthropicMessagesProcessor {
 	private copilotUsage?: { total_nano_aiu: number };
 	private contextManagementResponse?: ContextManagementResponse;
 	private stopReason: string | undefined;
-	private stopDetails?: { category?: string; explanation?: string; type?: string };
+	private stopDetails?: RefusalStopDetails;
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
@@ -1346,8 +1364,9 @@ export class AnthropicMessagesProcessor {
 						}
 					);
 				}
-				if (this.stopReason === 'refusal') {
-					const category = this.stopDetails?.category ?? 'unknown';
+				const refusal = this.stopReason === 'refusal' ? buildRefusal(this.stopDetails) : undefined;
+				if (refusal) {
+					const category = refusal.category ?? 'unknown';
 					this.logService.warn(`[messagesAPI] Refusal received: category='${category}' for model ${this.model}`);
 
 					/* __GDPR__
@@ -1366,12 +1385,18 @@ export class AnthropicMessagesProcessor {
 							category,
 						}
 					);
+
+					onProgress({
+						text: '',
+						copilotErrors: [buildRefusalError(refusal)],
+					});
 				}
 
 				return buildAnthropicCompletion({
 					model: this.model,
 					messageId: this.messageId,
 					stopReason: this.stopReason,
+					refusal,
 					textContent: this.textAccumulator,
 					toolCalls: this.completedToolCalls,
 					inputTokens: this.inputTokens,
@@ -1404,5 +1429,3 @@ export class AnthropicMessagesProcessor {
 		}
 	}
 }
-
-

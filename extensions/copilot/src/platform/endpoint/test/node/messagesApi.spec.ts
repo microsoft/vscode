@@ -1972,7 +1972,43 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		expect(results[0].message.content).toHaveLength(0);
 	});
 
-	test('maps refusal stop_reason to ClientDone', async () => {
+	test('carries the refusal explanation on the completion so it reaches the user', async () => {
+		const explanation = 'I cannot assist with this request.';
+		const response = createNonStreamingResponse({
+			id: 'msg_refusal_error',
+			type: 'message',
+			role: 'assistant',
+			content: [],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'refusal',
+			stop_details: { type: 'refusal', category: 'cyber', explanation },
+			usage: { input_tokens: 10, output_tokens: 0 },
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const deltas: IResponseDelta[] = [];
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async (_text, _idx, delta) => { deltas.push(delta); return undefined; },
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect({
+			finishReason: results[0].finishReason,
+			refusal: results[0].refusal,
+			copilotError: deltas.find(d => d.copilotErrors?.length)?.copilotErrors?.[0],
+		}).toEqual({
+			finishReason: 'refusal',
+			refusal: { message: explanation, category: 'cyber' },
+			copilotError: { agent: 'anthropic', code: 'refusal', type: 'error', identifier: 'cyber', message: explanation },
+		});
+	});
+
+	test('falls back to a generic refusal message and keeps any text the model did produce', async () => {
 		const response = createNonStreamingResponse({
 			id: 'msg_refusal',
 			type: 'message',
@@ -1994,7 +2030,15 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		for await (const c of completions) {
 			results.push(c);
 		}
-		expect(results[0].finishReason).toBe('DONE');
+		expect({
+			finishReason: results[0].finishReason,
+			refusal: results[0].refusal,
+			content: results[0].message.content,
+		}).toEqual({
+			finishReason: 'refusal',
+			refusal: { message: 'The model declined to complete this request.', category: undefined },
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'refused' }],
+		});
 	});
 
 	test('reports tool calls through finishCallback delta', async () => {
@@ -2270,5 +2314,44 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 		const completion = processor.push({ type: 'message_stop' }, noop);
 		expect(completion!.usage?.completion_tokens).toBe(2024);
 		expect(completion!.usage?.completion_tokens_details?.reasoning_tokens).toBe(639);
+	});
+
+	test('refusal stop_reason surfaces the explanation on both the delta and the completion', () => {
+		const processor = makeProcessor();
+		const deltas: IResponseDelta[] = [];
+		const capture: FinishedCallback = async (_text, _idx, delta) => { deltas.push(delta); return undefined; };
+		const explanation = 'I cannot assist with this request.';
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_refusal_stream',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: { input_tokens: 5, output_tokens: 0 },
+			},
+		}, capture);
+
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'refusal', stop_details: { type: 'refusal', category: 'cyber', explanation } },
+			usage: { output_tokens: 0, input_tokens: 5 },
+		}, capture);
+
+		const completion = processor.push({ type: 'message_stop' }, capture);
+
+		expect({
+			finishReason: completion!.finishReason,
+			refusal: completion!.refusal,
+			copilotError: deltas.find(d => d.copilotErrors?.length)?.copilotErrors?.[0],
+		}).toEqual({
+			finishReason: 'refusal',
+			refusal: { message: explanation, category: 'cyber' },
+			copilotError: { agent: 'anthropic', code: 'refusal', type: 'error', identifier: 'cyber', message: explanation },
+		});
 	});
 });
