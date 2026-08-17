@@ -55,20 +55,22 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 		const statusText = controller.statusText.read(reader);
 		const turns = controller.transcriptTurns.read(reader);
 		const targetSession = controller.targetSession.read(reader);
+		const omniInputOpen = controller.omniInputOpen.read(reader);
 
 		widget.setConnected(connected);
 		widget.setConnecting(connecting);
 		widget.setReconnecting(reconnecting);
-		widget.setVoiceState(state);
+		widget.setVoiceControlsSuppressed(omniInputOpen);
+		widget.setVoiceState(omniInputOpen ? 'idle' : state);
 		widget.setPendingToolConfirmations(toolConfirmations);
 		// Respect showTranscript setting — hide transcript when disabled
 		const showTranscript = configurationService?.getValue<boolean>('agents.voice.showTranscript') !== false;
-		widget.setTranscriptTurns(showTranscript ? turns : []);
+		widget.setTranscriptTurns(!omniInputOpen && showTranscript ? turns : []);
 		widget.setStatusText(statusText);
 		widget.setSelectedTargetSession(targetSession);
 
 		// Resolve speaking session label from the model
-		if (speakingSession) {
+		if (speakingSession && !omniInputOpen) {
 			const sessions = agentSessionsService.model.sessions;
 			const match = sessions.find(s => s.resource.toString() === speakingSession.toString());
 			widget.setSpeakingSession(speakingSession, match?.label);
@@ -145,7 +147,7 @@ function _updateSessionData(widget: AgentsVoiceWidget, services: IWidgetBindingS
 	// Show all non-archived sessions so the user can target any for transcription.
 	const sessions = agentSessionsService.model.sessions.filter(s => !s.isArchived());
 	const toolConfirmations = voiceSessionController.pendingToolConfirmations.get();
-	const speakingSession = voicePlaybackService.speakingSession.get();
+	const speakingSession = voiceSessionController.omniInputOpen.get() ? undefined : voicePlaybackService.speakingSession.get();
 
 	// Sort: NeedsInput first, then InProgress, then Completed; most recent first within
 	const statusOrder = (s: typeof sessions[0]) =>

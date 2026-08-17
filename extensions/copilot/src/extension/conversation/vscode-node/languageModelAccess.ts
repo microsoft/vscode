@@ -10,7 +10,6 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
 import { IBlockedExtensionService } from '../../../platform/chat/common/blockedExtensionService';
 import { ChatFetchResponseType, ChatLocation, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
 import { AUTO_MODE_TIER_PROPERTY, defaultAutoModeTier, selectableAutoModeTiers } from '../../../platform/endpoint/common/autoModeTiers';
@@ -52,7 +51,7 @@ import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoM
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
  * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
  */
-function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boolean): { value: number; description: string; isDefault: boolean }[] | undefined {
+function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; description: string; isDefault: boolean }[] | undefined {
 	const pricing = endpoint.tokenPricing;
 
 	// Only offer a selector when CAPI provides a default context max,
@@ -69,21 +68,15 @@ function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boole
 		return undefined;
 	}
 
-	const hasLongContextSurcharge = !!pricing.longContext;
-
-	// When both tiers cost the same and the user prefers long context, show only the full window as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
-	if (preferLongContext && !hasLongContextSurcharge) {
-		return [
-			{ value: fullMax, description: vscode.l10n.t('Longer sessions'), isDefault: true },
-		];
-	}
+	// Offer both sizes; default to the full window when long context is free, else the smaller tier.
+	const fullIsDefault = !pricing.longContext;
 
 	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default recommended context size'), isDefault: true },
+		{ value: defaultMax, description: vscode.l10n.t('Default recommended context size'), isDefault: !fullIsDefault },
 		{
 			value: fullMax,
 			description: vscode.l10n.t('Longer sessions'),
-			isDefault: false,
+			isDefault: fullIsDefault,
 		},
 	];
 }
@@ -126,7 +119,7 @@ function buildAutoRoutingContext(
 
 // Auto model delegates to different backends, so the only picker it exposes is
 // the routing tier; per-model options belong to the model it routes to.
-function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: boolean, autoTiersEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
 		return autoTiersEnabled
 			? { configurationSchema: { properties: { [AUTO_MODE_TIER_PROPERTY]: buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier) } } }
@@ -142,7 +135,7 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: bo
 	}
 
 	// Context size config
-	const contextSizeOptions = getContextSizeOptions(endpoint, preferLongContext);
+	const contextSizeOptions = getContextSizeOptions(endpoint);
 	if (contextSizeOptions) {
 		const defaultOption = contextSizeOptions.find(o => o.isDefault);
 		properties.contextSize = {
@@ -163,7 +156,8 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: bo
 	return { configurationSchema: { properties } };
 }
 
-const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility'];
+const DICTATION_CLEANUP_LUNA_ALIAS = 'copilot-dictation-cleanup-luna';
+const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility', DICTATION_CLEANUP_LUNA_ALIAS];
 
 /**
  * Builds the {@link vscode.LanguageModelChatInformation} entry that publishes a
@@ -249,7 +243,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		@IVSCodeExtensionContext private readonly _vsCodeExtensionContext: IVSCodeExtensionContext,
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -303,6 +296,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			// honored while routing goes through `POST /auto`.
 			this._onDidChange.fire();
 		}));
+		void this._refreshUtilityOverrides().catch(err => {
+			this._logService.warn(`[LanguageModelAccess] Failed to pre-resolve internal model aliases: ${err}`);
+		});
 	}
 
 	private async _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
@@ -332,7 +328,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 
 		const seenFamilies = new Set<string>();
-		const preferLongContext = this._configurationService.getConfig(ConfigKey.PreferLongContext);
 		const autoTiersEnabled = this._automodeService.areAutoModeTiersSupported();
 
 		for (const endpoint of chatEndpoints) {
@@ -413,7 +408,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
 				},
-				...buildConfigurationSchema(endpoint, preferLongContext, autoTiersEnabled),
+				...buildConfigurationSchema(endpoint, autoTiersEnabled),
 			};
 
 			models.push(model);
@@ -550,6 +545,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
+		if (model.id === DICTATION_CLEANUP_LUNA_ALIAS && options.requestInitiator !== 'core') {
+			throw new Error(`Model ${model.id} is only available to VS Code core.`);
+		}
 		let endpoint = await this._getEndpointForModel(model, buildAutoRoutingContext(messages, options));
 		if (!endpoint) {
 			throw new Error(`Endpoint not found for model ${model.id}`);

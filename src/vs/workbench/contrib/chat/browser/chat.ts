@@ -242,6 +242,7 @@ export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | ICha
 
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
+	readonly questionCarouselFitContent?: boolean;
 	readonly noHeader?: boolean;
 	readonly noFooter?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
@@ -363,6 +364,7 @@ export function isIChatViewViewContext(context: IChatWidgetViewContext): context
 export interface IChatResourceViewContext {
 	isQuickChat?: boolean;
 	isInlineChat?: boolean;
+	isChatInputWindow?: boolean;
 }
 
 export function isIChatResourceViewContext(context: IChatWidgetViewContext): context is IChatResourceViewContext {

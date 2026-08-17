@@ -73,6 +73,9 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key gating active-agent session and chat title generation. */
 export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
 
+/** Configuration key enabling rich-link guidance for Markdown plan documents. */
+export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
+
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
  * agent-host provider. When `true`, the Copilot provider advertises the
@@ -824,8 +827,9 @@ export interface IAgentService {
 	/**
 	 * Routes a request received on an `mcp://` AHP side channel to the
 	 * MCP server implementation owned by the appropriate agent. The
-	 * channel URI shape is `mcp://<providerId>/<sessionId>/<serverName>`
-	 * (the latter two segments URL-encoded), matching the
+	 * channel URI shape is `mcp://<providerId>/<chatUri>/<serverName>`
+	 * (the latter two segments URL-encoded), where `chatUri` is the concrete
+	 * `ahp-chat://` URI, matching the
 	 * {@link McpServerCustomization.channel | channel} the agent host
 	 * advertises while the server is in
 	 * {@link McpServerStatus.Ready | `Ready`}.

@@ -332,25 +332,14 @@
 	container-type: unset;
 }
 
-/* Chat tabs mirror the modern editor-tab geometry while remaining fully scoped
-	to the chat composite bar. State colors come from the shared modern-tab
-	tokens loaded by the always-modern Agents workbench. */
+/* The shared modern editor-tab hooks own tab geometry, typography, and states.
+	This file only supplies chat-specific layout and adornments. */
 .session-chat-tabs-bar .chat-composite-bar-tabs > .chat-composite-bar-tab {
 	display: flex;
 	align-items: center;
 	position: relative;
-	box-sizing: border-box;
-	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-spacing-size40) * 2);
-	background-color: transparent;
-	border-block: var(--vscode-spacing-size40) solid transparent;
-	border-right: none;
-	border-radius: var(--vscode-cornerRadius-small);
-	box-shadow: none;
 	cursor: pointer;
 	color: var(--chat-tab-inactive-foreground);
-	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-regular);
-	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
@@ -358,17 +347,10 @@
 
 .session-chat-tabs-bar .chat-composite-bar-tab-fill {
 	display: block;
-	position: absolute;
-	inset: 0 var(--vscode-spacing-size20);
-	z-index: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	box-sizing: border-box;
 	pointer-events: none;
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab-label {
-	position: relative;
-	z-index: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -439,29 +421,6 @@
 	padding: 0 4px;
 }
 
-.chat-composite-bar-tab:hover:not(.active) {
-	color: var(--chat-tab-active-foreground);
-}
-
-.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab:hover:not(.active) > .chat-composite-bar-tab-fill {
-	background-color: var(--modern-ui-editor-tab-action-hover-background);
-}
-
-/* Active state: background container instead of underline — mirrors auxiliarybar checked */
-.session-view .chat-composite-bar-tab.active {
-	color: var(--chat-tab-active-foreground);
-}
-
-.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-view.is-active .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-fill {
-	background-color: var(--modern-ui-editor-tab-action-active-background);
-}
-
-.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-view:not(.is-active) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-fill,
-.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-view:not(.is-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions,
-.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-view:not(.is-active) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within {
-	background-color: var(--vscode-tab-selectedBackground);
-}
-
 /* Indicator: rendered inline after the label and beneath the overlaid close action.
 	Shows a small blue dot for unread, a yellow dot when input is needed,
 	or a spinner for in-progress.
@@ -512,11 +471,6 @@
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
-.chat-composite-bar-tab:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
 .session-chat-tabs-bar .chat-composite-bar-tab-actions {
 	display: flex;
 	align-items: center;
@@ -529,7 +483,11 @@
 	margin: 0 var(--vscode-spacing-size20);
 	width: var(--vscode-spacing-size240);
 	overflow: visible;
+	border-block: var(--vscode-strokeThickness) solid transparent;
+	border-right: var(--vscode-strokeThickness) solid transparent;
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+	background-clip: padding-box;
+	box-sizing: border-box;
 	pointer-events: none;
 }
 
@@ -541,15 +499,71 @@
 	justify-content: center;
 }
 
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 100%;
+	bottom: 0;
+	width: var(--vscode-spacing-size160);
+	border-block: var(--vscode-strokeThickness) solid transparent;
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-hover-background));
+	background-clip: padding-box;
+	box-sizing: border-box;
+	pointer-events: none;
+}
+
 .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions,
 .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within {
 	background-color: var(--modern-ui-editor-tab-action-hover-background);
 	pointer-events: auto;
 }
 
-.session-view.is-active .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions,
-.session-view.is-active .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within {
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions,
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-unfocused-hover-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-unfocused-hover-background));
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions,
+.session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within {
 	background-color: var(--modern-ui-editor-tab-action-active-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-active-background));
+}
+
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions,
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-unfocused-active-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-unfocused-active-background));
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions {
+	background-color: var(--modern-ui-editor-tab-action-active-hover-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-active-hover-background));
+}
+
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions {
+	background-color: var(--modern-ui-editor-tab-action-unfocused-active-hover-background);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-unfocused-active-hover-background));
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab:not(:hover) > .chat-composite-bar-tab-actions .action-label:not(:focus) {
@@ -568,10 +582,6 @@
 	padding: var(--vscode-spacing-size20);
 	width: var(--vscode-codiconFontSize);
 	height: var(--vscode-codiconFontSize);
-}
-
-:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab {
-	outline: none;
 }
 
 :is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab:hover .chat-composite-bar-tab-actions,
@@ -599,16 +609,4 @@
 	border-block: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	border-right: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	box-sizing: border-box;
-}
-
-:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab.active:not(:focus) > .chat-composite-bar-tab-fill {
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
-}
-
-:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab:not(.active):not(:focus):hover > .chat-composite-bar-tab-fill {
-	border: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
-}
-
-:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab:focus > .chat-composite-bar-tab-fill {
-	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 }

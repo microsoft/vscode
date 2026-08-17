@@ -163,7 +163,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			}());
 			reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 				override readonly onDidChangeFeedback = Event.None;
+				override readonly onDidChangeFeedbackVisibility = Event.None;
 				override readonly onDidChangeFeedbackScope = Event.None;
+				override readonly onDidRevealSessionComment = Event.None;
+				override getVisibleResolvedFeedbackIds(): ReadonlySet<string> { return new Set(); }
 				override getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
 					return sessionResource.toString() === AGENT_FEEDBACK_NEW_SESSION_RESOURCE.toString() ? feedbackItems : [];
 				}
@@ -203,6 +206,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly voiceState = observableValue<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('voiceState', 'idle');
 				override readonly targetSession = observableValue<URI | undefined>('targetSession', undefined);
 				override readonly hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
+				override readonly omniInputOpen = observableValue<boolean>('omniInputOpen', false);
 				override readonly transcriptTurns = observableValue<never[]>('transcriptTurns', []);
 			}());
 			reg.defineInstance(ITtsPlaybackService, new class extends mock<ITtsPlaybackService>() {

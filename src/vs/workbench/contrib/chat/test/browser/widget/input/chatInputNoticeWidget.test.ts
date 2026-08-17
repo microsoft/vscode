@@ -63,6 +63,40 @@ suite('ChatInputNoticeWidget', () => {
 			{ parented: false, connected: false });
 	});
 
+	test('creates the notice and its actions for an auxiliary window', () => {
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		disposables.add(toDisposable(() => iframe.remove()));
+
+		const auxiliaryDocument = iframe.contentDocument!;
+		const container = document.createElement('div');
+		auxiliaryDocument.body.appendChild(container);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		disposables.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		const notice = createNotice(container);
+		const action = notice.addAction({
+			ariaLabel: 'Continue',
+			icon: Codicon.check,
+			onActivate: () => { },
+		});
+
+		assert.deepStrictEqual({
+			noticeOwnerDocument: notice.domNode.ownerDocument === auxiliaryDocument,
+			actionOwnerDocument: action.ownerDocument === auxiliaryDocument,
+			mainRealmNotice: notice.domNode instanceof HTMLElement,
+			mainRealmAction: action instanceof HTMLElement,
+		}, {
+			noticeOwnerDocument: true,
+			actionOwnerDocument: true,
+			mainRealmNotice: true,
+			mainRealmAction: true,
+		});
+	});
+
 	test('interrupts for an introduction, but waits its turn for a tip', () => {
 		const container = createContainer(disposables);
 		const ariaContainer = dom.append(container, dom.$('div'));

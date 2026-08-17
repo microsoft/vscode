@@ -17,7 +17,6 @@ import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 
 // Registers the singleton implementation (side-effect import).
 import './chatInputWindowService.js';
-import '../sessionRouter/chatSessionRoutingProviderService.js';
 
 const inputWindowEnabled = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
@@ -58,7 +57,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('chat.closeInputWindow', "Close Floating Chat Input Window"),
 			category: Categories.View,
 			f1: false,
-			icon: Codicon.close,
+			icon: Codicon.closeSmall,
 		});
 	}
 	run(accessor: ServicesAccessor): void {

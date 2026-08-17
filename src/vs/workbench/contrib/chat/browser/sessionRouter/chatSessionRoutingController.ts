@@ -91,7 +91,7 @@ function renderCompletedResponse(labelElement: HTMLElement, sessionLabel: string
 		"Completed {0}:",
 		lowercaseFirstLetter(sessionLabel)
 	);
-	const rendered = renderMarkdown(new MarkdownString(lowercaseFirstLetter(preview)));
+	const rendered = renderMarkdown(new MarkdownString(preview));
 	rendered.element.classList.add('chat-routing-badge-response-preview');
 	labelElement.classList.add('chat-routing-badge-completed');
 	labelElement.replaceChildren(prefix, rendered.element);
@@ -159,6 +159,8 @@ export interface IChatSessionRoutingHost extends IChatSessionRoutingFolderPicker
 	getPendingReplySessionResource?(): URI | undefined;
 	/** Session provider selected for a newly created destination. */
 	getNewSessionTarget?(): AgentSessionTarget | undefined;
+	/** Display name of the model selected for a newly created destination. */
+	getSelectedModelLabel?(): string | undefined;
 	/**
 	 * Insert the advisory badge into the host DOM near the input.
 	 * If the host has no surface to place it, leave the badge disconnected and
@@ -169,8 +171,8 @@ export interface IChatSessionRoutingHost extends IChatSessionRoutingFolderPicker
 	onWillRoute?(): void;
 	/** Notify the host immediately before sending so stale destination state can be invalidated. */
 	onWillDispatchRoute?(resource: URI): void;
-	/** Roll back pre-dispatch state when the send is rejected or fails. */
-	onDidRejectRoute?(resource: URI): void;
+	/** Roll back pre-dispatch state when the send is rejected, cancelled, or fails. */
+	onDidRejectRoute?(resource: URI | undefined, isVoiceModeInput?: boolean): void;
 	/** Notify the host when a single-target route resolves, or clear it for fan-out. */
 	onDidResolveRoute?(resource: URI | undefined, kind?: 'existing_session' | 'new_session', isVoiceModeInput?: boolean, requestId?: string): void;
 	/** Notify the host when the user dismisses a routed request's delivery and pending-input UI. */
@@ -252,6 +254,7 @@ export class ChatSessionRoutingController extends Disposable {
 		const draftListeners = new DisposableStore();
 		const cancelForDraftChange = () => {
 			cts.cancel();
+			this.host.onDidRejectRoute?.(undefined, isVoiceModeInput);
 			if (this._submitCts.value === cts) {
 				this._pendingSend.clear();
 				this._submitDraftListeners.clear();
@@ -322,11 +325,8 @@ export class ChatSessionRoutingController extends Disposable {
 			return;
 		}
 
-		// Every candidate receives a lightweight semantic pass before we bound the
-		// more expensive transcript enrichment. This prevents an older, generically
-		// named but relevant session from being excluded by local metadata alone.
 		const preliminaryResults = candidates.length > ROUTE_ENRICH_MAX_CANDIDATES
-			? await this._route(candidates, utterance, token)
+			? heuristicScore({ utterance, sessions: candidates })
 			: [];
 		if (token.isCancellationRequested) {
 			return;
@@ -378,7 +378,7 @@ export class ChatSessionRoutingController extends Disposable {
 			if ((result.status === 'sent' || result.status === 'queued') && result.resource) {
 				this._showDeliveryConfirmation(target.label, result);
 			} else {
-				this._showDispatchFailure(target.label);
+				this._showDispatchFailure(target.label, result.reason);
 			}
 		});
 	}
@@ -689,6 +689,7 @@ export class ChatSessionRoutingController extends Disposable {
 		if (!badge.parentElement) {
 			this.logService.warn('[chatSessionRouting] no surface available for destination review; preserving draft');
 			cts.cancel();
+			this.host.onDidRejectRoute?.(undefined, requestOptions.isVoiceModeInput);
 			this._submitDraftListeners.clear();
 			this._setSubmissionPhase('idle');
 			return;
@@ -768,7 +769,7 @@ export class ChatSessionRoutingController extends Disposable {
 					? localize('chatSessionRouting.bestMatchSessionModel', "Best Match · Session model")
 					: localize('chatSessionRouting.highConfidenceSessionModel', "High Confidence · Session model")
 				: requestOptions.userSelectedModelId
-					? localize('chatSessionRouting.selectedModel', "Selected model")
+					? this.host.getSelectedModelLabel?.() ?? requestOptions.userSelectedModelId
 					: '';
 			if (option.kind === 'new' && this._hasWorkspacePickerOptions()) {
 				const selectedFolderName = option.folder
@@ -883,11 +884,12 @@ export class ChatSessionRoutingController extends Disposable {
 			progressLabel.textContent = localize('chatSessionRouting.dispatching', "Sending request…");
 			const sent = [...selection].sort((a, b) => a - b).map(index => options[index]);
 			if (!sent.length) {
+				this.host.onDidRejectRoute?.(undefined, requestOptions.isVoiceModeInput);
 				this._setSubmissionPhase('idle');
 				return;
 			}
 			if (sent.length > 1) {
-				this.host.onDidResolveRoute?.(undefined);
+				this.host.onDidResolveRoute?.(undefined, undefined, requestOptions.isVoiceModeInput);
 			}
 			const dispatches = sent.map(selected =>
 				this._dispatchTo(selected, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts.token, sent.length === 1)
@@ -910,7 +912,7 @@ export class ChatSessionRoutingController extends Disposable {
 				if ((result.status === 'sent' || result.status === 'queued') && result.resource) {
 					this._showDeliveryConfirmation(selected.label, result);
 				} else {
-					this._showDispatchFailure(selected.label);
+					this._showDispatchFailure(selected.label, result.reason);
 				}
 			});
 		};
@@ -931,6 +933,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const cancel = () => {
 			cts.cancel();
+			this.host.onDidRejectRoute?.(undefined, requestOptions.isVoiceModeInput);
 			this._pendingSend.clear();
 			this._setSubmissionPhase('idle');
 		};
@@ -1090,7 +1093,7 @@ export class ChatSessionRoutingController extends Disposable {
 			} else if (requestInProgress || sessionStatus === AgentSessionStatus.InProgress) {
 				observedActivity = true;
 				icon = Codicon.loading;
-				statusLabel = localize('chatSessionRouting.inProgress', "{0} in progress", sessionLabel);
+				statusLabel = localize('chatSessionRouting.inProgress', "In progress: {0}", sessionLabel);
 			} else if (sessionStatus === AgentSessionStatus.Failed) {
 				observedActivity = true;
 				icon = Codicon.error;
@@ -1182,7 +1185,7 @@ export class ChatSessionRoutingController extends Disposable {
 				statusLabel = localize('chatSessionRouting.needsInputIn', "{0} needs your input", session.label);
 			} else if (session.status === 'working') {
 				icon = Codicon.loading;
-				statusLabel = localize('chatSessionRouting.inProgress', "{0} in progress", session.label);
+				statusLabel = localize('chatSessionRouting.inProgress', "In progress: {0}", session.label);
 			} else if (session.status === 'failed') {
 				icon = Codicon.error;
 				statusLabel = localize('chatSessionRouting.failedIn', "Failed in {0}", session.label);
@@ -1266,14 +1269,16 @@ export class ChatSessionRoutingController extends Disposable {
 		ariaAlert(localize('chatSessionRouting.fanoutResult', "{0} sent, {1} queued, {2} failed.", sent, queued, failed));
 	}
 
-	private _showDispatchFailure(label?: string): void {
+	private _showDispatchFailure(label?: string, reason?: string): void {
 		const badge = dom.$('.chat-routing-badge');
 		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
 		mark.appendChild(renderIcon(Codicon.error));
 		const message = dom.append(badge, dom.$('span.chat-routing-badge-label'));
-		message.textContent = label
-			? localize('chatSessionRouting.sendFailedTo', "Could not send to {0}. Your draft was preserved.", label)
-			: localize('chatSessionRouting.sendFailed', "Could not send the request. Your draft was preserved.");
+		message.textContent = label && reason
+			? localize('chatSessionRouting.sendFailedToWithReason', "Could not send to {0}: {1} Your draft was preserved.", label, reason)
+			: label
+				? localize('chatSessionRouting.sendFailedTo', "Could not send to {0}. Your draft was preserved.", label)
+				: localize('chatSessionRouting.sendFailed', "Could not send the request. Your draft was preserved.");
 		this.host.placeBadge(badge);
 		if (!badge.parentElement) {
 			return;
@@ -1317,6 +1322,9 @@ export class ChatSessionRoutingController extends Disposable {
 		try {
 			target = URI.parse(sessionId);
 		} catch (err) {
+			if (notifyRoute) {
+				this.host.onDidRejectRoute?.(undefined, requestOptions.isVoiceModeInput);
+			}
 			this.logService.warn('[chatSessionRouting] invalid session id for routing:', sessionId, err);
 			return { status: 'rejected' };
 		}
@@ -1325,9 +1333,15 @@ export class ChatSessionRoutingController extends Disposable {
 			const ref = await this.chatService.acquireOrLoadSession(target, ChatAgentLocation.Chat, token, `${this.debugOwner}-route`);
 			if (token.isCancellationRequested) {
 				ref?.dispose();
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(target, requestOptions.isVoiceModeInput);
+				}
 				return { status: 'rejected' };
 			}
 			if (!ref) {
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(target, requestOptions.isVoiceModeInput);
+				}
 				this.logService.warn('[chatSessionRouting] could not load routed session:', sessionId);
 				return { status: 'rejected' };
 			}
@@ -1361,7 +1375,7 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			if (result.status === 'rejected') {
 				if (notifyRoute) {
-					this.host.onDidRejectRoute?.(target);
+					this.host.onDidRejectRoute?.(target, requestOptions.isVoiceModeInput);
 				}
 				this.logService.warn('[chatSessionRouting] routed session rejected the request:', sessionId);
 				return result;
@@ -1373,7 +1387,7 @@ export class ChatSessionRoutingController extends Disposable {
 			return result;
 		} catch (err) {
 			if (notifyRoute) {
-				this.host.onDidRejectRoute?.(target);
+				this.host.onDidRejectRoute?.(target, requestOptions.isVoiceModeInput);
 			}
 			if (token.isCancellationRequested) {
 				return { status: 'rejected' };
@@ -1392,23 +1406,25 @@ export class ChatSessionRoutingController extends Disposable {
 			const result = await routingProvider.dispatchToSession(sessionId, utterance, requestOptions, token);
 			const resource = result.resource ?? target;
 			if (result.status === 'rejected' || !resource) {
-				if (notifyRoute && resource) {
-					this.host.onDidRejectRoute?.(resource);
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(resource, requestOptions.isVoiceModeInput);
 				}
 				return result.status === 'rejected' ? result : { status: 'rejected', reasonCode: 'providerRemoved' };
 			}
+			const requestId = result.requestId ?? this.chatService.getSession(resource)?.lastRequest?.id;
 			if (notifyRoute) {
-				this.host.onDidResolveRoute?.(resource, 'existing_session', requestOptions.isVoiceModeInput, result.requestId);
+				this.host.onDidResolveRoute?.(resource, 'existing_session', requestOptions.isVoiceModeInput, requestId);
 			}
 			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
 			return {
 				...result,
 				resource,
+				requestId,
 				reveal: () => routingProvider.revealSession(resource),
 			};
 		} catch (error) {
-			if (notifyRoute && target) {
-				this.host.onDidRejectRoute?.(target);
+			if (notifyRoute) {
+				this.host.onDidRejectRoute?.(target, requestOptions.isVoiceModeInput);
 			}
 			if (!token.isCancellationRequested) {
 				this.logService.warn('[chatSessionRouting] error dispatching to provider session:', error);
@@ -1436,12 +1452,18 @@ export class ChatSessionRoutingController extends Disposable {
 					`${this.debugOwner}-new`,
 				);
 			if (!ref) {
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(undefined, requestOptions.isVoiceModeInput);
+				}
 				this.logService.warn(`[chatSessionRouting] unable to create a new ${sessionTarget} session`);
 				return { status: 'rejected' };
 			}
 			routeResource = ref.object.sessionResource;
 			if (token.isCancellationRequested) {
 				ref.dispose();
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(routeResource, requestOptions.isVoiceModeInput);
+				}
 				return { status: 'rejected' };
 			}
 			folder ??= this._resolveNewSessionTarget(utterance, requestOptions.attachedContext, [], []).folder;
@@ -1464,7 +1486,7 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			if (result.status === 'rejected') {
 				if (notifyRoute) {
-					this.host.onDidRejectRoute?.(ref.object.sessionResource);
+					this.host.onDidRejectRoute?.(ref.object.sessionResource, requestOptions.isVoiceModeInput);
 				}
 				this.logService.warn('[chatSessionRouting] new session rejected the request');
 				return result;
@@ -1475,8 +1497,8 @@ export class ChatSessionRoutingController extends Disposable {
 			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
 			return result;
 		} catch (err) {
-			if (notifyRoute && routeResource) {
-				this.host.onDidRejectRoute?.(routeResource);
+			if (notifyRoute) {
+				this.host.onDidRejectRoute?.(routeResource, requestOptions.isVoiceModeInput);
 			}
 			if (token.isCancellationRequested) {
 				return { status: 'rejected' };
@@ -1495,21 +1517,26 @@ export class ChatSessionRoutingController extends Disposable {
 			}, utterance, requestOptions, token);
 			const resource = result.resource;
 			if (result.status === 'rejected' || !resource) {
-				if (notifyRoute && resource) {
-					this.host.onDidRejectRoute?.(resource);
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(resource, requestOptions.isVoiceModeInput);
 				}
 				return result.status === 'rejected' ? result : { status: 'rejected', reasonCode: 'providerRemoved' };
 			}
+			const requestId = result.requestId ?? this.chatService.getSession(resource)?.lastRequest?.id;
 			if (notifyRoute) {
-				this.host.onDidResolveRoute?.(resource, 'new_session', requestOptions.isVoiceModeInput, result.requestId);
+				this.host.onDidResolveRoute?.(resource, 'new_session', requestOptions.isVoiceModeInput, requestId);
 			}
 			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
 			return {
 				...result,
 				resource,
+				requestId,
 				reveal: () => routingProvider.revealSession(resource),
 			};
 		} catch (error) {
+			if (notifyRoute) {
+				this.host.onDidRejectRoute?.(undefined, requestOptions.isVoiceModeInput);
+			}
 			if (!token.isCancellationRequested) {
 				this.logService.warn('[chatSessionRouting] error dispatching to provider new session:', error);
 			}
