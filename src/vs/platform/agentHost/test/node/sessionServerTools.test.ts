@@ -639,18 +639,18 @@ suite('SessionServerTools', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 		});
-		let renamedChat: string | undefined;
+		const renamedChat = new DeferredPromise<string>();
 		const host = new AgentServerToolHost(stateManager, [
 			createSessionServerToolGroup(createAccessor({
-				onRenameChat: (_session, chat) => { renamedChat = chat.toString(); },
+				onRenameChat: (_session, chat) => { void renamedChat.complete(chat.toString()); },
 			})),
 		]);
 		host.advertise(session);
 
 		const result = await host.executeTool(peer, SessionServerToolName.RenameChat, { title: 'Peer Focus' });
 
-		assert.deepStrictEqual({ result, renamedChat }, {
-			result: 'Renamed chat to "Peer Focus".',
+		assert.deepStrictEqual({ result, renamedChat: await renamedChat.p }, {
+			result: 'Renaming chat.',
 			renamedChat: peer,
 		});
 		stateManager.dispose();
