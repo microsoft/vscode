@@ -10,8 +10,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { ModelSelectionReason, resolveModelIdentifierFromCatalog, type IIntendedModelSelection } from '../../../../common/modelSelection.js';
+import { ModelSelectionAuthority, ModelSelectionReason, resolveModelIdentifierFromCatalog, type IIntendedModelSelection } from '../../../../common/modelSelection.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from '../../../../browser/widget/input/chatInputModelSelectionController.js';
+import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from './modelSelectionConformance.js';
 
 function model(identifier: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -91,9 +92,82 @@ function createRuntime(
 	};
 }
 
+function runConformanceScenario(
+	scenario: IModelSelectionConformanceScenario,
+	register: <T extends { dispose(): void }>(disposable: T) => T,
+): IModelSelectionConformanceScenario['expected'] {
+	const { isEmpty, models: catalog, chatModel, chatModelAuthority, rememberedModel, configuredModel, catalogResolved } = conformanceInputs(scenario);
+	const models = new Map<ModelSelectionConformanceModel, ILanguageModelChatMetadataAndIdentifier>([
+		['first', model('test/first')],
+		['second', model('test/second')],
+		['missing', model('test/missing')],
+	]);
+	const availableModels = catalog.map(identifier => models.get(identifier)!);
+	const rememberedModelId = rememberedModel ? models.get(rememberedModel)!.identifier : undefined;
+	// `initialize` resolves the remembered identifier without a conclusive catalog, so this arm
+	// speaks only for a catalog that may still publish. A scenario whose answer turned on the
+	// resolved case would be answered here under the other semantics, so it is rejected outright
+	// rather than quietly compared against the Sessions arm's different question.
+	assert.ok(
+		!catalogResolved || !rememberedModelId || availableModels.some(candidate => candidate.identifier === rememberedModelId),
+		`${scenario.name}: a remembered model absent from a resolved catalog is not surface-neutral`,
+	);
+	const modelChanges = register(new Emitter<string>());
+	const applied: string[] = [];
+	let conversationModel = chatModel;
+	const state: IRuntimeState = {
+		models: availableModels,
+		sessionType: 'test',
+		configuredModel: configuredModel ? models.get(configuredModel)!.metadata.id : undefined,
+		isEmpty,
+		conversationKey: 'chat:conformance',
+	};
+	const controller = register(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+	controller.beginConversationSwitch();
+	// Production order, and the reason the remembered preference is seeded even when the
+	// conversation carries a model: the input initializes from storage first, then the
+	// conversation's own state syncs in over it.
+	controller.initialize(rememberedModelId);
+	if (chatModel) {
+		// Both surfaces adopt a conversation's model the same way — through the restore path,
+		// saying who chose it. The authority, not the entry point, is what carries the difference.
+		const selectedModel = models.get(chatModel)!;
+		controller.syncFromConversationState(
+			selectedModel,
+			undefined,
+			state.sessionType,
+			state.conversationKey!,
+			false,
+			chatModelAuthority === 'choice' ? ModelSelectionAuthority.Conversation : ModelSelectionAuthority.Provisional,
+		);
+		conversationModel = chatModel;
+	}
+	controller.reconcileModelListChange(availableModels);
+	const currentModel = [...models].find(([, candidate]) => candidate.identifier === controller.currentModel.get()?.identifier)?.[0];
+	const lastAppliedModel = applied[applied.length - 1];
+	const appliedModel = [...models].find(([, candidate]) => candidate.identifier === lastAppliedModel)?.[0];
+	if (appliedModel) {
+		conversationModel = appliedModel;
+	}
+
+	return {
+		currentModel: currentModel === 'missing' ? undefined : currentModel,
+		conversationModel: conversationModel === 'missing' ? undefined : conversationModel,
+	};
+}
+
 suite('ChatInputModelSelectionController', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('model selection conformance', () => {
+		for (const scenario of modelSelectionConformanceScenarios) {
+			test(scenario.name, () => {
+				assert.deepStrictEqual(runConformanceScenario(scenario, disposable => disposables.add(disposable)), scenario.expected);
+			});
+		}
+	});
 
 	test('tracks explicit selection origin', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
@@ -908,6 +982,94 @@ suite('ChatInputModelSelectionController', () => {
 			configuredApplied: true,
 			applied: [opus.identifier, gpt.identifier],
 			current: gpt.identifier,
+		});
+	});
+
+	test('an explicit pick is not demoted when the conversation echoes it back', () => {
+		// Applying a model writes it into the conversation's draft state, which comes straight back
+		// as a restore. Workbench reads the authority off the conversation's own intent for exactly
+		// this, so the echo must not turn the user's pick into spillover the default can claim.
+		const picked = model('test/picked');
+		const configured = model('test/configured');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
+		const state: IRuntimeState = {
+			models: [picked, configured],
+			sessionType: 'test',
+			configuredModel: configured.metadata.id,
+			intents,
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.applySelection(picked, () => applied.push(picked.identifier), true);
+		// The echo: `chatInputPart` derives the authority from the conversation's intent, which the
+		// pick above recorded as a user selection.
+		const authority = intents.get('chat:one')?.reason === ModelSelectionReason.UserSelection
+			? ModelSelectionAuthority.Conversation
+			: undefined;
+		controller.syncFromConversationState(picked, undefined, 'test', 'chat:one', false, authority);
+		const configuredApplied = controller.applyConfiguredDefault();
+
+		assert.deepStrictEqual({
+			derivedAuthority: authority,
+			configuredApplied,
+			current: controller.currentModel.get()?.identifier,
+		}, {
+			derivedAuthority: ModelSelectionAuthority.Conversation,
+			configuredApplied: false,
+			current: picked.identifier,
+		});
+	});
+
+	test('a restored choice survives a cold pool and still outranks a late configured default', () => {
+		// The conversation's own model is missing only because its targeted pool has not published
+		// yet. That says nothing about who chose it, so the authority must survive the wait — or
+		// `chat.defaultModel` claims the conversation the moment the model finally arrives.
+		const chosen = targetedModel('test/chosen', 'test');
+		const configured = model('test/configured');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const state: IRuntimeState = {
+			models: [],
+			sessionType: 'test',
+			configuredModel: configured.metadata.id,
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.beginSessionSwitch(true, false, true);
+		controller.syncFromConversationState(chosen, undefined, 'test', 'chat:one', false, ModelSelectionAuthority.Conversation);
+		// Both the conversation's model and the configured default publish together.
+		state.models = [chosen, configured];
+		modelChanges.fire('published');
+
+		assert.deepStrictEqual({ applied, current: controller.currentModel.get()?.identifier }, {
+			applied: [chosen.identifier],
+			current: chosen.identifier,
+		});
+	});
+
+	test('a restored model the surface vouches for outranks the configured default on an empty session', () => {
+		// Same shape as the spilled-over case above, but the surface can say the conversation chose
+		// this model. That is the difference the Agents Window could always see (its providers
+		// report provenance) and Workbench could not, so the two used to disagree here.
+		const gpt = model('test/gpt');
+		const opus = model('test/opus');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(
+			createRuntime({ models: [gpt, opus], sessionType: 'test', configuredModel: gpt.metadata.id }, modelChanges, applied)));
+
+		controller.beginSessionSwitch(true, false, false);
+		controller.syncFromConversationState(opus, undefined, 'test', 'chat:one', false, ModelSelectionAuthority.Conversation);
+		const afterRestore = controller.currentModel.get()?.identifier;
+		const configuredApplied = controller.applyConfiguredDefault();
+
+		assert.deepStrictEqual({ afterRestore, configuredApplied, applied, current: controller.currentModel.get()?.identifier }, {
+			afterRestore: opus.identifier,
+			configuredApplied: false,
+			applied: [opus.identifier],
+			current: opus.identifier,
 		});
 	});
 

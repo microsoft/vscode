@@ -49,7 +49,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -445,6 +445,7 @@ class AdditionalChat extends Disposable {
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _updatedAt: ISettableObservable<Date>;
 	private readonly _modelId: ISettableObservable<string | undefined>;
+	private readonly _modelSource: ISettableObservable<ChatModelSource | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _lastTurnEnd: ISettableObservable<Date | undefined>;
@@ -458,6 +459,7 @@ class AdditionalChat extends Disposable {
 		this._status = observableValue<SessionStatus>('chatStatus', mapProtocolStatus(summary.status));
 		this._updatedAt = observableValueOpts<Date>({ owner: this, debugName: 'chatUpdatedAt', equalsFn: dateEquals }, modifiedAt);
 		this._modelId = observableValue<string | undefined>('chatModelId', undefined);
+		this._modelSource = observableValue<ChatModelSource | undefined>('chatModelSource', undefined);
 		this._mode = observableValueOpts<{ readonly id: string; readonly kind: string } | undefined>({ owner: this, debugName: 'chatMode', equalsFn: structuralEquals }, undefined);
 		this._description = observableValueOpts<IMarkdownString | undefined>({ owner: this, debugName: 'chatDescription', equalsFn: markdownStringEquals }, summary.activity ? new MarkdownString().appendText(summary.activity) : undefined);
 		this._lastTurnEnd = observableValueOpts<Date | undefined>({ owner: this, debugName: 'chatLastTurnEnd', equalsFn: dateEquals }, modifiedAt);
@@ -473,6 +475,7 @@ class AdditionalChat extends Disposable {
 			lastTurnChanges,
 			checkpoints: observableValue(this, undefined),
 			modelId: this._modelId,
+			modelSource: this._modelSource,
 			mode: this._mode,
 			isArchived: sessionIsArchived,
 			isRead: constObservable(true),
@@ -526,8 +529,13 @@ class AdditionalChat extends Disposable {
 		this._isNew.set(false, undefined);
 	}
 
-	setModelId(modelId: string | undefined): void {
-		this._modelId.set(modelId, undefined);
+	setModelId(modelId: string | undefined, source: ChatModelSource): void {
+		// One update: a model and where it came from are only meaningful as a pair, and an
+		// observer woken by half of it would act on a model with the wrong provenance.
+		transaction(tx => {
+			this._modelSource.set(modelId ? source : undefined, tx);
+			this._modelId.set(modelId, tx);
+		});
 	}
 
 	setAgent(agent: ISessionAgentRef | undefined): void {
@@ -581,6 +589,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly changesets: ISettableObservable<readonly ISessionChangeset[] | undefined>;
 	readonly externalChanges: IObservable<readonly ISessionFile[]>;
 	readonly modelId: ISettableObservable<string | undefined>;
+	readonly modelSource: ISettableObservable<ChatModelSource | undefined>;
 	modelSelection: ModelSelection | undefined;
 	readonly mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly loading: IObservable<boolean>;
@@ -645,6 +654,16 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _sessionOutputCache = new Map<string, unknown>();
 	/** Chat ids that have not yet sent their first request (presented as `Untitled`). */
 	private readonly _newChatIds = new Set<string>();
+	/**
+	 * The model each peer chat was given, and where it came from, keyed by chat id.
+	 *
+	 * Held outside {@link _additionalChats} because that map is rebuilt from session state: a chat
+	 * created locally can have its model set before the state carrying it arrives, and the entry
+	 * that write would have landed on may not exist yet. Seeding from here at construction keeps
+	 * the selection — and the provenance the model-picker's precedence depends on — from being
+	 * silently dropped.
+	 */
+	private readonly _chatModelSelections = new Map<string, { readonly modelId: string | undefined; readonly source: ChatModelSource }>();
 	/**
 	 * The last {@link SessionState} applied to the chat catalog, retained so the
 	 * catalog can be re-reconciled when {@link capabilities} change after the
@@ -760,6 +779,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.modelSelection = undefined;
 		this.status = observableValue<SessionStatus>('status', metadata.status !== undefined ? mapProtocolStatus(metadata.status) : SessionStatus.Completed);
 		this.modelId = observableValue<string | undefined>('modelId', undefined);
+		this.modelSource = observableValue<ChatModelSource | undefined>('modelSource', undefined);
 		this.mode = observableValueOpts<{ readonly id: string; readonly kind: string } | undefined>({ owner: this, debugName: 'mode', equalsFn: structuralEquals }, undefined);
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this._activity = observableValue('activity', metadata.activity);
@@ -877,6 +897,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			lastTurnChanges: sessionOutput.getLastTurnChanges(URI.parse(buildDefaultChatUri(this.backendUri))),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
+			modelSource: this.modelSource,
 			mode: this.mode,
 			isArchived: this.isArchived,
 			isRead: this.isRead,
@@ -1010,6 +1031,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				this._additionalChats.deleteAndDispose(chatId);
 			}
 		}
+		// A chat the catalog no longer lists is gone for good, so its remembered selection is too.
+		for (const chatId of [...this._chatModelSelections.keys()]) {
+			if (!seen.has(chatId)) {
+				this._chatModelSelections.delete(chatId);
+			}
+		}
 
 		const main = (defaultChatUri && ordered.find(c => isEqual(c.resource, this.resource))) || this._defaultChat;
 		transaction(tx => {
@@ -1021,7 +1048,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _createAdditionalChat(chatId: string, summary: ChatSummary): AdditionalChat {
 		const resource = URI.from({ scheme: this._resourceScheme, path: `/${this._rawId}`, fragment: chatId });
 		const lastTurnChanges = this._sessionOutput.getLastTurnChanges(URI.parse(summary.resource));
-		return new AdditionalChat(resource, summary, this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin), this.isArchived, lastTurnChanges, this._options.readOnly);
+		const chat = new AdditionalChat(resource, summary, this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin), this.isArchived, lastTurnChanges, this._options.readOnly);
+		const selection = this._chatModelSelections.get(chatId);
+		if (selection) {
+			chat.setModelId(selection.modelId, selection.source);
+		}
+		return chat;
 	}
 
 	/**
@@ -1060,12 +1092,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._additionalChats.get(chatId)?.markSent();
 	}
 
-	setChatModelId(chatResource: URI, modelId: string | undefined): void {
+	setChatModelId(chatResource: URI, modelId: string | undefined, source: ChatModelSource): void {
 		const chatId = chatResource.fragment;
 		if (chatId) {
-			this._getAdditionalChat(chatResource)?.setModelId(modelId);
+			// Recorded whether or not the chat's entry exists yet: a locally created chat can be
+			// given its model before the session state that materializes it arrives.
+			this._chatModelSelections.set(chatId, { modelId, source });
+			this._getAdditionalChat(chatResource)?.setModelId(modelId, source);
 		} else {
-			this.modelId.set(modelId, undefined);
+			transaction(tx => {
+				this.modelSource.set(modelId ? source : undefined, tx);
+				this.modelId.set(modelId, tx);
+			});
 			this.modelSelection = modelId ? this._toModelSelection(modelId) : undefined;
 		}
 	}
@@ -1602,6 +1640,7 @@ class NewSession extends Disposable {
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _title: ISettableObservable<string>;
 	private readonly _modelId: ISettableObservable<string | undefined>;
+	private readonly _modelSource: ISettableObservable<ChatModelSource | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
@@ -1717,6 +1756,7 @@ class NewSession extends Disposable {
 		this._selectedModelId = undefined;
 		this._selectedAgent = undefined;
 		this._modelId = observableValue<string | undefined>(this, this._selectedModelId);
+		this._modelSource = observableValue<ChatModelSource | undefined>(this, undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
 		this._mode = mode;
 		const isArchived = observableValue(this, false);
@@ -1733,6 +1773,7 @@ class NewSession extends Disposable {
 			changes,
 			checkpoints,
 			modelId: this._modelId,
+			modelSource: this._modelSource,
 			mode, isArchived, isRead,
 			interactivity: constObservable(ChatInteractivity.Full),
 			description: this._description, lastTurnEnd,
@@ -1785,9 +1826,12 @@ class NewSession extends Disposable {
 
 	// -- Picker mutations ----------------------------------------------------
 
-	setSelectedModelId(modelId: string): void {
+	setSelectedModelId(modelId: string, source: ChatModelSource): void {
 		this._selectedModelId = modelId;
-		this._modelId.set(modelId, undefined);
+		transaction(tx => {
+			this._modelSource.set(source, tx);
+			this._modelId.set(modelId, tx);
+		});
 	}
 
 	getSelectedModelId(): string | undefined { return this._selectedModelId; }
@@ -3564,10 +3608,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return cached?.resource.scheme;
 	}
 
-	setModel(sessionId: string, modelId: string): void {
+	setModel(sessionId: string, modelId: string, source: ChatModelSource): void {
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
-			newSession.setSelectedModelId(modelId);
+			newSession.setSelectedModelId(modelId, source);
 			return;
 		}
 
@@ -3576,7 +3620,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		if (cached && rawId && connection) {
 			const chatResource = this._activeChatResource(cached);
-			cached.setChatModelId(chatResource, modelId);
+			cached.setChatModelId(chatResource, modelId, source);
 			this._updateChatSessionState(chatResource, modelId, cached.getChatMode(chatResource)?.id).catch(err => this._logService.error(`[${this.id}] Failed to update chat model state for ${chatResource.toString()}`, err));
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
@@ -3964,7 +4008,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			c => !!c,
 		);
 
-		cached.setChatModelId(chat.resource, selectedModelId);
+		// The model comes from the chat this one was branched off, not from any choice made here.
+		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.Inherited);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
 		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
@@ -3991,11 +4036,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const chatUri = URI.parse(buildChatUri(sessionUri, newChatId));
 		const sourceBackendUri = this._resolveBackendSourceChatUri(cached.sessionId, sessionUri, sourceChat);
 
+		// Inherit the source chat's own model/agent selection (which may differ from the session's
+		// default), matching `createSideChat`: a fork continues the chat it was taken from.
+		const selectedModel = cached.getChatModelSelection(sourceChat) ?? cached.modelSelection;
+		const selectedModelId = cached.getChatModelId(sourceChat)
+			?? (selectedModel ? `${cached.resource.scheme}:${selectedModel.id}` : undefined);
+		const selectedAgentUri = cached.getChatMode(sourceChat)?.id;
+
 		// Keep the session-state subscription alive so the `chatAdded` it emits
 		// flows into `_applyChatCatalogFromState` and updates `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
 		await connection.createChat(sessionUri, chatUri, {
-			model: cached.modelSelection,
+			model: selectedModel,
 			fork: { source: sourceBackendUri, turnId },
 		});
 
@@ -4004,7 +4056,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			c => !!c,
 		);
 
+		// The model comes from the chat this one was forked off, not from any choice made here.
+		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.Inherited);
+		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
+
 		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
+		await this._updateChatSessionState(chat.resource, selectedModelId, selectedAgentUri);
 		return chat;
 	}
 
@@ -4051,7 +4108,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			c => !!c,
 		);
 
-		cached.setChatModelId(chat.resource, selectedModelId);
+		// The model comes from the chat this one was branched off, not from any choice made here.
+		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.Inherited);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
 		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);

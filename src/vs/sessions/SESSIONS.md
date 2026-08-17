@@ -335,6 +335,79 @@ User-created peer chats participate in normal chat navigation. Hidden
 tool-origin chats remain provider-neutral domain objects but are excluded from
 ordinary presentation by their interactivity/origin contracts.
 
+### Model selection
+
+Model selection policy is shared with Workbench chat. There is one
+implementation of the precedence between a configured default, a remembered
+preference, and a conversation's own model: `ChatInputModelSelectionController`
+in `vs/workbench`. The Agents Window does not reimplement it.
+
+```text
+active session + provider
+    -> SessionModelSelection builds an IChatInputModelSelectionRuntime
+    -> ChatInputModelSelectionController decides the model
+    -> SessionModelSelection writes it back through ISessionsProvider.setModel
+```
+
+`SessionModelSelection` (`contrib/chat/browser/sessionModelSelection.ts`) turns
+`IActiveSession` and `ISessionsProvider` into the runtime seam the controller
+consumes — where models come from, which conversation is bound, and how a chosen
+model is applied — and turns the controller's decision into a provider write plus
+picker state. Precedence between a configured default, a remembered preference,
+and a conversation's own model belongs to the controller, so that cannot drift.
+Both surfaces adopt a conversation's model through the same controller entry
+point, differing only in the `ModelSelectionAuthority` they report, so the
+scenario-to-entry-point mapping is shared rather than re-decided per surface.
+
+It is close to, but not purely, a translation layer. It still decides when a
+conversation has been seeded and whether a configured default may overtake a
+model the pool has not published yet. What it no longer does is *infer* where a
+chat's model came from, or decide what that means: `IChat.modelSource` carries
+the provenance, so `ISessionsProvider.setModel` requires the caller to state why
+the model is being set, and the adapter translates that into the shared
+`ModelSelectionAuthority` the controller reasons about. A client picking a model
+on the user's behalf says `Automatic`, a provider starting a peer chat on the
+previous chat's model says `Inherited`, and only `User`/`Restored` count as the
+conversation answering for itself.
+
+`IChat.modelSource` is required rather than optional. An absent value reads as
+"this model is the conversation's own", which is the answer that blocks
+`chat.defaultModel`; a provider must not be able to claim it by saying nothing.
+A provider that genuinely cannot account for a model states `undefined`, and the
+model is then treated as the conversation's own — the safe reading, since the
+alternative is overwriting a model the user may have picked.
+
+Two invariants follow from that seam:
+
+- The model a conversation is meant to run on is held per conversation, keyed by
+  the chat resource. A choice made in one chat is unreachable from another by
+  construction, not by a scoping check a refactor can drop. A chat's model is
+  read from the chat itself (`IActiveSession.modelId` follows `activeChat`), so
+  switching between peer chats carries each one's own model with it.
+- A model that the provider's pool has not published yet is waited for rather
+  than replaced. Nothing is pushed to the provider while the wanted model is
+  pending, so a transient stand-in never reaches the backend. Only
+  `chat.defaultModel` may overtake the wait, and only for a conversation that has
+  neither sent a request nor been given a model of its own.
+
+The Workbench controller and Sessions adapter run the same model-selection
+conformance matrix from
+`vs/workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.ts`.
+Each scenario asserts both the model shown by the picker and the model actually
+applied to the conversation. Both arms destructure the scenario through
+`conformanceInputs`, whose fields are all required, so an arm that stops reading
+one fails to compile rather than quietly answering a different question.
+
+It is a fence around settled-catalog precedence, not a parity proof. Publication
+lifecycle is deliberately excluded — Workbench may display a stand-in while a
+model is pending, whereas Sessions waits rather than writing that stand-in to a
+provider — and the Workbench side drives the controller directly rather than
+through `ChatInputPart`.
+
+Remembered selections persist under the shared `chat.currentLanguageModel.*`
+keys, scoped by the pool's model target. The legacy `sessions.modelPicker.*` key
+is read once and migrated forward.
+
 ## State propagation
 
 Use the narrowest mechanism that represents the change:

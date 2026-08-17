@@ -12,7 +12,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/c
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -301,11 +301,14 @@ export interface ISessionsProvider {
 	readonly onDidChangeModels: Event<void>;
 
 	/**
-	 * Set the model for a session.
+	 * Set the model for a session's active chat.
 	 * @param sessionId The ID of the session.
 	 * @param modelId The ID of the model to set for the session.
+	 * @param source Why the model is being set, surfaced back as {@link IChat.modelSource}. A
+	 * client that picks a model on the user's behalf must say so, or the chat becomes
+	 * indistinguishable from one the user chose for.
 	 */
-	setModel(sessionId: string, modelId: string): void;
+	setModel(sessionId: string, modelId: string, source: ChatModelSource): void;
 
 	/**
 	 * Set the chat mode for a session.

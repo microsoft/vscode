@@ -8,11 +8,15 @@ import { IObservable, observableValue } from '../../../../../../base/common/obse
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IIntendedModelHolder } from '../../../common/model/chatModel.js';
-import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationModelChoice, ModelSelectionApplyReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier } from '../../../common/modelSelection.js';
+import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationModelChoice, isRestoredModelReason, ModelSelectionApplyReason, ModelSelectionAuthority, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, restoreReasonFor } from '../../../common/modelSelection.js';
 import { findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 
-/** Supplies Workbench chat's filtered model catalog and conversation effects. */
+/**
+ * Supplies the surface's model catalog and conversation effects. The seam between the shared
+ * selection policy and where models come from, so both Workbench chat and the Agents Window drive
+ * the same controller.
+ */
 export interface IChatInputModelSelectionRuntime {
 	readonly location: ChatAgentLocation;
 	readonly getCurrentModeKind: () => ChatModeKind;
@@ -42,7 +46,11 @@ interface ModelSelectionIntent {
 	readonly complete: (applied: boolean) => void;
 }
 
-/** Reconciles the shared selection model with Workbench-specific input and catalog state. */
+/**
+ * The single implementation of "pick and remember the chat model". Owns the precedence between a
+ * configured default, a remembered preference, and a conversation's own model; each surface
+ * supplies its catalog and effects through {@link IChatInputModelSelectionRuntime}.
+ */
 export class ChatInputModelSelectionController extends Disposable {
 
 	private readonly _currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>(this, undefined);
@@ -68,10 +76,27 @@ export class ChatInputModelSelectionController extends Disposable {
 		return this._selectionReason;
 	}
 
-	beginSessionSwitch(isEmpty: boolean, ownsPool: boolean, hadIncomingModel: boolean): void {
+	/**
+	 * Drops the selection state that spoke for the outgoing conversation — the reason behind its
+	 * model, and any model it was still waiting to be given — so neither outlives it and gets read
+	 * as the incoming conversation's own.
+	 *
+	 * Unpaired, and safe to call on its own. A surface that also owns its model pool wants
+	 * {@link beginSessionSwitch} instead.
+	 */
+	beginConversationSwitch(): void {
 		this._selectionReason = undefined;
-		this._restorePerTypeModel = isEmpty && ownsPool && !hadIncomingModel;
 		this._clearIntent();
+	}
+
+	/**
+	 * As {@link beginConversationSwitch}, and additionally latches whether the destination should
+	 * restore the model remembered for its session type. Paired with {@link endSessionSwitch},
+	 * which releases that latch once the switch has been carried out.
+	 */
+	beginSessionSwitch(isEmpty: boolean, ownsPool: boolean, hadIncomingModel: boolean): void {
+		this.beginConversationSwitch();
+		this._restorePerTypeModel = isEmpty && ownsPool && !hadIncomingModel;
 	}
 
 	endSessionSwitch(): void {
@@ -255,8 +280,13 @@ export class ChatInputModelSelectionController extends Disposable {
 		// `chat.defaultModel` seeds every new (empty) conversation. Only a genuine in-conversation
 		// choice blocks it; a `SessionRestore` on an empty session is spillover from the previous
 		// conversation and must yield.
+		//
+		// A choice the conversation is still waiting to have applied blocks it too: while its pool
+		// is cold there is nothing on screen to recognize it by, and seeding over it would mean the
+		// user's own model loses to the default purely for arriving late.
 		if (!this._runtime.isEmpty()
 			|| isInConversationModelChoice(this._selectionReason)
+			|| isInConversationModelChoice(this._intendedModel?.reason)
 			|| this._intent) {
 			return false;
 		}
@@ -329,7 +359,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		// A pool can republish the same model under a new identifier, so an equivalent serves the
 		// conversation better than the generic default. The remembered selection keeps pointing at
 		// the original, so the exact model still wins if it comes back.
-		const model = exact ?? (remembered.reason === ModelSelectionReason.SessionRestore ? findBestMatchingModel(remembered.model, pool) : undefined);
+		const model = exact ?? (isRestoredModelReason(remembered.reason) ? findBestMatchingModel(remembered.model, pool) : undefined);
 		if (!model || (!exact && this._currentModel.get()?.identifier === model.identifier)) {
 			return false;
 		}
@@ -342,12 +372,20 @@ export class ChatInputModelSelectionController extends Disposable {
 		return true;
 	}
 
+	/**
+	 * Adopts the model the bound conversation carries.
+	 *
+	 * `authority` says whether that model was chosen for this conversation or is merely standing on
+	 * it. A surface that cannot tell says nothing and the model is treated as provisional, which
+	 * leaves an empty conversation open to `chat.defaultModel`.
+	 */
 	syncFromConversationState(
 		desiredModel: ILanguageModelChatMetadataAndIdentifier,
 		modelConfiguration: Record<string, unknown> | undefined,
 		sessionType: string | undefined,
 		conversationKey: string,
 		isRemoteEdit = false,
+		authority?: ModelSelectionAuthority,
 	): void {
 		if (!isRemoteEdit && this._isEchoOfStandIn(desiredModel.identifier, conversationKey)) {
 			this._diagnostics.report('conversation-restore-echo-ignored', {
@@ -370,20 +408,20 @@ export class ChatInputModelSelectionController extends Disposable {
 			action: syncResult.action,
 		}, syncResult.action === 'keep' ? 'debug' : 'info');
 		if (syncResult.action === 'apply' || syncResult.action === 'keep') {
-			this._applySessionRestore(desiredModel, syncResult.action === 'apply', modelConfiguration, conversationKey);
+			this._applySessionRestore(desiredModel, syncResult.action === 'apply', modelConfiguration, conversationKey, authority);
 			return;
 		}
 
 		// The conversation's model is not available yet, usually because its pool is still
 		// publishing. That says nothing about what the user should be on, so remember it anyway and
 		// show the best stand-in until `_restoreRememberedModel` can claim the real one.
-		this._rememberOnBoundConversation(desiredModel, modelConfiguration, conversationKey);
+		this._rememberOnBoundConversation(desiredModel, modelConfiguration, conversationKey, authority);
 		this._clearIntent();
 		const pool = this._pool(sessionType);
 		const match = findBestMatchingModel(desiredModel, pool) ?? findBestMatchingModel(currentModel, pool);
 		if (match) {
 			this._applyModel(match);
-			this._selectionReason = ModelSelectionReason.SessionRestore;
+			this._selectionReason = restoreReasonFor(authority);
 		} else {
 			this.selectDefault(sessionType);
 		}
@@ -436,16 +474,21 @@ export class ChatInputModelSelectionController extends Disposable {
 	 * Records the conversation's model as the one to reclaim, unless this sync belongs to a
 	 * conversation the input has already moved off — a late sync for an outgoing session must not
 	 * dictate the active one's model.
+	 *
+	 * The authority is recorded with it: a model that is only missing because its pool is still
+	 * publishing is no less the conversation's choice, and forgetting that would let
+	 * `chat.defaultModel` claim the conversation the moment the model finally arrives.
 	 */
 	private _rememberOnBoundConversation(
 		model: ILanguageModelChatMetadataAndIdentifier,
 		configuration: Record<string, unknown> | undefined,
 		conversationKey: string,
+		authority: ModelSelectionAuthority | undefined,
 	): void {
 		if (this._runtime.getBoundConversationKey() !== conversationKey) {
 			return;
 		}
-		this._remember({ modelId: model.identifier, model, reason: ModelSelectionReason.SessionRestore, configuration });
+		this._remember({ modelId: model.identifier, model, reason: restoreReasonFor(authority), configuration });
 	}
 
 	/**
@@ -503,10 +546,12 @@ export class ChatInputModelSelectionController extends Disposable {
 		applyModel: boolean,
 		configuration: Record<string, unknown> | undefined,
 		conversationKey: string,
+		authority: ModelSelectionAuthority | undefined,
 	): void {
 		this._clearIntent();
-		this._selectionReason = ModelSelectionReason.SessionRestore;
-		this._remember({ modelId: model.identifier, model, reason: ModelSelectionReason.SessionRestore, configuration });
+		const reason = restoreReasonFor(authority);
+		this._selectionReason = reason;
+		this._remember({ modelId: model.identifier, model, reason, configuration });
 		if (configuration) {
 			this._runtime.restoreModelConfiguration(model.identifier, configuration);
 		}

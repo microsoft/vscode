@@ -1,0 +1,176 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+export type ModelSelectionConformanceModel = 'first' | 'second' | 'missing';
+
+/**
+ * The authority behind a model already on the conversation. A choice blocks
+ * `chat.defaultModel`; spillover leaves an empty conversation open to it.
+ */
+export type ModelSelectionConformanceAuthority = 'choice' | 'spillover';
+
+export interface IModelSelectionConformanceScenario {
+	readonly name: string;
+	readonly isEmpty: boolean;
+	readonly models: readonly Exclude<ModelSelectionConformanceModel, 'missing'>[];
+	readonly chatModel?: ModelSelectionConformanceModel;
+	readonly chatModelAuthority?: ModelSelectionConformanceAuthority;
+	readonly rememberedModel?: ModelSelectionConformanceModel;
+	readonly configuredModel?: ModelSelectionConformanceModel;
+	/** Whether the provider considers an absent requested model conclusively unavailable. */
+	readonly catalogResolved?: boolean;
+	readonly expected: {
+		readonly currentModel: Exclude<ModelSelectionConformanceModel, 'missing'> | undefined;
+		readonly conversationModel: Exclude<ModelSelectionConformanceModel, 'missing'> | undefined;
+	};
+}
+
+/**
+ * A scenario's inputs with nothing left implicit.
+ *
+ * A shared matrix is only worth having if both arms answer the same question, and the way that
+ * quietly stops being true is one arm never reading a field the other acts on. Each arm destructures
+ * this whole shape, so a field it stops consuming becomes an unused local — which `noUnusedLocals`
+ * rejects at compile time — rather than a scenario that silently asserts two different things.
+ */
+export interface IModelSelectionConformanceInputs {
+	readonly isEmpty: boolean;
+	readonly models: readonly Exclude<ModelSelectionConformanceModel, 'missing'>[];
+	readonly chatModel: ModelSelectionConformanceModel | undefined;
+	readonly chatModelAuthority: ModelSelectionConformanceAuthority | undefined;
+	readonly rememberedModel: ModelSelectionConformanceModel | undefined;
+	readonly configuredModel: ModelSelectionConformanceModel | undefined;
+	readonly catalogResolved: boolean;
+}
+
+export function conformanceInputs(scenario: IModelSelectionConformanceScenario): IModelSelectionConformanceInputs {
+	return {
+		isEmpty: scenario.isEmpty,
+		models: scenario.models,
+		chatModel: scenario.chatModel,
+		chatModelAuthority: scenario.chatModelAuthority,
+		rememberedModel: scenario.rememberedModel,
+		configuredModel: scenario.configuredModel,
+		catalogResolved: scenario.catalogResolved ?? true,
+	};
+}
+
+/**
+ * Shared precedence cases for the Workbench controller and the Sessions adapter.
+ *
+ * Both surfaces adopt a conversation's model through the same entry point, differing only in the
+ * authority they report, so these cases pin the shared policy rather than each surface's wiring.
+ *
+ * How each surface *derives* that authority is its own business and is not covered here. Workbench
+ * reads it from the conversation's in-memory intent, so it lasts only as long as the window;
+ * Sessions reads it from the provider, which outlives a reload. The two therefore still answer
+ * differently for a chat whose model predates the current window.
+ *
+ * This matrix deliberately covers stable-catalog policy rather than publication lifecycle.
+ * Workbench may display a stand-in while a model is pending; Sessions intentionally waits rather
+ * than writing that stand-in to a provider. Their final settled selection must still agree.
+ */
+export const modelSelectionConformanceScenarios: readonly IModelSelectionConformanceScenario[] = [
+	{
+		name: 'configured default beats remembered preference on an empty conversation',
+		isEmpty: true,
+		models: ['first', 'second'],
+		rememberedModel: 'first',
+		configuredModel: 'second',
+		expected: { currentModel: 'second', conversationModel: 'second' },
+	},
+	{
+		name: 'remembered preference seeds an empty conversation without a configured default',
+		isEmpty: true,
+		models: ['first', 'second'],
+		rememberedModel: 'second',
+		expected: { currentModel: 'second', conversationModel: 'second' },
+	},
+	{
+		name: 'first available model seeds an empty conversation without another preference',
+		isEmpty: true,
+		models: ['first', 'second'],
+		expected: { currentModel: 'first', conversationModel: 'first' },
+	},
+	{
+		name: 'conversation choice blocks the configured default even while empty',
+		isEmpty: true,
+		models: ['first', 'second'],
+		chatModel: 'first',
+		chatModelAuthority: 'choice',
+		configuredModel: 'second',
+		expected: { currentModel: 'first', conversationModel: 'first' },
+	},
+	{
+		// The case the two surfaces used to answer differently: Sessions knew the model was a
+		// choice, Workbench could only call it a restore and let the default win.
+		name: 'a restored choice is not treated as spillover on an empty conversation',
+		isEmpty: true,
+		models: ['first', 'second'],
+		chatModel: 'second',
+		chatModelAuthority: 'choice',
+		rememberedModel: 'first',
+		configuredModel: 'first',
+		expected: { currentModel: 'second', conversationModel: 'second' },
+	},
+	{
+		name: 'spillover yields to the configured default on an empty conversation',
+		isEmpty: true,
+		models: ['first', 'second'],
+		chatModel: 'first',
+		chatModelAuthority: 'spillover',
+		configuredModel: 'second',
+		expected: { currentModel: 'second', conversationModel: 'second' },
+	},
+	{
+		name: 'spillover remains selected when no configured default exists',
+		isEmpty: true,
+		models: ['first', 'second'],
+		chatModel: 'first',
+		chatModelAuthority: 'spillover',
+		expected: { currentModel: 'first', conversationModel: 'first' },
+	},
+	{
+		name: 'configured default does not reseed a non-empty conversation choice',
+		isEmpty: false,
+		models: ['first', 'second'],
+		chatModel: 'first',
+		chatModelAuthority: 'choice',
+		configuredModel: 'second',
+		expected: { currentModel: 'first', conversationModel: 'first' },
+	},
+	{
+		name: 'configured default does not reseed non-empty spillover',
+		isEmpty: false,
+		models: ['first', 'second'],
+		chatModel: 'first',
+		chatModelAuthority: 'spillover',
+		configuredModel: 'second',
+		expected: { currentModel: 'first', conversationModel: 'first' },
+	},
+	{
+		name: 'unresolvable configured value falls through to the remembered preference',
+		isEmpty: true,
+		models: ['first', 'second'],
+		rememberedModel: 'second',
+		configuredModel: 'missing',
+		expected: { currentModel: 'second', conversationModel: 'second' },
+	},
+	{
+		name: 'available configured default supersedes a remembered model while its vendor is unresolved',
+		isEmpty: true,
+		models: ['first', 'second'],
+		rememberedModel: 'missing',
+		configuredModel: 'second',
+		catalogResolved: false,
+		expected: { currentModel: 'second', conversationModel: 'second' },
+	},
+	{
+		name: 'empty catalog leaves the conversation without a model',
+		isEmpty: true,
+		models: [],
+		expected: { currentModel: undefined, conversationModel: undefined },
+	},
+];

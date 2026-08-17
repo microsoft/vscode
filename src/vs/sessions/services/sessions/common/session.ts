@@ -523,6 +523,26 @@ export interface IChatCapabilities {
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canDelete: true };
 
 /**
+ * Where a chat's selected model came from. Distinguishes a model the conversation is meant to run
+ * on from one that is only standing on it, which is what decides whether `chat.defaultModel` may
+ * still seed the conversation.
+ *
+ * Client-local: this is not persisted and does not cross the agent-host wire. It describes how the
+ * current client came to put this model on the chat, so a reloaded window starts over rather than
+ * inheriting a stale authority.
+ */
+export const enum ChatModelSource {
+	/** The user picked this model for this chat. */
+	User = 'user',
+	/** The chat's own model, restored from the backend or persisted state. */
+	Restored = 'restored',
+	/** Carried over from another chat when this one was created; not a choice made here. */
+	Inherited = 'inherited',
+	/** Chosen for the chat by the client because it had no model of its own. */
+	Automatic = 'automatic',
+}
+
+/**
  * A single chat within a session, produced by the sessions management layer.
  */
 export interface IChat {
@@ -553,6 +573,18 @@ export interface IChat {
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
+	/**
+	 * Where {@link modelId} came from. Model selection has to tell a model the conversation is
+	 * meant to run on from one that is merely standing on it — an automatic pick, or the previous
+	 * chat's model a new peer chat was started with — because only the former outranks
+	 * `chat.defaultModel`. The identifier alone cannot express that difference.
+	 *
+	 * Required rather than optional: an absent value reads as "this model is the conversation's
+	 * own", which is the answer that blocks `chat.defaultModel`. A provider must not be able to
+	 * claim that by saying nothing, so it states `undefined` — no model, or none it can account
+	 * for — deliberately.
+	 */
+	readonly modelSource: IObservable<ChatModelSource | undefined>;
 	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the chat is archived. */
