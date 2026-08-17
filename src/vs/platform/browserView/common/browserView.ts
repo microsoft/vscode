@@ -5,6 +5,8 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
@@ -42,6 +44,7 @@ export enum BrowserViewCommandId {
 
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
+	AddElementCommentToChat = `${commandPrefix}.addElementCommentToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
 	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
 	AddAreaScreenshotToChat = `${commandPrefix}.addAreaScreenshotToChat`,
@@ -68,8 +71,26 @@ export interface IElementAncestor {
 	readonly classNames?: string[];
 }
 
+export enum BrowserElementSelectionMode {
+	Select = 'select',
+	Comment = 'comment'
+}
+
+export interface IBrowserElementSelectionOptions {
+	readonly highlightFocusedElement?: boolean;
+	readonly continuous?: boolean;
+	readonly mode?: BrowserElementSelectionMode;
+}
+
+export interface IBrowserElementSelectionState {
+	readonly active: boolean;
+	readonly options: IBrowserElementSelectionOptions;
+}
+
 export interface IElementData {
 	readonly url?: string;
+	readonly elementId?: string;
+	readonly comment?: string;
 	readonly outerHTML: string;
 	readonly computedStyle: string;
 	readonly bounds: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
@@ -80,6 +101,16 @@ export interface IElementData {
 	readonly innerText?: string;
 }
 
+export interface IBrowserElementComment {
+	readonly elementId: string;
+	readonly body: string;
+}
+
+export interface IBrowserElementCommentsUpdate {
+	readonly comments?: readonly IBrowserElementComment[];
+	readonly pendingCommentIdsToDiscard?: readonly string[];
+}
+
 export interface IBrowserViewRect {
 	readonly x: number;
 	readonly y: number;
@@ -87,11 +118,31 @@ export interface IBrowserViewRect {
 	readonly height: number;
 }
 
+export interface IBrowserViewPreloadLocalizedStrings {
+	readonly addComment: string;
+	readonly addCommentPlaceholder: string;
+	readonly commentOnSelectedElement: string;
+	readonly elementComment: string;
+	readonly elementCommentWithBody: string;
+	readonly emptyElementComment: string;
+	readonly removeComment: string;
+	readonly removeElementComment: string;
+}
+
 export interface IBrowserViewTheme {
 	readonly focusBorder?: string;
 	readonly buttonBackground?: string;
 	readonly buttonForeground?: string;
+	readonly widgetBackground?: string;
+	readonly widgetForeground?: string;
+	readonly widgetBorder?: string;
+	readonly widgetShadow?: string;
+	readonly contrastBorder?: string;
+	readonly descriptionForeground?: string;
+	readonly inputPlaceholderForeground?: string;
+	readonly toolbarHoverBackground?: string;
 	readonly font?: string;
+	readonly reducedMotion?: boolean;
 }
 
 /**
@@ -193,6 +244,7 @@ export interface IBrowserViewOwner {
 export interface IBrowserViewInfo {
 	readonly id: string;
 	readonly owner: IBrowserViewOwner;
+	readonly associatedResource?: UriComponents;
 	readonly state: IBrowserViewState;
 }
 
@@ -219,7 +271,16 @@ export interface IBrowserViewCreatedEvent {
 export interface IBrowserViewCreateOptions {
 	readonly owner: IBrowserViewOwner;
 	readonly sessionOptions: IBrowserSessionOptions;
+	readonly associatedResource?: UriComponents;
 	readonly initialState?: Partial<IBrowserViewState>;
+}
+
+export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
+	const targetResource = URI.parse(target);
+	return extUriBiasedIgnorePathCase.isEqual(
+		associatedResource.with({ query: null, fragment: null }),
+		targetResource.with({ query: null, fragment: null })
+	);
 }
 
 /** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */
@@ -246,7 +307,7 @@ export interface IBrowserViewState {
 	storageKeys: IBrowserViewStorageKeys;
 	permissions: ISerializedBrowserPermissionsSnapshot;
 	browserZoomIndex: number;
-	isElementSelectionActive: boolean;
+	elementSelectionState: IBrowserElementSelectionState;
 	isRemoteSession: boolean;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
@@ -402,7 +463,8 @@ export interface IBrowserViewService {
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
-	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
+	onDynamicDidRemoveElementComment(id: string): Event<string>;
+	onDynamicDidChangeElementSelectionState(id: string): Event<IBrowserElementSelectionState>;
 	onDynamicDidPickArea(id: string): Event<IBrowserViewRect | undefined>;
 	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
@@ -421,7 +483,7 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 * @param options Creation options. If a view with the given ID already exists, these options are ignored.
 	 */
-	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState>;
+	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo>;
 
 	/**
 	 * Destroy a browser view instance
@@ -624,12 +686,21 @@ export interface IBrowserViewService {
 	/**
 	 * Toggle element selection mode in a browser view.
 	 * Element selections are delivered via {@link onDynamicDidSelectElement}.
-	 * State changes are delivered via {@link onDynamicDidChangeElementSelectionActive}.
+	 * State changes are delivered via {@link onDynamicDidChangeElementSelectionState}.
 	 *
 	 * @param id The browser view identifier
 	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 * @param options Options to update while enabling or continuing element selection.
 	 */
-	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
+	toggleElementSelection(id: string, enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
+
+	/**
+	 * Synchronize the element comments displayed in a browser view.
+	 *
+	 * @param id The browser view identifier
+	 * @param update The comment state to synchronize
+	 */
+	setElementComments(id: string, update: IBrowserElementCommentsUpdate): Promise<void>;
 
 	/**
 	 * Toggle drag-to-select area picking on the top frame of a browser view.

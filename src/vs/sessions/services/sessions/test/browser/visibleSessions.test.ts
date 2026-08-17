@@ -62,20 +62,20 @@ suite('VisibleSessions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createModel() {
+	function createModel(onSlotReplaced: (replaced: ISession, index: number, sticky: boolean, replacedBySessionId: string | undefined) => void = () => { }) {
 		const uriIdentity = new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		};
 		const model = disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
 			() => [],
+			onSlotReplaced,
 			uriIdentity,
 		));
 		return model;
 	}
 
-	function snapshot(model: VisibleSessions): { visible: (string | undefined)[]; active: string | undefined; sticky: string[] } {
-		const visible = model.visibleSessions.get();
+	function snapshot(model: VisibleSessions, visible = model.visibleSessions.get()): { visible: (string | undefined)[]; active: string | undefined; sticky: string[] } {
 		return {
 			visible: visible.map(s => s?.sessionId),
 			active: model.activeSession.get()?.sessionId,
@@ -83,9 +83,11 @@ suite('VisibleSessions', () => {
 		};
 	}
 
-	test('forwards Git availability through visible and resource-override wrappers', () => {
+	test('forwards session metadata through visible and resource-override wrappers', () => {
 		const hasGitRepository = observableValue('hasGitRepository', false);
-		const session = { ...stubSession('A'), hasGitRepository };
+		const completedStateIcon = observableValue('completedStateIcon', Codicon.gitMerge);
+		const isExternal = observableValue('isExternal', true);
+		const session = { ...stubSession('A'), completedStateIcon, hasGitRepository, isExternal };
 		const model = createModel();
 		model.setActive(session);
 		const visible = model.activeSession.get();
@@ -94,9 +96,17 @@ suite('VisibleSessions', () => {
 		assert.deepStrictEqual({
 			visible: visible?.hasGitRepository === hasGitRepository,
 			resourceOverride: resourceOverride.hasGitRepository === hasGitRepository,
+			visibleCompletedStateIcon: visible?.completedStateIcon === completedStateIcon,
+			resourceOverrideCompletedStateIcon: resourceOverride.completedStateIcon === completedStateIcon,
+			visibleExternal: visible?.isExternal === isExternal,
+			resourceOverrideExternal: resourceOverride.isExternal === isExternal,
 		}, {
 			visible: true,
 			resourceOverride: true,
+			visibleCompletedStateIcon: true,
+			resourceOverrideCompletedStateIcon: true,
+			visibleExternal: true,
+			resourceOverrideExternal: true,
 		});
 	});
 
@@ -201,12 +211,18 @@ suite('VisibleSessions', () => {
 			model.setActive(A);
 			model.toggleStickiness(A);     // [A] sticky:[A]
 			model.setActive(B);            // [A, B] active:B
+			const visibleSessionsBeforeActivation = model.visibleSessions.get();
 			model.setActive(A);            // [A, B] active:A — A keeps its slot
+			const visibleSessionsAfterActivation = model.visibleSessions.get();
 
-			assert.deepStrictEqual(snapshot(model), {
+			assert.deepStrictEqual({
+				...snapshot(model, visibleSessionsAfterActivation),
+				visibleSessionsReferencePreserved: visibleSessionsAfterActivation === visibleSessionsBeforeActivation,
+			}, {
 				visible: ['A', 'B'],
 				active: 'A',
 				sticky: ['A'],
+				visibleSessionsReferencePreserved: true,
 			});
 		});
 
@@ -246,18 +262,23 @@ suite('VisibleSessions', () => {
 		test('setActive(undefined) when an empty slot already exists keeps it (no duplicate)', () => {
 			const model = createModel();
 			const A = stubSession('A');
-			const B = stubSession('B');
 
 			model.setActive(A);
 			model.toggleStickiness(A);     // [A] sticky:[A]
 			model.setActive(undefined);    // [A, undefined] active:undefined (empty slot)
-			model.setActive(B);            // active empty slot is non-sticky → replaced by B
-			model.setActive(undefined);    // active B is non-sticky → replaced by empty slot
+			model.setActive(A);            // active flips to A (sticky); empty slot remains
+			const visibleSessionsBeforeActivation = model.visibleSessions.get();
+			model.setActive(undefined);    // activates the existing empty slot
+			const visibleSessionsAfterActivation = model.visibleSessions.get();
 
-			assert.deepStrictEqual(snapshot(model), {
+			assert.deepStrictEqual({
+				...snapshot(model, visibleSessionsAfterActivation),
+				visibleSessionsReferencePreserved: visibleSessionsAfterActivation === visibleSessionsBeforeActivation,
+			}, {
 				visible: ['A', undefined],
 				active: undefined,
 				sticky: ['A'],
+				visibleSessionsReferencePreserved: true,
 			});
 		});
 
@@ -1339,6 +1360,7 @@ suite('VisibleSessions - active chat removal fallback', () => {
 		return disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
 			() => [],
+			() => { },
 			uriIdentity,
 		));
 	}

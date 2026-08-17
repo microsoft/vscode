@@ -4,9 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { JsonValue, PermissionRequest } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+
+type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
+type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
+
+function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean): CopilotShellPermissionRequest {
+	return {
+		kind: 'shell',
+		canOfferSessionApproval: false,
+		commands: [],
+		fullCommandText,
+		hasWriteFileRedirection: false,
+		intention: '',
+		possiblePaths: [],
+		possibleUrls: [],
+		requestSandboxBypass,
+	};
+}
+
+function customToolPermissionRequest(toolName: string, args: JsonValue): CopilotCustomToolPermissionRequest {
+	return {
+		kind: 'custom-tool',
+		toolName,
+		toolDescription: '',
+		args,
+	};
+}
 
 suite('copilotToolDisplay — friendly tool names', () => {
 
@@ -68,6 +95,7 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['codeql_checker', 'CodeQL Security Scan'],
 			['addComment', 'Add Comment'],
 			['listComments', 'List Comments'],
+			['replyToComment', 'Reply to Comment'],
 			['deleteComments', 'Delete Comments'],
 			['resolveComments', 'Resolve Comments'],
 			['viewUnreviewedComments', 'View Comments'],
@@ -136,50 +164,33 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 	const wd = URI.file('/repo/project');
 
 	test('strips redundant cd from shell permission request fullCommandText', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'shell',
-			fullCommandText: 'cd /repo/project && npm test',
-		} as ITypedPermissionRequest;
+		const request = shellPermissionRequest('cd /repo/project && npm test');
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'npm test');
 		assert.strictEqual(display.permissionKind, 'shell');
 	});
 
 	test('leaves shell command alone when cd target differs from working directory', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'shell',
-			fullCommandText: 'cd /tmp && ls',
-		} as ITypedPermissionRequest;
+		const request = shellPermissionRequest('cd /tmp && ls');
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'cd /tmp && ls');
 	});
 
 	test('leaves shell command alone when no working directory provided', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'shell',
-			fullCommandText: 'cd /repo/project && npm test',
-		} as ITypedPermissionRequest;
+		const request = shellPermissionRequest('cd /repo/project && npm test');
 		const display = getPermissionDisplay(request, undefined);
 		assert.strictEqual(display.toolInput, 'cd /repo/project && npm test');
 	});
 
 	test('strips redundant cd from custom-tool shell permission request', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'custom-tool',
-			toolName: 'bash',
-			args: { command: 'cd /repo/project && echo hi' },
-		} as ITypedPermissionRequest;
+		const request = customToolPermissionRequest('bash', { command: 'cd /repo/project && echo hi' });
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'echo hi');
 		assert.strictEqual(display.permissionKind, 'shell');
 	});
 
 	test('does not affect non-shell custom-tool requests', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'custom-tool',
-			toolName: 'some_other_tool',
-			args: { command: 'cd /repo/project && echo hi' },
-		} as ITypedPermissionRequest;
+		const request = customToolPermissionRequest('some_other_tool', { command: 'cd /repo/project && echo hi' });
 		const display = getPermissionDisplay(request, wd);
 		// Falls through to the generic branch — toolInput is the JSON-stringified args.
 		assert.ok(display.toolInput?.includes('cd /repo/project'), `expected unrewritten args, got: ${display.toolInput}`);
@@ -187,39 +198,16 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 	});
 
 	test('handles powershell custom-tool with semicolon separator', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'custom-tool',
-			toolName: 'powershell',
-			args: { command: 'cd /repo/project; dir' },
-		} as ITypedPermissionRequest;
+		const request = customToolPermissionRequest('powershell', { command: 'cd /repo/project; dir' });
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'dir');
 	});
 
 	test('confirmation title reflects sandbox bypass for shell requests', () => {
-		const sandboxed = getPermissionDisplay({
-			kind: 'shell',
-			fullCommandText: 'npm test',
-		} as ITypedPermissionRequest, wd);
-		const bypass = getPermissionDisplay({
-			kind: 'shell',
-			fullCommandText: 'npm test',
-			requestSandboxBypass: true,
-		} as ITypedPermissionRequest, wd);
+		const sandboxed = getPermissionDisplay(shellPermissionRequest('npm test'), wd);
+		const bypass = getPermissionDisplay(shellPermissionRequest('npm test', true), wd);
 
 		assert.notStrictEqual(bypass.confirmationTitle, sandboxed.confirmationTitle);
-		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
-	});
-
-	test('confirmation title reflects sandbox bypass for custom-tool shell requests', () => {
-		const bypass = getPermissionDisplay({
-			kind: 'custom-tool',
-			toolName: 'bash',
-			args: { command: 'echo hi' },
-			requestSandboxBypass: true,
-		} as ITypedPermissionRequest, wd);
-
-		assert.strictEqual(bypass.permissionKind, 'shell');
 		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
 	});
 
@@ -234,7 +222,7 @@ suite('getPermissionDisplay — read permission display', () => {
 			kind: 'read',
 			path: '/Users/connor/Downloads/context7-copilot-debug-main.json',
 			intention: 'Read file: /Users/connor/Downloads/context7-copilot-debug-main.json',
-		} as ITypedPermissionRequest, URI.file('/repo/project'));
+		}, URI.file('/repo/project'));
 
 		assert.deepStrictEqual({
 			invocationMessage: display.invocationMessage,
@@ -242,7 +230,7 @@ suite('getPermissionDisplay — read permission display', () => {
 			permissionKind: display.permissionKind,
 			permissionPath: display.permissionPath,
 		}, {
-			invocationMessage: { markdown: 'Reading [context7-copilot-debug-main.json](file:///Users/connor/Downloads/context7-copilot-debug-main.json)' },
+			invocationMessage: { markdown: 'Read [context7-copilot-debug-main.json](file:///Users/connor/Downloads/context7-copilot-debug-main.json)' },
 			toolInput: undefined,
 			permissionKind: 'read',
 			permissionPath: '/Users/connor/Downloads/context7-copilot-debug-main.json',
@@ -257,8 +245,11 @@ suite('getPermissionDisplay — write permission display', () => {
 	test('distinguishes creating a file from editing one', () => {
 		const request = {
 			kind: 'write',
+			canOfferSessionApproval: false,
+			diff: '',
 			fileName: '/repo/project/package.json',
-		} as ITypedPermissionRequest;
+			intention: '',
+		} satisfies PermissionRequest;
 
 		assert.deepStrictEqual({
 			create: getPermissionDisplay(request, URI.file('/repo/project'), true),
@@ -266,14 +257,14 @@ suite('getPermissionDisplay — write permission display', () => {
 		}, {
 			create: {
 				confirmationTitle: 'Create file?',
-				invocationMessage: { markdown: 'Creating [package.json](file:///repo/project/package.json)' },
+				invocationMessage: { markdown: 'Create [package.json](file:///repo/project/package.json)' },
 				toolInput: '{"path":"/repo/project/package.json"}',
 				permissionKind: 'write',
 				permissionPath: '/repo/project/package.json',
 			},
 			edit: {
 				confirmationTitle: 'Write file?',
-				invocationMessage: { markdown: 'Editing [package.json](file:///repo/project/package.json)' },
+				invocationMessage: { markdown: 'Edit [package.json](file:///repo/project/package.json)' },
 				toolInput: '{"path":"/repo/project/package.json"}',
 				permissionKind: 'write',
 				permissionPath: '/repo/project/package.json',
@@ -297,8 +288,29 @@ suite('view tool — view_range display', () => {
 	}
 
 	test('renders path-only when view_range is absent', () => {
-		assert.ok(invocation({ path: '/repo/file.ts' }).startsWith('Reading ['));
+		assert.ok(invocation({ path: '/repo/file.ts' }).startsWith('Read ['));
 		assert.ok(pastTense({ path: '/repo/file.ts' }).startsWith('Read ['));
+	});
+
+	test('renders Copilot SDK tool-output reads without exposing the temp path', () => {
+		const paths = [
+			'/tmp/1786468439523-copilot-tool-output-d115e2.txt',
+			'/tmp/1786499016779-copilot-tool-output-44600-1a0a63b8-4548-4fb8-a507-da72473e0556.txt',
+			'C:\\Temp\\copilot-tool-output-1786468439523-d115e2.txt',
+			'C:\\Temp\\copilot-tool-output-1786499172415-297.txt',
+		];
+		assert.deepStrictEqual(
+			paths.map(path => ({
+				invocation: invocation({ path, view_range: [107, 119] }),
+				pastTense: pastTense({ path, view_range: [107, 119] }),
+			})),
+			[
+				{ invocation: 'Read tool output', pastTense: 'Read tool output' },
+				{ invocation: 'Read tool output', pastTense: 'Read tool output' },
+				{ invocation: 'Read tool output', pastTense: 'Read tool output' },
+				{ invocation: 'Read tool output', pastTense: 'Read tool output' },
+			],
+		);
 	});
 
 	test('renders "lines X to Y" for a valid two-element range', () => {
@@ -345,31 +357,29 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 		return typeof result === 'string' ? result : result.markdown;
 	}
 
-	test('agent-coordination tools use a single message (past tense) for both invocation and completion', () => {
-		// read/write agents surface the agent id, and the invocation message
-		// matches the past-tense message (these tools are fast).
+	test('agent-coordination tools use a single message for both invocation and completion', () => {
 		assert.strictEqual(invocation('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
 		assert.strictEqual(pastTense('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
-		assert.strictEqual(invocation('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Wrote to agent `math-helper`');
-		assert.strictEqual(pastTense('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Wrote to agent `math-helper`');
+		assert.strictEqual(invocation('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Write to agent `math-helper`');
+		assert.strictEqual(pastTense('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Write to agent `math-helper`');
 	});
 
 	test('agent tools fall back to a generic phrase without an agent id', () => {
 		assert.strictEqual(invocation('read_agent', {}), 'Read agent');
-		assert.strictEqual(pastTense('write_agent', undefined), 'Wrote to agent');
+		assert.strictEqual(pastTense('write_agent', undefined), 'Write to agent');
 	});
 
 	test('agent tools ignore a malformed (non-string) agent id instead of throwing', () => {
 		// agent_id comes from untrusted JSON, so a non-string must not reach the
 		// markdown inline-code formatter (which would throw).
 		assert.strictEqual(invocation('read_agent', { agent_id: 123 }), 'Read agent');
-		assert.strictEqual(pastTense('write_agent', { agent_id: '' }), 'Wrote to agent');
+		assert.strictEqual(pastTense('write_agent', { agent_id: '' }), 'Write to agent');
 	});
 
 	test('list_agents shares one message; task keeps distinct present/past phrases', () => {
 		// list_agents is a fast agent-coordination tool: one message.
-		assert.strictEqual(invocation('list_agents', {}), 'Listed agents');
-		assert.strictEqual(pastTense('list_agents', {}), 'Listed agents');
+		assert.strictEqual(invocation('list_agents', {}), 'List agents');
+		assert.strictEqual(pastTense('list_agents', {}), 'List agents');
 		// task delegates to a (possibly slow) subagent, so it keeps a present-tense invocation.
 		assert.strictEqual(invocation('task', {}), 'Delegating task');
 		assert.strictEqual(pastTense('task', {}), 'Delegated task');
@@ -382,6 +392,102 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 		// Unknown tool: display name is the raw tool name.
 		assert.strictEqual(invocation('some_new_tool', {}), 'some_new_tool');
 		assert.strictEqual(pastTense('some_new_tool', {}), 'some_new_tool');
+	});
+});
+
+suite('copilotToolDisplay — streaming edit messages', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function streaming(toolName: string, parameters: unknown, resolvePath?: (path: string) => string): string {
+		const result = getStreamingInvocationMessage(toolName, getToolDisplayName(toolName), parameters, resolvePath);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	function invocation(toolName: string, parameters: Record<string, unknown>): string {
+		const result = getInvocationMessage(toolName, getToolDisplayName(toolName), parameters);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	function completed(toolName: string, parameters: Record<string, unknown>): string {
+		const result = getPastTenseMessage(toolName, getToolDisplayName(toolName), parameters, true);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	test('streams replacement line counts and the target file', () => {
+		assert.deepStrictEqual([
+			streaming('edit', { path: '/repo/file.ts' }),
+			streaming('edit', { path: '/repo/file.ts', old_str: 'one\ntwo' }),
+			streaming('edit', { path: '/repo/file.ts', old_str: 'one\ntwo', new_str: 'one\nupdated\nthree' }),
+		], [
+			'Editing [file.ts](file:///repo/file.ts)',
+			'Replacing 2 lines in [file.ts](file:///repo/file.ts)',
+			'Replacing 2 lines with 3 lines in [file.ts](file:///repo/file.ts)',
+		]);
+	});
+
+	test('streams create and insert line counts', () => {
+		assert.deepStrictEqual([
+			streaming('create', { path: '/repo/new.ts', file_text: 'one\r\ntwo\r\nthree' }),
+			streaming('insert', { path: '/repo/file.ts', new_str: 'one\rtwo' }),
+		], [
+			'Creating [new.ts](file:///repo/new.ts) (3 lines)',
+			'Inserting 2 lines in [file.ts](file:///repo/file.ts)',
+		]);
+	});
+
+	test('uses the str_replace_editor command shape', () => {
+		assert.deepStrictEqual([
+			streaming('str_replace_editor', { command: 'create', path: '/repo/new.ts', file_text: 'one\ntwo' }),
+			streaming('str_replace_editor', { command: 'str_replace', path: '/repo/file.ts', old_str: 'old', new_str: 'new\nvalue' }),
+			streaming('str_replace_editor', { command: 'view', path: '/repo/file.ts' }),
+		], [
+			'Creating [new.ts](file:///repo/new.ts) (2 lines)',
+			'Replacing 1 line with 2 lines in [file.ts](file:///repo/file.ts)',
+			'Read [file.ts](file:///repo/file.ts)',
+		]);
+	});
+
+	test('preserves file context after streaming aliases become ready and complete', () => {
+		const cases: Array<[toolName: string, parameters: Record<string, unknown>, ready: string, complete: string]> = [
+			['str_replace', { path: '/repo/file.ts' }, 'Edit [file.ts](file:///repo/file.ts)', 'Edit [file.ts](file:///repo/file.ts)'],
+			['insert', { path: '/repo/file.ts' }, 'Insert text in [file.ts](file:///repo/file.ts)', 'Insert text in [file.ts](file:///repo/file.ts)'],
+			['str_replace_editor', { command: 'create', path: '/repo/new.ts' }, 'Create [new.ts](file:///repo/new.ts)', 'Create [new.ts](file:///repo/new.ts)'],
+			['str_replace_editor', { command: 'str_replace', path: '/repo/file.ts' }, 'Edit [file.ts](file:///repo/file.ts)', 'Edit [file.ts](file:///repo/file.ts)'],
+		];
+		assert.deepStrictEqual(cases.map(([toolName, parameters]) => ({
+			ready: invocation(toolName, parameters),
+			complete: completed(toolName, parameters),
+		})), cases.map(([, , ready, complete]) => ({ ready, complete })));
+	});
+
+	test('streams raw patch line counts and resolves discovered file paths', () => {
+		const patch = [
+			'*** Begin Patch',
+			'*** Update File: src/file.ts',
+			'@@',
+			'-old',
+			'+new',
+			'*** End Patch',
+		].join('\n');
+		assert.strictEqual(
+			streaming('apply_patch', patch, path => `/workspace/${path}`),
+			'Generating patch (6 lines) in [file.ts](file:///workspace/src/file.ts)',
+		);
+	});
+
+	test('ignores malformed partial paths', () => {
+		assert.strictEqual(
+			streaming('edit', { path: 42, old_str: 'one' }),
+			'Replacing 1 line',
+		);
+	});
+
+	test('falls back to the normal invocation formatter for non-edit tools', () => {
+		assert.strictEqual(
+			streaming('bash', { command: 'npm test' }),
+			'Running `npm test`',
+		);
 	});
 });
 
@@ -426,8 +532,16 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 			assert.strictEqual(getToolKind('task'), 'subagent');
 		});
 
-		test('returns undefined for view', () => {
-			assert.strictEqual(getToolKind('view'), undefined);
+		test('returns read for file reads', () => {
+			assert.deepStrictEqual([
+				getToolKind('view'),
+				getToolKind('str_replace_editor', { command: 'view' }),
+				getToolKind('str_replace_editor', { command: 'str_replace' }),
+			], [
+				'read',
+				'read',
+				undefined,
+			]);
 		});
 
 		test('returns search for glob', () => {
@@ -552,8 +666,8 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 				past: text(getPastTenseMessage('listComments', 'List Comments', undefined, true, listResult)),
 			}, {
 				displayName: 'List Comments',
-				invoke: 'Checking comments',
-				past: 'Checked 2 comments',
+				invoke: 'List comments',
+				past: 'List comments',
 			});
 		});
 
@@ -592,11 +706,11 @@ suite('skill events', () => {
 
 	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {
 		const withPath = synthesizeSkillToolCall(
-			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
+			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },
 			'evt-123',
 		);
-		const noPath = synthesizeSkillToolCall(
-			{ name: 'plan' },
+		const withoutEventId = synthesizeSkillToolCall(
+			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },
 			undefined,
 		);
 
@@ -607,19 +721,19 @@ suite('skill events', () => {
 			withPathDisplayName: withPath.displayName,
 			withPathInvocation: withPath.invocationMessage,
 			withPathPastTense: withPath.pastTenseMessage,
-			noPathToolCallId: noPath.toolCallId,
-			noPathInvocation: noPath.invocationMessage,
-			noPathPastTense: noPath.pastTenseMessage,
+			withoutEventIdToolCallId: withoutEventId.toolCallId,
+			withoutEventIdInvocation: withoutEventId.invocationMessage,
+			withoutEventIdPastTense: withoutEventId.pastTenseMessage,
 		}, {
 			skillIsHidden: true,
 			withPathToolCallId: 'synth-skill-evt-123',
 			withPathToolName: 'skill',
 			withPathDisplayName: 'Read Skill',
-			withPathInvocation: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+			withPathInvocation: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 			withPathPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
-			noPathToolCallId: 'synth-skill-2108d652',
-			noPathInvocation: 'Reading skill plan',
-			noPathPastTense: 'Read skill plan',
+			withoutEventIdToolCallId: 'synth-skill--15753539',
+			withoutEventIdInvocation: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+			withoutEventIdPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 		});
 	});
 });
@@ -632,26 +746,26 @@ suite('rg / grep search tool display', () => {
 		return typeof msg === 'string' ? msg : msg.markdown;
 	}
 
-	test('rg invocation/past tense use "Searching for {pattern}" wording', () => {
+	test('rg uses one stable search message', () => {
 		const inv = text(getInvocationMessage('rg', 'Search', { pattern: 'foo' }));
 		const past = text(getPastTenseMessage('rg', 'Search', { pattern: 'foo' }, true));
 		assert.deepStrictEqual({ inv, past }, {
-			inv: 'Searching for `foo`',
-			past: 'Searched for `foo`',
+			inv: 'Search for `foo`',
+			past: 'Search for `foo`',
 		});
 	});
 
 	test('rg without a pattern falls back to a generic search message (not the raw tool name)', () => {
 		const inv = text(getInvocationMessage('rg', 'Search', undefined));
-		assert.strictEqual(inv, 'Searching files');
+		assert.strictEqual(inv, 'Search files');
 	});
 
-	test('grep keeps "Searching for {pattern}" wording', () => {
+	test('grep uses one stable search message', () => {
 		const inv = text(getInvocationMessage('grep', 'Search', { pattern: 'bar' }));
 		const past = text(getPastTenseMessage('grep', 'Search', { pattern: 'bar' }, true));
 		assert.deepStrictEqual({ inv, past }, {
-			inv: 'Searching for `bar`',
-			past: 'Searched for `bar`',
+			inv: 'Search for `bar`',
+			past: 'Search for `bar`',
 		});
 	});
 
@@ -695,6 +809,29 @@ suite('web_fetch tool display', () => {
 	});
 });
 
+suite('search tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	test('web search has progress wording while code search stays stable', () => {
+		assert.deepStrictEqual({
+			webInvocation: text(getInvocationMessage('web_search', 'Web Search', { query: 'VS Code tests' })),
+			webComplete: text(getPastTenseMessage('web_search', 'Web Search', { query: 'VS Code tests' }, true)),
+			codeInvocation: text(getInvocationMessage('search_code_subagent', 'Search Code', { query: 'tool display mapping' })),
+			codeComplete: text(getPastTenseMessage('search_code_subagent', 'Search Code', { query: 'tool display mapping' }, true)),
+		}, {
+			webInvocation: 'Searching the web for `VS Code tests`',
+			webComplete: 'Searched the web for `VS Code tests`',
+			codeInvocation: 'Search code for `tool display mapping`',
+			codeComplete: 'Search code for `tool display mapping`',
+		});
+	});
+});
+
 suite('sql tool display', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -710,8 +847,8 @@ suite('sql tool display', () => {
 	});
 
 	test('falls back to generic SQL wording when description is absent', () => {
-		assert.strictEqual(text(getInvocationMessage('sql', 'Execute SQL', { query: 'SELECT 1' })), 'Executing SQL query');
-		assert.strictEqual(text(getPastTenseMessage('sql', 'Execute SQL', { query: 'SELECT 1' }, true)), 'Executed SQL query');
+		assert.strictEqual(text(getInvocationMessage('sql', 'Execute SQL', { query: 'SELECT 1' })), 'Execute SQL query');
+		assert.strictEqual(text(getPastTenseMessage('sql', 'Execute SQL', { query: 'SELECT 1' }, true)), 'Execute SQL query');
 	});
 });
 
@@ -748,8 +885,8 @@ suite('apply_patch tool display', () => {
 		const inv = text(getInvocationMessage('apply_patch', 'Patch', { input: singleFilePatch }));
 		const past = text(getPastTenseMessage('apply_patch', 'Patch', { input: singleFilePatch }, true));
 		assert.deepStrictEqual({ inv, past }, {
-			inv: 'Editing [foo.ts](file:///repo/src/foo.ts)',
-			past: 'Edited [foo.ts](file:///repo/src/foo.ts)',
+			inv: 'Edit [foo.ts](file:///repo/src/foo.ts)',
+			past: 'Edit [foo.ts](file:///repo/src/foo.ts)',
 		});
 	});
 
@@ -757,28 +894,28 @@ suite('apply_patch tool display', () => {
 		const inv = text(getInvocationMessage('apply_patch', 'Patch', { input: multiFilePatch }));
 		const past = text(getPastTenseMessage('apply_patch', 'Patch', { input: multiFilePatch }, true));
 		assert.deepStrictEqual({ inv, past }, {
-			inv: 'Editing [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
-			past: 'Edited [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
+			inv: 'Edit [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
+			past: 'Edit [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
 		});
 	});
 
 	test('falls back to a generic message when the patch body is missing or unparseable', () => {
-		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', undefined), 'Editing files');
-		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', { input: 'not a patch' }), 'Editing files');
-		assert.strictEqual(getPastTenseMessage('apply_patch', 'Patch', undefined, true), 'Edited files');
+		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', undefined), 'Edit files');
+		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', { input: 'not a patch' }), 'Edit files');
+		assert.strictEqual(getPastTenseMessage('apply_patch', 'Patch', undefined, true), 'Edit files');
 	});
 
 	test('also accepts the patch text under the `patch` parameter (CLI shape)', () => {
 		const inv = text(getInvocationMessage('apply_patch', 'Patch', { patch: singleFilePatch }));
-		assert.strictEqual(inv, 'Editing [foo.ts](file:///repo/src/foo.ts)');
+		assert.strictEqual(inv, 'Edit [foo.ts](file:///repo/src/foo.ts)');
 	});
 
 	test('git_apply_patch shares the same display path', () => {
 		const inv = text(getInvocationMessage('git_apply_patch', 'Patch', { input: singleFilePatch }));
 		const past = text(getPastTenseMessage('git_apply_patch', 'Patch', { input: singleFilePatch }, true));
 		assert.deepStrictEqual({ inv, past }, {
-			inv: 'Editing [foo.ts](file:///repo/src/foo.ts)',
-			past: 'Edited [foo.ts](file:///repo/src/foo.ts)',
+			inv: 'Edit [foo.ts](file:///repo/src/foo.ts)',
+			past: 'Edit [foo.ts](file:///repo/src/foo.ts)',
 		});
 	});
 

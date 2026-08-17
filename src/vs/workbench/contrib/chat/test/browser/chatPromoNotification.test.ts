@@ -117,6 +117,8 @@ suite('ChatPromoNotificationContribution', () => {
 		const notification = notifService.getNotification();
 		assert.ok(notification, 'Expected a notification to be shown');
 		assert.ok(notification.message.toString().includes('20% off'));
+		assert.ok(notification.description?.toString().includes('2026'), 'Expected the end date to be rendered');
+		assert.strictEqual(notification.deferForNewUsers, true);
 		assert.deepStrictEqual(notification.actions, [{
 			label: 'Try GPT-5.5',
 			kind: ChatInputNotificationActionKind.SwitchToModel,
@@ -124,17 +126,30 @@ suite('ChatPromoNotificationContribution', () => {
 		}]);
 	});
 
-	test('does not show notification for non-positive promo discounts', () => {
+	test('renders the server message for a 0% promo', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:zero-discount',
+			metadata: { name: 'Zero Discount', id: 'zero-discount', promo: { id: 'promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		const notification = notifService.getNotification();
+		assert.ok(notification, 'Expected a notification for the 0% promo');
+		assert.strictEqual(notification.message, 'Featured model');
+	});
+
+	test('prefers a discounted promo over a 0% one in the same harness', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([
-			{
-				identifier: 'copilot:zero-discount',
-				metadata: { name: 'Zero Discount', id: 'zero-discount', promo: { id: 'promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
-			},
-			{
-				identifier: 'copilot:negative-discount',
-				metadata: { name: 'Negative Discount', id: 'negative-discount', promo: { id: 'promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
-			},
+			{ identifier: 'copilot:featured', metadata: { name: 'Featured', id: 'featured', promo: { id: 'promo-zero', discountPercent: 0, message: 'Featured model' } } },
+			{ identifier: 'copilot:discounted', metadata: { name: 'Discounted', id: 'discounted', promo: { id: 'promo-discount', discountPercent: 20, message: 'Get 20% off' } } },
 		], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 
@@ -144,7 +159,49 @@ suite('ChatPromoNotificationContribution', () => {
 			storageService,
 		));
 
+		const notification = notifService.getNotification();
+		assert.ok(notification);
+		assert.strictEqual(notification.message, 'Get 20% off');
+	});
+
+	test('does not show notification for negative promo discounts', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:negative-discount',
+			metadata: { name: 'Negative Discount', id: 'negative-discount', promo: { id: 'promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
 		assert.strictEqual(notifService.getNotification(), undefined);
+	});
+
+	test('omits the end date when the promo has none', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([
+			{ identifier: 'local:no-end-date', metadata: { name: 'Open Ended', id: 'no-end-date', promo: { id: 'promo-open', discountPercent: 20, message: 'Get 20% off' } } },
+			{ identifier: 'copilot:bad-end-date', metadata: { name: 'Bad Date', id: 'bad-end-date', targetChatSessionType: 'copilotcli', promo: { id: 'promo-bad-date', discountPercent: 20, endsAt: 'not a date', message: 'Get 20% off' } } },
+		], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		assert.deepStrictEqual(
+			notifService.getAllNotifications().map(n => ({ message: n.message, description: n.description })),
+			[
+				{ message: 'Get 20% off', description: undefined },
+				{ message: 'Get 20% off', description: undefined },
+			],
+		);
 	});
 
 	test('does not show notification for already-dismissed promo', () => {
@@ -360,5 +417,25 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.strictEqual(notifService.getAllNotifications().length, 0);
 		const stored = JSON.parse(storageService.get('chat.dismissedPromoIds', StorageScope.APPLICATION) ?? '[]');
 		assert.deepStrictEqual(stored, ['promo-shared']);
+	});
+
+	test('dismissing a promo in one window hides it in other windows', () => {
+		const promo = { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off' };
+		const models = [{ identifier: 'copilot:gpt-5.5', metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo } }];
+		// Both windows of the same app share application-scoped storage.
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		const windowA = createMockNotificationService(disposables);
+		const windowB = createMockNotificationService(disposables);
+		disposables.add(new ChatPromoNotificationContribution(createMockLanguageModelsService(models, disposables).service, windowA.service, storageService));
+		disposables.add(new ChatPromoNotificationContribution(createMockLanguageModelsService(models, disposables).service, windowB.service, storageService));
+
+		assert.ok(windowA.getNotification());
+		assert.ok(windowB.getNotification());
+
+		windowA.dismiss();
+
+		assert.strictEqual(windowA.getNotification(), undefined, 'Dismissing window should hide the promo');
+		assert.strictEqual(windowB.getNotification(), undefined, 'Other windows should hide the promo too');
 	});
 });

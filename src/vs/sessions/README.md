@@ -1,44 +1,61 @@
-# vs/sessions — Agents Window
+# Agents Window documentation
 
-## Overview
+`vs/sessions` implements the Agents Window as a top-level layer above
+`vs/workbench`. This directory contains both the implementation and the durable
+design specifications that describe its boundaries.
 
-The `vs/sessions` layer hosts the implementation of the **Agents Window**, a dedicated workbench experience optimized for agent session workflows. This is a distinct top-level layer within the VS Code architecture, sitting alongside `vs/workbench`.
+## Documentation ownership
 
-The Agents Window (`Workbench`) provides a simplified, fixed-layout workbench tailored for agent session workflows. Unlike the standard VS Code workbench:
+Each contract has one authoritative home:
 
-- **Fixed layout** — Part positions are not configurable via settings
-- **Simplified chrome** — No activity bar, no status bar, no banner
-- **Sessions-first UX** — The Sessions Part is the primary content surface, hosting a grid of one or more session views (each rendering the active chat of its session) alongside the sidebar and auxiliary bar
-- **Modal editor** — Editors appear as modal overlays rather than in the main grid
-- **Session-aware titlebar** — Titlebar shows the active session, session picker, and signed-in account widget
-- **Provider model** — Session backends (local CLI, cloud, remote agent host) register as pluggable providers
+- This file indexes the subsystem and its design documents.
+- Focused specifications describe stable architecture and product invariants.
+- Tests define concrete behavior and regressions.
+- `.github/skills/sessions/SKILL.md` owns the basic development principles,
+  their maintenance policy, and routing to the relevant specification.
+- `.github/learnings/sessions.md` is a temporary inbox for reusable feedback
+  that has not yet been promoted.
+- Git history, issues, and pull requests preserve implementation chronology and
+  rejected approaches.
 
-**Key constraint:** `vs/sessions` may import from `vs/workbench` (and all layers below it), but `vs/workbench` must **never** import from `vs/sessions`.
+Do not duplicate detailed guidance across these artifacts. Concise routing
+summaries may restate enough of a rule to identify its owning specification,
+which remains authoritative.
 
-## Documentation
+## Architecture specifications
 
-| Document | Description |
-|----------|-------------|
-| [LAYOUT.md](LAYOUT.md) | Workbench layout specification — grid structure, parts, titlebar, per-session layout state |
-| [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) | Per-session layout state — how the auxiliary bar, panel, and editor working sets are captured/restored on session switch |
-| [LAYERS.md](LAYERS.md) | Import layering rules — what each layer can and cannot import, ESLint enforcement |
-| [SESSIONS.md](SESSIONS.md) | Sessions architecture — layers, provider model, core interfaces, data flow, metadata contract |
-| [MOBILE.md](MOBILE.md) | Mobile layout specification |
-| [AI_CUSTOMIZATIONS.md](AI_CUSTOMIZATIONS.md) | AI customization design document |
-| [copilot-customizations-spec.md](copilot-customizations-spec.md) | Copilot customizations specification |
-| [contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) | Copilot chat sessions provider details |
-| [contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md](contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md) | Local in-process VS Code chat sessions provider details |
-| [contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) | Agent host provider details (shared base + local agent host) |
-| [contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) | Remote agent host provider details |
+| Area | Authoritative document |
+|------|------------------------|
+| Internal layer hierarchy and import rules | [LAYERS.md](LAYERS.md) |
+| Session/chat model, services, provider contract, and core data flow | [SESSIONS.md](SESSIONS.md) |
+| Workbench parts, grid, title bar, and editor presentation | [LAYOUT.md](LAYOUT.md) |
+| Session-aware layout capture and restoration | [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) |
+| Single-pane behavior scenarios | [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md) |
+| Sessions sidebar list | [SESSIONS_LIST.md](SESSIONS_LIST.md) |
+| Phone layout and mobile components | [MOBILE.md](MOBILE.md) |
+| AI customizations | [AI_CUSTOMIZATIONS.md](AI_CUSTOMIZATIONS.md) |
+| Copilot customizations | [copilot-customizations-spec.md](copilot-customizations-spec.md) |
+| Copilot Chat provider | [COPILOT_CHAT_SESSIONS_PROVIDER.md](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) |
+| Agent Host provider | [AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) |
+| Remote Agent Host provider | [REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) |
 
-## Adding New Functionality
+## Structural boundaries
 
-When adding features to the Agents Window:
+- `vs/sessions` may import from `vs/workbench` and lower layers.
+  `vs/workbench` must not import from `vs/sessions`.
+- Core browser and common code lives under `browser/` and `common/`.
+- Shared Sessions services live under `services/`.
+- Features live under `contrib/<feature>/`.
+- Providers live under `contrib/providers/<provider>/`.
+- Non-provider contributions must not import provider implementations.
+- Contributions must be imported by the appropriate `sessions.*.main.ts` entry
+  point to load.
 
-1. **Core workbench code** (layout, parts, services) goes under `browser/` or `services/`
-2. **Feature contributions** (views, actions, editors) go under `contrib/<featureName>/browser/`
-3. **Session providers** go under `contrib/providers/<providerName>/browser/`
-4. Register contributions by importing them in `sessions.desktop.main.ts` (or `sessions.common.main.ts` for browser-compatible code)
-5. Non-provider `contrib/*` modules **must not** import from `contrib/providers/*` — see [LAYERS.md](LAYERS.md)
-6. Update the layout spec ([LAYOUT.md](LAYOUT.md)) for any layout changes
-7. Update the sessions spec ([SESSIONS.md](SESSIONS.md)) when changing provider interfaces or data flow
+See [LAYERS.md](LAYERS.md) for the enforced import graph.
+
+## Updating documentation
+
+Update a specification when a change modifies the architecture or a durable
+contract it describes. Keep implementation walkthroughs, incident narratives,
+and transient fixes out of specifications; represent concrete behavior with
+tests and preserve historical rationale in the associated issue or pull request.

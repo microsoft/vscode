@@ -5,6 +5,7 @@
 
 import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -24,11 +25,15 @@ import { addMicButtonContextMenuListener, getDictationContextMenuActions } from 
 const TOGGLE_DICTATION_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
 
 /**
- * Toolbar affordance shown while the on-device dictation model downloads: a
- * download icon wrapped by a progress ring, plus a rich hover reporting the
- * percentage.
+ * Toolbar affordance shown while the on-device dictation model prepares. During
+ * an actual model download (a confirmed cache miss) it shows a download icon
+ * wrapped by a progress ring, plus a rich hover reporting the percentage.
+ * Otherwise (loading an already-cached model, or the cloud backend connecting)
+ * it shows a plain spinner.
  */
 export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
+
+	private readonly _ring = this._register(new MutableDisposable<DictationDownloadRing>());
 
 	constructor(
 		action: MenuItemAction,
@@ -48,15 +53,14 @@ export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._applyBackendIcon();
 
 		container.classList.add('dictation-download-item');
-		// The on-device backend downloads a model, so show a determinate progress
-		// ring around the download icon. The cloud backend only connects (no
-		// download), so its icon is swapped for a plain spinner instead.
-		if (this._speechToTextService.currentBackend !== 'mai') {
-			this._register(new DictationDownloadRing(container, this._speechToTextService));
-		}
+		this._applyState();
+
+		// The download state flips as the model moves from loading a cached
+		// model to downloading (cache miss) and back, so re-render the icon and
+		// ring whenever it changes.
+		this._register(this._speechToTextService.onDidChangeDownloadingModel(() => this._applyState()));
 
 		// Keep the mic context menu available while the model prepares so the
 		// affordance doesn't lose Select Microphone / Disable Dictation during
@@ -70,15 +74,27 @@ export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
 
 	protected override updateClass(): void {
 		super.updateClass();
-		this._applyBackendIcon();
+		this._applyState();
 	}
 
-	private _applyBackendIcon(): void {
-		if (this._speechToTextService.currentBackend !== 'mai' || !this.label) {
+	private _applyState(): void {
+		if (!this.label) {
 			return;
 		}
-		this.label.classList.remove(...ThemeIcon.asClassNameArray(Codicon.micDownloadCompact));
-		this.label.classList.add(...ThemeIcon.asClassNameArray(Codicon.loadingCompact));
+		// Show the download icon + progress ring only during an actual model
+		// download (a confirmed cache miss). Otherwise show a plain spinner; its
+		// spin animation is driven by CSS off the `codicon-loading-compact` class.
+		if (this._speechToTextService.isDownloadingModel) {
+			this.label.classList.remove(...ThemeIcon.asClassNameArray(Codicon.loadingCompact));
+			this.label.classList.add(...ThemeIcon.asClassNameArray(Codicon.micDownloadCompact));
+			if (!this._ring.value && this.element) {
+				this._ring.value = new DictationDownloadRing(this.element, this._speechToTextService);
+			}
+		} else {
+			this.label.classList.remove(...ThemeIcon.asClassNameArray(Codicon.micDownloadCompact));
+			this.label.classList.add(...ThemeIcon.asClassNameArray(Codicon.loadingCompact));
+			this._ring.clear();
+		}
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {

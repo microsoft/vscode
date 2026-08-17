@@ -39,6 +39,7 @@ function separator(label?: string): IActionListItem<ITestActionItem> {
 function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, options: {
 	readonly items?: readonly IActionListItem<ITestActionItem>[];
 	readonly onFilter?: (filter: string, cancellationToken: CancellationToken) => Promise<readonly IActionListItem<ITestActionItem>[]>;
+	readonly onHide?: () => void;
 	readonly listOptions?: Partial<IActionListOptions>;
 }): ActionListWidget<ITestActionItem> {
 	const instantiationService = disposables.add(new TestInstantiationService());
@@ -47,12 +48,12 @@ function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposabl
 	instantiationService.set(IOpenerService, NullOpenerService);
 	const delegate = options.onFilter
 		? {
-			onHide: () => { },
+			onHide: options.onHide ?? (() => { }),
 			onSelect: () => { },
 			onFilter: options.onFilter,
 		}
 		: {
-			onHide: () => { },
+			onHide: options.onHide ?? (() => { }),
 			onSelect: () => { },
 		};
 
@@ -163,6 +164,24 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('Escape from a submenu hides the action list', () => {
+		let hideCount = 0;
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('parent'),
+				submenuActions: [toAction({ id: 'child', label: 'Child', run: () => { } })],
+			}],
+			onHide: () => hideCount++,
+		});
+
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
+		assert.ok(submenu);
+		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+		assert.strictEqual(hideCount, 1);
+	});
+
 	test('runs dynamic filter updates immediately', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const filters: string[] = [];
 		const widget = createActionListWidget(disposables, {
@@ -201,6 +220,43 @@ suite('ActionListWidget', () => {
 		secondResult.complete([action('ma-fresh-result')]);
 		await timeout(0);
 		assert.ok(widget.domNode.textContent?.includes('ma-fresh-result'));
+	});
+
+	test('does not filter while an IME composition is in progress', () => {
+		const filters: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			onFilter: async filter => {
+				filters.push(filter);
+				return [action(`result-${filter}`)];
+			},
+		});
+
+		assert.ok(widget.filterInput);
+		widget.filterInput.dispatchEvent(new Event('compositionstart'));
+		typeFilter(widget, 'd');
+		typeFilter(widget, 'deepseek');
+		widget.filterInput.value = 'DeepSeek';
+		widget.filterInput.dispatchEvent(new Event('compositionend'));
+		// Chromium fires a trailing `input` for the committed text, which must not re-filter.
+		typeFilter(widget, 'DeepSeek');
+
+		assert.deepStrictEqual(filters, ['DeepSeek']);
+	});
+
+	test('cancels an in-flight dynamic filter when a composition starts', async () => {
+		const pending = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+		const widget = createActionListWidget(disposables, {
+			onFilter: () => pending.p,
+		});
+
+		typeFilter(widget, 'd');
+		assert.ok(widget.filterInput);
+		widget.filterInput.dispatchEvent(new Event('compositionstart'));
+
+		// Resolving now must not splice/re-layout the list underneath the IME candidate window.
+		pending.complete([action('stale-result')]);
+		await timeout(0);
+		assert.ok(!widget.domNode.textContent?.includes('stale-result'));
 	});
 
 	test('batches row width writes before reading layout', () => {
@@ -377,4 +433,30 @@ suite('ActionListWidget', () => {
 			{ text: 'Learn more', href: 'https://aka.ms/test' },
 		);
 	});
+
+	test('focuses the configured initial item when opened', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('active'), action('last')],
+			listOptions: { initialFocusItemId: 'active' },
+		});
+
+		widget.focus();
+
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'active');
+	});
+
+	test('consumes initial focus before later filtering and refocusing', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('match-first'), action('match-initial'), action('other')],
+			listOptions: { initialFocusItemId: 'match-initial' },
+		});
+
+		widget.focus();
+		widget.focusPrevious();
+		typeFilter(widget, 'match');
+		widget.focus();
+
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'match-first');
+	});
+
 });

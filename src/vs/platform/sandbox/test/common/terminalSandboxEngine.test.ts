@@ -308,6 +308,18 @@ suite('TerminalSandboxEngine', () => {
 		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [] });
 	});
 
+	test('unsandboxed retry preserves the original working directory on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+		await engine.getSandboxConfigPath();
+
+		const wrapped = await engine.wrapCommand('pwd', true, 'bash', URI.file('/workspace/with spaces'));
+
+		strictEqual(wrapped.isSandboxWrapped, false);
+		ok(wrapped.command.includes(`/workspace/with spaces`), `Expected the unsandboxed command to include cwd. Actual: ${wrapped.command}`);
+		ok(wrapped.command.includes(`&& pwd`), `Expected the unsandboxed command to change to cwd before execution. Actual: ${wrapped.command}`);
+	});
+
 	test('blocked domains request sandboxed network access before execution when enabled', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['example.com']);

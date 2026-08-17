@@ -25,7 +25,8 @@ import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentPa
 import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
 import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolProgressPart.js';
-import { isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { ChatToolStreamingSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolStreamingSubPart.js';
+import { isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IChatAutomationConfiguredData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -76,6 +77,19 @@ suite('ChatToolProgressSubPart', () => {
 			diffEditorPool: {} as DiffEditorPool,
 			currentWidth: observableValue('currentWidth', 500),
 			onDidChangeVisibility: Event.None
+		};
+	}
+
+	function createStreamingToolInvocation(streamingMessage: string, isAttachedToThinking: boolean = false): IChatToolInvocation {
+		const state = observableValue<IChatToolInvocation.State>('state', {
+			type: IChatToolInvocation.StateKind.Streaming,
+			partialInput: observableValue('partialInput', {}),
+			streamingMessage: observableValue('streamingMessage', streamingMessage)
+		});
+		return {
+			...createToolInvocation({ invocationMessage: streamingMessage }),
+			isAttachedToThinking,
+			state,
 		};
 	}
 
@@ -268,6 +282,11 @@ suite('ChatToolProgressSubPart', () => {
 		assert.deepStrictEqual(cases, [true, true, false]);
 	});
 
+	test('detects all ask-question tool names for top-level rendering', () => {
+		const toolNames = ['copilot_askQuestions', 'vscode_askQuestions', 'ask_user', 'AskUserQuestion', 'request_user_input'];
+		assert.deepStrictEqual(toolNames.map(toolId => isAskQuestionsToolInvocation(createToolInvocation({ toolId }))), [true, true, true, true, true]);
+	});
+
 	test('renders the automation result subpart for configured automation data', () => {
 		const invocation: IChatToolInvocationSerialized = {
 			...createSerializedToolInvocation({ isComplete: true }),
@@ -414,6 +433,49 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(part.domNode.querySelector('.shimmer-progress'), null);
 	});
 
+	test('shimmers only the leading verb of standalone streaming progress, but not inside a thinking part', () => {
+		const patchPart = disposables.add(instantiationService.createInstance(
+			ChatToolStreamingSubPart,
+			createStreamingToolInvocation('Generating patch (282 lines)'),
+			createRenderContext(false),
+			mockMarkdownRenderer
+		));
+		const editPart = disposables.add(instantiationService.createInstance(
+			ChatToolStreamingSubPart,
+			createStreamingToolInvocation('Editing 5 lines'),
+			createRenderContext(false),
+			mockMarkdownRenderer
+		));
+		const thinkingPart = disposables.add(instantiationService.createInstance(
+			ChatToolStreamingSubPart,
+			createStreamingToolInvocation('Generating patch (282 lines)', /* isAttachedToThinking */ true),
+			createRenderContext(false),
+			mockMarkdownRenderer
+		));
+
+		const inspect = (part: ChatToolStreamingSubPart) => {
+			const shimmerText = part.domNode.querySelector<HTMLElement>('.chat-progress-shimmer-text');
+			return {
+				shimmer: !!part.domNode.querySelector('.shimmer-progress'),
+				spinner: !!part.domNode.querySelector('.codicon-loading'),
+				shimmerText: shimmerText?.textContent,
+				// A negative animation-delay keeps the sweep continuous across streaming rerenders.
+				shimmerPhaseSynced: (shimmerText?.style.animationDelay ?? '').endsWith('ms'),
+				text: part.domNode.textContent,
+			};
+		};
+
+		assert.deepStrictEqual({
+			patch: inspect(patchPart),
+			edit: inspect(editPart),
+			thinking: inspect(thinkingPart),
+		}, {
+			patch: { shimmer: true, spinner: false, shimmerText: 'Generating patch', shimmerPhaseSynced: true, text: 'Generating patch (282 lines)' },
+			edit: { shimmer: true, spinner: false, shimmerText: 'Editing', shimmerPhaseSynced: true, text: 'Editing 5 lines' },
+			thinking: { shimmer: false, spinner: false, shimmerText: undefined, shimmerPhaseSynced: false, text: 'Generating patch (282 lines)' },
+		});
+	});
+
 	test('adds shimmer styling only for active ask questions invocation progress', () => {
 		const askQuestionsTool = disposables.add(instantiationService.createInstance(
 			ChatToolProgressSubPart,
@@ -446,6 +508,16 @@ suite('ChatToolProgressSubPart', () => {
 			mockMarkdownRenderer,
 			new Set<string>()
 		));
+		const waitingForAnswerTool = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			createToolInvocation({
+				toolId: 'ask_user',
+				invocationMessage: 'Waiting for answer...'
+			}),
+			createRenderContext(false),
+			mockMarkdownRenderer,
+			new Set<string>()
+		));
 
 		assert.deepStrictEqual([
 			!!askQuestionsTool.domNode.querySelector('.shimmer-progress'),
@@ -454,8 +526,9 @@ suite('ChatToolProgressSubPart', () => {
 			askMultipleQuestionsTool.domNode.querySelector('.chat-progress-shimmer-text')?.textContent,
 			askMultipleQuestionsTool.domNode.textContent,
 			!!analyzingAnswersTool.domNode.querySelector('.shimmer-progress'),
-			analyzingAnswersTool.domNode.querySelector('.chat-progress-shimmer-text')?.textContent
-		], [true, 'Asking a question', 'Asking a question (Target)', 'Asking 3 questions', 'Asking 3 questions (What should we work on?, Preferred area, How hands-on?)', false, undefined]);
+			analyzingAnswersTool.domNode.querySelector('.chat-progress-shimmer-text')?.textContent,
+			!!waitingForAnswerTool.domNode.querySelector('.shimmer-progress')
+		], [true, 'Asking a question', 'Asking a question (Target)', 'Asking 3 questions', 'Asking 3 questions (What should we work on?, Preferred area, How hands-on?)', false, undefined, true]);
 	});
 
 	test('does not render a loading icon for run playwright code progress', () => {

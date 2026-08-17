@@ -52,11 +52,13 @@ export function resolveModelIdentifierFromCatalog(
 	const hasLive = vendor ? vendorResolution.hasLiveModels(vendor) : false;
 	// Agent-host vendors publish their models asynchronously after the agent host connects, so an
 	// empty (not-yet-populated) list is transient: keep the remembered/restored model `pending`
-	// (wait) rather than `unavailable` (give up). Once the vendor HAS live models, an absent model
-	// is genuinely gone, so stay conclusive. This grace is scoped to restore *resolution* only —
-	// cache-retention (`mergeModelsWithCache`) and send-availability keep treating a resolved-empty
-	// list as authoritative. The vendor id equals the session type for agent-host models, so
-	// `isAgentHostTarget` classifies it directly.
+	// (wait) rather than `unavailable` (give up). The same holds while the host has only mirrored
+	// the workbench's BYOK models into its pool and its own catalog is still in flight, which is
+	// why `hasLiveModels` reports whether the vendor published models of its OWN (see
+	// `hasOwnLiveModels`). Once it has, an absent model is genuinely gone, so stay conclusive.
+	// This grace is scoped to restore *resolution* only — cache-retention (`mergeModelsWithCache`)
+	// and send-availability keep treating a resolved-empty list as authoritative. The vendor id
+	// equals the session type for agent-host models, so `isAgentHostTarget` classifies it directly.
 	const isAbsenceConclusive = !vendor || (isLanguageModelVendorAbsenceConclusive(
 		vendor,
 		hasLive,
@@ -74,15 +76,25 @@ export function getRegisteredLanguageModels(languageModelsService: Pick<ILanguag
 		.filter(model => model !== undefined);
 }
 
+/**
+ * Whether a vendor has published models of its own, ignoring copies bridged in from another
+ * provider. An agent host mirrors the workbench's BYOK models into its pool as soon as the bridge
+ * is up, but its own catalog only arrives once the host has connected and authenticated — so a pool
+ * that is nothing but bridged copies is a half-published catalog. Counting it as live makes a
+ * restored session's model look permanently gone and swaps it for an arbitrary bridged model.
+ */
+function hasOwnLiveModels(models: readonly ILanguageModelChatMetadataAndIdentifier[], vendor: string): boolean {
+	return models.some(model => model.metadata.vendor === vendor && model.metadata.byokModelIdentifier === undefined);
+}
+
 export function resolveModelIdentifierFromLanguageModels(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
 	identifier: string | undefined,
 	languageModelsService: Pick<ILanguageModelsService, 'hasResolvedVendor'>,
 	allModels: readonly ILanguageModelChatMetadataAndIdentifier[],
 ): ModelIdentifierResolution {
-	const liveVendors = new Set(allModels.map(model => model.metadata.vendor));
 	return resolveModelIdentifierFromCatalog(models, identifier, {
-		hasLiveModels: vendor => liveVendors.has(vendor),
+		hasLiveModels: vendor => hasOwnLiveModels(allModels, vendor),
 		hasResolved: vendor => languageModelsService.hasResolvedVendor(vendor),
 	});
 }
@@ -144,10 +156,20 @@ export const enum ModelSelectionReason {
 
 export type ModelSelectionApplyReason = Exclude<ModelSelectionReason, ModelSelectionReason.NoModels>;
 
-export function isAuthoritativeModelSelectionReason(reason: ModelSelectionApplyReason | undefined): boolean {
-	return reason === ModelSelectionReason.ProgrammaticSelection
-		|| reason === ModelSelectionReason.SessionRestore
-		|| reason === ModelSelectionReason.UserSelection;
+/**
+ * The model a conversation is meant to run on, and the authority that put it there — regardless of
+ * what the catalog can offer right now. Owned by the conversation rather than by any input widget,
+ * so a choice made in one chat can never be applied to another.
+ *
+ * Deliberately local: it is never serialized and never crosses the agent-host wire, unlike the
+ * selected model in the conversation's draft state.
+ */
+export interface IIntendedModelSelection {
+	readonly modelId: string;
+	/** Present when the model itself was seen; absent when only an id was restored from storage. */
+	readonly model?: ILanguageModelChatMetadataAndIdentifier;
+	readonly reason: ModelSelectionApplyReason;
+	readonly configuration?: Record<string, unknown>;
 }
 
 /**
@@ -253,8 +275,8 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 		|| currentReason === ModelSelectionReason.Remembered
 		|| currentReason === ModelSelectionReason.NewChatRepush;
 	const configuredModelValue = session.kind === 'untitled'
-		&& (newConversation
-			|| (!newConversation && (!sessionModelId || automaticSelection) && !isAuthoritativeModelSelectionReason(currentReason)))
+		&& !isInConversationModelChoice(currentReason)
+		&& (newConversation || (!newConversation && (!sessionModelId || automaticSelection)))
 		? models.configuredModel
 		: undefined;
 	const configuredModel = configuredModelValue

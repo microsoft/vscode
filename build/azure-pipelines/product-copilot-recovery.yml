@@ -97,6 +97,7 @@ extends:
 
     testSteps:
       - checkout: self
+        path: s
         lfs: true
         retryCountOnTaskFailure: 3
       - template: copilot/setup-steps.yml

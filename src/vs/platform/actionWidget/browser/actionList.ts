@@ -583,6 +583,9 @@ export interface IActionListOptions {
 	 */
 	readonly focusFilterOnOpen?: boolean;
 
+	/** Optional action item id to focus when the list opens. */
+	readonly initialFocusItemId?: string;
+
 	/**
 	 * When false, non-submenu items do not reserve space for the submenu chevron.
 	 * Defaults to true for alignment consistency.
@@ -629,6 +632,11 @@ export interface IActionListOptions {
 	readonly className?: string;
 
 	/**
+	 * Optional CSS class name added to the containing action widget.
+	 */
+	readonly widgetClassName?: string;
+
+	/**
 	 * Optional CSS class and duration used to animate the containing action widget
 	 * before the context view is hidden.
 	 */
@@ -650,6 +658,7 @@ export class ActionListWidget<T> extends Disposable {
 	public readonly domNode: HTMLElement;
 
 	private readonly _list: List<IActionListItem<T>>;
+	private _initialFocusItemId: string | undefined;
 
 	protected readonly _actionLineHeight: number;
 	protected readonly _headerLineHeight = 24;
@@ -668,6 +677,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
+	private _imeSessionInProgress = false;
 	private _suppressHover = false;
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
@@ -697,6 +707,7 @@ export class ActionListWidget<T> extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._initialFocusItemId = this._options?.initialFocusItemId;
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		if (this._options?.inlineDescription) {
@@ -845,10 +856,34 @@ export class ActionListWidget<T> extends Disposable {
 					filterActionBar.push(filterActions, { icon: true, label: false });
 				}
 
-				this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
-					this._filterText = this._filterInput!.value;
+				// While an IME composition is running the input holds intermediate text (e.g. pinyin)
+				// which must not drive the filter: re-filtering splices the list, re-highlights a row and
+				// re-layouts the popup, all of which disrupt the composition and the IME candidate window.
+				// Filter once the composition commits instead.
+				const onFilterValueChanged = () => {
+					const value = this._filterInput!.value;
+					// `compositionend` and the `input` event that follows it both land here (and browsers
+					// disagree on their order), so only filter when the text actually changed.
+					if (this._imeSessionInProgress || value === this._filterText) {
+						return;
+					}
+					this._filterText = value;
 					this._applyOrUpdateFilter();
+				};
+
+				this._register(dom.addDisposableListener(this._filterInput, 'compositionstart', () => {
+					this._imeSessionInProgress = true;
+					// A dynamic filter request issued for the previous value can still be in flight.
+					// Letting it resolve now would splice and re-layout the list underneath the IME
+					// candidate window - the very disruption this guard exists to prevent. The
+					// committed value starts a fresh request from `compositionend`.
+					this._filterCts.value?.cancel();
 				}));
+				this._register(dom.addDisposableListener(this._filterInput, 'compositionend', () => {
+					this._imeSessionInProgress = false;
+					onFilterValueChanged();
+				}));
+				this._register(dom.addDisposableListener(this._filterInput, 'input', onFilterValueChanged));
 			}
 
 			if (this._options?.secondaryHeading) {
@@ -924,7 +959,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		// ArrowRight opens submenu for the focused item and moves focus into it
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'ArrowRight') {
+			if (e.key === 'ArrowRight' && !e.isComposing) {
 				const focused = this._list.getFocus();
 				if (focused.length > 0) {
 					const element = this._list.element(focused[0]);
@@ -945,7 +980,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._filterInput) {
 			this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
 				if (this._filterInput && !dom.isActiveElement(this._filterInput)
-					&& e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+					&& !e.isComposing && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
 					this._filterInput.focus();
 					this._filterInput.value = e.key;
 					this._filterText = e.key;
@@ -1258,6 +1293,26 @@ export class ActionListWidget<T> extends Disposable {
 	private _focusCheckedOrFirst(): void {
 		this._suppressHover = true;
 		try {
+			const initialFocusItemId = this._initialFocusItemId;
+			this._initialFocusItemId = undefined;
+			if (initialFocusItemId) {
+				for (let i = 0; i < this._list.length; i++) {
+					const element = this._list.element(i);
+					if (element.kind === ActionListItemKind.Action && (element.item as { id?: string })?.id === initialFocusItemId) {
+						this._list.setFocus([i]);
+						this._list.reveal(i);
+						return;
+					}
+				}
+			}
+			const [focusedIndex] = this._list.getFocus();
+			if (focusedIndex !== undefined) {
+				const focusedElement = this._list.element(focusedIndex);
+				if (focusedElement && this.focusCondition(focusedElement)) {
+					this._list.reveal(focusedIndex);
+					return;
+				}
+			}
 			// Try to focus the checked item first
 			for (let i = 0; i < this._list.length; i++) {
 				const element = this._list.element(i);
@@ -1828,7 +1883,11 @@ export class ActionListWidget<T> extends Disposable {
 
 			// Keyboard navigation in submenu
 			this._submenuDisposables.add(dom.addDisposableListener(submenuWidget.domNode, 'keydown', (e: KeyboardEvent) => {
-				if (e.key === 'ArrowLeft' || e.key === 'Escape') {
+				if (e.key === 'Escape') {
+					dom.EventHelper.stop(e, true);
+					this._hideSubmenu();
+					this.hide();
+				} else if (e.key === 'ArrowLeft') {
 					dom.EventHelper.stop(e, true);
 					this._hideSubmenu();
 					this._list.domFocus();
@@ -2025,6 +2084,7 @@ export class ActionList<T> extends Disposable {
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
 	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
+	private readonly _widgetClassName: string | undefined;
 
 	get domNode(): HTMLElement {
 		return this._widget.domNode;
@@ -2048,6 +2108,10 @@ export class ActionList<T> extends Disposable {
 
 	get closeAnimation(): IActionListCloseAnimation | undefined {
 		return this._widget.closeAnimation;
+	}
+
+	get widgetClassName(): string | undefined {
+		return this._widgetClassName;
 	}
 
 	/**
@@ -2079,6 +2143,7 @@ export class ActionList<T> extends Disposable {
 		super();
 		this._anchor = anchor;
 		this._preferredAnchorPosition = options?.anchorPosition;
+		this._widgetClassName = options?.widgetClassName;
 
 		this._widget = this._register(instantiationService.createInstance(
 			ActionListWidget<T>,

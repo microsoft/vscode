@@ -6,39 +6,37 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Try to read missing.txt. If it does not exist, reply exactly "missing".
+          content: 'Run exactly this shell command, with no modifications: `node -e "console.log(require(''fs'').existsSync(''missing.txt'')?''present'':''missing'')"`. Then reply with its exact output only.'
     response:
       content:
         - type: text
-          text: Checking whether `missing.txt` exists, and I’ll return its contents if present or `missing` if not.
+          text: Running the exact command now and will return only its literal output.
         - type: tool_use
           id: toolcall_0
           name: exec_command
           input:
-            cmd: if [ -f missing.txt ]; then cat missing.txt; else echo missing; fi
-            workdir: ${workdir}/ahp-coverage-missing-${temp}
+            cmd: node -e "console.log(require('fs').existsSync('missing.txt')?'present':'missing')"
       stopReason: tool_use
   - request:
       model: gpt-5.3-codex
       system: ${system}
       messages:
         - role: user
-          content: Try to read missing.txt. If it does not exist, reply exactly "missing".
+          content: 'Run exactly this shell command, with no modifications: `node -e "console.log(require(''fs'').existsSync(''missing.txt'')?''present'':''missing'')"`. Then reply with its exact output only.'
         - role: assistant
-          content: Checking whether `missing.txt` exists, and I’ll return its contents if present or `missing` if not.
+          content: Running the exact command now and will return only its literal output.
         - role: assistant
           content:
             - type: tool_use
               name: exec_command
               input:
-                cmd: if [ -f missing.txt ]; then cat missing.txt; else echo missing; fi
-                workdir: ${workdir}/ahp-coverage-missing-${temp}
+                cmd: node -e "console.log(require('fs').existsSync('missing.txt')?'present':'missing')"
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                Chunk ID: 7ca4b0
+                Chunk ID: 31f5f9
                 Wall time: 0.0000 seconds
                 Process exited with code 0
                 Original token count: 2

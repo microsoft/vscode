@@ -71,7 +71,7 @@ export class ToolRiskBadgeWidget extends Disposable {
 
 	setLoading(): void {
 		this._setVariant('loading');
-		this._setIcon(ThemeIcon.modify(Codicon.loading, 'spin'));
+		this._setIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin'));
 		const text = localize('toolRisk.assessing', "Assessing risk\u2026");
 		this._textEl.textContent = text;
 		this._setHover(localize('toolRisk.assessingHover', "Generating a risk assessment for this tool call."));
@@ -86,15 +86,15 @@ export class ToolRiskBadgeWidget extends Disposable {
 		switch (assessment.risk) {
 			case ToolRiskLevel.Green:
 				this._setVariant('green');
-				this._setIcon(Codicon.pass);
+				this._setIcon(Codicon.passCompact);
 				break;
 			case ToolRiskLevel.Orange:
 				this._setVariant('orange');
-				this._setIcon(Codicon.warning);
+				this._setIcon(Codicon.warningCompact);
 				break;
 			case ToolRiskLevel.Red:
 				this._setVariant('red');
-				this._setIcon(Codicon.error);
+				this._setIcon(Codicon.errorCompact);
 				break;
 		}
 		this.domNode.style.display = '';

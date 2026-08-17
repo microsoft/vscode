@@ -178,28 +178,6 @@ export function shouldRestorePerTypeModelOnSessionSwitch(isEmpty: boolean, sessi
 }
 
 /**
- * Whether the input should WAIT for a restored session's own remembered model to be contributed,
- * instead of falling back to the pool default.
- *
- * True when the session's remembered `desiredModel` belongs to this session's own pool (it
- * targets `sessionType`) but is not yet present in `allModels` — i.e. the session-type pool has
- * not finished loading at restore time (cold or partial). Waiting avoids persisting a transient
- * pool default (e.g. Haiku) over the session's remembered model (e.g. Opus) while the pool
- * settles. A model that does not belong to this session's pool returns false, so the caller
- * defaults instead of waiting forever.
- */
-export function shouldWaitForSessionModel(
-	desiredModel: ILanguageModelChatMetadataAndIdentifier,
-	sessionType: string | undefined,
-	allModels: ILanguageModelChatMetadataAndIdentifier[],
-): boolean {
-	if (!sessionType || desiredModel.metadata.targetChatSessionType !== sessionType) {
-		return false;
-	}
-	return !allModels.some(m => m.identifier === desiredModel.identifier);
-}
-
-/**
  * Find a model in `pool` that matches `previous` by id, then family, then
  * name (case-insensitive). Used to carry a selection across model pools
  * (e.g. `copilot/claude-sonnet-4.6` → `agent-host-copilotcli:claude-sonnet-4.6`).
@@ -243,8 +221,11 @@ export function shouldResetModelToDefault(
 	context: IModelSelectionContext,
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
 ): boolean {
+	// Nothing selected yet is not a reason to reset: with an empty catalog there is nothing to
+	// reset *to*, and with a partly-published one the first model to arrive is an arbitrary
+	// stand-in. Waiting lets the intended model be applied when it appears.
 	if (!currentModel) {
-		return true;
+		return false;
 	}
 
 	// Model is no longer in the available list
@@ -366,3 +347,15 @@ export function shouldResetOnModelListChange(
 	return !availableModels.some(m => m.identifier === currentModelId);
 }
 
+
+/**
+ * The selection a request should be sent with, given what an inline request editor had chosen.
+ *
+ * Resubmitting an edited request must use the picker the user actually chose in. That editor is
+ * torn down before the request is built, so its selection is captured up front and always wins
+ *
+ * `edited` is `undefined` when no inline edit is in flight, in which case the composer is correct.
+ */
+export function resolveEditedRequestSelection<T>(edited: T | undefined, composer: T): T {
+	return edited ?? composer;
+}

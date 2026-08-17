@@ -31,6 +31,12 @@ export const enum SessionConfigKey {
 	WorktreeBranchPrefix = 'worktreeBranchPrefix',
 	/** `'worktreeIncludeFiles'` — host-owned glob patterns for files copied into a new worktree. */
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
+	/** `'worktreeBranchTrack'` — host-owned branch tracking preference for programmatic session creation. */
+	WorktreeBranchTrack = 'worktreeBranchTrack',
+	/** `'agentMerge'` — client-owned Agent Merge enablement and session overrides. */
+	AgentMerge = 'agentMerge',
+	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */
+	AgentMergeController = 'agentMerge.controller',
 }
 
 /**

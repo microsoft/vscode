@@ -7,7 +7,7 @@ import { stub } from 'sinon';
 import { timeout } from '../../common/async.js';
 import { CancellationToken } from '../../common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
-import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from '../../common/event.js';
+import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue, setGlobalLeakWarningThreshold } from '../../common/event.js';
 import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, DisposableTracker } from '../../common/lifecycle.js';
 import { observableValue, transaction } from '../../common/observable.js';
 import { MicrotaskDelay } from '../../common/symbols.js';
@@ -413,6 +413,109 @@ suite('Event', function () {
 		}
 
 		store.dispose();
+	});
+
+	test('Emitter leak warnings track only active listener stacks', () => {
+		const consoleWarn = stub(console, 'warn');
+		const errors: Error[] = [];
+		class TestEmitter extends Emitter<void> {
+			setListenerCount(listenerCount: number): void {
+				this._size = listenerCount;
+			}
+		}
+		const emitter = ds.add(new TestEmitter({
+			leakWarningThreshold: 3,
+			leakWarningName: 'test',
+			onListenerError: error => errors.push(error),
+		}));
+
+		const addStackAListener = () => emitter.event(() => { });
+		const addStackBListener = () => emitter.event(() => { });
+		const addStackCListener = () => emitter.event(() => { });
+
+		try {
+			emitter.setListenerCount(2);
+			const stackAListeners = Array.from({ length: 3 }, () => addStackAListener());
+			stackAListeners[0].dispose();
+			const stackBListener = addStackBListener();
+			const stackCListener = addStackCListener();
+
+			stackAListeners.slice(1).forEach(listener => listener.dispose());
+			stackBListener.dispose();
+			stackCListener.dispose();
+			emitter.setListenerCount(10);
+			emitter.event(() => { });
+
+			assert.deepStrictEqual(errors.map(error => ({
+				name: error.name,
+				details: error instanceof ListenerLeakError ? error.details : undefined,
+				hasUnknownStack: error.stack === 'UNKNOWN stack',
+			})), [
+				{
+					name: 'ListenerLeakError',
+					details: '[test] potential listener LEAK detected, having 3 listeners already. MOST frequent listener (1):',
+					hasUnknownStack: false,
+				},
+				{
+					name: 'ListenerLeakError',
+					details: '[test] potential listener LEAK detected, having 5 listeners already. MOST frequent listener (3):',
+					hasUnknownStack: false,
+				},
+				{
+					name: 'ListenerLeakError',
+					details: '[test] potential listener LEAK detected, having 6 listeners already. MOST frequent listener (2):',
+					hasUnknownStack: false,
+				},
+				{
+					name: 'ListenerRefusalError',
+					details: '[test] REFUSES to accept new listeners because it exceeded its threshold by far (10 vs 3). HINT: Stack shows most frequent listener (-1-times)',
+					hasUnknownStack: true,
+				},
+			]);
+		} finally {
+			consoleWarn.restore();
+		}
+	});
+
+	test('Emitter captures global leak warning configuration at construction', () => {
+		const consoleWarn = stub(console, 'warn');
+		const errors: Error[] = [];
+		let restoreThreshold: IDisposable | undefined = setGlobalLeakWarningThreshold(3);
+		try {
+			const monitoredEmitter = ds.add(new Emitter<void>({
+				leakWarningName: 'captured',
+				onListenerError: error => errors.push(error),
+			}));
+			restoreThreshold.dispose();
+			restoreThreshold = undefined;
+
+			const unmonitoredEmitter = ds.add(new Emitter<void>({
+				onListenerError: error => errors.push(error),
+			}));
+			restoreThreshold = setGlobalLeakWarningThreshold(3);
+			const listeners = ds.add(new DisposableStore());
+			const monitorAllocation = [Object.hasOwn(monitoredEmitter, '_leakageMon')];
+			for (let i = 0; i < 3; i++) {
+				monitoredEmitter.event(() => { }, undefined, listeners);
+				unmonitoredEmitter.event(() => { }, undefined, listeners);
+				monitorAllocation.push(Object.hasOwn(monitoredEmitter, '_leakageMon'));
+			}
+			restoreThreshold.dispose();
+			restoreThreshold = undefined;
+
+			assert.deepStrictEqual({
+				errors: errors.map(error => error.message),
+				monitorAllocation,
+				unmonitoredEmitterHasMonitor: Object.hasOwn(unmonitoredEmitter, '_leakageMon'),
+			}, {
+				errors: ['[captured] potential listener LEAK detected, dominated'],
+				monitorAllocation: [false, false, true, true],
+				unmonitoredEmitterHasMonitor: false,
+			});
+		} finally {
+			restoreThreshold?.dispose();
+			consoleWarn.restore();
+		}
 	});
 
 	test('reusing event function and context', function () {

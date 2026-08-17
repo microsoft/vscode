@@ -10,7 +10,8 @@ import { isEqual as _urisEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStartingSlow, ResponseModelState } from '../chatService/chatService.js';
+import { serializeChatRequestOrigin } from '../chatRequestOrigin.js';
+import { IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStartingSlow, IChatVoiceProgressPart, ResponseModelState } from '../chatService/chatService.js';
 import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatAgentEditedFileEvent, IChatDataSerializerLog, IChatModel, IChatPendingRequest, IChatProgressResponseContent, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState, ISerializableChatRequestData, ISerializablePendingRequestData, SerializedChatResponsePart, serializeSendOptions } from './chatModel.js';
@@ -38,7 +39,9 @@ const toJson = <T>(obj: T): T extends { toJSON?(): infer R } ? R : T => {
 	return (cast && typeof cast.toJSON === 'function' ? cast.toJSON() : obj) as any;
 };
 
-const responsePartSchema = Adapt.v<Exclude<IChatProgressResponseContent, IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow>, SerializedChatResponsePart>(
+type PersistedResponsePart = Exclude<IChatProgressResponseContent, IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow | IChatVoiceProgressPart>;
+
+const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponsePart>(
 	(obj): SerializedChatResponsePart => obj.kind === 'markdownContent' ? obj.content : toJson(obj),
 	(a, b) => {
 		if (isMarkdownString(a) && isMarkdownString(b)) {
@@ -63,6 +66,7 @@ const responsePartSchema = Adapt.v<Exclude<IChatProgressResponseContent, IChatMc
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'thinking':
+				case 'planReview':
 					return objectsEqual(a, b);
 
 				// Static types that won't change after being pushed can use strict equality.
@@ -79,7 +83,6 @@ const responsePartSchema = Adapt.v<Exclude<IChatProgressResponseContent, IChatMc
 				case 'systemNotification':
 				case 'pullRequest':
 				case 'questionCarousel':
-				case 'planReview':
 				case 'undoStop':
 				case 'warning':
 				case 'info':
@@ -137,9 +140,10 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	editedFileEvents: Adapt.t(m => m.editedFileEvents, Adapt.array(agentEditedFileEventSchema)),
 	variableData: Adapt.t(m => m.variableData, chatVariableSchema),
 	isHidden: Adapt.v(() => undefined), // deprecated, always undefined for new data
+	hiddenFromTranscript: Adapt.v(m => m.isHiddenFromTranscript),
 	isCanceled: Adapt.v(() => undefined), // deprecated, modelState is used instead
 
-	response: Adapt.t(m => m.response?.entireResponse.value.filter((p): p is Exclude<IChatProgressResponseContent, IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow> => p.kind !== 'mcpAuthenticationRequired' && p.kind !== 'mcpServersStartingSlow'), Adapt.array(responsePartSchema)),
+	response: Adapt.t(m => m.response?.entireResponse.value.filter((p): p is PersistedResponsePart => p.kind !== 'mcpAuthenticationRequired' && p.kind !== 'mcpServersStartingSlow' && p.kind !== 'voiceProgress'), Adapt.array(responsePartSchema)),
 	responseId: Adapt.v(m => m.response?.id),
 	responseTimestamp: Adapt.v(m => m.response?.timestamp),
 	result: Adapt.v(m => m.response?.result, objectsEqual),
@@ -160,11 +164,14 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	outputBuffer: Adapt.v(m => m.response?.usage?.outputBuffer),
 	promptTokenDetails: Adapt.v(m => m.response?.usage?.promptTokenDetails, objectsEqual),
 	copilotCredits: Adapt.v(m => m.response?.usage?.copilotCredits),
+	modelTotals: Adapt.v(m => m.response?.usage?.modelTotals, objectsEqual),
+	sessionCopilotCredits: Adapt.v(m => m.response?.usage?.sessionCopilotCredits),
 	elapsedMs: Adapt.v(m => m.response?.elapsedMs ?? (m.response?.completedAt ? Math.max(0, m.response.completedAt - m.response.confirmationAdjustedTimestamp.get()) : undefined)),
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
 	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
 	systemInitiatedLabel: Adapt.v(m => m.systemInitiatedLabel),
 	terminalExecutionId: Adapt.v(m => m.terminalExecutionId),
+	origin: Adapt.v(m => m.origin ? serializeChatRequestOrigin(m.origin) : undefined, objectsEqual),
 }, {
 	sealed: (o) => o.modelState?.value === ResponseModelState.Cancelled || o.modelState?.value === ResponseModelState.Failed || o.modelState?.value === ResponseModelState.Complete,
 });
