@@ -2241,6 +2241,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let unsupportedClientName = 0;
 		let outsideImportWindow = 0;
 		let withoutRepository = 0;
+		let suppressedAdoptable = 0;
 		let failed = 0;
 		const mapped = await Promise.all(sessions.map(s => metadataLimiter.queue(async () => {
 			const session = AgentSession.uri(this.id, s.sessionId);
@@ -2255,6 +2256,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				const adoptable = await this._isExtensionHostCliSession(s.sessionId);
 				if (adoptable && !emitAdoptable) {
+<<<<<<< HEAD
+=======
+					suppressedAdoptable++;
+>>>>>>> fe893916455 (agentHost: make startup session discovery registry-first (#331239))
 					return undefined;
 				}
 				const modifiedTime = new Date(s.modifiedTime).getTime();
@@ -2291,7 +2296,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		})));
 		const chats = mapped.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
 		const external = chats.filter(chat => chat.external).length;
+<<<<<<< HEAD
 		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${chats.length - external} adoptable legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
+=======
+		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${chats.length - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
+>>>>>>> fe893916455 (agentHost: make startup session discovery registry-first (#331239))
 		return chats;
 	}
 

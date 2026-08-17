@@ -5370,6 +5370,10 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+<<<<<<< HEAD
+=======
+
+>>>>>>> fe893916455 (agentHost: make startup session discovery registry-first (#331239))
 		test('reads stored session metadata with a single bulk metadata query', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/bulk-metadata-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/bulk-metadata-cwd-`);

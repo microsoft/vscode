@@ -3069,7 +3069,11 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+<<<<<<< HEAD
 		test('re-registering a known discovered chat performs no per-session database I/O', async () => {
+=======
+		test('rediscovering a registered chat with different provenance performs no per-session database I/O', async () => {
+>>>>>>> fe893916455 (agentHost: make startup session discovery registry-first (#331239))
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
@@ -3086,7 +3090,11 @@ suite('AgentService (node dispatcher)', () => {
 				return originalTryOpen.call(perSession.service, s);
 			};
 			try {
+<<<<<<< HEAD
 				const changed = await register(agent, [discoveredChat(session)]);
+=======
+				const changed = await register(agent, [discoveredChat(session, false)]);
+>>>>>>> fe893916455 (agentHost: make startup session discovery registry-first (#331239))
 
 				assert.deepStrictEqual({ changed, opened }, { changed: false, opened: [] });
 			} finally {
@@ -3167,13 +3175,20 @@ suite('AgentService (node dispatcher)', () => {
 				return original.call(svc, mode);
 			};
 
+<<<<<<< HEAD
 			const stale = svc.listSessions();
 			await svc.createSession({ provider: 'copilot' });
 			const fresh = svc.listSessions();
+=======
+			const preInvalidation = svc.listSessions();
+			await svc.createSession({ provider: 'copilot' });
+			const postInvalidation = svc.listSessions();
+>>>>>>> fe893916455 (agentHost: make startup session discovery registry-first (#331239))
 			gate.complete();
 
 			assert.deepStrictEqual({
 				computations,
+<<<<<<< HEAD
 				stale: (await stale).length,
 				fresh: (await fresh).length,
 			}, {
@@ -3183,6 +3198,39 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+=======
+				preInvalidation: (await preInvalidation).length,
+				postInvalidation: (await postInvalidation).length,
+			}, {
+				computations: 2,
+				preInvalidation: 1,
+				postInvalidation: 1,
+			});
+		});
+
+		test('provider registration invalidates an in-flight list computation', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const gate = new DeferredPromise<void>();
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
+			const original = inner._computeSessions;
+			let computations = 0;
+			inner._computeSessions = async mode => {
+				computations++;
+				await gate.p;
+				return original.call(svc, mode);
+			};
+
+			const beforeRegistration = svc.listSessions();
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const afterRegistration = svc.listSessions();
+			gate.complete();
+			await Promise.all([beforeRegistration, afterRegistration]);
+
+			assert.strictEqual(computations, 2);
+		});
+
+>>>>>>> fe893916455 (agentHost: make startup session discovery registry-first (#331239))
 		test('explicitly created sessions are registered as non-external', async () => {
 			service.registerProvider(copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
