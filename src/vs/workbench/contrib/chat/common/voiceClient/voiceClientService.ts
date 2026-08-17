@@ -635,7 +635,7 @@ export interface IVoiceClientService {
 	 * because the state field itself didn't change.
 	 */
 	invalidateSessionCache(sessionId: string): void;
-	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void;
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult, codingSessionId?: string): void;
 	/** Report that one correlated checkpoint playback attempt finished locally. */
 	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void;
 	/**
@@ -652,7 +652,7 @@ export interface IVoiceClientService {
 	 * backend's mirror has caught up. The id is deliberately *not* folded into
 	 * `text`, which every dedup and retry-reuse guard keys on.
 	 */
-	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined;
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }, prepareToReceiveAudio?: () => void): string | undefined;
 	/**
 	 * Notify the backend of a session state transition.
 	 *

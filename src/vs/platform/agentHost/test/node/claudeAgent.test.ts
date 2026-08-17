@@ -47,7 +47,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -1261,6 +1261,18 @@ suite('ClaudeAgent', () => {
 			disabledByDefault: undefined,
 			whenEnabled: { immutablePrimary: true },
 			afterDisabling: undefined,
+		});
+	});
+
+	test('selects provider-native autonomous session config and respects policy', () => {
+		const { agent, configService } = createTestContext(disposables);
+		const selected = agent.getAutonomousSessionConfig({});
+		configService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+		const restricted = agent.getAutonomousSessionConfig({});
+
+		assert.deepStrictEqual({ selected, restricted }, {
+			selected: { [ClaudeSessionConfigKey.PermissionMode]: 'auto' },
+			restricted: undefined,
 		});
 	});
 
@@ -4698,12 +4710,18 @@ suite('ClaudeAgent', () => {
 			{
 				type: 'text',
 				text:
-					'The user attached specific feedback comments to act on (comment ids):\n' +
+					'The user selected these feedback comments for you to act on (comment ids):\n' +
 					'- feedback-1\n\n' +
-					'Use the `listComments` tool to read their content and focus on these comments.\n\n' +
-					'The user attached specific feedback comments to act on (comment ids):\n' +
+					'Use the `listComments` tool to read their content and focus on these comments. ' +
+					'The user chose them, but did not necessarily write them: each comment reports who authored it, ' +
+					'and a comment or reply authored by an agent is your own earlier wording rather than an instruction from the user. ' +
+					'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.\n\n' +
+					'The user selected these feedback comments for you to act on (comment ids):\n' +
 					'- feedback-2\n\n' +
-					'Use the `listComments` tool to read their content and focus on these comments.',
+					'Use the `listComments` tool to read their content and focus on these comments. ' +
+					'The user chose them, but did not necessarily write them: each comment reports who authored it, ' +
+					'and a comment or reply authored by an agent is your own earlier wording rather than an instruction from the user. ' +
+					'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.',
 			},
 		]);
 	});
@@ -9260,7 +9278,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forkCall: { sessionId: parentId, options: { upToMessageId: 'a1' } },
 			sentPrompt: injectedPrompt,
 			turns: ['side question'],
-			sideChat: { turnId: 'u1', inheritedTurnCount: 1, partialResponse },
+			sideChat: { turnId: 'u1', inheritedTurnId: 'u1', partialResponse },
 		});
 	});
 
@@ -9285,7 +9303,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forked: 0,
 			sideChat: {
 				turnId: 'turn-source',
-				inheritedTurnCount: 0,
 				context: sourceContext,
 			},
 		});
@@ -9308,7 +9325,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
 		}, {
 			forked: 0,
-			sideChat: { turnId: 'turn-source', inheritedTurnCount: 0 },
+			sideChat: { turnId: 'turn-source' },
 		});
 	});
 
@@ -9344,7 +9361,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forked: 0,
 			sideChat: {
 				turnId,
-				inheritedTurnCount: 0,
 				context: sourceContext,
 			},
 		});
@@ -9396,7 +9412,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			turns: ['side question'],
 			sideChat: {
 				turnId: 'local-1',
-				inheritedTurnCount: 1,
+				inheritedTurnId: 'u1',
 				context: sourceContext,
 			},
 		});

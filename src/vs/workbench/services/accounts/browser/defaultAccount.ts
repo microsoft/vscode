@@ -33,7 +33,7 @@ import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExt
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
-import { adaptManagedSettings, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from './managedSettings.js';
+import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from './managedSettings.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -339,6 +339,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IHostService private readonly hostService: IHostService,
@@ -1032,9 +1033,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			return { kind: 'unavailable' };
 		}
 
-		this.logService.debug('[DefaultAccount] Fetching managed settings from:', managedSettingsUrl);
+		const requestUrl = appendManagedSettingsClientIdentity(managedSettingsUrl, this.productService);
+		this.logService.debug('[DefaultAccount] Fetching managed settings from:', requestUrl);
 		const rateLimitBackoffActive = Date.now() < this._rateLimitBackoffUntil;
-		const response = await this.request(managedSettingsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS, forceRefresh ? { 'Cache-Control': 'no-cache' } : undefined);
+		const response = await this.request(requestUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS, forceRefresh ? { 'Cache-Control': 'no-cache' } : undefined);
 		if (!response) {
 			this.logService.debug('[DefaultAccount] Managed settings fetch returned no response (network error, all sessions rejected, or active rate-limit backoff); falling back to local-only policy');
 			this.reportManagedSettingsOutcome('no-response', rateLimitBackoffActive);

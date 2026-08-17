@@ -52,14 +52,15 @@ suite('DefaultAccountProvider managed settings', () => {
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
-			headers: requestService.requests[0].headers,
+			requestQuery: new URL(requestService.requests[0].url!).search,
+			cacheControl: requestService.requests[0].headers?.['Cache-Control'],
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
-			// The request carries authorization plus the forced-refresh cache bypass:
-			// client-identity headers are dropped by GitHub's edge, so we do not send any.
-			headers: { 'Authorization': 'Bearer token', 'Cache-Control': 'no-cache' },
+			requestQuery: '?client_id=vscode&client_version=1.132.0&copilot_runtime_version=0.0.344',
+			// A forced refresh must bypass intermediary HTTP caches.
+			cacheControl: 'no-cache',
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
@@ -199,7 +200,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			if (options.url?.endsWith('/copilot_internal/user')) {
 				return jsonResponse({ chat_enabled: true });
 			}
-			if (options.url?.endsWith('/copilot_internal/managed_settings')) {
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
 				return jsonResponse({});
 			}
 			throw new Error(`Unexpected request: ${options.url}`);

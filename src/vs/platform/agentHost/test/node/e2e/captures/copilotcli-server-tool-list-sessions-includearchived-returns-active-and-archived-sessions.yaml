@@ -1,0 +1,48 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ARCHIVED_INCLUDED_READY".
+    response:
+      content: ARCHIVED_INCLUDED_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with workspace "${workdir}" and includeArchived true, then reply exactly "listed".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: list_sessions
+          input:
+            workspace: ${workdir}
+            includeArchived: true
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with workspace "${workdir}" and includeArchived true, then reply exactly "listed".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input:
+                workspace: ${workdir}
+                includeArchived: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"copilotcli:/${uuid_0}","title":"Call list_sessions exactly once with workspace \"${workdir}\" and includeArchived true, then reply exactly \"listed","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-15T23:12:01.625Z","modifiedAt":"2026-08-15T23:12:01.153Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"copilotcli:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"copilotcli:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]},{"session":"copilotcli:/${uuid_1}","title":"Reply exactly \"ARCHIVED_INCLUDED_READY\".","status":"idle,archived","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-15T23:11:59.721Z","modifiedAt":"2026-08-15T23:12:01.137Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"copilotcli:/${uuid_1}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"copilotcli:/${uuid_1}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+    response:
+      content: listed
+      stopReason: end_turn

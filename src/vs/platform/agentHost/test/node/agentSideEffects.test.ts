@@ -1542,7 +1542,7 @@ suite('AgentSideEffects', () => {
 
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Keep GitHub casing');
-			assert.ok(!URI.isUri(sendContext) && sendContext?.hostInstructions?.[0].includes('`rename_session`'));
+			assert.ok(!URI.isUri(sendContext) && sendContext?.hostInstructions?.[0].includes('`rename_chat`'));
 		});
 
 		test('a message that merely starts with /rename text (no separator) is sent to the agent', async () => {
@@ -2180,15 +2180,30 @@ suite('AgentSideEffects', () => {
 
 		test('calls abortSession on the agent', async () => {
 			setupSession();
+			const clientContext = {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			};
 			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnCancelled,
 				turnId: 'turn-1',
 				duration: 1000,
-			});
+			}, 'client-1', clientContext);
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.abortSessionCalls, [URI.parse(sessionUri.toString())]);
+			const abortContext = agent.chatContexts.find(call => call.boundary === 'abort')?.context;
+			assert.deepStrictEqual({
+				abortSessionCalls: agent.abortSessionCalls,
+				clientTelemetryContext: !URI.isUri(abortContext) ? abortContext?.clientTelemetryContext : undefined,
+			}, {
+				abortSessionCalls: [URI.parse(sessionUri.toString())],
+				clientTelemetryContext: clientContext,
+			});
 		});
 	});
 
@@ -2198,16 +2213,37 @@ suite('AgentSideEffects', () => {
 
 		test('calls changeModel on the agent before sending the message', async () => {
 			setupSession();
+			const clientContext = {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			};
 			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'gpt-5' } },
-			});
+			}, 'client-1', clientContext);
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: URI.parse(defaultChatUri) }]);
+			const contexts = Object.fromEntries(agent.chatContexts
+				.filter(call => call.boundary === 'changeModel' || call.boundary === 'changeAgent' || call.boundary === 'sendMessage')
+				.map(call => [call.boundary, !URI.isUri(call.context) ? call.context?.clientTelemetryContext : undefined]));
+			assert.deepStrictEqual({
+				changeModelCalls: agent.changeModelCalls,
+				contexts,
+			}, {
+				changeModelCalls: [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: URI.parse(defaultChatUri) }],
+				contexts: {
+					changeModel: clientContext,
+					changeAgent: clientContext,
+					sendMessage: clientContext,
+				},
+			});
 		});
 
 		test('waits for model selection before sending the message', async () => {
@@ -5012,7 +5048,14 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchClientAction(sessionUri.toString(), {
 				type: ActionType.SessionConfigChanged,
 				config: { mode: 'plan' },
-			}, { clientId: 'test-client', clientSeq: 1 });
+			}, { clientId: 'test-client', clientSeq: 1 }, {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			});
 			stateManager.dispatchServerAction(sessionUri.toString(), {
 				type: ActionType.SessionConfigChanged,
 				config: { mode: 'plan' },
@@ -5031,6 +5074,12 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.executionModeChanged',
 				data: {
 					provider: 'mock',
+					initiatorClientType: 'editor_window',
+					initiatorConnectionKind: 'remote_extension_host',
+					initiatorTransportKind: 'message_port',
+					hostLaunchKind: 'vscode_main_process',
+					initiatorMachineId: 'client-machine-id',
+					initiatorDevDeviceId: 'client-dev-device-id',
 					agentSessionId: 'session-1',
 					isSubagentSession: false,
 					previousMode: 'interactive',
@@ -5065,6 +5114,54 @@ suite('AgentSideEffects', () => {
 	// ---- Subagent sessions ----------------------------------------------
 
 	suite('subagent sessions', () => {
+
+		test('inherits the parent turn client identity for subagent telemetry', () => {
+			setupSession();
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-client',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, action, 'test', {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			});
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'subagent_started',
+				chat: URI.parse(defaultChatUri),
+				toolCallId: 'tc-client',
+				agentName: 'reviewer',
+				agentDisplayName: 'Reviewer',
+			});
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-client');
+			const subagentTurnId = stateManager.getActiveTurnId(subagentUri);
+			assert.ok(subagentTurnId);
+			agent.fireProgress({ kind: 'action', resource: URI.parse(subagentUri), action: { type: ActionType.ChatTurnComplete, turnId: subagentTurnId, duration: 1 } });
+
+			const event = telemetryService.events.find(event => event.eventName === 'agentHost.turnCompleted' && (event.data as Record<string, unknown>).isSubagentSession === true);
+			assert.deepStrictEqual({
+				initiatorClientType: (event?.data as Record<string, unknown> | undefined)?.initiatorClientType,
+				initiatorConnectionKind: (event?.data as Record<string, unknown> | undefined)?.initiatorConnectionKind,
+				initiatorTransportKind: (event?.data as Record<string, unknown> | undefined)?.initiatorTransportKind,
+				hostLaunchKind: (event?.data as Record<string, unknown> | undefined)?.hostLaunchKind,
+				initiatorMachineId: (event?.data as Record<string, unknown> | undefined)?.initiatorMachineId,
+				initiatorDevDeviceId: (event?.data as Record<string, unknown> | undefined)?.initiatorDevDeviceId,
+			}, {
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
+			});
+		});
 
 		test('subagent_started creates a subagent chat and dispatches content on parent tool call', () => {
 			setupSession();

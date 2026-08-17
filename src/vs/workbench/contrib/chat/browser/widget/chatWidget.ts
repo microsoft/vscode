@@ -51,6 +51,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
@@ -82,6 +83,7 @@ import { IChatAttachmentResolveService } from '../attachments/chatAttachmentReso
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
+import { resolveEditedRequestSelection } from './input/chatInputModelUtils.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
 import { setChatInputStackInputWorking } from './input/chatInputStack.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
@@ -99,7 +101,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { ChatPetWidget, isChatPetVisible } from './chatPetWidget.js';
+import { ChatPetWidget, isChatPetVisible, isChatPetWindowActive } from './chatPetWidget.js';
 import { IChatPetService } from '../chatPetService.js';
 import { stopDictationForEditor } from '../speechToText/dictationSession.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
@@ -534,6 +536,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 
@@ -955,15 +958,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
 			const targetWindow = dom.getWindow(this.container);
+			const targetWindowId = dom.getWindowId(targetWindow);
 			const isLatestFocusedWidgetInWindow = observableValue(this, this.chatWidgetService.lastFocusedWidget === this);
+			const applicationFocused = observableFromEvent(this, this.hostService.onDidChangeFocus, () => this.hostService.hasFocus);
+			const activeWindowId = observableFromEvent(this, this.hostService.onDidChangeActiveWindow, windowId => windowId ?? dom.getWindowId(dom.getActiveWindow()));
+			const windowFocused = derived(this, reader => isChatPetWindowActive(applicationFocused.read(reader), activeWindowId.read(reader), targetWindowId));
 			this._register(this.chatWidgetService.onDidChangeFocusedWidget(focusedWidget => {
 				if (focusedWidget && dom.getWindow(focusedWidget.domNode) === targetWindow) {
 					isLatestFocusedWidgetInWindow.set(focusedWidget === this, undefined);
 				}
 			}));
-			const petVisible = derived(this, reader => isChatPetVisible(this.chatPetService.enabled.read(reader), isLatestFocusedWidgetInWindow.read(reader)));
+			const petVisible = derived(this, reader => isChatPetVisible(this.chatPetService.enabled.read(reader), isLatestFocusedWidgetInWindow.read(reader), windowFocused.read(reader)));
 			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petVisible.read(reader))));
-			const petWidget = this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, petMovementBounds ?? parent, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, petVisible, this.inputEditor.onDidChangeModelContent));
+			const petWidget = this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, petMovementBounds ?? parent, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, isLatestFocusedWidgetInWindow, this.inputEditor.onDidChangeModelContent));
 			petWidget.setPlatformTopProvider(() => this.inputPart.getChatPetPlatformTop());
 		}
 
@@ -2140,13 +2147,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 
 		if (!isInput) {
-			this.inputPart.setChatMode(this.input.currentModeObs.get().id);
-			this.inputPart.setPermissionLevel(this.input.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
-			const editModelId = this.input.currentLanguageModel;
-			if (editModelId) {
-				void this.inputPart.requestModelByIdentifier(editModelId);
-			}
-
+			// The inline editor is self-contained: it shows the model its request ran on, submits
+			// with it (see `acceptInput`, which reads the model from here before this runs), and
+			// disappears. The bottom input keeps whatever the user left it on.
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
 				if (editedRequest?.rowContainer?.contains(this.inputContainer)) {
@@ -2972,16 +2975,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
 
-		if (this.viewModel.model.requestInProgress.get()) {
-			const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
-			if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus)) {
-				return;
-			}
+		const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
+		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus)) {
+			return;
 		}
 		const isEditing = this.viewModel?.editing;
-		const editedModelRequestOptions = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input'
-			? this.getSelectedModelRequestOptions()
-			: undefined;
+		// Captured before `finishedEditing` tears the inline editor down, while `this.input` still
+		// resolves to it. The inline editor owns the model and mode for a resubmit — those are the
+		// pickers the user actually chose in — so these stay authoritative over the bottom input.
+		const isInlineEdit = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input';
+		const editedModelRequestOptions = isInlineEdit ? this.getSelectedModelRequestOptions() : undefined;
+		const editedModeKind = isInlineEdit ? this.input.currentModeKind : undefined;
+		const editedModeInfo = isInlineEdit ? this.input.currentModeInfo : undefined;
+		// Tools and instruction routing belong to the mode, so they come from the same editor at the
+		// same moment.
+		const editedModeRequestOptions = isInlineEdit ? this.getModeRequestOptions() : undefined;
+		const editedInstructionRouting = isInlineEdit ? this._getInstructionRouting() : undefined;
 		let cancelledCurrentRequest = false;
 		if (isEditing) {
 			// Clear the carousel since the existing request is being replaced
@@ -3046,7 +3055,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
-		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
+		if (this.viewOptions.enableWorkingSet !== undefined && resolveEditedRequestSelection(editedModeKind, this.input.currentModeKind) === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 			const editingSessionAttachedContext: ChatRequestVariableSet = requestInputs.attachedContext;
 
@@ -3100,12 +3109,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
 		const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
 
-		const modeKind = this.input.currentModeKind;
-		const modeInfo = this.input.currentModeInfo;
-		const currentModelRequestOptions = this.getSelectedModelRequestOptions();
-		const selectedModelRequestOptions = editedModelRequestOptions?.userSelectedModelId === currentModelRequestOptions.userSelectedModelId
-			? editedModelRequestOptions
-			: currentModelRequestOptions;
+		const modeKind = resolveEditedRequestSelection(editedModeKind, this.input.currentModeKind);
+		const modeInfo = resolveEditedRequestSelection(editedModeInfo, this.input.currentModeInfo);
+		const selectedModelRequestOptions = resolveEditedRequestSelection(editedModelRequestOptions, this.getSelectedModelRequestOptions());
 
 		const transcriptContext = this.transcriptContextValue;
 		if (transcriptContext) {
@@ -3123,14 +3129,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				resolvedVariables: resolvedImageVariables,
 				noCommandDetection: options?.noCommandDetection,
 				isVoiceModeInput: options?.isVoiceModeInput,
-				...this.getModeRequestOptions(),
+				...resolveEditedRequestSelection(editedModeRequestOptions, this.getModeRequestOptions()),
 				modeInfo,
 				agentIdSilent: this._lockedAgent?.id,
 				queue: options?.queue,
 				instructionContext: autoAttachEnabled ? {
 					modeKind,
-					enabledTools: modeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
-					enabledSubAgents: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined
+					...resolveEditedRequestSelection(editedInstructionRouting, this._getInstructionRouting()),
 				} : undefined,
 			});
 		} catch (error) {
@@ -3209,7 +3214,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private async _executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean> {
 		const viewModel = this.viewModel;
-		if (!viewModel) {
+		if (!viewModel?.model.hasActiveRequest.get()) {
 			return false;
 		}
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(
@@ -3363,6 +3368,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return {
 			userSelectedModelId: modelId,
 			userSelectedModelConfiguration: modelId ? this.input.getModelConfiguration(modelId) : undefined,
+		};
+	}
+
+	/** The tool and subagent routing of whichever input this is called on, for its current mode. */
+	private _getInstructionRouting(): Pick<NonNullable<IChatSendRequestOptions['instructionContext']>, 'enabledTools' | 'enabledSubAgents'> {
+		const isAgent = this.input.currentModeKind === ChatModeKind.Agent;
+		return {
+			enabledTools: isAgent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
+			enabledSubAgents: isAgent ? this.input.currentModeObs.get().agents?.get() : undefined,
 		};
 	}
 
