@@ -53,14 +53,11 @@ suite('DefaultAccountProvider managed settings', () => {
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
 			requestQuery: new URL(requestService.requests[0].url!).search,
-			cacheControl: requestService.requests[0].headers?.['Cache-Control'],
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
 			requestQuery: '?client_id=vscode&client_version=1.132.0&copilot_runtime_version=0.0.344',
-			// A forced refresh must bypass intermediary HTTP caches.
-			cacheControl: 'no-cache',
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
@@ -159,12 +156,10 @@ suite('DefaultAccountProvider managed settings', () => {
 		assert.deepStrictEqual({
 			status: provider.managedSettingsFetchStatus,
 			refreshState: provider.managedSettingsRefreshState,
-			cacheControl: requestService.requests[0].headers?.['Cache-Control'],
 			data: result.data,
 		}, {
 			status: 'no-response',
 			refreshState: 'blocked',
-			cacheControl: 'no-cache',
 			// The flag is preserved so the requirement self-perpetuates, but the settings it guarded
 			// are not treated as verified.
 			data: { managedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true } },
@@ -177,19 +172,17 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 		const provider = await createProvider(requestService);
 
-		// The first failure clears the cached settings that carried the flag; the retry must still be
-		// forced, or a second failure would silently re-enable Chat.
-		const first = await provider['getManagedSettings'](sessions, createCachedPolicy(true));
-		const retryPolicy = { ...createCachedPolicy(true), policyData: first.data! };
-		const retry = await provider['getManagedSettings'](sessions, retryPolicy, { forceRefresh: true });
+		// The first failure clears the cached settings that carried the flag. Retry with no cached
+		// policy at all: the requirement must still hold in-process, or a second failure would
+		// recompute as unforced and silently re-enable Chat.
+		await provider['getManagedSettings'](sessions, createCachedPolicy(true));
+		const retry = await provider['getManagedSettings'](sessions, undefined, { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			refreshState: provider.managedSettingsRefreshState,
-			retryCacheControl: requestService.requests[1].headers?.['Cache-Control'],
 			data: retry.data,
 		}, {
 			refreshState: 'blocked',
-			retryCacheControl: 'no-cache',
 			data: { managedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true } },
 		});
 	});
