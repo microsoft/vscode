@@ -727,6 +727,7 @@ class AutomationHistorySection extends Disposable {
 		const list = disposables.add(this.instantiationService.createInstance(SessionsFlatList, entry.listContainer, {
 			showSessionHover: false,
 			alwaysConsumeMouseWheel: false,
+			useCompactQuickChatRows: false,
 			toolbarMenuId: Menus.AutomationsHistoryItem,
 			markSessionReadOnOpen: false,
 			approvalModel: this.approvalModel,

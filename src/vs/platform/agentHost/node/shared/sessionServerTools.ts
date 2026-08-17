@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
 import type { Mutable } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
@@ -210,12 +210,14 @@ export interface IResolvedCreateSessionArgs {
 export interface ISessionServerToolAccessor {
 	readonly isActiveAgentTitleGenerationEnabled: () => boolean;
 	readonly listSessions: () => Promise<readonly IAgentSessionMetadata[]>;
+	readonly getSession: (session: URI) => Promise<IAgentSessionMetadata | undefined>;
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
 	readonly startPrompt: (session: URI, chat: URI, prompt: string) => Promise<void>;
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => Promise<void>;
 	readonly renameChat: (session: URI, chat: URI, title: string) => Promise<IRenameTitleResult>;
+	readonly reportToolError: (toolName: SessionServerToolName, error: unknown) => void;
 	readonly deleteSession: (session: URI) => Promise<void>;
 	/** Reads a point-in-time snapshot of a session's chat conversation (default chat, or a specific chat by id). */
 	readonly getChatContext: (session: URI, chatId?: string) => Promise<IChatContextSnapshot | undefined>;
@@ -855,11 +857,30 @@ export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	return { session, chat: currentChat, title, chatId: parsed.chatId };
 }
 
+function getRenameChatSession(rawArgs: unknown, currentChannel?: ProtocolURI): URI {
+	const args = (rawArgs ?? {}) as IRenameChatArgs;
+	const chatInput = getOptionalString(args.chat, 'chat', SessionServerToolName.RenameChat);
+	if (chatInput !== undefined) {
+		const session = parseOpenSessionLinkUri(chatInput);
+		if (!session) {
+			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must be an agent-host-session:// link targeting a known chat.`);
+		}
+		return session;
+	}
+	if (!currentChannel || !currentChatUri(currentChannel)) {
+		throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must target a known chat, or the tool must run inside that chat.`);
+	}
+	return currentSessionUri(currentChannel);
+}
+
 export async function applyRenameChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): Promise<string> {
-	const sessions = await accessor.listSessions();
-	const { session, chat, title } = getRenameChatArgs(rawArgs, sessions, currentChannel);
-	const result = await accessor.renameChat(session, chat, title);
-	return `Renamed chat to "${result.title}".`;
+	void (async () => {
+		const targetSession = getRenameChatSession(rawArgs, currentChannel);
+		const metadata = await accessor.getSession(targetSession);
+		const { session, chat, title } = getRenameChatArgs(rawArgs, metadata ? [metadata] : [], currentChannel);
+		await accessor.renameChat(session, chat, title);
+	})().catch(error => accessor.reportToolError(SessionServerToolName.RenameChat, error));
+	return 'Renaming chat.';
 }
 
 interface ISendMessageArgs {
@@ -1158,7 +1179,7 @@ function getSessionToolDisplay(toolName: string, _args: unknown, _result?: IServ
 			return {
 				displayName: localize('toolName.renameChat', "Rename Chat"),
 				invocationMessage: localize('toolInvoke.renameChat', "Renaming chat"),
-				pastTenseMessage: localize('toolComplete.renameChat', "Updated chat name"),
+				pastTenseMessage: localize('toolComplete.renameChat', "Requested chat rename"),
 			};
 		case SessionServerToolName.SendMessage:
 			return {
@@ -1210,20 +1231,21 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		getDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 			return getSessionToolDisplay(toolName, args, result);
 		},
-		async execute(_stateManager: AgentHostStateManager, sessionUri: ProtocolURI, toolName: string, rawArgs: unknown): Promise<string> {
+		async execute(_stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown): Promise<string> {
 			if (!accessor) {
 				throw new Error(`Session server tool "${toolName}" cannot run: the group was built without a session accessor.`);
 			}
+			const currentChannel = context.chatUri;
 			switch (toolName) {
 				case SessionServerToolName.ListSessions:
 					return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs)));
 				case SessionServerToolName.GetCurrentSession:
-					return serializeCurrentSession(currentSessionUri(sessionUri), await accessor.listSessions());
+					return serializeCurrentSession(currentSessionUri(currentChannel), await accessor.listSessions());
 				case SessionServerToolName.CreateSession: {
 					if (createdSessionCount >= maxCreatedSessions) {
 						throw new Error(`Refusing to create more than ${maxCreatedSessions} sessions from server tools in this process.`);
 					}
-					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(sessionUri));
+					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel));
 					createdSessionCount++;
 					return formatCreateSessionResult(result);
 				}
@@ -1231,24 +1253,24 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (createdChatCount >= maxCreatedChats) {
 						throw new Error(`Refusing to create more than ${maxCreatedChats} chats from server tools in this process.`);
 					}
-					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(sessionUri));
+					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel));
 					createdChatCount++;
 					return formatCreateChatResult(result);
 				}
 				case SessionServerToolName.RenameChat:
-					return applyRenameChatTool(accessor, rawArgs, sessionUri);
+					return applyRenameChatTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.SendMessage: {
 					if (sentMessageCount >= maxSentMessages) {
 						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
 					}
-					const result = await applySendMessageTool(accessor, rawArgs, sessionUri);
+					const result = await applySendMessageTool(accessor, rawArgs, currentChannel);
 					sentMessageCount++;
 					return result;
 				}
 				case SessionServerToolName.GetSessionContext:
 					return applyGetSessionContextTool(accessor, rawArgs);
 				case SessionServerToolName.DeleteSession:
-					return applyDeleteSessionTool(accessor, rawArgs, currentSessionUri(sessionUri));
+					return applyDeleteSessionTool(accessor, rawArgs, currentSessionUri(currentChannel));
 				default:
 					throw new Error(`Unknown session server tool: ${toolName}`);
 			}

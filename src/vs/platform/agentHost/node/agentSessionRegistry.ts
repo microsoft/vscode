@@ -112,6 +112,33 @@ export class AgentSessionRegistry extends Disposable {
 		return result;
 	}
 
+	/** Returns the session registered under `session`, or `undefined` when it is unknown. */
+	async get(session: URI, migrate?: RegisteredSessionMigration): Promise<IRegisteredSession | undefined> {
+		const stored = await this._database.getSession(session.toString());
+		if (!stored) {
+			return undefined;
+		}
+		const entry: IStoredRegisteredSession = {
+			session: URI.parse(stored.session),
+			provider: stored.provider,
+			startTime: stored.startTime,
+			external: stored.external,
+			source: stored.source,
+		};
+		const migrated = await migrate?.(entry);
+		if (migrated) {
+			await this._database.updateSessionExternal([{ session: migrated.session.toString(), external: migrated.external }]);
+			return migrated;
+		}
+		if (entry.external === undefined) {
+			throw new Error(`Session migration did not resolve registry entry ${entry.session.toString()}`);
+		}
+		return {
+			...entry,
+			external: entry.external,
+		};
+	}
+
 	/** Whether the registry has ever been populated. Retained for compatibility. */
 	async isEmpty(): Promise<boolean> {
 		return this._database.isSessionRegistryEmpty();
