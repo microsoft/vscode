@@ -32,7 +32,7 @@ import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSy
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -3316,7 +3316,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(listController.items.map(item => item.label), ['Contains folder']);
 		});
 
-		test('worktree session is shown in a window opened on its repository folder', async () => {
+		test('only legacy CLI worktree sessions are shown in a window opened on their repository folder', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
 			const folder = URI.file('/src/repo');
@@ -3328,11 +3328,20 @@ suite('AgentHostChatContribution', () => {
 			});
 
 			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'legacy-worktree'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Legacy worktree session',
+				// A worktree lives outside the repository folder, never under it.
+				workingDirectories: [URI.file('/src/copilot-worktrees/feature')],
+				project: { uri: folder, displayName: 'repo' },
+				_meta: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true },
+			});
+			agentHostService.addSession({
 				session: AgentSession.uri('copilot', 'worktree'),
 				startTime: 1000,
 				modifiedTime: 2000,
 				summary: 'Worktree session',
-				// A worktree lives in the `<repo>.worktrees` sibling, never under the folder.
 				workingDirectories: [URI.file('/src/repo.worktrees/feature')],
 				project: { uri: folder, displayName: 'repo' },
 			});
@@ -3343,12 +3352,13 @@ suite('AgentHostChatContribution', () => {
 				summary: 'Other repo worktree session',
 				workingDirectories: [URI.file('/src/other.worktrees/feature')],
 				project: { uri: URI.file('/src/other'), displayName: 'other' },
+				_meta: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true },
 			});
 
 			const listController = createSessionListController(disposables, instantiationService, agentHostService);
 			await listController.refresh(CancellationToken.None);
 
-			assert.deepStrictEqual(listController.items.map(item => item.label), ['Worktree session']);
+			assert.deepStrictEqual(listController.items.map(item => item.label), ['Legacy worktree session']);
 		});
 
 		test('sessionAdded notification filters out sessions outside the workspace', async () => {

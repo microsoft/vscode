@@ -18,6 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
+import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
@@ -576,6 +577,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly isQuickChat: IObservable<boolean>;
 	readonly isAutomation = observableValue('isAutomation', false);
+	readonly isExternal: IObservable<boolean>;
 	/** See {@link ISession.worktreePending}. */
 	readonly worktreePending: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
@@ -653,9 +655,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/**
 	 * The last {@link SessionState} applied to the chat catalog, retained so the
 	 * catalog can be re-reconciled when {@link capabilities} change after the
-	 * fact (see the capability autorun in the constructor).
+	 * fact.
 	 */
 	private _lastCatalogState: SessionState | undefined;
+	private readonly _chatCatalogCapabilitiesObserver = this._register(new MutableDisposable());
 	private readonly _rawId: string;
 	private readonly _resourceScheme: string;
 
@@ -775,6 +778,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
+		this.isExternal = derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
 			equalsFn: isGitHubInfoEqual
@@ -912,19 +916,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				supportsDelete: true,
 			};
 		});
-
-		// Re-apply the chat catalog when advertised capabilities change (e.g. the
-		// agent host's root state arrives after the session's first state update).
-		// Without this, a multi-chat session whose state was processed while
-		// `supportsMultipleChats` was still `false` would stay collapsed to
-		// `[defaultChat]` until the next session-state update.
-		this._register(autorun(reader => {
-			this.capabilities.read(reader);
-			const state = this._lastCatalogState;
-			if (state) {
-				this._applyChatCatalog(state);
-			}
-		}));
 	}
 
 	/**
@@ -945,7 +936,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	applyChatCatalog(state: SessionState): void {
 		this._lastCatalogState = state;
-		this._applyChatCatalog(state);
+		if (this._chatCatalogCapabilitiesObserver.value) {
+			this._applyChatCatalog(state);
+		} else {
+			this._chatCatalogCapabilitiesObserver.value = autorun(reader => {
+				this.capabilities.read(reader);
+				const currentState = this._lastCatalogState;
+				if (currentState) {
+					this._applyChatCatalog(currentState);
+				}
+			});
+		}
 	}
 
 	private _applyChatCatalog(state: SessionState): void {
@@ -3259,6 +3260,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				nextValues[key] = runningConfig.values[key];
 			}
 		}
+		for (const key of [SessionConfigKey.AgentMerge, SessionConfigKey.AgentMergeController]) {
+			if (Object.hasOwn(runningConfig.values, key)) {
+				nextValues[key] = runningConfig.values[key];
+			}
+		}
 		// Unknown keys from the caller are ignored (no schema entry).
 
 		// Skip the dispatch entirely when nothing meaningful changes.
@@ -3286,6 +3292,38 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			connection.dispatch(sessionUri.toString(), action);
 			void this._resolveRunningSessionConfig(sessionId, cached, nextValues);
 		}
+	}
+
+	getAgentMergeSessionState(sessionId: string): AgentMergeSessionState | undefined {
+		return readAgentMergeSessionState(this._lastSessionStates.get(sessionId)?.config?.values);
+	}
+
+	async setAgentMergeEnabled(sessionId: string, enabled: boolean): Promise<void> {
+		const current = this.getAgentMergeSessionState(sessionId);
+		await this._writeAgentMergeClientState(sessionId, enabled, current?.overrides);
+	}
+
+	async setAgentMergeOverrides(sessionId: string, overrides: AgentMergeSessionOverrides | undefined): Promise<void> {
+		const current = this.getAgentMergeSessionState(sessionId);
+		await this._writeAgentMergeClientState(sessionId, current?.enabled ?? false, overrides);
+	}
+
+	private async _writeAgentMergeClientState(sessionId: string, enabled: boolean, overrides: AgentMergeSessionOverrides | undefined): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!rawId || !cached || !connection) {
+			throw new Error(`[${this.id}] Cannot update Agent Merge state without a running session connection`);
+		}
+		connection.dispatch(cached.backendUri.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: {
+				[SessionConfigKey.AgentMerge]: {
+					enabled,
+					...(overrides ? { overrides } : {}),
+				},
+			},
+		});
 	}
 
 	private async _resolveRunningSessionConfig(sessionId: string, cached: AgentHostSessionAdapter, values: Record<string, unknown>): Promise<void> {

@@ -17,6 +17,7 @@ import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { CodexClientCustomizationStore, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import type { ICodexMcpServerEntry } from '../../../node/codex/codexMcpServers.js';
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 import { McpCustomizationController, type IMcpCustomizationControllerOptions } from '../../../node/shared/mcpCustomizationController.js';
 
@@ -51,6 +52,12 @@ interface ICodexMcpControllerHarness {
 	readonly _fire: (...args: readonly unknown[]) => void;
 }
 
+interface ICodexMcpRequestHarness {
+	readonly _sessionIdByChatUri: Map<string, string>;
+	readonly _sessions: Map<string, { readonly chatChannel: URI | undefined }>;
+	readonly _mcpInventory: Map<string, ICodexMcpServerEntry>;
+}
+
 function resolveConversationSession(harness: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined {
 	const resolver = (CodexAgent.prototype as unknown as {
 		_resolveConversationSession(this: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined;
@@ -63,6 +70,13 @@ function getOrCreateMcpController(harness: ICodexMcpControllerHarness, session: 
 		_getOrCreateMcpController(this: ICodexMcpControllerHarness, session: ICodexMcpControllerSession): McpCustomizationController | undefined;
 	})._getOrCreateMcpController;
 	return getOrCreate.call(harness, session);
+}
+
+function handleMcpRequest(harness: ICodexMcpRequestHarness, chat: URI): Promise<unknown> {
+	const handler = (CodexAgent.prototype as unknown as {
+		handleMcpRequest(this: ICodexMcpRequestHarness, chat: URI, serverName: string, method: string, params: undefined): Promise<unknown>;
+	}).handleMcpRequest;
+	return handler.call(harness, chat, 'server', 'tools/list', undefined);
 }
 
 function emptyHarness(): ICodexConversationResolverHarness {
@@ -188,7 +202,38 @@ suite('CodexAgent', () => {
 			nestedKey: `${pluginUri}#mcp=azure`,
 			topLevelEnablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
 		});
+
 		store.dispose();
+	});
+
+	test('routes MCP requests only to the exact bound chat', async () => {
+		const session = AgentSession.uri('codex', 'session-1');
+		const boundChat = URI.parse(buildDefaultChatUri(session));
+		const staleChat = URI.parse(buildDefaultChatUri(AgentSession.uri('codex', 'stale')));
+		const harness: ICodexMcpRequestHarness = {
+			_sessionIdByChatUri: new Map([
+				[boundChat.toString(), 'session-1'],
+				[staleChat.toString(), 'session-1'],
+			]),
+			_sessions: new Map([['session-1', { chatChannel: boundChat }]]),
+			_mcpInventory: new Map([['server', {
+				state: { kind: McpServerStatus.Ready },
+				tools: [],
+				resources: [],
+				resourceTemplates: [],
+			}]]),
+		};
+
+		assert.deepStrictEqual({
+			result: await handleMcpRequest(harness, boundChat),
+			staleRejected: await handleMcpRequest(harness, staleChat).then(
+				() => false,
+				error => error instanceof Error && error.message.startsWith('Method not found: no active chat'),
+			),
+		}, {
+			result: { tools: [] },
+			staleRejected: true,
+		});
 	});
 
 	test('cold native discovery waits for the SDK and emits through one deterministic path', async () => {

@@ -935,7 +935,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	conformanceTest(context, 'reconnect with no missed actions returns an empty replay', async function () {
 		const { sessionUri } = await createSession('reconnect-empty');
 		const chatUri = buildDefaultChatUri(sessionUri);
-		const droppedClientId = `reconnect-empty-${config.provider}`;
+		const droppedClientId = `reconnect-empty-dropped-${config.provider}`;
 		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
 			const subscribed = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
 			return subscribed.snapshot!.fromSeq;
@@ -1025,7 +1025,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	conformanceTest(context, 'reconnect replays missed session and chat actions together', async function () {
 		const { sessionUri } = await createSession('reconnect-state-snapshots');
 		const chatUri = buildDefaultChatUri(sessionUri);
-		const droppedClientId = `reconnect-state-snapshots-${config.provider}`;
+		const droppedClientId = `reconnect-state-snapshots-dropped-${config.provider}`;
 		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
 			const session = await first.call<SubscribeResult>('subscribe', { channel: sessionUri });
 			const chat = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
@@ -1057,7 +1057,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	conformanceTest(context, 'reconnected state subscriptions receive subsequent live actions', async function () {
 		const { sessionUri } = await createSession('reconnect-live');
 		const chatUri = buildDefaultChatUri(sessionUri);
-		const droppedClientId = `reconnect-live-${config.provider}`;
+		const droppedClientId = `reconnect-live-dropped-${config.provider}`;
 		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
 			const session = await first.call<SubscribeResult>('subscribe', { channel: sessionUri });
 			const chat = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
