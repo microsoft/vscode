@@ -366,9 +366,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 		if (result?.toolResultMessage) {
 			this.pastTenseMessage = result.toolResultMessage;
-		} else if (result?.toolResultError) {
-			// The prepared message states what the tool would have done; on failure it would read as success.
-			this.pastTenseMessage = undefined;
 		} else if (this._progress.get().message) {
 			this.pastTenseMessage = this._progress.get().message;
 		}
