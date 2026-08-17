@@ -972,6 +972,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`Registering agent provider: ${provider.id}`);
 		this._providers.set(provider.id, provider);
 		provider.setServerToolHost?.(this._serverToolHost);
+		provider.setKnownSessionsFilter?.(sessions => this._filterKnownSessions(sessions));
 		void this._authService.replay(provider);
 		// Deterministic subagent membership ordering: apply a spawned subagent's
 		// catalog membership (via the spawn-channel handlers) BEFORE
@@ -1357,10 +1358,17 @@ export class AgentService extends Disposable implements IAgentService {
 		const discoveryLimiter = new Limiter<boolean>(4);
 		let suppressed = 0;
 		let registeredExternal = false;
+		let alreadyRegistered = 0;
 		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
+				// Matching registry entries need no per-session I/O.
+				const known = existing.get(session.toString());
+				if (known !== undefined && known === external) {
+					alreadyRegistered++;
+					return false;
+				}
 				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
 					suppressed++;
 					return false;
@@ -1371,6 +1379,7 @@ export class AgentService extends Disposable implements IAgentService {
 					`discovery registration for ${session.toString()}`,
 				);
 				if (registered) {
+					this._invalidateSessionList();
 					if (external && existing.get(session.toString()) !== true) {
 						await this._initializeExternalSessionReadState(session);
 					}
@@ -1393,7 +1402,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
 		}
-		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${suppressed} suppressed as subagent/chat backing`);
+		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${alreadyRegistered} already registered, ${suppressed} suppressed as subagent/chat backing`);
 		return registered > 0;
 	}
 
@@ -1428,6 +1437,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
 			if (registered) {
+				this._invalidateSessionList();
 				const metadata = sessions[index];
 				if (identity.external && existing.get(identity.session.toString()) !== true) {
 					await this._initializeExternalSessionReadState(identity.session);
@@ -1446,6 +1456,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/** Seeds external sessions as read. Avoiding this DB requires a durable registry default. */
 	private async _initializeExternalSessionReadState(session: URI): Promise<void> {
 		const ref = this._sessionDataService.openDatabase(session);
 		try {
@@ -1493,10 +1504,22 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/** Returns registered candidates. Tombstones remain candidates so registration can reject them atomically. */
+	private async _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> {
+		const registered = new Set((await this._listRegisteredSessions()).map(entry => entry.session.toString()));
+		const known = new Set<string>();
+		for (const session of sessions) {
+			const key = session.toString();
+			if (registered.has(key)) {
+				known.add(key);
+			}
+		}
+		return known;
+	}
+
 	/**
 	 * Whether a session is marked as an internal chat backing, either durably
-	 * (its own metadata) or in-process (its durable marker write kept failing
-	 * in `createChat`; see `_unpersistedChatBackings`).
+	 * or in `_unpersistedChatBackings`.
 	 */
 	private async _isChatBacking(session: URI): Promise<boolean> {
 		if (this._unpersistedChatBackings.has(session.toString())) {
@@ -1516,7 +1539,36 @@ export class AgentService extends Disposable implements IAgentService {
 			return false;
 		}
 	}
+	/** In-flight list computations, shared per mode until they settle or the registry changes. */
+	private readonly _inFlightListSessions = new Map<AgentHostExternalSessionsMode, { readonly epoch: number; readonly promise: Promise<readonly IAgentSessionMetadata[]> }>();
+
+	private _registryEpoch = 0;
+
+	private _invalidateSessionList(): void {
+		this._registryEpoch++;
+		this._inFlightListSessions.clear();
+	}
+
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
+		const epoch = this._registryEpoch;
+		const inFlight = this._inFlightListSessions.get(mode);
+		if (inFlight && inFlight.epoch === epoch) {
+			// Callers own their array; the shared result must not be mutable by one of them.
+			return [...await inFlight.promise];
+		}
+		const promise = this._computeSessions(mode);
+		const entry = { epoch, promise };
+		this._inFlightListSessions.set(mode, entry);
+		const clear = () => {
+			if (this._inFlightListSessions.get(mode) === entry) {
+				this._inFlightListSessions.delete(mode);
+			}
+		};
+		void promise.then(clear, clear);
+		return [...await promise];
+	}
+
+	private async _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
 		// The first list waits for registration-time legacy migration if it is still in flight.
 		await this._awaitInitialProviderMigration();
@@ -2074,6 +2126,7 @@ export class AgentService extends Disposable implements IAgentService {
 				() => this._sessionRegistry.register(session, { provider: provider.id, startTime: Date.now(), source: 'explicit' }, { checkTombstone: false }),
 				`registration for ${session.toString()}`,
 			);
+			this._invalidateSessionList();
 		} catch (err) {
 			await this._rollbackProviderSession(provider, session);
 			throw err;
@@ -3240,6 +3293,7 @@ export class AgentService extends Disposable implements IAgentService {
 			() => this._sessionRegistry.unregister(session),
 			`unregistration for ${session.toString()}`,
 		);
+		this._invalidateSessionList();
 		if (provider) {
 			this._sessionToProvider.delete(session.toString());
 			this._clearDownloadProgressInterest(session.toString());
@@ -4492,6 +4546,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// up-front tombstone would, before any state-manager mutation.
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
+		this._invalidateSessionList();
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: restoredDraft, defaultChatTitle });
 		this._serverToolHost.advertise(sessionStr);
 
