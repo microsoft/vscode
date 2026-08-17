@@ -5270,7 +5270,8 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
-		test('a chat whose database cannot be read is skipped without withholding the rest of the catalog', async () => {			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/corrupt-discovery-home-`));
+		test('a chat whose database cannot be read is skipped without withholding the rest of the catalog', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/corrupt-discovery-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/corrupt-discovery-cwd-`);
 			class FailingSessionDataService extends TestSessionDataService {
 				override async tryOpenDatabase(session: URI): Promise<IReference<SessionDatabase> | undefined> {
@@ -5352,7 +5353,6 @@ suite('CopilotAgent', () => {
 			}
 			const gitService = new CountingGitService();
 			const client = new TestCopilotClient([sdkSession('ehcli-skipped', workingDirectory)]);
-			// Migration stays off, so this adoptable chat is never emitted.
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, gitService });
 			try {
 				await writeExtensionHostMarker(userHome, 'ehcli-skipped');
@@ -5396,7 +5396,6 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([sdkSession('bulk-metadata', workingDirectory)]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
-				// No known-sessions filter is installed, so discovery falls back to the stored-metadata probe.
 				await collectDiscoveredChats(agent);
 
 				assert.deepStrictEqual(calls, ['getMetadataObject']);

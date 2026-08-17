@@ -1363,14 +1363,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
-				// Already-registered candidates need no work: `register` would
-				// only re-assert the provenance the entry already carries, and
-				// the read-state seed below is one-time. Rejecting them here
-				// keeps discovery off their session databases entirely, which
-				// is the bulk of a large-catalog discovery pass. Provenance
-				// reclassification of an existing entry stays owned by
-				// `register` on the paths that can actually change it
-				// (explicit create/restore).
+				// Matching registry entries need no per-session I/O.
 				const known = existing.get(session.toString());
 				if (known !== undefined && known === external) {
 					alreadyRegistered++;
@@ -1463,18 +1456,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/**
-	 * Seeds a newly discovered external session as read.
-	 *
-	 * This creates the session's database purely to hold one flag, which is a
-	 * measurable cost on a large first discovery pass. Removing it needs a
-	 * durable default that {@link listSessions} can read without the database:
-	 * the list overlay only applies {@link SessionStatus.IsRead} when the key
-	 * is present, so simply dropping the write would flip every discovered
-	 * external session to unread. That default belongs on the registry row and
-	 * is deferred to the registry list-projection change rather than hacked in
-	 * here.
-	 */
+	/** Seeds external sessions as read. Avoiding this DB requires a durable registry default. */
 	private async _initializeExternalSessionReadState(session: URI): Promise<void> {
 		const ref = this._sessionDataService.openDatabase(session);
 		try {
@@ -1522,26 +1504,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/**
-	 * Whether a session is marked as an internal chat backing, either durably
-	 * (its own metadata) or in-process (its durable marker write kept failing
-	 * in `createChat`; see `_unpersistedChatBackings`).
-	 */
-	/**
-	 * Registry-first "does the host already own this?" answer for provider
-	 * discovery: one registry query for the whole candidate set instead of one
-	 * per-session database open each. Only registry membership is reported;
-	 * tombstoned sessions are absent from the registry and therefore not
-	 * reported as known, so an explicitly deleted session still reaches
-	 * {@link _registerDiscoveredChats}, where `register`'s atomic tombstone
-	 * check declines it.
-	 *
-	 * Provenance of an entry the registry already holds is not re-derived from
-	 * a discovery pass: `register` only ever upgrades provenance from the
-	 * explicit create/restore paths (a `discovery` source can never downgrade
-	 * an `explicit` one), so a registered session's `external` flag is already
-	 * owned by those paths.
-	 */
+	/** Returns registered candidates. Tombstones remain candidates so registration can reject them atomically. */
 	private async _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> {
 		const registered = new Set((await this._listRegisteredSessions()).map(entry => entry.session.toString()));
 		const known = new Set<string>();
@@ -1554,6 +1517,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return known;
 	}
 
+	/**
+	 * Whether a session is marked as an internal chat backing, either durably
+	 * or in `_unpersistedChatBackings`.
+	 */
 	private async _isChatBacking(session: URI): Promise<boolean> {
 		if (this._unpersistedChatBackings.has(session.toString())) {
 			return true;
@@ -1572,22 +1539,9 @@ export class AgentService extends Disposable implements IAgentService {
 			return false;
 		}
 	}
-	/**
-	 * In-flight {@link listSessions} computations keyed by external-sessions
-	 * mode. A cold start fans nine or more concurrent list calls (one per
-	 * restored window) at the same registry and the same per-session
-	 * databases; sharing one pass per mode collapses that to a single
-	 * traversal. The entry is cleared as soon as it settles, so the next call
-	 * recomputes rather than serving stale data, and a rejection is shared
-	 * only by the callers that were already waiting on it.
-	 *
-	 * Each entry records the registry epoch it started at, so a caller that
-	 * arrives after a registry mutation never joins a pass that may already
-	 * have read the pre-mutation registry — it starts its own instead.
-	 */
+	/** In-flight list computations, shared per mode until they settle or the registry changes. */
 	private readonly _inFlightListSessions = new Map<AgentHostExternalSessionsMode, { readonly epoch: number; readonly promise: Promise<readonly IAgentSessionMetadata[]> }>();
 
-	/** Bumped by every registry mutation; invalidates in-flight {@link listSessions} sharing. */
 	private _registryEpoch = 0;
 
 	private _invalidateSessionList(): void {

@@ -3106,7 +3106,6 @@ suite('AgentService (node dispatcher)', () => {
 			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(deleted);
 
 			const known = await (svc as unknown as { _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> })._filterKnownSessions([registered, deleted, unknown]);
-			// The deleted session is not "known", so it still reaches registration — where its tombstone declines it.
 			const reRegistered = await register(agent, [discoveredChat(deleted)]);
 
 			assert.deepStrictEqual({
@@ -3140,7 +3139,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				sharedComputations,
-				// The shared entry is cleared on settle, so a later call recomputes.
+
 				computations,
 				secondIntact: second.length,
 				thirdIntact: third.length,
@@ -3178,7 +3177,6 @@ suite('AgentService (node dispatcher)', () => {
 				stale: (await stale).length,
 				fresh: (await fresh).length,
 			}, {
-				// The post-mutation caller started its own pass instead of joining the stale one.
 				computations: 2,
 				stale: 1,
 				fresh: 1,
