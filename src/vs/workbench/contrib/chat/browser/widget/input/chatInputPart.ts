@@ -3138,6 +3138,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
 		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
+		const isOmniInput = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
+
 		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
 		options.pasteAs = EditorOptions.pasteAs.defaultValue;
@@ -3155,6 +3157,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.autoClosingQuotes = this.configurationService.getValue('editor.autoClosingQuotes');
 		options.autoSurround = this.configurationService.getValue('editor.autoSurround');
 		options.quickSuggestions = false;
+		// In the omni chat input (aux window), the suggest widget renders incorrectly
+		// (an empty black outline instead of the menu), so disable trigger-character
+		// suggestions such as the `/` and `#` menus entirely there.
+		options.suggestOnTriggerCharacters = !isOmniInput;
 		options.suggest = {
 			showIcons: true,
 			showSnippets: false,
@@ -3270,7 +3276,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const { location } = this.getWidgetLocationInfo(widget);
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
-		const isOmniInput = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
 		const isVoiceSessionActive = derived(this, reader => {
 			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			if (omniInputOpen) {
