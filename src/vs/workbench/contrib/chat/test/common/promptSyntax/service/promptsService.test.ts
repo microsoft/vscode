@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
@@ -3945,6 +3945,52 @@ suite('PromptsService', () => {
 			assert.ok(resolved, 'the command should still resolve');
 			assert.strictEqual(resolved.name, 'discovery-only');
 			assert.strictEqual(resolved.parsedPromptFile, undefined, 'no prompt file should be reported');
+		});
+
+		test('a parse failure is traced rather than vanishing', async () => {
+			// Swallowing the failure must not make a real parse regression
+			// indistinguishable from a command that has nothing to read.
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			const promptUri = URI.parse('file://extensions/my-extension/broken.prompt.md');
+			const traceSpy = sinon.spy(logService, 'trace');
+			sinon.stub(service, 'getPromptSlashCommands').resolves([{
+				name: 'broken',
+				uri: promptUri,
+				storage: PromptsStorage.local,
+				type: PromptsType.prompt,
+			} as IChatPromptSlashCommand]);
+			sinon.stub(service, 'parseNew').rejects(new Error('kaboom'));
+
+			const resolved = await service.resolvePromptSlashCommand('broken', undefined, CancellationToken.None);
+
+			assert.ok(resolved, 'the command should still resolve');
+			assert.strictEqual(resolved.parsedPromptFile, undefined);
+			assert.ok(
+				traceSpy.getCalls().some(call => String(call.args[0]).includes('broken')),
+				'the failure should be traced with the command name',
+			);
+		});
+
+		test('cancellation still rejects rather than resolving without a prompt file', async () => {
+			// An aborted resolve must not look like a command with no content, or
+			// callers relying on cancellation to short-circuit would carry on.
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			const promptUri = URI.parse('file://extensions/my-extension/cancelled-resolve.prompt.md');
+			sinon.stub(service, 'getPromptSlashCommands').resolves([{
+				name: 'cancelled-resolve',
+				uri: promptUri,
+				storage: PromptsStorage.local,
+				type: PromptsType.prompt,
+			} as IChatPromptSlashCommand]);
+			sinon.stub(service, 'parseNew').rejects(new CancellationError());
+
+			await assert.rejects(
+				() => service.resolvePromptSlashCommand('cancelled-resolve', undefined, CancellationToken.None),
+				(e: unknown) => isCancellationError(e),
+				'cancellation should propagate',
+			);
 		});
 	});
 

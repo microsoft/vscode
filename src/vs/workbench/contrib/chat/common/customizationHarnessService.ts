@@ -16,6 +16,7 @@ import { PromptsType } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { SessionType } from './chatSessionsService.js';
 import { CustomAgent } from './promptSyntax/service/promptsServiceImpl.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -644,7 +645,13 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 			// input-decoration path that calls it silently stops accepting the
 			// message, leaving the user unable to send anything containing that
 			// slash command.
-			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token).catch(() => undefined);
+			// Cancellation is not a content problem, so it still propagates.
+			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token).catch(e => {
+				if (isCancellationError(e)) {
+					throw e;
+				}
+				return undefined;
+			});
 			return {
 				...command,
 				userInvocable: parsedPromptFile?.header?.userInvocable ?? command.userInvocable,
