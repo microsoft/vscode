@@ -15,7 +15,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
@@ -66,6 +66,7 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -371,11 +372,11 @@ export class ProtocolServerHandler extends Disposable {
 		private readonly _config: IProtocolServerConfig,
 		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 	) {
 		super();
-		this._telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
+		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._connectionTelemetryTracker = this._config.connectionTelemetryTracker ?? this._register(new AgentHostClientConnectionTelemetryTracker());
 
 		this._register(this._server.onConnection(transport => {
@@ -451,7 +452,7 @@ export class ProtocolServerHandler extends Disposable {
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
 						client = result.client;
-						responsePromise = result.responsePromise;
+						responsePromise = this._trackRequest(result.responsePromise);
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
 						return;
@@ -596,6 +597,7 @@ export class ProtocolServerHandler extends Disposable {
 		}
 
 		const previousRecord = this._clients.get(params.clientId);
+		this._applyClientTelemetryLevel(params._meta);
 		const telemetryTransportToken = {};
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
@@ -717,7 +719,7 @@ export class ProtocolServerHandler extends Disposable {
 			));
 			return;
 		}
-		requestAgentHostUpgrade(socketPath).then(
+		this._trackRequest(requestAgentHostUpgrade(socketPath)).then(
 			(result) => transport.send(jsonRpcSuccess(id, result)),
 			(err: unknown) => {
 				this._logService.warn(`[ProtocolServer] vscodeUpgrade signal failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -736,6 +738,7 @@ export class ProtocolServerHandler extends Disposable {
 		if (!existingRecord) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Reconnect client not found: ${params.clientId}`);
 		}
+		this._applyClientTelemetryLevel(params._meta);
 
 		// Synchronously install the client so messages arriving on this transport
 		// while we restore subscriptions can find a valid client object. The
@@ -1182,12 +1185,23 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _createClientTelemetryContext(clientInfo: Implementation | undefined, meta: Record<string, unknown> | undefined, transport: IProtocolTransport, fallbackConnectionKind = AgentHostClientConnectionKind.Unknown): IAgentHostClientTelemetryContext {
 		const connectionKind = readClientConnectionKind(meta);
+		const machineId = readClientMachineId(meta);
+		const devDeviceId = readClientDevDeviceId(meta);
 		return {
 			clientType: getAgentHostClientType(clientInfo),
 			connectionKind: connectionKind === AgentHostClientConnectionKind.Unknown ? fallbackConnectionKind : connectionKind,
 			transportKind: transport.transportKind ?? AgentHostTransportKind.Unknown,
 			hostLaunchKind: this._config.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
+			...(machineId ? { machineId } : {}),
+			...(devDeviceId ? { devDeviceId } : {}),
 		};
+	}
+
+	private _applyClientTelemetryLevel(meta: Record<string, unknown> | undefined): void {
+		const telemetryLevel = readClientTelemetryLevel(meta);
+		if (telemetryLevel !== undefined && isAgentHostTelemetryService(this._telemetryService)) {
+			this._telemetryService.updateTelemetryLevel(telemetryLevel);
+		}
 	}
 
 	private _reportClientDisconnected(client: IConnectedClient, subscriptionCount: number): void {
@@ -1538,6 +1552,7 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _reverseRequestId = 0;
 	private readonly _pendingReverseRequests = new Map<number, { client: IConnectedClient; resolve: (value: unknown) => void; reject: (reason: unknown) => void }>();
+	private readonly _inflightRequests = new Set<Promise<unknown>>();
 
 	/**
 	 * Sends a JSON-RPC request to a connected client and waits for the response.
@@ -1573,7 +1588,7 @@ export class ProtocolServerHandler extends Disposable {
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
 		const handler = this._requestHandlers.hasOwnProperty(method) ? this._requestHandlers[method as RequestMethod] : undefined;
 		if (handler) {
-			(handler as (client: IConnectedClient, params: unknown) => Promise<unknown>)(client, params).then(result => {
+			this._trackRequest((handler as (client: IConnectedClient, params: unknown) => Promise<unknown>)(client, params)).then(result => {
 				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
@@ -1588,7 +1603,7 @@ export class ProtocolServerHandler extends Disposable {
 		// VS Code extension methods (not in the typed protocol maps yet)
 		const extensionResult = this._handleExtensionRequest(method, params);
 		if (extensionResult) {
-			extensionResult.then(result => {
+			this._trackRequest(extensionResult).then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
 				this._logService.error(`[ProtocolServer] Extension request '${method}' failed`, err);
@@ -1605,7 +1620,7 @@ export class ProtocolServerHandler extends Disposable {
 		const mcpChannel = readMcpChannel(params);
 		if (mcpChannel !== undefined) {
 			const paramsObj = isParamsObject(params) ? params : undefined;
-			this._agentService.handleMcpRequest(mcpChannel, method, paramsObj).then(result => {
+			this._trackRequest(this._agentService.handleMcpRequest(mcpChannel, method, paramsObj)).then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
 				if (err instanceof Error && err.message.startsWith('Method not found')) {
@@ -1619,6 +1634,19 @@ export class ProtocolServerHandler extends Disposable {
 		}
 
 		client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`));
+	}
+
+	async whenIdle(): Promise<void> {
+		while (this._inflightRequests.size > 0) {
+			await Promise.all([...this._inflightRequests].map(promise => promise.then(() => { }, () => { })));
+		}
+	}
+
+	private _trackRequest<T>(promise: Promise<T>): Promise<T> {
+		this._inflightRequests.add(promise);
+		const remove = () => this._inflightRequests.delete(promise);
+		void promise.then(remove, remove);
+		return promise;
 	}
 
 	/**

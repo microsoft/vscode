@@ -18,6 +18,7 @@ import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
 import { NewSessionActionViewItemContribution, SessionConversationsActionViewItemContribution, SessionConversationsMenuContribution, SessionNewChatActionViewItemContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
+import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -29,6 +30,7 @@ import { OmniChatEnabledSettingId } from '../../../../workbench/contrib/chat/com
 import { Menus } from '../../../browser/menus.js';
 import { OmniCIFailureContribution } from './omniCIFailureContribution.js';
 import { BlockedSessionsCIFixModel, IBlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
+import './sessionDetailsAction.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -94,6 +96,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
+registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(OmniCIFailureContribution.ID, OmniCIFailureContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);

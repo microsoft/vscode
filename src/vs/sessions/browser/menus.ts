@@ -26,6 +26,7 @@ export const Menus = {
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
+	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
@@ -39,6 +40,8 @@ export const Menus = {
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
+	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */
+	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
 
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),

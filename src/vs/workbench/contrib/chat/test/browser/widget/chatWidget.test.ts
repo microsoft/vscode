@@ -14,6 +14,7 @@ import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
 import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
+import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
@@ -118,6 +119,57 @@ suite('ChatWidget', () => {
 			finishedCount: 1,
 			focusCount: 0,
 		});
+	});
+
+	test('reasserts custom submit pending after the dictation finalization boundary', async () => {
+		const events: string[] = [];
+		const widget = {
+			_readOnly: false,
+			input: {
+				hasPendingProgrammaticModelSelection: false,
+				setSubmitPending: (pending: boolean, routing?: boolean) => events.push(`pending:${pending}:${routing ?? pending}`),
+			},
+			viewOptions: { submitHandler: () => true },
+			inputEditor: {},
+			viewModel: undefined,
+			_acceptInput: async () => {
+				events.push('accept');
+				return undefined;
+			},
+		};
+		const acceptInput = ChatWidget.prototype.acceptInput as unknown as (this: typeof widget) => Promise<undefined>;
+
+		await acceptInput.call(widget);
+
+		assert.deepStrictEqual(events, [
+			'pending:true:true',
+			'pending:true:true',
+			'accept',
+		]);
+	});
+
+	test('refreshes the execute toolbar only when submit pending state changes', () => {
+		const contextKey = (initialValue: boolean) => {
+			let value = initialValue;
+			return {
+				get: () => value,
+				set: (newValue: boolean) => value = newValue,
+			};
+		};
+		let refreshes = 0;
+		const inputPart = {
+			inputSubmitPending: contextKey(false),
+			inputRouting: contextKey(false),
+			executeToolbar: { refresh: () => refreshes++ },
+		};
+		const setSubmitPending = ChatInputPart.prototype.setSubmitPending as unknown as (this: typeof inputPart, pending: boolean, routing?: boolean) => void;
+
+		setSubmitPending.call(inputPart, false);
+		setSubmitPending.call(inputPart, true, true);
+		setSubmitPending.call(inputPart, true, true);
+		setSubmitPending.call(inputPart, false);
+
+		assert.strictEqual(refreshes, 2);
 	});
 
 	test('transcript overlays suppress the welcome state', () => {

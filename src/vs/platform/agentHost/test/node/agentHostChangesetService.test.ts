@@ -11,6 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
@@ -2001,13 +2003,26 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				subscriptions: [buildTurnChangesetUri(sessionStr, 'turn-1')],
 			});
 
-			svc.onTurnComplete(sessionStr, 'turn-1');
+			svc.onTurnComplete(sessionStr, 'turn-1', {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			});
 			const data = await waitForTelemetry(telemetry, 'agentHost.changesetComputed', d => d.kind === 'turn');
 
 			assert.deepStrictEqual({
 				provider: data.provider,
 				agentSessionId: data.agentSessionId,
 				turnId: data.turnId,
+				initiatorClientType: data.initiatorClientType,
+				initiatorConnectionKind: data.initiatorConnectionKind,
+				initiatorTransportKind: data.initiatorTransportKind,
+				hostLaunchKind: data.hostLaunchKind,
+				initiatorMachineId: data.initiatorMachineId,
+				initiatorDevDeviceId: data.initiatorDevDeviceId,
 				kind: data.kind,
 				outcome: data.outcome,
 				isMultiRoot: data.isMultiRoot,
@@ -2018,6 +2033,12 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				provider: URI.parse(sessionStr).scheme,
 				agentSessionId: AgentSession.id(sessionStr),
 				turnId: 'turn-1',
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				kind: 'turn',
 				outcome: 'computed',
 				isMultiRoot: false,

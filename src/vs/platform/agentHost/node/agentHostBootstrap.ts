@@ -54,7 +54,7 @@ export async function registerAgentHostNetworkServices(
 	const configurationService = disposables.add(new ConfigurationService(settingsResource, fileService, policyService, logService));
 	await configurationService.initialize();
 	diServices.set(IConfigurationService, configurationService);
-	const proxyResolver = new AgentHostProxyResolver(configurationService, logService);
+	const proxyResolver = disposables.add(new AgentHostProxyResolver(configurationService, logService));
 	diServices.set(IAgentHostProxyResolver, proxyResolver);
 	const requestService = disposables.add(new AgentHostRequestService(configurationService, environmentService, logService, proxyResolver));
 	diServices.set(IRequestService, requestService);

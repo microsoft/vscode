@@ -15,6 +15,24 @@
 	overflow: hidden;
 }
 
+.chat-input-window:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.chat-input-window .monaco-editor [tabindex]:focus,
+.chat-input-window .monaco-editor textarea:focus {
+	outline: none;
+}
+
+.chat-input-window .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor {
+	background-color: transparent;
+}
+
+.chat-input-window .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-agentsChatInput-background);
+}
+
 .chat-input-window-body {
 	background: transparent !important;
 	overflow: hidden !important;
@@ -85,7 +103,10 @@
 }
 
 .chat-input-window .chat-input-window-close .codicon[class*='codicon-'] {
-	font-size: var(--vscode-codiconFontSize-compact);
+	display: inline-block;
+	flex: 0 0 var(--vscode-codiconFontSize-compact, 12px);
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	width: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .chat-input-window .chat-side-toolbar {
@@ -107,7 +128,7 @@
 }
 
 .chat-input-window .interactive-input-part.compact {
-	padding-top: var(--vscode-spacing-size40);
+	padding-top: var(--vscode-spacing-sizeNone);
 }
 
 .chat-input-window .interactive-input-part.compact .chat-input-container {
@@ -135,7 +156,8 @@
 	display: none;
 }
 
-.chat-input-window .chat-input-container:not(.working) {
+.chat-input-window .chat-input-container:not(.working),
+.agent-sessions-workbench .chat-input-window .interactive-session .chat-input-container:not(.working) {
 	border-color: transparent !important;
 	background: transparent !important;
 }
@@ -271,7 +293,8 @@
 }
 
 .chat-input-window .chat-input-window-pending-panel.question .chat-input-window-pending-widget {
-	overflow: hidden !important;
+	max-height: none;
+	overflow: visible !important;
 }
 
 .chat-input-window .chat-input-window-pending-approval-fallback {
@@ -315,6 +338,8 @@
 .chat-input-window .chat-input-window-pending-ci-actions {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .chat-input-window .chat-input-window-pending-approval-title {

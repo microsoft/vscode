@@ -307,7 +307,6 @@ suite('LayoutController (desktop)', () => {
 		harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
-
 		harness.setPartHiddenCalls = [];
 		harness.activeSessionObs.set(sessionB, undefined);
 		harness.visibleSessionsObs.set([sessionB], undefined);
@@ -545,6 +544,36 @@ suite('LayoutController (desktop)', () => {
 			CHANGES_VIEW_CONTAINER_ID,
 			SESSIONS_FILES_CONTAINER_ID,
 		]);
+	});
+
+	test('[single-pane] applies the active editor detail when the hidden detail panel is reopened', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		harness.activeEditorInput = makeFileEditor();
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+		harness.openedViewContainers = [];
+		harness.activeEditorInput = makeDiffEditor();
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		const openedWhileHidden = [...harness.openedViewContainers];
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			openedWhileHidden,
+			openedAfterReveal: harness.openedViewContainers,
+		}, {
+			openedWhileHidden: [],
+			openedAfterReveal: [CHANGES_VIEW_CONTAINER_ID],
+		});
 	});
 
 	test('[single-pane] maps Markdown preview editors to Files', async () => {
@@ -3281,12 +3310,8 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 		harness.closedEditors = [];
 
-		// Close the whole side pane: the aux bar is hidden first, then the editor
-		// area (matching toggleSidePane's order). No editors must be closed.
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-		harness.partVisibility.set(Parts.EDITOR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+		// Close through the real whole-side-pane lifecycle. No editors must be closed.
+		harness.layoutService.hideSidePane();
 		await settle();
 
 		assert.deepStrictEqual({

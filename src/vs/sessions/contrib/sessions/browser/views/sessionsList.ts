@@ -86,7 +86,7 @@ import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsView.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 
 const $ = DOM.$;
 
@@ -223,6 +223,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		private readonly _isPhone: () => boolean,
 		private readonly _approvalRowMaxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES,
 		private readonly _ciFixModel: ISessionCIFixModel | undefined = undefined,
+		private readonly _useCompactQuickChatRows = true,
 	) { }
 
 	getHeight(element: SessionListItem): number {
@@ -239,7 +240,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		let height: number;
 		if (this._isPhone()) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_PHONE;
-		} else if (isQuickChatSession(element as ISession)) {
+		} else if (this._useCompactQuickChatRows && isQuickChatSession(element as ISession)) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
 		} else {
 			height = SessionsTreeDelegate.ITEM_HEIGHT;
@@ -329,6 +330,7 @@ interface ISessionItemTemplate {
 	readonly contextKeyService: IContextKeyService;
 	readonly statusContext: IContextKey<SessionStatus>;
 	readonly isReadContext: IContextKey<boolean>;
+	readonly supportsDeleteContext: IContextKey<boolean>;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
@@ -391,7 +393,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
@@ -469,6 +471,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const statusContext = SessionItemStatusContext.bindTo(contextKeyService);
 		const isReadContext = SessionIsReadContext.bindTo(contextKeyService);
+		const supportsDeleteContext = SessionSupportsDeleteContext.bindTo(contextKeyService);
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.options.toolbarMenuId) {
@@ -479,7 +482,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -582,6 +585,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isRead = element.isRead.read(reader);
 			template.isReadContext.set(isRead);
 			const isArchived = element.isArchived.read(reader);
+			const capabilities = element.capabilities.read(reader);
+			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
 			const completedStateIcon = element.completedStateIcon?.read(reader) ?? gitHubInfo?.pullRequest?.icon;
@@ -594,8 +599,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('in-progress', sessionStatus === SessionStatus.InProgress);
 			template.container.classList.toggle('needs-input', sessionStatus === SessionStatus.NeedsInput);
 			template.container.classList.toggle('unread', !isRead && !isArchived);
-			// Quick-chat rows use a more compact layout (smaller icon, tighter row height).
-			template.container.classList.toggle('quick-chat', isQuickChat);
+			template.container.classList.toggle('quick-chat', isQuickChat && this.options.useCompactQuickChatRows);
 		}));
 
 		// Title — reactive
@@ -605,8 +609,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 
 		// Details row — reactive: badge · diff stats · time · status description
-		// (quick chats use a more compact row: no diff stats/time/type-icon, and
-		// no "Working..." text since their spinner status icon already conveys it)
 		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
 		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
@@ -618,9 +620,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
 
-			// Quick chats are single-line rows with no details row at all (hidden
-			// via CSS) — skip building its content entirely.
-			if (isQuickChat) {
+			// Compact quick chats have no details row.
+			if (isQuickChat && this.options.useCompactQuickChatRows) {
 				descriptionDisposable.clear();
 				timeDisposable.clear();
 				return;
@@ -639,24 +640,30 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			const parts: HTMLElement[] = [];
 
-			// Type icon (folder/worktree/cloud) — regular sessions only. Quick
-			// chats show their chat icon on the status icon instead (see above).
 			if (sessionStatus !== SessionStatus.InProgress) {
-				const kind = getSessionWorkspaceKind(workspace, element.worktreePending?.read(reader));
-				const icon = workspace?.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact);
+				let icon: ThemeIcon;
+				if (isQuickChat) {
+					icon = Codicon.commentDiscussion;
+				} else {
+					const kind = getSessionWorkspaceKind(workspace, element.worktreePending?.read(reader));
+					icon = workspace?.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact);
+				}
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
 			}
 
-			// Show the workspace when the section header does not: date, custom group, pinned, or archived.
-			if (!hideDetails && workspace && (
-				this.options.grouping() !== SessionsGrouping.Workspace ||
-				this.options.isPinned(element) ||
-				element.isArchived.read(reader) ||
-				this.options.isRenderedInCustomGroup?.(element)
-			)) {
-				const badgeLabel = getWorkspaceBadgeLabel(workspace);
+			if (!hideDetails) {
+				const badgeLabel = isQuickChat
+					? localize('quickChatBadge', "Chat")
+					: workspace && (
+						this.options.grouping() !== SessionsGrouping.Workspace ||
+						this.options.isPinned(element) ||
+						element.isArchived.read(reader) ||
+						this.options.isRenderedInCustomGroup?.(element)
+					)
+						? getWorkspaceBadgeLabel(workspace)
+						: undefined;
 				if (badgeLabel) {
 					const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
 					badgeEl.textContent = badgeLabel;
@@ -665,7 +672,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			// Diff stats
-			if (!hideDetails && (changesSummary || changes.length > 0)) {
+			if (!isQuickChat && !hideDetails && (changesSummary || changes.length > 0)) {
 				let insertions = 0, deletions = 0;
 
 				if (changesSummary) {
@@ -875,17 +882,26 @@ function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefine
 
 //#region Section Header Renderer
 
-interface ISessionSectionTemplate {
+interface ISessionHeaderTemplate {
+	readonly toolbarContainer: HTMLElement;
+	readonly toolbar: MenuWorkbenchToolBar;
+	readonly elementDisposables: DisposableStore;
+}
+
+function renderSessionHeaderToolbar<T>(template: ISessionHeaderTemplate, element: T, select: (element: T, event: MouseEvent) => void): void {
+	template.elementDisposables.add(DOM.addDisposableListener(template.toolbarContainer, DOM.EventType.CONTEXT_MENU, event => select(element, event), true));
+	template.toolbar.context = element;
+}
+
+interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly statusIndicator: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
-	readonly toolbar: MenuWorkbenchToolBar;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
-	readonly elementDisposables: DisposableStore;
 }
 
 export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
@@ -930,6 +946,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 	constructor(
 		private readonly hideSectionCount: boolean,
+		private readonly select: (element: ISessionSection, event: MouseEvent) => void,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
@@ -959,7 +976,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, icon, statusIndicator, label, count, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, statusIndicator, label, count, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -968,6 +985,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		if (!isSessionSection(element)) {
 			return;
 		}
+		renderSessionHeaderToolbar(template, element, this.select);
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
@@ -1042,7 +1060,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			hasGitHubRepository.set(hasGitHub);
 			hasNonCloudRepository.set(hasNonCloudWorkspace);
 		}));
-		template.toolbar.context = element;
 	}
 
 	/**
@@ -1088,15 +1105,13 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 //#region Session Group Renderer
 
-interface ISessionGroupTemplate {
+interface ISessionGroupTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
 	readonly inputContainer: HTMLElement;
-	readonly toolbar: MenuWorkbenchToolBar;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
-	readonly elementDisposables: DisposableStore;
 }
 
 /**
@@ -1105,6 +1120,7 @@ interface ISessionGroupTemplate {
 interface ISessionGroupRendererDelegate {
 	commitEdit(group: ISessionGroup, name: string): void;
 	cancelEdit(group: ISessionGroup): void;
+	select(element: ISessionGroupItem, event: MouseEvent): void;
 }
 
 class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionGroupTemplate> {
@@ -1136,7 +1152,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, inputContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { container, label, inputContainer, toolbarContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
@@ -1145,6 +1161,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			return;
 		}
 		template.elementDisposables.clear();
+		renderSessionHeaderToolbar(template, element, this.delegate.select);
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.group.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
@@ -1153,7 +1170,6 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		this.updateChevron(template, node.collapsible, node.collapsed);
 		SessionGroupHasVisibleSessionsContext.bindTo(template.contextKeyService).set(element.sessions.length > 0);
 		SessionGroupIsEmptyContext.bindTo(template.contextKeyService).set(element.isEmpty);
-		template.toolbar.context = element;
 
 		template.container.classList.toggle('session-group-editing', element.editing);
 		if (element.editing) {
@@ -1320,10 +1336,17 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 
 //#region Accessibility
 
+interface ISessionsAccessibilityProviderOptions {
+	readonly grouping: () => SessionsGrouping;
+	readonly isPinned: (session: ISession) => boolean;
+	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
+	readonly includeQuickChatIdentity?: boolean;
+}
+
 class SessionsAccessibilityProvider {
 	constructor(
 		private readonly automationStatus?: IObservable<SessionStatus | undefined>,
-		private readonly workspaceBadgeOptions?: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean },
+		private readonly options?: ISessionsAccessibilityProviderOptions,
 	) { }
 
 	getWidgetAriaLabel(): string {
@@ -1373,22 +1396,27 @@ class SessionsAccessibilityProvider {
 		return derived(this, reader => {
 			const title = element.title.read(reader);
 			const updated = fromNow(element.updatedAt.read(reader), true);
-			let label = element.worktreePending?.read(reader)
-				? localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated)
-				: localize('sessionItemAria', "{0}, updated {1}", title, updated);
+			let label: string;
+			if (this.options?.includeQuickChatIdentity && element.isQuickChat?.read(reader)) {
+				label = localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, updated);
+			} else if (element.worktreePending?.read(reader)) {
+				label = localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated);
+			} else {
+				label = localize('sessionItemAria', "{0}, updated {1}", title, updated);
+			}
 			const status = element.status.read(reader);
 			const workspace = element.workspace.read(reader);
 			const workspaceLabel = workspace ? getWorkspaceBadgeLabel(workspace) : undefined;
 			if (
-				this.workspaceBadgeOptions &&
+				this.options &&
 				status !== SessionStatus.InProgress &&
 				status !== SessionStatus.NeedsInput &&
 				workspaceLabel &&
 				(
-					this.workspaceBadgeOptions.grouping() !== SessionsGrouping.Workspace ||
-					this.workspaceBadgeOptions.isPinned(element) ||
+					this.options.grouping() !== SessionsGrouping.Workspace ||
+					this.options.isPinned(element) ||
 					element.isArchived.read(reader) ||
-					this.workspaceBadgeOptions.isRenderedInCustomGroup?.(element)
+					this.options.isRenderedInCustomGroup?.(element)
 				)
 			) {
 				label = localize('sessionItemWorkspaceAria', "{0}, in {1}", label, workspaceLabel);
@@ -1958,6 +1986,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				visibleSessions: this._sessionsService.visibleSessions,
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
+				useCompactQuickChatRows: true,
 				approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES,
 				toolbarMenuId: SessionItemToolbarMenuId,
 				onDidRequestRename: session => {
@@ -1977,11 +2006,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService);
+		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
+			this.tree.setFocus([element], event);
+			this.tree.setSelection([element], event);
+		};
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, selectHeader, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
 			cancelEdit: group => this.cancelGroupEdit(group),
+			select: selectHeader,
 		}, instantiationService, contextKeyService);
 		this._groupRenderer = groupRenderer;
 
@@ -3673,6 +3707,18 @@ export interface ISessionsFlatListOptions {
 	readonly toolbarMenuId?: MenuId;
 	/** Allows focused list surfaces to handle actions from their custom toolbar menu. */
 	readonly onToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>;
+	/** Whether opening a row immediately marks its session as read. Defaults to `true`. */
+	readonly markSessionReadOnOpen?: boolean;
+	/**
+	 * When `false` wheel events bubble to the parent scroller instead of being
+	 * consumed by the embedded tree. Defaults to `true` (standard list behavior).
+	 */
+	readonly alwaysConsumeMouseWheel?: boolean;
+	/**
+	 * Whether quick chats use the compact single-line presentation. Defaults to
+	 * `true`; consumers showing homogeneous history entries can opt into regular rows.
+	 */
+	readonly useCompactQuickChatRows?: boolean;
 }
 
 /**
@@ -3720,6 +3766,7 @@ export class SessionsFlatList extends Disposable {
 		// the instantiation service so this file's single suppressed import stays
 		// the only reference. See the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
+		const useCompactQuickChatRows = this.options.useCompactQuickChatRows ?? true;
 
 		const sessionRenderer = new SessionItemRenderer(
 			{
@@ -3728,6 +3775,7 @@ export class SessionsFlatList extends Disposable {
 				visibleSessions: this._sessionsService.visibleSessions,
 				getMultiSelectedSessions: s => [s],
 				showHover: this.options.showSessionHover ?? true,
+				useCompactQuickChatRows,
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
 				toolbarMenuId: this.options.toolbarMenuId ?? SessionItemToolbarMenuId,
 				handleToolbarAction: this.options.onToolbarAction,
@@ -3743,7 +3791,7 @@ export class SessionsFlatList extends Disposable {
 			voicePlaybackService,
 		);
 
-		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel);
+		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows);
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
@@ -3755,11 +3803,13 @@ export class SessionsFlatList extends Disposable {
 				accessibilityProvider: new SessionsAccessibilityProvider(undefined, {
 					grouping: () => SessionsGrouping.Date,
 					isPinned: session => this._sessionsListModelService.isSessionPinned(session),
+					includeQuickChatIdentity: !useCompactQuickChatRows,
 				}),
 				identityProvider: {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),
 				},
 				horizontalScrolling: false,
+				alwaysConsumeMouseWheel: this.options.alwaysConsumeMouseWheel ?? true,
 				multipleSelectionSupport: false,
 				indent: 0,
 				overrideStyles: this.options.overrideStyles,
@@ -3773,7 +3823,9 @@ export class SessionsFlatList extends Disposable {
 			if (!element || !isSessionItem(element)) {
 				return;
 			}
-			this._sessionsManagementService.markRead(element);
+			if (this.options.markSessionReadOnOpen !== false) {
+				this._sessionsManagementService.markRead(element);
+			}
 			const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
 			const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
 			this.options.onSessionOpen(element.resource, preserveFocus, e.sideBySide);
@@ -3808,6 +3860,14 @@ export class SessionsFlatList extends Disposable {
 	}
 
 	focus(): void {
+		this.tree.domFocus();
+	}
+
+	focusSession(session: ISession): void {
+		if (!this.tree.hasElement(session)) {
+			return;
+		}
+		this.tree.setFocus([session]);
 		this.tree.domFocus();
 	}
 }

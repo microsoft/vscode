@@ -9,37 +9,40 @@ import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
-import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
-import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
-import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
-import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
-import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
-import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
-import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
-import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
+import '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
+import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
+import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
+import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAllowedServersConfig, mcpAutoStartConfig, mcpDeniedServersConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig, mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
+import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAllowedServersConfig, mcpAppsEnabledConfig, mcpAutoStartConfig, mcpDeniedServersConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
+import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
+import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { type ConfigurationKeyValuePairs, Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
@@ -48,195 +51,194 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
-import { allDiscoverySources, discoverySourceSettingsLabel, McpCollisionBehavior, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
-import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/participants/chatAgents.js';
-import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
-import '../common/widget/chatColors.js';
-import { IChatEditingService } from '../common/editing/chatEditingService.js';
-import { IChatLayoutService } from '../common/widget/chatLayoutService.js';
+import { McpCollisionBehavior, allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
+import { IChatVariablesService } from '../common/attachments/chatVariables.js';
+import { IChatDebugService } from '../common/chatDebugService.js';
+import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
 import { ChatModeService, IChatMode, IChatModeService, IChatModes } from '../common/chatModes.js';
-import { ChatResponseResourceFileSystemProvider, ChatResponseResourceWorkbenchContribution, IChatResponseResourceFileSystemProvider } from '../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService/chatService.js';
-import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
 import { ChatRequestOriginService, IChatRequestOriginService } from '../common/chatRequestOrigin.js';
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
-import { ChatSlashCommandService, IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
-import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
-import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
-import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
-import { IChatVariablesService } from '../common/attachments/chatVariables.js';
-import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/widget/chatWidgetHistoryService.js';
+import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
 import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
+import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
-import { ISessionRouter } from '../common/sessionRouter.js';
-import { SessionRouterService } from './sessionRouter/sessionRouterService.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
-import { ILanguageModelToolsConfirmationService } from '../common/tools/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
-import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
-import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSummaryService.js';
-import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
-import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPluginService } from '../common/plugins/agentPluginService.js';
+import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
+import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/participants/chatAgents.js';
+import { ChatSlashCommandService, IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
+import { AgentPluginDiscoveryPriority, IAgentPluginService, agentPluginDiscoveryRegistry } from '../common/plugins/agentPluginService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
-import { isTildePath, PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, SKILL_FILENAME, CLAUDE_AGENTS_SOURCE_FOLDER, DEFAULT_HOOK_FILE_PATHS, DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS, COPILOT_USER_AGENTS_SOURCE_FOLDER } from '../common/promptSyntax/config/promptFileLocations.js';
-import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
-import { AGENT_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL, HOOK_DOCUMENTATION_URL, PromptsType, PromptFileSource, AgentHostAgentDebugLogEnabledSettingId, AgentHostAgentDebugLogMaxEventsSettingId } from '../common/promptSyntax/promptTypes.js';
-import { hookFileSchema, HOOK_SCHEMA_URI } from '../common/promptSyntax/hookSchema.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { PromptsConfig, isTildePath } from '../common/promptSyntax/config/config.js';
+import { AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, CLAUDE_AGENTS_SOURCE_FOLDER, COPILOT_USER_AGENTS_SOURCE_FOLDER, DEFAULT_HOOK_FILE_PATHS, DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS, DEFAULT_SKILL_SOURCE_FOLDERS, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, SKILL_FILENAME } from '../common/promptSyntax/config/promptFileLocations.js';
+import { HOOK_SCHEMA_URI, hookFileSchema } from '../common/promptSyntax/hookSchema.js';
+import { AGENT_DOCUMENTATION_URL, AgentHostAgentDebugLogEnabledSettingId, AgentHostAgentDebugLogMaxEventsSettingId, HOOK_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, PromptFileSource, PromptsType, SKILL_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
-import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
-import { ClientToolSetsContribution } from './tools/clientToolSetsContribution.js';
-import './telemetry/chatModelCountTelemetry.js';
+import { ISessionRouter } from '../common/sessionRouter.js';
 import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js';
-import { RenameToolContribution } from './tools/renameTool.js';
-import { UsagesToolContribution } from './tools/usagesTool.js';
+import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
+import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
+import { ILanguageModelToolsConfirmationService } from '../common/tools/languageModelToolsConfirmationService.js';
+import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
+import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
-import './voiceClient/voiceClientService.js';
-import './voiceClient/micCaptureService.js';
-import './voiceClient/ttsPlaybackService.js';
-import './voiceClient/voiceToolDispatchService.js';
-import './voiceClient/voiceSessionController.js';
+import '../common/widget/chatColors.js';
+import { IChatLayoutService } from '../common/widget/chatLayoutService.js';
+import { ChatResponseResourceFileSystemProvider, ChatResponseResourceWorkbenchContribution, IChatResponseResourceFileSystemProvider } from '../common/widget/chatResponseResourceFileSystemProvider.js';
+import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/widget/chatWidgetHistoryService.js';
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
 import { AgentChatAccessibilityHelp, ChatInputWindowAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
 import { ModeOpenChatGlobalAction, registerChatActions } from './actions/chatActions.js';
+import { ChatAgentRecommendation } from './actions/chatAgentRecommendationActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
 import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chatCopyActions.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
+import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
-import { registerChatFindActions } from './actions/chatFindActions.js';
-import { ChatVoiceInputModeAction, ChatVoiceInputModeToggleListenAction, registerVoiceInputModeSimulateActions } from './voiceInputMode/voiceInputModeActionViewItem.js';
-import './voiceInputMode/voiceInputMode.js';
-import { registerChatSpeechToTextActions } from './actions/chatSpeechToTextActions.js';
-import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, registerConfigureSpeechInstructionsActions } from './actions/configureVoiceInstructionsAction.js';
-import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
+import { registerChatFindActions } from './actions/chatFindActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
-import { registerChatPluginActions } from './actions/chatPluginActions.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerNewChatActions } from './actions/chatNewActions.js';
+import { registerChatOpenAgentDebugPanelAction } from './actions/chatOpenAgentDebugPanelAction.js';
+import { registerChatPluginActions } from './actions/chatPluginActions.js';
 import { registerChatPromptNavigationActions } from './actions/chatPromptNavigationActions.js';
 import { registerChatQueueActions } from './actions/chatQueueActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
-import { ChatAgentRecommendation } from './actions/chatAgentRecommendationActions.js';
+import { registerChatSpeechToTextActions } from './actions/chatSpeechToTextActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
-import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
-import { registerChatOpenAgentDebugPanelAction } from './actions/chatOpenAgentDebugPanelAction.js';
-import { IChatDebugService } from '../common/chatDebugService.js';
-import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
-import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
-import { PromptsDebugContribution } from './promptsDebugContribution.js';
-import { AgentHostChatDebugContribution } from './chatDebug/agentHostChatDebugProvider.js';
-import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
+import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, registerConfigureSpeechInstructionsActions } from './actions/configureVoiceInstructionsAction.js';
 import './agentSessions/agentSessions.contribution.js';
+import { AgentHostChatDebugContribution } from './chatDebug/agentHostChatDebugProvider.js';
+import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
+import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
+import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSummaryService.js';
+import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
+import { PromptsDebugContribution } from './promptsDebugContribution.js';
+import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
+import './sessionRouter/chatSessionRoutingProviderService.js';
+import { SessionRouterService } from './sessionRouter/sessionRouterService.js';
+import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
+import './telemetry/chatModelCountTelemetry.js';
+import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
+import { ClientToolSetsContribution } from './tools/clientToolSetsContribution.js';
+import { RenameToolContribution } from './tools/renameTool.js';
+import { UsagesToolContribution } from './tools/usagesTool.js';
+import './voiceClient/micCaptureService.js';
+import './voiceClient/ttsPlaybackService.js';
+import './voiceClient/voiceClientService.js';
+import './voiceClient/voiceSessionController.js';
+import './voiceClient/voiceToolDispatchService.js';
+import './voiceInputMode/voiceInputMode.js';
+import { ChatVoiceInputModeAction, ChatVoiceInputModeToggleListenAction, registerVoiceInputModeSimulateActions } from './voiceInputMode/voiceInputModeActionViewItem.js';
 
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 
-import { ChatViewId, IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatPasteTargetService, IChatWidgetService, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
 import { ChatAccessibilityService } from './accessibility/chatAccessibilityService.js';
+import './aiCustomization/aiCustomizationItemsModel.js';
+import './aiCustomization/aiCustomizationManagement.contribution.js';
+import './aiCustomization/aiCustomizationWorkspaceService.js';
+import './aiCustomization/customizationHarnessService.js';
 import './attachments/chatAttachmentModel.js';
-import './widget/input/chatInputNotificationService.js';
-import './widget/input/chatInputNoticeHub.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './attachments/chatAttachmentResolveService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from './attachments/chatAttachmentWidgetRegistry.js';
+import { ChatContextPickService, IChatContextPickService } from './attachments/chatContextPickService.js';
 import { ChatReferenceAttachmentWidgetContribution } from './attachments/chatReferenceAttachmentWidget.contribution.js';
 import { TranscriptContextAttachmentWidgetContribution } from './attachments/transcriptContextAttachmentWidget.contribution.js';
-import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './widget/chatContentParts/chatMarkdownAnchorService.js';
-import { ChatContextPickService, IChatContextPickService } from './attachments/chatContextPickService.js';
-import { ChatInputBoxContentProvider } from './widget/input/editor/chatEditorInputContentProvider.js';
+import { ChatViewId, IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatPasteTargetService, IChatWidgetService, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
 import { ChatEditingEditorAccessibility } from './chatEditing/chatEditingEditorAccessibility.js';
 import { registerChatEditorActions } from './chatEditing/chatEditingEditorActions.js';
 import { ChatEditingEditorContextKeys } from './chatEditing/chatEditingEditorContextKeys.js';
 import { ChatEditingEditorOverlay } from './chatEditing/chatEditingEditorOverlay.js';
 import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
-import { ChatEditor, IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
-import { ChatOutlineCreator } from './chatOutlineCreator.js';
-import { ChatEditorInput, ChatEditorInputSerializer } from './widgetHosts/editor/chatEditorInput.js';
-import { ChatLayoutService } from './widget/chatLayoutService.js';
-import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
 import './chatManagement/chatManagement.contribution.js';
-import './aiCustomization/aiCustomizationWorkspaceService.js';
-import './aiCustomization/customizationHarnessService.js';
-import './aiCustomization/aiCustomizationManagement.contribution.js';
-import './aiCustomization/aiCustomizationItemsModel.js';
+import { ChatOutlineCreator } from './chatOutlineCreator.js';
+import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
+import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './widget/chatContentParts/chatMarkdownAnchorService.js';
+import { ChatLayoutService } from './widget/chatLayoutService.js';
+import './widget/input/chatInputNoticeHub.js';
+import './widget/input/chatInputNotificationService.js';
+import { ChatInputBoxContentProvider } from './widget/input/editor/chatEditorInputContentProvider.js';
+import { ChatEditor, IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput, ChatEditorInputSerializer } from './widgetHosts/editor/chatEditorInput.js';
 
-import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
-import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
-import { ChatPasteProvidersFeature } from './widget/input/editor/chatPasteProviders.js';
-import { ChatPasteTargetService } from './attachments/chatPasteTargetService.js';
-import { QuickChatService } from './widgetHosts/chatQuick.js';
-import { ChatResponseAccessibleView } from './accessibility/chatResponseAccessibleView.js';
-import { ChatTerminalOutputAccessibleView } from './accessibility/chatTerminalOutputAccessibleView.js';
-import { ChatFindAccessibilityHelp } from './widget/chatFind/chatFindAccessibilityHelp.js';
-import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
-import { ChatQuotaNotificationContribution } from './chatQuotaNotification.js';
-import { ChatPromoNotificationContribution } from './chatPromoNotification.js';
-import { HasByokModelsContribution } from './hasByokModelsContribution.js';
-import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
-import { ChatVariablesService } from './attachments/chatVariables.js';
-import { ChatWidget } from './widget/chatWidget.js';
-import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
-import { ChatDynamicVariableModel } from './attachments/chatDynamicVariables.js';
-import { ChatImplicitContextContribution } from './attachments/chatImplicitContext.js';
-import './widget/input/editor/chatInputCompletions.js';
-import './widget/input/editor/agentHostInputCompletions.js';
-import './widget/input/editor/chatInputEditorContrib.js';
-import './widget/input/editor/chatInputCommandArgumentHint.js';
-import './widget/input/editor/chatInputEditorHover.js';
-import './widget/chatContentParts/chatSubagentOpenChat.js';
-import { LanguageModelToolsConfirmationService } from './tools/languageModelToolsConfirmationService.js';
-import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
-import { IToolResultCompressor } from '../common/tools/toolResultCompressor.js';
-import { ToolResultCompressorService } from './tools/toolResultCompressorService.js';
-import { AgentPluginService, ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
+import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
+import { AgentPluginService, ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
-import { WorkspacePluginSettingsService, IWorkspacePluginSettingsService } from '../common/plugins/workspacePluginSettingsService.js';
-import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
+import { IWorkspacePluginSettingsService, WorkspacePluginSettingsService } from '../common/plugins/workspacePluginSettingsService.js';
+import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
+import { IToolResultCompressor } from '../common/tools/toolResultCompressor.js';
+import { ChatResponseAccessibleView } from './accessibility/chatResponseAccessibleView.js';
+import { ChatTerminalOutputAccessibleView } from './accessibility/chatTerminalOutputAccessibleView.js';
 import { AgentPluginCommandsContribution } from './agentPluginCommands.js';
 import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { BrowserPluginGitCommandService } from './pluginGitCommandService.js';
-import { IPluginGitService } from '../common/plugins/pluginGitService.js';
-import { PluginInstallService } from './pluginInstallService.js';
+import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from './agentSessions/agentHost/agentHostImportConversationStore.js';
+import { ChatDynamicVariableModel } from './attachments/chatDynamicVariables.js';
+import { ChatImplicitContextContribution } from './attachments/chatImplicitContext.js';
+import { ChatPasteTargetService } from './attachments/chatPasteTargetService.js';
+import { ChatVariablesService } from './attachments/chatVariables.js';
+import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
+import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
+import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
+import { ChatPetService, IChatPetService } from './chatPetService.js';
+import { ChatPromoNotificationContribution } from './chatPromoNotification.js';
+import { ChatQuotaNotificationContribution } from './chatQuotaNotification.js';
+import { ChatRepoInfoContribution } from './chatRepoInfo.js';
+import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
+import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
+import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
+import { ChatTipService, IChatTipService } from './chatTipService.js';
+import { ChatWindowNotifier } from './chatWindowNotifier.js';
+import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
+import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
+import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
+import { HasByokModelsContribution } from './hasByokModelsContribution.js';
+import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
+import './planReviewFeedback/planReviewFeedbackEditorOverlay.js';
+import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from './planReviewFeedback/planReviewFeedbackService.js';
 import { PluginAutoUpdate } from './pluginAutoUpdate.js';
+import { BrowserPluginGitCommandService } from './pluginGitCommandService.js';
+import { PluginInstallService } from './pluginInstallService.js';
+import { PluginUrlHandler } from './pluginUrlHandler.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import './promptSyntax/promptToolSetsCodeLensProvider.js';
-import './promptTimeline/promptTimeline.contribution.js';
-import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
-import './planReviewFeedback/planReviewFeedbackEditorOverlay.js';
-import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from './planReviewFeedback/planReviewFeedbackService.js';
-import { PluginUrlHandler } from './pluginUrlHandler.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
+import './promptTimeline/promptTimeline.contribution.js';
+import { LanguageModelToolsConfirmationService } from './tools/languageModelToolsConfirmationService.js';
+import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
+import { ToolResultCompressorService } from './tools/toolResultCompressorService.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
-import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
-import { ChatWidgetService } from './widget/chatWidgetService.js';
-import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
-import { ChatWindowNotifier } from './chatWindowNotifier.js';
-import { ChatPetService, IChatPetService } from './chatPetService.js';
-import { ChatRepoInfoContribution } from './chatRepoInfo.js';
-import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
-import { ChatTipService, IChatTipService } from './chatTipService.js';
-import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
-import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
-import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
 import { UtilityModelContribution, UtilitySmallModelContribution } from './utilityModelContribution.js';
-import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
-import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from './agentSessions/agentHost/agentHostImportConversationStore.js';
+import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import './widget/chatContentParts/chatSubagentOpenChat.js';
+import { ChatFindAccessibilityHelp } from './widget/chatFind/chatFindAccessibilityHelp.js';
+import { ChatWidget } from './widget/chatWidget.js';
+import { ChatWidgetService } from './widget/chatWidgetService.js';
+import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
+import './widget/input/editor/agentHostInputCompletions.js';
+import './widget/input/editor/chatInputCommandArgumentHint.js';
+import './widget/input/editor/chatInputCompletions.js';
+import './widget/input/editor/chatInputEditorContrib.js';
+import './widget/input/editor/chatInputEditorHover.js';
+import { ChatPasteProvidersFeature } from './widget/input/editor/chatPasteProviders.js';
+import { QuickChatService } from './widgetHosts/chatQuick.js';
 
 CommandsRegistry.registerCommand('_chat.notifyQuestionCarouselAnswer', (accessor: ServicesAccessor, resolveId: string, answers?: import('../common/chatService/chatService.js').IChatQuestionAnswers) => {
 	accessor.get(IChatService).notifyQuestionCarouselAnswer('', resolveId, answers);
@@ -335,6 +337,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental']
 		},
+		'dictation.experimental.llmCleanupModel': {
+			type: 'string',
+			enum: ['auto', 'copilot-utility-small', 'gpt-5.6-luna'],
+			markdownDescription: nls.localize('dictation.experimental.llmCleanupModel', "Controls the language model used for experimental dictation cleanup. `auto` follows the active experiment treatment."),
+			default: 'auto',
+			tags: ['experimental']
+		},
 		'chat.editor.fontSize': {
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in chat codeblocks."),
@@ -394,6 +403,20 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			},
 			agentHost: { key: AgentHostMigrateLegacyCopilotCliEnabledConfigKey },
+		},
+		[ChatConfiguration.ShowExternalAgentSessions]: {
+			type: 'string',
+			enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.Recent, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days, AgentHostExternalSessionsMode.All],
+			enumDescriptions: [
+				nls.localize('chat.agentSessions.showExternal.none', "Only shows sessions created by the Agent Host."),
+				nls.localize('chat.agentSessions.showExternal.recent', "Shows the 2 most recently updated external sessions from the last 7 days."),
+				nls.localize('chat.agentSessions.showExternal.last24Hours', "Shows external sessions updated in the last 24 hours."),
+				nls.localize('chat.agentSessions.showExternal.last7Days', "Shows external sessions updated in the last 7 days."),
+				nls.localize('chat.agentSessions.showExternal.all', "Shows all sessions discovered from supported external agent applications."),
+			],
+			default: AgentHostExternalSessionsMode.None,
+			markdownDescription: nls.localize('chat.agentSessions.showExternal', "Controls which external agent sessions, created outside VS Code's Agent Host, are shown."),
+			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
 		[ChatConfiguration.SaveBeforeSend]: {
 			type: 'boolean',
@@ -503,6 +526,13 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimental.incrementalRendering.enabled', "Enables incremental rendering with optional block-level animation when streaming chat responses."),
 			default: false,
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.RichLinks]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.richLinks.enabled', "Controls whether supported links in chat are rendered as rich links with live metadata. Enabling this may make authenticated requests to services such as GitHub."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.IncrementalRenderingStyle]: {
 			type: 'string',
@@ -614,7 +644,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.PermissionsSandboxToggleEnabled]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows an inline \"Sandboxing for terminal\" toggle on the Default Permissions option. For Copilot SDK sessions using the built-in shell tool, the toggle reflects and updates `#chat.agentHost.sdkSandbox.enabled#` or `#chat.agentHost.sdkSandbox.enabledWindows#`."),
+			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows an inline \"Sandboxing for terminal\" toggle on the Manual permissions option. For Copilot SDK sessions using the built-in shell tool, the toggle reflects and updates `#chat.agentHost.sdkSandbox.enabled#` or `#chat.agentHost.sdkSandbox.enabledWindows#`."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -637,17 +667,17 @@ configurationRegistry.registerConfiguration({
 				},
 				approvals: {
 					type: 'string',
-					enum: [ChatDefaultPermissionLevel.Default, ChatDefaultPermissionLevel.Assisted, ChatDefaultPermissionLevel.AllowAll],
+					enum: [ChatDefaultPermissionLevel.Manual, ChatDefaultPermissionLevel.Assisted, ChatDefaultPermissionLevel.AllowAll],
 					enumDescriptions: [
-						nls.localize('chat.defaultConfiguration.approvals.default', "Ask When Needed — asks when approval settings don't apply."),
+						nls.localize('chat.defaultConfiguration.approvals.manual', "Manual permissions — asks when approval settings don't apply."),
 						nls.localize('chat.defaultConfiguration.approvals.assisted', "Assisted permissions — evaluates risk before running tools."),
 						nls.localize('chat.defaultConfiguration.approvals.allowAll', "Allow All — runs tool calls without asking."),
 					],
-					default: ChatDefaultPermissionLevel.Default,
-					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Ask When Needed."),
+					default: ChatDefaultPermissionLevel.Manual,
+					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Manual permissions."),
 				},
 			},
-			default: { mode: 'interactive', approvals: ChatDefaultPermissionLevel.Default },
+			default: { mode: 'interactive', approvals: ChatDefaultPermissionLevel.Manual },
 			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration for new agent sessions (such as Copilot). You can still change the mode and approval behavior per session, and each session remembers what was used."),
 		},
 		[ChatConfiguration.DefaultModel]: {
@@ -1557,6 +1587,19 @@ configurationRegistry.registerConfiguration({
 			minimum: 0,
 			tags: ['experimental', 'advanced'],
 		},
+		[AgentHostReasoningEffortOverrideSettingId]: {
+			type: 'string',
+			markdownDescription: nls.localize('chat.agentHost.reasoningEffortOverride', "Overrides the reasoning effort for Copilot SDK agent sessions regardless of the per-model picker value. Set it to a level the selected model supports (for example `low`, `medium`, `high`, or `xhigh`) — choosing a level the model does not support may be rejected by the model. A value that isn't a recognized effort level is ignored and the session falls back to the picker value. Applied when a session is created and when its model changes. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+		},
+		[AgentHostReasoningSummaryEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentHost.reasoningSummary', "When enabled, requests concise reasoning summaries for supported Copilot SDK agent sessions."),
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental', 'advanced'],
+		},
 		[AgentHostCopilotModelCapabilityOverridesSettingId]: {
 			type: 'object',
 			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4.8`) to route the model to that family's tuned system prompt and tool profile without changing the model id sent to the runtime — so a preview model can be evaluated against a known prompt while still running on its own endpoint — a `reasoningEffort` to pin its effort level, `availableTools`/`excludedTools` to filter its tool set, or `modelCapabilities` to override individual capability limits (e.g. vision support, context window size) passed through to the SDK. All overrides apply when a session launches or resumes. On a mid-session model change, only the new model's `reasoningEffort` is applied; the session keeps its launch-time family, tool filters, and model capabilities. Only affects Copilot agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
@@ -1599,6 +1642,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' }
 		},
 		[AgentHostSdkSandboxEnabledSettingId]: {
 			type: 'string',
@@ -1607,7 +1651,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentHost.sdkSandbox.enabled.off', "No sandbox policy is forwarded for the SDK's built-in shell tool — commands run unsandboxed."),
 				nls.localize('chat.agentHost.sdkSandbox.enabled.on', "The SDK's built-in shell tool runs inside a sandbox using the configured filesystem policy with outbound network blocked."),
 			],
-			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabled', "Sandbox mode for the Copilot SDK's built-in shell tool on macOS and Linux. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`; when the Agent Host's own terminal tool is enabled, the engine sandbox is controlled by `#chat.agent.sandbox.enabled#`. The sandbox applies only to requests that run with default permissions — not when approvals are bypassed. Unrestricted network is controlled by `#chat.agent.sandbox.allowNetwork#`. Use `#chat.agentHost.sdkSandbox.enabledWindows#` on Windows."),
+			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabled', "Sandbox mode for the Copilot SDK's built-in shell tool on macOS and Linux. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`; when the Agent Host's own terminal tool is enabled, the engine sandbox is controlled by `#chat.agent.sandbox.enabled#`. The sandbox applies only to requests that run with manual permissions — not when approvals are bypassed. Unrestricted network is controlled by `#chat.agent.sandbox.allowNetwork#`. Use `#chat.agentHost.sdkSandbox.enabledWindows#` on Windows."),
 			default: AgentSandboxEnabledValue.Off,
 			tags: ['experimental', 'advanced'],
 			experiment: {
@@ -2263,7 +2307,13 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.promptMigration.enabled', "Controls whether the Chat Customizations editor shows the prompt file migration affordances for agent-host harnesses. When disabled, the migration card and sidebar shortcut are hidden."),
+			description: nls.localize('chat.customizations.promptMigration.enabled', "Controls whether the Chat Customizations editor offers to convert prompt files into skills for agent-host harnesses, which ignore prompt files. When disabled, the migration card and sidebar shortcut are hidden."),
+			default: false,
+		},
+		[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.userDataMigration.enabled', "Controls whether the Chat Customizations editor offers to move agents and instructions stored in user data to the active agent-host harness, which ignores the user data location. When disabled, the migration card and sidebar shortcut are hidden."),
 			default: false,
 		}
 	}
@@ -2303,10 +2353,21 @@ function isStringKeyedObject(value: unknown): value is Record<string, unknown> {
 }
 
 function migrateChatDefaultConfiguration(value: unknown): Record<string, unknown> | undefined {
-	if (!isStringKeyedObject(value) || value.approvals !== ChatPermissionLevel.AutoApprove) {
+	if (!isStringKeyedObject(value)) {
 		return undefined;
 	}
-	return { ...value, approvals: ChatDefaultPermissionLevel.AllowAll };
+	let approvals: ChatDefaultPermissionLevel;
+	switch (value.approvals) {
+		case ChatPermissionLevel.Default:
+			approvals = ChatDefaultPermissionLevel.Manual;
+			break;
+		case ChatPermissionLevel.AutoApprove:
+			approvals = ChatDefaultPermissionLevel.AllowAll;
+			break;
+		default:
+			return undefined;
+	}
+	return { ...value, approvals };
 }
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
@@ -2394,6 +2455,24 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			[ChatConfiguration.PluginLocations, { value }]
 		])
 	},
+	// Agent Merge settings dropped the `agentHost` segment from their ids. Without
+	// this an explicit opt-out (for example `fixCI: false`) would silently revert to
+	// the permissive default for sessions that already have Agent Merge enabled.
+	...Object.values(AgentMergeSettingId).map(settingId => {
+		const legacyKey = settingId.replace(/^chat\./, 'chat.agentHost.');
+		return {
+			key: legacyKey,
+			migrateFn: (value: unknown, accessor: (key: string) => unknown): ConfigurationKeyValuePairs => {
+				const pairs: ConfigurationKeyValuePairs = [[legacyKey, { value: undefined }]];
+				// Never clobber an explicitly configured new key (e.g. after settings
+				// sync brought both keys across versions).
+				if (accessor(settingId) === undefined) {
+					pairs.push([settingId, { value }]);
+				}
+				return pairs;
+			}
+		};
+	}),
 	{
 		// The on-device dictation runtime moved to Foundry Local; the old
 		// transformers.js/onnxruntime model IDs no longer resolve and would fail

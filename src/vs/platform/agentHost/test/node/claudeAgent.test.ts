@@ -47,7 +47,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -665,6 +665,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		readonly description: string;
 		readonly inputSchema: Record<string, any>;
 	}> = [];
+	readonly toolHandlers = new Map<string, (args: any, extra: unknown) => Promise<CallToolResult>>();
 	readonly createSdkMcpServerCalls: Array<{
 		readonly name: string;
 		readonly toolNames: readonly string[];
@@ -677,6 +678,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		_handler: (args: any, extra: unknown) => Promise<CallToolResult>,
 	): Promise<SdkMcpToolDefinition<any>> {
 		this.toolCalls.push({ name, description, inputSchema });
+		this.toolHandlers.set(name, _handler);
 		return { name } as unknown as SdkMcpToolDefinition<any>;
 	}
 
@@ -1261,6 +1263,18 @@ suite('ClaudeAgent', () => {
 			disabledByDefault: undefined,
 			whenEnabled: { immutablePrimary: true },
 			afterDisabling: undefined,
+		});
+	});
+
+	test('selects provider-native autonomous session config and respects policy', () => {
+		const { agent, configService } = createTestContext(disposables);
+		const selected = agent.getAutonomousSessionConfig({});
+		configService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+		const restricted = agent.getAutonomousSessionConfig({});
+
+		assert.deepStrictEqual({ selected, restricted }, {
+			selected: { [ClaudeSessionConfigKey.PermissionMode]: 'auto' },
+			restricted: undefined,
 		});
 	});
 
@@ -2047,7 +2061,7 @@ suite('ClaudeAgent', () => {
 		// Phase 9 suites below.
 		const { agent } = createTestContext(disposables);
 		const chat = defaultChatUri(URI.parse('claude:/unknown'));
-		await agent.chats.abort(chat);
+		await agent.chats.abort(chat, chatContext(chat));
 		await agent.chats.changeModel(chat, { id: 'claude-opus-4.6' }, chatContext(chat));
 	});
 
@@ -4698,12 +4712,18 @@ suite('ClaudeAgent', () => {
 			{
 				type: 'text',
 				text:
-					'The user attached specific feedback comments to act on (comment ids):\n' +
+					'The user selected these feedback comments for you to act on (comment ids):\n' +
 					'- feedback-1\n\n' +
-					'Use the `listComments` tool to read their content and focus on these comments.\n\n' +
-					'The user attached specific feedback comments to act on (comment ids):\n' +
+					'Use the `listComments` tool to read their content and focus on these comments. ' +
+					'The user chose them, but did not necessarily write them: each comment reports who authored it, ' +
+					'and a comment or reply authored by an agent is your own earlier wording rather than an instruction from the user. ' +
+					'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.\n\n' +
+					'The user selected these feedback comments for you to act on (comment ids):\n' +
 					'- feedback-2\n\n' +
-					'Use the `listComments` tool to read their content and focus on these comments.',
+					'Use the `listComments` tool to read their content and focus on these comments. ' +
+					'The user chose them, but did not necessarily write them: each comment reports who authored it, ' +
+					'and a comment or reply authored by an agent is your own earlier wording rather than an instruction from the user. ' +
+					'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.',
 			},
 		]);
 	});
@@ -4828,6 +4848,7 @@ suite('ClaudeAgent', () => {
 			},
 		};
 		const sdk = new FakeClaudeAgentSdkService();
+		sdk.canLoadWithoutDownloadResult = false;
 		sdk.sessionList = [
 			{ sessionId: 'a', summary: 'Session A', lastModified: 1000, createdAt: 900 },
 			{ sessionId: 'b', summary: 'Session B', lastModified: 2000, createdAt: 1900 },
@@ -4863,6 +4884,7 @@ suite('ClaudeAgent', () => {
 			modifiedA: a?.modifiedTime,
 			modifiedB: b?.modifiedTime,
 			sdkCalls: sdk.listSessionsCallCount,
+			availabilityRequests: sdk.ensureAvailableForDiscoveryCalls,
 			migrationChats: chatsToMigrate.map(r => sessionIdOfChat(r.chat)),
 		}, {
 			count: 3,
@@ -4872,6 +4894,7 @@ suite('ClaudeAgent', () => {
 			modifiedA: 1000,
 			modifiedB: 2000,
 			sdkCalls: 2,
+			availabilityRequests: 1,
 			migrationChats: ['a'],
 		});
 	});
@@ -7596,7 +7619,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		const inFlight = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		await tick();
 
-		await ctx.agent.chats.abort(defaultChatUri(created.session));
+		await ctx.agent.chats.abort(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
 		await assert.rejects(inFlight, (err: unknown) => isCancellationError(err));
 
 		// Unblock the (now-aborted) iterator so it terminates cleanly.
@@ -7638,7 +7661,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		});
 		await tick();
 
-		await ctx.agent.chats.abort(defaultChatUri(created.session));
+		await ctx.agent.chats.abort(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
 		const result = await permissionPromise;
 		assert.deepStrictEqual(result, { behavior: 'deny', message: 'User declined' });
 	});
@@ -7683,7 +7706,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 
 		// Now abort and resend; the rebound query MUST receive the same
 		// model + effort via the rebind's re-apply pass.
-		await ctx.agent.chats.abort(defaultChatUri(sessionUri));
+		await ctx.agent.chats.abort(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
 		ctx.sdk.queryAdvance = undefined;
 		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'after-abort', undefined, undefined, 'turn-3', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
@@ -9257,7 +9280,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forkCall: { sessionId: parentId, options: { upToMessageId: 'a1' } },
 			sentPrompt: injectedPrompt,
 			turns: ['side question'],
-			sideChat: { turnId: 'u1', inheritedTurnCount: 1, partialResponse },
+			sideChat: { turnId: 'u1', inheritedTurnId: 'u1', partialResponse },
 		});
 	});
 
@@ -9282,7 +9305,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forked: 0,
 			sideChat: {
 				turnId: 'turn-source',
-				inheritedTurnCount: 0,
 				context: sourceContext,
 			},
 		});
@@ -9305,7 +9327,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
 		}, {
 			forked: 0,
-			sideChat: { turnId: 'turn-source', inheritedTurnCount: 0 },
+			sideChat: { turnId: 'turn-source' },
 		});
 	});
 
@@ -9341,7 +9363,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forked: 0,
 			sideChat: {
 				turnId,
-				inheritedTurnCount: 0,
 				context: sourceContext,
 			},
 		});
@@ -9393,7 +9414,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			turns: ['side question'],
 			sideChat: {
 				turnId: 'local-1',
-				inheritedTurnCount: 1,
+				inheritedTurnId: 'u1',
 				context: sourceContext,
 			},
 		});
@@ -10128,7 +10149,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.chats!.createChat(chatUri, created.session, { ...resolvedChatOptions(), fork: { source: defaultChatUri(created.session), turnId: 'u1' } });
 
 		// Select a custom agent for the additional chat before it is materialized.
-		await agent.chats!.changeAgent(chatUri, { uri: 'file:///foo/agents/reviewer.md' });
+		await agent.chats!.changeAgent(chatUri, { uri: 'file:///foo/agents/reviewer.md' }, chatContext(chatUri));
 
 		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
 		await agent.chats!.sendMessage(chatUri, 'hi', undefined, undefined, 'turn-1');
@@ -10285,6 +10306,40 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 suite('ClaudeAgent — host seams', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a peer chat server tool executes against its exact Agent Host chat channel', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const toolName = 'peer_server_tool';
+		let executedChatUri: string | undefined;
+		agent.setServerToolHost({
+			definitions: [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
+			toolNames: [toolName],
+			advertise: () => { },
+			canRequireConfirmation: () => false,
+			requiresConfirmation: () => false,
+			executeTool: chatUri => {
+				executedChatUri = chatUri;
+				return 'done';
+			},
+		});
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const peerChat = URI.parse(buildChatUri(created.session.toString(), 'peer-server-tool'));
+		const peerCreated = await agent.chats.createChat(peerChat, { configurationResource: created.session, resource: peerChat }, { ...resolvedChatOptions() });
+		const peerSdkId = AgentSession.id(peerCreated!.backingSession!);
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+
+		await agent.chats.sendMessage(peerChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(peerChat));
+		const result = await sdk.toolHandlers.get(toolName)!({}, undefined);
+
+		assert.deepStrictEqual({
+			executedChatUri,
+			result,
+		}, {
+			executedChatUri: peerChat.toString(),
+			result: { content: [{ type: 'text', text: 'done' }] },
+		});
+	});
 
 	test('a subagent chat resolves its spawn edge only from the host-supplied origin', async () => {
 		const { agent, sdk, stateManager } = createTestContext(disposables);

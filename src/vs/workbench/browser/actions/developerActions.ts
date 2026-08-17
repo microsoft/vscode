@@ -53,7 +53,7 @@ import { IPolicyService, PolicyValueSource } from '../../../platform/policy/comm
 import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
-import { adaptManagedSettings, getManagedSettingsClientHeaders, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
+import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
 import { isObject } from '../../../base/common/types.js';
 import * as json from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
@@ -1062,7 +1062,7 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
-			const clientHeaders = getManagedSettingsClientHeaders(productService);
+			const clientIdentity = appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', productService);
 			const compatibilityError = defaultAccountService.managedSettingsCompatibilityError;
 			content += '#### GitHub Server API\n\n';
 			content += markdownTable(
@@ -1070,8 +1070,7 @@ class PolicyDiagnosticsAction extends Action2 {
 				[
 					['Endpoint', '/copilot_internal/managed_settings'],
 					['Last fetch', fetchStatus === null ? 'never' : `${fetchStatus}${fetchedAt ? ` at ${new Date(fetchedAt).toLocaleString()}` : ''}`],
-					['Editor-Version', String(clientHeaders['Editor-Version'])],
-					['Copilot-Runtime-Version', String(clientHeaders['Copilot-Runtime-Version'] ?? 'not available')],
+					['Client identity', new URL(clientIdentity).search.replace(/^\?/, '')],
 					['Compatibility', compatibilityError ? `update required (${compatibilityError.clientVersion ?? '?'} → ${compatibilityError.minimumClientVersion ?? '?'})` : 'compatible or not evaluated'],
 					['Contributes winning keys', channelContributes('server') ? 'yes' : 'no']
 				]
