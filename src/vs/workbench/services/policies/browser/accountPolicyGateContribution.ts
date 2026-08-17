@@ -75,6 +75,9 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		this.contextKey = ChatAccountPolicyGateActiveContext.bindTo(contextKeyService);
 		this.lastInfo = this.gateService.gateInfo;
 		this.updateManagedSettingsCompatibilityState(this.defaultAccountService.managedSettingsCompatibilityError);
+		// This contribution starts after restore, so a refresh may already have failed. Seed from the
+		// current state or that startup would hide Chat without ever offering the remediation dialog.
+		this.updateManagedSettingsRefreshState(this.defaultAccountService.managedSettingsRefreshState);
 
 		// Apply context key + setForceHidden immediately (fail-closed), but defer the
 		// notification until either the first onDidChangeGateInfo or a 5s timeout —

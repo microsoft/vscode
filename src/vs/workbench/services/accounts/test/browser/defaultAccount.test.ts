@@ -165,7 +165,32 @@ suite('DefaultAccountProvider managed settings', () => {
 			status: 'no-response',
 			refreshState: 'blocked',
 			cacheControl: 'no-cache',
-			data: { managedSettings: undefined },
+			// The flag is preserved so the requirement self-perpetuates, but the settings it guarded
+			// are not treated as verified.
+			data: { managedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true } },
+		});
+	});
+
+	test('retry after a failed forced refresh stays forced and blocked', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService);
+
+		// The first failure clears the cached settings that carried the flag; the retry must still be
+		// forced, or a second failure would silently re-enable Chat.
+		const first = await provider['getManagedSettings'](sessions, createCachedPolicy(true));
+		const retryPolicy = { ...createCachedPolicy(true), policyData: first.data! };
+		const retry = await provider['getManagedSettings'](sessions, retryPolicy, { forceRefresh: true });
+
+		assert.deepStrictEqual({
+			refreshState: provider.managedSettingsRefreshState,
+			retryCacheControl: requestService.requests[1].headers?.['Cache-Control'],
+			data: retry.data,
+		}, {
+			refreshState: 'blocked',
+			retryCacheControl: 'no-cache',
+			data: { managedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true } },
 		});
 	});
 

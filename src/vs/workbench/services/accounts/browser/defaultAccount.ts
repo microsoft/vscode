@@ -24,7 +24,7 @@ import { IDefaultAccountProvider, IDefaultAccountService, IManagedSettingsCompat
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IFileManagedSettingsService, INativeManagedSettingsService, shouldForceRemoteSettingsRefresh } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, shouldForceRemoteSettingsRefresh } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { asJson, asText, IRequestService, isClientError, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -328,6 +328,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private readonly accountDataPollScheduler = this._register(new RunOnceScheduler(() => this.refetchDefaultAccount(), ACCOUNT_DATA_POLL_INTERVAL_MS));
 	private readonly managedSettingsFetchAttemptedAccounts = new Set<string>();
 	private managedSettingsFetchesInFlight = 0;
+	/** Set while a required forced refresh has not yet been satisfied by a fresh successful response. */
+	private _forceRemoteSettingsRefreshUnsatisfied = false;
 
 	constructor(
 		private readonly defaultAccountConfig: IDefaultAccountConfig,
@@ -550,9 +552,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		try {
 			const defaultAccount = await this.fetchDefaultAccount(options);
 			this.setDefaultAccount(defaultAccount);
-			// The startup gate optimistically starts as `pending` so AI features stay hidden until the
-			// forced managed-settings refresh resolves. When no fetch ran during this pass (no
-			// account, or chat disabled by entitlements) nothing will ever resolve it, so clear it.
+			// Nothing will resolve the startup gate when this pass ran no managed-settings fetch.
 			this.resolvePendingRefreshStateIfIdle();
 			this.scheduleAccountDataPoll();
 		} catch (error) {
@@ -990,11 +990,19 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		} catch (error) {
 			this.logService.warn('[DefaultAccount] Failed to initialize file managed settings before resolving forceRemoteSettingsRefresh; using available values', getErrorMessage(error));
 		}
+		// A forced refresh stays required until a fresh response actually succeeds. Feeding the
+		// unsatisfied requirement back in as the cached-server layer (rather than forcing the result
+		// outright) keeps it self-perpetuating across retries and restarts while an explicit `false`
+		// from higher-precedence native MDM can still turn the control off.
+		const cachedServerManagedSettings = this._forceRemoteSettingsRefreshUnsatisfied
+			? { ...accountPolicyData?.policyData.managedSettings, [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }
+			: accountPolicyData?.policyData.managedSettings;
 		const forceRemoteSettingsRefresh = shouldForceRemoteSettingsRefresh(
 			nativeManagedSettings,
-			accountPolicyData?.policyData.managedSettings,
+			cachedServerManagedSettings,
 			fileManagedSettings
 		);
+		this._forceRemoteSettingsRefreshUnsatisfied = forceRemoteSettingsRefresh;
 		this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'pending' : 'inactive');
 		this.managedSettingsFetchAttemptedAccounts.add(accountId);
 		this.managedSettingsFetchesInFlight++;
@@ -1005,20 +1013,28 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			this.managedSettingsFetchesInFlight--;
 		}
 		const fetchedAt = Date.now();
+		// Only a fresh successful response satisfies the requirement. Every failure keeps it set and
+		// preserves the flag in the cached payload, so a retry stays forced and fail-closed instead of
+		// recomputing to `false` from settings this failure just cleared.
+		const blockedManagedSettings = forceRemoteSettingsRefresh
+			? { managedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true } }
+			: { managedSettings: undefined };
 		switch (result.kind) {
 			case 'success':
+				this._forceRemoteSettingsRefreshUnsatisfied = false;
 				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'satisfied' : 'inactive');
 				return { data: result.data, fetchedAt, compatibilityError: null };
 			case 'noSettings':
+				this._forceRemoteSettingsRefreshUnsatisfied = false;
 				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'satisfied' : 'inactive');
 				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: null };
 			case 'updateRequired':
 				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'blocked' : 'inactive');
-				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: result.error };
+				return { data: blockedManagedSettings, fetchedAt, compatibilityError: result.error };
 			case 'unavailable':
 				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'blocked' : 'inactive');
 				return {
-					data: forceRemoteSettingsRefresh || this._managedSettingsCompatibilityError ? { managedSettings: undefined } : cachedManagedSettings?.data,
+					data: forceRemoteSettingsRefresh || this._managedSettingsCompatibilityError ? blockedManagedSettings : cachedManagedSettings?.data,
 					fetchedAt,
 					compatibilityError: this._managedSettingsCompatibilityError,
 				};
