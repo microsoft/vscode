@@ -851,11 +851,9 @@ export class CodeCellLayout {
 		if (!this._enabled) {
 			return;
 		}
-		// A scroll-driven relayout can be delivered re-entrantly while the notebook list is mutating
-		// (e.g. during a cell height update). In that transient state the cell may no longer be part of
-		// the view model, in which case computing its absolute position throws `Invalid index -1`.
-		// Skip the relayout for cells that are no longer present rather than reaching the throwing path.
-		const cellIndex = this.notebookEditor.getCellIndex(this.viewCell);
+		// Resolve by identity (same lookup as the throwing `getCellViewScrollTop` path) so a stale cell
+		// re-entrantly reaching this relayout mid-mutation short-circuits before `Invalid index -1`.
+		const cellIndex = this.notebookEditor.getViewModel()?.getCellIndex(this.viewCell);
 		if (cellIndex === undefined || cellIndex === -1) {
 			return;
 		}
