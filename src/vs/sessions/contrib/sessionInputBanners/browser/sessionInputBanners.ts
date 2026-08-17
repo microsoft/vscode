@@ -13,11 +13,14 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
+import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubCheckStatus } from '../../github/common/types.js';
-import { FIX_CI_CHECKS_COMMAND_ID, getFailedChecks, REVEAL_CI_CHECKS_COMMAND_ID } from '../../changes/browser/checksActions.js';
+import { getFailedChecks, REVEAL_CI_CHECKS_COMMAND_ID, submitFixCIChecks } from '../../changes/browser/checksActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatInputToolbarDebug.js';
 import { ISessionInputBanner, SessionInputBannerWidget } from './sessionInputBannerWidget.js';
@@ -36,11 +39,13 @@ const REVIEWABLE_KINDS: ReadonlySet<AgentFeedbackKind> = new Set([AgentFeedbackK
 
 interface ICIBannerState {
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly failed: number;
 	/** Number of checks that have completed (succeeded or failed). */
 	readonly completed: number;
 	/** Number of checks still running or queued. */
 	readonly pending: number;
+	readonly ciModel?: GitHubPullRequestCIModel;
 	readonly debug?: true;
 }
 
@@ -101,7 +106,7 @@ export class SessionInputBanners extends Disposable {
 		const debugData = this._debugData.read(reader);
 		if (debugData) {
 			return debugData.ciFailed > 0
-				? { sessionId: 'debug', failed: debugData.ciFailed, completed: debugData.ciFailed, pending: debugData.ciPending, debug: true }
+				? { sessionId: 'debug', sessionResource: URI.from({ scheme: 'session-chat-pills-debug', path: '/ci' }), failed: debugData.ciFailed, completed: debugData.ciFailed, pending: debugData.ciPending, debug: true }
 				: undefined;
 		}
 		const session = this._session.read(reader);
@@ -124,7 +129,7 @@ export class SessionInputBanners extends Disposable {
 		}
 		const completed = checks.filter(check => check.status === GitHubCheckStatus.Completed).length;
 		const pending = checks.length - completed;
-		return { sessionId: session.sessionId, failed, completed, pending };
+		return { sessionId: session.sessionId, sessionResource: session.resource, failed, completed, pending, ciModel };
 	});
 
 	private readonly _commentsState: IObservable<ICommentsBannerState | undefined> = derived(this, reader => {
@@ -163,6 +168,7 @@ export class SessionInputBanners extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -219,7 +225,8 @@ export class SessionInputBanners extends Disposable {
 				{
 					label: localize('ci.fixChecks', "Fix Checks"),
 					primary: true,
-					run: () => state.debug ? undefined : this._executeCommand(FIX_CI_CHECKS_COMMAND_ID),
+					waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.sessionResource),
+					run: () => state.debug ? undefined : this._fixChecks(state),
 				},
 				{
 					label: localize('ci.revealChecks', "Reveal"),
@@ -249,6 +256,7 @@ export class SessionInputBanners extends Disposable {
 				{
 					label: localize('comments.address', "Address Comments"),
 					primary: true,
+					waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.sessionResource),
 					run: () => state.debug ? undefined : this._addressComments(state.sessionResource).catch(err => this.logService.error('[SessionInputBanners] Failed to address comments', err)),
 				},
 				{
@@ -288,6 +296,26 @@ export class SessionInputBanners extends Disposable {
 		} catch (err) {
 			this.logService.error('[SessionInputBanners] command failed', commandId, err);
 		}
+	}
+
+	private async _fixChecks(state: ICIBannerState): Promise<void> {
+		const widget = this.chatWidgetService.getWidgetBySessionResource(state.sessionResource);
+		if (!widget || !state.ciModel) {
+			this.logService.error('[SessionInputBanners] Cannot fix CI checks: chat model is not loaded for session', state.sessionResource.toString());
+			return;
+		}
+
+		await submitFixCIChecks(state.ciModel, widget);
+	}
+
+	private async _waitForChatModel(sessionResource: URI): Promise<boolean> {
+		const widget = await whenChatWidgetForSession(this.chatWidgetService, sessionResource);
+		if (widget) {
+			return true;
+		}
+
+		this.logService.error('[SessionInputBanners] Chat model did not load for session', sessionResource.toString());
+		return false;
 	}
 
 	private async _addressComments(sessionResource: URI): Promise<void> {

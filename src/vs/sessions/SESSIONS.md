@@ -180,12 +180,11 @@ provider supports it.
 
 Turn-level file changes open through `IChatResponseFileChangesService`. The
 Editor workbench opens a standalone multi-diff, while the Agents Window selects
-the canonical Changes editor. The active-turn pill uses a transient selection
-backed by the viewed chat's live `lastTurnChanges` observable so streamed edits
-appear before turn completion. The completed latest-response pill selects the
-provider's moving last-turn changeset, which follows the most recently modified
-chat; historical turns and other completed chats use a transient selection
-backed by their exact per-turn changes.
+the canonical Changes editor. The active-turn pill selects the provider's moving
+Last Turn Changes changeset, which follows the active turn and then remains on
+that turn after completion. Historical turns and completed chats that are no
+longer the session's most recent use transient selections backed by their exact
+per-turn changes.
 
 Presentation and layout of changes are documented in [LAYOUT.md](LAYOUT.md).
 Provider translation and transport details belong in the relevant provider
