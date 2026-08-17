@@ -2340,6 +2340,7 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 			type: 'message_delta',
 			delta: { type: 'message_delta', stop_reason: 'refusal', stop_details: { type: 'refusal', category: 'cyber', explanation } },
 			usage: { output_tokens: 0, input_tokens: 5 },
+			context_management: { applied_edits: [] },
 		}, capture);
 
 		const completion = processor.push({ type: 'message_stop' }, capture);
@@ -2347,10 +2348,12 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 		expect({
 			finishReason: completion!.finishReason,
 			refusal: completion!.refusal,
+			contextManagement: deltas.find(d => d.contextManagement)?.contextManagement,
 			copilotError: deltas.find(d => d.copilotErrors?.length)?.copilotErrors?.[0],
 		}).toEqual({
 			finishReason: 'refusal',
 			refusal: { message: explanation, category: 'cyber' },
+			contextManagement: { applied_edits: [] },
 			copilotError: { agent: 'anthropic', code: 'refusal', type: 'error', identifier: 'cyber', message: explanation },
 		});
 	});

@@ -1310,7 +1310,7 @@ export class AnthropicMessagesProcessor {
 				if (chunk.context_management) {
 					this.contextManagementResponse = chunk.context_management;
 					// Report context management via delta so it gets logged to request logger
-					return onProgress({
+					onProgress({
 						text: '',
 						contextManagement: chunk.context_management
 					});
