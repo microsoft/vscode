@@ -68,7 +68,7 @@ suite('PullRequestQueryService', () => {
 					method: 'GET',
 					path: '/repos/octo/repo/issues/7/comments',
 					query: { per_page: 100 },
-					response: gitHubJsonResponse([{ id: 1, node_id: 'IC_1', body: 'one', user: { id: 10, login: 'a' } }], {
+					response: gitHubJsonResponse([{ id: 1, node_id: 'IC_1', body: 'one', author_association: 'MEMBER', user: { id: 10, login: 'a' } }], {
 						link: `<${server.apiBaseUrl}/repos/octo/repo/issues/7/comments?per_page=100&page=2>; rel="next"`,
 					}),
 				}),
@@ -82,7 +82,7 @@ suite('PullRequestQueryService', () => {
 					method: 'GET',
 					path: '/repos/octo/repo/pulls/7/reviews',
 					query: { per_page: 100 },
-					response: gitHubJsonResponse([{ id: 3, state: 'APPROVED', body: 'approved', user: { login: 'c' }, commit_id: 'head-1' }]),
+					response: gitHubJsonResponse([{ id: 3, state: 'APPROVED', body: 'approved', author_association: 'COLLABORATOR', user: { login: 'c' }, commit_id: 'head-1' }]),
 				}),
 				gitHubRestStep({
 					method: 'GET',
@@ -119,14 +119,14 @@ suite('PullRequestQueryService', () => {
 				comments: {
 					fragment: 'topLevelComments',
 					value: [
-						{ id: '1', nodeId: 'IC_1', author: { id: '10', login: 'a' }, body: 'one', url: undefined, createdAt: undefined, updatedAt: undefined },
+						{ id: '1', nodeId: 'IC_1', author: { id: '10', login: 'a', association: 'MEMBER' }, body: 'one', url: undefined, createdAt: undefined, updatedAt: undefined },
 						{ id: '2', nodeId: undefined, author: { id: '11', login: 'b' }, body: 'two', url: undefined, createdAt: undefined, updatedAt: undefined },
 					],
 					complete: true,
 				},
 				reviews: {
 					fragment: 'submittedReviews',
-					value: [{ id: '3', nodeId: undefined, author: { login: 'c' }, state: 'APPROVED', body: 'approved', commitId: 'head-1', submittedAt: undefined }],
+					value: [{ id: '3', nodeId: undefined, author: { login: 'c', association: 'COLLABORATOR' }, state: 'APPROVED', body: 'approved', commitId: 'head-1', submittedAt: undefined }],
 					complete: true,
 				},
 				inline: {
@@ -522,7 +522,8 @@ function rawCore(headSha: string): object {
 		merged: false,
 		draft: false,
 		user: { id: 1, login: 'author' },
-		head: { sha: headSha, ref: 'feature' },
+		head: { sha: headSha, ref: 'feature', repo: { full_name: 'fork-owner/new-repo' } },
+		maintainer_can_modify: true,
 		base: {
 			sha: 'base',
 			ref: 'main',
@@ -544,6 +545,8 @@ function core(headSha: string): PullRequestCore {
 		draft: false,
 		headSha,
 		headRef: 'feature',
+		headRepositoryNameWithOwner: 'fork-owner/new-repo',
+		maintainerCanModify: true,
 		baseSha: 'base',
 		baseRef: 'main',
 		author: { id: '1', login: 'author' },

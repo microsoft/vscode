@@ -184,7 +184,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!target) {
 			return [];
 		}
-		return this._flattenMcpServers(target.customizations)
+		return getPresentableMcpServerCustomizations(target.customizations)
 			.map(({ server, plugin }): IAgentHostMcpServer => ({
 				id: this._scopedMcpServerId(sessionResource, server.id),
 				name: server.name,
@@ -208,7 +208,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!target) {
 			return Promise.resolve();
 		}
-		const entry = this._flattenMcpServers(target.customizations).find(({ server }) => this._scopedMcpServerId(sessionResource, server.id) === serverId);
+		const entry = flattenMcpServerCustomizations(target.customizations).find(({ server }) => this._scopedMcpServerId(sessionResource, server.id) === serverId);
 		if (!entry) {
 			return Promise.resolve();
 		}
@@ -226,7 +226,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 */
 	private _trackMcpDiagnostics(sessionResource: URI, target: IAgentHostCustomizationTarget): void {
 		this._mcpDiagnosticSessions.add(sessionResource);
-		for (const { server, plugin } of this._flattenMcpServers(target.customizations)) {
+		for (const { server, plugin } of flattenMcpServerCustomizations(target.customizations)) {
 			this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state });
 		}
 	}
@@ -238,7 +238,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			if (!target) {
 				continue;
 			}
-			for (const { server, plugin } of this._flattenMcpServers(target.customizations)) {
+			for (const { server, plugin } of flattenMcpServerCustomizations(target.customizations)) {
 				this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state });
 			}
 		}
@@ -327,17 +327,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		this._onDidChangeCustomizations.fire();
 	}
 
-	private _flattenMcpServers(customizations: readonly Customization[]): readonly { readonly server: McpServerCustomization; readonly plugin?: PluginCustomization }[] {
-		return customizations.flatMap(customization => customization.type === CustomizationType.McpServer
-			? [{ server: customization }]
-			: customization.children?.filter(child => child.type === CustomizationType.McpServer).map(server => ({
-				server,
-				plugin: customization.type === CustomizationType.Plugin ? customization : undefined,
-			})) ?? []);
-	}
-
 	private _findMcpServer(customizations: readonly Customization[], serverId: string): McpServerCustomization | undefined {
-		for (const { server } of this._flattenMcpServers(customizations)) {
+		for (const { server } of flattenMcpServerCustomizations(customizations)) {
 			if (server.id === serverId || this._isScopedMcpServerIdForRawId(serverId, server.id)) {
 				return server;
 			}
@@ -366,6 +357,58 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		const separator = serverId.indexOf('/');
 		return separator >= 0 && serverId.slice(separator + 1) === rawId;
 	}
+}
+
+/** One MCP server customization, with the position it was published at. */
+export interface IMcpServerCustomizationEntry {
+	readonly server: McpServerCustomization;
+	/**
+	 * The plugin that declares this server. Absent both for a server published at the top level
+	 * and for one declared by a {@link CustomizationType.Directory} container, so it says nothing
+	 * about where in the tree the server sits -- use {@link isTopLevel} for that.
+	 */
+	readonly plugin?: PluginCustomization;
+	/** Whether the agent host published this server as a customization of the session itself. */
+	readonly isTopLevel: boolean;
+}
+
+/** Every MCP server customization in a session, including duplicates of the same server. */
+export function flattenMcpServerCustomizations(customizations: readonly Customization[]): readonly IMcpServerCustomizationEntry[] {
+	return customizations.flatMap((customization): IMcpServerCustomizationEntry[] => customization.type === CustomizationType.McpServer
+		? [{ server: customization, isTopLevel: true }]
+		: customization.children?.filter(child => child.type === CustomizationType.McpServer).map(server => ({
+			server,
+			plugin: customization.type === CustomizationType.Plugin ? customization : undefined,
+			isTopLevel: false,
+		})) ?? []);
+}
+
+/**
+ * The MCP servers to *show* for a session: one entry per server.
+ *
+ * A session can carry two customizations for one server: the declaration, published as a child of
+ * whatever declared it, and a top-level entry the agent host mints for a server the SDK reports
+ * before that child resolves by name. A child is dropped when a top-level customization already
+ * speaks for its name, because the top-level copy is the one the host keeps live and resolves for
+ * lifecycle and enablement.
+ *
+ * Tree position is the signal, not the shape of the minted id and not the absence of an owning
+ * plugin -- a directory-declared child has none either. Only presentation dedupes; lookups
+ * elsewhere walk every customization, so an id from either copy still resolves. Servers of the
+ * same name from different containers are left alone, because they are different servers.
+ */
+export function getPresentableMcpServerCustomizations(customizations: readonly Customization[]): readonly IMcpServerCustomizationEntry[] {
+	const entries = flattenMcpServerCustomizations(customizations);
+	const topLevelNames = new Set<string>();
+	for (const entry of entries) {
+		if (entry.isTopLevel) {
+			topLevelNames.add(entry.server.name);
+		}
+	}
+	if (topLevelNames.size === 0) {
+		return entries;
+	}
+	return entries.filter(entry => entry.isTopLevel || !topLevelNames.has(entry.server.name));
 }
 
 class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {

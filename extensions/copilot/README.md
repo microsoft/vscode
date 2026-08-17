@@ -31,7 +31,7 @@ To access GitHub Copilot, an active GitHub Copilot subscription is required. You
 
 **Receive intelligent inline suggestions** as you type with [ghost text suggestions](https://aka.ms/vscode-completions) and [next edit suggestions](https://aka.ms/vscode-nes), helping you write code faster. Copilot predicts your next logical change, and you can accept suggestions with the Tab key.
 
-![Video showing Copilot next edit suggestions.](https://github.com/microsoft/vscode-docs/raw/refs/heads/main/docs/copilot/images/inline-suggestions/nes-video.gif)
+![Video showing Copilot next edit suggestions.](https://github.com/microsoft/vscode-docs/raw/refs/heads/main/docs/editing/images/inline-suggestions/nes-video.gif)
 
 **Use inline chat for targeted edits** by pressing `Ctrl+I`/`Cmd+I` to open a chat prompt directly in the editor. Describe a change and Copilot suggests edits in place for refactoring methods, adding error handling, or explaining complex algorithms without leaving your editor.
 

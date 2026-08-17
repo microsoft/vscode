@@ -540,6 +540,26 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);
 	});
 
+	(hasGit && !isWindows ? test : test.skip)('status probes do not acquire optional index locks', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		const trackedFile = join(dir, 'tracked.txt');
+		await fs.writeFile(trackedFile, 'tracked');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		const marker = join(dir, '.git', 'status-index-refreshed');
+		const hook = join(dir, '.git', 'hooks', 'post-index-change');
+		await fs.writeFile(hook, '#!/bin/sh\nprintf refreshed > .git/status-index-refreshed\n');
+		await fs.chmod(hook, 0o755);
+		const future = new Date(Date.now() + 10_000);
+		await fs.utimes(trackedFile, future, future);
+
+		const hasChanges = await svc!.hasUncommittedChanges(URI.file(dir));
+
+		assert.deepStrictEqual({ hasChanges, refreshedIndex: existsSync(marker) }, { hasChanges: false, refreshedIndex: false });
+	});
+
 	(hasGit ? test : test.skip)('commitAll stages tracked, staged and untracked changes and creates a commit', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');

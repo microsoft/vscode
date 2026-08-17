@@ -11,7 +11,9 @@ import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -25,6 +27,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AnimatedCounterWidget } from '../../../../browser/animatedCounterWidget.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
+import { BrowserViewEditorId } from '../../../browserView/common/browserView.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
 import '../media/chatTurnPills.css';
@@ -57,19 +60,22 @@ export interface IDiffStats {
 
 export const EMPTY_DIFF_STATS: IDiffStats = { files: 0, insertions: 0, deletions: 0 };
 
-/** A markdown file outside the workspace that the preview pill can open. */
+/** A file outside the workspace that the preview pill can open. */
 export interface IPreviewFile {
 	readonly uri: URI;
-	readonly kind: 'markdown';
+	readonly kind: 'markdown' | 'html';
 	/** Whether the file was created (vs. edited) during the turn. */
 	readonly created: boolean;
 }
 
-/** Classify a resource as a previewable markdown file, if applicable. */
-export function previewKind(uri: URI): 'markdown' | undefined {
+/** Classify a resource as a previewable file, if applicable. */
+export function previewKind(uri: URI, htmlPreviewAvailable = !isWeb): IPreviewFile['kind'] | undefined {
 	const path = uri.path.toLowerCase();
 	if (path.endsWith('.md') || path.endsWith('.markdown')) {
 		return 'markdown';
+	}
+	if (htmlPreviewAvailable && uri.scheme === Schemas.file && (path.endsWith('.html') || path.endsWith('.htm'))) {
+		return 'html';
 	}
 	return undefined;
 }
@@ -92,10 +98,11 @@ export function previewFilesEqual(a: readonly IPreviewFile[], b: readonly IPrevi
 
 /** Opens a turn file with the editor configured for resources opened from chat. */
 export async function openChatTurnFile(file: IPreviewFile, openerService: IOpenerService, configurationService: IConfigurationService): Promise<void> {
+	const configuredOverride = getEditorOverrideForChatResource(file.uri, configurationService);
 	await openerService.open(file.uri, {
 		fromUserGesture: true,
 		editorOptions: {
-			override: getEditorOverrideForChatResource(file.uri, configurationService),
+			override: configuredOverride ?? (file.kind === 'html' ? BrowserViewEditorId : undefined),
 		},
 	});
 }
@@ -286,7 +293,7 @@ class PreviewPillActionViewItem extends BaseActionViewItem {
  *
  * - **Changes** — `<n> Files +ins -del` for the turn. Activating it opens the
  *   changes.
- * - **Preview** — shown when the turn created or edited a markdown file outside
+ * - **Preview** — shown when the turn created or edited a previewable file outside
  *   the current workspace.
  *   Rendered as a resource label for the primary file. Activating it opens that
  *   file; when several exist, a dropdown lists them all.
