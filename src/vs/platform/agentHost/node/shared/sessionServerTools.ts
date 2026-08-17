@@ -210,6 +210,7 @@ export interface IResolvedCreateSessionArgs {
 export interface ISessionServerToolAccessor {
 	readonly isActiveAgentTitleGenerationEnabled: () => boolean;
 	readonly listSessions: () => Promise<readonly IAgentSessionMetadata[]>;
+	readonly getSession: (session: URI) => Promise<IAgentSessionMetadata | undefined>;
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
@@ -855,9 +856,26 @@ export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	return { session, chat: currentChat, title, chatId: parsed.chatId };
 }
 
+function getRenameChatSession(rawArgs: unknown, currentChannel?: ProtocolURI): URI {
+	const args = (rawArgs ?? {}) as IRenameChatArgs;
+	const chatInput = getOptionalString(args.chat, 'chat', SessionServerToolName.RenameChat);
+	if (chatInput !== undefined) {
+		const session = parseOpenSessionLinkUri(chatInput);
+		if (!session) {
+			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must be an agent-host-session:// link targeting a known chat.`);
+		}
+		return session;
+	}
+	if (!currentChannel || !currentChatUri(currentChannel)) {
+		throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must target a known chat, or the tool must run inside that chat.`);
+	}
+	return currentSessionUri(currentChannel);
+}
+
 export async function applyRenameChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): Promise<string> {
-	const sessions = await accessor.listSessions();
-	const { session, chat, title } = getRenameChatArgs(rawArgs, sessions, currentChannel);
+	const targetSession = getRenameChatSession(rawArgs, currentChannel);
+	const metadata = await accessor.getSession(targetSession);
+	const { session, chat, title } = getRenameChatArgs(rawArgs, metadata ? [metadata] : [], currentChannel);
 	const result = await accessor.renameChat(session, chat, title);
 	return `Renamed chat to "${result.title}".`;
 }

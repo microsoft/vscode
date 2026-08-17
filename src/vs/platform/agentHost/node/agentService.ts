@@ -1061,6 +1061,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return {
 			isActiveAgentTitleGenerationEnabled: () => this._isActiveAgentTitleGenerationEnabled(),
 			listSessions: () => this.listSessions(),
+			getSession: session => this._getSessionMetadata(session),
 			createSession: config => this.createSession(config),
 			getModels: () => {
 				const models: IAgentModelInfo[] = [];
@@ -1244,6 +1245,37 @@ export class AgentService extends Disposable implements IAgentService {
 			...sessionMetadata,
 			_meta: withSessionExternal(sessionMetadata._meta, external),
 		};
+	}
+
+	private async _getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		const registered = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
+		if (!registered) {
+			return undefined;
+		}
+		const agent = this._providers.get(registered.provider);
+		const liveSummary = this._stateManager.getSessionSummary(session.toString());
+		if (liveSummary) {
+			const registeredMetadata = liveSummary.workingDirectories === undefined && agent
+				? await this._registeredSessionMetadata(agent, session, registered.external)
+				: undefined;
+			return {
+				session,
+				startTime: Date.parse(liveSummary.createdAt),
+				modifiedTime: Date.parse(liveSummary.modifiedAt),
+				project: liveSummary.project ? { uri: URI.parse(liveSummary.project.uri), displayName: liveSummary.project.displayName } : undefined,
+				summary: liveSummary.title,
+				status: liveSummary.status,
+				activity: liveSummary.activity,
+				workingDirectories: liveSummary.workingDirectories?.map(directory => URI.parse(directory)) ?? registeredMetadata?.workingDirectories,
+				changes: liveSummary.changes,
+				changesets: this._stateManager.getSessionState(session.toString())?.changesets,
+				_meta: liveSummary._meta,
+			};
+		}
+		if (!agent) {
+			return undefined;
+		}
+		return this._registeredSessionMetadata(agent, session, registered.external);
 	}
 
 	/**

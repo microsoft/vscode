@@ -283,6 +283,11 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 			: session);
 	}
 
+	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		const value = this._sessions.get(session);
+		return value && this._sessionsWithoutExternal.has(session) ? { ...value, external: undefined } : value;
+	}
+
 	async isSessionRegistryEmpty(): Promise<boolean> {
 		return this._sessions.size === 0;
 	}
