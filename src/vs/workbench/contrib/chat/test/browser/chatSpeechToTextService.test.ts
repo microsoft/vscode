@@ -31,7 +31,7 @@ suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('allows local dictation for all users and restricts MAI to eligible paid users', () => {
+	test('allows dictation without a paid plan and restricts MAI for external Enterprise users', () => {
 		assert.deepStrictEqual({
 			signedOutLocal: isDictationEntitled(ChatEntitlement.Unknown, false, false),
 			byokLocal: isDictationEntitled(ChatEntitlement.Unavailable, false, false),
@@ -49,9 +49,9 @@ suite('ChatSpeechToTextService', () => {
 			byokLocal: true,
 			freeLocal: true,
 			proLocal: true,
-			signedOutMai: false,
-			byokMai: false,
-			freeMai: false,
+			signedOutMai: true,
+			byokMai: true,
+			freeMai: true,
 			proMai: true,
 			enterpriseLocal: true,
 			enterpriseMai: false,
