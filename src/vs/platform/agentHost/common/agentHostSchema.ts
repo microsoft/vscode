@@ -440,6 +440,8 @@ export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
  * with Allow all.
  */
 export const AgentHostGlobalAutoApproveEnabledConfigKey = 'globalAutoApproveEnabled';
+/** Whether managed policy forbids elevated session auto-approval modes. */
+export const AgentHostAutoApprovePolicyRestrictedConfigKey = 'autoApprovePolicyRestricted';
 
 /**
  * Root config key forwarded from the renderer when VS Code's `chat.autoReply`
@@ -717,6 +719,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.globalAutoApproveEnabled.description', "Whether VS Code's global auto-approve setting is enabled. When `true`, every tool call is auto-approved, equivalent to a session using Allow all."),
 		default: false,
 	}),
+	[AgentHostAutoApprovePolicyRestrictedConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoApprovePolicyRestricted', "Auto Approve Policy Restricted"),
+		default: false,
+		readOnly: true,
+	}),
 	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.autoReplyEnabled.title', "Auto Reply"),
@@ -751,8 +759,8 @@ export const platformRootSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
 		description: localize('agentHost.config.showExternalSessions.description', "Controls whether sessions created outside the Agent Host are included in the session catalog."),
-		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.All, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days],
-		default: ChatExternalSessionsMode.Last7Days,
+		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.All],
+		default: ChatExternalSessionsMode.None,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
