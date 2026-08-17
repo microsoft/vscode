@@ -48,6 +48,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let modelService: ModelService;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
+	let mainThreadDocumentsAndEditors: MainThreadDocumentsAndEditors;
+	let propertyChanges: number;
 	const deltas: IDocumentsAndEditorsDelta[] = [];
 
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
@@ -63,6 +65,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		disposables = new DisposableStore();
 
 		deltas.length = 0;
+		propertyChanges = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		const dialogService = new TestDialogService();
@@ -105,10 +108,11 @@ suite('MainThreadDocumentsAndEditors', () => {
 			override onDidChangeFileSystemProviderRegistrations = Event.None;
 		};
 
-		new MainThreadDocumentsAndEditors(
+		mainThreadDocumentsAndEditors = disposables.add(new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol({
 				$acceptDocumentsAndEditorsDelta: (delta: IDocumentsAndEditorsDelta) => { deltas.push(delta); },
-				$acceptEditorDiffInformation: (id: string, diffInformation: ITextEditorDiffInformation | undefined) => { }
+				$acceptEditorDiffInformation: (id: string, diffInformation: ITextEditorDiffInformation | undefined) => { },
+				$acceptEditorPropertiesChanged: () => { propertyChanges++; }
 			}),
 			modelService,
 			textFileService,
@@ -139,7 +143,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 					return undefined;
 				}
 			}
-		);
+		));
 	});
 
 	teardown(() => {
@@ -277,6 +281,21 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.strictEqual(first.removedDocuments!.length, 1);
 		assert.strictEqual(first.addedDocuments, undefined);
 		assert.strictEqual(first.addedEditors, undefined);
+
+		editor.dispose();
+		model.dispose();
+	});
+
+	test('dispose removes editor listeners', () => {
+		const model = modelService.createModel('farboo', null);
+		const editor = myCreateTestCodeEditor(model);
+
+		editor.updateOptions({ lineNumbers: 'off' });
+		assert.strictEqual(propertyChanges, 1);
+
+		mainThreadDocumentsAndEditors.dispose();
+		editor.updateOptions({ lineNumbers: 'on' });
+		assert.strictEqual(propertyChanges, 1);
 
 		editor.dispose();
 		model.dispose();

@@ -314,6 +314,10 @@ export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
 
 	dispose(): void {
 		this._toDispose.dispose();
+		for (const textEditor of this._textEditors.values()) {
+			textEditor.dispose();
+		}
+		this._textEditors.clear();
 	}
 
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {
