@@ -63,6 +63,7 @@ import { AgentMergeConfigKey, AgentMergeSettingId } from './agentMerge.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
+// Experiment values resolve in the renderer, so they must sync to the agent host through root config.
 type AgentHostStarterConfigurationPropertySchema = IConfigurationPropertySchema & (
 	| { experiment?: undefined }
 	| { experiment: NonNullable<IConfigurationPropertySchema['experiment']>; agentHost: NonNullable<IConfigurationPropertySchema['agentHost']> }
