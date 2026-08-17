@@ -364,6 +364,7 @@ export function isIChatViewViewContext(context: IChatWidgetViewContext): context
 export interface IChatResourceViewContext {
 	isQuickChat?: boolean;
 	isInlineChat?: boolean;
+	isChatInputWindow?: boolean;
 }
 
 export function isIChatResourceViewContext(context: IChatWidgetViewContext): context is IChatResourceViewContext {

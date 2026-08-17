@@ -2290,8 +2290,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * change clears this automatically.
 	 */
 	setSubmitPending(pending: boolean, routing = pending): void {
+		const changed = this.inputSubmitPending.get() !== pending || this.inputRouting.get() !== routing;
 		this.inputSubmitPending.set(pending);
 		this.inputRouting.set(routing);
+		if (changed) {
+			this.executeToolbar?.refresh();
+		}
 	}
 
 	private _updateInputContentContextKeys(): void {
@@ -3226,8 +3230,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// A submitted request was pending (e.g. omni-chat routing) but the draft
 			// changed: the user is editing again, so re-enable sending.
-			this.inputSubmitPending.set(false);
-			this.inputRouting.set(false);
+			this.setSubmitPending(false);
 
 			// Update monospace state as the command prefix is typed/removed.
 			this.updateInputEditorFontFamily();

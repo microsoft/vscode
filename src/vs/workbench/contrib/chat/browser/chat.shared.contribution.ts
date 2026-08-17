@@ -126,6 +126,7 @@ import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSumma
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
+import './sessionRouter/chatSessionRoutingProviderService.js';
 import { SessionRouterService } from './sessionRouter/sessionRouterService.js';
 import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import './telemetry/chatModelCountTelemetry.js';
@@ -334,6 +335,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('dictation.experimental.llmCleanup', "Experimental: when dictation ends, the final transcript is passed through a small language model to restore punctuation, capitalization, paragraphs, and lists. Requires Copilot to be enabled; the transcript is sent to the language model for cleanup. Falls back to the raw transcript when no model is available. Use [dictation instructions](command:{0}) to customize terminology and formatting.", CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID),
 			default: true,
+			tags: ['experimental']
+		},
+		'dictation.experimental.llmCleanupModel': {
+			type: 'string',
+			enum: ['auto', 'copilot-utility-small', 'gpt-5.6-luna'],
+			markdownDescription: nls.localize('dictation.experimental.llmCleanupModel', "Controls the language model used for experimental dictation cleanup. `auto` follows the active experiment treatment."),
+			default: 'auto',
 			tags: ['experimental']
 		},
 		'chat.editor.fontSize': {

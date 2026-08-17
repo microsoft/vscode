@@ -971,6 +971,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._logService.info(`Registering agent provider: ${provider.id}`);
 		this._providers.set(provider.id, provider);
+		this._invalidateSessionList();
 		provider.setServerToolHost?.(this._serverToolHost);
 		provider.setKnownSessionsFilter?.(sessions => this._filterKnownSessions(sessions));
 		void this._authService.replay(provider);
@@ -1407,13 +1408,14 @@ export class AgentService extends Disposable implements IAgentService {
 		let suppressed = 0;
 		let registeredExternal = false;
 		let alreadyRegistered = 0;
+		let registryChanged = false;
 		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
 				// Matching registry entries need no per-session I/O.
 				const known = existing.get(session.toString());
-				if (known !== undefined && known === external) {
+				if (known !== undefined) {
 					alreadyRegistered++;
 					return false;
 				}
@@ -1427,7 +1429,7 @@ export class AgentService extends Disposable implements IAgentService {
 					`discovery registration for ${session.toString()}`,
 				);
 				if (registered) {
-					this._invalidateSessionList();
+					registryChanged = true;
 					if (external && existing.get(session.toString()) !== true) {
 						await this._initializeExternalSessionReadState(session);
 					}
@@ -1447,6 +1449,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		})));
 		const registered = results.filter(changed => changed).length;
+		if (registryChanged) {
+			this._invalidateSessionList();
+		}
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
 		}
@@ -1554,7 +1559,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Returns registered candidates. Tombstones remain candidates so registration can reject them atomically. */
 	private async _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> {
-		const registered = new Set((await this._listRegisteredSessions()).map(entry => entry.session.toString()));
+		const registered = await this._sessionRegistry.listSessionKeys();
 		const known = new Set<string>();
 		for (const session of sessions) {
 			const key = session.toString();
@@ -1617,7 +1622,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> {
-		this._logService.trace('[AgentService] listSessions called');
+		this._logService.trace('[AgentService] listSessions computation started');
 		// The first list waits for registration-time legacy migration if it is still in flight.
 		await this._awaitInitialProviderMigration();
 		// The registry is the source of truth for top-level sessions. Internal
