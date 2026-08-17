@@ -68,6 +68,7 @@ export namespace PromptHeaderAttributes {
 	export const agent = 'agent';
 	export const mode = 'mode';
 	export const model = 'model';
+	export const reasoningEffort = 'reasoning-effort';
 	export const applyTo = 'applyTo';
 	export const paths = 'paths';
 	export const tools = 'tools';
