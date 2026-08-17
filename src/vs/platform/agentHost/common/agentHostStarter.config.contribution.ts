@@ -65,8 +65,8 @@ const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationE
 
 // Experiment values resolve in the renderer, so they must sync to the agent host through root config.
 type AgentHostStarterConfigurationPropertySchema = IConfigurationPropertySchema & (
-	| { experiment?: undefined }
-	| { experiment: NonNullable<IConfigurationPropertySchema['experiment']>; agentHost: NonNullable<IConfigurationPropertySchema['agentHost']> }
+	| { experiment?: never }
+	| Required<Pick<IConfigurationPropertySchema, 'experiment' | 'agentHost'>>
 );
 
 // Custom managed-settings resolvers for the enterprise OTel policies. The simple pass-through
