@@ -36,7 +36,7 @@ Each session row displays:
 - **Type icon** (regular sessions only) — folder/worktree/cloud icon indicating the workspace kind; omitted for quick chats
 - **Workspace badge** — workspace label rendered inline after the folder/worktree/cloud type icon. It is hidden only when a workspace section header already carries the same label; date, custom-group, Pinned, and Done rows show it unless live status temporarily hides row details.
 - **Diff stats** (regular sessions only) — `+insertions −deletions` when the session has pending changes; omitted for quick chats
-- **Status description or timestamp** — InProgress/NeedsInput/Error show a status message, otherwise a relative timestamp. Compact quick-chat rows in the primary Sessions list omit this second row; automation history presents quick-chat-backed runs as regular history rows with timestamps.
+- **Status description or timestamp** — InProgress and NeedsInput show a status message instead of a timestamp; Error shows both, and other terminal states show a relative timestamp. Compact quick-chat rows in the primary Sessions list omit this second row; automation history presents quick-chat-backed runs as regular history rows with timestamps.
 - **Approval row** (optional) — pending agent approvals with an "Allow" button
 
 Quick-chat rows (`.session-item.quick-chat`, driven by the reactive `ISession.isQuickChat` observable) are single-line entries: the details (second) row is hidden entirely and its content is never built — smaller icon, one line of title only, tighter row height (see `SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT`). Regular sessions keep the standard two-line row (title + details row).
