@@ -71,9 +71,12 @@ function shouldHideCompletedAgentHostAskUserTool(toolCall: ToolCallState): boole
 	return toolCall.status === ToolCallStatus.Cancelled && toolCall.reason === ToolCallCancellationReason.Skipped;
 }
 
+function isRenameChatTool(toolCall: ToolCallState): boolean {
+	return toolCall.toolName === 'rename_chat' || toolCall.toolName.endsWith('__rename_chat');
+}
+
 function isAutomaticTitleRename(toolCall: ToolCallState): boolean {
-	if (!(toolCall.toolName === 'rename_chat' || toolCall.toolName.endsWith('__rename_chat'))
-		|| toolCall.status === ToolCallStatus.Streaming) {
+	if (!isRenameChatTool(toolCall) || toolCall.status === ToolCallStatus.Streaming) {
 		return false;
 	}
 	const toolInput = getInlineToolInput(toolCall.toolInput);
@@ -2385,6 +2388,8 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.asking', "Asking a question...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
+	} else if (isRenameChatTool(tc)) {
+		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (sessionResource && isSubagentTool(tc)) {
 		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;

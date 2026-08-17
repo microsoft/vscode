@@ -1219,7 +1219,7 @@ suite('stateToProgressAdapter', () => {
 				completed: ToolInvocationPresentation.Hidden,
 				restoredFailure: undefined,
 				explicit: undefined,
-				streaming: undefined,
+				streaming: ToolInvocationPresentation.Hidden,
 				liveSuccess: ToolInvocationPresentation.Hidden,
 				liveFailure: undefined,
 			});
