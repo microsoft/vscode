@@ -135,7 +135,7 @@ const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-sma
 type DictationBackend = 'nemo' | 'mai';
 
 export function isDictationEntitled(entitlement: ChatEntitlement, isInternal: boolean, usesMai: boolean): boolean {
-	return isProUser(entitlement) && (!usesMai || entitlement !== ChatEntitlement.Enterprise || isInternal);
+	return !usesMai || (isProUser(entitlement) && (entitlement !== ChatEntitlement.Enterprise || isInternal));
 }
 
 /** How long to wait for the voice websocket to connect before failing an MAI session. */
