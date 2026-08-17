@@ -269,23 +269,21 @@ function createThrowingAdvertiseServerToolHost(message: string): IAgentServerToo
 const PEER_TEST_TOOL_NAME = 'peer_test_tool';
 
 /**
- * Records the exact scope Codex hands {@link IAgentServerToolHost.requiresConfirmation}
- * and {@link IAgentServerToolHost.executeTool} for a single server tool
- * ({@link PEER_TEST_TOOL_NAME}). `advertise` is inert here: only the
- * execute/confirmation scope is under test.
+ * Records the exact chat channel Codex hands the server-tool host for a single
+ * server tool ({@link PEER_TEST_TOOL_NAME}).
  */
-function createRecordingCallScopeServerToolHost(calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly scope: string }[]): IAgentServerToolHost {
+function createRecordingChatServerToolHost(calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly chatUri: string }[]): IAgentServerToolHost {
 	return {
 		definitions: [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' } }],
 		toolNames: [PEER_TEST_TOOL_NAME],
 		advertise: () => { },
 		canRequireConfirmation: () => false,
-		requiresConfirmation: (scope, toolName) => {
-			calls.push({ method: 'requiresConfirmation', scope: scope.toString() });
+		requiresConfirmation: (chatUri, toolName) => {
+			calls.push({ method: 'requiresConfirmation', chatUri: chatUri.toString() });
 			return false;
 		},
-		executeTool: (scope, toolName) => {
-			calls.push({ method: 'executeTool', scope: scope.toString() });
+		executeTool: (chatUri, _toolName, _rawArgs) => {
+			calls.push({ method: 'executeTool', chatUri: chatUri.toString() });
 			return 'tool result';
 		},
 	};
@@ -1230,10 +1228,10 @@ suite('CodexAgent exact chat routing', () => {
 		}
 	});
 
-	test('a peer chat\'s server-tool call routes execute/confirmation through the host-addressed scope, never the peer runtime\'s own thread identity', async () => {
+	test('a peer chat\'s server-tool call uses its exact Agent Host chat channel', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
-		const calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly scope: string }[] = [];
-		agent.setServerToolHost(createRecordingCallScopeServerToolHost(calls));
+		const calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly chatUri: string }[] = [];
+		agent.setServerToolHost(createRecordingChatServerToolHost(calls));
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
 
@@ -1287,8 +1285,8 @@ suite('CodexAgent exact chat routing', () => {
 				// session nor the chat channel — must never reach the host.
 				peerRuntimeUri: AgentSession.uri('codex', 'peer-thread').toString(),
 				calls: [
-					{ method: 'requiresConfirmation', scope: sessionUri.toString() },
-					{ method: 'executeTool', scope: sessionUri.toString() },
+					{ method: 'requiresConfirmation', chatUri: peerChat.toString() },
+					{ method: 'executeTool', chatUri: peerChat.toString() },
 				],
 				toolSucceeded: true,
 			});

@@ -17,7 +17,6 @@ import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 
 // Registers the singleton implementation (side-effect import).
 import './chatInputWindowService.js';
-import '../sessionRouter/chatSessionRoutingProviderService.js';
 
 const inputWindowEnabled = ContextKeyExpr.and(
 	ChatContextKeys.enabled,

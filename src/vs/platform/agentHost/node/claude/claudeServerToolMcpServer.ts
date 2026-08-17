@@ -56,7 +56,7 @@ export function extractServerToolName(toolName: string): string | undefined {
  */
 export async function buildServerToolMcpServer(
 	host: IAgentServerToolHost,
-	sessionUri: string,
+	chatUri: string,
 	sdk: IClaudeAgentSdkService,
 ): Promise<McpSdkServerConfigWithInstance> {
 	const tools = await Promise.all(host.definitions.map(def => sdk.tool(
@@ -65,7 +65,7 @@ export async function buildServerToolMcpServer(
 		jsonSchemaToZodRawShape(def.inputSchema),
 		async args => {
 			try {
-				const text = await host.executeTool(sessionUri, def.name, args);
+				const text = await host.executeTool(chatUri, def.name, args);
 				return { content: [{ type: 'text' as const, text }] };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);

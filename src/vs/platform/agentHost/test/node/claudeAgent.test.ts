@@ -668,6 +668,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		readonly description: string;
 		readonly inputSchema: Record<string, any>;
 	}> = [];
+	readonly toolHandlers = new Map<string, (args: any, extra: unknown) => Promise<CallToolResult>>();
 	readonly createSdkMcpServerCalls: Array<{
 		readonly name: string;
 		readonly toolNames: readonly string[];
@@ -680,6 +681,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		_handler: (args: any, extra: unknown) => Promise<CallToolResult>,
 	): Promise<SdkMcpToolDefinition<any>> {
 		this.toolCalls.push({ name, description, inputSchema });
+		this.toolHandlers.set(name, _handler);
 		return { name } as unknown as SdkMcpToolDefinition<any>;
 	}
 
@@ -10453,6 +10455,40 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 suite('ClaudeAgent — host seams', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a peer chat server tool executes against its exact Agent Host chat channel', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const toolName = 'peer_server_tool';
+		let executedChatUri: string | undefined;
+		agent.setServerToolHost({
+			definitions: [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
+			toolNames: [toolName],
+			advertise: () => { },
+			canRequireConfirmation: () => false,
+			requiresConfirmation: () => false,
+			executeTool: chatUri => {
+				executedChatUri = chatUri;
+				return 'done';
+			},
+		});
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const peerChat = URI.parse(buildChatUri(created.session.toString(), 'peer-server-tool'));
+		const peerCreated = await agent.chats.createChat(peerChat, { configurationResource: created.session, resource: peerChat }, { ...resolvedChatOptions() });
+		const peerSdkId = AgentSession.id(peerCreated!.backingSession!);
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+
+		await agent.chats.sendMessage(peerChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(peerChat));
+		const result = await sdk.toolHandlers.get(toolName)!({}, undefined);
+
+		assert.deepStrictEqual({
+			executedChatUri,
+			result,
+		}, {
+			executedChatUri: peerChat.toString(),
+			result: { content: [{ type: 'text', text: 'done' }] },
+		});
+	});
 
 	test('a subagent chat resolves its spawn edge only from the host-supplied origin', async () => {
 		const { agent, sdk, stateManager } = createTestContext(disposables);

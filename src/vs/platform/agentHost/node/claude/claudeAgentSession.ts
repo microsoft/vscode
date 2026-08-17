@@ -806,7 +806,7 @@ export class ClaudeAgentSession extends Disposable {
 		const externalServers = await this._buildExternalMcpServers();
 		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
 		const serverToolServer = serverToolHost
-			? await buildServerToolMcpServer(serverToolHost, resource.toString(), this._sdkService)
+			? await buildServerToolMcpServer(serverToolHost, this._chatChannelUri.toString(), this._sdkService)
 			: undefined;
 		const mcpServers = (Object.keys(externalServers.servers).length === 0 && !clientServers && !serverToolServer)
 			? undefined
