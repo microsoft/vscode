@@ -2080,22 +2080,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		}));
 	}
 
-	/**
-	 * The scope Codex hands {@link IAgentServerToolHost} for a session's
-	 * server-tool confirmation/execution: the same host-supplied
-	 * configuration scope {@link IAgentServerToolHost.advertise} was called
-	 * with for this chat (see {@link _configScope}), never the runtime's own
-	 * identity. A peer chat's runtime is keyed by its own thread id (e.g.
-	 * `codex:/<threadId>`) once materialized, which is neither the addressed
-	 * AH session nor the chat channel and — critically — not the scope the
-	 * host indexes its per-session tool state under. Falls back to the
-	 * runtime's own URI only when the chat has never been tracked (there is
-	 * no better scope to route through).
-	 */
-	private _serverToolScope(session: ICodexSession): URI {
-		return session.chatChannel ? this._configScope(session.chatChannel) : session.sessionUri;
-	}
-
 	private async _handleDynamicToolCallRpc(params: DynamicToolCallParams): Promise<ServerRequestHandlerResult<DynamicToolCallResponse>> {
 		const sessionId = this._sessionIdByThreadId.get(params.threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
@@ -2109,8 +2093,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		const host = this._serverToolHost;
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
-				const scope = this._serverToolScope(session).toString();
-				if (host.requiresConfirmation(scope, params.tool)) {
+				const chatChannel = session.chatChannel?.toString();
+				if (!chatChannel) {
+					return { result: this._toolFailure(`No chat channel for server tool ${params.tool}`) };
+				}
+				if (host.requiresConfirmation(chatChannel, params.tool)) {
 					const entry = session.mapState.itemToToolCall.get(params.callId);
 					if (!entry) {
 						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
@@ -2129,7 +2116,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						return { result: this._toolFailure(`Server tool ${params.tool} was not approved`) };
 					}
 				}
-				const text = host.executeTool(scope, params.tool, params.arguments);
+				const text = host.executeTool(chatChannel, params.tool, params.arguments);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
 				return { result: this._toolFailure(`Server tool ${params.tool} failed: ${err instanceof Error ? err.message : String(err)}`) };
