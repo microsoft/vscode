@@ -9653,6 +9653,77 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'active-turn session must not be evicted');
 		});
 
+		test('a session with an active peer chat is NOT evicted when its last subscriber drops', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
+				service.stateManager.addChat(sessionResource.toString(), peerChat.toString(), {});
+				service.addSubscriber(sessionResource, 'client-1');
+				service.dispatchAction(
+					peerChat.toString(),
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					'client-1', 1,
+				);
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					hasActiveTurn: service.stateManager.hasActiveTurn(sessionResource.toString()),
+					hasCachedState: service.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+					releaseCalls: copilotAgent.releaseSessionCalls.length,
+				}, {
+					hasActiveTurn: true,
+					hasCachedState: true,
+					releaseCalls: 0,
+				});
+			});
+		});
+
+		test('a peer turn starting during the session data drain re-arms idle eviction', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const whenIdleStarted = new DeferredPromise<void>();
+				const whenIdle = new DeferredPromise<void>();
+				class DelayedIdleDatabase extends TestSessionDatabase {
+					override async whenIdle(): Promise<void> {
+						whenIdleStarted.complete();
+						await whenIdle.p;
+					}
+				}
+				const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new DelayedIdleDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				localService.registerProvider(agent);
+				const sessionResource = await localService.createSession({ provider: 'copilot' });
+				const defaultChat = buildDefaultChatUri(sessionResource);
+				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
+				localService.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'initial-turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'initial', origin: { kind: MessageKind.User } } });
+				localService.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'initial-turn', duration: 1000 });
+				localService.stateManager.addChat(sessionResource.toString(), peerChat.toString(), {});
+				localService.addSubscriber(sessionResource, 'client-1');
+				localService.unsubscribe(sessionResource, 'client-1');
+
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				await whenIdleStarted.p;
+				localService.dispatchAction(
+					peerChat.toString(),
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					'client-1', 1,
+				);
+				whenIdle.complete();
+				await Promise.resolve();
+				localService.dispatchAction(
+					peerChat.toString(),
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+					'client-1', 2,
+				);
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(localService.stateManager.getSessionState(sessionResource.toString()), undefined);
+			});
+		});
+
 		test('a provider can defer idle release without losing cached state', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DeferringReleaseMockAgent('copilot');
