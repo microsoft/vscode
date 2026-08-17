@@ -708,7 +708,9 @@ export class ListView<T> implements IListView<T> {
 		const updateRange = Range.intersect(renderRange, renderedRestRange);
 
 		for (let i = updateRange.start; i < updateRange.end; i++) {
-			this.updateItemInDOM(this.items[i], i);
+			if (this.items[i].row) {
+				this.updateItemInDOM(this.items[i], i);
+			}
 		}
 
 		const removeRanges = Range.relativeComplement(renderedRestRange, renderRange);
@@ -1569,7 +1571,7 @@ export class ListView<T> implements IListView<T> {
 	 * to be probed for dynamic height. Adjusts scroll height and top if necessary.
 	 */
 	protected _rerender(renderTop: number, renderHeight: number, inSmoothScrolling?: boolean): void {
-		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
+		let previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 		const retainedMeasurements = new Map<number, IDynamicHeightMeasurement<T>>();
 
 		// Let's remember the second element's position, this helps in scrolling up
@@ -1577,13 +1579,20 @@ export class ListView<T> implements IListView<T> {
 		let anchorElementIndex: number | undefined;
 		let anchorElementTopDelta: number | undefined;
 
-		if (renderTop === this.elementTop(previousRenderRange.start)) {
-			anchorElementIndex = previousRenderRange.start;
-			anchorElementTopDelta = 0;
-		} else if (previousRenderRange.end - previousRenderRange.start > 1) {
-			anchorElementIndex = previousRenderRange.start + 1;
-			anchorElementTopDelta = this.elementTop(anchorElementIndex) - renderTop;
-		}
+		const updateAnchorElement = () => {
+			anchorElementIndex = undefined;
+			anchorElementTopDelta = undefined;
+
+			if (renderTop === this.elementTop(previousRenderRange.start)) {
+				anchorElementIndex = previousRenderRange.start;
+				anchorElementTopDelta = 0;
+			} else if (previousRenderRange.end - previousRenderRange.start > 1) {
+				anchorElementIndex = previousRenderRange.start + 1;
+				anchorElementTopDelta = this.elementTop(anchorElementIndex) - renderTop;
+			}
+		};
+
+		updateAnchorElement();
 
 		let heightDiff = 0;
 
@@ -1593,7 +1602,17 @@ export class ListView<T> implements IListView<T> {
 
 				let didChange = false;
 
+				const probedItems = this.items.slice(renderRange.start, renderRange.end);
 				const dynamicHeightDiffs = this.probeDynamicHeights(renderRange, retainedMeasurements);
+				const modelDidChange = this.items.length < renderRange.end
+					|| probedItems.some((item, index) => item !== this.items[renderRange.start + index]);
+				if (modelDidChange) {
+					this.disposeDynamicHeightMeasurements(retainedMeasurements);
+					previousRenderRange = this.getRenderRange(renderTop, renderHeight);
+					updateAnchorElement();
+					continue;
+				}
+
 				for (let i = renderRange.start; i < renderRange.end; i++) {
 					const diff = dynamicHeightDiffs[i - renderRange.start];
 

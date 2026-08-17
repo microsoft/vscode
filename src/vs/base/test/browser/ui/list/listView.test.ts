@@ -132,7 +132,7 @@ suite('ListView', function () {
 		type TestElement = { height: number };
 		const publishedHeights = new Map<TestElement, number>();
 		const delegate: IListVirtualDelegate<TestElement> = {
-			getHeight() { return 100; },
+			getHeight() { return 25; },
 			getTemplateId() { return 'template'; },
 			hasDynamicHeight() { return true; },
 			setDynamicHeight(element, height) { publishedHeights.set(element, height); }
@@ -169,7 +169,7 @@ suite('ListView', function () {
 			disposeTemplate() { }
 		};
 
-		const elements: TestElement[] = range(10).map(() => ({ height: 20 }));
+		const elements: TestElement[] = range(10).map(() => ({ height: 5 }));
 		const listView = new ListView<TestElement>(element, delegate, [renderer], { supportDynamicHeights: true });
 		try {
 			listView.layout(100, 200);
@@ -183,15 +183,20 @@ suite('ListView', function () {
 				disposedElements
 			}, {
 				heightReads: [
-					{ renderedRows: 1, unconstrainedRows: 1 },
-					{ renderedRows: 2, unconstrainedRows: 2 },
-					{ renderedRows: 3, unconstrainedRows: 3 },
 					{ renderedRows: 4, unconstrainedRows: 4 },
-					{ renderedRows: 5, unconstrainedRows: 5 },
+					{ renderedRows: 4, unconstrainedRows: 4 },
+					{ renderedRows: 4, unconstrainedRows: 4 },
+					{ renderedRows: 4, unconstrainedRows: 4 },
+					{ renderedRows: 8, unconstrainedRows: 8 },
+					{ renderedRows: 8, unconstrainedRows: 8 },
+					{ renderedRows: 8, unconstrainedRows: 8 },
+					{ renderedRows: 8, unconstrainedRows: 8 },
+					{ renderedRows: 10, unconstrainedRows: 10 },
+					{ renderedRows: 10, unconstrainedRows: 10 },
 				],
-				publishedHeights: [20, 20, 20, 20, 20, undefined, undefined, undefined, undefined, undefined],
-				renderCounts: [1, 1, 1, 1, 1, undefined, undefined, undefined, undefined, undefined],
-				renderedRows: [true, true, true, true, true, false, false, false, false, false],
+				publishedHeights: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+				renderCounts: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+				renderedRows: [true, true, true, true, true, true, true, true, true, true],
 				disposedElements: 0
 			});
 		} finally {
@@ -297,6 +302,7 @@ suite('ListView', function () {
 			listView.splice(0, 0, elements);
 			elements[0].height = 20;
 			elements[1].height = 20;
+			listView.domElement(0)!.dataset.testHeight = String(elements[0].height);
 			spliceOnRender = elements[1];
 
 			listView.layout(100, 201);
@@ -307,7 +313,71 @@ suite('ListView', function () {
 					element: listView.element(index).id,
 					rendered: listView.domElement(index)!.textContent
 				}));
-			assert.deepStrictEqual(renderedRows, renderedRows.map(row => ({ ...row, rendered: row.element })));
+			assert.deepStrictEqual({
+				length: listView.length,
+				renderedRows
+			}, {
+				length: elements.length - 1,
+				renderedRows: renderedRows.map(row => ({ ...row, rendered: row.element }))
+			});
+		} finally {
+			listView.dispose();
+			element.remove();
+		}
+	});
+
+	test('handles removing all items during dynamic height measurement', function () {
+		const element = document.createElement('div');
+		element.style.height = '100px';
+		element.style.width = '200px';
+		document.body.appendChild(element);
+
+		type TestElement = { id: string; height: number };
+		const delegate: IListVirtualDelegate<TestElement> = {
+			getHeight() { return 100; },
+			getTemplateId() { return 'template'; },
+			hasDynamicHeight() { return true; }
+		};
+
+		const listViewRef: { value?: ListView<TestElement> } = {};
+		let removeAllOnRender: TestElement | undefined;
+		const renderer: IListRenderer<TestElement, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) {
+				Object.defineProperty(container, 'offsetHeight', {
+					configurable: true,
+					get: () => Number(container.dataset.testHeight)
+				});
+				return container;
+			},
+			renderElement(element, _index, templateData) {
+				templateData.dataset.testHeight = String(element.height);
+				if (removeAllOnRender === element) {
+					removeAllOnRender = undefined;
+					listViewRef.value!.splice(0, listViewRef.value!.length);
+				}
+			},
+			disposeTemplate() { }
+		};
+
+		const elements: TestElement[] = range(3).map(index => ({ id: String(index), height: 100 }));
+		const listView = listViewRef.value = new ListView<TestElement>(element, delegate, [renderer], { supportDynamicHeights: true });
+		try {
+			listView.layout(100, 200);
+			listView.splice(0, 0, elements);
+			elements[0].height = 20;
+			listView.domElement(0)!.dataset.testHeight = String(elements[0].height);
+			removeAllOnRender = elements[1];
+
+			listView.layout(100, 201);
+
+			assert.deepStrictEqual({
+				length: listView.length,
+				rowsInDom: element.querySelectorAll('.monaco-list-row').length
+			}, {
+				length: 0,
+				rowsInDom: 0
+			});
 		} finally {
 			listView.dispose();
 			element.remove();
