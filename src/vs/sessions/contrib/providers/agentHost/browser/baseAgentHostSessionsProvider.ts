@@ -30,7 +30,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -50,14 +50,14 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computeSessionPullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
-import { createChangesets } from './agentHostSessionChangesets.js';
+import { createActiveSessionSubscriptionObs, createChangesets, IAgentHostChangeset, selectMostRecentChatUri } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
@@ -627,6 +627,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * that chat's own last turn.
 	 */
 	private readonly _sessionOutput: ISessionOutputObs;
+	/** Live workspace changes while the session's most recent chat has an active turn. */
+	private readonly _currentTurnChanges: IObservable<readonly ISessionFileChange[] | undefined>;
 	/**
 	 * Independent title override for the default chat tab. `undefined` means the
 	 * default chat inherits the session title; a non-empty value means the user
@@ -875,6 +877,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._sessionOutputCache,
 		);
 		this._sessionOutput = sessionOutput;
+		this._currentTurnChanges = this._createCurrentTurnChangesObservable();
 		this.externalChanges = sessionOutput.externalFiles;
 
 		const mainChat: IChat = {
@@ -1470,9 +1473,40 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return;
 		}
 
-		const changesets = createChangesets(this.backendUri, this._options, this.isActiveSessionObs, changesetsMetadata);
+		const changesets = createChangesets(this.backendUri, this._options, this.isActiveSessionObs, changesetsMetadata.map(changeset => ({
+			...changeset,
+			changes: changeset.changeKind === TURN_CHANGES_CHANGESET_ID
+				? this._currentTurnChanges
+				: undefined,
+		} satisfies IAgentHostChangeset)));
 
 		this.changesets.set(changesets, undefined);
+	}
+
+	private _createCurrentTurnChangesObservable(): IObservable<readonly ISessionFileChange[] | undefined> {
+		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
+			this._options,
+			this.isActiveSessionObs,
+			StateComponents.Session,
+			constObservable(this.backendUri),
+		);
+		const mostRecentChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
+			return selectMostRecentChatUri(sessionStateObs.read(reader).read(reader), this.backendUri);
+		});
+		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+			this._options,
+			this.isActiveSessionObs,
+			StateComponents.Chat,
+			mostRecentChatUriObs,
+		);
+		return derived(reader => {
+			const chatState = chatStateObs.read(reader).read(reader);
+			if (!chatState || chatState instanceof Error || !chatState.activeTurn) {
+				return undefined;
+			}
+			return this._sessionOutput.getLastTurnChanges(mostRecentChatUriObs.read(reader)).read(reader)
+				.filter(change => !change.isOutsideWorkspace);
+		});
 	}
 }
 
