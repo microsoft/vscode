@@ -16,23 +16,25 @@ suite('MainThreadTask', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('unregisters task systems on dispose', function () {
+	test('unregisters task systems explicitly and on dispose', function () {
+		const events: string[] = [];
 		let registrations = 0;
-		let disposals = 0;
 		const taskService = new class extends mock<ITaskService>() {
 			override readonly onDidStateChange = Event.None;
 
 			override registerTaskSystem(): IDisposable {
-				registrations++;
-				return toDisposable(() => disposals++);
+				const registration = ++registrations;
+				events.push(`register ${registration}`);
+				return toDisposable(() => events.push(`dispose ${registration}`));
 			}
 		};
 		const mainThreadTask = new MainThreadTask(SingleProxyRPCProtocol(null), taskService, undefined!, undefined!);
 
-		mainThreadTask.$registerTaskSystem('file', { scheme: 'file', authority: '', platform: 'linux' });
-		assert.strictEqual(registrations, 1);
+		mainThreadTask.$registerTaskSystem(0, 'file', { scheme: 'file', authority: '', platform: 'linux' });
+		mainThreadTask.$unregisterTaskSystem(0);
+		mainThreadTask.$registerTaskSystem(1, 'file', { scheme: 'file', authority: '', platform: 'linux' });
 
 		mainThreadTask.dispose();
-		assert.strictEqual(disposals, 1);
+		assert.deepStrictEqual(events, ['register 1', 'dispose 1', 'register 2', 'dispose 2']);
 	});
 });

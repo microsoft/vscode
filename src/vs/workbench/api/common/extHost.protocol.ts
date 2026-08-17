@@ -2048,7 +2048,8 @@ export interface MainThreadTaskShape extends IDisposable {
 	$getTaskExecution(value: tasks.ITaskHandleDTO | tasks.ITaskDTO): Promise<tasks.ITaskExecutionDTO>;
 	$executeTask(task: tasks.ITaskHandleDTO | tasks.ITaskDTO): Promise<tasks.ITaskExecutionDTO>;
 	$terminateTask(id: string): Promise<void>;
-	$registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): void;
+	$registerTaskSystem(handle: number, scheme: string, info: tasks.ITaskSystemInfoDTO): void;
+	$unregisterTaskSystem(handle: number): void;
 	$customExecutionComplete(id: string, result?: number): Promise<void>;
 	$registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void>;
 }

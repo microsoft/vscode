@@ -458,6 +458,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 	private readonly _extHostContext: IExtHostContext | undefined;
 	private readonly _proxy: ExtHostTaskShape;
 	private readonly _providers: Map<number, { disposable: IDisposable; provider: ITaskProvider }>;
+	private readonly _taskSystems: Map<number, IDisposable>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -468,6 +469,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._providers = new Map();
+		this._taskSystems = new Map();
 		this._register(this._taskService.onDidStateChange(async (event: ITaskEvent) => {
 			if (event.kind === TaskEventKind.Changed) {
 				return;
@@ -511,6 +513,10 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			value.disposable.dispose();
 		}
 		this._providers.clear();
+		for (const disposable of this._taskSystems.values()) {
+			disposable.dispose();
+		}
+		this._taskSystems.clear();
 		super.dispose();
 	}
 
@@ -714,7 +720,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 		});
 	}
 
-	public $registerTaskSystem(key: string, info: ITaskSystemInfoDTO): void {
+	public $registerTaskSystem(handle: number, key: string, info: ITaskSystemInfoDTO): void {
 		let platform: Platform.Platform;
 		switch (info.platform) {
 			case 'Web':
@@ -732,7 +738,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			default:
 				platform = Platform.platform;
 		}
-		this._register(this._taskService.registerTaskSystem(key, {
+		const disposable = this._taskService.registerTaskSystem(key, {
 			platform: platform,
 			uriProvider: (path: string): URI => {
 				return URI.from({ scheme: info.scheme, authority: info.authority, path });
@@ -777,7 +783,13 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			findExecutable: (command: string, cwd?: string, paths?: string[]): Promise<string | undefined> => {
 				return this._proxy.$findExecutable(command, cwd, paths);
 			}
-		}));
+		});
+		this._taskSystems.set(handle, disposable);
+	}
+
+	public $unregisterTaskSystem(handle: number): void {
+		this._taskSystems.get(handle)?.dispose();
+		this._taskSystems.delete(handle);
 	}
 
 	async $registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void> {

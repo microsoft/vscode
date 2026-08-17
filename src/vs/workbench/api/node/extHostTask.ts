@@ -40,17 +40,17 @@ export class ExtHostTask extends ExtHostTaskBase {
 	) {
 		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
 		if (initData.remote.isRemote && initData.remote.authority) {
-			this.registerTaskSystem(Schemas.vscodeRemote, {
+			this._register(this.registerTaskSystem(Schemas.vscodeRemote, {
 				scheme: Schemas.vscodeRemote,
 				authority: initData.remote.authority,
 				platform: process.platform
-			});
+			}));
 		} else {
-			this.registerTaskSystem(Schemas.file, {
+			this._register(this.registerTaskSystem(Schemas.file, {
 				scheme: Schemas.file,
 				authority: '',
 				platform: process.platform
-			});
+			}));
 		}
 		this._proxy.$registerSupportedExecutions(true, true, true);
 	}
