@@ -5370,6 +5370,7 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
 		test('reads stored session metadata with a single bulk metadata query', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/bulk-metadata-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/bulk-metadata-cwd-`);
