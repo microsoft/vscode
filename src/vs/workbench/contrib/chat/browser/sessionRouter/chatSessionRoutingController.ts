@@ -72,26 +72,47 @@ interface IDeliveryConfirmation extends IDisposable {
 	completed: boolean;
 }
 
-function responsePreview(response: string | undefined): string | undefined {
-	const firstLine = response?.split(/\r?\n/).map(line => line.trim()).find(Boolean);
-	if (!firstLine) {
+interface IResponsePreview {
+	/** The first meaningful line of the response, stripped of block markdown. */
+	readonly text: string;
+	/** Whether the response continues past the previewed line. */
+	readonly hasMore: boolean;
+}
+
+function responsePreview(response: string | undefined): IResponsePreview | undefined {
+	if (!response) {
 		return undefined;
 	}
-	return firstLine;
+	const lines = response.split(/\r?\n/).map(line => line.trim());
+	const firstIndex = lines.findIndex(Boolean);
+	if (firstIndex === -1) {
+		return undefined;
+	}
+	// Strip leading block markdown (headings, block quotes, list markers) so the
+	// preview renders as inline text rather than a heading blown up to full size.
+	const text = lines[firstIndex].replace(/^(#{1,6}|>|[-*+])\s+/, '').trim();
+	if (!text) {
+		return undefined;
+	}
+	const hasMore = lines.slice(firstIndex + 1).some(Boolean);
+	return { text, hasMore };
 }
 
 function lowercaseFirstLetter(value: string): string {
 	return value.replace(/\p{L}/u, letter => letter.toLocaleLowerCase());
 }
 
-function renderCompletedResponse(labelElement: HTMLElement, sessionLabel: string, preview: string): IDisposable {
+function renderCompletedResponse(labelElement: HTMLElement, sessionLabel: string, preview: IResponsePreview): IDisposable {
 	const prefix = dom.$('span.chat-routing-badge-response-prefix');
 	prefix.textContent = localize(
 		'chatSessionRouting.completedWithResponse',
 		"Completed {0}:",
 		lowercaseFirstLetter(sessionLabel)
 	);
-	const rendered = renderMarkdown(new MarkdownString(preview));
+	// A trailing ellipsis signals that the previewed line is only the start of a
+	// longer response, since the badge shows just the first line.
+	const markdown = preview.hasMore ? `${preview.text}\u2026` : preview.text;
+	const rendered = renderMarkdown(new MarkdownString(markdown));
 	rendered.element.classList.add('chat-routing-badge-response-preview');
 	labelElement.classList.add('chat-routing-badge-completed');
 	labelElement.replaceChildren(prefix, rendered.element);
