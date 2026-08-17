@@ -5312,7 +5312,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([
 				sdkSession('known-a', workingDirectory),
 				sdkSession('known-b', workingDirectory),
-				sdkSession('fresh', workingDirectory),
+				sdkSession('fresh', workingDirectory, { clientName: 'github/cli', repository: 'owner/repository', modifiedTime: new Date() }),
 			]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
 			const filterCalls: string[][] = [];
