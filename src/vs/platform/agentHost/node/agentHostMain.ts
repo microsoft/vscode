@@ -280,7 +280,6 @@ async function startAgentHost(): Promise<void> {
 				agentService.registerProvider(instantiationService.createInstance(CodexAgent));
 			}
 		};
-		registerEnabledProviders();
 		disposables.add(agentConfigurationService.onDidRootConfigChange(registerEnabledProviders));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
