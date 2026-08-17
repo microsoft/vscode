@@ -25,7 +25,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { DomEmitter } from '../../../../base/browser/event.js';
 import { Gesture, EventType as GestureEventType } from '../../../../base/browser/touch.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -39,13 +39,18 @@ export const DEFAULT_NOTIFICATION_ROW_HEIGHT = 42;
 
 /** Current height (px) of a single notification row; overridable via {@link setNotificationRowHeight}. */
 let notificationRowHeight = DEFAULT_NOTIFICATION_ROW_HEIGHT;
+const onDidChangeNotificationRowHeightEmitter = new Emitter<number>();
+export const onDidChangeNotificationRowHeight = onDidChangeNotificationRowHeightEmitter.event;
 
 /**
  * Overrides the height (px) of a single notification row. Used by the Modern UI
  * style-override experiment to shrink the collapsed notification card.
  */
 export function setNotificationRowHeight(height: number): void {
-	notificationRowHeight = height;
+	if (height !== notificationRowHeight) {
+		notificationRowHeight = height;
+		onDidChangeNotificationRowHeightEmitter.fire(height);
+	}
 }
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
@@ -486,7 +491,26 @@ export class NotificationTemplateRenderer extends Disposable {
 
 		// Close (unless progress is showing)
 		if (!notification.hasProgress) {
-			actions.push(NotificationTemplateRenderer.closeNotificationAction);
+			const primaryActions = notification.actions?.primary;
+			if (isNonEmptyArray(primaryActions)) {
+				// When the notification has action buttons, the X (close) button should
+				// invoke the last primary action (typically a cancel/dismiss choice) so
+				// that alerts with choices are not silently discarded without any action.
+				const lastPrimary = primaryActions[primaryActions.length - 1];
+				actions.push(toAction({
+					id: NotificationTemplateRenderer.closeNotificationAction.id,
+					label: NotificationTemplateRenderer.closeNotificationAction.label,
+					class: NotificationTemplateRenderer.closeNotificationAction.class,
+					run: () => {
+						this.actionRunner.run(lastPrimary, notification);
+						if (!(lastPrimary instanceof ChoiceAction) || !lastPrimary.keepOpen) {
+							notification.close();
+						}
+					}
+				}));
+			} else {
+				actions.push(NotificationTemplateRenderer.closeNotificationAction);
+			}
 		}
 
 		this.template.toolbar.clear();
