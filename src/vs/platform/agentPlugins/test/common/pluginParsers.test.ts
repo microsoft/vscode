@@ -192,6 +192,20 @@ suite('pluginParsers', () => {
 			});
 		});
 
+		test('preserves canonical SSE transport', () => {
+			assert.deepStrictEqual(normalizeMcpServerConfiguration({
+				type: 'http',
+				transport: 'sse',
+				url: 'https://example.com/sse',
+			}), {
+				type: McpServerType.REMOTE,
+				transport: 'sse',
+				url: 'https://example.com/sse',
+				headers: undefined,
+				dev: undefined,
+			});
+		});
+
 		test('infers remote type from url without explicit type', () => {
 			const result = normalizeMcpServerConfiguration({ url: 'https://example.com' });
 			assert.ok(result);

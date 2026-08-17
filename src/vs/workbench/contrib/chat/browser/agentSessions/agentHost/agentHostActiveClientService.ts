@@ -11,7 +11,7 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -19,6 +19,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -70,6 +71,7 @@ export interface IAgentHostActiveClientService {
 
 	/** Acquires a customization scope for a registered agent. Returns `undefined` when `sessionType` has no registration. */
 	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope | undefined;
+	areScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[]): boolean;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 }
 
@@ -85,6 +87,7 @@ class AgentRegistration extends Disposable implements IAgentRegistration {
 		private readonly _options: IAgentRegistrationOptions | undefined,
 		private readonly _instantiationService: IInstantiationService,
 		storageService: IStorageService,
+		private readonly _extUri: IExtUri,
 		private readonly _getClientTools: (sessionType: string) => IObservable<readonly ToolDefinition[]>,
 		private readonly _onDispose: () => void,
 	) {
@@ -93,8 +96,8 @@ class AgentRegistration extends Disposable implements IAgentRegistration {
 	}
 
 	acquireScope(roots: readonly URI[]): IAgentCustomizationScope {
-		const normalizedRoots = normalizeRoots(roots);
-		const scopeKey = getScopeKey(normalizedRoots);
+		const normalizedRoots = normalizeRoots(roots, this._extUri);
+		const scopeKey = getScopeKey(normalizedRoots, this._extUri);
 		let scope = this._scopes.get(scopeKey);
 		if (!scope) {
 			// Referenced by the teardown callback below, which only runs once the
@@ -103,6 +106,7 @@ class AgentRegistration extends Disposable implements IAgentRegistration {
 				AgentCustomizationScope,
 				this._sessionType,
 				normalizedRoots,
+				scopeKey,
 				this.syncProvider,
 				this._options,
 				this._getClientTools,
@@ -182,6 +186,7 @@ class AgentCustomizationScope extends Disposable {
 	constructor(
 		private readonly _sessionType: string,
 		private readonly _roots: readonly URI[],
+		scopeKey: string,
 		private readonly _syncProvider: ICustomizationSyncProvider,
 		private readonly _options: IAgentRegistrationOptions | undefined,
 		private readonly _getClientTools: (sessionType: string) => IObservable<readonly ToolDefinition[]>,
@@ -194,7 +199,7 @@ class AgentCustomizationScope extends Disposable {
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 	) {
 		super();
-		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, _roots)));
+		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey)));
 		this._updateDelayer = this._register(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
 
 		const updateCustomizations = async () => {
@@ -352,6 +357,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._allToolsObs = this._toolsService.observeTools(undefined);
@@ -366,6 +372,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			options,
 			this._instantiationService,
 			this._storageService,
+			this._uriIdentityService.extUri,
 			type => this._getClientTools(type),
 			() => {
 				if (this._registrationsByType.get(sessionType) === registration) {
@@ -379,6 +386,10 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 
 	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope | undefined {
 		return this._registrationsByType.get(sessionType)?.acquireScope(roots);
+	}
+
+	areScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[]): boolean {
+		return areCustomizationScopeRootsEqual(first, second, this._uriIdentityService.extUri);
 	}
 
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
@@ -424,34 +435,34 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	}
 }
 
-function normalizeRoots(roots: readonly URI[]): readonly URI[] {
-	const rootsByUri = new ResourceMap<URI>(root => extUriBiasedIgnorePathCase.getComparisonKey(root));
+function normalizeRoots(roots: readonly URI[], extUri: IExtUri): readonly URI[] {
+	const rootsByUri = new ResourceMap<URI>(root => extUri.getComparisonKey(root));
 	for (const root of roots) {
 		rootsByUri.set(root, root);
 	}
 	// Ordinal (not locale) ordering: this order feeds `getScopeKey`, whose hash
 	// becomes an on-disk plugin cache directory name on the agent host side.
 	return [...rootsByUri.values()].sort((a, b) => {
-		const left = extUriBiasedIgnorePathCase.getComparisonKey(a);
-		const right = extUriBiasedIgnorePathCase.getComparisonKey(b);
+		const left = extUri.getComparisonKey(a);
+		const right = extUri.getComparisonKey(b);
 		return left < right ? -1 : left > right ? 1 : 0;
 	});
 }
 
 /** Returns whether two working-directory sets describe the same customization scope. */
-export function areCustomizationScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[]): boolean {
-	const toComparisonKey = (root: URI) => extUriBiasedIgnorePathCase.getComparisonKey(root);
+export function areCustomizationScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[], extUri: IExtUri): boolean {
+	const toComparisonKey = (root: URI) => extUri.getComparisonKey(root);
 	const firstRoots = new ResourceSet(first ?? [], toComparisonKey);
 	const secondRoots = new ResourceSet(second, toComparisonKey);
 	return firstRoots.size === secondRoots.size && [...firstRoots].every(root => secondRoots.has(root));
 }
 
-function getScopeKey(roots: readonly URI[]): string {
-	return roots.map(root => extUriBiasedIgnorePathCase.getComparisonKey(root)).join('\n');
+function getScopeKey(roots: readonly URI[], extUri: IExtUri): string {
+	return roots.map(root => extUri.getComparisonKey(root)).join('\n');
 }
 
-function createScopeAuthority(sessionType: string, roots: readonly URI[]): string {
-	return `${sessionType}-${hash(getScopeKey(roots))}`;
+function createScopeAuthority(sessionType: string, scopeKey: string): string {
+	return `${sessionType}-${hash(scopeKey)}`;
 }
 
 /** Debounce window (ms) used to coalesce bursts of customization change events into a single re-resolution. */

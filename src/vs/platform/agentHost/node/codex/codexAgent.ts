@@ -744,6 +744,13 @@ interface IConnectionReady {
 	readonly child: ChildProcessWithoutNullStreams;
 }
 
+interface ICodexCustomizationLaunch {
+	readonly config: Record<string, JsonValue>;
+	readonly developerInstructions?: string;
+	readonly selectedCapabilityRoots: SelectedCapabilityRoot[];
+	readonly signature: string;
+}
+
 /**
  * `IAgent` implementation backed by `codex app-server`.
  *
@@ -1555,12 +1562,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		return resolved.filter(candidate => candidate !== undefined);
 	}
 
-	private async _buildCustomizationLaunch(session: ICodexSession): Promise<{
-		readonly config: Record<string, JsonValue>;
-		readonly developerInstructions?: string;
-		readonly selectedCapabilityRoots: SelectedCapabilityRoot[];
-		readonly signature: string;
-	}> {
+	private async _buildCustomizationLaunch(session: ICodexSession): Promise<ICodexCustomizationLaunch> {
 		const plugins = this._enabledClientPlugins(session);
 		const workspaceAgents = await discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService);
 		const customization = await codexCustomizationConfig(workspaceAgents.agents, plugins, session.agent, this._fileService);
@@ -4407,6 +4409,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.threadId = undefined;
 		this._sessionIdByThreadId.delete(threadId);
 		this._mcpInventory.deleteThread(threadId);
+		this._applyMcpInventoryToSession(session);
 		try {
 			const conn = await this._ensureConnection();
 			await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
@@ -4590,9 +4593,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		// client tools / MCP servers were known, restart it now — before any
 		// turn commits history, so nothing is lost — so the tools land in
 		// `dynamicTools` and the servers in `config.mcp_servers`.
+		const customizationLaunch = await this._buildCustomizationLaunch(session);
 		const toolsChanged = toolsSignature(session.clientToolSet.merged()) !== session.materializedToolsSig;
 		const mcpChanged = mcpServersSignature(this._buildSessionMcpServers(session)) !== session.materializedMcpSig;
-		const customizationLaunch = await this._buildCustomizationLaunch(session);
 		const customizationsChanged = customizationLaunch.signature !== session.materializedCustomizationsSig;
 		if (session.firstTurnSent && mcpChanged) {
 			this._markSessionForReload(session);
@@ -4639,7 +4642,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 
-		const threadId = session.threadId!;
 		// Buffer the prompt text for `turn/started`'s userMessage fallback.
 		session.lastPromptText = prompt;
 		session.currentTurnId = effectiveTurnId;
@@ -4649,6 +4651,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		const isCompactCommand = parseLeadingSlashCommand(prompt)?.command === CODEX_COMPACT_SLASH_COMMAND;
 		try {
 			if (isCompactCommand) {
+				await this._ensureCurrentLaunchBeforeTurn(session, configResource, conn);
+				const threadId = session.threadId!;
 				await conn.client.request<'thread/compact/start'>('thread/compact/start', { threadId }, this._traceContext(session));
 				session.firstTurnSent = true;
 				return;
@@ -4657,7 +4661,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			cleanupPaths = resolvedInput.cleanupPaths;
 			const model = await this._resolveModel(session);
 			const resolvedModel = parseCodexModelSelection(model);
-			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, customizationLaunch.developerInstructions, configResource);
+			const currentCustomizationLaunch = await this._ensureCurrentLaunchBeforeTurn(session, configResource, conn);
+			const threadId = session.threadId!;
+			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, currentCustomizationLaunch.developerInstructions, configResource);
 			const hostInstructions = resolveAgentHostInstructions(operationContext);
 			await conn.client.request<'turn/start'>('turn/start', {
 				threadId,
@@ -4701,6 +4707,50 @@ export class CodexAgent extends Disposable implements IAgent {
 						try { fs.unlinkSync(p); } catch { /* ignore */ }
 					}
 				}, 30_000);
+			}
+		}
+
+	}
+
+	private async _ensureCurrentLaunchBeforeTurn(session: ICodexSession, configResource: URI, conn: IConnectionReady): Promise<ICodexCustomizationLaunch> {
+		let previousUnresolvedState: string | undefined;
+		while (true) {
+			if (session.disposed) {
+				throw new CancellationError();
+			}
+			const customizationLaunch = await this._buildCustomizationLaunch(session);
+			if (session.disposed) {
+				throw new CancellationError();
+			}
+			const mcpSignature = mcpServersSignature(this._buildSessionMcpServers(session));
+			const toolSignature = toolsSignature(session.clientToolSet.merged());
+			if (mcpSignature === session.materializedMcpSig
+				&& (session.firstTurnSent || toolSignature === session.materializedToolsSig)
+				&& customizationLaunch.signature === session.materializedCustomizationsSig) {
+				return customizationLaunch;
+			}
+			const unresolvedState = JSON.stringify({
+				threadId: session.threadId,
+				materializedMcp: session.materializedMcpSig,
+				materializedTools: session.materializedToolsSig,
+				materializedCustomizations: session.materializedCustomizationsSig,
+				targetMcp: mcpSignature,
+				targetTools: toolSignature,
+				targetCustomizations: customizationLaunch.signature,
+			});
+			if (unresolvedState === previousUnresolvedState) {
+				throw new Error(`Codex launch configuration did not converge for session ${session.sessionId}`);
+			}
+			previousUnresolvedState = unresolvedState;
+			if (session.firstTurnSent) {
+				this._markSessionForReload(session);
+				await this._resumeSession(session, conn);
+			} else {
+				await this._restartThreadWithCurrentTools(session, configResource);
+				this._persistMaterializedSession(session);
+			}
+			if (session.disposed) {
+				throw new CancellationError();
 			}
 		}
 	}
@@ -5141,6 +5191,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				if (!threadId) {
 					throw new Error(`Cannot resume Codex session ${session.sessionId}: no backing thread`);
 				}
+				if (session.disposed) {
+					throw new CancellationError();
+				}
 				const conn = connection ?? await this._ensureConnection();
 				await this._refreshSessionMcpDiscovery(session);
 				if (unsubscribeBeforeResume) {
@@ -5154,6 +5207,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				const multiRootActive = this._isMultiRootActive(session);
 				const runtimeWorkspaceRoots = multiRootActive ? this._runtimeWorkspaceRoots(session) : undefined;
 				const resolvedModel = parseCodexModelSelection(await this._resolveModel(session));
+				if (session.disposed) {
+					throw new CancellationError();
+				}
 				const resumeResult = await conn.client.request<'thread/resume', ThreadResumeResponse>(
 					'thread/resume',
 					buildCodexResumeParams(
@@ -5167,6 +5223,14 @@ export class CodexAgent extends Disposable implements IAgent {
 					),
 					this._traceContext(session),
 				);
+				if (session.disposed) {
+					try {
+						await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
+					} catch (err) {
+						this._logService.info(`[Codex:${threadId}] thread/unsubscribe after disposed resume failed: ${err instanceof Error ? err.message : String(err)}`);
+					}
+					throw new CancellationError();
+				}
 				if (multiRootActive && !session.workingDirectories && resumeResult.runtimeWorkspaceRoots?.length) {
 					session.workingDirectories = resumeResult.runtimeWorkspaceRoots.map(path => URI.file(path));
 					session.workingDirectory = session.workingDirectories[0];
@@ -5175,8 +5239,10 @@ export class CodexAgent extends Disposable implements IAgent {
 				session.materializedCustomizationsSig = customizationLaunch.signature;
 				void this._refreshMcpInventory(conn.client, threadId);
 			})().catch(err => {
-				session.needsResume = true;
-				session.unsubscribeBeforeResume ||= unsubscribeBeforeResume;
+				if (!session.disposed) {
+					session.needsResume = true;
+					session.unsubscribeBeforeResume ||= unsubscribeBeforeResume;
+				}
 				throw err;
 			}).finally(() => {
 				session.resumePromise = undefined;

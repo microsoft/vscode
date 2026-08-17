@@ -97,6 +97,27 @@ suite('copilotPluginConverters', () => {
 
 		});
 
+		test('converts remote/SSE server definitions', () => {
+			const defs: IMcpServerDefinition[] = [{
+				name: 'sse-server',
+				uri: URI.file('/plugin'),
+				configuration: {
+					type: McpServerType.REMOTE,
+					transport: 'sse',
+					url: 'https://example.com/sse',
+				},
+				customization: stubMcpCustomization('sse-server'),
+			}];
+
+			assert.deepStrictEqual(toSdkMcpServers(defs), {
+				'sse-server': {
+					type: 'sse',
+					url: 'https://example.com/sse',
+					tools: ['*'],
+				},
+			});
+		});
+
 		test('handles empty definitions', () => {
 			const result = toSdkMcpServers([]);
 			assert.deepStrictEqual(result, {});

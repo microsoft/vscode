@@ -334,6 +334,111 @@ suite('CodexAgent prewarm eviction', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('prewarm expiry reapplies the global MCP inventory', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = 'prewarm-thread';
+		agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
+		const controller = agent['_getOrCreateMcpController'](entry);
+		assert.ok(controller);
+		agent['_mcpInventory'].setState(null, 'global', { kind: McpServerStatus.Ready });
+		agent['_mcpInventory'].setState(entry.threadId, 'workspace', { kind: McpServerStatus.Ready });
+		agent['_applyMcpInventoryToSession'](entry);
+		const before = controller.topLevelCustomizations().map(customization => customization.name).sort();
+
+		const expiring = agent['_expirePrewarm'](entry);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		await expiring;
+
+		assert.deepStrictEqual({
+			before,
+			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+			after: controller.topLevelCustomizations().map(customization => customization.name).sort(),
+		}, {
+			before: ['global', 'workspace'],
+			unsubscribe: { method: 'thread/unsubscribe', threadId: 'prewarm-thread' },
+			after: ['global'],
+		});
+		peer.exit();
+	});
+
+	test('MCP invalidation during customization launch restarts before the first turn', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const customizationLaunchStarted = new DeferredPromise<void>();
+		const releaseCustomizationLaunch = new DeferredPromise<void>();
+		let sendError: string | undefined;
+		const readRequest = async (label: string) => {
+			try {
+				return await readNextRequest(peer.outbound);
+			} catch (error) {
+				throw new Error(`${label}: ${error instanceof Error ? error.message : String(error)}; sendError=${sendError ?? '(none)'}; threadId=${entry.threadId ?? '(none)'}`);
+			}
+		};
+		const sending = agent.chats.sendMessage(defaultChatOf(session), 'hello', undefined, undefined, 'turn-1');
+		void sending.catch(error => { sendError = error instanceof Error ? error.message : String(error); });
+		const initialStart = await readRequest('initial thread/start');
+		agent['_buildCustomizationLaunch'] = async () => {
+			if (!customizationLaunchStarted.isSettled) {
+				customizationLaunchStarted.complete();
+			}
+			await releaseCustomizationLaunch.p;
+			return {
+				config: {},
+				developerInstructions: 'Use current instructions.',
+				selectedCapabilityRoots: [],
+				signature: entry.materializedCustomizationsSig ?? '',
+			};
+		};
+		peer.push({ id: initialStart.id, result: { thread: { id: 'stale-thread' } } });
+		await customizationLaunchStarted.p;
+		entry.materializedMcpSig = undefined;
+		releaseCustomizationLaunch.complete();
+
+		const unsubscribe = await readRequest('stale thread/unsubscribe');
+		assert.deepStrictEqual({ method: unsubscribe.method, threadId: unsubscribe.params.threadId }, { method: 'thread/unsubscribe', threadId: 'stale-thread' });
+		peer.push({ id: unsubscribe.id, result: {} });
+		const replacementStart = await readRequest('replacement thread/start');
+		peer.push({ id: replacementStart.id, result: { thread: { id: 'current-thread' } } });
+		const turn = await readRequest('turn/start');
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual([
+			{ method: initialStart.method },
+			{ method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+			{ method: replacementStart.method },
+			{ method: turn.method, threadId: turn.params.threadId, developerInstructions: turn.params.collaborationMode?.settings.developer_instructions },
+		], [
+			{ method: 'thread/start' },
+			{ method: 'thread/unsubscribe', threadId: 'stale-thread' },
+			{ method: 'thread/start' },
+			{ method: 'turn/start', threadId: 'current-thread', developerInstructions: 'Use current instructions.' },
+		]);
+		peer.exit();
+	});
+
 	test('lists Codex Desktop chats without a chosen folder as workspace-less', async () => {
 		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());

@@ -90,7 +90,7 @@ function toSdkMcpServer(_name: string, config: IMcpServerConfiguration, defaultC
 		};
 	}
 	return {
-		type: 'http',
+		type: config.transport === 'sse' ? 'sse' : 'http',
 		url: config.url,
 		tools: ['*'],
 		...(config.headers && { headers: { ...config.headers } }),

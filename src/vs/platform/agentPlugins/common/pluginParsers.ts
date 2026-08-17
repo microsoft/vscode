@@ -475,6 +475,7 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 
 	const candidate = rawConfig as Record<string, unknown>;
 	const type = typeof candidate['type'] === 'string' ? candidate['type'] : undefined;
+	const transport = candidate['transport'] === 'sse' || candidate['transport'] === 'http' ? candidate['transport'] : undefined;
 
 	const command = typeof candidate['command'] === 'string' ? candidate['command'] : undefined;
 	const url = typeof candidate['url'] === 'string' ? candidate['url'] : undefined;
@@ -508,7 +509,7 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 		if (!url) {
 			return undefined;
 		}
-		return { type: McpServerType.REMOTE, ...(type === 'sse' ? { transport: 'sse' as const } : {}), url, headers, dev };
+		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, dev };
 	}
 
 	return undefined;
