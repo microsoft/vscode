@@ -159,6 +159,13 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boo
 const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility'];
 
 /**
+ * Model ids published under the copilot vendor even when they are not shown in
+ * the model picker, so utility callers (e.g. dictation cleanup and its
+ * `dictationLlmCleanupModel` experiment) can resolve them by id.
+ */
+const alwaysPublishedUtilityModels: ReadonlySet<string> = new Set(['gpt-4o-mini', 'gpt-5.6-luna']);
+
+/**
  * Builds the {@link vscode.LanguageModelChatInformation} entry that publishes a
  * utility-family alias (e.g. `copilot-utility-small`) under the copilot vendor.
  *
@@ -310,7 +317,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		if (!allEndpoints.length) {
 			return this._currentModels;
 		}
-		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
+		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || alwaysPublishedUtilityModels.has(e.model));
 		const autoEndpoint = await this._automodeService.resolveAutoModePickerEndpoint(allEndpoints);
 		chatEndpoints.push(autoEndpoint);
 		let defaultChatEndpoint: IChatEndpoint;

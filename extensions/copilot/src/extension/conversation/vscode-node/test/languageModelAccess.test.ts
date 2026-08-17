@@ -434,6 +434,76 @@ suite('LanguageModelAccess model info', () => {
 			await extensionContext.globalState.update(baseCountCacheKey, undefined);
 		}
 	});
+
+	test('publishes hidden gpt-5.6-luna so the dictation cleanup experiment can resolve it, but not unrelated hidden models', async () => {
+		const makeHiddenEndpoint = (model: string): IChatEndpoint => ({
+			model,
+			name: model,
+			family: model,
+			version: '1',
+			modelProvider: 'copilot',
+			modelMaxPromptTokens: 128_000,
+			maxOutputTokens: 4_096,
+			supportsToolCalls: true,
+			supportsVision: false,
+			supportsPrediction: false,
+			showInModelPicker: false,
+			isFallback: false,
+			tokenizer: TokenizerType.O200K,
+			urlOrRequestMetadata: '',
+		} as unknown as IChatEndpoint);
+		const lunaEndpoint = makeHiddenEndpoint('gpt-5.6-luna');
+		const otherEndpoint = makeHiddenEndpoint('some-hidden-model');
+		const copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'token', username: 'fake', copilot_plan: 'unknown' }));
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(ICopilotTokenManager, {
+			_serviceBrand: undefined,
+			onDidCopilotTokenRefresh: Event.None,
+			getCopilotToken: async () => copilotToken,
+			resetCopilotToken: () => { },
+		} as unknown as ICopilotTokenManager);
+		testingServiceCollection.define(IAutomodeService, {
+			_serviceBrand: undefined,
+			resolveAutoModeEndpoint: async () => lunaEndpoint,
+			resolveAutoModePickerEndpoint: async () => lunaEndpoint,
+			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
+			areAutoModeTiersSupported: () => false,
+			onDidChangeAutoModeTierSupport: Event.None,
+			consumeLastRoutingDecision: () => undefined,
+			invalidateRouterCache: () => { },
+		} as unknown as IAutomodeService);
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [lunaEndpoint, otherEndpoint],
+			getChatEndpoint: async () => lunaEndpoint,
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const extensionContext = accessor.get(IVSCodeExtensionContext);
+		const version = accessor.get(IEnvService).getVersion();
+		await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', { extensionVersion: version, baseCount: 0 });
+		await extensionContext.globalState.update('lmBaseCount/some-hidden-model', { extensionVersion: version, baseCount: 0 });
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		try {
+			const modelInfo = await raceTimeout((languageModelAccess as unknown as { _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> })._provideLanguageModelChatInfo({ silent: true }, CancellationToken.None), 2_000);
+			assert.ok(modelInfo, 'provideLanguageModelChatInfo did not resolve');
+			assert.deepStrictEqual({
+				lunaPublished: modelInfo.some(m => m.id === 'gpt-5.6-luna'),
+				lunaUserSelectable: modelInfo.find(m => m.id === 'gpt-5.6-luna')?.isUserSelectable,
+				otherPublished: modelInfo.some(m => m.id === 'some-hidden-model'),
+			}, {
+				lunaPublished: true,
+				lunaUserSelectable: false,
+				otherPublished: false,
+			});
+		} finally {
+			languageModelAccess.dispose();
+			await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', undefined);
+			await extensionContext.globalState.update('lmBaseCount/some-hidden-model', undefined);
+		}
+	});
 });
 
 suite('buildUtilityAliasModelInfo', () => {
