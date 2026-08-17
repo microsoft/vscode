@@ -491,7 +491,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const widget: ChatWidget = this._windowDisposables.add(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
-			{ isQuickChat: true },
+			{ isQuickChat: true, isChatInputWindow: true },
 			{
 				autoScroll: true,
 				renderInputOnTop: true,
@@ -933,7 +933,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const widget = this._windowDisposables.add(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
-			{ isQuickChat: true },
+			{ isQuickChat: true, isChatInputWindow: true },
 			{
 				autoScroll: true,
 				renderInputOnTop: true,

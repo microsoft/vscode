@@ -154,6 +154,10 @@ function isInlineChat(widget: IChatWidget): boolean {
 	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isInlineChat);
 }
 
+export function isChatInputWindow(widget: IChatWidget): boolean {
+	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isChatInputWindow);
+}
+
 export function getImmediateSilentSlashCommandPart(parsedRequest: IParsedChatRequest): ChatRequestSlashCommandPart | undefined {
 	return parsedRequest.parts.find((part): part is ChatRequestSlashCommandPart =>
 		part instanceof ChatRequestSlashCommandPart
