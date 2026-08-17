@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient } from '@github/copilot-sdk';
+import { CopilotClient, defineTool } from '@github/copilot-sdk';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
@@ -20,10 +20,11 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('bundled SDK consumes structured reasoning and text from the proxy', async function () {
+	test('bundled SDK preserves parameterless tools, tool continuations, reasoning, and text', async function () {
 		this.timeout(120_000);
 
 		const sessionId = 'byok-responses-integration';
+		const parameterlessToolName = 'parameterless_tool';
 		const baseDirectory = await mkdtemp(`${tmpdir()}/byok-responses-sdk-`);
 		const models = store.add(new Emitter<IByokLmModelInfo[]>());
 		const registry = new ByokLmBridgeRegistry();
@@ -31,9 +32,15 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 		const registration = registry.register('client', {
 			chat: async request => {
 				captured.push(request);
-				if (captured.length > 1) {
+				if (captured.length === 2) {
 					return {
 						responseId: 'resp_provider_2',
+						output: [{ type: 'message', content: [{ type: 'text', text: 'hello' }] }],
+					};
+				}
+				if (captured.length > 2) {
+					return {
+						responseId: 'resp_provider_3',
 						output: [{ type: 'message', content: [{ type: 'text', text: 'second' }] }],
 					};
 				}
@@ -41,7 +48,7 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 					responseId: 'resp_provider',
 					output: [
 						{ type: 'reasoning', id: 'rs_provider', summary: ['considered options'], encryptedContent: 'opaque' },
-						{ type: 'message', content: [{ type: 'text', text: 'hello' }] },
+						{ type: 'function_call', callId: 'call_provider', name: parameterlessToolName, argumentsJson: '{}' },
 					],
 					usage: { inputTokens: 1, outputTokens: 2, reasoningTokens: 1 },
 				};
@@ -69,7 +76,13 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				sessionId,
 				model: 'test-model',
 				reasoningEffort: 'medium',
-				availableTools: [],
+				availableTools: [parameterlessToolName],
+				tools: [defineTool(parameterlessToolName, {
+					description: 'A parameterless integration test tool.',
+					defer: 'never',
+					handler: async () => 'ok',
+					skipPermission: true,
+				})],
 				provider: {
 					type: 'openai',
 					wireApi: 'responses',
@@ -83,6 +96,8 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 			const result = await session.sendAndWait({ prompt: 'Reply exactly hello.' }, 30_000);
 			const secondResult = await session.sendAndWait({ prompt: 'Reply exactly second.' }, 30_000);
 			const replayedReasoning = captured[1]?.input.find(item => item.type === 'reasoning');
+			const toolOutput = captured[1]?.input.find(item => item.type === 'function_call_output');
+			const parameterlessTool = captured[0]?.tools?.find(tool => tool.name === parameterlessToolName);
 
 			assert.deepStrictEqual({
 				result: result?.type === 'assistant.message' ? result.data.content : undefined,
@@ -94,6 +109,16 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 					inputTypes: captured[0]?.input.map(item => item.type),
 					reasoningEffort: captured[0]?.reasoningEffort,
 				},
+				parameterlessTool: parameterlessTool?.type === 'function' ? {
+					type: parameterlessTool.type,
+					name: parameterlessTool.name,
+					parametersSchema: parameterlessTool.parametersSchema,
+				} : undefined,
+				toolContinuation: {
+					previousResponseId: captured[1]?.previousResponseId,
+					inputTypes: captured[1]?.input.map(item => item.type),
+					toolOutput,
+				},
 				replayedReasoning,
 			}, {
 				result: 'hello',
@@ -104,6 +129,20 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 					modelId: 'test-model',
 					inputTypes: ['message'],
 					reasoningEffort: 'medium',
+				},
+				parameterlessTool: {
+					type: 'function',
+					name: parameterlessToolName,
+					parametersSchema: { type: 'object', properties: {} },
+				},
+				toolContinuation: {
+					previousResponseId: undefined,
+					inputTypes: ['message', 'reasoning', 'function_call', 'function_call_output'],
+					toolOutput: {
+						type: 'function_call_output',
+						callId: 'call_provider',
+						output: 'ok',
+					},
 				},
 				replayedReasoning: {
 					type: 'reasoning',
