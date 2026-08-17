@@ -7,15 +7,15 @@ import assert from 'assert';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { inFolderNamespace } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
+import { toFolderNamespace } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
 
-suite('inFolderNamespace', () => {
+suite('toFolderNamespace', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const remoteFolder = URI.parse('vscode-remote://dev-container%2Babc/workspace/printstream');
 	const contains = (directory: URI, folder: URI) =>
-		extUriBiasedIgnorePathCase.isEqualOrParent(inFolderNamespace(directory, folder), folder);
+		extUriBiasedIgnorePathCase.isEqualOrParent(toFolderNamespace(directory, folder), folder);
 
 	test('a remote host reporting its own file: path matches the window folder', () => {
 		// What the host actually emits for a session in a dev container, against

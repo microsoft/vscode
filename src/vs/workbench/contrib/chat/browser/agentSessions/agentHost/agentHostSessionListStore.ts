@@ -41,7 +41,7 @@ export interface IAgentHostSessionListConnection {
  * such a window is the remote's own host, so its paths belong to the same
  * filesystem the folder names.
  */
-export function inFolderNamespace(directory: URI, folder: URI): URI {
+export function toFolderNamespace(directory: URI, folder: URI): URI {
 	if (directory.scheme !== Schemas.file || folder.scheme === Schemas.file || !folder.authority) {
 		return directory;
 	}
@@ -423,7 +423,7 @@ export class AgentHostSessionListStore extends Disposable {
 
 	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
 		return workingDirectories.some(directory =>
-			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(inFolderNamespace(directory, folder.uri), folder.uri))
+			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(toFolderNamespace(directory, folder.uri), folder.uri))
 		);
 	}
 
