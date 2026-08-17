@@ -657,33 +657,29 @@ suite('SessionServerTools', () => {
 	});
 
 	test('repeated rename tool calls each apply their requested title', async () => {
-		const firstRenameStarted = new DeferredPromise<void>();
+		const bothRenamesStarted = new DeferredPromise<void>();
 		const releaseFirstRename = new DeferredPromise<void>();
-		const secondRenameCompleted = new DeferredPromise<void>();
 		const titles: string[] = [];
 		const accessor = createAccessor({
 			renameChat: async (_session, _chat, title) => {
 				titles.push(title);
 				if (titles.length === 1) {
-					await firstRenameStarted.complete();
 					await releaseFirstRename.p;
 				} else {
-					await secondRenameCompleted.complete();
+					await bothRenamesStarted.complete();
 				}
 				return { title };
 			},
 		});
 		const first = await applyRenameChatTool(accessor, { chat: 'agent-host-session://copilot/s1', title: 'Named Once' });
 		const second = await applyRenameChatTool(accessor, { chat: 'agent-host-session://copilot/s1', title: 'Renamed Again' });
-		await firstRenameStarted.p;
-		assert.deepStrictEqual({ first, second, titlesBeforeFirstCompleted: titles }, {
+		await bothRenamesStarted.p;
+		assert.deepStrictEqual({ first, second, titles }, {
 			first: 'Renaming chat.',
 			second: 'Renaming chat.',
-			titlesBeforeFirstCompleted: ['Named Once'],
+			titles: ['Named Once', 'Renamed Again'],
 		});
 		await releaseFirstRename.complete();
-		await secondRenameCompleted.p;
-		assert.deepStrictEqual(titles, ['Named Once', 'Renamed Again']);
 	});
 
 	test('create_chat inherits the calling chat model when no override is provided', async () => {

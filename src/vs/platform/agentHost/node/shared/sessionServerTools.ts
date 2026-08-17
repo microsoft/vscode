@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../base/common/async.js';
 import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -162,7 +161,7 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: SessionServerToolName.RenameChat,
 		title: 'Rename Chat',
-		description: 'Rename one specific chat so it is easy to find later. When a session has only its default chat, renaming that chat also names the session. Once the session has multiple chats, only the targeted chat is renamed. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Name a fresh chat once its scope is clear, typically soon after `create_chat` or early in that chat. Call this tool again whenever the user explicitly asks to rename the chat; every invocation replaces the current title. The rename is applied asynchronously, so this tool returns before persistence completes.',
+		description: 'Rename one specific chat so it is easy to find later. When a session has only its default chat, renaming that chat also names the session. Once the session has multiple chats, only the targeted chat is renamed. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Name a fresh chat once its scope is clear, typically soon after `create_chat` or early in that chat. Call this tool again whenever the user explicitly asks to rename the chat; every invocation replaces the current title.',
 		inputSchema: renameChatInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -231,8 +230,6 @@ export interface ISessionServerToolAccessor {
 export interface IRenameTitleResult {
 	readonly title: string;
 }
-
-const renameChatSequencers = new WeakMap<ISessionServerToolAccessor, Sequencer>();
 
 export interface ISessionCreationDefaults {
 	readonly provider?: AgentProvider;
@@ -877,17 +874,12 @@ function getRenameChatSession(rawArgs: unknown, currentChannel?: ProtocolURI): U
 }
 
 export async function applyRenameChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): Promise<string> {
-	let sequencer = renameChatSequencers.get(accessor);
-	if (!sequencer) {
-		sequencer = new Sequencer();
-		renameChatSequencers.set(accessor, sequencer);
-	}
-	void sequencer.queue(async () => {
+	void (async () => {
 		const targetSession = getRenameChatSession(rawArgs, currentChannel);
 		const metadata = await accessor.getSession(targetSession);
 		const { session, chat, title } = getRenameChatArgs(rawArgs, metadata ? [metadata] : [], currentChannel);
 		await accessor.renameChat(session, chat, title);
-	}).catch(error => accessor.reportToolError(SessionServerToolName.RenameChat, error));
+	})().catch(error => accessor.reportToolError(SessionServerToolName.RenameChat, error));
 	return 'Renaming chat.';
 }
 
