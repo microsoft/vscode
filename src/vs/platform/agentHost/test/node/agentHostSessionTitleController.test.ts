@@ -173,7 +173,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
-		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please call the `rename_chat` tool with `automatic: true` to give it a short, descriptive title based on the user\'s intent. Do not skip it.');
+		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please call the `rename_chat` tool with `automatic: true` to give it a short, descriptive title based on the user\'s intent. Do not mention the automatic rename. Do not skip it.');
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
 	});
 
@@ -237,7 +237,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
 
 		const instruction = await controller.prepareInstructionForAgent(session.toString(), chat);
-		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please call the `rename_chat` tool with `automatic: true` to give it a short, descriptive title based on the user\'s intent. Do not skip it.');
+		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please call the `rename_chat` tool with `automatic: true` to give it a short, descriptive title based on the user\'s intent. Do not mention the automatic rename. Do not skip it.');
 
 		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked: Session title', 'Session title');
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
@@ -265,7 +265,7 @@ suite('AgentHostSessionTitleController', () => {
 			independentAutoInstruction,
 		}, {
 			independentRenameInstruction: undefined,
-			independentAutoInstruction: 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please call the `rename_chat` tool with `automatic: true` to give it a short, descriptive title based on the user\'s intent. Do not skip it.',
+			independentAutoInstruction: 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please call the `rename_chat` tool with `automatic: true` to give it a short, descriptive title based on the user\'s intent. Do not mention the automatic rename. Do not skip it.',
 		});
 	});
 
