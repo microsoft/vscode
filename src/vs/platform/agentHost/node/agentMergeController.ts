@@ -14,7 +14,7 @@ import { IGitHubService } from '../../github/common/githubService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeAction, AgentMergeConfigKey, AgentMergeConfiguration, AgentMergePromptContext, AgentMergeSessionState, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergePromptContext, AgentMergeRepairAction, AgentMergeSessionState, AgentMergeTarget, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
@@ -27,12 +27,12 @@ import { IAgentMergeTurnContext } from './agentMergeTools.js';
 
 const snapshotDebounce = 30_000;
 const backstopInterval = 10 * 60_000;
-const maximumPromptCommentLength = 2_000;
 const maximumRepeatedPromptCount = 3;
 const maximumTotalPromptCount = 6;
 
 interface IAgentMergeControllerOptions {
 	readonly startTurn: (session: string, turnId: string, prompt: string) => boolean;
+	readonly cancelTurn: (session: string, turnId: string) => void;
 	readonly getAutonomousSessionConfig: (session: string, config: Readonly<Record<string, unknown>>) => Record<string, unknown> | undefined;
 }
 
@@ -162,7 +162,11 @@ export class AgentMergeController extends Disposable {
 			this._stopRuntime(session);
 			return;
 		}
-		this._ensureInjectedConfiguration(session, agentMerge);
+		// Widening approvals mid-turn would hand extra capability to a turn this
+		// controller does not own, so injection waits for an idle session.
+		if (!this._stateManager.hasActiveTurn(session)) {
+			this._reconcileInjectedConfiguration(session, agentMerge);
+		}
 		let runtime = this._runtimes.get(session);
 		if (!runtime) {
 			runtime = new AgentMergeRuntime(session, () => this._queueEvaluation(session));
@@ -176,25 +180,44 @@ export class AgentMergeController extends Disposable {
 		return this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) ?? false;
 	}
 
-	private _ensureInjectedConfiguration(session: string, agentMerge: AgentMergeSessionState): void {
-		if (agentMerge.injectedConfiguration) {
-			return;
-		}
+	/**
+	 * Applies the provider's current autonomous configuration, recomputing it every
+	 * cycle so a tightened managed policy revokes elevated approvals it previously
+	 * granted. The originally observed user values are preserved for restore.
+	 */
+	private _reconcileInjectedConfiguration(session: string, agentMerge: AgentMergeSessionState): void {
 		const values = this._configurationService.getSessionConfigValues(session) ?? {};
-		const applied = this._options.getAutonomousSessionConfig(session, values);
-		if (!applied || Object.keys(applied).length === 0) {
+		const injected = agentMerge.injectedConfiguration;
+		const applied = this._options.getAutonomousSessionConfig(session, values) ?? {};
+		if (!injected && Object.keys(applied).length === 0) {
 			this._logService.debug(`[AgentMergeController] Provider did not select autonomous session configuration: session=${session}`);
 			return;
 		}
+
 		const previous: Record<string, unknown> = {};
-		for (const key of Object.keys(applied)) {
-			previous[key] = values[key];
+		const patch: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(applied)) {
+			previous[key] = injected && Object.hasOwn(injected.previous, key) ? injected.previous[key] : values[key];
+			if (!structuralEquals(values[key], value)) {
+				patch[key] = value;
+			}
 		}
-		const injectedConfiguration = { previous, applied };
-		this._logService.info(`[AgentMergeController] Applying provider-selected autonomous session configuration: session=${session}, keys=${Object.keys(applied).sort().join(',')}`);
+		// A key the provider no longer selects (e.g. policy revoked it) is rolled
+		// back, but only while it still holds the value this controller applied.
+		for (const [key, appliedValue] of Object.entries(injected?.applied ?? {})) {
+			if (!Object.hasOwn(applied, key) && structuralEquals(values[key], appliedValue)) {
+				patch[key] = injected!.previous[key];
+			}
+		}
+
+		const nextInjected = Object.keys(applied).length > 0 ? { previous, applied } : undefined;
+		if (Object.keys(patch).length === 0 && structuralEquals(injected, nextInjected)) {
+			return;
+		}
+		this._logService.info(`[AgentMergeController] Reconciled autonomous session configuration: session=${session}, applied=${Object.keys(applied).sort().join(',') || 'none'}, changed=${Object.keys(patch).sort().join(',') || 'none'}`);
 		this._configurationService.updateSessionConfig(session, {
-			[SessionConfigKey.AgentMergeController]: toControllerState(agentMerge, { injectedConfiguration }),
-			...applied,
+			[SessionConfigKey.AgentMergeController]: toControllerState(agentMerge, { injectedConfiguration: nextInjected }),
+			...patch,
 		});
 	}
 
@@ -306,6 +329,10 @@ export class AgentMergeController extends Disposable {
 		if (!this._isCurrentRuntime(session, runtime)) {
 			return;
 		}
+		if (!ref) {
+			this._disable(session, agentMerge, 'the bound pull request belongs to a different GitHub host than the signed-in account');
+			return;
+		}
 		const subscription = await this._ensureSubscription(session, runtime, ref);
 		if (!subscription || !this._isCurrentRuntime(session, runtime)) {
 			return;
@@ -355,9 +382,10 @@ export class AgentMergeController extends Disposable {
 					commentWatermark: gate.context.commentWatermark,
 				};
 				if (!this._isCurrentRuntime(session, runtime)
+					|| !this._isTargetStillCurrent(session, target)
 					|| this._stateManager.hasActiveTurn(session)
 					|| !this._options.startTurn(session, turnId, buildAgentMergePrompt(gate.actions, gate.context))) {
-					this._logService.debug(`[AgentMergeController] Repair turn was not claimed because the session became busy or stopped: session=${session}`);
+					this._logService.debug(`[AgentMergeController] Repair turn was not claimed because the session became busy, retargeted, or stopped: session=${session}`);
 					runtime.backstopScheduler.schedule();
 					return;
 				}
@@ -387,9 +415,15 @@ export class AgentMergeController extends Disposable {
 		}
 	}
 
-	private async _resolveRef(parsed: { readonly owner: string; readonly repo: string; readonly number: number }, signal: AbortSignal): Promise<PullRequestRef> {
+	private async _resolveRef(parsed: IParsedPullRequestUrl, signal: AbortSignal): Promise<PullRequestRef | undefined> {
 		const credential = await this._gitHubService.credentials.getCredential(signal);
-		return { ...credential.account, ...parsed };
+		// The bound pull request URL carries its own host: after a restore or an
+		// endpoint switch the same owner/repo/number can name a different GitHub
+		// instance, which must never be acted on with this account's credential.
+		if (credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
+			return undefined;
+		}
+		return { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
 	}
 
 	private async _ensureSubscription(session: string, runtime: AgentMergeRuntime, ref: PullRequestRef): Promise<PullRequestSubscription | undefined> {
@@ -452,10 +486,31 @@ export class AgentMergeController extends Disposable {
 
 	private _canRepairFork(snapshot: PullRequestSnapshot): boolean {
 		const core = snapshot.core.value;
-		if (!core?.headRepositoryNameWithOwner || core.headRepositoryNameWithOwner.toLowerCase() === core.repositoryNameWithOwner.toLowerCase()) {
+		if (!core) {
+			return false;
+		}
+		if (!core.headRepositoryNameWithOwner) {
+			// Without head provenance the host cannot establish whether pushes to the
+			// pull request branch are permitted, so it waits for complete state.
+			return false;
+		}
+		if (core.headRepositoryNameWithOwner.toLowerCase() === core.repositoryNameWithOwner.toLowerCase()) {
 			return true;
 		}
 		return core.maintainerCanModify === true;
+	}
+
+	/** Whether the session still sits on the branch and pull request this run was authorized for. */
+	private _isTargetStillCurrent(session: string, target: AgentMergeTarget): boolean {
+		const state = this._stateManager.getSessionState(session);
+		if (!this._hasTargetBranch(state, target.branchName)) {
+			return false;
+		}
+		if (!target.pullRequestUrl) {
+			return true;
+		}
+		const pullRequestUrl = getSessionRelatedPullRequestUrls(readSessionGitHubState(state?._meta))[0];
+		return !pullRequestUrl || pullRequestUrl.toLowerCase() === target.pullRequestUrl.toLowerCase();
 	}
 
 	private async _merge(session: string, runtime: AgentMergeRuntime, ref: PullRequestRef, snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, agentMerge: AgentMergeSessionState): Promise<void> {
@@ -465,13 +520,41 @@ export class AgentMergeController extends Disposable {
 			runtime.backstopScheduler.schedule();
 			return;
 		}
+		// `prepareMerge` refreshes everything the merge gate reads except top-level
+		// comments, which would otherwise let a merge race a new maintainer comment.
+		await runtime.subscription.value?.refresh('topLevelComments', runtime.cancellation.token, { authoritative: true });
+		if (!this._isCurrentRuntime(session, runtime)) {
+			return;
+		}
 		const preparation = await this._gitHubService.mutations.prepareMerge(ref, headSha, runtime.abortController.signal);
 		this._logService.debug(`[AgentMergeController] Native merge preparation completed: session=${session}`);
-		if (!this._isCurrentRuntime(session, runtime) || this._stateManager.hasActiveTurn(session) || !this._hasTargetBranch(this._stateManager.getSessionState(session), agentMerge.target!.branchName)) {
+		if (!this._isCurrentRuntime(session, runtime) || this._stateManager.hasActiveTurn(session)) {
 			runtime.backstopScheduler.schedule();
 			return;
 		}
-		const freshGate = evaluateAgentMerge(preparation.snapshot, configuration, agentMerge.target!.commentWatermark);
+		// Authorization can be withdrawn while preparation is in flight, so the
+		// merge is re-authorized against live state rather than the captured copy.
+		const currentState = readAgentMergeSessionState(this._stateManager.getSessionState(session)?.config?.values);
+		const currentTarget = currentState?.target;
+		if (!currentState?.enabled
+			|| !currentTarget
+			|| !this._isTargetStillCurrent(session, currentTarget)
+			|| currentTarget.pullRequestUrl !== agentMerge.target?.pullRequestUrl) {
+			this._logService.info(`[AgentMergeController] Native merge abandoned because authorization or target changed: session=${session}`);
+			runtime.backstopScheduler.schedule();
+			return;
+		}
+		const currentConfiguration = this._getConfiguration(currentState);
+		if (!currentConfiguration.mergePullRequest) {
+			this._logService.info(`[AgentMergeController] Native merge abandoned because automatic merge was switched off: session=${session}`);
+			runtime.backstopScheduler.schedule();
+			return;
+		}
+		const snapshotWithComments: PullRequestSnapshot = {
+			...preparation.snapshot,
+			topLevelComments: runtime.subscription.value?.resource.snapshot.get().topLevelComments ?? preparation.snapshot.topLevelComments,
+		};
+		const freshGate = evaluateAgentMerge(snapshotWithComments, currentConfiguration, currentTarget.commentWatermark);
 		if (freshGate.kind !== 'merge') {
 			this._logService.info(`[AgentMergeController] Native merge aborted after fresh readiness check: session=${session}, outcome=${freshGate.kind}`);
 			this._schedule(session, 0);
@@ -479,7 +562,7 @@ export class AgentMergeController extends Disposable {
 		}
 		const authorization = {
 			confirmed: true as const,
-			authorizationId: `${agentMerge.target!.enabledAt}:${agentMerge.target!.pullRequestUrl}`,
+			authorizationId: `${currentTarget.enabledAt}:${currentTarget.pullRequestUrl}`,
 		};
 		if (preparation.snapshot.mergeability.value!.mergeQueueRequired) {
 			const result = await this._gitHubService.mutations.enqueue(preparation, authorization, runtime.abortController.signal);
@@ -487,7 +570,7 @@ export class AgentMergeController extends Disposable {
 			runtime.backstopScheduler.schedule();
 			return;
 		}
-		const method = resolveMergeMethod(configuration.mergeMethod, preparation.snapshot.mergeability.value!.allowedMergeMethods);
+		const method = resolveMergeMethod(currentConfiguration.mergeMethod, preparation.snapshot.mergeability.value!.allowedMergeMethods);
 		if (!method) {
 			this._logService.warn(`[AgentMergeController] No allowed merge method is available for ${session}`);
 			runtime.backstopScheduler.schedule();
@@ -495,7 +578,7 @@ export class AgentMergeController extends Disposable {
 		}
 		const result = await this._gitHubService.mutations.merge(preparation, { method, authorization }, runtime.abortController.signal);
 		this._logService.info(`[AgentMergeController] Pull request merged natively: session=${session}, method=${method}, outcome=${result.outcome}`);
-		this._disable(session, agentMerge, 'the pull request was merged');
+		this._disable(session, currentState, 'the pull request was merged');
 	}
 
 	private async _completeTurn(session: string): Promise<void> {
@@ -563,7 +646,16 @@ export class AgentMergeController extends Disposable {
 	}
 
 	private _stopRuntime(session: string): void {
-		this._activeTurns.delete(session);
+		// A repair turn started by this controller must not keep running with the
+		// elevated capabilities that Agent Merge granted it.
+		const context = this._activeTurns.get(session);
+		if (context) {
+			this._activeTurns.delete(session);
+			if (this._stateManager.getSessionState(session)?.activeTurn?.id === context.turnId) {
+				this._logService.info(`[AgentMergeController] Cancelling repair turn because Agent Merge stopped: session=${session}, turn=${context.turnId}`);
+				this._options.cancelTurn(session, context.turnId);
+			}
+		}
 		if (this._runtimes.has(session)) {
 			this._runtimes.deleteAndDispose(session);
 			this._logService.debug(`[AgentMergeController] Disposed session runtime: session=${session}`);
@@ -595,7 +687,15 @@ export class AgentMergeController extends Disposable {
 	}
 }
 
-function parsePullRequestUrl(value: string): { readonly owner: string; readonly repo: string; readonly number: number } | undefined {
+interface IParsedPullRequestUrl {
+	readonly owner: string;
+	readonly repo: string;
+	readonly number: number;
+	/** REST API host the credential account must match (`api.github.com` for github.com). */
+	readonly apiHost: string;
+}
+
+function parsePullRequestUrl(value: string): IParsedPullRequestUrl | undefined {
 	let url: URL;
 	try {
 		url = new URL(value);
@@ -604,9 +704,16 @@ function parsePullRequestUrl(value: string): { readonly owner: string; readonly 
 	}
 	const match = /^\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url.pathname);
 	const number = Number(match?.groups?.number);
-	return match?.groups && Number.isSafeInteger(number) && number > 0
-		? { owner: match.groups.owner, repo: match.groups.repo, number }
-		: undefined;
+	if (!match?.groups || !Number.isSafeInteger(number) || number <= 0) {
+		return undefined;
+	}
+	const host = url.host.toLowerCase();
+	return {
+		owner: match.groups.owner,
+		repo: match.groups.repo,
+		number,
+		apiHost: host === 'github.com' || host === 'www.github.com' ? 'api.github.com' : host,
+	};
 }
 
 function sameRef(left: PullRequestRef, right: PullRequestRef): boolean {
@@ -633,13 +740,13 @@ function resolveMergeMethod(configured: AgentMergeConfiguration['mergeMethod'], 
 	return (['SQUASH', 'MERGE', 'REBASE'] as const).find(method => allowed.includes(method));
 }
 
-function buildAgentMergePrompt(actions: readonly AgentMergeAction[], context: AgentMergePromptContext): string {
+function buildAgentMergePrompt(actions: readonly AgentMergeRepairAction[], context: AgentMergePromptContext): string {
 	const actionLabels = actions.map(action => {
 		switch (action) {
-			case 'addressReviews': return 'address review feedback';
 			case 'fixCI': return 'fix failed required CI checks';
 			case 'resolveConflicts': return 'resolve conflicts or update the behind branch';
-			case 'mergePullRequest': return 'merge the pull request';
+			case 'addressReviews':
+			default: return 'address review feedback';
 		}
 	});
 	const details = [
@@ -648,8 +755,8 @@ function buildAgentMergePrompt(actions: readonly AgentMergeAction[], context: Ag
 		`Head: ${context.headRef} (${context.headSha})`,
 		`Base: ${context.baseRef}`,
 		`Unresolved authorized review threads:\n${formatReviewThreads(context.reviewThreads)}`,
-		`Changes-requested reviews: ${truncatePromptItems(context.reviewSummaries)}`,
-		`New authorized comments: ${truncatePromptItems(context.newComments)}`,
+		`Changes-requested reviews: ${formatFeedbackComments(context.reviewSummaries)}`,
+		`New authorized comments: ${formatFeedbackComments(context.newComments)}`,
 		`Failed required checks: ${context.failedChecks.join(', ') || 'none'}`,
 		`Behind base: ${context.behind ? 'yes' : 'no'}`,
 		`Conflicting: ${context.conflicting ? 'yes' : 'no'}`,
@@ -668,11 +775,15 @@ function buildAgentMergePrompt(actions: readonly AgentMergeAction[], context: Ag
 	].join('\n');
 }
 
-function truncatePromptItems(values: readonly string[]): string {
-	if (values.length === 0) {
+function formatFeedbackComments(comments: AgentMergePromptContext['newComments']): string {
+	if (comments.length === 0) {
 		return 'none';
 	}
-	return values.map(value => value.slice(0, maximumPromptCommentLength)).join('\n---\n');
+	return comments.map(formatFeedbackComment).join('\n---\n');
+}
+
+function formatFeedbackComment(comment: { readonly author?: string; readonly body: string }): string {
+	return `${comment.author ? `${comment.author}: ` : ''}${comment.body || '(no body)'}`;
 }
 
 function formatReviewThreads(threads: AgentMergePromptContext['reviewThreads']): string {
@@ -682,8 +793,7 @@ function formatReviewThreads(threads: AgentMergePromptContext['reviewThreads']):
 	return threads.map(thread => [
 		`Thread ${thread.id}`,
 		...(thread.path ? [`File: ${thread.path}${thread.line !== undefined ? `:${thread.line}` : ''}`] : []),
-		...(thread.author ? [`Author: ${thread.author}`] : []),
-		`Feedback: ${thread.body || '(no body)'}`,
+		`Feedback:\n${thread.comments.map(formatFeedbackComment).join('\n') || '(no body)'}`,
 	].join('\n')).join('\n---\n');
 }
 

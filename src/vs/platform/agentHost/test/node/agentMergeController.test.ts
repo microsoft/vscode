@@ -13,7 +13,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, plat
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionStatus, buildDefaultChatUri, MessageKind, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -40,6 +40,7 @@ suite('AgentMergeController', () => {
 		disposables.add(new AgentMergeController(
 			{
 				startTurn: () => false,
+				cancelTurn: () => { },
 				getAutonomousSessionConfig: () => ({
 					[SessionConfigKey.Mode]: 'autopilot',
 					[SessionConfigKey.AutoApprove]: 'assisted',
@@ -158,6 +159,65 @@ suite('AgentMergeController', () => {
 		});
 	});
 
+	test('tightened managed policy revokes an already elevated approval', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive',
+			[SessionConfigKey.AutoApprove]: 'default',
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const elevated = configurationService.getSessionConfigValues(session)?.[SessionConfigKey.AutoApprove];
+
+		// Policy revokes the elevated level while the session stays enabled.
+		configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+
+		const values = configurationService.getSessionConfigValues(session);
+		assert.deepStrictEqual({
+			elevated,
+			mode: values?.[SessionConfigKey.Mode],
+			autoApprove: values?.[SessionConfigKey.AutoApprove],
+			injected: readAgentMergeSessionState(values)?.injectedConfiguration,
+		}, {
+			elevated: 'assisted',
+			mode: 'autopilot',
+			autoApprove: 'default',
+			injected: {
+				previous: { [SessionConfigKey.Mode]: 'interactive' },
+				applied: { [SessionConfigKey.Mode]: 'autopilot' },
+			},
+		});
+	});
+
+	test('does not widen approvals while a turn is active', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive',
+			[SessionConfigKey.AutoApprove]: 'default',
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'user-turn',
+			startedAt: new Date().toISOString(),
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+
+		const values = configurationService.getSessionConfigValues(session);
+		assert.deepStrictEqual({
+			mode: values?.[SessionConfigKey.Mode],
+			autoApprove: values?.[SessionConfigKey.AutoApprove],
+			injected: readAgentMergeSessionState(values)?.injectedConfiguration,
+		}, {
+			mode: 'interactive',
+			autoApprove: 'default',
+			injected: undefined,
+		});
+	});
+
 	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
@@ -175,6 +235,7 @@ suite('AgentMergeController', () => {
 		disposables.add(new AgentMergeController(
 			{
 				startTurn: () => false,
+				cancelTurn: () => { },
 				getAutonomousSessionConfig: () => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
 					? { [SessionConfigKey.Mode]: 'autopilot' }
 					: {
