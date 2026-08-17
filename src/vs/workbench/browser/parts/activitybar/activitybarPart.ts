@@ -356,6 +356,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 				} else {
 					this.uninstallMenubar();
 				}
+				this.registerKeyboardNavigationListeners();
 			}
 		}));
 	}
@@ -416,7 +417,9 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		if (this.menuBarContainer) {
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.menuBarContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
-				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
+				const movesTowardActivityBar = kbEvent.equals(KeyCode.DownArrow)
+					|| (this.layoutService.getSideBarPosition() === Position.RIGHT && kbEvent.equals(KeyCode.RightArrow));
+				if (movesTowardActivityBar) {
 					this.focus();
 				}
 			}));
