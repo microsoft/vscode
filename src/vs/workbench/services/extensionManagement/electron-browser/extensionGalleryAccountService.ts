@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider, ICachedAccess, isSafeTokenTarget, MarketplaceAuthRequiredError, MarketplaceMisconfiguredError } from './extensionGalleryAccess.js';
+import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider, ICachedAccess, isSafeTokenTarget, MarketplaceAuthRequiredError, MarketplaceClientRejectedError, MarketplaceMisconfiguredError } from './extensionGalleryAccess.js';
 import { ExtensionGalleryServiceIndexFetcher } from './extensionGalleryServiceIndex.js';
 
 /**
@@ -405,7 +405,17 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		}
 		// Entitled → confirm reachability by fetching the index. A transient failure here propagates
 		// (no cache write) so the host surfaces "unreachable".
-		const manifest = await this.serviceIndexFetcher.getServiceIndex(configuredServiceUrl, token);
+		let manifest: IExtensionGalleryManifest;
+		try {
+			manifest = await this.serviceIndexFetcher.getServiceIndex(configuredServiceUrl, token);
+		} catch (error) {
+			if (error instanceof MarketplaceClientRejectedError) {
+				// The marketplace refused this client outright — durable, so report a denial rather
+				// than a transient failure. Not cached: it belongs to the client, not the account.
+				return { eligible: false };
+			}
+			throw error;
+		}
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -463,6 +473,12 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		} catch (error) {
 			if (error instanceof MarketplaceAuthRequiredError) {
 				return this.denyFromAuthError(error, session, configuredServiceUrl, token);
+			}
+			if (error instanceof MarketplaceClientRejectedError) {
+				// The marketplace refused this client outright (not an authorization decision).
+				// Durable, so report a denial rather than a transient failure — but do not cache it:
+				// the verdict belongs to the client, not the account, and may change on upgrade.
+				return { eligible: false };
 			}
 			// Transient — propagate so the host surfaces "unreachable" while preserving cache.
 			throw error;

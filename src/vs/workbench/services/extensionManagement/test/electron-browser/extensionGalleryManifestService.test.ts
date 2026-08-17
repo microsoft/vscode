@@ -467,6 +467,21 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(indexRequests, 0);
 	});
 
+	test('Microsoft provider — service index rejects the client (400) → AccessDenied, not Unreachable', async () => {
+		// A marketplace that refuses this client outright — e.g. below its minimum supported
+		// version — is a durable rejection, so retrying cannot help. `main` reports any failed
+		// fetch of a configured marketplace as AccessDenied ("contact your administrator"); keep
+		// that for this case rather than the transient "check your network connection".
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession()];
+		requestHandler = () => mockResponse(400, { message: 'Only VS Code clients version 1.104.2 or later are allowed.' });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+	});
+
 	test('Microsoft provider — auth-gated service index, session token presented → Available', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];

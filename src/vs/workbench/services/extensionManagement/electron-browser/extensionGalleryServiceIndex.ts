@@ -15,7 +15,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { MarketplaceAuthRequiredError } from './extensionGalleryAccess.js';
+import { MarketplaceAuthRequiredError, MarketplaceClientRejectedError } from './extensionGalleryAccess.js';
 
 /**
  * Fetches and validates the Private Marketplace service index (gallery manifest) from a
@@ -124,7 +124,13 @@ export class ExtensionGalleryServiceIndexFetcher {
 				// unsupported client version) explains why there, and without it the failure is
 				// indistinguishable from an unreachable network.
 				const detail = await this.readErrorDetail(context);
-				throw new Error(`Service index returned status ${context.res.statusCode}${detail ? `: ${detail}` : ''}`);
+				const message = `Service index returned status ${context.res.statusCode}${detail ? `: ${detail}` : ''}`;
+				if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
+					// A 4xx is the server refusing this client outright — durable, so retrying cannot
+					// help. Surface it as a denial rather than a transient failure.
+					throw new MarketplaceClientRejectedError(context.res.statusCode, message);
+				}
+				throw new Error(message);
 			}
 
 			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);

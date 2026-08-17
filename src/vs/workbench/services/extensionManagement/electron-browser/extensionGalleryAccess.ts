@@ -54,6 +54,20 @@ export class MarketplaceMisconfiguredError extends Error {
 }
 
 /**
+ * Thrown when the service index rejects the request for a reason that is durable but not an
+ * authorization decision — any 4xx other than 401/403, such as a marketplace refusing a client
+ * below its minimum supported version. Retrying cannot resolve it, so callers surface a denial
+ * ({@link ExtensionGalleryManifestStatus.AccessDenied}, matching how a rejected marketplace is
+ * reported without a Private Marketplace configured) rather than an "unreachable" state that
+ * would tell the user to check their network connection.
+ */
+export class MarketplaceClientRejectedError extends Error {
+	constructor(readonly statusCode: number, message: string) {
+		super(message);
+	}
+}
+
+/**
  * Resolves the effective marketplace auth provider, applying the Entra (microsoft) product gate.
  * When Entra auth is not enabled in the product, a configured `microsoft` provider is downgraded to
  * the GitHub/default provider so the Entra path stays dormant until the Private Marketplace is
