@@ -14,6 +14,7 @@ import * as aria from '../../../../../../base/browser/ui/aria/aria.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { IAnchor } from '../../../../../../base/browser/ui/contextview/contextview.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { nativeHoverDelegate } from '../../../../../../platform/hover/browser/hover.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
@@ -3245,12 +3246,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			DropIntoEditorController.get(this._inputEditor)?.clearWidgets();
 		}));
 
-		const hoverDelegate = this._register(createInstantHoverDelegate());
+		const isOmniInput = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
+		// The omni chat input lives in a small, frameless auxiliary window. Custom
+		// hovers are clipped to the tiny window bounds and end up overlapping the
+		// toolbar buttons, which produces a mouse enter/leave flicker loop. Fall
+		// back to native tooltips there so they render outside the window without
+		// flickering.
+		const hoverDelegate = isOmniInput ? nativeHoverDelegate : this._register(createInstantHoverDelegate());
 
 		const { location } = this.getWidgetLocationInfo(widget);
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
-		const isOmniInput = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
 		const isVoiceSessionActive = derived(this, reader => {
 			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			if (omniInputOpen) {
