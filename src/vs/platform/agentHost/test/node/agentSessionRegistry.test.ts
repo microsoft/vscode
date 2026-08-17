@@ -163,6 +163,23 @@ suite('AgentSessionRegistry', () => {
 	const registerExplicit = (registry: AgentSessionRegistry, session: typeof a, provider: 'copilot' | 'claude', startTime: number) =>
 		registry.register(session, { provider, startTime, source: 'explicit' }, { checkTombstone: false });
 
+	test('listSessionKeys does not migrate legacy entries', async () => {
+		const testDatabase = new TestAgentHostDatabase();
+		database = testDatabase;
+		testDatabase.sessions.set(a.toString(), { session: a.toString(), provider: 'copilot', startTime: 1, external: undefined, source: 'explicit' });
+		const registry = createRegistry();
+
+		assert.deepStrictEqual({
+			keys: [...await registry.listSessionKeys()],
+			listCalls: testDatabase.listCalls,
+			updates: testDatabase.externalUpdates,
+		}, {
+			keys: [a.toString()],
+			listCalls: 1,
+			updates: [],
+		});
+	});
+
 	test('list migrates entries and returns the computed list without rereading', async () => {
 		const testDatabase = new TestAgentHostDatabase();
 		database = testDatabase;
