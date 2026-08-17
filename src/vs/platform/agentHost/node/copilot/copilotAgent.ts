@@ -38,6 +38,7 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
+import { AgentHostByokModelsEnabledEnvVar, isAgentEnabled } from '../../common/agentService.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
@@ -1666,7 +1667,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._shutdownPromise) {
 			return;
 		}
-		if (this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey) !== true) {
+		const enabledByEnv = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], true);
+		const enabledByRootConfig = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey) === true;
+		if (!enabledByEnv && !enabledByRootConfig) {
 			this._byokModels = [];
 			this._publishModels();
 			return;

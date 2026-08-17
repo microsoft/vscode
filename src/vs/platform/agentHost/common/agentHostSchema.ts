@@ -405,13 +405,14 @@ export const DISABLE_REPO_INFO_TELEMETRY_SETTING_ID = 'chat.advanced.debug.disab
  */
 export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
 
-/** Whether the Claude provider is enabled. */
-export const AgentHostClaudeEnabledConfigKey = 'claudeAgentEnabled';
-
 /** Whether extension-provided BYOK models are enabled. */
 export const AgentHostByokModelsEnabledConfigKey = 'byokModelsEnabled';
 
-/** Whether the Codex provider is enabled. */
+/**
+ * Root config key forwarded from the renderer carrying the experiment-aware
+ * value of `chat.agentHost.codexAgent.enabled`. The host registers the Codex
+ * provider when this is `true`; disabling requires an agent host restart.
+ */
 export const AgentHostCodexEnabledConfigKey = 'codexAgentEnabled';
 
 /** Root config key carrying the effective edit auto-approve patterns. */
@@ -702,12 +703,6 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
 		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
 		default: false,
-	}),
-	[AgentHostClaudeEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.claudeAgentEnabled.title', "Claude Agent"),
-		description: localize('agentHost.config.claudeAgentEnabled.description', "Whether the Claude provider is enabled."),
-		default: true,
 	}),
 	[AgentHostByokModelsEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

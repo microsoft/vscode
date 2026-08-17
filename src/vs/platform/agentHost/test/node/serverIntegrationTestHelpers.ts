@@ -46,8 +46,7 @@ import { ActionType, type ActionEnvelope } from '../../common/state/sessionActio
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar } from '../../common/agentService.js';
-import { AgentHostClaudeEnabledConfigKey, AgentHostCodexEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcRequest,
@@ -782,14 +781,6 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
 export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
-	if (options.userDataDir && (options.claudeSdkRoot || options.codexSdkRoot)) {
-		const rootConfigPath = resolvePath(options.userDataDir, 'globalStorage', 'agent-host-config.json');
-		await mkdir(dirname(rootConfigPath), { recursive: true });
-		await writeFile(rootConfigPath, JSON.stringify({
-			...(options.claudeSdkRoot ? { [AgentHostClaudeEnabledConfigKey]: true } : {}),
-			...(options.codexSdkRoot ? { [AgentHostCodexEnabledConfigKey]: options.codexAgentEnabled ?? true } : {}),
-		}), 'utf8');
-	}
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
@@ -843,6 +834,9 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 		const childEnv = withAgentHostCoverage({
 			...createIsolatedProviderEnvironment(options.homeDir, { ...process.env, ...(options.env ?? {}) }),
 			...(options.codexHomeDir ? { [AgentHostCodexAgentCodexHomeEnvVar]: options.codexHomeDir } : {}),
+			// Codex defaults to disabled; opt it in for the agent host E2E suite when a
+			// codex SDK root is supplied so the provider actually registers.
+			...(options.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: String(options.codexAgentEnabled ?? true) } : {}),
 			// Fixtures use Codex's unified exec tool, so keep record and replay on the same shell protocol.
 			...(options.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
 			...(realCapture ? {

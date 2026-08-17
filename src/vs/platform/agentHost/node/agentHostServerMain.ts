@@ -50,13 +50,13 @@ import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService
 import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
-import { AgentHostClaudeEnabledConfigKey, AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostPromptCache } from './agentHostPromptCache.js';
 import { IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
-import { AgentHostClaudeSdkRootEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
@@ -335,8 +335,12 @@ async function main(): Promise<void> {
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');
-		// Claude and Codex providers are gated on their root configuration and
-		// the SDK being reachable. Claude is a devDependency of this repo
+		// Claude and Codex providers are gated on two things:
+		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
+		//     forwarded as an env var by the renderer-side starters; the remote
+		//     server reads the env directly). Claude defaults to on, Codex
+		//     defaults to off.
+		//  2. The SDK being reachable. Claude is a devDependency of this repo
 		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
 		//     always succeeds in dev; in built/shipped server installs the
 		//     SDK comes from the CLI flag / env var dev override or a
@@ -344,29 +348,30 @@ async function main(): Promise<void> {
 		//     devDependency, so `CodexAgent._resolveSdkRoot` resolves it from
 		//     `node_modules` in dev; built/shipped installs use the env-var
 		//     override or `product.agentSdks.codex`.
-		const agentConfigurationService = agentService.configurationService;
-		let claudeRegistered = false;
-		let codexRegistered = false;
-		const registerEnabledProviders = () => {
-			if (!claudeRegistered
-				&& agentConfigurationService.getRootValue(platformRootSchema, AgentHostClaudeEnabledConfigKey) === true
-				&& (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
-				claudeRegistered = true;
-				const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-				agentService.registerProvider(claudeAgent);
-				log('ClaudeAgent registered');
-			}
-			if (!codexRegistered
-				&& agentConfigurationService.getRootValue(platformRootSchema, AgentHostCodexEnabledConfigKey) === true
-				&& (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage))) {
-				codexRegistered = true;
-				const codexAgent = disposables.add(instantiationService.createInstance(CodexAgent));
-				agentService.registerProvider(codexAgent);
-				log('CodexAgent registered');
-			}
-		};
-		registerEnabledProviders();
-		disposables.add(agentConfigurationService.onDidRootConfigChange(registerEnabledProviders));
+		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
+			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+			agentService.registerProvider(claudeAgent);
+			log('ClaudeAgent registered');
+		}
+		if (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+			const agentConfigurationService = agentService.configurationService;
+			let codexRegistered = false;
+			const registerCodexIfEnabled = () => {
+				if (codexRegistered) {
+					return;
+				}
+				const enabledByEnv = isAgentEnabled(process.env[AgentHostCodexAgentEnabledEnvVar], false);
+				const enabledByRootConfig = agentConfigurationService.getRootValue(platformRootSchema, AgentHostCodexEnabledConfigKey) === true;
+				if (enabledByEnv || enabledByRootConfig) {
+					codexRegistered = true;
+					const codexAgent = disposables.add(instantiationService.createInstance(CodexAgent));
+					agentService.registerProvider(codexAgent);
+					log('CodexAgent registered');
+				}
+			};
+			registerCodexIfEnabled();
+			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
+		}
 	}
 
 	// Surface agent-SDK download progress to clients as generic `progress`

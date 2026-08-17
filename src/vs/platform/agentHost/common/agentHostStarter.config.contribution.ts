@@ -37,7 +37,6 @@ import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
-	AgentHostClaudeEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
@@ -220,10 +219,9 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostClaudeAgentEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the agent host registers the Claude provider, subject to the Claude SDK being reachable. Disabling requires an agent host restart to remove an already registered provider."),
+			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the agent host registers the Claude provider, subject to the Claude SDK being reachable. The agent host process must be restarted for changes to take effect."),
 			default: true,
 			tags: ['experimental', 'advanced'],
-			agentHost: { key: AgentHostClaudeEnabledConfigKey },
 			// Owns the policy so the account-side preview-features flag can disable Claude across all surfaces.
 			policy: {
 				name: 'Claude3PIntegration',
@@ -240,7 +238,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostByokModelsEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, extension-provided BYOK ('bring your own key') language models can run in agent-host sessions."),
+			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, the agent host wires up the BYOK ('bring your own key') language-model bridge so extension-provided BYOK models can run in agent-host sessions. The agent host process must be restarted for changes to take effect."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },

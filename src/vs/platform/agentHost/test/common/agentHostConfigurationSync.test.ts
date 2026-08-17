@@ -9,8 +9,8 @@ import { IConfigurationService, IConfigurationValue } from '../../../configurati
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { getAgentHostConfigurationSyncEntries, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
-import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId } from '../../common/agentService.js';
-import { AgentHostByokModelsEnabledConfigKey, AgentHostClaudeEnabledConfigKey, AgentHostCodexEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostByokModelsEnabledSettingId } from '../../common/agentService.js';
+import { AgentHostByokModelsEnabledConfigKey } from '../../common/agentHostSchema.js';
 import '../../common/agentHostStarter.config.contribution.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
@@ -170,32 +170,16 @@ suite('AgentHostConfigurationSync', () => {
 		});
 	});
 
-	test('mirrors provider and BYOK enablement through root configuration', () => {
+	test('mirrors BYOK enablement only to local agent hosts', () => {
 		const localEntries = new Map(getAgentHostConfigurationSyncEntries(true).map(entry => [entry.settingId, entry.sync.key]));
 		const remoteEntries = new Map(getAgentHostConfigurationSyncEntries(false).map(entry => [entry.settingId, entry.sync.key]));
 
 		assert.deepStrictEqual({
-			local: {
-				claude: localEntries.get(AgentHostClaudeAgentEnabledSettingId),
-				codex: localEntries.get(AgentHostCodexAgentEnabledSettingId),
-				byok: localEntries.get(AgentHostByokModelsEnabledSettingId),
-			},
-			remote: {
-				claude: remoteEntries.get(AgentHostClaudeAgentEnabledSettingId),
-				codex: remoteEntries.get(AgentHostCodexAgentEnabledSettingId),
-				byok: remoteEntries.get(AgentHostByokModelsEnabledSettingId),
-			},
+			local: localEntries.get(AgentHostByokModelsEnabledSettingId),
+			remote: remoteEntries.get(AgentHostByokModelsEnabledSettingId),
 		}, {
-			local: {
-				claude: AgentHostClaudeEnabledConfigKey,
-				codex: AgentHostCodexEnabledConfigKey,
-				byok: AgentHostByokModelsEnabledConfigKey,
-			},
-			remote: {
-				claude: AgentHostClaudeEnabledConfigKey,
-				codex: AgentHostCodexEnabledConfigKey,
-				byok: undefined,
-			},
+			local: AgentHostByokModelsEnabledConfigKey,
+			remote: undefined,
 		});
 	});
 
