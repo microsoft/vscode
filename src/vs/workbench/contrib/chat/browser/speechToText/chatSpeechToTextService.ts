@@ -36,7 +36,7 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 import { getMediaCaptureWindow } from '../voiceClient/micCaptureService.js';
 import { resolveDictationLanguage } from './dictationLanguage.js';
-import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
@@ -139,7 +139,7 @@ const LLM_CLEANUP_LUNA_MODEL_ID = 'gpt-5.6-luna';
 type DictationBackend = 'nemo' | 'mai';
 
 export function isDictationEntitled(entitlement: ChatEntitlement, isInternal: boolean, usesMai: boolean): boolean {
-	return isProUser(entitlement) && (!usesMai || entitlement !== ChatEntitlement.Enterprise || isInternal);
+	return !usesMai || entitlement !== ChatEntitlement.Enterprise || isInternal;
 }
 
 /** How long to wait for the voice websocket to connect before failing an MAI session. */
@@ -713,9 +713,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._activeBackend = backend;
 
 		if (!this._isEntitledForBackend(backend)) {
-			this._notificationService.warn(backend === 'mai' && this._chatEntitlementService.entitlement === ChatEntitlement.Enterprise
-				? localize('chatStt.maiEnterpriseUnavailable', "Cloud speech-to-text is not available for GitHub Copilot Enterprise accounts.")
-				: localize('chatStt.requiresPaidPlan', "Dictation requires a paid GitHub Copilot plan."));
+			this._notificationService.warn(localize('chatStt.maiEnterpriseUnavailable', "Cloud speech-to-text is not available for GitHub Copilot Enterprise accounts."));
 			return;
 		}
 
