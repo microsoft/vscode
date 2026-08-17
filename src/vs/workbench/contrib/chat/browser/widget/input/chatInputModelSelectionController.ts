@@ -3,6 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * # Chat model selection
+ *
+ * ## The one rule
+ *
+ * A model sitting on a conversation is either that conversation's **choice** or **spillover**.
+ *
+ * - A *choice* was made for this conversation: the user picked it, a caller selected it, or it was
+ *   restored as the conversation's own. Nothing may take it away.
+ * - *Spillover* is a model merely standing on the conversation: the previous conversation's model
+ *   carried in, or a pick made automatically because nothing better was known.
+ *
+ * `chat.defaultModel` seeds a conversation that has not chosen, and yields to one that has. That is
+ * the whole precedence, and {@link isInConversationModelChoice} is the line that draws it — every
+ * "may the default win here?" question routes through it, so there is one answer.
+ *
+ * The distinction cannot be read off a model identifier: the same model arrives by all of these
+ * routes. So each surface *states* which happened, in the vocabulary of
+ * {@link ModelSelectionReason}, and the controller never infers it.
+ *
+ * ## The three phases
+ *
+ * A conversation's model is decided by three kinds of event, and every public operation belongs to
+ * one of them:
+ *
+ * 1. **Initialize** — a conversation is bound and needs a starting model.
+ *    {@link ChatInputModelSelectionController.initialize},
+ *    {@link ChatInputModelSelectionController.beginConversationSwitch},
+ *    {@link ChatInputModelSelectionController.beginSessionSwitch}.
+ * 2. **Reconcile** — the catalog or configuration moved, and the selection may no longer hold.
+ *    {@link ChatInputModelSelectionController.reconcileModelListChange} and the narrower
+ *    revalidation entry points.
+ * 3. **Sync** — the conversation's own model changed underneath the input.
+ *    {@link ChatInputModelSelectionController.syncFromConversationState}.
+ *
+ * Explicit selection ({@link ChatInputModelSelectionController.applySelection} and friends) and
+ * {@link ChatInputModelSelectionController.resetToDefault} sit outside the three: they are a caller
+ * changing the answer rather than the world changing around it.
+ *
+ * ## What a catalog that arrives late forces
+ *
+ * Models publish asynchronously and can be republished under new identifiers, so the model a
+ * conversation is meant to run on is frequently *not* in the pool yet. That is why the intended
+ * model is remembered per conversation and reclaimed later, rather than being resolved once.
+ *
+ * The two surfaces answer differently, on purpose, and this is the only place they may:
+ * Workbench chat may display a stand-in while waiting, because the cost of being wrong is a
+ * repaint. The Agents Window writes through to a provider and on to a backend, so it waits instead
+ * — a stand-in it wrote would become the conversation's real model.
+ */
+
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
