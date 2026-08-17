@@ -602,6 +602,16 @@ function snapshotInvocationToAdopt(opts: IObserveTurnOptions, toolCallId: string
 // Chat session
 // =============================================================================
 
+/**
+ * Whether a turn ending should complete the response, given the turn that owns
+ * it. A response with no owner yet is completed by whichever turn ends, which
+ * is the ordinary sequential case; once a turn has claimed the response, only
+ * that turn may close it.
+ */
+export function completionAppliesToResponse(responseTurnId: string | undefined, endingTurnId: string): boolean {
+	return responseTurnId === undefined || responseTurnId === endingTurnId;
+}
+
 class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
 	readonly isCompleteObs = observableValue<boolean>('agentHostComplete', true);
@@ -690,6 +700,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		return this._register(disposable);
 	}
 
+	/** The turn whose output the current response is rendering, once one claims it. */
+	private _responseTurnId: string | undefined;
+
 	/**
 	 * Appends new progress items to the observable. Used by the reconnection
 	 * flow to stream ongoing state changes into the chat UI.
@@ -707,6 +720,25 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	}
 
 	/**
+	 * Marks the response as complete on behalf of `turnId`, ignoring the signal
+	 * when a later turn already owns the response.
+	 *
+	 * `isCompleteObs` belongs to the session, not to a turn, so a turn that ends
+	 * after its successor has started would otherwise close the successor's
+	 * response and every subsequent {@link appendProgress} would be dropped into
+	 * it. Turns are ordinarily sequential; they overlap when one turn is
+	 * preempted by another, and a turn ending tool calls can trail the next
+	 * turn's start by a few milliseconds.
+	 */
+	completeTurn(turnId: string): void {
+		if (!completionAppliesToResponse(this._responseTurnId, turnId)) {
+			this._logService.trace(`[AgentHost] ignoring turn ${turnId} completion; response belongs to ${this._responseTurnId}`);
+			return;
+		}
+		this.isCompleteObs.set(true, undefined);
+	}
+
+	/**
 	 * Called by the session handler when a server-initiated turn starts.
 	 * Resets the progress observable and signals listeners to create a new
 	 * request+response pair in the chat model. `turnId` is the provider's turn
@@ -715,6 +747,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	 */
 	startServerRequest(turnId: string, prompt: string, variableData?: IChatRequestVariableData, options?: IStartServerRequestOptions): void {
 		this._logService.info('[AgentHost] Server-initiated request started');
+		this._responseTurnId = turnId;
 		transaction(tx => {
 			this.progressObs.set([], tx);
 			this.isCompleteObs.set(false, tx);
@@ -2701,7 +2734,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnId,
 			sink: parts => chatSession.appendProgress(parts),
 			cancellationToken: cts.token,
-			onTurnEnded: () => chatSession.isCompleteObs.set(true, undefined),
+			onTurnEnded: () => chatSession.completeTurn(turnId),
 		}));
 	}
 
@@ -2847,7 +2880,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				onTurnEnded: (lastTurn) => {
 					store.dispose();
 					this._clientDispatchedTurnIds.delete(turnId);
-					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
+					this._activeSessions.get(request.sessionResource)?.completeTurn(turnId);
 					resolve(lastTurn);
 				},
 				onFileEdits: (tc) => {
