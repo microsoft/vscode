@@ -2866,18 +2866,22 @@ export namespace ChatResponseVoiceProgressPart {
 }
 
 export namespace ChatResponseAutoModeResolutionPart {
-	const validLabels = new Set<IChatAutoModeResolutionPart['predictedLabel']>(['needs_reasoning', 'no_reasoning', 'fallback']);
+	const validLabels = new Set<string>(['needs_reasoning', 'no_reasoning', 'fallback']);
 
 	export function from(part: vscode.ChatResponseAutoModeResolutionPart): Dto<IChatAutoModeResolutionPart> {
-		const label = validLabels.has(part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel'])
-			? part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel']
-			: 'fallback';
+		// A router that reports no classification still names its pick; only a label
+		// it did report but we do not understand degrades to `fallback`.
+		const label = part.predictedLabel === undefined
+			? undefined
+			: validLabels.has(part.predictedLabel)
+				? part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel']
+				: 'fallback';
 		return {
 			kind: 'autoModeResolution',
 			resolvedModel: part.resolvedModel,
 			resolvedModelName: part.resolvedModelName,
 			predictedLabel: label,
-			confidence: Math.max(0, Math.min(1, part.confidence)),
+			confidence: part.confidence === undefined ? undefined : Math.max(0, Math.min(1, part.confidence)),
 		};
 	}
 	export function to(part: Dto<IChatAutoModeResolutionPart>): vscode.ChatResponseAutoModeResolutionPart {

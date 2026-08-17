@@ -196,9 +196,9 @@ export class ChatResponsePullRequestPart {
 export class ChatResponseAutoModeResolutionPart {
 	resolvedModel: string;
 	resolvedModelName: string;
-	predictedLabel: string;
-	confidence: number;
-	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+	predictedLabel: string | undefined;
+	confidence: number | undefined;
+	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel?: string, confidence?: number) {
 		this.resolvedModel = resolvedModel;
 		this.resolvedModelName = resolvedModelName;
 		this.predictedLabel = predictedLabel;

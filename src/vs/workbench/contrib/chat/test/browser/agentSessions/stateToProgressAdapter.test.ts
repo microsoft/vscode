@@ -3250,6 +3250,30 @@ suite('stateToProgressAdapter', () => {
 				unknown: undefined,
 			});
 		});
+
+		test('reports the user\'s Auto pick in the footer arm, the routed model otherwise', () => {
+			const routed = {
+				model: 'gpt-5.4-mini',
+				_meta: {
+					cost: 2,
+					autoModeResolved: { chosenModel: 'gpt-5.4-mini', predictedLabel: 'no_reasoning', confidence: 0.98 },
+				},
+			};
+			const luna = { name: 'GPT-5.4 mini' };
+
+			assert.deepStrictEqual({
+				footerRouted: formatTurnResponseDetails(luna, undefined, routed, 'footer'),
+				inlineRouted: formatTurnResponseDetails(luna, undefined, routed, 'inline'),
+				defaultsToInline: formatTurnResponseDetails(luna, undefined, routed),
+				// A turn Auto did not route names its model in both arms.
+				footerNotRouted: formatTurnResponseDetails(luna, undefined, { _meta: { cost: 2 } }, 'footer'),
+			}, {
+				footerRouted: 'Auto • 2 credits',
+				inlineRouted: 'GPT-5.4 mini • 2 credits',
+				defaultsToInline: 'GPT-5.4 mini • 2 credits',
+				footerNotRouted: 'GPT-5.4 mini • 2 credits',
+			});
+		});
 	});
 
 	suite('usageInfoToChatUsage', () => {

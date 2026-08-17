@@ -52,8 +52,11 @@ export class ChatAutoModeResolutionContentPart extends ChatCollapsibleContentPar
 		body.appendChild(explanation);
 
 		const detailLine = $('.chat-auto-mode-resolution-detail');
-		let detailText: string;
-		if (this.content.predictedLabel === 'fallback') {
+		let detailText: string | undefined;
+		if (this.content.predictedLabel === undefined || this.content.confidence === undefined) {
+			// Auto v2 reports no classification, so the pick stands on its own.
+			detailText = undefined;
+		} else if (this.content.predictedLabel === 'fallback') {
 			detailText = localize('autoModeResolution.fallback', "Unable to resolve");
 		} else {
 			const label = this.content.predictedLabel === 'needs_reasoning'
@@ -62,9 +65,11 @@ export class ChatAutoModeResolutionContentPart extends ChatCollapsibleContentPar
 			const confidencePercent = (this.content.confidence * 100).toFixed(0);
 			detailText = localize('autoModeResolution.detail', "{0} - Confidence {1}%", label, confidencePercent);
 		}
-		const detailRendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(detailText)));
-		detailLine.appendChild(detailRendered.element);
-		body.appendChild(detailLine);
+		if (detailText) {
+			const detailRendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(detailText)));
+			detailLine.appendChild(detailRendered.element);
+			body.appendChild(detailLine);
+		}
 
 		wrapper.appendChild(body);
 		return wrapper;

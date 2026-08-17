@@ -42,7 +42,7 @@ import { DisposableMap, DisposableStore } from '../../../util/vs/base/common/lif
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
-import { ChatResponseProgressPart2 } from '../../../vscodeTypes';
+import { ChatResponseAutoModeResolutionPart, ChatResponseProgressPart2 } from '../../../vscodeTypes';
 import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
@@ -448,6 +448,21 @@ export class AgentIntent extends EditCodeIntent {
 	): Promise<vscode.ChatResult> {
 		if (request.command === 'compact') {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
+		}
+
+		// Resolve the endpoint first so the routing decision belongs to this turn:
+		// `invoke()` otherwise resolves it only after this point, leaving the
+		// previous turn's decision (or none, on the first turn) to be reported.
+		// Auto reuses the conversation's resolved endpoint, so `invoke()` runs
+		// against the endpoint reported here.
+		try {
+			await this.endpointProvider.getChatEndpoint(request);
+		} catch {
+			// Leave the failure to `invoke()`, which surfaces it as a chat error.
+		}
+		const routingDecision = this._automodeService.consumeLastRoutingDecision();
+		if (routingDecision) {
+			stream.push(new ChatResponseAutoModeResolutionPart(routingDecision.resolvedModel, routingDecision.resolvedModelName, routingDecision.predictedLabel, routingDecision.confidence));
 		}
 
 		try {

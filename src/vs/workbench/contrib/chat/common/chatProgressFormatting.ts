@@ -29,6 +29,11 @@ export interface IFormattedChatRequestTimestamp {
 	readonly isRelative: boolean;
 }
 
+/** Response footer label for a turn the user asked Auto to serve, used in place of the model Auto picked. */
+export function formatChatAutoModeName(): string {
+	return localize('chatAutoModeName', "Auto");
+}
+
 /**
  * Format a millisecond duration as a human-readable elapsed time string.
  * Examples: "0s", "45s", "1m 23s", "12m 5s"

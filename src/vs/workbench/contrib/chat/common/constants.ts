@@ -121,8 +121,21 @@ export enum ChatConfiguration {
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
 	RichLinks = 'chat.experimental.richLinks.enabled',
 
+	AutoModeExplainability = 'chat.experimental.autoModeExplainability',
+
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
+}
+
+/**
+ * How a response routed by Auto explains itself: `inline` names the picked model
+ * in the footer and repeats the decision as a part in the response, `footer`
+ * reports `Auto` and explains the decision only on the footer's hover.
+ */
+export type ChatAutoModeExplainability = 'inline' | 'footer';
+
+export function getChatAutoModeExplainability(configurationService: IConfigurationService): ChatAutoModeExplainability {
+	return configurationService.getValue(ChatConfiguration.AutoModeExplainability) === 'footer' ? 'footer' : 'inline';
 }
 
 /**

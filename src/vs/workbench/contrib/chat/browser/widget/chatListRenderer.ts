@@ -54,16 +54,17 @@ import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatProgressResponseContent, IChatTextEditGroup } from '../../common/model/chatModel.js';
 import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, IChatAutoModeResolutionPart, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
-import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime } from '../../common/chatProgressFormatting.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, getChatAutoModeExplainability, ThinkingDisplayMode } from '../../common/constants.js';
+import { formatChatAutoModeName, formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime } from '../../common/chatProgressFormatting.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
@@ -159,11 +160,11 @@ export interface IChatListItemTemplate {
 	wasResponseComplete?: boolean;
 	readonly completedResponseDisclosureDisposables: DisposableStore;
 	/**
-	 * Token-usage breakdown hover for the response footer's model/credits stat.
-	 * Template-scoped because the focusable footer container is reused across
+	 * Auto routing and token-usage hover for the response footer's model/credits
+	 * stat. Template-scoped because the focusable footer container is reused across
 	 * element renders, allowing its managed hover to be updated in place.
 	 */
-	readonly responseTokenStatsHover: MutableDisposable<IManagedHover>;
+	readonly responseFooterHover: MutableDisposable<IManagedHover>;
 
 	/** Drag handle element for reordering pending requests, if currently rendered. */
 	dragHandle?: HTMLElement;
@@ -334,6 +335,64 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
 }
 
 /**
+ * Managed-hover content for the response footer. The `ariaLabel` spells values
+ * out in full for screen readers, where the visible markdown may abbreviate.
+ */
+export type ResponseFooterHoverContent = { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly ariaLabel: string };
+
+/**
+ * Joins accessible-name fragments into sentences, without doubling up the
+ * separator on fragments that already end in punctuation — screen readers
+ * otherwise announce the stray period.
+ */
+function joinAriaSentences(parts: readonly string[]): string {
+	return parts
+		.filter(part => part.length > 0)
+		.map(part => /[.!?]$/.test(part) ? part : `${part}.`)
+		.join(' ');
+}
+
+/**
+ * Auto routing explanation shown when hovering the response footer's model
+ * stat, so a turn served by Auto can explain which model it picked and how
+ * confident the router was.
+ *
+ * Returns `undefined` when the turn was not routed by Auto, in which case this
+ * section is omitted from the hover entirely. The "Learn More" link is dropped
+ * because a hover cannot reliably be moused into to follow it.
+ */
+export function formatResponseAutoModeResolution(resolution: IChatAutoModeResolutionPart | undefined): ResponseFooterHoverContent | undefined {
+	if (!resolution) {
+		return undefined;
+	}
+
+	const title = localize('chat.responseAutoMode.title', "Routed to {0}", resolution.resolvedModelName);
+	const description = ILanguageModelChatMetadata.getAutoModelDescription(undefined, { includeLearnMore: false });
+	// Routers that report no classification (Auto v2) still name their pick, so the
+	// detail line is dropped rather than the whole section. `fallback` means the
+	// router ran but could not classify the turn.
+	const detail = resolution.predictedLabel === undefined || resolution.confidence === undefined
+		? undefined
+		: resolution.predictedLabel === 'fallback'
+			? localize('chat.responseAutoMode.fallback', "Unable to resolve")
+			: localize('chat.responseAutoMode.detail', "{0} - Confidence {1}%",
+				resolution.predictedLabel === 'needs_reasoning'
+					? localize('chat.responseAutoMode.reasoning', "Reasoning")
+					: localize('chat.responseAutoMode.nonReasoning', "Non-reasoning"),
+				(resolution.confidence * 100).toFixed(0));
+
+	const markdown = new MarkdownString();
+	markdown.appendMarkdown(`**${escapeMarkdownSyntaxTokens(title)}**\n\n`);
+	markdown.appendMarkdown(`${description}\n\n`);
+	if (detail) {
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(detail)}\n\n`);
+	}
+
+	const ariaLabel = joinAriaSentences([title, description, ...(detail ? [detail] : [])]);
+	return { markdown, markdownNotSupportedFallback: ariaLabel, ariaLabel };
+}
+
+/**
  * Token consumption summary shown when hovering the response footer's model and
  * credits stat. Provider call-level reports are aggregated by model for the
  * whole turn.
@@ -342,7 +401,7 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
  * hover should be shown at all. The result doubles as managed-hover content and
  * carries an `ariaLabel` with exact, unabbreviated counts.
  */
-export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly ariaLabel: string } | undefined {
+export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined): ResponseFooterHoverContent | undefined {
 	if (!modelTotals?.length) {
 		return undefined;
 	}
@@ -373,6 +432,47 @@ export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTo
 
 	const ariaLabel = ariaParts.join('. ');
 	return { markdown, markdownNotSupportedFallback: ariaLabel, ariaLabel };
+}
+
+/**
+ * Builds the response footer's hover from the Auto routing explanation and the
+ * token breakdown, either of which may be absent. Routing comes first because it
+ * explains the model name the user is pointing at; the token stats detail its cost.
+ *
+ * Returns `undefined` when neither section has anything to say, so no hover is
+ * shown at all rather than an empty one.
+ */
+export function formatResponseFooterHover(sections: readonly (ResponseFooterHoverContent | undefined)[]): ResponseFooterHoverContent | undefined {
+	const present = sections.filter((section): section is ResponseFooterHoverContent => !!section);
+	if (!present.length) {
+		return undefined;
+	}
+	if (present.length === 1) {
+		return present[0];
+	}
+
+	const markdown = new MarkdownString();
+	markdown.value = present.map(section => section.markdown.value).join('');
+	// `appendMarkdown` is bypassed above, so carry over the trust flags the
+	// sections were built with rather than silently dropping them.
+	markdown.isTrusted = present.some(section => section.markdown.isTrusted);
+	markdown.supportThemeIcons = present.some(section => section.markdown.supportThemeIcons);
+	const ariaLabel = joinAriaSentences(present.map(section => section.ariaLabel));
+	return { markdown, markdownNotSupportedFallback: ariaLabel, ariaLabel };
+}
+
+/**
+ * Finds the Auto routing result for a turn. Scans from the end so a turn that
+ * re-routed (e.g. after a retry) reports the model that actually served it.
+ */
+export function findAutoModeResolution(content: ReadonlyArray<IChatProgressResponseContent>): IChatAutoModeResolutionPart | undefined {
+	for (let index = content.length - 1; index >= 0; index--) {
+		const part = content[index];
+		if (part.kind === 'autoModeResolution') {
+			return part;
+		}
+	}
+	return undefined;
 }
 
 export function shouldCollapseCompletedResponsePart(part: IChatRendererContent): boolean {
@@ -444,10 +544,10 @@ export function reconcileChatItemHeight(
 
 /**
  * Renders the response footer: completion timestamp and the model/credits stat.
- * `tokenStatsAriaLabel` is folded into the container's accessible name so the
- * token breakdown offered on hover is also available to screen readers.
+ * `footerAriaLabel` is folded into the container's accessible name so the
+ * routing and token detail offered on hover is also available to screen readers.
  */
-export function renderChatResponseDetails(container: HTMLElement, details: string | undefined, completedAt: number | undefined, elapsedMs: number | undefined, verbose: boolean, tokenStatsAriaLabel?: string): HTMLElement | undefined {
+export function renderChatResponseDetails(container: HTMLElement, details: string | undefined, completedAt: number | undefined, elapsedMs: number | undefined, verbose: boolean, footerAriaLabel?: string): HTMLElement | undefined {
 	dom.clearNode(container);
 	container.classList.remove('chat-response-flip-active', 'chat-response-flip-down', 'chat-response-flip-reset');
 
@@ -480,7 +580,7 @@ export function renderChatResponseDetails(container: HTMLElement, details: strin
 	const accessibleElapsed = elapsed
 		? localize('chatResponseElapsed', "Elapsed time {0}", elapsed)
 		: undefined;
-	container.ariaLabel = [accessibleTiming, accessibleElapsed, details, tokenStatsAriaLabel].filter(Boolean).join(', ');
+	container.ariaLabel = [accessibleTiming, accessibleElapsed, details, footerAriaLabel].filter(Boolean).join(', ');
 	container.classList.toggle('hidden', !responseDetails);
 	container.tabIndex = responseDetails ? 0 : -1;
 	return completedAtElement;
@@ -998,7 +1098,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const requestTimestampContainer = dom.append(valueParent, $('.chat-request-timestamp-container'));
 		const elementDisposables = templateDisposables.add(new DisposableStore());
 		const completedResponseDisclosureDisposables = templateDisposables.add(new DisposableStore());
-		const responseTokenStatsHover = templateDisposables.add(new MutableDisposable<IManagedHover>());
+		const responseFooterHover = templateDisposables.add(new MutableDisposable<IManagedHover>());
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
 		if (this.rendererOptions.noFooter) {
@@ -1071,7 +1171,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, responseTokenStatsHover };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, responseFooterHover };
 		this.templateDataByRow.set(rowContainer, template);
 
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
@@ -1238,20 +1338,32 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const responseTimingListeners = templateData.elementDisposables.add(new MutableDisposable());
 		const updateResponseDetails = () => {
-			const details = isResponseVM(element) ? element.result?.details : undefined;
+			const reportedDetails = isResponseVM(element) ? element.result?.details : undefined;
 			// Providers report usage asynchronously, often after the footer has already
 			// rendered, so the breakdown is recomputed on every render pass. Sessions
 			// whose provider reports no totals get no hover rather than an empty one.
 			const tokenStats = isResponseVM(element)
 				? formatResponseTokenStats(element.model.usage?.modelTotals)
 				: undefined;
+			// Turns served by Auto explain the routing decision alongside the cost, so
+			// the "Auto" the user is pointing at can say which model actually ran.
+			const autoModeResolution = isResponseVM(element)
+				? findAutoModeResolution(element.response.value)
+				: undefined;
+			const footerHover = formatResponseFooterHover([formatResponseAutoModeResolution(autoModeResolution), tokenStats]);
+			// In the `footer` arm the hover is the only explanation of the routing
+			// decision, so the footer needs a visible, focusable label to carry it even
+			// when the participant reported no details of its own.
+			const details = reportedDetails ?? (autoModeResolution && getChatAutoModeExplainability(this.configService) === 'footer'
+				? formatChatAutoModeName()
+				: undefined);
 			const completedAtElement = renderChatResponseDetails(
 				templateData.footerDetailsContainer,
 				details,
 				isResponseVM(element) ? element.model.completionTimestamp : undefined,
 				isResponseVM(element) ? element.model.elapsedMs : undefined,
 				isResponseVM(element) && this.configService.getValue<boolean>(ChatConfiguration.Verbose),
-				tokenStats?.ariaLabel,
+				footerHover?.ariaLabel,
 			);
 			// The container (rather than the stat span) is the hover target because it
 			// is the focusable element, which keeps the breakdown reachable by keyboard
@@ -1259,13 +1371,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// re-render above, so an existing hover is updated in place: replacing it
 			// would re-key the hover service's target map and leave the container
 			// unregistered for `workbench.action.showHover`.
-			const tokenStatsHover = templateData.responseTokenStatsHover;
-			if (!tokenStats) {
-				tokenStatsHover.clear();
-			} else if (tokenStatsHover.value) {
-				tokenStatsHover.value.update(tokenStats);
+			const footerHoverDisposable = templateData.responseFooterHover;
+			if (!footerHover) {
+				footerHoverDisposable.clear();
+			} else if (footerHoverDisposable.value) {
+				footerHoverDisposable.value.update(footerHover);
 			} else {
-				tokenStatsHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), templateData.footerDetailsContainer, tokenStats);
+				footerHoverDisposable.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), templateData.footerDetailsContainer, footerHover);
 			}
 			if (!completedAtElement) {
 				responseTimingListeners.clear();
@@ -3190,6 +3302,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'externalEdit') {
 				return this.renderExternalEdit(content, context, templateData);
 			} else if (content.kind === 'autoModeResolution') {
+				// In the `footer` arm the routing decision is explained on the response
+				// footer's hover instead, so the part contributes data but nothing inline.
+				if (getChatAutoModeExplainability(this.configService) === 'footer') {
+					return this.renderNoContent(other => content.kind === other.kind);
+				}
 				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context, this.chatContentMarkdownRenderer);
 			}
 
@@ -4338,7 +4455,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// The footer hover is template-scoped, so it outlives the element unless
 		// released here; a virtualized row would otherwise keep showing (and
 		// retaining) the previous element's token breakdown.
-		templateData.responseTokenStatsHover.clear();
+		templateData.responseFooterHover.clear();
 	}
 
 	private renderMcpServersInteractionRequired(content: IChatMcpServersStarting | IChatMcpServersStartingSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {

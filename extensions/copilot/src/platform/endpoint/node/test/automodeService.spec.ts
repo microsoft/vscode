@@ -277,6 +277,40 @@ describe('AutomodeService', () => {
 			expect({ model: second.model, calls: autoCalls().length }).toEqual({ model: 'gpt-4o', calls: 1 });
 		});
 
+		it('reports the serving model for routed and cached turns', async () => {
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI', { name: 'GPT-4o' });
+			mockAuto(autoResponse('gpt-4o'));
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'first prompt',
+				sessionId: 'session-auto-routing-decision'
+			};
+
+			const first = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint]);
+			const firstDecision = automodeService.consumeLastRoutingDecision();
+			const consumedDecision = automodeService.consumeLastRoutingDecision();
+			const second = await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'second prompt' } as ChatRequest, [gpt4oEndpoint]);
+			const secondDecision = automodeService.consumeLastRoutingDecision();
+
+			expect({
+				firstModel: first.model,
+				firstDecision,
+				consumedDecision,
+				secondModel: second.model,
+				secondDecision,
+				calls: autoCalls().length,
+			}).toEqual({
+				firstModel: 'gpt-4o',
+				firstDecision: { resolvedModel: 'gpt-4o', resolvedModelName: 'GPT-4o' },
+				consumedDecision: undefined,
+				secondModel: 'gpt-4o',
+				secondDecision: { resolvedModel: 'gpt-4o', resolvedModelName: 'GPT-4o' },
+				calls: 1,
+			});
+		});
+
 		it('re-runs /auto after the cache is invalidated', async () => {
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 			mockAuto(autoResponse('gpt-4o'));

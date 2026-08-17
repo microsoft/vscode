@@ -585,8 +585,8 @@ export interface IChatThinkingPart {
 
 /**
  * A progress part representing an auto-mode model routing resolution.
- * Shown as a collapsible widget in the chat stream: collapsed displays
- * "Routed to <model>", expanded shows routing details and confidence.
+ * Always explained on the response footer's hover; `chat.experimental.autoModeExplainability`
+ * decides whether it is also shown as a collapsible widget in the chat stream.
  */
 export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
@@ -594,10 +594,10 @@ export interface IChatAutoModeResolutionPart {
 	resolvedModel: string;
 	/** The user-facing display name of the resolved model */
 	resolvedModelName: string;
-	/** The router's classification label */
-	predictedLabel: 'needs_reasoning' | 'no_reasoning' | 'fallback';
-	/** Confidence score (0-1) from the router */
-	confidence: number;
+	/** The router's classification label, absent when the router reported none */
+	predictedLabel?: 'needs_reasoning' | 'no_reasoning' | 'fallback';
+	/** Confidence score (0-1) from the router, absent when the router reported none */
+	confidence?: number;
 }
 
 /**

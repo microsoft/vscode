@@ -213,6 +213,7 @@ suite('LanguageModelAccess model info', () => {
 			resolveAutoModeEndpoint: async () => endpoint,
 			resolveAutoModePickerEndpoint: async () => endpoint,
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
+			consumeLastRoutingDecision: () => undefined,
 			areAutoModeTiersSupported: () => false,
 			onDidChangeAutoModeTierSupport: Event.None,
 			invalidateRouterCache: () => { },

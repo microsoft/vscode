@@ -554,6 +554,20 @@ configurationRegistry.registerConfiguration({
 			default: 'word',
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.AutoModeExplainability]: {
+			type: 'string',
+			enum: ['inline', 'footer'],
+			enumDescriptions: [
+				nls.localize('chat.experimental.autoModeExplainability.inline', "The response footer names the model Auto picked, and the routing decision is also shown as a collapsible part in the response."),
+				nls.localize('chat.experimental.autoModeExplainability.footer', "The response footer reports `Auto`, and the routing decision is only explained on the footer's hover."),
+			],
+			description: nls.localize('chat.experimental.autoModeExplainability', "Controls how a response routed by Auto explains which model served it."),
+			default: 'inline',
+			tags: ['experimental'],
+			// Locked for the window: the arm must not flip under already-rendered
+			// responses, which would move the explanation mid-session.
+			experiment: { mode: 'startup', name: 'chatAutoModeExplainability' },
+		},
 		[ChatConfiguration.CollapseCompletedResponses]: {
 			type: 'boolean',
 			description: nls.localize('chat.agent.collapseCompletedResponses', "Controls whether completed chat responses collapse intermediate work while keeping the final response visible."),

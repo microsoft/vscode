@@ -188,6 +188,10 @@ class NullAutomodeService implements IAutomodeService {
 		return { discountRange: { low: 0, high: 0 } };
 	}
 
+	consumeLastRoutingDecision(): undefined {
+		return undefined;
+	}
+
 	areAutoModeTiersSupported(): boolean {
 		return false;
 	}

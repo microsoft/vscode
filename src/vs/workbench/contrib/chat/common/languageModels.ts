@@ -391,15 +391,19 @@ export namespace ILanguageModelChatMetadata {
 	 *
 	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%). When
 	 * omitted or not positive, the discount sentence is left out entirely.
+	 * @param options `includeLearnMore` defaults to `true`. Pass `false` for
+	 * surfaces that cannot be moused into — a transient hover, for example —
+	 * where an unreachable link is noise rather than an affordance.
 	 */
-	export function getAutoModelDescription(discountPercent?: number): string {
+	export function getAutoModelDescription(discountPercent?: number, options?: { readonly includeLearnMore?: boolean }): string {
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
-		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
-		if (typeof discountPercent === 'number' && discountPercent > 0) {
-			const discount = localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
-			return `${base} ${discount} ${learnMore}`;
-		}
-		return `${base} ${learnMore}`;
+		const learnMore = options?.includeLearnMore === false
+			? undefined
+			: localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
+		const discount = typeof discountPercent === 'number' && discountPercent > 0
+			? localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent)
+			: undefined;
+		return [base, discount, learnMore].filter(Boolean).join(' ');
 	}
 
 	/**

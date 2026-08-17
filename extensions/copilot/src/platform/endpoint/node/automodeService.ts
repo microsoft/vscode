@@ -57,6 +57,14 @@ export interface IAutoModeRoutingRequest {
 	readonly modelConfiguration?: { readonly [key: string]: unknown };
 }
 
+export interface AutoModeRoutingDecision {
+	resolvedModel: string;
+	resolvedModelName: string;
+	/** Absent because the `/auto` response carries no classification. */
+	predictedLabel?: 'needs_reasoning' | 'no_reasoning' | 'fallback';
+	confidence?: number;
+}
+
 export const IAutomodeService = createServiceIdentifier<IAutomodeService>('IAutomodeService');
 
 /**
@@ -76,6 +84,11 @@ export interface IAutomodeService {
 	 * nor a command, or the routing service is unavailable.
 	 */
 	resolveAutoModeEndpoint(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint>;
+
+	/**
+	 * Returns and clears the most recent routing decision for the response UI.
+	 */
+	consumeLastRoutingDecision(): AutoModeRoutingDecision | undefined;
 
 	/**
 	 * Resolves the endpoint backing the "Auto" model picker entry. The picker
@@ -117,6 +130,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	/** Bumped when the signed-in account changes; see {@link _routeAndCache}. */
 	private _authGeneration = 0;
 	private readonly _autoV2Fetcher: AutoV2Fetcher;
+	private _lastRoutingDecision: AutoModeRoutingDecision | undefined;
 	/** Upper bound on live sessions. See {@link _evictOldestSessions}. */
 	private static readonly CACHE_MAX_ENTRIES = 50;
 	private readonly _onDidChangeAutoModeTierSupport = this._register(new Emitter<void>());
@@ -145,6 +159,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		this._register(this._authService.onDidAuthenticationChange(() => {
 			this._cache.clear();
 			this._routingSingler = new TaskSingler<IChatEndpoint>();
+			this._lastRoutingDecision = undefined;
 			this._authGeneration++;
 		}));
 		this._serviceBrand = undefined;
@@ -153,6 +168,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 	override dispose(): void {
 		this._cache.clear();
+		this._lastRoutingDecision = undefined;
 		super.dispose();
 	}
 
@@ -171,6 +187,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		return { discountRange: this._calculateDiscountRange(knownEndpoints) };
 	}
 
+	consumeLastRoutingDecision(): AutoModeRoutingDecision | undefined {
+		const decision = this._lastRoutingDecision;
+		this._lastRoutingDecision = undefined;
+		return decision;
+	}
+
 	invalidateRouterCache(chatRequest: IAutoModeRoutingRequest): void {
 		const conversationId = chatRequest.sessionResource?.toString() ?? chatRequest.sessionId ?? 'unknown';
 		const entry = this._cache.get(conversationId);
@@ -186,6 +208,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * turn cannot be routed, leaving it to the caller to degrade.
 	 */
 	async resolveAutoModeEndpoint(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
+		this._lastRoutingDecision = undefined;
 		if (!knownEndpoints.length) {
 			throw new Error('No auto mode endpoints provided.');
 		}
@@ -199,7 +222,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// of the conversation unless a re-evaluation was explicitly requested
 		// (e.g. after compaction).
 		if (entry && !entry.needsReEval && this._isCacheEntryCompatible(entry, tier, chatRequest)) {
-			return entry.endpoint;
+			return this._recordRoutingDecision(entry.endpoint);
 		}
 
 		// A bare slash command (`/tests`, `/fix`, …) carries no prompt, so route
@@ -207,7 +230,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		const prompt = chatRequest?.prompt?.trim() || (chatRequest?.command ? `/${chatRequest.command}` : undefined);
 		if (!prompt) {
 			if (entry && this._isCacheEntryCompatible(entry, tier, chatRequest)) {
-				return entry.endpoint;
+				return this._recordRoutingDecision(entry.endpoint);
 			}
 			throw new Error('Auto mode needs a prompt or a command to route a request.');
 		}
@@ -216,13 +239,21 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// batch of `vscode.lm` requests) would otherwise each mint their own
 		// session and could land on different models. Share one routing call
 		// across every caller whose turn it would answer identically.
-		if (conversationId === 'unknown') {
-			return this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry);
-		}
-		return this._routingSingler.getOrCreate(
-			`${conversationId}|${tier ?? ''}|${hasImage(chatRequest)}`,
-			() => this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry),
-		);
+		const endpoint = conversationId === 'unknown'
+			? await this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry)
+			: await this._routingSingler.getOrCreate(
+				`${conversationId}|${tier ?? ''}|${hasImage(chatRequest)}`,
+				() => this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry),
+			);
+		return this._recordRoutingDecision(endpoint);
+	}
+
+	private _recordRoutingDecision(endpoint: IChatEndpoint): IChatEndpoint {
+		this._lastRoutingDecision = {
+			resolvedModel: endpoint.model,
+			resolvedModelName: endpoint.name,
+		};
+		return endpoint;
 	}
 
 	/**

@@ -472,7 +472,9 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				break;
 			}
 			case 'autoModeResolution': {
-				if (part.predictedLabel === 'fallback') {
+				if (part.predictedLabel === undefined || part.confidence === undefined) {
+					contentParts.push({ partIndex, text: localize('autoModeResolutionA11yModelOnly', "Routed to {0}.", part.resolvedModelName) });
+				} else if (part.predictedLabel === 'fallback') {
 					contentParts.push({ partIndex, text: localize('autoModeResolutionA11yFallback', "Routed to {0}. Unable to resolve.", part.resolvedModelName) });
 				} else {
 					const label = part.predictedLabel === 'needs_reasoning'
