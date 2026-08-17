@@ -152,6 +152,13 @@ suite('git smoke test', function () {
 		const commitMessage = Buffer.from('a5c6a5b9a5c8', 'hex'); // Encoded in EUC-JP
 		const commitMessageFile = file('commit-message.txt');
 
+		let previousCommitEncoding: string | undefined;
+		try {
+			previousCommitEncoding = cp.execSync('git config i18n.commitEncoding', { cwd, encoding: 'utf8' }).trim();
+		} catch {
+			previousCommitEncoding = undefined;
+		}
+
 		try {
 			fs.writeFileSync(commitMessageFile, commitMessage);
 			cp.execSync('git config i18n.commitEncoding EUC-JP', { cwd });
@@ -167,7 +174,11 @@ suite('git smoke test', function () {
 			}
 
 			try {
-				cp.execSync('git config --unset i18n.commitEncoding', { cwd });
+				if (previousCommitEncoding) {
+					cp.execSync(`git config i18n.commitEncoding ${previousCommitEncoding}`, { cwd });
+				} else {
+					cp.execSync('git config --unset i18n.commitEncoding', { cwd });
+				}
 			} catch {
 				// Ignore cleanup errors if the config was never set or already unset.
 			}
