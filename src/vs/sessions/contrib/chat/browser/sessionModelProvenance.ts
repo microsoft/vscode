@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isInConversationModelChoice, isRestoredModelReason, ModelSelectionApplyReason, ModelSelectionAuthority, ModelSelectionReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { isInConversationModelChoice, isRestoredModelReason, ModelSelectionApplyReason, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ChatModelSource } from '../../../services/sessions/common/session.js';
 
 /**
- * Translation between how a provider accounts for a chat's model ({@link ChatModelSource}) and the
- * authority the shared selection controller reasons about ({@link ModelSelectionAuthority}).
+ * Translation between how a provider accounts for a chat's model ({@link ChatModelSource}) and how
+ * the shared selection controller records one ({@link RestoredModelReason}).
  *
  * The two vocabularies differ on purpose. A provider reports *what happened* to a chat, which the
  * Agents Window needs in its own right; the controller only needs to know whether the model speaks
@@ -17,20 +17,20 @@ import { ChatModelSource } from '../../../services/sessions/common/session.js';
  */
 
 /**
- * The authority behind a model a chat is already on.
+ * How a model a chat is already on should be recorded.
  *
  * Only called for a chat that has a model. A provider that cannot account for one says so, and is
  * taken at its word that the model is the chat's own — the safe answer, because the alternative is
  * letting `chat.defaultModel` overwrite a model the user may well have picked. A chat with no model
  * at all never reaches here, because there is no authority to weigh.
  */
-export function toModelSelectionAuthority(source: ChatModelSource | undefined): ModelSelectionAuthority {
+export function restoreReasonForSource(source: ChatModelSource | undefined): RestoredModelReason {
 	switch (source) {
 		case ChatModelSource.Automatic:
 		case ChatModelSource.Inherited:
-			return ModelSelectionAuthority.Provisional;
+			return ModelSelectionReason.SessionRestore;
 		default:
-			return ModelSelectionAuthority.Conversation;
+			return ModelSelectionReason.RestoredChoice;
 	}
 }
 

@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { ModelSelectionAuthority, ModelSelectionReason, resolveModelIdentifierFromCatalog, type IIntendedModelSelection } from '../../../../common/modelSelection.js';
+import { ModelSelectionReason, resolveModelIdentifierFromCatalog, type IIntendedModelSelection } from '../../../../common/modelSelection.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from '../../../../browser/widget/input/chatInputModelSelectionController.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from './modelSelectionConformance.js';
 
@@ -139,7 +139,7 @@ function runConformanceScenario(
 			state.sessionType,
 			state.conversationKey!,
 			false,
-			chatModelAuthority === 'choice' ? ModelSelectionAuthority.Conversation : ModelSelectionAuthority.Provisional,
+			chatModelAuthority === 'choice' ? ModelSelectionReason.RestoredChoice : ModelSelectionReason.SessionRestore,
 		);
 		conversationModel = chatModel;
 	}
@@ -1005,18 +1005,18 @@ suite('ChatInputModelSelectionController', () => {
 		controller.applySelection(picked, () => applied.push(picked.identifier), true);
 		// The echo: `chatInputPart` derives the authority from the conversation's intent, which the
 		// pick above recorded as a user selection.
-		const authority = intents.get('chat:one')?.reason === ModelSelectionReason.UserSelection
-			? ModelSelectionAuthority.Conversation
-			: undefined;
-		controller.syncFromConversationState(picked, undefined, 'test', 'chat:one', false, authority);
+		const restoredAs = intents.get('chat:one')?.reason === ModelSelectionReason.UserSelection
+			? ModelSelectionReason.RestoredChoice
+			: ModelSelectionReason.SessionRestore;
+		controller.syncFromConversationState(picked, undefined, 'test', 'chat:one', false, restoredAs);
 		const configuredApplied = controller.applyConfiguredDefault();
 
 		assert.deepStrictEqual({
-			derivedAuthority: authority,
+			derivedRestoreReason: restoredAs,
 			configuredApplied,
 			current: controller.currentModel.get()?.identifier,
 		}, {
-			derivedAuthority: ModelSelectionAuthority.Conversation,
+			derivedRestoreReason: ModelSelectionReason.RestoredChoice,
 			configuredApplied: false,
 			current: picked.identifier,
 		});
@@ -1038,7 +1038,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
 		controller.beginSessionSwitch(true, false, true);
-		controller.syncFromConversationState(chosen, undefined, 'test', 'chat:one', false, ModelSelectionAuthority.Conversation);
+		controller.syncFromConversationState(chosen, undefined, 'test', 'chat:one', false, ModelSelectionReason.RestoredChoice);
 		// Both the conversation's model and the configured default publish together.
 		state.models = [chosen, configured];
 		modelChanges.fire('published');
@@ -1061,7 +1061,7 @@ suite('ChatInputModelSelectionController', () => {
 			createRuntime({ models: [gpt, opus], sessionType: 'test', configuredModel: gpt.metadata.id }, modelChanges, applied)));
 
 		controller.beginSessionSwitch(true, false, false);
-		controller.syncFromConversationState(opus, undefined, 'test', 'chat:one', false, ModelSelectionAuthority.Conversation);
+		controller.syncFromConversationState(opus, undefined, 'test', 'chat:one', false, ModelSelectionReason.RestoredChoice);
 		const afterRestore = controller.currentModel.get()?.identifier;
 		const configuredApplied = controller.applyConfiguredDefault();
 

@@ -158,27 +158,15 @@ export const enum ModelSelectionReason {
 export type ModelSelectionApplyReason = Exclude<ModelSelectionReason, ModelSelectionReason.NoModels>;
 
 /**
- * Whether the model a conversation carries was chosen for that conversation, or is merely standing
- * on it.
+ * How a model already on a conversation is recorded: as the conversation's own, or as one merely
+ * standing on it.
  *
  * The distinction decides whether `chat.defaultModel` may still seed the conversation, and it
  * cannot be read off the model identifier: the same model can arrive because the user picked it,
  * because it was inherited from the chat this one branched off, or because an input picked it in
  * the absence of anything better. Each surface knows which of those happened and says so.
  */
-export const enum ModelSelectionAuthority {
-	/** The conversation's own model — chosen in it, or restored as its choice. */
-	Conversation = 'conversation',
-	/** Standing on the conversation: an automatic pick, or carried in from elsewhere. */
-	Provisional = 'provisional',
-}
-
-/** The reason a restored model should be recorded under, given who chose it. */
-export function restoreReasonFor(authority: ModelSelectionAuthority | undefined): ModelSelectionApplyReason {
-	return authority === ModelSelectionAuthority.Conversation
-		? ModelSelectionReason.RestoredChoice
-		: ModelSelectionReason.SessionRestore;
-}
+export type RestoredModelReason = ModelSelectionReason.RestoredChoice | ModelSelectionReason.SessionRestore;
 
 /** Whether a reason describes a model restored onto a conversation, whoever chose it. */
 export function isRestoredModelReason(reason: ModelSelectionApplyReason | undefined): boolean {

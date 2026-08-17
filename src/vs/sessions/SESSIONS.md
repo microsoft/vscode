@@ -355,7 +355,7 @@ model is applied — and turns the controller's decision into a provider write p
 picker state. Precedence between a configured default, a remembered preference,
 and a conversation's own model belongs to the controller, so that cannot drift.
 Both surfaces adopt a conversation's model through the same controller entry
-point, differing only in the `ModelSelectionAuthority` they report, so the
+point, differing only in how they say the model stands, so the
 scenario-to-entry-point mapping is shared rather than re-decided per surface.
 
 It is close to, but not purely, a translation layer. It still decides when a
@@ -363,15 +363,15 @@ conversation has been seeded, and when to wait for a model the provider's pool
 has not published rather than write a stand-in through to a backend. What it
 does not decide is whether `chat.defaultModel` may overtake that wait — it asks
 `ChatInputModelSelectionController.configuredDefaultToSeed` and supplies only
-the conversation's authority, so that precedence is stated once. Presentation
+how the chat's own model stands, so that precedence is stated once. Presentation
 lives in `sessionModelPickerState.ts` and the provider-to-controller vocabulary
 in `sessionModelProvenance.ts`, leaving this file about selection alone.
 
 What it no longer does is *infer* where a chat's model came from, or decide what
 that means: `IChat.modelSource` carries the provenance, so
 `ISessionsProvider.setModel` requires the caller to state why the model is being
-set, and the adapter translates that into the shared `ModelSelectionAuthority`
-the controller reasons about. A client picking a model on the user's behalf says
+set, and the adapter translates that into the `RestoredChoice`/`SessionRestore`
+distinction the controller already records. A client picking a model on the user's behalf says
 `Automatic`, a provider starting a peer chat on the previous chat's model says
 `Inherited`, and only `User`/`Restored` count as the conversation answering for
 itself.
@@ -387,7 +387,7 @@ Two invariants follow from that seam:
 
 - Everything that describes a conversation's model is held per conversation, keyed by
   the chat resource: the model it is meant to run on, whether it has been seeded
-  yet, and the authority behind its model. A choice made in one chat is
+  yet, and whether its model is its own. A choice made in one chat is
   unreachable from another by construction, not by a reset a refactor can drop.
   A chat's model is read from the chat itself (`IActiveSession.modelId` follows
   `activeChat`), so switching between peer chats carries each one's own model

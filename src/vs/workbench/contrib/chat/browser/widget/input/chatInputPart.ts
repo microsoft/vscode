@@ -106,7 +106,7 @@ import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { ChatInputStateOrigin, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { isInConversationModelChoice, ModelSelectionAuthority } from '../../../common/modelSelection.js';
+import { isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../common/modelSelection.js';
 import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isNewConversation, mergeModelsWithCache, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -550,11 +550,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * stays provisional, which is what lets `chat.defaultModel` seed a new session that merely
 	 * inherited the previous one's model.
 	 */
-	private _restoreAuthorityFor(model: ILanguageModelChatMetadataAndIdentifier): ModelSelectionAuthority | undefined {
+	private _restoreReasonFor(model: ILanguageModelChatMetadataAndIdentifier): RestoredModelReason {
 		const intended = this._intentHolder.intendedModel;
 		return intended?.modelId === model.identifier && isInConversationModelChoice(intended.reason)
-			? ModelSelectionAuthority.Conversation
-			: undefined;
+			? ModelSelectionReason.RestoredChoice
+			: ModelSelectionReason.SessionRestore;
 	}
 
 	// Disposables for model observation
@@ -1670,7 +1670,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
 				const sessionType = getChatSessionType(forSessionResource);
-				this._modelSelectionController.syncFromConversationState(state.selectedModel, state.modelConfiguration, sessionType, forSessionResource.toString(), state.origin === ChatInputStateOrigin.Remote, this._restoreAuthorityFor(state.selectedModel));
+				this._modelSelectionController.syncFromConversationState(state.selectedModel, state.modelConfiguration, sessionType, forSessionResource.toString(), state.origin === ChatInputStateOrigin.Remote, this._restoreReasonFor(state.selectedModel));
 			} else if (state) {
 				// state exists but state.selectedModel is undefined - sync is a NO-OP,
 				// but record it so we can see when a session's persisted state lost its model.

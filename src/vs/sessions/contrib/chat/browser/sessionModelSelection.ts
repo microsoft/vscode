@@ -16,13 +16,13 @@ import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel 
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IPendingModelSelection, ModelSelectionAuthority } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IPendingModelSelection, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
-import { sourceForControllerWrite, toModelSelectionAuthority } from './sessionModelProvenance.js';
+import { restoreReasonForSource, sourceForControllerWrite } from './sessionModelProvenance.js';
 
 /**
  * How many conversations keep their model selection. Bounded because a long-lived window can bind
@@ -303,7 +303,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		// read as the chat's own. A chat with no model at all has self-evidently not chosen one.
 		const chatModelSource = chatModelId ? (chat.modelSource.get() ?? ChatModelSource.Restored) : undefined;
 		// Undefined only when the chat has no model, which is the one case with no authority at all.
-		const chatAuthority = chatModelSource === undefined ? undefined : toModelSelectionAuthority(chatModelSource);
+		const chatModelReason = chatModelSource === undefined ? undefined : restoreReasonForSource(chatModelSource);
 		const baseSnapshot = provider.getModelsSnapshot(session.sessionId, chatModelId);
 		const remembered = this._getRememberedModel(session, baseSnapshot.modelTarget);
 
@@ -342,7 +342,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._controller.beginConversationSwitch();
 		}
 
-		if (snapshot.desiredModelResolution.kind === 'pending' && !this._canProceedWhilePending(chatAuthority)) {
+		if (snapshot.desiredModelResolution.kind === 'pending' && !this._canProceedWhilePending(chatModelReason)) {
 			// The pool has not published the wanted model yet. Choosing anything now would push a
 			// stand-in through to the provider — and on to the backend — so wait it out instead,
 			// and re-seed once the pool has settled.
@@ -374,12 +374,12 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	 *
 	 * Only `chat.defaultModel` may overtake the wait, and whether it may is the controller's
 	 * question, not this adapter's — asking it here in a second vocabulary is how the two would
-	 * drift. All this supplies is the authority, because the conversation's model is precisely what
-	 * cannot be adopted yet: no authority at all means the chat has no model of its own, so there
-	 * is nothing for the configured default to override.
+	 * drift. All this supplies is how the chat's model stands, because that model is precisely what
+	 * cannot be adopted yet: no model at all means the chat has nothing of its own, so there is
+	 * nothing for the configured default to override.
 	 */
-	private _canProceedWhilePending(chatAuthority: ModelSelectionAuthority | undefined): boolean {
-		return !!this._controller.configuredDefaultToSeed(chatAuthority ?? ModelSelectionAuthority.Provisional);
+	private _canProceedWhilePending(chatModelReason: RestoredModelReason | undefined): boolean {
+		return !!this._controller.configuredDefaultToSeed(chatModelReason ?? ModelSelectionReason.SessionRestore);
 	}
 
 	/**
@@ -470,7 +470,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._modelTarget,
 			conversationKey,
 			false,
-			toModelSelectionAuthority(source),
+			restoreReasonForSource(source),
 		);
 	}
 
