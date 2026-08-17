@@ -12,6 +12,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { ModelSelectionReason, resolveModelIdentifierFromCatalog, type IIntendedModelSelection } from '../../../../common/modelSelection.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from '../../../../browser/widget/input/chatInputModelSelectionController.js';
+import { isModelSupportedForInlineChat, isModelSupportedForMode } from '../../../../browser/widget/input/chatInputModelUtils.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from './modelSelectionConformance.js';
 
 function model(identifier: string): ILanguageModelChatMetadataAndIdentifier {
@@ -76,14 +77,14 @@ function createRuntime(
 ): IChatInputModelSelectionRuntime {
 	const boundKey = () => state.conversationKey ?? 'chat:one';
 	return {
-		location: ChatAgentLocation.Chat,
-		getCurrentModeKind: () => ChatModeKind.Ask,
 		getCurrentSessionType: () => state.sessionType,
 		isEmpty: () => state.isEmpty ?? true,
 		getModels: () => state.models,
 		getAllModels: () => state.models,
 		requiresCustomModels: () => false,
 		getConfiguredModelValue: () => state.configuredModel,
+		isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+		getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 		subscribeToModelChanges: listener => modelChanges.event(listener),
 		getBoundConversationKey: boundKey,
 		...createIntentStore(boundKey, state.intents),
@@ -242,14 +243,14 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -282,14 +283,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -679,14 +680,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models = [byok];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => configured.metadata.id,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -775,14 +776,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models = [byok, explicit];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => configured.metadata.id,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -812,14 +813,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models = [fallback, restored];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -855,14 +856,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models = [restored];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => configured.metadata.id,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -898,14 +899,14 @@ suite('ChatInputModelSelectionController', () => {
 		const run = (configuredModel: string | undefined, rememberedModel: string | undefined, models: ILanguageModelChatMetadataAndIdentifier[]) => {
 			const applied: string[] = [];
 			const runtime: IChatInputModelSelectionRuntime = {
-				location: ChatAgentLocation.Chat,
-				getCurrentModeKind: () => ChatModeKind.Ask,
 				getCurrentSessionType: () => undefined,
 				isEmpty: () => true,
 				getModels: () => models,
 				getAllModels: () => models,
 				requiresCustomModels: () => false,
 				getConfiguredModelValue: () => configuredModel,
+				isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+				getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 				subscribeToModelChanges: () => toDisposable(() => { }),
 				getBoundConversationKey: () => 'chat:one',
 				...createIntentStore(() => 'chat:one'),
@@ -932,14 +933,14 @@ suite('ChatInputModelSelectionController', () => {
 		const configuration: { model: string | undefined } = { model: undefined };
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => true,
 			getModels: () => [first, second],
 			getAllModels: () => [first, second],
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => configuration.model,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1154,14 +1155,14 @@ suite('ChatInputModelSelectionController', () => {
 		const opus = model('test/opus');
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => false,
 			getModels: () => [gpt, opus],
 			getAllModels: () => [gpt, opus],
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => gpt.metadata.id,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1213,14 +1214,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models = [byok];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1251,14 +1252,14 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const restored: { modelId: string; configuration: Record<string, unknown> | undefined }[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => sessionType,
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => true,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1308,14 +1309,14 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const restored: { modelId: string; configuration: Record<string, unknown> | undefined }[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => sessionType,
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => true,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1370,14 +1371,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => sessionType,
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => true,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1426,14 +1427,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => sessionType,
 			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => true,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1470,14 +1471,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => sessionType,
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => true,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1574,14 +1575,14 @@ suite('ChatInputModelSelectionController', () => {
 		const state: { sessionType: string | undefined } = { sessionType: undefined };
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => state.sessionType,
 			isEmpty: () => true,
 			getModels: type => type ? [targeted] : [general],
 			getAllModels: () => [general, targeted],
 			requiresCustomModels: () => true,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: () => toDisposable(() => { }),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1613,14 +1614,14 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => state.sessionType,
 			isEmpty: () => true,
 			getModels: sessionType => sessionType ? state.targetedModels : [general],
 			getAllModels: () => [general, ...state.targetedModels],
 			requiresCustomModels: sessionType => sessionType === state.sessionType,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1651,14 +1652,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models = [fallback];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),
@@ -1693,14 +1694,14 @@ suite('ChatInputModelSelectionController', () => {
 		const build = (rememberedId: string | undefined, models: ILanguageModelChatMetadataAndIdentifier[]) => {
 			const applied: string[] = [];
 			const runtime: IChatInputModelSelectionRuntime = {
-				location: ChatAgentLocation.Chat,
-				getCurrentModeKind: () => ChatModeKind.Ask,
 				getCurrentSessionType: () => undefined,
 				isEmpty: () => true,
 				getModels: () => models,
 				getAllModels: () => models,
 				requiresCustomModels: () => false,
 				getConfiguredModelValue: () => undefined,
+				isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+				getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 				subscribeToModelChanges: () => toDisposable(() => { }),
 				getBoundConversationKey: () => 'chat:one',
 				...createIntentStore(() => 'chat:one'),
@@ -1735,14 +1736,14 @@ suite('ChatInputModelSelectionController', () => {
 		let models = [fallback, explicit];
 		const applied: string[] = [];
 		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
 			isEmpty: () => true,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => undefined,
+			isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			...createIntentStore(() => 'chat:one'),

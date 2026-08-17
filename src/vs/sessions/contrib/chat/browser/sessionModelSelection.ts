@@ -13,7 +13,7 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputModelSelectionController.js';
 import { ChatModelSelectionDiagnostics } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelSelectionDiagnostics.js';
 import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel } from '../../../../workbench/contrib/chat/common/chatSelectedModel.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IPendingModelSelection, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
@@ -235,10 +235,6 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	private _createRuntime(): IChatInputModelSelectionRuntime {
 		return {
-			location: ChatAgentLocation.Chat,
-			// The provider's snapshot is already the authoritative set of models a session can run
-			// on, so no mode-based filtering is layered on top of it.
-			getCurrentModeKind: () => ChatModeKind.Ask,
 			// The pool's target, not the session type: it is what the provider scopes its models
 			// (and this window's remembered preference) by.
 			getCurrentSessionType: () => this._modelTarget,
@@ -249,14 +245,16 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			// catalog a targeted pool would have to be waited for.
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => this._configurationService.getValue<string>(ChatConfiguration.DefaultModel),
-			// The pool is re-read from the provider before the controller is driven, so refreshing
-			// is owned by {@link _refresh} rather than by a subscription the controller holds.
-			subscribeToModelChanges: () => Disposable.None,
+			// A session runs whatever its provider published for it. There is no mode to satisfy
+			// and nowhere else it could be shown, so the pool is already the answer.
+			isModelSupportedHere: () => true,
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 			getBoundConversationKey: () => this._boundConversationKey,
 			getIntentHolder: () => this._conversation().intent,
-			// Per-model configuration is a Workbench chat concept; sessions have no equivalent.
-			restoreModelConfiguration: () => { },
 			applyModel: model => this._pushModelToProvider(model),
+			// `subscribeToModelChanges` and `restoreModelConfiguration` are deliberately absent:
+			// the pool is re-read from the provider before the controller is driven, so refreshing
+			// is owned by `_refresh`, and sessions have no per-model configuration.
 		};
 	}
 

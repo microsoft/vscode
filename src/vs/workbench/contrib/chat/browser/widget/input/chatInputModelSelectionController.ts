@@ -5,11 +5,10 @@
 
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IIntendedModelHolder } from '../../../common/model/chatModel.js';
 import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationModelChoice, isRestoredModelReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, RestoredModelReason } from '../../../common/modelSelection.js';
-import { findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
+import { findBestMatchingModel, hasModelsTargetingSession, IsModelSupportedHere, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 
 /**
@@ -18,20 +17,34 @@ import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } fro
  * the same controller.
  */
 export interface IChatInputModelSelectionRuntime {
-	readonly location: ChatAgentLocation;
-	readonly getCurrentModeKind: () => ChatModeKind;
+	// -- where models come from
 	readonly getCurrentSessionType: () => string | undefined;
-	readonly isEmpty: () => boolean;
 	readonly getModels: (sessionType: string | undefined) => ILanguageModelChatMetadataAndIdentifier[];
 	readonly getAllModels: () => ILanguageModelChatMetadataAndIdentifier[];
-	readonly requiresCustomModels: (sessionType: string) => boolean;
 	readonly getConfiguredModelValue: () => string | undefined;
-	readonly subscribeToModelChanges: (listener: () => void) => IDisposable;
+	readonly isEmpty: () => boolean;
+	readonly requiresCustomModels: (sessionType: string) => boolean;
+
+	// -- which of them this surface can use
+	/**
+	 * Whether the surface can run `model` at all. Asked rather than derived so a surface states
+	 * what "usable here" means for it, instead of feeding the controller the inputs to work it out.
+	 */
+	readonly isModelSupportedHere: IsModelSupportedHere;
+	/** The model the surface declares as its default, when the pool declares one. */
+	readonly getDeclaredDefaultModel: (models: readonly ILanguageModelChatMetadataAndIdentifier[]) => ILanguageModelChatMetadataAndIdentifier | undefined;
+
+	// -- the bound conversation
 	readonly getBoundConversationKey: () => string | undefined;
 	/** Whoever speaks for the bound conversation's intended model — the conversation, else the composer. */
 	readonly getIntentHolder: () => IIntendedModelHolder;
-	readonly restoreModelConfiguration: (modelId: string, configuration: Record<string, unknown> | undefined) => void;
 	readonly applyModel: (model: ILanguageModelChatMetadataAndIdentifier) => void;
+
+	// -- only for surfaces that have them
+	/** Omitted by a surface that drives reconciliation itself rather than being notified. */
+	readonly subscribeToModelChanges?: (listener: () => void) => IDisposable;
+	/** Omitted by a surface with no per-model configuration to restore. */
+	readonly restoreModelConfiguration?: (modelId: string, configuration: Record<string, unknown> | undefined) => void;
 }
 
 interface IResolvedDraftModelSelection {
@@ -69,7 +82,10 @@ export class ChatInputModelSelectionController extends Disposable {
 		private readonly _diagnostics: IChatModelSelectionDiagnostics = NullChatModelSelectionDiagnostics,
 	) {
 		super();
-		this._register(this._runtime.subscribeToModelChanges(() => this.reconcileModelListChange(this._pool())));
+		const subscribe = this._runtime.subscribeToModelChanges;
+		if (subscribe) {
+			this._register(subscribe(() => this.reconcileModelListChange(this._pool())));
+		}
 		this._register(toDisposable(() => this._clearPendingProgrammaticSelection()));
 	}
 
@@ -212,7 +228,7 @@ export class ChatInputModelSelectionController extends Disposable {
 				configuredModel,
 				desiredModelResolution: resolution,
 				desiredReason: ModelSelectionReason.Remembered,
-				fallbackModel: findDefaultModel(models, this._runtime.location),
+				fallbackModel: this._defaultModel(models),
 				fallbackReason: ModelSelectionReason.FirstAvailable,
 			});
 		};
@@ -226,7 +242,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		} else if (selection.kind === 'pending') {
 			// The remembered model isn't in the catalog yet. Show the default meanwhile;
 			// `_restoreRememberedModel` claims the real one as soon as it is published.
-			const fallbackModel = findDefaultModel(this._pool(), this._runtime.location);
+			const fallbackModel = this._defaultModel(this._pool());
 			if (fallbackModel) {
 				this._selectionReason = ModelSelectionReason.FirstAvailable;
 				this._applyModel(fallbackModel);
@@ -238,15 +254,9 @@ export class ChatInputModelSelectionController extends Disposable {
 		const currentModel = this._currentModel.get();
 		const sessionType = this._runtime.getCurrentSessionType();
 		const models = this._pool(sessionType);
-		const context = {
-			location: this._runtime.location,
-			currentModeKind: this._runtime.getCurrentModeKind(),
-			sessionType,
-		};
-		const willReset = shouldResetModelToDefault(currentModel, models, context, this._runtime.getAllModels());
+		const willReset = shouldResetModelToDefault(currentModel, models, this._runtime.isModelSupportedHere, this._runtime.getAllModels(), sessionType);
 		this._diagnostics.report('compatibility-check', {
 			currentModel: currentModel?.identifier,
-			mode: context.currentModeKind,
 			sessionType,
 			willReset,
 		}, willReset ? 'info' : 'debug');
@@ -262,7 +272,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 		const models = this._pool(sessionType);
 		const configuredModel = resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models);
-		const defaultModel = configuredModel ?? findDefaultModel(models, this._runtime.location);
+		const defaultModel = configuredModel ?? this._defaultModel(models);
 		this._diagnostics.report('select-default', {
 			configuredModel: configuredModel?.identifier,
 			defaultModel: defaultModel?.identifier,
@@ -328,12 +338,12 @@ export class ChatInputModelSelectionController extends Disposable {
 			return;
 		}
 		const currentModel = this._currentModel.get();
-		const locationDefault = models.find(model => model.metadata.isDefaultForLocation[this._runtime.location]);
+		const declaredDefault = this._runtime.getDeclaredDefaultModel(models);
 		if (this._runtime.isEmpty()
 			&& this._selectionReason === ModelSelectionReason.FirstAvailable
-			&& locationDefault
-			&& currentModel?.identifier !== locationDefault.identifier) {
-			this._applyModel(locationDefault);
+			&& declaredDefault
+			&& currentModel?.identifier !== declaredDefault.identifier) {
+			this._applyModel(declaredDefault);
 			return;
 		}
 		if (!shouldResetOnModelListChange(currentModel?.identifier, [...models])) {
@@ -378,7 +388,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._diagnostics.report('restore-remembered-model', { model: model.identifier, remembered: remembered.modelId, reason: remembered.reason }, 'info');
 		this._selectionReason = remembered.reason;
 		if (exact && remembered.configuration) {
-			this._runtime.restoreModelConfiguration(remembered.modelId, remembered.configuration);
+			this._runtime.restoreModelConfiguration?.(remembered.modelId, remembered.configuration);
 		}
 		this._applyModel(model);
 		return true;
@@ -408,11 +418,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 		const allModels = this._runtime.getAllModels();
 		const currentModel = this._currentModel.get();
-		const syncResult = resolveModelFromSyncState(desiredModel, currentModel, allModels, sessionType, {
-			location: this._runtime.location,
-			currentModeKind: this._runtime.getCurrentModeKind(),
-			sessionType,
-		});
+		const syncResult = resolveModelFromSyncState(desiredModel, currentModel, allModels, sessionType, this._runtime.isModelSupportedHere);
 		this._diagnostics.report('conversation-restore', {
 			desiredModel: desiredModel.identifier,
 			currentModel: currentModel?.identifier,
@@ -478,6 +484,11 @@ export class ChatInputModelSelectionController extends Disposable {
 	/** The intended model of the conversation this input is currently bound to. */
 	private get _intendedModel(): IIntendedModelSelection | undefined {
 		return this._runtime.getIntentHolder().intendedModel;
+	}
+
+	/** The model to fall back to: the surface's declared default, else the first on offer. */
+	private _defaultModel(models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
+		return this._runtime.getDeclaredDefaultModel(models) ?? models[0];
 	}
 
 	/** The models selectable for the bound session right now. */
@@ -567,7 +578,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._selectionReason = restoredAs;
 		this._remember({ modelId: model.identifier, model, reason: restoredAs, configuration });
 		if (configuration) {
-			this._runtime.restoreModelConfiguration(model.identifier, configuration);
+			this._runtime.restoreModelConfiguration?.(model.identifier, configuration);
 		}
 		if (applyModel) {
 			this._applyModel(model);

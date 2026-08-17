@@ -10,13 +10,10 @@ import { localChatSessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 
 /**
- * Describes the context needed for model selection decisions.
+ * Whether the surface can run this model at all, given the mode it is in and where it is shown.
+ * Supplied by the surface so these rules do not have to be restated in terms of its inputs.
  */
-interface IModelSelectionContext {
-	readonly location: ChatAgentLocation;
-	readonly currentModeKind: ChatModeKind;
-	readonly sessionType: string | undefined;
-}
+export type IsModelSupportedHere = (model: ILanguageModelChatMetadataAndIdentifier) => boolean;
 
 /**
  * Filter models based on session type.
@@ -218,8 +215,9 @@ export function findDefaultModel(
 export function shouldResetModelToDefault(
 	currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 	availableModels: ILanguageModelChatMetadataAndIdentifier[],
-	context: IModelSelectionContext,
+	isModelSupportedHere: IsModelSupportedHere,
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
+	sessionType: string | undefined,
 ): boolean {
 	// Nothing selected yet is not a reason to reset: with an empty catalog there is nothing to
 	// reset *to*, and with a partly-published one the first model to arrive is an arbitrary
@@ -233,18 +231,13 @@ export function shouldResetModelToDefault(
 		return true;
 	}
 
-	// Model not supported for current mode
-	if (!isModelSupportedForMode(currentModel, context.currentModeKind)) {
-		return true;
-	}
-
-	// Model not supported for inline chat
-	if (!isModelSupportedForInlineChat(currentModel, context.location)) {
+	// Model not usable on this surface (mode, or where it is shown)
+	if (!isModelSupportedHere(currentModel)) {
 		return true;
 	}
 
 	// Model not valid for current session
-	if (!isModelValidForSession(currentModel, allModels, context.sessionType)) {
+	if (!isModelValidForSession(currentModel, allModels, sessionType)) {
 		return true;
 	}
 
@@ -261,17 +254,16 @@ export function shouldResetModelToDefault(
  *                 mode, or missing inline-chat capability); the caller should fall
  *                 back to the default model for the current location.
  *
- * @param context Optional because some callers (e.g. unit tests, or code paths
- *   that only care about session-pool validation) don't have a full UI context
- *   available. When omitted, mode and inline-chat checks are skipped and only
- *   session-pool membership is validated.
+ * @param isModelSupportedHere Optional because some callers (e.g. unit tests, or
+ *   code paths that only care about session-pool validation) cannot say. When
+ *   omitted, only session-pool membership is validated.
  */
 export function resolveModelFromSyncState(
 	stateModel: ILanguageModelChatMetadataAndIdentifier,
 	currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
 	sessionType: string | undefined,
-	context?: IModelSelectionContext,
+	isModelSupportedHere?: IsModelSupportedHere,
 ): { action: 'keep' | 'apply' | 'default' } {
 	// Validate the state model belongs to this session's model pool first.
 	if (!isModelValidForSession(stateModel, allModels, sessionType)) {
@@ -283,14 +275,9 @@ export function resolveModelFromSyncState(
 		return { action: 'keep' };
 	}
 
-	// When a UI context is available, also validate mode and inline-chat compatibility
-	if (context) {
-		if (!isModelSupportedForMode(stateModel, context.currentModeKind)) {
-			return { action: 'default' };
-		}
-		if (!isModelSupportedForInlineChat(stateModel, context.location)) {
-			return { action: 'default' };
-		}
+	// When the surface can say, also validate that it can run the model at all
+	if (isModelSupportedHere && !isModelSupportedHere(stateModel)) {
+		return { action: 'default' };
 	}
 
 	return { action: 'apply' };

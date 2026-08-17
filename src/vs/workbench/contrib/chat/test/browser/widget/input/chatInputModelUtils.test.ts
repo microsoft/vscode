@@ -110,6 +110,15 @@ function createVendorModel(
 	return { identifier: `${vendor}/${id}`, metadata: model.metadata };
 }
 
+// What each surface answers for "can I run this model at all"; the pool and session checks stay in
+// the functions under test, so these tests state only the surface-specific part.
+function supportedHere(location = ChatAgentLocation.Chat, mode = ChatModeKind.Ask) {
+	return (model: ILanguageModelChatMetadataAndIdentifier) =>
+		isModelSupportedForMode(model, mode) && isModelSupportedForInlineChat(model, location);
+}
+
+const anywhere = supportedHere();
+
 suite('ChatInputModelUtils', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -462,19 +471,14 @@ suite('ChatInputModelUtils', () => {
 
 	suite('shouldResetModelToDefault', () => {
 
-		const defaultContext = {
-			location: ChatAgentLocation.Chat,
-			currentModeKind: ChatModeKind.Ask,
-			sessionType: undefined,
-		};
 
 		test('does not reset when nothing is selected yet', () => {
 			// Validation must not invent a selection: with an empty catalog there is nothing to
 			// reset to, and with a partly-published one the first arrival is an arbitrary stand-in.
 			const model = createModel('gpt', 'GPT');
 			assert.deepStrictEqual({
-				emptyCatalog: shouldResetModelToDefault(undefined, [], defaultContext, []),
-				partlyPublished: shouldResetModelToDefault(undefined, [model], defaultContext, [model]),
+				emptyCatalog: shouldResetModelToDefault(undefined, [], anywhere, [], undefined),
+				partlyPublished: shouldResetModelToDefault(undefined, [model], anywhere, [model], undefined),
 			}, {
 				emptyCatalog: false,
 				partlyPublished: false,
@@ -483,45 +487,38 @@ suite('ChatInputModelUtils', () => {
 
 		test('should reset when model is no longer available', () => {
 			const model = createModel('gpt', 'GPT');
-			assert.strictEqual(shouldResetModelToDefault(model, [], defaultContext, [model]), true);
+			assert.strictEqual(shouldResetModelToDefault(model, [], anywhere, [model], undefined), true);
 		});
 
 		test('should NOT reset when model is available and compatible', () => {
 			const model = createModel('gpt', 'GPT');
-			assert.strictEqual(shouldResetModelToDefault(model, [model], defaultContext, [model]), false);
+			assert.strictEqual(shouldResetModelToDefault(model, [model], anywhere, [model], undefined), false);
 		});
 
 		test('should reset when model is not supported for current mode', () => {
 			const model = createModel('no-tools', 'No-Tools', {
 				capabilities: { toolCalling: false, agentMode: false },
 			});
-			const context = { ...defaultContext, currentModeKind: ChatModeKind.Agent };
-			assert.strictEqual(shouldResetModelToDefault(model, [model], context, [model]), true);
+			assert.strictEqual(shouldResetModelToDefault(model, [model], supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), [model], undefined), true);
 		});
 
 		test('should reset when model is not supported for inline chat', () => {
 			const model = createModel('no-tools', 'No-Tools', {
 				capabilities: { toolCalling: false },
 			});
-			const context = {
-				...defaultContext,
-				location: ChatAgentLocation.EditorInline,
-			};
-			assert.strictEqual(shouldResetModelToDefault(model, [model], context, [model]), true);
+			assert.strictEqual(shouldResetModelToDefault(model, [model], supportedHere(ChatAgentLocation.EditorInline), [model], undefined), true);
 		});
 
 		test('should reset when model is not valid for session', () => {
 			const generalModel = createModel('gpt', 'GPT');
 			const sessionModel = createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud');
 			const allModels = [generalModel, sessionModel];
-			const context = { ...defaultContext, sessionType: 'cloud' };
-			assert.strictEqual(shouldResetModelToDefault(generalModel, [generalModel], context, allModels), true);
+			assert.strictEqual(shouldResetModelToDefault(generalModel, [generalModel], anywhere, allModels, 'cloud'), true);
 		});
 
 		test('should NOT reset session model in matching session', () => {
 			const sessionModel = createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud');
-			const context = { ...defaultContext, sessionType: 'cloud' };
-			assert.strictEqual(shouldResetModelToDefault(sessionModel, [sessionModel], context, [sessionModel]), false);
+			assert.strictEqual(shouldResetModelToDefault(sessionModel, [sessionModel], anywhere, [sessionModel], 'cloud'), false);
 		});
 	});
 
@@ -567,11 +564,7 @@ suite('ChatInputModelUtils', () => {
 			const stateModel = createModel('no-tools', 'No-Tools', {
 				capabilities: { toolCalling: false, agentMode: false },
 			});
-			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			});
+			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent));
 			assert.strictEqual(result.action, 'default');
 		});
 
@@ -580,11 +573,7 @@ suite('ChatInputModelUtils', () => {
 			const stateModel = createModel('no-tools', 'No-Tools', {
 				capabilities: { toolCalling: false },
 			});
-			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, {
-				location: ChatAgentLocation.EditorInline,
-				currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			});
+			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, supportedHere(ChatAgentLocation.EditorInline, ChatModeKind.Ask));
 			assert.strictEqual(result.action, 'default');
 		});
 
@@ -593,11 +582,7 @@ suite('ChatInputModelUtils', () => {
 			const stateModel = createModel('agent-model', 'Agent Model', {
 				capabilities: { toolCalling: true, agentMode: true },
 			});
-			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			});
+			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent));
 			assert.strictEqual(result.action, 'apply');
 		});
 
@@ -779,21 +764,13 @@ suite('ChatInputModelUtils', () => {
 
 			// In Ask mode, model is fine
 			assert.strictEqual(
-				shouldResetModelToDefault(noToolsModel, allModels, {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Ask,
-					sessionType: undefined,
-				}, allModels),
+				shouldResetModelToDefault(noToolsModel, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, undefined),
 				false,
 			);
 
 			// After switching to Agent mode, model should be reset
 			assert.strictEqual(
-				shouldResetModelToDefault(noToolsModel, allModels, {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Agent,
-					sessionType: undefined,
-				}, allModels),
+				shouldResetModelToDefault(noToolsModel, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allModels, undefined),
 				true,
 			);
 		});
@@ -834,21 +811,13 @@ suite('ChatInputModelUtils', () => {
 
 			// Initially both available, GPT is selected
 			assert.strictEqual(
-				shouldResetModelToDefault(gpt, [gpt, claude], {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Ask,
-					sessionType: undefined,
-				}, [gpt, claude]),
+				shouldResetModelToDefault(gpt, [gpt, claude], anywhere, [gpt, claude], undefined),
 				false,
 			);
 
 			// GPT is removed from available models
 			assert.strictEqual(
-				shouldResetModelToDefault(gpt, [claude], {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Ask,
-					sessionType: undefined,
-				}, [claude]),
+				shouldResetModelToDefault(gpt, [claude], anywhere, [claude], undefined),
 				true,
 			);
 		});
@@ -884,22 +853,14 @@ suite('ChatInputModelUtils', () => {
 
 			// In cloud session, Agent mode — tool model is valid
 			assert.strictEqual(
-				shouldResetModelToDefault(cloudToolModel, allCloudModels, {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Agent,
-					sessionType: 'cloud',
-				}, allCloudModels),
+				shouldResetModelToDefault(cloudToolModel, allCloudModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allCloudModels, 'cloud'),
 				false,
 			);
 
 			// The no-tool model should be reset in Agent mode
 			// Both filterModelsForSession and shouldResetModelToDefault enforce mode support
 			assert.strictEqual(
-				shouldResetModelToDefault(cloudNoToolModel, allCloudModels, {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Agent,
-					sessionType: 'cloud',
-				}, allCloudModels),
+				shouldResetModelToDefault(cloudNoToolModel, allCloudModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allCloudModels, 'cloud'),
 				true,
 			);
 		});
@@ -1171,22 +1132,14 @@ suite('ChatInputModelUtils', () => {
 
 	suite('checkModelSupported interaction patterns', () => {
 
-		const askContext = {
-			location: ChatAgentLocation.Chat,
-			currentModeKind: ChatModeKind.Ask,
-			sessionType: undefined,
-		};
-
-		const agentContext = {
-			...askContext,
-			currentModeKind: ChatModeKind.Agent,
-		};
+		const askContext = anywhere;
+		const agentContext = supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent);
 
 		test('restored model passes Agent compatibility check', () => {
 			const agentModel = createModel('agent-model', 'Agent Model', {
 				capabilities: { toolCalling: true, agentMode: true },
 			});
-			assert.strictEqual(shouldResetModelToDefault(agentModel, [agentModel], agentContext, [agentModel]), false);
+			assert.strictEqual(shouldResetModelToDefault(agentModel, [agentModel], agentContext, [agentModel], undefined), false);
 		});
 
 		test('restored model that fails Agent compatibility resets to an Agent model', () => {
@@ -1195,7 +1148,7 @@ suite('ChatInputModelUtils', () => {
 			});
 			const agentModel = createModel('agent-model', 'Agent Model');
 
-			assert.strictEqual(shouldResetModelToDefault(askOnlyModel, [askOnlyModel, agentModel], agentContext, [askOnlyModel, agentModel]), true);
+			assert.strictEqual(shouldResetModelToDefault(askOnlyModel, [askOnlyModel, agentModel], agentContext, [askOnlyModel, agentModel], undefined), true);
 
 			const agentCompatibleModels = filterModelsForSession(
 				[askOnlyModel, agentModel], undefined, ChatModeKind.Agent, ChatAgentLocation.Chat,
@@ -1211,10 +1164,10 @@ suite('ChatInputModelUtils', () => {
 			const toolModel = createModel('tool', 'Tool');
 
 			// In Ask mode: fine
-			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel, toolModel], askContext, [noToolModel, toolModel]), false);
+			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel, toolModel], askContext, [noToolModel, toolModel], undefined), false);
 
 			// Switch to Agent mode: not fine
-			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel, toolModel], agentContext, [noToolModel, toolModel]), true);
+			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel, toolModel], agentContext, [noToolModel, toolModel], undefined), true);
 		});
 
 		test('double reset is idempotent', () => {
@@ -1231,7 +1184,7 @@ suite('ChatInputModelUtils', () => {
 			assert.strictEqual(result2?.metadata.id, 'default');
 
 			// Default model continues to pass validation
-			assert.strictEqual(shouldResetModelToDefault(result1!, allModels, askContext, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(result1!, allModels, askContext, allModels, undefined), false);
 		});
 	});
 
@@ -1282,18 +1235,10 @@ suite('ChatInputModelUtils', () => {
 			const allModels = [generalModel, cloudModel];
 
 			// In cloud session, cloud model is valid
-			assert.strictEqual(shouldResetModelToDefault(cloudModel, [cloudModel], {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Ask,
-				sessionType: 'cloud',
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(cloudModel, [cloudModel], supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, 'cloud'), false);
 
 			// Switch to general session — cloud model should be reset
-			assert.strictEqual(shouldResetModelToDefault(cloudModel, [generalModel], {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, allModels), true);
+			assert.strictEqual(shouldResetModelToDefault(cloudModel, [generalModel], anywhere, allModels, undefined), true);
 		});
 	});
 
@@ -1331,11 +1276,7 @@ suite('ChatInputModelUtils', () => {
 			});
 
 			// Mode forced this model but we're in Agent mode — should be reset
-			assert.strictEqual(shouldResetModelToDefault(forcedModel, [forcedModel], {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			}, [forcedModel]), true);
+			assert.strictEqual(shouldResetModelToDefault(forcedModel, [forcedModel], supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), [forcedModel], undefined), true);
 		});
 	});
 
@@ -1351,31 +1292,19 @@ suite('ChatInputModelUtils', () => {
 			assert.strictEqual(isModelSupportedForInlineChat(partialModel, ChatAgentLocation.EditorInline), true);
 
 			// Combined: should reset because Agent mode fails
-			assert.strictEqual(shouldResetModelToDefault(partialModel, [partialModel], {
-				location: ChatAgentLocation.EditorInline,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			}, [partialModel]), true);
+			assert.strictEqual(shouldResetModelToDefault(partialModel, [partialModel], supportedHere(ChatAgentLocation.EditorInline, ChatModeKind.Agent), [partialModel], undefined), true);
 		});
 
 		test('EditorInline + Ask only requires toolCalling', () => {
 			const toolModel = createModel('tool', 'Tool');
-			assert.strictEqual(shouldResetModelToDefault(toolModel, [toolModel], {
-				location: ChatAgentLocation.EditorInline,
-				currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, [toolModel]), false);
+			assert.strictEqual(shouldResetModelToDefault(toolModel, [toolModel], supportedHere(ChatAgentLocation.EditorInline), [toolModel], undefined), false);
 		});
 
 		test('EditorInline + Ask rejects model without toolCalling', () => {
 			const noToolModel = createModel('no-tool', 'No Tool', {
 				capabilities: {},
 			});
-			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel], {
-				location: ChatAgentLocation.EditorInline,
-				currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, [noToolModel]), true);
+			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel], supportedHere(ChatAgentLocation.EditorInline), [noToolModel], undefined), true);
 		});
 	});
 
@@ -1472,18 +1401,10 @@ suite('ChatInputModelUtils', () => {
 			const allModels = [generalDefault, cloudModel];
 
 			// User is in general session with GPT in Agent mode
-			assert.strictEqual(shouldResetModelToDefault(generalDefault, [generalDefault], {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(generalDefault, [generalDefault], anywhere, allModels, undefined), false);
 
 			// Switch to cloud session — general model should be reset
-			assert.strictEqual(shouldResetModelToDefault(generalDefault, [cloudModel], {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: 'cloud',
-			}, allModels), true);
+			assert.strictEqual(shouldResetModelToDefault(generalDefault, [cloudModel], supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allModels, 'cloud'), true);
 
 			// The default for cloud session should be the cloud model
 			const cloudDefault = findDefaultModel([cloudModel], ChatAgentLocation.Chat);
@@ -1495,22 +1416,13 @@ suite('ChatInputModelUtils', () => {
 			const allModels = [model];
 
 			// Ask mode: fine
-			assert.strictEqual(shouldResetModelToDefault(model, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(model, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, undefined), false);
 
 			// → Agent mode: model has toolCalling, still fine
-			assert.strictEqual(shouldResetModelToDefault(model, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(model, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allModels, undefined), false);
 
 			// → Back to Ask: still fine
-			assert.strictEqual(shouldResetModelToDefault(model, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(model, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, undefined), false);
 		});
 
 		test('rapid mode changes: ask → agent resets incompatible, then agent → ask does not restore', () => {
@@ -1521,25 +1433,16 @@ suite('ChatInputModelUtils', () => {
 			const allModels = [noToolModel, toolModel];
 
 			// Ask mode with noToolModel: fine
-			assert.strictEqual(shouldResetModelToDefault(noToolModel, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(noToolModel, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, undefined), false);
 
 			// → Agent mode: noToolModel fails, reset picks default (toolModel)
-			assert.strictEqual(shouldResetModelToDefault(noToolModel, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			}, allModels), true);
+			assert.strictEqual(shouldResetModelToDefault(noToolModel, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allModels, undefined), true);
 			const defaultAfterReset = findDefaultModel(allModels, ChatAgentLocation.Chat);
 			assert.strictEqual(defaultAfterReset?.metadata.id, 'tool');
 
 			// → Back to Ask: toolModel is fine in Ask mode, stays as toolModel
 			// The original noToolModel is NOT restored — this is expected and matches ChatInputPart behavior
-			assert.strictEqual(shouldResetModelToDefault(toolModel, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(toolModel, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, undefined), false);
 		});
 
 		// Repro for #321037: on first launch the restored Copilot selection is reset to a BYOK model. The Copilot

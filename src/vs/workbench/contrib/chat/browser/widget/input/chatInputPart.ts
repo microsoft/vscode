@@ -107,7 +107,7 @@ import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.j
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { ChatInputStateOrigin, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../common/modelSelection.js';
-import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isNewConversation, mergeModelsWithCache, shouldResetOnModelListChange } from './chatInputModelUtils.js';
+import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, mergeModelsWithCache, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -830,14 +830,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			metadata: { widgetViewKind: this.options.widgetViewKindTag },
 		}));
 		this._modelSelectionRuntime = {
-			location: this.location,
-			getCurrentModeKind: () => this.currentModeKind,
 			getCurrentSessionType: () => this._currentSessionType ?? this.getCurrentSessionType(),
 			isEmpty: () => !this._inputModel || this._chatSessionIsEmpty,
 			getModels: sessionType => this.getModelsForSessionType(sessionType),
 			getAllModels: () => this.getAllMergedModels(),
 			requiresCustomModels: sessionType => this.chatSessionsService.requiresCustomModelsForSessionType(sessionType),
 			getConfiguredModelValue: () => this.getConfiguredModelValue(),
+			// Workbench chat runs a mode, and can be shown inline, so both bear on what it can run.
+			isModelSupportedHere: model => isModelSupportedForMode(model, this.currentModeKind) && isModelSupportedForInlineChat(model, this.location),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[this.location]),
 			subscribeToModelChanges: listener => this.languageModelsService.onDidChangeLanguageModels(listener),
 			getBoundConversationKey: () => this._inputModelSessionResource?.toString(),
 			getIntentHolder: () => this._intentHolder,
