@@ -21,6 +21,7 @@ import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { SessionServerToolName } from '../../../../../../platform/agentHost/common/serverToolNames.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
@@ -72,7 +73,7 @@ function shouldHideCompletedAgentHostAskUserTool(toolCall: ToolCallState): boole
 }
 
 function isRenameChatTool(toolCall: ToolCallState): boolean {
-	return toolCall.toolName === 'rename_chat' || toolCall.toolName.endsWith('__rename_chat');
+	return toolCall.toolName === SessionServerToolName.RenameChat || toolCall.toolName.endsWith(`__${SessionServerToolName.RenameChat}`);
 }
 
 function isAutomaticTitleRename(toolCall: ToolCallState): boolean {
