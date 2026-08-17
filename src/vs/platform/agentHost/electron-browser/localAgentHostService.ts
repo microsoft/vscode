@@ -540,6 +540,7 @@ export function registerAgentHostClientChannels(
 	byokEnabled: boolean,
 ): void {
 	client.registerChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL, instantiationService.createInstance(AgentHostClientProxyChannel));
+	logService.trace(`${LOG_PREFIX} BYOK language-model bridge enabled: ${byokEnabled}`);
 
 	if (byokEnabled) {
 		try {
