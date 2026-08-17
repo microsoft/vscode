@@ -4017,6 +4017,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}
 
 		function setupMultiChatSession(provider: ReturnType<typeof createProvider>, rawId: string): ISession {
+			// Registered with the host as well as announced: `getSessions` starts a refresh, and an
+			// authoritative empty list would evict the adapter the notification just created —
+			// leaving later writes landing on an instance nothing reads.
+			agentHost.addSession(createSession(rawId, { summary: 'Session' }));
 			fireSessionAdded(agentHost, rawId, { title: 'Session' });
 			const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === rawId);
 			assert.ok(session);
@@ -4360,9 +4364,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}));
 
-		test('forkChat starts the new chat on the source peer chat\'s model', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test('forkChat inherits the source peer chat\'s model, recorded as inherited', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			// A fork continues the chat it was taken from, so it starts on that chat's model rather
-			// than the session-level default it used to take.
+			// than the session-level default it used to take, and records it as carried over rather
+			// than chosen here.
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
 			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 			const inputStates: { resource: string; state: Partial<IChatModelInputState> }[] = [];
@@ -4403,11 +4408,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 			const forked = await provider.forkChat(session.sessionId, peer!.resource, 'turn-1');
 			const call = agentHost.createdChats.at(-1);
+			const forkedChat = session.chats.get().find(c => c.resource.fragment === forked.resource.fragment);
 
 			assert.deepStrictEqual({
 				forkSource: call?.options?.fork?.source.toString(),
 				// The source peer's model, not the session-level default the fork used to take.
 				createdModel: call?.options?.model,
+				forkedModelId: forkedChat?.modelId.get(),
+				forkedModelSource: forkedChat?.modelSource.get(),
 				forkedInputSelectedModels: inputStates
 					.filter(entry => entry.resource === forked.resource.toString())
 					.map(entry => entry.state.selectedModel?.identifier)
@@ -4415,6 +4423,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}, {
 				forkSource: peerChat,
 				createdModel: { id: 'peer-model' },
+				forkedModelId: 'agent-host-copilotcli:peer-model',
+				// Inherited, not a choice, so `chat.defaultModel` may still seed the new chat.
+				forkedModelSource: ChatModelSource.Inherited,
 				forkedInputSelectedModels: ['agent-host-copilotcli:peer-model'],
 			});
 		}));
