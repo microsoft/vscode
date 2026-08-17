@@ -1423,6 +1423,78 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('rejects client writes to host-owned Agent Merge controller state', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			// A forged target would otherwise authorize a native merge of any pull request.
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: {
+					[SessionConfigKey.AgentMergeController]: {
+						target: { branchName: 'main', pullRequestUrl: 'https://github.com/octo/repo/pull/1', enabledAt: '2026-01-01T00:00:00.000Z', commentWatermark: '2026-01-01T00:00:00.000Z' },
+					},
+				},
+			}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				controllerState: svc.stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.AgentMergeController],
+			}, {
+				rejectionReason: `Session config keys are host-owned and cannot be set by a client: ${SessionConfigKey.AgentMergeController}.`,
+				controllerState: undefined,
+			});
+		});
+
+		test('preserves host-owned Agent Merge controller state across a client config replacement', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const controllerState = { target: { branchName: 'main', pullRequestUrl: 'https://github.com/octo/repo/pull/1', enabledAt: '2026-01-01T00:00:00.000Z', commentWatermark: '2026-01-01T00:00:00.000Z' } };
+			const session = await svc.createSession({ provider: 'copilot', config: { [SessionConfigKey.AgentMergeController]: controllerState } });
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			// A wholesale replacement that omits the key must not clear the binding,
+			// which would otherwise reset the watermark and attempt budgets.
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AgentMerge]: { enabled: true } },
+				replace: true,
+			}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				controllerState: svc.stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.AgentMergeController],
+			}, {
+				rejectionReason: undefined,
+				controllerState,
+			});
+		});
+
+		test('accepts client writes to the client-owned Agent Merge enablement value', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AgentMerge]: { enabled: true } },
+			}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+			const envelope = await envelopePromise;
+
+			assert.strictEqual(envelope.rejectionReason, undefined);
+		});
+
 		test('accepts a working-directory mutation synchronously', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const added = URI.file('/workspace/added');

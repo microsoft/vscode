@@ -36,7 +36,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
-import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
+import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -86,6 +86,7 @@ import { AgentHostChangesetOperationService } from './agentHostChangesetOperatio
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentMergeController } from './agentMergeController.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { AgentMergeTools } from './agentMergeTools.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
@@ -151,6 +152,15 @@ const HOST_OWNED_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeIncludeFiles,
 	SessionConfigKey.WorktreeBranchTrack,
+] as const;
+
+/**
+ * Host-owned session config a client may never write. These carry Agent Merge
+ * authorization state (bound pull request, feedback watermark, attempt budgets)
+ * that the host derives itself.
+ */
+const HOST_WRITTEN_SESSION_CONFIG_KEYS = [
+	SessionConfigKey.AgentMergeController,
 ] as const;
 
 function omitHostOwnedSessionConfig<T>(config: Record<string, T>): Record<string, T> {
@@ -574,7 +584,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._configurationService = configurationService;
 		let externalSessionsMode = this._getExternalSessionsMode();
 		this._lastMigrateLegacyEnabled = this._isMigrateLegacyEnabled();
-		let agentMergeEnabled: boolean | undefined;
+		let agentMergeEnabled = this._isAgentMergeEnabled();
 		this._register(configurationService.onDidRootConfigChange(() => {
 			const nextMode = this._getExternalSessionsMode();
 			if (nextMode !== externalSessionsMode) {
@@ -584,13 +594,13 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			// Agent Merge tools are only advertised while the feature is on, so a
 			// toggle has to reach sessions that were advertised under the old value.
-			const nextAgentMergeEnabled = this._agentMergeController.isEnabled();
-			if (agentMergeEnabled !== undefined && nextAgentMergeEnabled !== agentMergeEnabled) {
+			const nextAgentMergeEnabled = this._isAgentMergeEnabled();
+			if (nextAgentMergeEnabled !== agentMergeEnabled) {
+				agentMergeEnabled = nextAgentMergeEnabled;
 				for (const session of this._stateManager.getSessionUris()) {
 					this._serverToolHost.advertise(session);
 				}
 			}
-			agentMergeEnabled = nextAgentMergeEnabled;
 			this._onMigrateLegacySettingChanged();
 		}));
 		const fileMonitorService = _fileMonitorService ?? this._register(new AgentHostFileMonitorService(this._fileService, this._logService));
@@ -650,6 +660,7 @@ export class AgentService extends Disposable implements IAgentService {
 		services.set(IAgentHostGitStateService, this._gitStateService);
 		this._agentMergeController = this._register(instantiationService.createInstance(AgentMergeController, {
 			startTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
+			cancelTurn: (session, turnId) => this._cancelAgentMergePrompt(session, turnId),
 			getAutonomousSessionConfig: (session, config) => this._findProviderForSession(session)?.getAutonomousSessionConfig?.(config),
 		}));
 
@@ -1113,6 +1124,17 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.dispatchServerAction(chat, action);
 		this._sideEffects.handleAction(chat, action);
 		return true;
+	}
+
+	/**
+	 * Cancels a repair turn this host started for Agent Merge, so a stopped or
+	 * revoked controller cannot leave an autonomous turn running.
+	 */
+	private _cancelAgentMergePrompt(session: string, turnId: string): void {
+		const chat = buildDefaultChatUri(session).toString();
+		const action = { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } as const;
+		this._stateManager.dispatchServerAction(chat, action);
+		this._sideEffects.handleAction(chat, action);
 	}
 
 	/**
@@ -1781,6 +1803,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _isMigrateLegacyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+	}
+
+	private _isAgentMergeEnabled(): boolean {
+		return this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) === true;
 	}
 
 	/** Retracts un-opened adoptable-legacy entries when migration is turned off (deletes no data). */
@@ -3740,11 +3766,45 @@ export class AgentService extends Disposable implements IAgentService {
 		return resolveSessionWorkingDirectoryAction(action, state.workingDirectories, capability.immutablePrimary === true);
 	}
 
+	/**
+	 * Carries host-written session config through a client replacement. A client
+	 * may legitimately replace its own config wholesale, but omitting a host-owned
+	 * key must not clear it, since that would reset Agent Merge authorization state.
+	 */
+	private _withPreservedHostWrittenSessionConfig(session: string, action: SessionConfigChangedAction): SessionConfigChangedAction {
+		const values = this._stateManager.getSessionState(session)?.config?.values;
+		if (!values) {
+			return action;
+		}
+		let preserved: Record<string, unknown> | undefined;
+		for (const key of HOST_WRITTEN_SESSION_CONFIG_KEYS) {
+			if (Object.hasOwn(values, key)) {
+				preserved ??= {};
+				preserved[key] = values[key];
+			}
+		}
+		return preserved ? { ...action, config: { ...action.config, ...preserved } } : action;
+	}
+
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
 		const origin = { clientId, clientSeq };
 		if (action.type === ActionType.ChatTurnStarted && this._isTurnIdUsedByAnotherChat(sessionChannel, channel, action.turnId)) {
 			this._stateManager.rejectClientAction(channel, action, origin, 'Turn id is already used by another chat in this session.');
 			return;
+		}
+		// Host-owned session config carries merge authorization (bound pull request,
+		// watermark, attempt budgets), so a client must never be able to write it, and
+		// a wholesale replacement must not drop it either.
+		if (action.type === ActionType.SessionConfigChanged) {
+			const configAction = action as SessionConfigChangedAction;
+			const forbidden = HOST_WRITTEN_SESSION_CONFIG_KEYS.filter(key => Object.hasOwn(configAction.config, key));
+			if (forbidden.length > 0) {
+				this._stateManager.rejectClientAction(channel, action, origin, `Session config keys are host-owned and cannot be set by a client: ${forbidden.join(', ')}.`);
+				return;
+			}
+			if (configAction.replace) {
+				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, configAction);
+			}
 		}
 		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
 			if (clientContext.clientType !== AgentHostClientType.EditorWindow) {
