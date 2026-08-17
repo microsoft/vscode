@@ -36,6 +36,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { filterDeletableAgentSessions, resolveSessionsFromViewFallback } from './agentSessionMultiSelect.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 
@@ -423,10 +424,10 @@ abstract class BaseAgentSessionAction extends Action2 {
 
 		if (sessions.length === 0) {
 			const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
-			const focused = chatView?.getFocusedSessions().at(0);
-			if (focused) {
-				sessions = [focused];
-			}
+			sessions = resolveSessionsFromViewFallback(
+				chatView?.getSelectedSessions() ?? [],
+				chatView?.getFocusedSessions() ?? [],
+			);
 		}
 
 		if (sessions.length > 0) {
@@ -767,7 +768,8 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 	}
 
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
-		if (sessions.length === 0) {
+		const deletableSessions = filterDeletableAgentSessions(sessions);
+		if (deletableSessions.length === 0) {
 			return;
 		}
 
@@ -778,9 +780,9 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 		const commandService = accessor.get(ICommandService);
 
 		const confirmed = await dialogService.confirm({
-			message: sessions.length === 1
+			message: deletableSessions.length === 1
 				? localize('deleteSession.confirm', "Are you sure you want to delete this chat session?")
-				: localize('deleteSessions.confirm', "Are you sure you want to delete {0} chat sessions?", sessions.length),
+				: localize('deleteSessions.confirm', "Are you sure you want to delete {0} chat sessions?", deletableSessions.length),
 			detail: localize('deleteSession.detail', "This action cannot be undone."),
 			primaryButton: localize('deleteSession.delete', "Delete")
 		});
@@ -791,7 +793,7 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 
 		const deletedSessionIds: string[] = [];
 
-		for (const session of sessions) {
+		for (const session of deletableSessions) {
 			if (isLocalAgentSessionItem(session)) {
 				// Clear chat widget before deletion: local sessions are stored in-process and removal cannot fail.
 				await widgetService.getWidgetBySessionResource(session.resource)?.clear();
