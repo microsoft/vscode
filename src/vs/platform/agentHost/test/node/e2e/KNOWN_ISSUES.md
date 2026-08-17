@@ -146,19 +146,23 @@ A user can reopen a Copilot session after restarting Agent Host and expects the 
 
 ### Copilot provider sessions can disappear across a Windows host restart
 
-A user can restart Agent Host and reopen a Copilot session that contains completed tool activity. On Windows, the provider session can no longer be found after restart, so the host cannot reconstruct the persisted conversation and its tool rows.
+A user can restart Agent Host and reopen a Copilot session with a persisted conversation or peer chat. On Windows, the provider session can no longer be found after restart, so the host cannot reconstruct the conversation, tool rows, or peer-chat catalog.
 
-- Test: `tool-rich provider history is reconstructed after a host restart`.
+- Tests:
+  - `tool-rich provider history is reconstructed after a host restart`
+  - `peer chat catalog and transcript survive a host restart`
 - Scope: Copilot on Windows.
-- Expected: restarting Agent Host preserves the provider session and restores the completed edit tool call.
+- Expected: restarting Agent Host preserves the provider session and restores the completed edit tool call or peer-chat catalog and transcript.
 - Observed: reopening fails with `Session not found on backend`, although the same deterministic replay passes on macOS and Linux.
-- Gate: the Windows variant is skipped at the test declaration in `copilotCoverageSuite.ts`.
+- Gate: the Windows variants are skipped at their declarations in `copilotCoverageSuite.ts` and `sessionPersistenceSuite.ts`.
 - Reproduce on Windows:
 
   ```powershell
+  $env:AGENT_HOST_RUN_KNOWN_ISSUES = '1'
+  $env:AGENT_HOST_UPDATE_SNAPSHOTS = '1'
   .\scripts\test-integration.bat --run `
     src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `
-    --grep "tool-rich provider history"
+    --grep "tool-rich provider history|peer chat catalog"
   ```
 
 ### Persisted Copilot request errors are restored as cancelled on Windows
@@ -464,6 +468,23 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
 
   Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
+
+### Resource reads ignore the requested base64 encoding
+
+A client can request arbitrary file bytes from the Agent Host in base64 so binary data remains lossless. The host always reports UTF-8 instead, and bytes that are not valid UTF-8 cannot be reconstructed by the client.
+
+- Test: `resourceRead returns requested base64 content without byte loss`.
+- Scope: conformance reference provider on all platforms.
+- Expected: AHP `resourceRead` honors `encoding: "base64"` and returns all requested bytes with `encoding: "base64"`.
+- Observed: the response reports `encoding: "utf-8"` and stringifies the raw bytes as text.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "resourceRead returns requested base64 content without byte loss"
+  ```
 
 ### Branch changeset stays stale after a second edit to the same file
 

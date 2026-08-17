@@ -13,21 +13,41 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
 import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
+/** Error returned when the Agent Host process cannot be started. */
+export class AgentHostStartError extends Error {
+	constructor(message: string, readonly fatal = false) {
+		super(message);
+	}
+}
+
 export interface IAgentHostConnection {
 	readonly client: IChannelClient;
 	readonly store: DisposableStore;
 	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
+	/** Gracefully shuts down Agent Host providers before the process is disposed. */
+	shutdown(): Promise<void>;
+}
+
+/** Allows a connection request to join the shared process startup. */
+export interface IAgentHostStartRequest {
+	waitUntil(promise: Promise<void>): void;
+}
+
+/** Allows the Agent Host process to join application shutdown. */
+export interface IAgentHostShutdownRequest {
+	join(promise: Promise<void>): void;
 }
 
 export interface IAgentHostStarter extends IDisposable {
-	readonly onRequestConnection?: Event<void>;
+	readonly onRequestConnection?: Event<IAgentHostStartRequest>;
 	readonly onRequestRestart?: Event<void>;
-	readonly onWillShutdown?: Event<void>;
+	readonly onWillShutdown?: Event<IAgentHostShutdownRequest>;
 
 	start(): Promise<IAgentHostConnection>;
 }
@@ -57,7 +77,7 @@ export interface IAgentHostManagedSettingsSnapshot {
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;
 	readonly managedKeys: readonly string[];
-	readonly settings?: Readonly<Record<string, unknown>>;
+	readonly settings?: unknown;
 }
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
@@ -102,6 +122,11 @@ export interface IAgentChatMetadata {
 	 * slots.
 	 */
 	readonly _meta?: SessionMeta;
+}
+
+/** A provider chat ready to be registered as an Agent Host session. */
+export interface IAgentDiscoveredChat extends IAgentChatMetadata {
+	readonly external: boolean;
 }
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
@@ -371,6 +396,7 @@ export interface IAgentCreateSessionConfig {
 export interface IAgentChatContext {
 	readonly resource: URI;
 	readonly configurationResource: URI;
+	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
 	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
@@ -399,11 +425,13 @@ export interface IAgentChatContext {
 	readonly hostInstructions?: readonly string[];
 }
 
+export type AgentChatOperationContext = URI | IAgentChatContext;
+
 /**
  * Normalize a legacy session-only chat context into the explicit
  * {@link IAgentChatContext} shape by attaching the host-supplied `resource`.
  */
-export function resolveAgentChatContext(configurationResourceOrContext: URI | IAgentChatContext, resource: URI): IAgentChatContext {
+export function resolveAgentChatContext(configurationResourceOrContext: AgentChatOperationContext, resource: URI): IAgentChatContext {
 	const context = URI.isUri(configurationResourceOrContext)
 		? { configurationResource: configurationResourceOrContext, resource }
 		: configurationResourceOrContext;
@@ -547,7 +575,7 @@ export interface IAgentChatDataChange {
 	readonly providerData: string;
 }
 
-/** A legacy concrete chat enumerated by {@link IAgent.listLegacyChats} for one-time migration. */
+/** A legacy concrete chat backing enumerated by {@link IAgent.listLegacyChatBackings} for migration. */
 export interface IAgentLegacyChat {
 	/** The concrete chat's channel URI (see {@link buildChatUri}). */
 	readonly uri: URI;
@@ -658,13 +686,16 @@ export interface IAgentChats {
 	 * scopes via `context`, so the agent never has to recover either by parsing
 	 * `chat`.
 	 */
-	createChat(chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+	createChat(chat: URI, context: AgentChatOperationContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/** Dispose the addressed chat and free its backing. */
-	disposeChat(chat: URI, context?: URI | IAgentChatContext): Promise<void>;
+	disposeChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
+
+	/** Return whether the addressed chat can currently release its in-memory backing. */
+	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
-	releaseChat(chat: URI, context?: URI | IAgentChatContext): Promise<void>;
+	releaseChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/**
 	 * Send a user message into `chat`. On every send, the host passes the complete
@@ -677,18 +708,18 @@ export interface IAgentChats {
 	sendMessage(chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void>;
 
 	/** Abort the in-flight turn for `chat`. */
-	abort(chat: URI, context?: URI | IAgentChatContext): Promise<void>;
+	abort(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
-	changeModel(chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void>;
+	changeModel(chat: URI, model: ModelSelection, context: AgentChatOperationContext): Promise<void>;
 
 	/**
 	 * Change (or clear) the selected custom agent for `chat`. Passing
 	 * `undefined` clears the selection (provider default behavior).
 	 */
-	changeAgent(chat: URI, agent: AgentSelection | undefined, context?: URI | IAgentChatContext): Promise<void>;
+	changeAgent(chat: URI, agent: AgentSelection | undefined, context: AgentChatOperationContext): Promise<void>;
 
 	/** Reconstruct the turns for `chat` (used on restore). */
-	getMessages(chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]>;
+	getMessages(chat: URI, context: AgentChatOperationContext): Promise<readonly Turn[]>;
 }
 
 export interface IAgentResolveChatConfigParams {
@@ -1037,6 +1068,9 @@ export interface IAgent {
 	/** Select provider-owned configuration inherited by a newly created chat. */
 	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
 
+	/** Select provider-owned configuration for an unattended autonomous turn. */
+	getAutonomousSessionConfig?(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
+
 	/** Return dynamic completions for a provider-owned chat configuration property. */
 	chatConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
@@ -1052,10 +1086,12 @@ export interface IAgent {
 	/** Returns host-internal plugin owners for MCP servers temporarily published top-level. */
 	getMcpServerOwners?(session: URI): ReadonlyMap<string, string> | undefined;
 
-	// ---- Legacy migration and metadata -------------------------------------
+	// ---- External chat discovery -------------------------------------------
 
-	/** Optional migration signal for providers that can observe out-of-band native chat creation. */
-	readonly onDidChangeChatList?: Event<void>;
+	/** Provides chats that are ready to be registered as Agent Host sessions. */
+	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]>;
+
+	// ---- Legacy migration ---------------------------------------------------
 
 	/** Optional adoption hook for providers with a predecessor-owned on-disk format. */
 	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
@@ -1066,17 +1102,15 @@ export interface IAgent {
 	/**
 	 * Enumerate provider-native chats for one-time registry migration.
 	 *
-	 * Returns `undefined` when the provider cannot enumerate yet (for example
-	 * its SDK/binary/runtime or client is not yet available/started) so callers
-	 * must not treat this as an authoritative "no legacy chats" result and should
-	 * retry later. Returns an empty array only when the provider has authoritatively
-	 * determined there are no legacy chats to migrate (e.g. legacy support is
-	 * disabled or the provider has no legacy data format).
+	 * Returns `undefined` when the provider cannot enumerate yet; `[]` is an
+	 * authoritative result indicating there are no legacy chats to migrate.
 	 */
-	listLegacyChats(): Promise<readonly IAgentChatMetadata[] | undefined>;
+	listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
 	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
+
+	// ---- Metadata -----------------------------------------------------------
 
 	/** Retrieve metadata for an exact registered chat. */
 	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined>;
@@ -1114,8 +1148,8 @@ export interface IAgent {
 	/** Optional lifecycle operation paired with {@link startMcpServer}. */
 	stopMcpServer?(session: URI, id: string): Promise<void>;
 
-	/** Optional `mcp://` router for providers that advertise MCP side-channel resources. */
-	handleMcpRequest?(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+	/** Optional `mcp://` router for providers that advertise chat-scoped MCP side-channel resources. */
+	handleMcpRequest?(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	/** Optional notification stream paired with {@link handleMcpRequest}. */
 	readonly onMcpNotification?: Event<IMcpNotification>;

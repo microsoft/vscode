@@ -214,7 +214,10 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	}
 
 	private _handleMachineStatus(event: ITunnelProcessMachineStatus): void {
-		if (event.mode !== 'remoteAccess') {
+		// `service` mode also runs a session process, which attaches to the
+		// installed service's singleton; its events are what move the public
+		// status off `connecting`.
+		if (event.mode !== 'remoteAccess' && event.mode !== 'service') {
 			return;
 		}
 		if (event.status.type === 'connected') {

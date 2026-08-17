@@ -2091,6 +2091,21 @@
                     "title": "API Type",
                     "markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: Chat Completions API (default).\n- `responses`: Responses API.\n- `messages`: Messages API.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
                   },
+                  "adaptiveThinking": {
+                    "type": "boolean",
+                    "default": false,
+                    "markdownDescription": "Whether the Messages API model supports adaptive thinking. When enabled, requests use `thinking.type: \"adaptive\"`."
+                  },
+                  "minThinkingBudget": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "markdownDescription": "Minimum thinking-token budget supported by a non-adaptive Messages API model. `maxThinkingBudget` must also be set."
+                  },
+                  "maxThinkingBudget": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "markdownDescription": "Maximum thinking-token budget supported by a non-adaptive Messages API model. `minThinkingBudget` must also be set."
+                  },
                   "toolCalling": {
                     "type": "boolean",
                     "description": "Whether the model supports tool calling"
@@ -3361,11 +3376,6 @@
             "type": "boolean",
             "default": true,
             "description": "%github.copilot.config.agent.currentEditorContext.enabled%"
-          },
-          "github.copilot.chat.preferLongContext.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.preferLongContext.enabled%"
           },
           "github.copilot.enable": {
             "type": "object",
@@ -5056,15 +5066,6 @@
             "markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
             "tags": [
               "advanced"
-            ]
-          },
-          "github.copilot.chat.autoMode.v2.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.chat.autoMode.v2.enabled%",
-            "tags": [
-              "advanced",
-              "onExp"
             ]
           },
           "github.copilot.chat.autoMode.tiers.enabled": {

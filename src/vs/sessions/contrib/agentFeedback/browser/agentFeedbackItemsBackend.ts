@@ -12,12 +12,12 @@ import { IAgentSubscription } from '../../../../platform/agentHost/common/state/
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { Annotation, AnnotationEntry, AnnotationsState, StateComponents, StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { TextRange } from '../../../../platform/agentHost/common/state/protocol/common/state.js';
-import { FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
+import { authorForFeedbackKind, feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackModel.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
 
 // --- Backend interface --------------------------------------------------------
 
@@ -246,9 +246,14 @@ function entryText(text: StringOrMarkdown): string {
 }
 
 function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
-	const entries: AnnotationEntry[] = [{ id: `${feedback.id}:0`, text: feedback.text }];
+	const entries: AnnotationEntry[] = [{
+		id: `${feedback.id}:0`,
+		text: feedback.text,
+		_meta: feedbackAnnotationEntryMeta(authorForFeedbackKind(feedback.kind)),
+	}];
 	for (let i = 0; i < (feedback.replies?.length ?? 0); i++) {
-		entries.push({ id: `${feedback.id}:r${i}`, text: feedback.replies![i] });
+		const reply = feedback.replies![i];
+		entries.push({ id: `${feedback.id}:r${i}`, text: reply.text, _meta: feedbackAnnotationEntryMeta(reply.author) });
 	}
 	const meta: IFeedbackAnnotationMeta = {
 		kind: feedback.kind,
@@ -281,7 +286,10 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI): IAg
 	if (!meta || !entries.length) {
 		return undefined;
 	}
-	const replies = entries.slice(1).map(e => entryText(e.text));
+	const replies = entries.slice(1).map((entry, index): IAgentFeedbackReply => ({
+		text: entryText(entry.text),
+		author: resolveFeedbackEntryAuthor(entry, index + 1, meta?.kind),
+	}));
 	return {
 		id: annotation.id,
 		text: entryText(entries[0].text),
