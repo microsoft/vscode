@@ -309,7 +309,7 @@ export function parseTopMemoryOutput(stdout: string): Map<number, number> {
 	for (const line of lines) {
 		const matches = PID_MEM.exec(line);
 		if (matches) {
-			result.set(parseInt(matches[1]), parseFloat(matches[2]) * (TOP_MEMORY_MULTIPLIERS[matches[3]] ?? 1));
+			result.set(parseInt(matches[1]), Math.round(parseFloat(matches[2]) * (TOP_MEMORY_MULTIPLIERS[matches[3]] ?? 1)));
 		}
 	}
 	return result;
