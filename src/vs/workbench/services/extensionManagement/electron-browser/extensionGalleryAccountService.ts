@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { getClaimsFromJWT } from '../../../../base/common/oauth.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -99,6 +99,27 @@ export interface IExtensionGalleryAccount {
 	readonly manifest?: IExtensionGalleryManifest;
 }
 
+/** The outcome of resolving Private Marketplace access, ready to be mapped to a manifest status. */
+export const enum ExtensionGalleryAccessKind {
+	/** No usable account — the user must sign in. */
+	SignInRequired,
+	/** Signed in, but the account is not entitled to this marketplace. */
+	Denied,
+	/** Access granted; `manifest` carries the validated service index. */
+	Available,
+	/** The marketplace is configured in a way that cannot work (durable). */
+	Misconfigured,
+	/** Access could not be resolved right now (transient). */
+	Unreachable
+}
+
+export type IExtensionGalleryAccessVerdict =
+	| { readonly kind: ExtensionGalleryAccessKind.SignInRequired }
+	| { readonly kind: ExtensionGalleryAccessKind.Denied }
+	| { readonly kind: ExtensionGalleryAccessKind.Available; readonly manifest: IExtensionGalleryManifest }
+	| { readonly kind: ExtensionGalleryAccessKind.Misconfigured }
+	| { readonly kind: ExtensionGalleryAccessKind.Unreachable };
+
 export const IExtensionGalleryAccountService = createDecorator<IExtensionGalleryAccountService>('extensionGalleryAccountService');
 
 /**
@@ -114,28 +135,39 @@ export const IExtensionGalleryAccountService = createDecorator<IExtensionGallery
 export interface IExtensionGalleryAccountService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when the effective account may have changed, so the host can re-run validation. */
-	readonly onDidChangeAccount: Event<void>;
+	/**
+	 * Fires whenever the resolved access verdict changes — because the underlying account changed,
+	 * or because a background re-validation superseded the verdict returned by {@link resolveAccess}.
+	 */
+	readonly onDidChangeAccess: Event<IExtensionGalleryAccessVerdict>;
 
-	/** Live eligibility verdict for the current account; `undefined` means sign-in required. */
-	getAccount(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined>;
-
-	/** Durable (cached) verdict for the current account without a live network round-trip. */
-	getCachedAccess(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined>;
-
-	/** Drops the memoized service index so the next validation generation re-fetches it. */
-	invalidateServiceIndexCache(): void;
+	/**
+	 * Resolves whether the current account may use the Private Marketplace at `configuredServiceUrl`.
+	 *
+	 * Applies any durable cached verdict first so startup can render without a network round-trip,
+	 * then re-validates. When the cache produced the returned verdict the re-validation runs in the
+	 * background and any change is published via {@link onDidChangeAccess}; otherwise the returned
+	 * promise already reflects live validation.
+	 *
+	 * Supersession, cancellation and cache lifetime are owned entirely by this service: callers never
+	 * need to pass a {@link CancellationToken} or invalidate caches themselves.
+	 */
+	resolveAccess(configuredServiceUrl: string): Promise<IExtensionGalleryAccessVerdict>;
 
 	/**
 	 * Remembers `accountId` as the account the user settled on for the Private Marketplace, so
-	 * session selection is grounded to it across restarts (see {@link getAccount}) when the Microsoft
-	 * provider has several signed-in accounts. Scoped to the effective auth provider; call after an
-	 * explicit account choice during sign-in.
+	 * session selection is grounded to it across restarts when the Microsoft provider has several
+	 * signed-in accounts. Scoped to the effective auth provider; call after an explicit account
+	 * choice during sign-in.
 	 */
 	setPreferredAccount(accountId: string): void;
 
-	/** Drops the durable access verdict. */
-	clearCache(): void;
+	/**
+	 * Cancels any in-flight validation and drops every cached verdict and memoized service index.
+	 * Called when the marketplace configuration changes, so a late result from the previous
+	 * configuration can never repopulate the cache or publish a stale verdict.
+	 */
+	reset(): void;
 
 	/**
 	 * Supplies the {@link IAuthenticationService} the Microsoft path needs to resolve sessions. This
@@ -175,8 +207,21 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	private authenticationService: IAuthenticationService | undefined;
 
 	private readonly _onDidChangeAccount = this._register(new Emitter<void>());
-	/** Fires when the underlying account may have changed, so the host can re-run validation. */
-	readonly onDidChangeAccount: Event<void> = this._onDidChangeAccount.event;
+	/** Internal signal that the underlying account may have changed; drives re-validation. */
+	private readonly onDidChangeAccount: Event<void> = this._onDidChangeAccount.event;
+
+	private readonly _onDidChangeAccess = this._register(new Emitter<IExtensionGalleryAccessVerdict>());
+	readonly onDidChangeAccess: Event<IExtensionGalleryAccessVerdict> = this._onDidChangeAccess.event;
+
+	// Guards a time-of-check/time-of-use race: a stale in-flight validation must not publish a
+	// verdict for an account that is no longer current (after sign-out, account switch, or config
+	// change). `beginValidation` cancels the previous generation, so a superseded validation observes
+	// `token.isCancellationRequested` and skips its cache/verdict mutation.
+	private readonly validationTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
+
+	// The serviceUrl currently being validated, so an account change can re-resolve without the host
+	// having to hand it back.
+	private activeServiceUrl: string | undefined;
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -197,6 +242,110 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		if (this.authProvider !== 'microsoft') {
 			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this._onDidChangeAccount.fire()));
 		}
+
+		// Re-validate whenever the account changes. The previous verdict is revoked first: a transient
+		// failure for the new (possibly ineligible) account must not leak the prior account's access.
+		this._register(this.onDidChangeAccount(() => this.revalidateOnAccountChange()));
+	}
+
+	// --- Access resolution ---
+
+	async resolveAccess(configuredServiceUrl: string): Promise<IExtensionGalleryAccessVerdict> {
+		this.activeServiceUrl = configuredServiceUrl;
+		const token = this.beginValidation();
+
+		let cachedVerdict: IExtensionGalleryAccessVerdict | undefined;
+		try {
+			const cached = await this.getCachedAccess(configuredServiceUrl, token);
+			if (!token.isCancellationRequested && cached) {
+				cachedVerdict = this.toVerdict(cached);
+			}
+		} catch (error) {
+			// A thrown cache read is a transient identity-resolution failure; fall through to a full
+			// validation rather than treating it as "no account".
+			this.logService.trace('[Marketplace] Cached access could not be validated', error);
+		}
+
+		if (cachedVerdict) {
+			// Re-validate in the background so a stale cached verdict cannot linger, publishing any
+			// change through `onDidChangeAccess`.
+			this.validateAndPublish(configuredServiceUrl, token);
+			return cachedVerdict;
+		}
+
+		return this.validateCurrentAccess(configuredServiceUrl, token);
+	}
+
+	reset(): void {
+		this.validationTokenSource.value?.cancel();
+		this.validationTokenSource.clear();
+		this.activeServiceUrl = undefined;
+		this.clearCache();
+		this.serviceIndexFetcher.invalidate();
+	}
+
+	/** Resolves the live verdict for `configuredServiceUrl`, never throwing. */
+	private async validateCurrentAccess(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccessVerdict> {
+		try {
+			const account = await this.getAccount(configuredServiceUrl, token);
+			return this.toVerdict(account);
+		} catch (error) {
+			if (error instanceof MarketplaceMisconfiguredError) {
+				return { kind: ExtensionGalleryAccessKind.Misconfigured };
+			}
+			this.logService.error('[Marketplace] Error validating marketplace access', error);
+			return { kind: ExtensionGalleryAccessKind.Unreachable };
+		}
+	}
+
+	/** Runs a validation generation and publishes the result unless it has been superseded. */
+	private async validateAndPublish(configuredServiceUrl: string, token: CancellationToken): Promise<void> {
+		const verdict = await this.validateCurrentAccess(configuredServiceUrl, token);
+		if (!token.isCancellationRequested) {
+			this._onDidChangeAccess.fire(verdict);
+		}
+	}
+
+	private revalidateOnAccountChange(): void {
+		const configuredServiceUrl = this.activeServiceUrl;
+		if (!configuredServiceUrl) {
+			return;
+		}
+		this.clearCache();
+		this.validateAndPublish(configuredServiceUrl, this.beginValidation());
+	}
+
+	/** Maps a resolved account to a verdict. `undefined` means no usable account. */
+	private toVerdict(account: IExtensionGalleryAccount | undefined): IExtensionGalleryAccessVerdict {
+		if (!account) {
+			this.logService.debug('[Marketplace] Private marketplace configured but user not signed in');
+			return { kind: ExtensionGalleryAccessKind.SignInRequired };
+		}
+		if (!account.eligible) {
+			this.logService.debug('[Marketplace] User signed in but lacks access to private marketplace');
+			return { kind: ExtensionGalleryAccessKind.Denied };
+		}
+		if (!account.manifest) {
+			// An eligible verdict always carries a materialized index; a missing one is a transient
+			// fetch failure, not a blank marketplace.
+			return { kind: ExtensionGalleryAccessKind.Unreachable };
+		}
+		return { kind: ExtensionGalleryAccessKind.Available, manifest: account.manifest };
+	}
+
+	/**
+	 * Starts a new validation generation: cancels the previous one and drops the memoized index so
+	 * the new generation re-fetches it. Callers MUST check `token.isCancellationRequested` before
+	 * each cache/verdict mutation so a superseded validation cannot commit a stale result.
+	 */
+	private beginValidation(): CancellationToken {
+		this.serviceIndexFetcher.invalidate();
+		// MutableDisposable disposes the previous source on assignment, but dispose() does not cancel;
+		// cancel explicitly so any in-flight continuation is superseded first.
+		this.validationTokenSource.value?.cancel();
+		const source = new CancellationTokenSource();
+		this.validationTokenSource.value = source;
+		return source.token;
 	}
 
 	connectAuthentication(authenticationService: IAuthenticationService): void {
@@ -232,7 +381,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	 * index on the granted path), whereas `resolveCurrentAccount` only answers *who* the current
 	 * account is (identity + token) for cache validation and never checks eligibility.
 	 */
-	getAccount(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined> {
+	private getAccount(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined> {
 		return this.authProvider === 'microsoft'
 			? this.getMicrosoftAccount(configuredServiceUrl, token)
 			: this.getGitHubAccount(configuredServiceUrl, token);
@@ -386,7 +535,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	 * required, misconfigured, or transient) — so the host falls through to a full validation. Throws
 	 * on a transient identity-resolution failure so the host preserves an available marketplace.
 	 */
-	async getCachedAccess(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined> {
+	private async getCachedAccess(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined> {
 		const cached = this.readValidCache(configuredServiceUrl);
 		if (!cached) {
 			return undefined;
@@ -424,15 +573,6 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		} catch {
 			return undefined;
 		}
-	}
-
-	/**
-	 * Drops the in-process service-index cache so the next validation generation re-fetches the
-	 * index rather than serving one memoized under a superseded account/marketplace. Called by the
-	 * host at the start of each validation generation and on config change.
-	 */
-	invalidateServiceIndexCache(): void {
-		this.serviceIndexFetcher.invalidate();
 	}
 
 	/**
@@ -581,7 +721,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	}
 
 	/** Drops the persisted verdict (on sign-out, account/provider/serviceUrl change, or 401). */
-	clearCache(): void {
+	private clearCache(): void {
 		this.storageService.remove(CACHED_ACCESS_KEY, StorageScope.APPLICATION);
 	}
 
