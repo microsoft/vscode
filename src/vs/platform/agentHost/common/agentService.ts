@@ -144,16 +144,8 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
 /**
- * Configuration key controlling whether the agent host *wires up* the BYOK
- * ("bring your own key") language-model bridge: the renderer LM handler, the
- * reverse-RPC channel, and the per-connection link to the node-side OpenAI
- * proxy + bridge registry. When `true` (the default), the renderer's BYOK
- * server channel and the per-connection bridge are wired so extension-provided
- * BYOK models are reachable from agent-host sessions. When `false`, the proxy
- * and registry are still constructed but stay inert — the BYOK server channel
- * and the per-connection bridge are not wired, so the registry stays empty and
- * extension-provided BYOK models are never reachable from agent-host sessions.
- * The agent host process must be restarted for changes to take effect.
+ * Configuration key controlling whether extension-provided BYOK models are
+ * surfaced to agent-host sessions.
  */
 export const AgentHostByokModelsEnabledSettingId = 'chat.agentHost.byokModels.enabled';
 
@@ -169,57 +161,12 @@ export const AgentHostByokModelsEnabledSettingId = 'chat.agentHost.byokModels.en
 export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
 
 /**
- * Environment variable form of {@link AgentHostClaudeAgentEnabledSettingId}.
- * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`true` for Claude, `false` for Codex).
- */
-export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED';
-
-/**
- * Environment variable form of {@link AgentHostCodexAgentEnabledSettingId}.
- * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`false`).
- */
-export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
-
-/**
- * Environment variable form of {@link AgentHostByokModelsEnabledSettingId}.
- * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`true`).
- */
-export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
-
-/**
  * Overrides the grace period (in milliseconds) before an idle, fully
  * unsubscribed session is released from memory. Defaults to 30_000. Primarily a
  * test hook so real-SDK integration tests can force a prompt release without
  * waiting the full production grace; production does not set it.
  */
 export const AgentHostSessionReleaseGraceMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_GRACE_MS';
-
-/**
- * Resolves the effective enable state for a Claude/Codex provider from the
- * env-var value forwarded by the starter. Recognized values (case- and
- * whitespace-insensitive):
- *
- *  - `'true'`  / `'1'` → enabled
- *  - `'false'` / `'0'` → disabled
- *  - `undefined`, empty string, or any other value → falls through to
- *    {@link defaultEnabled}
- */
-export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boolean): boolean {
-	if (envValue === undefined || envValue === '') {
-		return defaultEnabled;
-	}
-	const normalized = envValue.trim().toLowerCase();
-	if (normalized === 'false' || normalized === '0') {
-		return false;
-	}
-	if (normalized === 'true' || normalized === '1') {
-		return true;
-	}
-	return defaultEnabled;
-}
 
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
@@ -591,9 +538,6 @@ export interface IAgentSdkStarterSettings {
 	readonly codexSdkRoot?: string;
 	readonly codexHome?: string;
 	readonly codexBinaryArgs?: readonly string[];
-	readonly claudeAgentEnabled?: boolean;
-	readonly codexAgentEnabled?: boolean;
-	readonly byokModelsEnabled?: boolean;
 }
 
 export function buildAgentSdkEnv(
@@ -611,15 +555,6 @@ export function buildAgentSdkEnv(
 	setIfMissing(AgentHostCodexAgentCodexHomeEnvVar, settings.codexHome);
 	if (Array.isArray(settings.codexBinaryArgs) && settings.codexBinaryArgs.length > 0) {
 		setIfMissing(AgentHostCodexAgentBinaryArgsEnvVar, JSON.stringify(settings.codexBinaryArgs));
-	}
-	if (settings.claudeAgentEnabled !== undefined) {
-		setIfMissing(AgentHostClaudeAgentEnabledEnvVar, settings.claudeAgentEnabled ? 'true' : 'false');
-	}
-	if (settings.codexAgentEnabled !== undefined) {
-		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
-	}
-	if (settings.byokModelsEnabled !== undefined) {
-		setIfMissing(AgentHostByokModelsEnabledEnvVar, settings.byokModelsEnabled ? 'true' : 'false');
 	}
 	return out;
 }
