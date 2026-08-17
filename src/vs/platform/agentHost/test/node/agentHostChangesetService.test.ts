@@ -1996,6 +1996,13 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 
 			svc.refreshBranchChangeset(sessionStr);
 			await waitForCount(() => stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status === ChangesetStatus.Ready ? 1 : 0, 1);
+			// `waitForCount` gives up silently, so assert what it was waiting for
+			// rather than letting a timeout surface as a confusing later failure.
+			assert.strictEqual(
+				stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+				ChangesetStatus.Ready,
+				'branch changeset did not become ready',
+			);
 
 			// The branch changeset itself is still published — only its ownership
 			// of the chip is withdrawn.
