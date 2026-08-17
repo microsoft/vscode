@@ -28,7 +28,6 @@ import { USER_TASKS_GROUP_KEY } from '../../contrib/tasks/common/tasks.js';
 import { ErrorNoTelemetry, NotSupportedError } from '../../../base/common/errors.js';
 import { asArray } from '../../../base/common/arrays.js';
 import { ITaskProblemMatcherStartedDto, ITaskProblemMatcherEndedDto } from './shared/tasks.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -43,7 +42,7 @@ export interface IExtHostTask extends ExtHostTaskShape {
 	readonly onDidEndTaskProblemMatchers: Event<vscode.TaskProblemMatcherEndedEvent>;
 
 	registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable;
-	registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): vscode.Disposable;
+	registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): void;
 	fetchTasks(filter?: vscode.TaskFilter): Promise<vscode.Task[]>;
 	executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution>;
 	terminateTask(execution: vscode.TaskExecution): Promise<void>;
@@ -397,7 +396,7 @@ export interface HandlerData {
 	extension: IExtensionDescription;
 }
 
-export abstract class ExtHostTaskBase extends Disposable implements ExtHostTaskShape, IExtHostTask {
+export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask {
 	readonly _serviceBrand: undefined;
 
 	protected readonly _proxy: MainThreadTaskShape;
@@ -433,7 +432,6 @@ export abstract class ExtHostTaskBase extends Disposable implements ExtHostTaskS
 		@ILogService logService: ILogService,
 		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService
 	) {
-		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTask);
 		this._workspaceProvider = workspaceService;
 		this._editorService = editorService;
@@ -464,10 +462,8 @@ export abstract class ExtHostTaskBase extends Disposable implements ExtHostTaskS
 		});
 	}
 
-	public registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): vscode.Disposable {
-		const handle = this.nextHandle();
-		this._proxy.$registerTaskSystem(handle, scheme, info);
-		return new types.Disposable(() => this._proxy.$unregisterTaskSystem(handle));
+	public registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): void {
+		this._proxy.$registerTaskSystem(scheme, info);
 	}
 
 	public fetchTasks(filter?: vscode.TaskFilter): Promise<vscode.Task[]> {
@@ -764,11 +760,11 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService
 	) {
 		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
-		this._register(this.registerTaskSystem(Schemas.vscodeRemote, {
+		this.registerTaskSystem(Schemas.vscodeRemote, {
 			scheme: Schemas.vscodeRemote,
 			authority: '',
 			platform: Platform.PlatformToString(Platform.Platform.Web)
-		}));
+		});
 	}
 
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
