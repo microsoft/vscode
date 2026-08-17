@@ -610,11 +610,14 @@ per-word capitalization does not survive translation. */
 	margin-right: 4px;
 }
 
-/* MCP bridged badge — shown inline next to the server name */
+/* Name and status share a line so state reads as part of the server's identity. */
 .mcp-server-item .mcp-server-name-row {
 	display: flex;
+	/* Center, not baseline: the status dot is an empty box, so baseline alignment would anchor to
+	its bottom edge and drop the status word below the name. */
 	align-items: center;
 	gap: 6px;
+	min-width: 0;
 }
 
 .ai-customization-list-item .item-type-icon {
@@ -1406,6 +1409,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-header,
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-description,
+.ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-section,
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-tools {
 	display: none;
 }
@@ -1527,6 +1531,68 @@ per-word capitalization does not survive translation. */
 	-webkit-line-clamp: 2;
 	line-clamp: 2;
 	overflow: hidden;
+}
+
+/* MCP server detail
+-------------------------------------------------------------------------- */
+
+/* The MCP pane exists to be read: a tool's description is the thing that tells you what it does,
+so it is not clamped here the way it is in the browse list. */
+.ai-customization-management-editor .embedded-mcp-detail .embedded-detail-tool-description {
+	display: block;
+	-webkit-line-clamp: none;
+	line-clamp: none;
+	overflow: visible;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-subtitle {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-subtitle .mcp-server-status {
+	font-size: inherit;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-subtitle.has-separator .mcp-detail-scope-text::before {
+	content: '\00b7';
+	margin-inline-end: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .embedded-detail-section {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 0;
+}
+
+/* Two columns so labels form a scannable edge, collapsing to stacked rows when the pane is too
+narrow for a label column to be worth the space it takes. */
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-facts {
+	display: grid;
+	grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	margin: 0;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-fact-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body2);
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-fact-value {
+	margin: 0;
+	min-width: 0;
+	font-size: var(--vscode-agents-fontSize-body2);
+	word-break: break-word;
+}
+
+/* A command is something the user may need to copy or compare against a file, so it keeps the
+monospace shape it has everywhere else. */
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-fact-value.is-code {
+	font-family: var(--monaco-monospace-font);
 }
 
 /* Models section footer */
@@ -1735,6 +1801,17 @@ per-word capitalization does not survive translation. */
 	line-height: 18px;
 }
 
+/* Scoped to the name row so the plugin list, which reuses `.mcp-server-name` as a flex container
+for its own name and badge, is not dragged into this sizing. */
+.mcp-server-item .mcp-server-name-row .mcp-server-name {
+	/* Sized to its text, and the first thing to shrink, so the status stays pinned to the name
+	instead of drifting away from short names or being pushed off by long ones. It keeps a floor,
+	though: the name is what the row is *for*, and without one a narrow pane spent its width on
+	the qualifier -- "Web S... - Disabled (Workspace)". Identity does not yield to its own note. */
+	flex: 0 1 auto;
+	min-width: 7em;
+}
+
 .mcp-server-item .mcp-server-description {
 	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
@@ -1744,11 +1821,59 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
+/* Line two is a sequence of spans rather than one string, so a failure can be coloured and the
+context around it can drop out when the line runs short. */
+.mcp-server-item .mcp-server-description > span {
+	min-width: 0;
+}
+
+.mcp-server-item .mcp-server-meta-separator {
+	margin: 0 var(--vscode-spacing-size40);
+	opacity: 0.6;
+}
+
+.mcp-server-item .mcp-server-meta-error {
+	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
+}
+
+/* Tool counts stay legible while the server is off -- what a server offers is exactly what someone
+deciding whether to turn it back on is looking for. */
+.mcp-server-item .mcp-server-tools {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	font-size: var(--vscode-agents-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.mcp-server-item .mcp-server-tools .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/* Cached counts are last-known rather than live, and read a shade quieter to say so. */
+.mcp-server-item .mcp-server-tools.is-cached {
+	opacity: 0.7;
+}
+
 .mcp-server-item .mcp-server-actions {
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+/* The buttons live in their own box so clearing them cannot take the switch with them: the switch
+is built once per template, and rebuilding it would remove the element a keyboard user is standing
+on the moment they toggle it. */
+.mcp-server-item .mcp-server-actions-transient {
+	display: flex;
+	align-items: center;
 	gap: var(--vscode-spacing-size40);
+}
+
+.mcp-server-item .mcp-server-actions-transient:empty {
+	display: none;
 }
 
 .mcp-server-item .mcp-server-sign-in.monaco-button {
@@ -1760,50 +1885,131 @@ per-word capitalization does not survive translation. */
 }
 
 .mcp-server-item .mcp-server-status {
-	flex-shrink: 0;
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
+	min-width: 0;
+	overflow: hidden;
+	flex: 0 1 auto;
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	font-size: var(--vscode-codiconFontSize);
+	gap: var(--vscode-spacing-size40);
+	font-size: var(--vscode-agents-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
 }
 
-.mcp-server-item .mcp-server-status-action.monaco-button {
-	min-width: var(--vscode-spacing-size240);
+.mcp-server-item .mcp-server-status-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.mcp-server-item .mcp-server-status:empty {
+	display: none;
+}
+
+.mcp-server-item .mcp-server-status-dot {
+	/* The dot is the redundancy that keeps status from being colour-only, so it is the one part
+	of the status that must never be squeezed away. */
+	flex: 0 0 auto;
+	width: var(--vscode-spacing-size40);
+	height: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: currentColor;
+}
+
+.mcp-server-item .mcp-server-inline-button.monaco-button {
+	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
-	padding: var(--vscode-spacing-size40);
-	border: 0;
+	padding: 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-agents-fontSize-label1);
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: transparent;
+	white-space: nowrap;
 }
 
-.mcp-server-item .mcp-server-status-action.monaco-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.mcp-server-item .mcp-server-status.running {
+/* Status colour is shared by the list row and the detail pane so the two can never disagree
+about what "Running" looks like. Layout stays scoped to each surface. */
+.mcp-server-status.running {
 	color: var(--vscode-charts-green);
 }
 
-.mcp-server-item .mcp-server-status.starting {
+.mcp-server-status.starting {
 	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 
-.mcp-server-item .mcp-server-status.auth-required {
+.mcp-server-status.auth-required {
 	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
 }
 
-.mcp-server-item .mcp-server-status.error {
+.mcp-server-status.error {
 	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
 }
 
-.mcp-server-item.disabled {
-	opacity: 0.5;
+.mcp-server-status.stopped,
+.mcp-server-status.disabled {
+	color: var(--vscode-descriptionForeground);
 }
 
-.mcp-server-item .mcp-server-status.disabled {
-	color: var(--vscode-disabledForeground);
+/* Only the name dims when a server is off. Status and errors must stay readable -- they are the
+reason the user is looking at the row. */
+.mcp-server-item.disabled .mcp-server-name,
+.mcp-server-item.disabled .mcp-server-description {
+	opacity: 0.6;
+}
+
+/* On/off switch
+-------------------------------------------------------------------------- */
+
+.ai-customization-switch {
+	flex-shrink: 0;
+	position: relative;
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size160);
+	padding: 0;
+	border: 1px solid var(--vscode-checkbox-border);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-checkbox-background);
+	cursor: pointer;
+	transition: background-color 100ms ease-out;
+}
+
+.ai-customization-switch-knob {
+	position: absolute;
+	top: 50%;
+	left: var(--vscode-spacing-size20);
+	width: var(--vscode-spacing-size100);
+	height: var(--vscode-spacing-size100);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-checkbox-foreground);
+	transform: translateY(-50%);
+	transition: left 100ms ease-out, background-color 100ms ease-out;
+}
+
+/* The knob slide is decorative: the state is already carried by colour and aria-checked, so
+honouring reduceMotion costs nothing. workbench.reduceMotion sets this class, which the OS-level
+prefers-reduced-motion query does not cover on its own. */
+.monaco-reduce-motion .ai-customization-switch,
+.monaco-reduce-motion .ai-customization-switch-knob {
+	transition: none;
+}
+
+.ai-customization-switch.checked {
+	background-color: var(--vscode-button-background);
+	/* High-contrast themes flatten the fill, so on/off would differ by knob position alone.
+	contrastActiveBorder is only defined there, so this is inert in the other themes. */
+	border-color: var(--vscode-contrastActiveBorder, var(--vscode-checkbox-border));
+}
+
+.ai-customization-switch.checked .ai-customization-switch-knob {
+	left: calc(100% - var(--vscode-spacing-size100) - var(--vscode-spacing-size20));
+	background-color: var(--vscode-button-foreground);
+}
+
+.ai-customization-switch:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+/* The row dims when a server is off, but its switch must stay readable -- it is the way back. */
+.mcp-server-item.disabled .ai-customization-switch {
+	opacity: 1;
 }
 
 /* Button group for Add Server + Browse Marketplace */

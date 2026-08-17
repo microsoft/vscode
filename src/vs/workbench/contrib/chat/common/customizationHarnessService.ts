@@ -79,6 +79,16 @@ export interface IHarnessDescriptor {
 	 */
 	readonly id: string;
 	readonly label: string;
+	/**
+	 * The agent's own name, without any disambiguating suffix — e.g. `Copilot`
+	 * where {@link label} is `Copilot [Agent Host]`.
+	 *
+	 * Exists because UI that needs to *name the agent* cannot derive it from
+	 * `label`: that string is localized and suffixed, so stripping the suffix
+	 * would break in translation. Undefined for harnesses that are not backed
+	 * by a distinct agent, where callers should fall back to their own wording.
+	 */
+	readonly agentName?: string;
 	readonly icon: ThemeIcon;
 	/**
 	 * Management sections that should be hidden when this harness is active.

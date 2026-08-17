@@ -23,6 +23,31 @@ export function isContributionDisabled(state: ContributionEnablementState): bool
 	return !isContributionEnabled(state);
 }
 
+/**
+ * Turns a contribution on or off *without* moving which layer decides it.
+ *
+ * A server turned off for this workspace comes back on for this workspace, and one turned off
+ * everywhere comes back on everywhere. Promoting or demoting the scope behind the user's back
+ * would silently rewrite a choice they made deliberately -- and because a plain on/off control
+ * shows the scope only while the row is off, the user would not even see it happen. Changing
+ * scope stays an explicit act, available from the context menu.
+ *
+ * Writing the deciding layer is also what makes the control truthful: the workspace entry wins
+ * over the profile one in {@link EnablementModel.readEnabled}, so writing the *other* layer
+ * would leave the row visibly unchanged after the user asked for something.
+ */
+export function withContributionEnabled(state: ContributionEnablementState, enabled: boolean): ContributionEnablementState {
+	if (isWorkspaceScopedEnablement(state)) {
+		return enabled ? ContributionEnablementState.EnabledWorkspace : ContributionEnablementState.DisabledWorkspace;
+	}
+	return enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile;
+}
+
+/** Whether the workspace layer, rather than the profile, is deciding this state. */
+export function isWorkspaceScopedEnablement(state: ContributionEnablementState): boolean {
+	return state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
+}
+
 export interface IEnablementModel {
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState;
 	readProfileEnabled(key: string, reader?: IReader): boolean;

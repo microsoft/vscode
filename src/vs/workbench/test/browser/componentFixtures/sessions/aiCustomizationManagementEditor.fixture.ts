@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { dirname as dirnameUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -59,7 +59,7 @@ import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSectio
 import { EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
-import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
+import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -69,7 +69,7 @@ import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js'
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerCacheState, McpServerInstallState, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
@@ -398,6 +398,35 @@ function createMockHarnessService(sessionResource: URI, descriptors: readonly IH
 	}();
 }
 
+/**
+ * A working enablement model for the fixtures.
+ *
+ * MCP rows read enablement to decide both the status word and the state of their on/off switch, so
+ * an unimplemented stub renders every server as off -- and, because the read happens inside an
+ * autorun, fails silently while doing it.
+ */
+function createFixtureEnablementModel(disabledKeys: readonly string[] = []): IEnablementModel {
+	const state = observableValue<ReadonlyMap<string, ContributionEnablementState>>(
+		'fixtureEnablement',
+		new Map(disabledKeys.map(key => [key, ContributionEnablementState.DisabledProfile])));
+	const read = (key: string, reader?: IReader) => state.read(reader).get(key) ?? ContributionEnablementState.EnabledProfile;
+	const write = (key: string, next: ContributionEnablementState | undefined) => {
+		const map = new Map(state.get());
+		if (next === undefined) {
+			map.delete(key);
+		} else {
+			map.set(key, next);
+		}
+		state.set(map, undefined);
+	};
+	return {
+		readEnabled: read,
+		readProfileEnabled: (key, reader) => isContributionEnabled(read(key, reader)),
+		setEnabled: (key, next) => write(key, next),
+		remove: key => write(key, undefined),
+	};
+}
+
 function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScope, description?: string, config?: IWorkbenchMcpServer['config']): IWorkbenchMcpServer {
 	return new class extends mock<IWorkbenchMcpServer>() {
 		override readonly id = id;
@@ -561,11 +590,23 @@ const mcpUserServers = [
 	makeLocalMcpServer('mcp-filesystem', 'Filesystem', LocalMcpServerScope.User, 'Local file operations'),
 	makeLocalMcpServer('mcp-puppeteer', 'Puppeteer', LocalMcpServerScope.User, 'Browser automation'),
 ];
+/**
+ * Runtime facts a row draws on: how the server connects, and what tools it last reported. Tools
+ * survive a stopped server, so a fixture that omits them hides the count entirely.
+ */
+function makeRuntimeFacts(toolCount: number, transport: McpServerTransportType, cacheState = McpServerCacheState.Live) {
+	return {
+		cacheState: constObservable(cacheState),
+		tools: constObservable(Array.from({ length: toolCount }, (_, index) => ({ referenceName: `tool_${index}` }))),
+		readDefinitions: () => constObservable({ server: { launch: { type: transport } }, collection: undefined }),
+	};
+}
+
 const mcpRuntimeServers = [
-	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Starting }), showOutput() { } },
-	{ definition: { id: 'mcp-postgres', label: 'PostgreSQL' }, collection: { id: 'workspace-mcp', label: 'Workspace MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Error }), showOutput() { } },
-	{ definition: { id: 'mcp-web-search', label: 'Web Search' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.DisabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { } },
-	{ definition: { id: 'mcp-filesystem', label: 'Filesystem' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { } },
+	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Starting }), showOutput() { }, ...makeRuntimeFacts(6, McpServerTransportType.Stdio) },
+	{ definition: { id: 'mcp-postgres', label: 'PostgreSQL' }, collection: { id: 'workspace-mcp', label: 'Workspace MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Error, message: 'spawn postgres ENOENT' }), showOutput() { }, ...makeRuntimeFacts(12, McpServerTransportType.Stdio, McpServerCacheState.Cached) },
+	{ definition: { id: 'mcp-web-search', label: 'Web Search' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.DisabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { }, ...makeRuntimeFacts(3, McpServerTransportType.HTTP, McpServerCacheState.Cached) },
+	{ definition: { id: 'mcp-filesystem', label: 'Filesystem' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { }, ...makeRuntimeFacts(8, McpServerTransportType.Stdio) },
 ];
 
 const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
@@ -897,6 +938,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable(mcpRuntimeServers as never[]);
+				override readonly enablementModel = createFixtureEnablementModel(['mcp-web-search']);
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
 				override readonly collections = constObservable([]);
@@ -1030,6 +1072,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([] as never[]);
+				override readonly enablementModel = createFixtureEnablementModel();
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
 				override readonly collections = constObservable([]);
@@ -1253,6 +1296,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([] as never[]);
+				override readonly enablementModel = createFixtureEnablementModel();
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
 				override readonly collections = constObservable([]);
@@ -1329,9 +1373,9 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 // Embedded compact detail widgets — standalone (no host editor)
 // ============================================================================
 
-function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenchMcpServer | undefined): void {
+function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenchMcpServer | undefined, runtimeServers: readonly unknown[] = []): void {
 	const width = 480;
-	const height = 320;
+	const height = 420;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
 
@@ -1344,6 +1388,16 @@ function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenc
 				override readonly onReset = Event.None;
 				override readonly local: IWorkbenchMcpServer[] = server ? [server] : [];
 				override async open() { /* no-op in fixture */ }
+			}());
+			// The pane reads the running server for status and tools, and the agent host for a
+			// session's own view of it, so both have to be present for it to render at all.
+			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
+				override readonly servers = constObservable(runtimeServers as never[]);
+				override readonly enablementModel = createFixtureEnablementModel();
+			}());
+			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getMcpServers() { return []; }
 			}());
 		},
 	});
@@ -1642,6 +1696,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	// The Built-in section holds the agent's own servers as well as VS Code's, and it is the only
+	// place a row names which product it came with -- so it needs a scrolled variant to be seen.
+	McpServersTabActiveSessionScrolled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			activeSessionMcpServers,
+			scrollToBottom: true,
+		}),
+	}),
+
 	PluginsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
@@ -1766,13 +1833,41 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Workspace-scope server with a description.
 	EmbeddedMcpDetailWorkspace: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access for the active workspace')),
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access for the active workspace', {
+				type: McpServerType.LOCAL,
+				command: 'npx',
+				args: ['-y', '@modelcontextprotocol/server-postgres'],
+				// Present so the pane can prove it prints only the names of things that carry
+				// secrets, never their values.
+				env: { PGPASSWORD: 'hunter2', PGHOST: 'db.internal' },
+			}),
+			[{
+				definition: { id: 'mcp-postgres', label: 'PostgreSQL' },
+				collection: { id: 'workspace-mcp', label: 'Workspace MCP' },
+				enablement: constObservable(ContributionEnablementState.EnabledProfile),
+				connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }),
+				showOutput() { },
+				cacheState: constObservable(McpServerCacheState.Cached),
+				tools: constObservable([
+					{ referenceName: 'query', definition: { description: 'Run a read-only SQL query against the connected database.' } },
+					{ referenceName: 'list_tables', definition: { description: 'List the tables available in the current schema.' } },
+				]),
+				readDefinitions: () => constObservable({ server: { launch: { type: McpServerTransportType.Stdio } }, collection: undefined }),
+			}]),
 	}),
 
 	// Standalone embedded MCP detail widget — user-scope server.
 	EmbeddedMcpDetailUser: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-web-search', 'Web Search', LocalMcpServerScope.User, 'Search the web from any session')),
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('mcp-web-search', 'Web Search', LocalMcpServerScope.User, 'Search the web from any session', {
+				type: McpServerType.REMOTE,
+				url: 'https://mcp.example.com/search',
+				headers: { Authorization: 'Bearer sk-secret' },
+			})),
 	}),
 
 	// Standalone embedded MCP detail widget — empty / no input state.
