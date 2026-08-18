@@ -35,7 +35,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { join } from '../../../../base/common/path.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
@@ -8248,14 +8247,14 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const enabledOptions = sdk.capturedStartupOptions[0];
 		const disabledOptions = sdk.capturedStartupOptions[1];
 		const enabledServer = enabledOptions.mcpServers?.['github-mcp-server'];
-		const enabledHeaders = enabledServer && hasKey(enabledServer, { headers: true }) ? enabledServer.headers : undefined;
+		const enabledRemoteServer = enabledServer?.type === 'http' || enabledServer?.type === 'sse' ? enabledServer : undefined;
 		assert.deepStrictEqual({
 			enabled: enabledServer ? {
 				type: enabledServer.type,
-				url: hasKey(enabledServer, { url: true }) ? enabledServer.url : undefined,
-				features: enabledHeaders?.['X-MCP-Features'],
-				authorization: enabledHeaders?.Authorization,
-				webSearchEnabled: enabledHeaders?.['X-MCP-Tools']?.split(',').includes('web_search'),
+				url: enabledRemoteServer?.url,
+				features: enabledRemoteServer?.headers?.['X-MCP-Features'],
+				authorization: enabledRemoteServer?.headers?.Authorization,
+				webSearchEnabled: enabledRemoteServer?.headers?.['X-MCP-Tools']?.split(',').includes('web_search'),
 			} : undefined,
 			disabled: disabledOptions.mcpServers?.['github-mcp-server'],
 			denied: typeof disabledOptions.settings === 'string' ? undefined : disabledOptions.settings?.deniedMcpServers,
