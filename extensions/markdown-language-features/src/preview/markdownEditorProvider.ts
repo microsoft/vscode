@@ -766,7 +766,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				id: rule.id,
 				source: rule.uriPattern.source,
 				flags: rule.uriPattern.flags,
-				initialKind: rule.initialKind,
+				initialKind: rule.initialKind === 'chat' ? 'session' : rule.initialKind,
 			})),
 		});
 
