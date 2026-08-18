@@ -248,6 +248,11 @@ new active turn, so concurrent child completion cannot overwrite creator work.
 The existing pending-message drain starts that queued notification when the
 creator chat becomes idle.
 
+`list_sessions` exposes a session's configured project URI separately from its
+primary and additional working directories. `create_session` accepts those URIs
+directly and can resolve a unique project display name, preferring the
+configured project root over a transient worktree. Ambiguous names require an
+explicit project URI.
 
 ---
 
