@@ -7,6 +7,7 @@ import { execFileSync } from 'child_process';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fetchCoreLibraries, getStandardArtifacts, type IFoundryDependencyVersions, requiredCoreLibraryNames, supportsCoreLibraryTarget, VSCODE_NUGET_FEED } from '../../dictation-runtime/nuget.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const packageName = 'foundry-local-sdk';
@@ -48,19 +49,13 @@ export function disableFoundryLocalInstall(root = repositoryRoot): void {
 	console.log(`Disabled ${allowScriptsKey} install script for this CI job`);
 }
 
-function overwriteInstallerUtils(installerUtilsPath: string): void {
+function validateInstallerUtils(installerUtilsPath: string): void {
 	const contents = fs.readFileSync(installerUtilsPath);
 	const actualHash = createHash('sha256').update(contents).digest('hex');
-	const localInstallerUtilsPath = path.join(import.meta.dirname, 'foundryLocalInstallUtils.cjs');
-	const localContents = fs.readFileSync(localInstallerUtilsPath);
-	const localHash = createHash('sha256').update(localContents).digest('hex');
 
-	if (actualHash !== expectedInstallerUtilsHash && actualHash !== localHash) {
+	if (actualHash !== expectedInstallerUtilsHash) {
 		throw new Error(`Unexpected ${packageName} installer utility hash ${actualHash}`);
 	}
-
-	fs.copyFileSync(localInstallerUtilsPath, installerUtilsPath);
-	console.log(`Installed the repository-local ${packageName} installer utility`);
 }
 
 function runLifecycleScript(packageRoot: string, relativeScriptPath: string): void {
@@ -70,7 +65,7 @@ function runLifecycleScript(packageRoot: string, relativeScriptPath: string): vo
 	});
 }
 
-export function installFoundryLocal(root = repositoryRoot): void {
+export async function installFoundryLocal(root = repositoryRoot): Promise<void> {
 	if (!process.env[credentialTokenEnvironmentVariable]) {
 		throw new Error(`${credentialTokenEnvironmentVariable} was not set by NuGetAuthenticate`);
 	}
@@ -91,11 +86,36 @@ export function installFoundryLocal(root = repositoryRoot): void {
 		throw new Error(`Unexpected ${packageName}@${version} lifecycle scripts`);
 	}
 
-	overwriteInstallerUtils(path.join(packageRoot, 'script', 'install-utils.cjs'));
+	validateInstallerUtils(path.join(packageRoot, 'script', 'install-utils.cjs'));
 	runLifecycleScript(packageRoot, 'script/preinstall.cjs');
-	runLifecycleScript(packageRoot, 'script/install-standard.cjs');
+
+	const target = `${process.platform}-${process.arch}`;
+	if (!supportsCoreLibraryTarget(target)) {
+		console.warn(`[foundry-local] Unsupported platform: ${target}. Skipping.`);
+		return;
+	}
+
+	const dependencies = readJson<IFoundryDependencyVersions>(path.join(packageRoot, 'deps_versions.json'));
+	const artifacts = getStandardArtifacts(target, dependencies);
+	const binDir = path.join(packageRoot, 'foundry-local-core', target);
+	await fetchCoreLibraries(target, artifacts, binDir, { feeds: [VSCODE_NUGET_FEED], skipIfPresent: true });
+
+	const missingFiles = requiredCoreLibraryNames(target).filter(file => !fs.existsSync(path.join(binDir, file)));
+	if (missingFiles.length > 0) {
+		throw new Error(`[foundry-local] Missing required native libraries for ${target}: ${missingFiles.join(', ')}`);
+	}
+
+	const coreVersion = dependencies['foundry-local-core'].nuget;
+	const platformPackageJson = {
+		name: `@foundry-local-core/${target}`,
+		version: coreVersion,
+		description: `Native binaries for Foundry Local SDK (${target})`,
+		private: true,
+	};
+	fs.writeFileSync(path.join(binDir, 'package.json'), JSON.stringify(platformPackageJson, undefined, 2));
+	console.log('[foundry-local] Installation complete.');
 }
 
 if (import.meta.filename === process.argv[1]) {
-	installFoundryLocal();
+	await installFoundryLocal();
 }
