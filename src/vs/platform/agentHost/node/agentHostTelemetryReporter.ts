@@ -185,6 +185,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	failureStage: AgentHostTurnFailureStage | undefined;
 	isMultiRoot: boolean;
 	folderCount: number;
+	billedNanoAiu: number | undefined;
 }
 
 export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassification & {
@@ -205,8 +206,9 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
 	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of effective working directories for the session at turn completion.' };
+	billedNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The AI credit usage billed for the turn in nano-AIU, when reported by the provider.' };
 	owner: 'roblourens';
-	comment: 'Tracks agent host turn performance including time to first visible progress and total turn duration.';
+	comment: 'Tracks agent host turn completion, including performance, configuration context, and billed AI credit usage when reported by the provider.';
 };
 
 export interface IAgentHostTurnFailedEvent extends IAgentHostInitiatorTelemetry {
@@ -266,6 +268,7 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	failure: IAgentHostTurnFailure | undefined;
 	isMultiRoot: boolean;
 	folderCount: number;
+	billedNanoAiu: number | undefined;
 }
 
 /**
@@ -1142,6 +1145,7 @@ export class AgentHostTelemetryReporter {
 			failureStage: report.failure?.stage,
 			isMultiRoot: report.isMultiRoot,
 			folderCount: report.folderCount,
+			billedNanoAiu: report.billedNanoAiu,
 		});
 		if (report.failure) {
 			const { providerCallId, serviceRequestId } = readAgentErrorTelemetryMeta(report.failure.error);

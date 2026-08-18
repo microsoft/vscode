@@ -4,9 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { FeedbackInputWidget } from '../../browser/feedbackInputWidget.js';
 
 suite('FeedbackInputWidget', () => {
@@ -29,6 +35,12 @@ suite('FeedbackInputWidget', () => {
 
 	function busyIndicator(widget: FeedbackInputWidget): HTMLElement {
 		return widget.domNode.querySelector('.agent-feedback-input-busy-indicator')!;
+	}
+
+	function enterKeybinding(altKey: boolean): USLayoutResolvedKeybinding {
+		return new USLayoutResolvedKeybinding([
+			new KeyCodeChord(false, false, altKey, false, KeyCode.Enter),
+		], OperatingSystem.Windows);
 	}
 
 	test('setBusy(true) disables the input, hides the action bar, and shows the spinner', () => {
@@ -127,5 +139,53 @@ suite('FeedbackInputWidget', () => {
 		widget.setPlaceholder('New Placeholder');
 
 		assert.strictEqual(widget.inputElement.getAttribute('aria-label'), 'New Placeholder');
+	});
+
+	test('renders a split action with both actions and their keybinding descriptions', () => {
+		let contextMenuDelegate: IContextMenuDelegate | undefined;
+		disposables.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
+		const widget = disposables.add(new FeedbackInputWidget({
+			placeholder: 'Add Feedback',
+			getMaxContentWidth: () => 400,
+			primaryAction: {
+				label: 'Add',
+				icon: Codicon.plus,
+				keybindingLabel: 'Enter',
+				menuKeybinding: enterKeybinding(false),
+			},
+			secondaryAction: {
+				label: 'Add and Submit',
+				icon: Codicon.send,
+				keybindingLabel: 'Alt+Enter',
+				menuKeybinding: enterKeybinding(true),
+			},
+			contextMenuProvider: {
+				showContextMenu: delegate => contextMenuDelegate = delegate,
+			},
+		}));
+		widget.inputElement.value = 'Feedback';
+		widget.updateActionEnabled();
+
+		const dropdown = widget.domNode.querySelector<HTMLElement>('.monaco-dropdown .dropdown-label');
+		assert.ok(dropdown);
+		dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+		assert.ok(contextMenuDelegate);
+
+		assert.deepStrictEqual(contextMenuDelegate.getActions().map(action => ({
+			label: action.label,
+			keybinding: contextMenuDelegate?.getKeyBinding?.(action)?.getLabel(),
+		})), [
+			{ label: 'Add', keybinding: 'Enter' },
+			{ label: 'Add and Submit', keybinding: 'Alt+Enter' },
+		]);
+
+		const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
+		try {
+			modifierKeyEmitter.fire({ altKey: true, ctrlKey: false, shiftKey: false, metaKey: false });
+			assert.ok(widget.domNode.querySelector('.action-dropdown-item > .action-label.codicon-send'));
+		} finally {
+			modifierKeyEmitter.resetKeyStatus();
+		}
+		assert.ok(widget.domNode.querySelector('.action-dropdown-item > .action-label.codicon-plus'));
 	});
 });

@@ -7,9 +7,11 @@ import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
@@ -183,9 +185,9 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
 /**
- * Environment variable form of {@link AgentHostByokModelsEnabledSettingId}.
- * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`true`).
+ * Explicit environment override for {@link AgentHostByokModelsEnabledSettingId}.
+ * Accepts `'true'` / `'false'`; when absent or invalid, the synchronized agent
+ * host root configuration determines whether BYOK models are enabled.
  */
 export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
 
@@ -221,6 +223,10 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 	return defaultEnabled;
 }
 
+export function isAgentHostByokModelsEnabled(envValue: string | undefined, rootConfigValue: boolean | undefined): boolean {
+	return isAgentEnabled(envValue, rootConfigValue ?? false);
+}
+
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
  * shell tool (the path taken when `AgentHostCustomTerminalToolEnabledSettingId`
@@ -249,6 +255,19 @@ export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.en
  * `'off'`.
  */
 export const AgentHostSdkSandboxWindowsEnabledSettingId = 'chat.agentHost.sdkSandbox.enabledWindows';
+
+export type AgentHostCopilotSandboxSettingId =
+	| AgentSandboxSettingId.AgentSandboxEnabled
+	| AgentSandboxSettingId.AgentSandboxWindowsEnabled
+	| typeof AgentHostSdkSandboxEnabledSettingId
+	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
+
+export function getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
+	if (customTerminalToolEnabled) {
+		return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
+	}
+	return windows ? AgentHostSdkSandboxWindowsEnabledSettingId : AgentHostSdkSandboxEnabledSettingId;
+}
 
 /**
  * Selects whether the regular workbench surfaces Codex from the agent host
@@ -593,7 +612,6 @@ export interface IAgentSdkStarterSettings {
 	readonly codexBinaryArgs?: readonly string[];
 	readonly claudeAgentEnabled?: boolean;
 	readonly codexAgentEnabled?: boolean;
-	readonly byokModelsEnabled?: boolean;
 }
 
 export function buildAgentSdkEnv(
@@ -617,9 +635,6 @@ export function buildAgentSdkEnv(
 	}
 	if (settings.codexAgentEnabled !== undefined) {
 		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
-	}
-	if (settings.byokModelsEnabled !== undefined) {
-		setIfMissing(AgentHostByokModelsEnabledEnvVar, settings.byokModelsEnabled ? 'true' : 'false');
 	}
 	return out;
 }
