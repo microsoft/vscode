@@ -9,9 +9,6 @@ import { IConfigurationService, IConfigurationValue } from '../../../configurati
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { getAgentHostConfigurationSyncEntries, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
-import { AgentHostByokModelsEnabledSettingId } from '../../common/agentService.js';
-import { AgentHostByokModelsEnabledConfigKey } from '../../common/agentHostSchema.js';
-import '../../common/agentHostStarter.config.contribution.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_ONLY_SETTING = 'test.agentHostSync.localOnly';
@@ -167,19 +164,6 @@ suite('AgentHostConfigurationSync', () => {
 			hasSynced: true,
 			hasHidden: true,
 			hasUnsynced: false,
-		});
-	});
-
-	test('mirrors BYOK enablement only to local agent hosts', () => {
-		const localEntries = new Map(getAgentHostConfigurationSyncEntries(true).map(entry => [entry.settingId, entry.sync.key]));
-		const remoteEntries = new Map(getAgentHostConfigurationSyncEntries(false).map(entry => [entry.settingId, entry.sync.key]));
-
-		assert.deepStrictEqual({
-			local: localEntries.get(AgentHostByokModelsEnabledSettingId),
-			remote: remoteEntries.get(AgentHostByokModelsEnabledSettingId),
-		}, {
-			local: AgentHostByokModelsEnabledConfigKey,
-			remote: undefined,
 		});
 	});
 

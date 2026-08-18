@@ -22,7 +22,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
-import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
+import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel, NullAgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
@@ -542,5 +542,6 @@ export function registerAgentHostClientChannels(
 		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, instantiationService.createInstance(AgentHostClientByokLmChannel));
 	} catch (error) {
 		logService.warn(`${LOG_PREFIX} BYOK language-model bridge not registered for this window. ${error instanceof Error ? error.message : String(error)}`);
+		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, new NullAgentHostClientByokLmChannel());
 	}
 }

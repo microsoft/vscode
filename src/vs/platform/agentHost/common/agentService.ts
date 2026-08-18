@@ -221,6 +221,10 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 	return defaultEnabled;
 }
 
+export function isAgentHostByokModelsEnabled(envValue: string | undefined, rootConfigValue: boolean | undefined): boolean {
+	return isAgentEnabled(envValue, rootConfigValue ?? false);
+}
+
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
  * shell tool (the path taken when `AgentHostCustomTerminalToolEnabledSettingId`
@@ -593,7 +597,6 @@ export interface IAgentSdkStarterSettings {
 	readonly codexBinaryArgs?: readonly string[];
 	readonly claudeAgentEnabled?: boolean;
 	readonly codexAgentEnabled?: boolean;
-	readonly byokModelsEnabled?: boolean;
 }
 
 export function buildAgentSdkEnv(
@@ -617,9 +620,6 @@ export function buildAgentSdkEnv(
 	}
 	if (settings.codexAgentEnabled !== undefined) {
 		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
-	}
-	if (settings.byokModelsEnabled !== undefined) {
-		setIfMissing(AgentHostByokModelsEnabledEnvVar, settings.byokModelsEnabled ? 'true' : 'false');
 	}
 	return out;
 }

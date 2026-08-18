@@ -107,12 +107,10 @@ suite('registerAgentHostClientChannels', () => {
 		});
 	});
 
-	test('registers only the proxy channel and does NOT throw when the BYOK handler is missing', () => {
+	test('registers a null BYOK channel when the handler is missing', () => {
 		const { server, registered } = fakeChannelServer();
-		// Must not throw: the agent host connection has to come up even if a
-		// window connects without the handler and so cannot serve BYOK itself.
 		registerAgentHostClientChannels(server, fakeInstantiationService(true), new NullLogService());
-		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL]);
+		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
 	});
 });
 

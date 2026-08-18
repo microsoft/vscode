@@ -36,7 +36,8 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostByokModelsEnabledEnvVar } from '../../common/agentService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
@@ -858,9 +859,10 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
-	if (options?.rootConfig) {
-		configService.updateRootConfig(options.rootConfig);
-	}
+	configService.updateRootConfig({
+		[AgentHostByokModelsEnabledConfigKey]: true,
+		...options?.rootConfig,
+	});
 	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 	services.set(ILogService, logService);
 	services.set(IFileService, fileService);
@@ -4159,6 +4161,47 @@ suite('CopilotAgent', () => {
 				{ id: 'acme/minimal-only', thinkingLevel: { enum: ['minimal'], default: 'minimal' } },
 			]);
 		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('BYOK models follow synchronized root configuration when there is no environment override', async () => {
+		const previousEnvValue = process.env[AgentHostByokModelsEnabledEnvVar];
+		delete process.env[AgentHostByokModelsEnabledEnvVar];
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const { agent, configurationService } = createTestAgentContext(disposables, {
+			byokBridgeRegistry,
+			rootConfig: { [AgentHostByokModelsEnabledConfigKey]: false },
+		});
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		disposables.add(byokBridgeRegistry.register('renderer', {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		}));
+
+		try {
+			modelSnapshots.fire([{ vendor: 'acme', id: 'model', name: 'Model' }]);
+			const disabledModels = agent.models.get();
+			configurationService.updateRootConfig({ [AgentHostByokModelsEnabledConfigKey]: true });
+			const enabledModels = await waitForState(agent.models, models => models.length === 1);
+			configurationService.updateRootConfig({ [AgentHostByokModelsEnabledConfigKey]: false });
+			const disabledAgainModels = await waitForState(agent.models, models => models.length === 0);
+
+			assert.deepStrictEqual({
+				disabled: disabledModels.map(model => model.id),
+				enabled: enabledModels.map(model => model.id),
+				disabledAgain: disabledAgainModels.map(model => model.id),
+			}, {
+				disabled: [],
+				enabled: ['acme/model'],
+				disabledAgain: [],
+			});
+		} finally {
+			if (previousEnvValue === undefined) {
+				delete process.env[AgentHostByokModelsEnabledEnvVar];
+			} else {
+				process.env[AgentHostByokModelsEnabledEnvVar] = previousEnvValue;
+			}
 			await disposeAgent(agent);
 		}
 	});
