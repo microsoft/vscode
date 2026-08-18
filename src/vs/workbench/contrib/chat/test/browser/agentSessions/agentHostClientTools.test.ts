@@ -1150,11 +1150,7 @@ suite('AgentHostClientTools', () => {
 		});
 
 		test('runs once when the same tool call is readied twice before invocation starts', async () => {
-			// A client tool call receives two `ChatToolCallReady` actions: one from
-			// the permission flow and one from the agent's stream mapper. They
-			// differ only in approval metadata and both arrive before
-			// `resolveToolInput` settles, so neither has armed
-			// `startedClientToolCalls` when the other is observed.
+			// Two `ChatToolCallReady` actions arrive before `resolveToolInput` settles.
 			const firstInputURI = URI.parse('session-db:/tool-input-1');
 			const input = { uri: firstInputURI.toString(), contentType: 'application/json' };
 			const inputRead = new DeferredPromise<{ data: string; encoding: ContentEncoding }>();
