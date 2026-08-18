@@ -678,25 +678,32 @@ function getListWorkspacesArgs(rawArgs: unknown): IListWorkspacesArgs {
 export function serializeWorkspaces(sessions: readonly IAgentSessionMetadata[], rawArgs: unknown): string {
 	const args = getListWorkspacesArgs(rawArgs);
 	const query = args.query?.toLowerCase();
-	const seen = new Set<string>();
+	const sessionReferencesByWorkspaceUri = new Map<string, { uri: string; fallbackName: string; provider: string }>();
+	const projectNamesByWorkspaceUri = new Map<string, string>();
 	const workspaces: { uri: string; name: string; provider: string }[] = [];
 	for (const session of [...sessions].sort((a, b) => b.modifiedTime - a.modifiedTime)) {
 		for (const directory of session.workingDirectories ?? []) {
 			const uri = directory.toString();
-			if (seen.has(uri)) {
-				continue;
+			if (!sessionReferencesByWorkspaceUri.has(uri)) {
+				sessionReferencesByWorkspaceUri.set(uri, {
+					uri,
+					fallbackName: directory.path.split('/').filter(Boolean).at(-1) ?? uri,
+					provider: session.session.scheme,
+				});
 			}
-			const name = session.project?.uri.toString() === uri
-				? session.project.displayName
-				: directory.path.split('/').filter(Boolean).at(-1) ?? uri;
-			if (query && !name.toLowerCase().includes(query) && !uri.toLowerCase().includes(query)) {
-				continue;
+			if (!projectNamesByWorkspaceUri.has(uri) && session.project?.uri.toString() === uri) {
+				projectNamesByWorkspaceUri.set(uri, session.project.displayName);
 			}
-			seen.add(uri);
-			workspaces.push({ uri, name, provider: session.session.scheme });
-			if (workspaces.length >= args.limit) {
-				return JSON.stringify({ workspaces });
-			}
+		}
+	}
+	for (const workspace of sessionReferencesByWorkspaceUri.values()) {
+		const name = projectNamesByWorkspaceUri.get(workspace.uri) ?? workspace.fallbackName;
+		if (query && !name.toLowerCase().includes(query) && !workspace.uri.toLowerCase().includes(query)) {
+			continue;
+		}
+		workspaces.push({ uri: workspace.uri, name, provider: workspace.provider });
+		if (workspaces.length >= args.limit) {
+			return JSON.stringify({ workspaces });
 		}
 	}
 	return JSON.stringify({ workspaces });
@@ -1232,6 +1239,11 @@ function getSessionToolDisplay(toolName: string, _args: unknown, _result?: IServ
 			return {
 				displayName: localize('toolName.listSessions', "List Sessions"),
 				invocationMessage: localize('toolInvoke.listSessions', "List sessions"),
+			};
+		case SessionServerToolName.ListWorkspaces:
+			return {
+				displayName: localize('toolName.listWorkspaces', "List Workspaces"),
+				invocationMessage: localize('toolInvoke.listWorkspaces', "List workspaces"),
 			};
 		case SessionServerToolName.CreateSession:
 			return {

@@ -48,6 +48,7 @@ suite('serverToolGroups display', () => {
 		};
 		assert.deepStrictEqual({
 			list: display('list_sessions'),
+			workspaces: display('list_workspaces'),
 			current: display('get_current_session'),
 			create: display('create_session'),
 			chat: display('create_chat'),
@@ -56,6 +57,7 @@ suite('serverToolGroups display', () => {
 			del: display('delete_session'),
 		}, {
 			list: { displayName: 'List Sessions', invocation: 'List sessions' },
+			workspaces: { displayName: 'List Workspaces', invocation: 'List workspaces' },
 			current: { displayName: 'Get Current Session', invocation: 'Get current session' },
 			create: { displayName: 'Create Session', invocation: 'Creating session' },
 			chat: { displayName: 'Create Chat', invocation: 'Create chat' },

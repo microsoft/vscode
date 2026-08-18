@@ -223,13 +223,19 @@ suite('SessionServerTools', () => {
 
 	test('serializeWorkspaces deduplicates, filters, and limits known workspaces', () => {
 		const other = URI.parse('file:///workspace/other');
+		const zeta = URI.parse('file:///workspace/zeta');
 		const sessions = [
-			{ ...sessionMeta('newest', SessionStatus.Idle, workspace), modifiedTime: 3, project: { uri: workspace, displayName: 'App' } },
-			{ ...sessionMeta('duplicate', SessionStatus.Idle, workspace), modifiedTime: 2 },
-			{ ...sessionMeta('other', SessionStatus.Idle, other), modifiedTime: 1 },
+			{ ...sessionMeta('newest-app', SessionStatus.Idle, workspace), modifiedTime: 5 },
+			{ ...sessionMeta('zeta', SessionStatus.Idle, zeta), modifiedTime: 4, project: { uri: zeta, displayName: 'Zeta' } },
+			{ ...sessionMeta('old-app-name', SessionStatus.Idle, workspace), session: URI.parse('other:/old-app-name'), modifiedTime: 3, project: { uri: workspace, displayName: 'App' } },
+			{ ...sessionMeta('other', SessionStatus.Idle, other), modifiedTime: 2, project: { uri: other, displayName: 'Other' } },
 		];
 
 		assert.deepStrictEqual(JSON.parse(serializeWorkspaces(sessions, { query: 'app', limit: 1 })), {
+			workspaces: [{ uri: workspace.toString(), name: 'App', provider: 'copilot' }],
+		});
+
+		assert.deepStrictEqual(JSON.parse(serializeWorkspaces(sessions, { query: 'workspace', limit: 1 })), {
 			workspaces: [{ uri: workspace.toString(), name: 'App', provider: 'copilot' }],
 		});
 	});
