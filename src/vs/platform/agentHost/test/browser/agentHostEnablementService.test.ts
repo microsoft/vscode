@@ -6,15 +6,13 @@
 import assert from 'assert';
 import { autorun } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { AgentHostEnablementService } from '../../browser/agentHostEnablementService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../common/agentHostEnablementService.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides } from '../../../configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { COPILOT_SANDBOX_ENABLED_KEY, IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsData, NullNativeManagedSettingsService } from '../../../policy/common/copilotManagedSettings.js';
-import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
+import { COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../policy/common/copilotManagedSettings.js';
 import { MockContextKeyService } from '../../../keybinding/test/common/mockKeybindingService.js';
 
 class AgentHostTestConfigurationService extends TestConfigurationService {
@@ -45,11 +43,7 @@ class AgentHostTestConfigurationService extends TestConfigurationService {
 suite('AgentHostEnablementService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(aiDisabled = false, runtimeAvailable = true, managedSettings?: {
-		readonly native: INativeManagedSettingsService;
-		readonly server: IDefaultAccountService;
-		readonly file: IFileManagedSettingsService;
-	}): {
+	function createService(aiDisabled = false, runtimeAvailable = true, managedSettingsService: IManagedSettingsService = new NullManagedSettingsService()): {
 		readonly service: AgentHostEnablementService;
 		readonly configurationService: AgentHostTestConfigurationService;
 		readonly contextKeyService: MockContextKeyService;
@@ -61,9 +55,7 @@ suite('AgentHostEnablementService', () => {
 			runtimeAvailable,
 			configurationService,
 			contextKeyService,
-			managedSettings?.native ?? new NullNativeManagedSettingsService(),
-			managedSettings?.server ?? { policyData: null, onDidChangePolicyData: Event.None } as IDefaultAccountService,
-			managedSettings?.file,
+			managedSettingsService,
 		));
 		return { service, configurationService, contextKeyService };
 	}
@@ -120,55 +112,30 @@ suite('AgentHostEnablementService', () => {
 		});
 	});
 
-	test('tracks the sandbox floor using managed-settings channel precedence', () => {
-		let nativeValues: ManagedSettingsData = {};
-		const nativeEmitter = disposables.add(new Emitter<ManagedSettingsData>());
-		const nativeService: INativeManagedSettingsService = {
+	test('tracks the effective managed sandbox floor', () => {
+		let sandboxEnabled = false;
+		const managedSettingsEmitter = disposables.add(new Emitter<void>());
+		const managedSettingsService: IManagedSettingsService = {
 			_serviceBrand: undefined,
-			get managedSettings() { return nativeValues; },
-			onDidChangeManagedSettings: nativeEmitter.event,
-			async initialize() { return nativeValues; },
-			async updatePolicyDefinitions() { return nativeValues; },
+			onDidChangeManagedSettings: managedSettingsEmitter.event,
+			getManagedSettingValue: key => key === COPILOT_SANDBOX_ENABLED_KEY ? sandboxEnabled : undefined,
 		};
 
-		let serverPolicyData: IPolicyData | null = null;
-		const serverEmitter = disposables.add(new Emitter<IPolicyData | null>());
-		const serverService = {
-			get policyData() { return serverPolicyData; },
-			onDidChangePolicyData: serverEmitter.event,
-		} as IDefaultAccountService;
-
-		let fileValues: ManagedSettingsData = {};
-		const fileEmitter = disposables.add(new Emitter<ManagedSettingsData>());
-		const fileService: IFileManagedSettingsService = {
-			_serviceBrand: undefined,
-			get rawManagedSettings() { return fileValues; },
-			get managedSettings() { return fileValues; },
-			onDidChangeRawManagedSettings: Event.None,
-			onDidChangeManagedSettings: fileEmitter.event,
-		};
-
-		const { service } = createService(false, true, { native: nativeService, server: serverService, file: fileService });
+		const { service } = createService(false, true, managedSettingsService);
 		const changes: boolean[] = [];
 		disposables.add(autorun(reader => changes.push(service.managedSandboxEnforced.read(reader))));
 
-		fileValues = { [COPILOT_SANDBOX_ENABLED_KEY]: true };
-		fileEmitter.fire(fileValues);
-		serverPolicyData = { managedSettings: { [COPILOT_SANDBOX_ENABLED_KEY]: false } } as IPolicyData;
-		serverEmitter.fire(serverPolicyData);
-		serverPolicyData = { managedSettings: { [COPILOT_SANDBOX_ENABLED_KEY]: true } } as IPolicyData;
-		serverEmitter.fire(serverPolicyData);
-		nativeValues = { [COPILOT_SANDBOX_ENABLED_KEY]: false };
-		nativeEmitter.fire(nativeValues);
-		nativeValues = { [COPILOT_SANDBOX_ENABLED_KEY]: true };
-		nativeEmitter.fire(nativeValues);
+		sandboxEnabled = true;
+		managedSettingsEmitter.fire();
+		sandboxEnabled = false;
+		managedSettingsEmitter.fire();
 
 		assert.deepStrictEqual({
 			enforced: service.managedSandboxEnforced.get(),
 			changes,
 		}, {
-			enforced: true,
-			changes: [false, true, false, true, false, true],
+			enforced: false,
+			changes: [false, true, false],
 		});
 	});
 

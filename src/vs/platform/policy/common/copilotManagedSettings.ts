@@ -162,9 +162,22 @@ export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData 
 	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
 }
 
-/** Whether resolved managed settings mandate the sandbox floor. */
-export function isManagedSandboxEnabled(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): boolean {
-	return pickManagedSettings(nativeMdm, server, file).values[COPILOT_SANDBOX_ENABLED_KEY] === true;
+export const IManagedSettingsService = createDecorator<IManagedSettingsService>('managedSettingsService');
+
+/** Read-only access to effective managed settings after channel resolution. */
+export interface IManagedSettingsService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeManagedSettings: Event<void>;
+	getManagedSettingValue(key: string): ManagedSettingValue | undefined;
+}
+
+export class NullManagedSettingsService implements IManagedSettingsService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeManagedSettings = Event.None;
+
+	getManagedSettingValue(): ManagedSettingValue | undefined {
+		return undefined;
+	}
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
