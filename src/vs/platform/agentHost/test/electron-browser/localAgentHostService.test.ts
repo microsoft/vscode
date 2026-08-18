@@ -8,14 +8,25 @@ import { IChannelClient, IChannelServer, IServerChannel } from '../../../../base
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { isFatalAgentHostStartError, toFatalAgentHostStartError } from '../../common/agent.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL } from '../../common/agentHostClientProxyChannel.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../../common/agentHostClientByokLmChannel.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
-import { LocalAgentHostManagementConnection, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
+import { LocalAgentHostManagementConnection, notifyOnFatalAgentHostStartError, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
+
+class CapturingNotificationService extends TestNotificationService {
+	readonly errors: (string | Error)[] = [];
+
+	override error(error: string | Error) {
+		this.errors.push(error);
+		return super.error(error);
+	}
+}
 
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { eventName: string; data: ITelemetryData | undefined }[] = [];
@@ -69,6 +80,37 @@ suite('registerAgentHostClientChannels', () => {
 		const { server, registered } = fakeChannelServer();
 		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService());
 		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
+	});
+
+	test('surfaces only fatal startup failures', () => {
+		const notifications = new CapturingNotificationService();
+		const originalError = new TypeError('Invalid value for args');
+		originalError.stack = 'original stack';
+		const fatalError = toFatalAgentHostStartError(originalError);
+
+		notifyOnFatalAgentHostStartError(notifications);
+		notifyOnFatalAgentHostStartError(notifications);
+
+		assert.deepStrictEqual({
+			classification: [
+				isFatalAgentHostStartError(originalError),
+				isFatalAgentHostStartError(new TypeError('unrelated')),
+				isFatalAgentHostStartError(new Error('Invalid value for args')),
+			],
+			fatal: fatalError.fatal,
+			name: fatalError.name,
+			stack: fatalError.stack,
+			notifications: notifications.errors,
+		}, {
+			classification: [true, false, false],
+			fatal: true,
+			name: 'TypeError',
+			stack: 'original stack',
+			notifications: [
+				'The Agent Host failed to start. Restart the application to try again. See the logs for details.',
+				'The Agent Host failed to start. Restart the application to try again. See the logs for details.',
+			],
+		});
 	});
 
 	suite('LocalAgentHostManagementConnection', () => {
