@@ -1341,10 +1341,7 @@ export class AgentSideEffects extends Disposable {
 	 * The two differ only when the addressed chat is a subagent.
 	 */
 	private _notifyClientToolCallComplete(sessionChannel: ProtocolURI, chatChannel: ProtocolURI, turnId: string, toolCallId: string, result: ToolCallResult, source: 'client-dispatch' | 'server-envelope'): void {
-		// Only a client-contributed call has a parked handler awaiting it, and
-		// SDK-owned calls carry no contributor at all. Forwarding one leaves its
-		// result buffered in the provider for the life of the session. An
-		// unknown call is still forwarded, since it cannot be ruled out.
+		// Only a client-contributed call has a parked handler; an unknown one is still forwarded.
 		const toolCall = this._findToolCall(chatChannel, turnId, toolCallId);
 		if (toolCall && toolCall.contributor?.kind !== ToolCallContributorKind.Client) {
 			return;

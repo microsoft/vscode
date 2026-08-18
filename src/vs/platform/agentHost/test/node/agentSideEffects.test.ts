@@ -3307,8 +3307,7 @@ suite('AgentSideEffects', () => {
 			}
 			await timeout(0);
 
-			// Only a client tool has a parked handler; an SDK-owned result would
-			// sit buffered in the provider for the life of the session.
+			// An SDK-owned result would sit buffered in the provider for the session.
 			assert.deepStrictEqual(agent.clientToolCallCompleteCalls.map(call => call.toolCallId), ['tc-client']);
 		});
 	});
