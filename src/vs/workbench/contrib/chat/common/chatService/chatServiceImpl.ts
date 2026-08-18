@@ -11,7 +11,7 @@ import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { equals } from '../../../../../base/common/objects.js';
@@ -2218,11 +2218,21 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	private settleConsumedPendingRequest(requestId: string, request: ChatRequestModel, agent: IChatAgentData | undefined, store: DisposableStore): void {
 		const deferred = this._queuedRequestDeferreds.get(requestId);
-		const response = request.response;
-		if (!deferred || !agent || !response) {
+		if (!deferred) {
 			return;
 		}
 		this._queuedRequestDeferreds.delete(requestId);
+
+		const response = request.response;
+		if (!agent || !response) {
+			// Reconciliation deliberately leaves a consumed message alone, so this
+			// is the last place that can settle it. Reporting it as sent means
+			// handing back an agent and a response to await; with neither there is
+			// nothing to await, and saying so beats leaving the caller waiting for
+			// a turn nobody will report on.
+			deferred.complete({ kind: 'rejected', reason: 'The provider started the request but the session could not describe it' });
+			return;
+		}
 
 		const completed = new DeferredPromise<void>();
 		if (response.isComplete) {
@@ -2233,6 +2243,14 @@ export class ChatService extends Disposable implements IChatService {
 			const listener = store.add(response.onDidChange(() => {
 				if (response.isComplete) {
 					listener.dispose();
+					completed.complete();
+				}
+			}));
+			// The same close must not leave the promise pending either. The
+			// ordinary send path hands back a request promise that always settles,
+			// so a caller awaiting this one is entitled to the same guarantee.
+			store.add(toDisposable(() => {
+				if (!completed.isSettled) {
 					completed.complete();
 				}
 			}));

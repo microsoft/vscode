@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -2388,13 +2388,15 @@ suite('ChatService', () => {
 			readonly history?: readonly IChatSessionHistoryItem[];
 		}
 
-		function setupRemoteProvider(opts: IProvidedSessionOptions): { resource: URI; provided: IChatSession } {
+		function setupRemoteProvider(opts: IProvidedSessionOptions): { resource: URI; provided: IChatSession; agentRegistration: DisposableStore } {
 			const resource = URI.from({ scheme: remoteScheme, path: '/session-' + generateId() });
 			const mockSessionsService = new MockChatSessionsService();
 			instantiationService.stub(IChatSessionsService, mockSessionsService);
 
-			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
-			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, { async invoke() { return {}; } }));
+			// Held apart from the rest so a test can take the agent away mid-session.
+			const agentRegistration = testDisposables.add(new DisposableStore());
+			agentRegistration.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
+			agentRegistration.add(chatAgentService.registerAgentImplementation(remoteScheme, { async invoke() { return {}; } }));
 
 			const provided: IChatSession = {
 				sessionResource: resource,
@@ -2411,7 +2413,7 @@ suite('ChatService', () => {
 				provideChatSessionContent: () => Promise.resolve(provided),
 			}));
 
-			return { resource, provided };
+			return { resource, provided, agentRegistration };
 		}
 
 		let idCounter = 0;
@@ -2590,6 +2592,69 @@ suite('ChatService', () => {
 				ref.object.getRequests().some(r => r.id === queued.requestId),
 				'the consumed message should be the request the provider is answering',
 			);
+		});
+
+		test('a consumed message the session cannot describe is rejected, not left pending', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource, agentRegistration } = setupRemoteProvider({
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const queued = await testService.sendRequest(resource, 'queued message', { queue: ChatRequestQueueKind.Queued });
+			if (!queued || queued.kind !== 'queued') {
+				throw new Error(`expected the message to queue, got ${queued?.kind}`);
+			}
+
+			// Reporting a consumed message as sent means handing back an agent to
+			// await. Reconciliation no longer rejects this id, so without settling
+			// it here the caller waits forever.
+			agentRegistration.dispose();
+			onDidStartServerRequest.fire({ id: queued.requestId, prompt: 'queued message' });
+
+			const settled = await raceTimeout(queued.deferred, 200);
+			assert.ok(settled, 'a consumed message must always be settled');
+			assert.strictEqual(settled.kind, 'rejected');
+		});
+
+		test('a consumed message settles its completion promise when the session closes mid-turn', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const queued = await testService.sendRequest(resource, 'queued message', { queue: ChatRequestQueueKind.Queued });
+			if (!queued || queued.kind !== 'queued') {
+				throw new Error(`expected the message to queue, got ${queued?.kind}`);
+			}
+			onDidStartServerRequest.fire({ id: queued.requestId, prompt: 'queued message' });
+			const settled = await queued.deferred;
+			ChatSendResult.assertSent(settled);
+
+			// Precondition: a response that already completed would settle the
+			// promise on its own and the assertion below would prove nothing.
+			const consumed = ref.object.getRequests().find(r => r.id === queued.requestId);
+			assert.strictEqual(consumed?.response?.isComplete, false, 'the turn must still be running');
+
+			// Closing the session disposes the store the completion listener lives
+			// on, so nothing further can complete the response.
+			ref.dispose();
+
+			const outcome = await raceTimeout(settled.data.responseCompletePromise!.then(() => 'settled' as const), 200);
+			assert.strictEqual(outcome, 'settled', 'a session closed mid-turn must not leave the caller awaiting completion');
 		});
 
 		test('the provider queue dropping a consumed message does not report cancellation', async () => {
