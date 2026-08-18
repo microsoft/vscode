@@ -347,7 +347,8 @@ export enum EditorOption {
 	effectiveEditContext = 170,
 	scrollOnMiddleClick = 171,
 	effectiveAllowVariableFonts = 172,
-	doubleClickSelectsBlock = 173
+	doubleClickSelectsBlock = 173,
+	preserveAlignmentSpacesOnIndent = 174
 }
 
 /**
