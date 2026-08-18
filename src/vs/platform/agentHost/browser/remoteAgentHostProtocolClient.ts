@@ -17,7 +17,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
@@ -354,6 +354,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				return;
 			}
 			const patch: Record<string, unknown> = {};
+			// Mirrored keys are host-level and shared by every window on a
+			// last-writer-wins basis, so record which window sent what.
+			const mirrored: string[] = [];
 			for (const entry of getAgentHostConfigurationSyncEntries(this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY)) {
 				if (!e.affectsConfiguration(entry.settingId)) {
 					continue;
@@ -361,9 +364,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				const value = resolveAgentHostConfigurationSyncValue(this._configurationService, entry);
 				if (value !== undefined) {
 					patch[entry.sync.key] = value;
+					mirrored.push(`${entry.sync.key}=${JSON.stringify(value)} (${entry.settingId})`);
 				}
 			}
 			if (Object.keys(patch).length) {
+				this._logService.info(`[RemoteAgentHostProtocol] Mirroring configuration to host root config from ${ConfigurationTargetToString(e.source)}: ${mirrored.join(', ')}`);
 				this._dispatchRootConfig(patch);
 			}
 			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
