@@ -1197,7 +1197,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Streaming PTT: send start/chunks/end as they arrive
 		this._voiceEventDisposables.add(this.micCaptureService.onPttStart((passive) => {
-			this.voiceClientService.sendPttStart(this._pttCurrentTurnId, passive);
+			this.voiceClientService.sendPttStart(this._pttCurrentTurnId, {
+				hasActiveSession: this._hasSessionInProgress(),
+				passive,
+			});
 		}));
 		this._voiceEventDisposables.add(this.micCaptureService.onPttAudioChunk(b64 => {
 			this.voiceClientService.sendPttAudioChunk(b64);
@@ -7365,6 +7368,27 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				attachment_count: attachmentNames.length,
 			} : {}),
 		};
+	}
+
+	private _hasSessionInProgress(): boolean {
+		const activeSessionId = this._getActiveSessionId();
+		if (!activeSessionId) {
+			return false;
+		}
+
+		const session = this.agentSessionsService.model.sessions.find(session =>
+			!session.isArchived() && session.resource.toString() === activeSessionId
+		);
+		if (session) {
+			const model = this.chatService.getSession(session.resource);
+			return session.status === AgentSessionStatus.InProgress || (model !== undefined && this._getAgentStateInfo(model).state === 'thinking');
+		}
+		for (const model of this.chatService.chatModels.get()) {
+			if (model.sessionResource.toString() === activeSessionId) {
+				return this._getAgentStateInfo(model).state === 'thinking';
+			}
+		}
+		return false;
 	}
 
 	private _buildSessionContext(): IVoiceSessionContext {

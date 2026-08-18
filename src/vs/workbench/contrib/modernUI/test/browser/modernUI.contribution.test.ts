@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { getWindow } from '../../../../../base/browser/dom.js';
+import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { Pane } from '../../../../../base/browser/ui/splitview/paneview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -96,6 +97,7 @@ suite('ModernUIContribution', () => {
 			[LayoutSettings.MODERN_UI]: true,
 			[LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]: true,
 		});
+
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
@@ -168,6 +170,100 @@ suite('ModernUIContribution', () => {
 			paneHeaderLineHeightAfterToggle: '22px',
 			paneHeaderInlineLineHeightAfterToggle: '',
 			layoutCountAfterToggle: 1,
+		});
+	});
+
+	test('uses part-specific pane colors and only draws panel header separators in vertical layouts', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui';
+		root.style.setProperty('--vscode-sideBar-background', '#FF8888');
+		root.style.setProperty('--vscode-sideBarSectionHeader-border', '#FF0000');
+		root.style.setProperty('--vscode-panel-background', '#8888FF');
+		root.style.setProperty('--vscode-panelSectionHeader-border', '#0000FF');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const sideBarPaneView = appendElement(appendElement(root, 'part sidebar'), 'monaco-pane-view');
+		const firstSideBarPane = store.add(new ModernUITestPane());
+		appendElement(sideBarPaneView, 'split-view-view').appendChild(firstSideBarPane.element);
+
+		const followingSideBarPane = store.add(new ModernUITestPane());
+		appendElement(sideBarPaneView, 'split-view-view').appendChild(followingSideBarPane.element);
+
+		const panel = appendElement(root, 'part panel');
+		const verticalPaneView = appendElement(panel, 'monaco-pane-view');
+		const firstVerticalPane = store.add(new ModernUITestPane());
+		firstVerticalPane.style({
+			dropBackground: undefined,
+			headerForeground: undefined,
+			headerBackground: '#FFFFFF',
+			headerBorder: '#00FF00',
+			leftBorder: undefined,
+		});
+		appendElement(verticalPaneView, 'split-view-view').appendChild(firstVerticalPane.element);
+
+		const followingVerticalPane = store.add(new ModernUITestPane());
+		followingVerticalPane.style({
+			dropBackground: undefined,
+			headerForeground: undefined,
+			headerBackground: '#FFFFFF',
+			headerBorder: '#00FF00',
+			leftBorder: undefined,
+		});
+		appendElement(verticalPaneView, 'split-view-view').appendChild(followingVerticalPane.element);
+
+		const horizontalPaneView = appendElement(panel, 'monaco-pane-view');
+		const firstHorizontalPane = store.add(new ModernUITestPane());
+		firstHorizontalPane.orientation = Orientation.HORIZONTAL;
+		firstHorizontalPane.style({
+			dropBackground: undefined,
+			headerForeground: undefined,
+			headerBackground: undefined,
+			headerBorder: undefined,
+			leftBorder: '#FF0000',
+		});
+		appendElement(horizontalPaneView, 'split-view-view').appendChild(firstHorizontalPane.element);
+
+		const followingHorizontalPane = store.add(new ModernUITestPane());
+		followingHorizontalPane.orientation = Orientation.HORIZONTAL;
+		followingHorizontalPane.style({
+			dropBackground: undefined,
+			headerForeground: undefined,
+			headerBackground: undefined,
+			headerBorder: undefined,
+			leftBorder: '#FF0000',
+		});
+		appendElement(horizontalPaneView, 'split-view-view').appendChild(followingHorizontalPane.element);
+
+		const targetWindow = getWindow(root);
+		assert.deepStrictEqual({
+			sideBarPaneBackground: targetWindow.getComputedStyle(followingSideBarPane.element).backgroundColor,
+			sideBarHeaderBackground: targetWindow.getComputedStyle(followingSideBarPane.draggableElement!).backgroundColor,
+			sideBarHeaderSeparatorColor: targetWindow.getComputedStyle(followingSideBarPane.draggableElement!, '::before').backgroundColor,
+			panelPaneBackground: targetWindow.getComputedStyle(followingVerticalPane.element).backgroundColor,
+			panelHeaderBackground: targetWindow.getComputedStyle(followingVerticalPane.draggableElement!).backgroundColor,
+			panelHeaderSeparatorColor: targetWindow.getComputedStyle(followingVerticalPane.draggableElement!, '::before').backgroundColor,
+			firstVerticalHeaderSeparatorVisible: targetWindow.getComputedStyle(firstVerticalPane.draggableElement!, '::before').display !== 'none',
+			followingVerticalHeaderSeparatorVisible: targetWindow.getComputedStyle(followingVerticalPane.draggableElement!, '::before').display !== 'none',
+			followingVerticalHeaderBorderTopWidth: targetWindow.getComputedStyle(followingVerticalPane.draggableElement!).borderTopWidth,
+			firstHorizontalHeaderSeparatorVisible: targetWindow.getComputedStyle(firstHorizontalPane.draggableElement!, '::before').display !== 'none',
+			followingHorizontalHeaderSeparatorVisible: targetWindow.getComputedStyle(followingHorizontalPane.draggableElement!, '::before').display !== 'none',
+			followingHorizontalPaneBorderLeftWidth: targetWindow.getComputedStyle(followingHorizontalPane.element).borderLeftWidth,
+			followingHorizontalPaneBorderLeftColor: targetWindow.getComputedStyle(followingHorizontalPane.element).borderLeftColor,
+		}, {
+			sideBarPaneBackground: 'rgb(255, 136, 136)',
+			sideBarHeaderBackground: 'rgb(255, 136, 136)',
+			sideBarHeaderSeparatorColor: 'rgb(255, 0, 0)',
+			panelPaneBackground: 'rgb(136, 136, 255)',
+			panelHeaderBackground: 'rgb(136, 136, 255)',
+			panelHeaderSeparatorColor: 'rgb(0, 0, 255)',
+			firstVerticalHeaderSeparatorVisible: false,
+			followingVerticalHeaderSeparatorVisible: true,
+			followingVerticalHeaderBorderTopWidth: '0px',
+			firstHorizontalHeaderSeparatorVisible: false,
+			followingHorizontalHeaderSeparatorVisible: false,
+			followingHorizontalPaneBorderLeftWidth: '1px',
+			followingHorizontalPaneBorderLeftColor: 'rgb(255, 0, 0)',
 		});
 	});
 
@@ -690,6 +786,36 @@ suite('ModernUIContribution', () => {
 			reservedActive: { opacity: '1', pointerEvents: 'auto' },
 			reservedInactiveGroup: { opacity: '0.5', pointerEvents: 'auto' },
 			transientActive: { opacity: '0', pointerEvents: 'none' },
+		});
+	});
+
+	test('fades tab actions only when they overlay clean tabs', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui-tabs';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const group = appendElement(appendElement(appendElement(root, 'part editor'), 'content'), 'editor-group-container active');
+		const getFadeContent = (titleClassName: string, tabClassName: string): string => {
+			const title = appendElement(group, titleClassName);
+			const tab = appendElement(appendElement(title, 'tabs-container'), tabClassName);
+			const actions = appendElement(tab, 'tab-actions');
+			const action = appendElement(actions, 'action-label');
+			action.tabIndex = 0;
+			action.focus();
+			return getWindow(actions).getComputedStyle(actions, '::before').content;
+		};
+
+		assert.deepStrictEqual({
+			overlaid: getFadeContent('title', 'tab'),
+			reserved: getFadeContent('title tab-actions-reserve-space', 'tab'),
+			dirty: getFadeContent('title', 'tab dirty'),
+			sticky: getFadeContent('title', 'tab sticky'),
+		}, {
+			overlaid: '""',
+			reserved: 'none',
+			dirty: 'none',
+			sticky: 'none',
 		});
 	});
 

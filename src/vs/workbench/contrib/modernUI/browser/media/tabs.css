@@ -89,7 +89,7 @@
 	row-gap: 0;
 }
 
-.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:not(.selected):hover {
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.selected):hover {
 	background-color: transparent !important;
 }
 
@@ -377,8 +377,8 @@
 	top: var(--vscode-spacing-size20);
 }
 
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.close-action-off):hover > .tab-actions::before,
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.close-action-off) > .tab-actions:focus-within::before {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title:not(.tab-actions-reserve-space) .tabs-container > .tab:not(.dirty):not(.sticky):not(.close-action-off):hover > .tab-actions::before,
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title:not(.tab-actions-reserve-space) .tabs-container > .tab:not(.dirty):not(.sticky):not(.close-action-off) > .tab-actions:focus-within::before {
 	content: '';
 	position: absolute;
 	top: 0;

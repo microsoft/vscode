@@ -160,6 +160,11 @@ export function isChatInputWindow(widget: IChatWidget): boolean {
 	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isChatInputWindow);
 }
 
+/** Whether the widget is a short-lived, single-task chat surface. */
+function isTransientChat(widget: IChatWidget): boolean {
+	return widget.location !== ChatAgentLocation.Chat || isInlineChat(widget) || isQuickChat(widget);
+}
+
 export function getImmediateSilentSlashCommandPart(parsedRequest: IParsedChatRequest): ChatRequestSlashCommandPart | undefined {
 	return parsedRequest.parts.find((part): part is ChatRequestSlashCommandPart =>
 		part instanceof ChatRequestSlashCommandPart
@@ -2334,6 +2339,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			inputEditorMinLines: this.viewOptions.inputEditorMinLines,
 			inputEditorMaxHeight: this.viewOptions.inputEditorMaxHeight,
 			deferredNotificationsEnabled: this.viewOptions.deferredNotificationsEnabled,
+			isTransientChat: isTransientChat(this),
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
