@@ -1480,6 +1480,7 @@ export class CommandCenter {
 
 		const repoName = path.basename(repository.root);
 		const sections: string[] = [];
+		const clipboardSizeLimit = 1_000_000;
 
 		for (const { resource, staged } of resources) {
 			const relativePath = path.relative(repository.root, resource.resourceUri.fsPath).split(path.sep).join('/');
@@ -1500,15 +1501,23 @@ export class CommandCenter {
 
 				if (resource.type === Status.UNTRACKED) {
 					// Untracked files have no HEAD/index counterpart to diff against,
-					// so treat every line of the working tree file as added.
-					const content = await fs.readFile(resource.resourceUri.fsPath, 'utf8');
-					const lines = content.split(/\r?\n/);
-					if (lines.length > 0 && lines[lines.length - 1] === '') {
-						// Drop the empty entry produced by a trailing line break, without
-						// dropping genuinely empty lines that occur earlier in the file.
-						lines.pop();
+					// so treat every line of the working tree file as added. Check the
+					// file size before reading it into memory to avoid high memory use
+					// or a hang while reading a huge file just to discard it below.
+					const { size } = await fs.stat(resource.resourceUri.fsPath);
+
+					if (size > clipboardSizeLimit) {
+						changedLines = [`+[${l10n.t('file too large to copy')}]`];
+					} else {
+						const content = await fs.readFile(resource.resourceUri.fsPath, 'utf8');
+						const lines = content.split(/\r?\n/);
+						if (lines.length > 0 && lines[lines.length - 1] === '') {
+							// Drop the empty entry produced by a trailing line break, without
+							// dropping genuinely empty lines that occur earlier in the file.
+							lines.pop();
+						}
+						changedLines = lines.map(line => `+${line}`);
 					}
-					changedLines = lines.map(line => `+${line}`);
 				} else {
 					const rawDiff = staged
 						? await repository.diffIndexWithHEAD(relativePath)
@@ -1530,7 +1539,6 @@ export class CommandCenter {
 
 		const output = `Changes to "${repoName}":\n${sections.join('\n\n')}`;
 
-		const clipboardSizeLimit = 1_000_000;
 		if (output.length > clipboardSizeLimit) {
 			const yes = l10n.t('Continue');
 			const no = l10n.t('Cancel');
