@@ -11,6 +11,7 @@ import { Disposable, MutableDisposable, toDisposable } from '../../../../../base
 import { posix, win32 } from '../../../../../base/common/path.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import type { ITerminalSandboxCommand } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { shouldRequireConfirmationForAutoApproveParse } from '../../../../../platform/terminal/common/autoApprove/autoApproveParseSafety.js';
 import { SedFileWriteParser } from '../../../../../platform/terminal/common/autoApprove/sedFileWriteParser.js';
 import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
 
@@ -73,10 +74,10 @@ export class TreeSitterCommandParser extends Disposable {
 
 	async extractAutoApprovalSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<IAutoApprovalCommandParseResult> {
 		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshFlagEquals(commandLine) : commandLine;
-		const query = languageId === TreeSitterCommandParserLanguage.PowerShell
+		const querySource = languageId === TreeSitterCommandParserLanguage.PowerShell
 			? '(command) @command (assignment_expression) @unanalyzable (invokation_expression) @unanalyzable'
 			: '(command) @command (variable_assignment) @unanalyzable (declaration_command) @unanalyzable';
-		const captures = await this._queryTree(languageId, masked, query);
+		const { captures, hasError } = await this._queryTreeWithParseStatus(languageId, masked, querySource);
 		const subCommands: string[] = [];
 		let hasUnanalyzableSyntax = false;
 		for (const capture of captures) {
@@ -91,6 +92,10 @@ export class TreeSitterCommandParser extends Disposable {
 				}
 			}
 		}
+		hasUnanalyzableSyntax ||= shouldRequireConfirmationForAutoApproveParse(
+			languageId === TreeSitterCommandParserLanguage.PowerShell ? 'powershell' : 'bash',
+			hasError,
+		);
 		return { subCommands, hasUnanalyzableSyntax };
 	}
 
@@ -175,7 +180,23 @@ export class TreeSitterCommandParser extends Disposable {
 
 	private async _queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
 		const { tree, query } = await this._doQuery(languageId, commandLine, querySource);
-		return query.captures(tree.rootNode);
+		try {
+			return query.captures(tree.rootNode);
+		} finally {
+			query.delete();
+		}
+	}
+
+	private async _queryTreeWithParseStatus(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ captures: QueryCapture[]; hasError: boolean }> {
+		const { tree, query } = await this._doQuery(languageId, commandLine, querySource);
+		try {
+			return {
+				captures: query.captures(tree.rootNode),
+				hasError: tree.rootNode.hasError,
+			};
+		} finally {
+			query.delete();
+		}
 	}
 
 	/**

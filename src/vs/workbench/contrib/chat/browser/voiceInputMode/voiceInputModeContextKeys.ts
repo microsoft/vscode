@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
-import { AGENTS_VOICE_CONNECTED } from '../../../agentsVoice/common/agentsVoice.js';
+import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENABLED } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
-const VoiceModeEnabled = ContextKeyExpr.equals('config.agents.voice.enabled', true);
+const VoiceModeButtonShown = ContextKeyExpr.notEquals('config.agents.voice.showButton', false);
 /** Mirrors `ChatSpeechToTextConfigured` (built-in on-device dictation available). */
 const DictationConfigured = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key))!;
+const DictationButtonShown = ContextKeyExpr.notEquals('config.dictation.showButton', false);
 /** Voice Mode runs manual push-to-talk rather than hands-free auto-listen. */
 const HandsFreeDisabled = ContextKeyExpr.equals('config.agents.voice.handsFree', false);
+const VisibleVoiceMode = ContextKeyExpr.and(AGENTS_VOICE_ENABLED, VoiceModeButtonShown)!;
+const VisibleDictation = ContextKeyExpr.and(DictationConfigured, DictationButtonShown)!;
 
 /**
  * When the segmented voice/dictation pill should render. The pill only earns its
@@ -23,9 +26,14 @@ const HandsFreeDisabled = ContextKeyExpr.equals('config.agents.voice.handsFree',
  * In every other single-mode case the standalone controls (gated on the negation
  * below) take over.
  */
-export const SegmentedVoiceInputModePillActive: ContextKeyExpression = ContextKeyExpr.or(
-	ContextKeyExpr.and(DictationConfigured, VoiceModeEnabled),
-	ContextKeyExpr.and(VoiceModeEnabled, DictationConfigured.negate(), HandsFreeDisabled, AGENTS_VOICE_CONNECTED),
+// Structured as AND(VisibleVoiceMode, OR(...)) rather than a flat OR of ANDs so
+// the shared VisibleVoiceMode term is only listed once.
+export const SegmentedVoiceInputModePillActive: ContextKeyExpression = ContextKeyExpr.and(
+	VisibleVoiceMode,
+	ContextKeyExpr.or(
+		VisibleDictation,
+		ContextKeyExpr.and(HandsFreeDisabled, AGENTS_VOICE_CONNECTED),
+	),
 )!;
 
 /** Standalone voice/dictation controls show when the pill does not apply. */

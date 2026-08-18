@@ -53,6 +53,7 @@ import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginS
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -102,6 +103,7 @@ interface IFixtureFile {
 	readonly uri: URI;
 	readonly storage: PromptsStorage;
 	readonly type: PromptsType;
+	readonly source?: PromptFileSource;
 	readonly name?: string;
 	readonly description?: string;
 	readonly applyTo?: string;
@@ -161,7 +163,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[]): ICu
 	return {
 		onDidChange: Event.None,
 		async provideChatSessionCustomizations(): Promise<ICustomizationItem[]> {
-			return files.map(file => ({
+			return files.filter(file => file.source !== PromptFileSource.UserData).map(file => ({
 				uri: file.uri,
 				type: file.type,
 				name: file.name ?? '',
@@ -296,6 +298,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 				type: f.type,
 				name: f.name,
 				description: f.description,
+				source: f.source,
 				extension: toExtensionInfo(f) as never,
 			}));
 		}
@@ -307,6 +310,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 				type: f.type,
 				name: f.name,
 				description: f.description,
+				source: f.source,
 				extension: toExtensionInfo(f) as never,
 			}));
 		}
@@ -412,12 +416,15 @@ function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScop
 function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
+		override readonly onDidRevealSessionComment = Event.None;
 		override readonly onDidAddFeedback = Event.None;
 		override readonly onDidConvertFeedback = Event.None;
 		override readonly onDidAddReply = Event.None;
 		override readonly onDidSubmitFeedback = Event.None;
+		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> { return new Set(); }
 		override getFeedback() { return []; }
 		override getSessionForFile() { return undefined; }
 		override getFeedbackSessionResource() { return undefined; }
@@ -451,6 +458,7 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/workspace/.github/instructions/error-handling.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Error Handling', description: 'Error handling patterns' },
 	{ uri: URI.file('/workspace/.github/instructions/database.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Database', description: 'Database migration and query patterns', applyTo: 'src/db/**' },
 	// Instructions — user
+	{ uri: URI.file('/user-data/prompts/personal.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.UserData, name: 'Personal Instructions', description: 'VS Code profile instructions' },
 	{ uri: URI.file('/home/dev/.copilot/instructions/my-style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'My Style', description: 'Personal coding style' },
 	{ uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'TypeScript Rules', description: 'Strict TypeScript conventions' },
 	{ uri: URI.file('/home/dev/.copilot/instructions/commit-messages.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'Commit Messages', description: 'Conventional commit format' },
@@ -467,6 +475,7 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/workspace/.github/agents/api-designer.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'API Designer', description: 'REST and GraphQL API design' },
 	{ uri: URI.file('/workspace/.github/agents/performance-tuner.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, name: 'Performance Tuner', description: 'Performance profiling and optimization' },
 	// Agents — user
+	{ uri: URI.file('/user-data/prompts/legacy.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData, name: 'Legacy Agent', description: 'VS Code profile agent' },
 	{ uri: URI.file('/home/dev/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'Planner', description: 'Project planning agent' },
 	{ uri: URI.file('/home/dev/.copilot/agents/debugger.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'Debugger', description: 'Interactive debugging assistant' },
 	{ uri: URI.file('/home/dev/.copilot/agents/nls-helper.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'NLS Helper', description: 'Natural language searching code for clarity' },
@@ -503,6 +512,7 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/workspace/.github/prompts/convert-to-ts.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Convert to TS', description: 'Convert JavaScript to TypeScript' },
 	{ uri: URI.file('/workspace/.github/prompts/summarize-pr.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Summarize PR', description: 'Generate PR description from diff' },
 	// Prompts — user
+	{ uri: URI.file('/user-data/prompts/profile.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.UserData, name: 'Profile Prompt', description: 'VS Code profile prompt' },
 	{ uri: URI.file('/home/dev/.copilot/prompts/translate.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, name: 'Translate', description: 'Translate strings for i18n' },
 	{ uri: URI.file('/home/dev/.copilot/prompts/commit-msg.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, name: 'Commit Message', description: 'Generate conventional commit' },
 	// Prompts - extension (built-in + third-party)
@@ -582,7 +592,7 @@ interface IRenderEditorOptions {
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
-	readonly showPromptMigrationPage?: boolean;
+	readonly migrationCategory?: CustomizationMigrationCategoryId;
 }
 
 function renderFixtureMarkdown(markdown: string): HTMLElement {
@@ -691,11 +701,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			registerWorkbenchServices(reg);
 			// Enable the structured customization preview setting so the
 			// editor exercises the preview-first behavior in fixtures.
-			// Also enable prompt migration so migration affordances render in
+			// Also enable customization migration so migration affordances render in
 			// screenshot fixtures that depend on agent-host harnesses.
 			reg.defineInstance(IConfigurationService, new TestConfigurationService({
 				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 			}));
 			reg.define(IListService, ListService);
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
@@ -938,8 +949,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.revealLastItem();
 	}
 
-	if (options.showPromptMigrationPage) {
-		editor.showPromptMigrationPage();
+	if (options.migrationCategory) {
+		editor.showCustomizationMigrationPage(options.migrationCategory);
 	}
 
 	if (options.openFirstItem) {
@@ -1557,7 +1568,15 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
-			showPromptMigrationPage: true,
+			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+		}),
+	}),
+
+	UserDataMigration: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.UserData,
 		}),
 	}),
 

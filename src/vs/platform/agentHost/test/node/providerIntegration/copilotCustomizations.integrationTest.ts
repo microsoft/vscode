@@ -19,7 +19,7 @@ import { ActionType, SessionCustomizationsChangedAction } from '../../../common/
 import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 /**
  * Whether `notification` is a *settled* `session/customizationsChanged` for
@@ -49,10 +49,10 @@ const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 	githubToken: 'not-a-real-token', // The tests will use a mocked LLM, so the token doesn't need to be valid.
 };
 
-const SETUP_TIMEOUT_MS = 45_000;
-const TEST_TIMEOUT_MS = 90_000;
-const NOTIFICATION_TIMEOUT_MS = 10_000;
-const WATCH_ASSERT_TIMEOUT_MS = 30_000;
+const SETUP_TIMEOUT_MS = getAgentHostE2ETestTimeout(45_000, 120_000);
+const TEST_TIMEOUT_MS = getAgentHostE2ETestTimeout(90_000, 180_000);
+const NOTIFICATION_TIMEOUT_MS = getAgentHostE2ETestTimeout(10_000, 30_000);
+const WATCH_ASSERT_TIMEOUT_MS = getAgentHostE2ETestTimeout(30_000, 90_000);
 const WATCH_ASSERT_POLL_INTERVAL_MS = 100;
 /**
  * Cadence at which {@link applyAndWaitForAssert} re-applies its mutation.
@@ -321,7 +321,6 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			uri: customization.uri as ProtocolURI,
 			name: customization.displayName,
 			nonce: '1',
-			enabled: true,
 		}));
 		client.dispatch({
 			channel: sessionUri,
@@ -336,19 +335,26 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			},
 		});
 		await client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet) && getActionEnvelope(n).channel === sessionUri, NOTIFICATION_TIMEOUT_MS);
+		const customizationsSettled = client.waitForNotification(n => isSettledCustomizationsNotification(n, sessionUri), NOTIFICATION_TIMEOUT_MS);
 		client.clearReceived();
 		dispatchTurn(client, sessionUri, turnId, 'hello', 2);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), NOTIFICATION_TIMEOUT_MS);
-		await client.waitForNotification(
-			n => isActionNotification(n, ActionType.SessionReady) && getActionEnvelope(n).channel === sessionUri,
-			NOTIFICATION_TIMEOUT_MS,
-		);
+		await Promise.all([
+			client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), NOTIFICATION_TIMEOUT_MS),
+			client.waitForNotification(
+				n => isActionNotification(n, ActionType.SessionReady) && getActionEnvelope(n).channel === sessionUri,
+				NOTIFICATION_TIMEOUT_MS,
+			),
+			customizationsSettled,
+		]);
 
 		return await fetchSessionWithChat(client, sessionUri);
 	}
 
 	const builtInCustomizations = (customization: { type: CustomizationType; contents?: CustomizationType; uri: string }): boolean => {
-		return !(customization.type === CustomizationType.Directory && customization.contents === CustomizationType.Skill && customization.uri.endsWith('/builtin/customize-cloud-agent'));
+		// Filter out skills shipped inside the Copilot CLI package (node_modules/@github/copilot-<target>/builtin/<skill>),
+		// e.g. `customize-cloud-agent` and `github-pr-media`. These vary with the bundled CLI version and are not part of
+		// the workspace/user customizations under test.
+		return !(customization.type === CustomizationType.Directory && customization.contents === CustomizationType.Skill && /\/builtin\/[^/]+$/.test(customization.uri));
 	};
 
 	async function runEmptyWorkspaceCustomizationsTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {

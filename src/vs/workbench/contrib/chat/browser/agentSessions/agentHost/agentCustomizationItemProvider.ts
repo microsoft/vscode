@@ -7,9 +7,11 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
-import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getCustomizationDisabledReason, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -24,13 +26,14 @@ import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js
 import { IAgentSource, ICustomAgent, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { localize } from '../../../../../../nls.js';
+import { getAgentHostPluginEnablementActions } from '../../agentPluginActions.js';
 
 
 const REMOTE_HOST_GROUP = 'remote-host';
 const REMOTE_CLIENT_GROUP = 'remote-client';
 
 
-type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; childGroupKey: string; isBundleItem: boolean; pluginLabel: string | undefined };
+type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; disabledReason: CustomizationDisabledReason | undefined; childGroupKey: string; isBundleItem: boolean; pluginLabel: string | undefined };
 
 
 export class AgentCustomizationItemProvider extends Disposable implements ICustomizationItemProvider {
@@ -40,6 +43,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	/** Cache: pluginUri → last expansion (keyed by nonce and label so we re-fetch on content or display-name changes). */
 	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; children: readonly ICustomizationItem[] }>();
 	private readonly _contentExpander: AgentCustomizationContentExpander;
+	private _draftCustomAgents: IObservable<readonly AgentCustomization[]> | undefined;
+	private _draftCustomizations: IObservable<readonly ClientPluginCustomization[]> | undefined;
 
 	constructor(
 		private readonly _connectionAuthority: string,
@@ -53,6 +58,22 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		this._contentExpander = new AgentCustomizationContentExpander(this._fileService, this._logService);
 
 		this._register(this._customAgentsService.onDidChangeCustomizations(() => {
+			this._onDidChange.fire();
+		}));
+	}
+
+	setDraftCustomAgents(customAgents: IObservable<readonly AgentCustomization[]>): void {
+		this._draftCustomAgents = customAgents;
+		this._register(autorun(reader => {
+			customAgents.read(reader);
+			this._onDidChange.fire();
+		}));
+	}
+
+	setDraftCustomizations(customizations: IObservable<readonly ClientPluginCustomization[]>): void {
+		this._draftCustomizations = customizations;
+		this._register(autorun(reader => {
+			customizations.read(reader);
 			this._onDidChange.fire();
 		}));
 	}
@@ -81,7 +102,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	private toItem(customization: PluginCustomization, source: AICustomizationSource): ICustomizationItem {
+	private toItem(sessionResource: URI, customization: PluginCustomization, source: AICustomizationSource): ICustomizationItem {
 		const clientId = customization.clientId; // set if the configuration came from the client
 		const badge = this.toBadge(customization, clientId !== undefined);
 		const uri = this.toRemoteUri(customization.uri);
@@ -94,14 +115,18 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			source,
 			status: toStatusString(customization.load),
 			statusMessage: toStatusMessage(customization.load),
-			enabled: customization.enabled,
+			enabled: isCustomizationEnabled(customization),
+			disabledReason: getCustomizationDisabledReason(customization),
 			badge: badge.badge,
 			badgeTooltip: badge.badgeTooltip,
 			groupKey: badge.groupKey,
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,
-			actions: this._getItemActions?.(customization, clientId),
+			actions: [
+				...(clientId === undefined ? getAgentHostPluginEnablementActions(this._customAgentsService, undefined, sessionResource, customization, this._customAgentsService.getWorkingDirectories(sessionResource).length > 0) : []),
+				...(this._getItemActions?.(customization, clientId) ?? []),
+			],
 		};
 	}
 
@@ -183,7 +208,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 
 	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomAgent[]> {
-		const agents = this._customAgentsService.getCustomAgents(sessionResource);
+		const agents = this.getCustomAgents(sessionResource);
 		const sessionTypes = [getChatSessionType(sessionResource)];
 		return agents.map(agent => ({
 			id: agent.uri,
@@ -213,13 +238,30 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const items = new Map<string, ICustomizationItem>();
+		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
+
+		for (const agent of this.getCustomAgents(sessionResource)) {
+			const source = isUnderAnyRoot(workingDirectories, agent.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			items.set(agent.id, {
+				itemKey: agent.id,
+				uri: this.toRemoteUri(agent.uri),
+				type: PromptsType.agent,
+				name: agent.name,
+				description: agent.description,
+				source,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: agent.enabled !== false,
+				userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false,
+			});
+		}
 
 		// Build parent plugin items keyed by customization ref
 		const plugins: PluginMeta[] = [];
 		const expandPromises: Promise<readonly ICustomizationItem[]>[] = [];
 
 
-		const customizations = this._customAgentsService.getCustomizations(sessionResource);
+		const customizations = this.getCustomizations(sessionResource);
 
 		const directoryCustomizations = [];
 		for (const sessionCustomization of customizations) {
@@ -240,7 +282,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				// expanded below so individual user files appear in per-type tabs.
 				let item: ICustomizationItem;
 				if (!isBundleItem) {
-					item = this.toItem(sessionCustomization, AICustomizationSources.plugin);
+					item = this.toItem(sessionResource, sessionCustomization, AICustomizationSources.plugin);
 					items.set(customizationItemKey(sessionCustomization, sessionCustomization.clientId), item);
 				} else {
 					// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
@@ -251,7 +293,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					nonce: (sessionCustomization as ClientPluginCustomization).nonce,
 					status: toStatusString(sessionCustomization.load),
 					statusMessage: toStatusMessage(sessionCustomization.load),
-					enabled: sessionCustomization.enabled,
+					enabled: isCustomizationEnabled(sessionCustomization),
+					disabledReason: getCustomizationDisabledReason(sessionCustomization),
 					childGroupKey,
 					isBundleItem,
 					pluginLabel: isBundleItem ? undefined : item.name,
@@ -276,16 +319,15 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				// location) so the item reflects where it actually came from.
 				const enriched = p.isBundleItem ? this._applySyncedOrigin(child) : child;
 				// Children inherit the parent plugin's status/enabled state.
-				items.set(`${p.item.itemKey ?? p.item.uri.toString()}::${enriched.type}::${enriched.name}`, {
+				items.set(enriched.uri.toString(), {
 					...enriched,
 					status: p.status,
 					statusMessage: p.statusMessage,
 					enabled: p.enabled,
+					disabledReason: p.disabledReason,
 				});
 			}
 		}
-
-		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 
 		for (const sessionCustomization of directoryCustomizations) {
 			const source = isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
@@ -300,6 +342,25 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 		return [...items.values()];
+	}
+
+	private getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {
+		const sessionAgents = this._customAgentsService.getCustomAgents(sessionResource);
+		return sessionAgents.length > 0 ? sessionAgents : this._draftCustomAgents?.get() ?? [];
+	}
+
+	private getCustomizations(sessionResource: URI): readonly Customization[] {
+		const sessionCustomizations = this._customAgentsService.getCustomizations(sessionResource);
+		const draftCustomizations = this._draftCustomizations?.get() ?? [];
+		if (draftCustomizations.length === 0) {
+			return sessionCustomizations;
+		}
+
+		const sessionKeys = new Set(sessionCustomizations.map(customization => `${customization.type}:${customization.uri}`));
+		return [
+			...sessionCustomizations,
+			...draftCustomizations.filter(customization => !sessionKeys.has(`${customization.type}:${customization.uri}`)),
+		];
 	}
 
 	/**

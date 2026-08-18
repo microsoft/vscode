@@ -21,6 +21,7 @@ import {
 	stopServer,
 	TestProtocolClient,
 } from '../serverIntegrationTestHelpers.js';
+import { PRE_EXISTING_SESSION_URI } from '../mockAgent.js';
 
 suite('Protocol WebSocket - Session Config', function () {
 
@@ -106,6 +107,7 @@ suite('Protocol WebSocket - Session Config', function () {
 
 		const notif = await client.waitForNotification(n =>
 			n.method === 'root/sessionAdded'
+			&& (n.params as SessionAddedParams).summary.resource !== PRE_EXISTING_SESSION_URI.toString()
 		);
 		const notification = notif.params as SessionAddedParams;
 		assert.strictEqual(Object.hasOwn(notification.summary, 'config'), false);
@@ -127,6 +129,7 @@ suite('Protocol WebSocket - Session Config', function () {
 
 		const notif = await client.waitForNotification(n =>
 			n.method === 'root/sessionAdded'
+			&& (n.params as SessionAddedParams).summary.resource !== PRE_EXISTING_SESSION_URI.toString()
 		);
 		const session = (notif.params as SessionAddedParams).summary.resource;
 		await client.call<SubscribeResult>('subscribe', { channel: session });
@@ -167,7 +170,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 	});
 
 	test('persisted config values are restored on subscribe after server restart', async function () {
-		this.timeout(getAgentHostE2ETestTimeout(30_000, 120_000));
+		this.timeout(getAgentHostE2ETestTimeout(30_000, 180_000));
 
 		const initialConfig = { isolation: 'worktree', branch: 'main' };
 		const updatedBranch = 'release';
@@ -188,6 +191,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			});
 			const addedNotif = await client1.waitForNotification(n =>
 				n.method === 'root/sessionAdded'
+				&& (n.params as SessionAddedParams).summary.resource !== PRE_EXISTING_SESSION_URI.toString()
 			);
 			// The mock agent assigns its own URI rather than honoring the
 			// requested one, so capture the real URI from the notification.

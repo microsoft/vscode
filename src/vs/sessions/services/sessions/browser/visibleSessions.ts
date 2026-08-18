@@ -240,9 +240,12 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get hasGitRepository() { return this._session.hasGitRepository; }
 	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
+	get isAutomation() { return this._session.isAutomation; }
+	get isExternal() { return this._session.isExternal; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
+	get completedStateIcon() { return this._session.completedStateIcon; }
 	get changesSummary() { return this._session.changesSummary; }
 	get changesets() { return this._session.changesets; }
 	get changes() { return this._session.changes; }
@@ -257,6 +260,9 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get chats() { return this._session.chats; }
 	get mainChat() { return this._session.mainChat; }
 	get capabilities() { return this._session.capabilities; }
+
+	/** The wrapped session, which outlives this wrapper. */
+	get session(): ISession { return this._session; }
 }
 
 /**
@@ -283,9 +289,12 @@ class ResourceOverrideSession implements ISession {
 	get hasGitRepository() { return this._session.hasGitRepository; }
 	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
+	get isAutomation() { return this._session.isAutomation; }
+	get isExternal() { return this._session.isExternal; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
+	get completedStateIcon() { return this._session.completedStateIcon; }
 	get changesSummary() { return this._session.changesSummary; }
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }
@@ -362,9 +371,15 @@ export class VisibleSessions extends Disposable {
 	 */
 	private _mostRecentNonStickySlot: string | undefined | typeof NO_RECENT = NO_RECENT;
 
+	/**
+	 * @param _onSlotReplaced Reports a session that left the grid because a
+	 * newly opened slot took its place, with the slot state it lost. Explicit
+	 * removals ({@link removeMany}) and grid restores are not reported.
+	 */
 	constructor(
 		private readonly _resolveInitialChat: (session: ISession) => IChat,
 		private readonly _resolveInitialClosedChats: (session: ISession) => Iterable<string>,
+		private readonly _onSlotReplaced: (replaced: ISession, index: number, sticky: boolean, replacedBySessionId: string | undefined) => void,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
@@ -400,8 +415,9 @@ export class VisibleSessions extends Disposable {
 	 */
 	setActive(session: ISession | undefined, preserveFocus: boolean = false): VisibleSession | undefined {
 		const targetId: string | undefined = session?.sessionId;
+		const targetHasVisibleSlot = this._visibleList.includes(targetId);
 
-		if (!this._visibleList.includes(targetId)) {
+		if (!targetHasVisibleSlot) {
 			const activeSlot = this._currentActiveSlot();
 			const activeIsNonSticky = activeSlot !== NO_RECENT && !this._isStickySlot(activeSlot);
 
@@ -420,7 +436,12 @@ export class VisibleSessions extends Disposable {
 				const idx = this._visibleList.indexOf(replaceSlot);
 				this._visibleList.splice(idx, 1, targetId);
 				if (replaceSlot !== undefined) {
+					const replaced = this._wrappers.get(replaceSlot)?.session;
+					const sticky = this._stickyIds.has(replaceSlot);
 					this._wrappers.deleteAndDispose(replaceSlot);
+					if (replaced) {
+						this._onSlotReplaced(replaced, idx, sticky, targetId);
+					}
 				}
 			} else {
 				this._visibleList.push(targetId);
@@ -431,7 +452,9 @@ export class VisibleSessions extends Disposable {
 		const visibleSession = session ? this._getOrCreateVisibleSession(session) : undefined;
 		transaction((tsx) => {
 			this._setActiveSession(visibleSession, preserveFocus, tsx);
-			this._refresh(tsx);
+			if (!targetHasVisibleSlot) {
+				this._refresh(tsx);
+			}
 		});
 		return visibleSession;
 	}
@@ -560,6 +583,84 @@ export class VisibleSessions extends Disposable {
 			this._setActiveSession(activeWrapper, false, tsx);
 			this._refresh(tsx);
 		});
+	}
+
+	/**
+	 * The grid slot state of a currently visible session (or of the empty slot
+	 * when `sessionId` is `undefined`), or `undefined` when it is not visible.
+	 */
+	getSlot(sessionId: string | undefined): { readonly index: number; readonly sticky: boolean } | undefined {
+		const index = this._visibleList.indexOf(sessionId);
+		return index < 0 ? undefined : { index, sticky: this._isStickySlot(sessionId) };
+	}
+
+	/** The session behind a visible slot, or `undefined` for the empty slot / an unknown id. */
+	getSession(sessionId: string | undefined): ISession | undefined {
+		return sessionId === undefined ? undefined : this._wrappers.get(sessionId)?.session;
+	}
+
+	/**
+	 * Put a session (back) into the grid at `index`, shifting the slots at and
+	 * after it to the right, and make it active. The index is clamped to the
+	 * current grid size, so a stale index appends instead of failing. No-op
+	 * when the session is already visible.
+	 */
+	insertAtIndex(session: ISession, index: number, sticky: boolean): VisibleSession | undefined {
+		const id = session.sessionId;
+		if (this._visibleList.includes(id)) {
+			const existing = this._wrappers.get(id);
+			transaction(tsx => this._setActiveSession(existing, false, tsx));
+			return existing;
+		}
+
+		const destIdx = Math.max(0, Math.min(index, this._visibleList.length));
+		const wrapper = this._getOrCreateVisibleSession(session);
+		this._visibleList.splice(destIdx, 0, id);
+		if (sticky) {
+			this._stickyIds.add(id);
+		} else {
+			this._mostRecentNonStickySlot = id;
+		}
+
+		transaction((tsx) => {
+			this._setActiveSession(wrapper, false, tsx);
+			this._refresh(tsx);
+		});
+		return wrapper;
+	}
+
+	/**
+	 * Replace the slot currently held by `slotId` (`undefined` for the empty
+	 * slot) with `session`, and make it active. Used to undo a grid
+	 * replacement, so the restored session lands exactly where it was and the
+	 * session that took its place leaves the grid. No-op when the slot is not
+	 * visible or the session is already visible elsewhere.
+	 */
+	replaceSlot(slotId: string | undefined, session: ISession, sticky: boolean): VisibleSession | undefined {
+		const id = session.sessionId;
+		const idx = this._visibleList.indexOf(slotId);
+		if (idx < 0 || this._visibleList.includes(id)) {
+			return undefined;
+		}
+
+		this._visibleList.splice(idx, 1, id);
+		if (slotId !== undefined) {
+			this._stickyIds.delete(slotId);
+			this._wrappers.deleteAndDispose(slotId);
+		}
+		if (sticky) {
+			this._stickyIds.add(id);
+		}
+		if (this._mostRecentNonStickySlot === slotId) {
+			this._mostRecentNonStickySlot = sticky ? this._findLastNonSticky() : id;
+		}
+
+		const wrapper = this._getOrCreateVisibleSession(session);
+		transaction((tsx) => {
+			this._setActiveSession(wrapper, false, tsx);
+			this._refresh(tsx);
+		});
+		return wrapper;
 	}
 
 	/**

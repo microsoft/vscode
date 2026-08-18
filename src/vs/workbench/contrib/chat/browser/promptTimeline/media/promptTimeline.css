@@ -108,7 +108,6 @@
 .prompt-timeline-sticky-band {
 	display: flex;
 	align-items: center;
-	gap: 6px;
 	flex: 1 1 auto;
 	min-width: 0;
 	height: 30px;
@@ -199,13 +198,6 @@
 	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
 	font-variant-numeric: tabular-nums;
-}
-
-/* Hosts the Previous/Next toolbar; the toolbar supplies its own theming and spacing. */
-.prompt-timeline-sticky-nav {
-	display: flex;
-	align-items: center;
-	flex: 0 0 auto;
 }
 
 .prompt-timeline-sticky-label-button:focus-visible {
@@ -493,7 +485,7 @@
 	transition: none;
 }
 
-/* ---- Dock rail ------------------------------------------------------------------------------
+/* ---- Gutter rail ----------------------------------------------------------------------------
  * A minimal alternative to the overview ruler, pinned to the transcript's LEFT edge. At rest it is
  * a small handle (one dot per prompt, the current prompt's dot accented) sitting in the left gutter;
  * hovering, tapping, or keyboard-activating it expands a flyout to the right of the dots that lists
@@ -501,7 +493,7 @@
  * one previews its prompt in the list. Unlike the ruler the list is not tied to scroll position, so
  * it stays stable while the transcript virtualizes. The handle lives in the existing left inset, so
  * no content reservation is needed. */
-.prompt-timeline-rail.prompt-timeline-rail-dock {
+.prompt-timeline-rail.prompt-timeline-rail-gutter {
 	left: 0;
 	right: auto;
 	/* Wide enough to host the flyout as a hover surface; the rail itself is pointer-transparent and
@@ -510,30 +502,44 @@
 	/* The handle's geometry, shared with the flyout so the two are laid out flush: the flyout starts
 	 * exactly at the handle's right edge, making them one contiguous hover region. Without that the
 	 * pointer would cross a dead gap between them and the flyout would collapse mid-travel. */
-	--prompt-timeline-dock-handle-left: 4px;
+	--prompt-timeline-gutter-handle-left: 4px;
 	/* Horizontal padding (2 * 6px) plus the dot width (4px) — the handle's widest child. */
-	--prompt-timeline-dock-handle-width: 16px;
+	--prompt-timeline-gutter-handle-width: 16px;
+	/* Clearance kept between the handle/flyout and the transcript's top and bottom edges. */
+	--prompt-timeline-gutter-inset: 12px;
+	/* Resting-dot geometry. `restDotCount` in promptTimelineGutterRail.ts mirrors these numbers to cap
+	 * the dot column to the rail's height, so keep the two in sync. */
+	--prompt-timeline-gutter-dot-size: 4px;
+	--prompt-timeline-gutter-dot-gap: 4px;
+	--prompt-timeline-gutter-handle-padding-y: 8px;
+	--prompt-timeline-gutter-more-height: 8px;
 }
 
 /* Too narrow to place the handle beside the content: hide it (the native scrollbar remains). */
-.prompt-timeline-rail-dock.overflowing .prompt-timeline-dock-rest,
-.prompt-timeline-rail-dock.overflowing .prompt-timeline-dock-panel {
+.prompt-timeline-rail-gutter.overflowing .prompt-timeline-gutter-rest,
+.prompt-timeline-rail-gutter.overflowing .prompt-timeline-gutter-panel {
 	display: none;
 }
 
 /* The resting handle: a disclosure button carrying one dot per prompt, vertically centred against the
  * transcript. Apart from the accented "you are here" dot it carries no count text or diff colour —
  * deliberately quiet. */
-.prompt-timeline-dock-rest {
+.prompt-timeline-gutter-rest {
 	position: absolute;
-	left: var(--prompt-timeline-dock-handle-left);
+	left: var(--prompt-timeline-gutter-handle-left);
 	top: 50%;
 	transform: translateY(-50%);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 4px;
-	padding: 8px 6px;
+	gap: var(--prompt-timeline-gutter-dot-gap);
+	padding: var(--prompt-timeline-gutter-handle-padding-y) 6px;
+	/* The dot count is sized to fit (see `restDotCount`); this only guarantees that a stale count —
+	 * between a resize and the observer that reports it — clips instead of spilling over the
+	 * transcript's top and bottom edges. */
+	max-height: calc(100% - 2 * var(--prompt-timeline-gutter-inset));
+	box-sizing: border-box;
+	overflow: hidden;
 	border: none;
 	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
@@ -546,64 +552,67 @@
 
 /* Hover only tints the background: nudging the handle would move it out from under a pointer
  * arriving from the left, which re-triggers hover and flickers. */
-.prompt-timeline-dock-rest:hover,
-.prompt-timeline-rail-dock.revealed .prompt-timeline-dock-rest {
+.prompt-timeline-gutter-rest:hover,
+.prompt-timeline-rail-gutter.revealed .prompt-timeline-gutter-rest {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.prompt-timeline-dock-rest:focus-visible {
+.prompt-timeline-gutter-rest:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 }
 
-.prompt-timeline-dock-dot {
-	width: 4px;
-	height: 4px;
+.prompt-timeline-gutter-dot {
+	width: var(--prompt-timeline-gutter-dot-size);
+	height: var(--prompt-timeline-gutter-dot-size);
+	/* Keep the drawn geometry equal to what `restDotCount` assumes: no flex squashing. */
+	flex-shrink: 0;
 	border-radius: 50%;
 	background-color: var(--vscode-descriptionForeground);
 	opacity: 0.55;
 	transition: opacity 140ms ease, transform 140ms ease, background-color 140ms ease;
 }
 
-.prompt-timeline-dock-rest:hover .prompt-timeline-dock-dot {
+.prompt-timeline-gutter-rest:hover .prompt-timeline-gutter-dot {
 	opacity: 1;
 }
 
 /* "You are here": the dot for the prompt the transcript is scrolled to takes the accent, so the
  * resting handle doubles as a position indicator that tracks scrolling. */
-.prompt-timeline-dock-dot.active {
+.prompt-timeline-gutter-dot.active {
 	background-color: var(--vscode-focusBorder);
 	opacity: 1;
 	transform: scale(1.5);
 }
 
 /* The dot under the pointer — its prompt is the one previewed in the flyout. */
-.prompt-timeline-dock-dot.preview {
+.prompt-timeline-gutter-dot.preview {
 	opacity: 1;
 	transform: scale(1.5);
 }
 
 /* Overflow marker shown when the dots are sampled rather than one-per-prompt: a short vertical bar
  * reading as "…and more", dimmer than the dots so it recedes. */
-.prompt-timeline-dock-dot-more {
+.prompt-timeline-gutter-dot-more {
 	width: 2px;
-	height: 8px;
+	height: var(--prompt-timeline-gutter-more-height);
+	flex-shrink: 0;
 	border-radius: var(--vscode-cornerRadius-circle);
 	background-color: var(--vscode-descriptionForeground);
 	opacity: 0.4;
 	transition: opacity 140ms ease;
 }
 
-.prompt-timeline-dock-rest:hover .prompt-timeline-dock-dot-more {
+.prompt-timeline-gutter-rest:hover .prompt-timeline-gutter-dot-more {
 	opacity: 0.7;
 }
 
-.monaco-reduce-motion .prompt-timeline-dock-dot {
+.monaco-reduce-motion .prompt-timeline-gutter-dot {
 	transition: opacity 140ms ease, background-color 140ms ease;
 }
 
-.monaco-reduce-motion .prompt-timeline-dock-dot.active,
-.monaco-reduce-motion .prompt-timeline-dock-dot.preview {
+.monaco-reduce-motion .prompt-timeline-gutter-dot.active,
+.monaco-reduce-motion .prompt-timeline-gutter-dot.preview {
 	transform: none;
 }
 
@@ -613,25 +622,30 @@
  * never blocks the transcript. Visibility is driven by the JS-managed `.revealed` class. It grows out
  * of its left edge rather than sliding: any horizontal travel would move the surface out from under
  * the pointer that opened it, which reads as a flicker. */
-.prompt-timeline-dock-panel {
+.prompt-timeline-gutter-panel {
 	position: absolute;
 	/* Flush against the handle's right edge, so the two form one contiguous hover region and
 	 * travelling from a dot into the list never crosses a dead gap. */
-	left: calc(var(--prompt-timeline-dock-handle-left) + var(--prompt-timeline-dock-handle-width));
+	left: calc(var(--prompt-timeline-gutter-handle-left) + var(--prompt-timeline-gutter-handle-width));
 	top: 50%;
 	transform: translateY(-50%) scale(0.98);
 	transform-origin: left center;
 	display: flex;
 	flex-direction: column;
+	/* Enough to keep two adjacent highlighted rows from merging into one blob, so each row's corners
+	 * read; more would break the list into loose cards. */
+	gap: var(--vscode-spacing-size20);
 	width: 260px;
-	max-height: calc(100% - 24px);
-	padding: 4px;
+	max-height: calc(100% - 2 * var(--prompt-timeline-gutter-inset));
+	padding: var(--vscode-spacing-size40);
 	box-sizing: border-box;
 	overflow-y: auto;
 	background-color: var(--vscode-editorHoverWidget-background);
 	color: var(--vscode-editorHoverWidget-foreground);
-	border: 1px solid var(--vscode-editorHoverWidget-border);
-	border-radius: var(--vscode-cornerRadius-medium);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	/* A floating overlay, so it sits on the outer radius tier. Its 4px padding then leaves the rows
+	 * inside concentric with it at the control tier (8 - 4 = 4). */
+	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	opacity: 0;
 	pointer-events: none;
@@ -639,36 +653,43 @@
 	z-index: 20;
 }
 
-.prompt-timeline-rail-dock.revealed .prompt-timeline-dock-panel {
+.prompt-timeline-rail-gutter.revealed .prompt-timeline-gutter-panel {
 	opacity: 1;
 	transform: translateY(-50%) scale(1);
 	pointer-events: auto;
 }
 
-.monaco-reduce-motion .prompt-timeline-dock-panel {
+.monaco-reduce-motion .prompt-timeline-gutter-panel {
 	transition: opacity 140ms ease;
 	transform: translateY(-50%);
 }
 
-.monaco-reduce-motion .prompt-timeline-rail-dock.revealed .prompt-timeline-dock-panel {
+.monaco-reduce-motion .prompt-timeline-rail-gutter.revealed .prompt-timeline-gutter-panel {
 	transform: translateY(-50%);
 }
 
 /* High-contrast themes suppress the decorative shadow and lean on the explicit border. */
-.hc-black .prompt-timeline-dock-panel,
-.hc-light .prompt-timeline-dock-panel {
+.hc-black .prompt-timeline-gutter-panel,
+.hc-light .prompt-timeline-gutter-panel {
 	box-shadow: none;
 }
 
-/* Each prompt is a full-width row: its text on the left, an optional diff badge on the right. */
-.prompt-timeline-dock-row {
+/* Each prompt is a full-width row split into two targets: the label on the left reveals the prompt,
+ * the diff badge on the right opens that turn's changes. The fill always lives on the halves, never
+ * on this container, so at any point exactly one layer paints a background and highlights never
+ * stack. The container is a plain div because a button may not nest inside a button. */
+.prompt-timeline-gutter-row {
 	display: flex;
 	align-items: center;
-	gap: 8px;
 	width: 100%;
+}
+
+.prompt-timeline-gutter-row-jump,
+.prompt-timeline-gutter-row-diff {
+	display: flex;
+	align-items: center;
 	padding: 6px 8px;
 	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
 	color: inherit;
 	font: inherit;
@@ -676,26 +697,75 @@
 	cursor: pointer;
 }
 
-/* `.preview` is the row a hovered dot points at: it takes the same plain hover tint, since the
- * highlight alone is enough to tie it back to the dot under the pointer. */
-.prompt-timeline-dock-row:hover,
-.prompt-timeline-dock-row.preview {
+/* Radius follows the painted SHAPE, not the element. A half that carries a fill on its own (hover) is
+ * a standalone control, so it is rounded on all four corners; only when both halves paint together do
+ * they split one band's corners between them (see the `.preview`/`.active` rules below). Rounding the
+ * halves unconditionally would leave a hovered label with a square edge cut off mid-row. */
+.prompt-timeline-gutter-row-jump {
+	flex: 1 1 auto;
+	min-width: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* The badge claims only the width its stat needs. Prompts that changed nothing have nothing to
+ * review, so it is dropped from the layout — and, being `display: none`, from the focus order. */
+.prompt-timeline-gutter-row-diff {
+	flex: 0 0 auto;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.prompt-timeline-gutter-row:not(.reviewable) .prompt-timeline-gutter-row-diff {
+	display: none;
+}
+
+/* Hovering tints only the half under the pointer — that, and nothing else, is what tells the two
+ * targets apart. No divider: at rest there is no boundary to draw (nothing is being interacted with),
+ * and on hover the tinted half's own edge already is the boundary. */
+.prompt-timeline-gutter-row-jump:hover,
+.prompt-timeline-gutter-row-diff:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-/* Pair the selection background with its matching foreground so the label stays legible in themes
- * where the two are designed together. */
-.prompt-timeline-dock-row.active {
-	background-color: var(--vscode-list-activeSelectionBackground);
+/* `.preview` is the row a hovered DOT points at — the pointer is over on the dot column, nowhere near
+ * the row, so the whole band lights up to say "this one". (A row under the pointer deliberately does
+ * NOT get this class; its own halves light up instead — see `_setPreview`.) `.active` is the prompt
+ * the transcript is scrolled to. Tinting both halves rather than the container keeps the fill on one
+ * layer. Pair the selection background with its matching foreground so the label stays legible in
+ * themes where the two are designed together. */
+.prompt-timeline-gutter-row.preview .prompt-timeline-gutter-row-jump,
+.prompt-timeline-gutter-row.preview .prompt-timeline-gutter-row-diff {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.prompt-timeline-gutter-row.active {
 	color: var(--vscode-list-activeSelectionForeground);
 }
 
-.prompt-timeline-dock-row:focus-visible {
+.prompt-timeline-gutter-row.active .prompt-timeline-gutter-row-jump,
+.prompt-timeline-gutter-row.active .prompt-timeline-gutter-row-diff {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+/* Both halves are painted and touching, so they now form ONE band: the label keeps the left corners,
+ * the badge the right, and the seam between them is square. Scoped to rows that actually have a badge
+ * — on the rest the label is the whole band and stays rounded all round. */
+.prompt-timeline-gutter-row.reviewable.preview .prompt-timeline-gutter-row-jump,
+.prompt-timeline-gutter-row.reviewable.active .prompt-timeline-gutter-row-jump {
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+}
+
+.prompt-timeline-gutter-row.preview .prompt-timeline-gutter-row-diff,
+.prompt-timeline-gutter-row.active .prompt-timeline-gutter-row-diff {
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.prompt-timeline-gutter-row-jump:focus-visible,
+.prompt-timeline-gutter-row-diff:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-.prompt-timeline-dock-row-label {
+.prompt-timeline-gutter-row-label {
 	flex: 1 1 auto;
 	min-width: 0;
 	overflow: hidden;
@@ -704,22 +774,18 @@
 	font-size: 12px;
 }
 
-.prompt-timeline-dock-row-stat {
+.prompt-timeline-gutter-row-stat {
 	flex: 0 0 auto;
 	font-size: 11px;
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 }
 
-.prompt-timeline-dock-row-stat.hidden {
-	display: none;
-}
-
-.prompt-timeline-dock-row-stat .added {
+.prompt-timeline-gutter-row-stat .added {
 	color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green));
 }
 
-.prompt-timeline-dock-row-stat .removed {
+.prompt-timeline-gutter-row-stat .removed {
 	color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red));
 	margin-left: 4px;
 }
