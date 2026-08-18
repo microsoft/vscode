@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
+import '../../../request/common/request.js';
 import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
@@ -143,7 +144,7 @@ suite('AgentHostConfigurationSync', () => {
 	test('builds a patch applying transforms, including for hidden settings', () => {
 		const configurationService = createConfigurationService({
 			[ALL_HOSTS_SETTING]: { defaultValue: true },
-			[LOCAL_ONLY_SETTING]: { defaultValue: false, userValue: true },
+			[LOCAL_ONLY_SETTING]: { defaultValue: false, userLocalValue: true, userValue: true },
 			[HIDDEN_SETTING]: { defaultValue: false, userValue: true },
 		});
 
@@ -174,6 +175,63 @@ suite('AgentHostConfigurationSync', () => {
 		}, {
 			allHostsValue: true,
 			mirroredKeys: [],
+		});
+	});
+
+	test('localOnly settings exclude the remote user layer', () => {
+		const configurationService = createConfigurationService({
+			[LOCAL_ONLY_SETTING]: {
+				defaultValue: false,
+				applicationValue: false,
+				userLocalValue: false,
+				userRemoteValue: true,
+				userValue: true,
+			},
+		});
+
+		const patch = resolveAgentHostConfigurationSyncPatch(configurationService, true);
+		assert.strictEqual(patch.localOnlyValue, false);
+	});
+
+	test('mirrors HTTP proxy settings only to a local Agent Host', () => {
+		const allProxySettingIds = [
+			'http.proxy',
+			'http.proxyKerberosServicePrincipal',
+			'http.noProxy',
+			'http.proxySupport',
+			'http.systemCertificates',
+			'http.systemCertificatesNode',
+			'http.experimental.systemCertificatesV2',
+			'http.fetchAdditionalSupport',
+			'http.webSocketAdditionalSupport',
+			'http.experimental.networkInterfaceCheckInterval',
+		];
+		const syncedProxySettingIds = ['http.proxy', 'http.proxyKerberosServicePrincipal', 'http.noProxy'];
+		const local = getAgentHostConfigurationSyncEntries(true)
+			.filter(entry => allProxySettingIds.includes(entry.settingId))
+			.map(entry => [entry.settingId, entry.sync.key]);
+		const remote = getAgentHostConfigurationSyncEntries(false)
+			.filter(entry => allProxySettingIds.includes(entry.settingId))
+			.map(entry => entry.settingId);
+
+		assert.deepStrictEqual({ local, remote }, {
+			local: syncedProxySettingIds.map(settingId => [settingId, settingId]),
+			remote: [],
+		});
+	});
+
+	test('clears unset local proxy strings with empty values', () => {
+		const configurationService = createConfigurationService({});
+		const patch = resolveAgentHostConfigurationSyncPatch(configurationService, true);
+
+		assert.deepStrictEqual({
+			proxy: patch['http.proxy'],
+			proxyKerberosServicePrincipal: patch['http.proxyKerberosServicePrincipal'],
+			noProxy: patch['http.noProxy'],
+		}, {
+			proxy: '',
+			proxyKerberosServicePrincipal: '',
+			noProxy: [],
 		});
 	});
 

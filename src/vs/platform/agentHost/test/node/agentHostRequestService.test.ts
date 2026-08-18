@@ -8,15 +8,16 @@ import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, type DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import type { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, IRequestService } from '../../../request/common/request.js';
 import { AgentHostClientProxyChannel, createAgentHostClientProxyConnection, type IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
+import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
+import { AgentConfigurationService, type IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostRequestService } from '../../node/agentHostRequestService.js';
 import { NetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
@@ -24,6 +25,7 @@ import { NetworkDiagnosticsService } from '../../node/networkDiagnosticsService.
 class TestProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidRegisterConnection = Event.None;
+	readonly onDidChangeConfiguration = Event.None;
 
 	lastInput: string | URL | Request | undefined;
 	lastInit: RequestInit | undefined;
@@ -31,6 +33,12 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 
 	register(_clientId: string, _connection: IAgentHostClientProxyConnection) {
 		return Disposable.None;
+	}
+
+	bindConfigurationService(_configurationService: IAgentConfigurationService, _transient: boolean): void { }
+
+	getConfigurationValue<T>(_key: string): T | undefined {
+		return undefined;
 	}
 
 	resolveProxy(_url: string): Promise<string | undefined> {
@@ -44,11 +52,26 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 	}
 }
 
+class TestAgentHostProxyResolver extends AgentHostProxyResolver {
+	kerberosLookup: { url: string; spn: string | undefined } | undefined;
+
+	protected override async _lookupKerberosAuthorization(url: string, spn: string | undefined): Promise<string> {
+		this.kerberosLookup = { url, spn };
+		return 'token';
+	}
+}
+
+function createAgentConfigurationService(disposables: Pick<DisposableStore, 'add'>): AgentConfigurationService {
+	const logService = new NullLogService();
+	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	return disposables.add(new AgentConfigurationService(stateManager, logService));
+}
+
 suite('AgentHostProxyResolver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('fires when the first connection registers and after all connections reconnect', () => {
-		const resolver = disposables.add(new AgentHostProxyResolver(new TestConfigurationService(), new NullLogService()));
+		const resolver = disposables.add(new AgentHostProxyResolver(new NullLogService()));
 		let registrations = 0;
 		disposables.add(resolver.onDidRegisterConnection(() => registrations++));
 		const connection: IAgentHostClientProxyConnection = {
@@ -71,18 +94,62 @@ suite('AgentHostProxyResolver', () => {
 			afterReconnect: 2,
 		});
 	});
+
+	test('reads manually configured proxy settings from Agent Host configuration', async () => {
+		const resolver = disposables.add(new AgentHostProxyResolver(new NullLogService()));
+		const configurationService = createAgentConfigurationService(disposables);
+		let configurationChanges = 0;
+		disposables.add(resolver.onDidChangeConfiguration(() => configurationChanges++));
+		resolver.bindConfigurationService(configurationService, false);
+		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080' });
+
+		assert.deepStrictEqual({
+			proxy: await resolver.resolveProxy('https://example.com'),
+			configurationChanges,
+		}, {
+			proxy: 'http://proxy.example:8080',
+			configurationChanges: 1,
+		});
+	});
+
+	test('clears persisted proxy values when binding local mirrored configuration', () => {
+		const resolver = disposables.add(new AgentHostProxyResolver(new NullLogService()));
+		const configurationService = createAgentConfigurationService(disposables);
+		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://stale-proxy.example:8080' });
+
+		resolver.bindConfigurationService(configurationService, true);
+
+		assert.strictEqual(configurationService.getRootConfigValues?.()[AgentHostProxyConfigKey.Proxy], undefined);
+	});
+
+	test('uses manually configured Kerberos authentication without a renderer bridge', async () => {
+		const resolver = disposables.add(new TestAgentHostProxyResolver(new NullLogService()));
+		const configurationService = createAgentConfigurationService(disposables);
+		resolver.bindConfigurationService(configurationService, false);
+		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: 'HTTP/proxy.example' });
+
+		const authorization = await (resolver as unknown as {
+			_hostLookupKerberosAuthorization(url: string): Promise<string | undefined>;
+		})._hostLookupKerberosAuthorization('http://proxy.example:8080');
+
+		assert.deepStrictEqual({
+			authorization,
+			lookup: resolver.kerberosLookup,
+		}, {
+			authorization: 'Negotiate token',
+			lookup: {
+				url: 'http://proxy.example:8080',
+				spn: 'HTTP/proxy.example',
+			},
+		});
+	});
 });
 
 suite('AgentHostRequestService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createService(proxyResolver: TestProxyResolver): AgentHostRequestService {
-		const environmentService = {
-			args: { 'force-disable-user-env': true },
-		} as unknown as INativeEnvironmentService;
 		return disposables.add(new AgentHostRequestService(
-			new TestConfigurationService(),
-			environmentService,
 			new NullLogService(),
 			proxyResolver,
 		));
@@ -231,7 +298,7 @@ suite('AgentHostRequestService', () => {
 });
 
 suite('NetworkDiagnosticsService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('includes nested proxy response errors', async () => {
 		const proxyError = new Error('Proxy response (407)');
@@ -246,10 +313,11 @@ suite('NetworkDiagnosticsService', () => {
 			loadCertificates: async () => [],
 		};
 		const proxyResolver = new TestProxyResolver();
+		const configurationService = createAgentConfigurationService(disposables);
 		const service = new NetworkDiagnosticsService(
 			requestService,
 			proxyResolver,
-			new TestConfigurationService(),
+			configurationService,
 			{ version: 'test' } as IProductService,
 			new NullLogService(),
 		);

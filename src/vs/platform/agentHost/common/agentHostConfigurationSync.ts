@@ -72,6 +72,21 @@ export function getGlobalConfigurationValue<T>(configurationService: IConfigurat
 }
 
 /**
+ * Resolves the application-wide value owned by the local machine, excluding a
+ * remote user layer that may be merged into `userValue` in a remote window.
+ */
+function getLocalConfigurationValue<T>(configurationService: IConfigurationService, settingId: string): T | undefined {
+	const inspected = configurationService.inspect<T>(settingId);
+	const property = getPropertySchema(settingId);
+	for (const value of [inspected.policyValue, inspected.userLocalValue, inspected.applicationValue]) {
+		if (value !== undefined && matchesSchemaType(value, property?.type)) {
+			return value;
+		}
+	}
+	return inspected.defaultValue ?? property?.default as T | undefined;
+}
+
+/**
  * Inspects the configured application-wide value of `settingId`, excluding the
  * registered default and workspace/folder layers.
  */
@@ -124,7 +139,9 @@ export function getAgentHostConfigurationSyncEntries(isLocalAgentHost: boolean):
  * host's root config.
  */
 export function resolveAgentHostConfigurationSyncValue(configurationService: IConfigurationService, entry: IAgentHostConfigurationSyncEntry): unknown {
-	const value = getGlobalConfigurationValue(configurationService, entry.settingId);
+	const value = entry.sync.localOnly
+		? getLocalConfigurationValue(configurationService, entry.settingId)
+		: getGlobalConfigurationValue(configurationService, entry.settingId);
 	return entry.sync.transform ? entry.sync.transform(value) : value;
 }
 
