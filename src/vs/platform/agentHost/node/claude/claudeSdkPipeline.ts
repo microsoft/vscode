@@ -272,12 +272,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._router = this._register(instantiationService.createInstance(
 			ClaudeSdkMessageRouter, chatChannelUri, resource, dbRef, subagents, clientToolOwner,
 		));
-		this._register(this._router.onDidProduceSignal(s => {
-			if (this._isSteeringPreemptDiagnostic(s)) {
-				return;
-			}
-			this._onDidProduceSignal.fire(s);
-		}));
+		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
 		// `_abortController` so a swap aborts the live subprocess.
 		this._register(toDisposable(() => this._drainPendingSteeringFlips()));
@@ -484,35 +479,6 @@ export class ClaudeSdkPipeline extends Disposable {
 		});
 		this._queue.retargetTurn(turnId, StopWatch.create(false));
 		this._logService.info(`[Claude:${this.sessionId}] steering promoted to turn ${turnId} (pendingId=${steering.id})`);
-	}
-
-	/**
-	 * Whether this signal is the SDK reporting the turn a steer interrupted.
-	 *
-	 * Interrupting a turn produces a `result` of subtype `error_during_execution`
-	 * carrying an internal diagnostic rather than a real failure, and the mapper
-	 * turns any such result into a `ChatError`. Left alone that renders the
-	 * preempted turn as failed, which is wrong and newly visible here: promoting
-	 * the steer gives that turn its own bubble to fail in.
-	 *
-	 * Scoped to the moment a promotion is pending, using the same condition
-	 * {@link _promoteSteeringAtHead} promotes on, so an execution error outside a
-	 * steer still surfaces. One that happens to coincide with a pending steer is
-	 * traced rather than dropped silently.
-	 */
-	private _isSteeringPreemptDiagnostic(signal: AgentSignal): boolean {
-		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatError) {
-			return false;
-		}
-		if (signal.action.error?.errorType !== 'error_during_execution') {
-			return false;
-		}
-		const pendingId = this._queue.peekParent()?.steeringPendingId;
-		if (!pendingId || !this._pendingSteeringFlips.has(pendingId)) {
-			return false;
-		}
-		this._logService.trace(`[Claude:${this.sessionId}] suppressing interrupted-turn diagnostic for the steer at ${pendingId}: ${signal.action.error?.message ?? ''}`);
-		return true;
 	}
 
 	/**

@@ -514,6 +514,12 @@ function mapResult(
 }
 
 /**
+ * Prefix of the internal diagnostic the SDK prepends to a result's `errors`,
+ * e.g. `[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null`.
+ */
+const INTERRUPT_DIAGNOSTIC_PREFIX = '[ede_diagnostic]';
+
+/**
  * Extracts the error text from an SDK result message for the error subtypes
  * the proxy can relay. Mirrors the Copilot Chat extension's
  * `getResultErrorText`.
@@ -523,7 +529,16 @@ function getResultErrorText(message: Extract<SDKMessage, { type: 'result' }>): s
 		return message.is_error ? message.result : undefined;
 	}
 	if (message.subtype === 'error_during_execution') {
-		return message.errors?.join('\n');
+		// The SDK always makes an internal diagnostic the FIRST entry of
+		// `errors` and appends the real errors, if any, after it. On its own it
+		// is not a failure: interrupting a turn produces an
+		// `error_during_execution` result whose `errors` holds nothing else, and
+		// steering interrupts on every steer. Dropping the diagnostic leaves a
+		// genuine error intact (minus a prefix that was never meant for users)
+		// and leaves an interrupted turn with no error text, so no ChatError is
+		// emitted and the turn does not render as failed.
+		const errors = message.errors?.filter(error => !error.startsWith(INTERRUPT_DIAGNOSTIC_PREFIX));
+		return errors?.length ? errors.join('\n') : undefined;
 	}
 	return undefined;
 }
