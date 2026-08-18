@@ -57,6 +57,7 @@ const feedbackToolNames = ['addComment', 'listComments', 'replyToComment', 'dele
 const feedbackResourceUri = 'untitled://server-tools/reviewed.ts';
 const sessionToolNames = [
 	SessionServerToolName.ListSessions,
+	SessionServerToolName.ListWorkspaces,
 	SessionServerToolName.GetCurrentSession,
 	SessionServerToolName.CreateSession,
 	SessionServerToolName.CreateChat,

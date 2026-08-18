@@ -59,6 +59,14 @@ const listSessionsInputSchema: ToolDefinition['inputSchema'] = {
 	},
 };
 
+const listWorkspacesInputSchema: ToolDefinition['inputSchema'] = {
+	type: 'object',
+	properties: {
+		query: { type: 'string', description: 'Optional case-insensitive text matched against workspace names and URIs.' },
+		limit: { type: 'number', description: 'Maximum entries to return. Defaults to 20 and is capped at 50.' },
+	},
+};
+
 const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
@@ -136,6 +144,13 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 		title: 'List Sessions',
 		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
 		inputSchema: listSessionsInputSchema,
+		annotations: { readOnlyHint: true },
+	},
+	{
+		name: SessionServerToolName.ListWorkspaces,
+		title: 'List Workspaces',
+		description: 'List distinct workspaces known from existing sessions. Use a returned URI as the `workspace` for `create_session`.',
+		inputSchema: listWorkspacesInputSchema,
 		annotations: { readOnlyHint: true },
 	},
 	{
@@ -640,6 +655,51 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(git !== undefined ? { git } : {}),
 		...(github !== undefined ? { github } : {}),
 	};
+}
+
+interface IListWorkspacesArgs {
+	readonly query?: string;
+	readonly limit: number;
+}
+
+function getListWorkspacesArgs(rawArgs: unknown): IListWorkspacesArgs {
+	const args = (rawArgs ?? {}) as { query?: unknown; limit?: unknown };
+	const query = getOptionalString(args.query, 'query', SessionServerToolName.ListWorkspaces);
+	let limit = 20;
+	if (args.limit !== undefined) {
+		if (typeof args.limit !== 'number' || !Number.isFinite(args.limit) || args.limit < 1) {
+			throw new Error(`Invalid ${SessionServerToolName.ListWorkspaces} input: limit must be a positive number.`);
+		}
+		limit = Math.min(Math.floor(args.limit), 50);
+	}
+	return { ...(query !== undefined ? { query } : {}), limit };
+}
+
+export function serializeWorkspaces(sessions: readonly IAgentSessionMetadata[], rawArgs: unknown): string {
+	const args = getListWorkspacesArgs(rawArgs);
+	const query = args.query?.toLowerCase();
+	const seen = new Set<string>();
+	const workspaces: { uri: string; name: string; provider: string }[] = [];
+	for (const session of [...sessions].sort((a, b) => b.modifiedTime - a.modifiedTime)) {
+		for (const directory of session.workingDirectories ?? []) {
+			const uri = directory.toString();
+			if (seen.has(uri)) {
+				continue;
+			}
+			const name = session.project?.uri.toString() === uri
+				? session.project.displayName
+				: directory.path.split('/').filter(Boolean).at(-1) ?? uri;
+			if (query && !name.toLowerCase().includes(query) && !uri.toLowerCase().includes(query)) {
+				continue;
+			}
+			seen.add(uri);
+			workspaces.push({ uri, name, provider: session.session.scheme });
+			if (workspaces.length >= args.limit) {
+				return JSON.stringify({ workspaces });
+			}
+		}
+	}
+	return JSON.stringify({ workspaces });
 }
 
 /** Serializes session metadata into the compact tool-result JSON payload. */
@@ -1248,6 +1308,8 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 			switch (toolName) {
 				case SessionServerToolName.ListSessions:
 					return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs)));
+				case SessionServerToolName.ListWorkspaces:
+					return serializeWorkspaces(await accessor.listSessions(), rawArgs);
 				case SessionServerToolName.GetCurrentSession:
 					return serializeCurrentSession(currentSessionUri(currentChannel), await accessor.listSessions());
 				case SessionServerToolName.CreateSession: {
