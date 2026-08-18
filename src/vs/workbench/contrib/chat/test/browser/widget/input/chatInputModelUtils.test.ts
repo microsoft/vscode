@@ -21,6 +21,7 @@ import {
 	isModelSupportedForMode,
 	isModelValidForSession,
 	isNewConversation,
+	isSessionStarted,
 	mergeModelsWithCache,
 	resolveModelFromSyncState,
 	shouldDropAgnosticDraftModel,
@@ -318,6 +319,23 @@ suite('ChatInputModelUtils', () => {
 				ChatAgentLocation.EditorInline,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o']);
+		});
+	});
+
+	suite('isSessionStarted', () => {
+
+		test('only a bound, request-free session counts as unstarted', () => {
+			assert.deepStrictEqual({
+				boundAndEmpty: isSessionStarted(true, false),
+				boundWithRequests: isSessionStarted(true, true),
+				unbound: isSessionStarted(false, false),
+			}, {
+				boundAndEmpty: false,
+				boundWithRequests: true,
+				// A session switch unbinds the model for the duration of an async
+				// load; staying "started" keeps notices out of that window.
+				unbound: true,
+			});
 		});
 	});
 

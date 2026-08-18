@@ -126,6 +126,32 @@ suite('ChatPromoNotificationContribution', () => {
 		}]);
 	});
 
+	test('scopes promos to unstarted persistent chats', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, message: 'Get 20% off' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		const notification = notifService.getNotification();
+		assert.deepStrictEqual({
+			hideInTransientChats: notification?.hideInTransientChats,
+			hideInStartedSessions: notification?.hideInStartedSessions,
+			autoDismissOnMessage: notification?.autoDismissOnMessage,
+		}, {
+			hideInTransientChats: true,
+			hideInStartedSessions: true,
+			autoDismissOnMessage: false,
+		});
+	});
+
 	test('renders the server message for a 0% promo', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
