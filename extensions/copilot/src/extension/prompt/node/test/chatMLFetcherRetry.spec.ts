@@ -145,6 +145,31 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			});
 		});
 
+		it('retains unavailable history hashes when the clean recovery request fails', async () => {
+			mockFetcherService.queueResponse(createErrorResponse(400, 'Bad Request', {
+				code: 'vision_attachment_not_accessible',
+				message: 'The image could not be accessed.',
+			}));
+			mockFetcherService.queueResponse(createErrorResponse(500, 'Internal Server Error'));
+			const options = createBaseOpts();
+			options.conversationId = 'conversation-1';
+			options.messages = createMessagesWithHistoryImage('Continue without the old image.');
+
+			const result = await fetcher.fetchMany(options, cancellationTokenSource.token);
+
+			expect({
+				type: result.type,
+				hashCount: result.unavailableHistoryImageSourceHashes?.length,
+				requestImageCounts: requestMessages.map(countMessageImages),
+				fetchCallCount: mockFetcherService.fetchCallCount,
+			}).toEqual({
+				type: ChatFetchResponseType.Failed,
+				hashCount: 1,
+				requestImageCounts: [1, 0],
+				fetchCallCount: 2,
+			});
+		});
+
 		it('recovers a WebSocket conversation without replaying inaccessible history images', async () => {
 			const webSocketManager = new TestChatWebSocketManager({
 				type: 'error',

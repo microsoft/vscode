@@ -163,7 +163,7 @@ export class DefaultIntentRequestHandler {
 				toolCallRounds: resultDetails.toolCallRounds,
 				toolCallResults: this._collectRelevantToolCallResults(resultDetails.toolCallRounds, resultDetails.toolCallResults),
 				resolvedModel: resultDetails.response.type === ChatFetchResponseType.Success ? resultDetails.response.resolvedModel : undefined,
-				unavailableHistoryImageSourceHashes: 'unavailableHistoryImageSourceHashes' in resultDetails.response ? resultDetails.response.unavailableHistoryImageSourceHashes : undefined,
+				...(resultDetails.response.unavailableHistoryImageSourceHashes?.length ? { unavailableHistoryImageSourceHashes: resultDetails.response.unavailableHistoryImageSourceHashes } : {}),
 			};
 			mixin(chatResult, { metadata: metadataFragment }, true);
 			const baseModelTelemetry = createTelemetryWithId();
@@ -751,12 +751,12 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 			interactionTypeOverride: this.options.request.subAgentInvocationId ? 'conversation-subagent' : undefined,
 			enableRetryOnFilter: true
 		}, token);
-		for (const hash of 'unavailableHistoryImageSourceHashes' in response ? response.unavailableHistoryImageSourceHashes ?? [] : []) {
+		for (const hash of response.unavailableHistoryImageSourceHashes ?? []) {
 			if (!unavailableHistoryImageSourceHashes.has(hash)) {
 				this.newlyUnavailableHistoryImageSourceHashes.add(hash);
 			}
 		}
-		return response.type === ChatFetchResponseType.Success && this.newlyUnavailableHistoryImageSourceHashes.size > 0
+		return this.newlyUnavailableHistoryImageSourceHashes.size > 0
 			? { ...response, unavailableHistoryImageSourceHashes: [...this.newlyUnavailableHistoryImageSourceHashes] }
 			: response;
 	}

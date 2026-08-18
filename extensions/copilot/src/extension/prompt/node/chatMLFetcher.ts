@@ -598,9 +598,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 								enableRetryOnError: false,
 							}, token);
 							pendingLoggedChatRequest?.resolve(recoveryResult, streamRecorder.deltas);
-							return recoveryResult.type === ChatFetchResponseType.Success
-								? { ...recoveryResult, unavailableHistoryImageSourceHashes }
-								: recoveryResult;
+							return { ...recoveryResult, unavailableHistoryImageSourceHashes };
 						}
 					}
 					const processed = this.processFailedResponse(response, ourRequestId, isAutoModel(chatEndpoint) === 1);
@@ -700,9 +698,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							enableRetryOnError: false,
 						}, token);
 						pendingLoggedChatRequest?.resolve(recoveryResult, streamRecorder.deltas);
-						return recoveryResult.type === ChatFetchResponseType.Success
-							? { ...recoveryResult, unavailableHistoryImageSourceHashes }
-							: recoveryResult;
+						return { ...recoveryResult, unavailableHistoryImageSourceHashes };
 					}
 					processed.unavailableHistoryImageSourceHashes = unavailableHistoryImageSourceHashes;
 				}
