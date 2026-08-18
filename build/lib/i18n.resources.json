@@ -235,7 +235,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/styleOverrides",
+			"name": "vs/workbench/contrib/modernUI",
 			"project": "vscode-workbench"
 		},
 		{

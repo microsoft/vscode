@@ -20,7 +20,9 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { IURLService } from '../../../../platform/url/common/url.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -29,7 +31,7 @@ import { ISessionContext } from '../../../services/sessions/browser/sessionConte
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubIssueRef, ISession } from '../../../services/sessions/common/session.js';
-import { computeAggregateIssueIcon, computeIssueIcon, GitHubIssueState, IGitHubIssue } from '../common/types.js';
+import { computeAggregateIssueIcon, computeIssueIcon, GitHubIssueState, IGitHubIssue, OPEN_ISSUE_ACTION_ID } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
 import { createIssueHoverElement } from './issueHover.js';
 import { createGitHubReferenceListElement } from './githubReferenceList.js';
@@ -42,8 +44,15 @@ interface IResolvedSessionIssue {
 
 // --- Open Issue action
 
+const githubPullRequestsExtensionId = 'github.vscode-pull-request-github';
+const openIssueWebviewPath = '/open-issue-webview';
+
+class IssueActionContext {
+	constructor(readonly issue: IGitHubIssueRef) { }
+}
+
 class OpenIssueAction extends Action2 {
-	static readonly ID = 'workbench.agentSessions.action.openIssue';
+	static readonly ID = OPEN_ISSUE_ACTION_ID;
 
 	constructor() {
 		super({
@@ -64,14 +73,31 @@ class OpenIssueAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session?: IActiveSession | ISession | ISession[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | IssueActionContext): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
 		const sessionsService = accessor.get(ISessionsService);
+		const extensionService = accessor.get(IExtensionService);
+		const urlService = accessor.get(IURLService);
 
-		const targetSession = (Array.isArray(session) ? session[0] : session) ?? sessionsService.activeSession.get();
-		const issue = getSessionIssues(targetSession)[0];
+		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
+		const issue = target instanceof IssueActionContext ? target.issue : getSessionIssues(target)[0];
 		if (!issue) {
 			return;
+		}
+
+		if (await extensionService.getExtension(githubPullRequestsExtensionId)) {
+			const uri = urlService.create({
+				authority: githubPullRequestsExtensionId,
+				path: openIssueWebviewPath,
+				query: JSON.stringify({
+					owner: issue.owner,
+					repo: issue.repo,
+					issueNumber: issue.number,
+				}),
+			});
+			if (await urlService.open(uri, { trusted: true })) {
+				return;
+			}
 		}
 
 		await openerService.open(issue.uri, { openExternal: true });
@@ -246,6 +272,8 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 		}
 
 		const entries = issues.map(({ ref, issue }) => ({
+			owner: ref.owner,
+			repo: ref.repo,
 			number: ref.number,
 			title: issue?.title,
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
@@ -256,7 +284,7 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 		const hover = this._hoverService.showInstantHover({
 			content: createGitHubReferenceListElement(entries, entry => {
 				this._hoverService.hideHover();
-				this._openerService.open(entry.uri, { openExternal: true });
+				this.actionRunner.run(this._action, new IssueActionContext(entry));
 			}),
 			target,
 			position: { hoverPosition: HoverPosition.BELOW },

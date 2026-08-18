@@ -238,6 +238,29 @@ export interface IBrowserViewOwner {
 }
 
 /**
+ * Grants matching agents access to a browser view. Omitted identifiers match all values.
+ */
+export interface IBrowserViewAgentAudience {
+	readonly type: 'agent';
+	readonly sessionId?: string;
+}
+
+export type IBrowserViewAudience = IBrowserViewAgentAudience;
+
+export function equalsBrowserViewAudience(first: IBrowserViewAudience, second: IBrowserViewAudience): boolean {
+	return first.type === second.type
+		&& first.sessionId === second.sessionId;
+}
+
+/**
+ * Returns whether an audience satisfies a pattern whose omitted identifiers are wildcards.
+ */
+export function matchesBrowserViewAudience(candidate: IBrowserViewAudience, pattern: IBrowserViewAudience): boolean {
+	return candidate.type === pattern.type
+		&& (pattern.sessionId === undefined || pattern.sessionId === candidate.sessionId);
+}
+
+/**
  * Summary information about a browser view, including its current state and
  * ownership. Returned by the main service when listing or creating views.
  */
@@ -311,6 +334,7 @@ export interface IBrowserViewState {
 	isRemoteSession: boolean;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
+	audiences: IBrowserViewAudience[];
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -445,7 +469,7 @@ export const browserViewIsolatedWorldId = 999;
 
 export interface IBrowserViewService {
 	/**
-	 * Fires when a new browser view is created from an internal source (e.g. CDP or window.open).
+	 * Fires when a new browser view is created.
 	 */
 	onDidCreateBrowserView: Event<IBrowserViewCreatedEvent>;
 
@@ -469,6 +493,7 @@ export interface IBrowserViewService {
 	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
 	onDynamicDidChangeRemoteStatus(id: string): Event<boolean>;
+	onDynamicDidChangeAudiences(id: string): Event<IBrowserViewAudience[]>;
 	onDynamicDidRequestPermission(id: string): Event<IBrowserViewPermissionRequestEvent>;
 	onDynamicDidChangePermissions(id: string): Event<ISerializedBrowserPermissionsSnapshot>;
 
@@ -478,7 +503,7 @@ export interface IBrowserViewService {
 	getBrowserViews(windowId?: number): Promise<IBrowserViewInfo[]>;
 
 	/**
-	 * Get or create a browser view instance. Does not fire `onDidCreateBrowserView`.
+	 * Get or create a browser view instance.
 	 *
 	 * @param id The browser view identifier
 	 * @param options Creation options. If a view with the given ID already exists, these options are ignored.
@@ -498,6 +523,11 @@ export interface IBrowserViewService {
 	 * @throws If no browser view exists for the given ID
 	 */
 	getState(id: string): Promise<IBrowserViewState>;
+
+	/**
+	 * Adds an audience or, when disabled, removes every audience matching it.
+	 */
+	setAudience(id: string, audience: IBrowserViewAudience, enabled: boolean): Promise<void>;
 
 	/**
 	 * Update the bounds of a browser view

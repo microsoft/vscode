@@ -68,13 +68,15 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
-import { areCustomizationScopeRootsEqual, IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
@@ -156,7 +158,6 @@ export interface IAgentHostUntitledProvisionalSessionService {
 		oldSessionResource: URI,
 		newSessionResource: URI,
 		provider: string,
-		workingDirectory: URI | undefined,
 	): Promise<URI | undefined>;
 
 	/**
@@ -281,6 +282,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -307,6 +309,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// a provisional backend session (built up by config chips), recreate that
 		// provisional at the new cwd so chip schemas resolve against it. The
 		// service owns this reaction so concurrent chip instances don't race.
+		//
+		// This path is intentionally not gated to untitled drafts: it stays safe
+		// for started sessions because on workspace-folder removal the folder
+		// service *clears* (never reselects) the removed selection, so `getFolder`
+		// returns `undefined` and this becomes a no-op — a started session keeps
+		// its immutable primary. If the folder service is ever changed to reselect
+		// a real resource's selection on removal, add an isUntitledChatSession
+		// guard here too.
 		this._register(this._newSessionFolderService.onDidChangeFolder(sessionResource => {
 			const folder = this._newSessionFolderService.getFolder(sessionResource);
 			if (folder && this._entries.has(sessionResource)) {
@@ -317,9 +327,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// differs from what the existing provisional was created with, dispose that
 		// backend session and create a replacement provisional session with the new
 		// set of directories.
-		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(e => {
 			for (const [sessionResource, entry] of this._entries) {
 				if (entry.disposed) {
+					continue;
+				}
+				// Untitled drafts reselect removed primaries; rebound sessions retain their immutable primary.
+				if (isUntitledChatSession(sessionResource) && this._primaryWasRemoved(entry, e)) {
+					void this._changeWorkingDirectory(sessionResource, this._newSessionFolderService.resolveNewSessionPrimary(sessionResource));
 					continue;
 				}
 				if (!entry.usesWorkspaceRootSet && (this._computeWorkingDirectories(entry.workingDirectory, entry.provider)?.length ?? 0) > 1) {
@@ -361,7 +376,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	private _updateActiveClientScope(entry: IEntry): void {
 		const roots = this._computeEntryWorkingDirectories(entry) ?? [];
-		if (entry.activeClientBinding.value && areCustomizationScopeRootsEqual(entry.activeClientBinding.value.roots, roots)) {
+		if (entry.activeClientBinding.value && this._activeClientService.areScopeRootsEqual(entry.activeClientBinding.value.roots, roots)) {
 			return;
 		}
 
@@ -509,6 +524,25 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return first === undefined || second === undefined ? first === second : isEqual(first, second);
 	}
 
+	/**
+	 * Whether a draft's primary working directory was just removed from the
+	 * workspace. Only folders present in `e.removed` and no longer among the
+	 * current workspace folders qualify, so a standalone folder outside the
+	 * workspace (never a member) is preserved, and a folder removed and re-added
+	 * in the same event is not treated as gone.
+	 */
+	private _primaryWasRemoved(entry: IEntry, e: IWorkspaceFoldersChangeEvent): boolean {
+		const primary = entry.workingDirectory;
+		if (!primary || e.removed.length === 0) {
+			return false;
+		}
+		// Provider-aware comparator so a case-distinct sibling on a case-sensitive
+		// remote isn't mistaken for the removed primary (matches the folder service).
+		const extUri = this._uriIdentityService.extUri;
+		const stillPresent = this._workspaceContextService.getWorkspace().folders.some(folder => extUri.isEqual(folder.uri, primary));
+		return !stillPresent && e.removed.some(removed => extUri.isEqual(removed.uri, primary));
+	}
+
 	/** Provider-agnostic: only an agent advertising `immutablePrimary` pins index 0. */
 	private _sameWorkingDirectories(provider: string, first: readonly URI[] | undefined, second: readonly URI[] | undefined): boolean {
 		return areSessionWorkingDirectoriesEqual(first, second, hasImmutablePrimaryWorkingDirectory(this._agentHostService.rootState.value, provider));
@@ -627,7 +661,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		oldSessionResource: URI,
 		newSessionResource: URI,
 		provider: string,
-		workingDirectory: URI | undefined,
 	): Promise<URI | undefined> {
 		// Graduation must run after any queued folder or config reconciliation.
 		return this._queue(oldSessionResource, async () => {
@@ -649,7 +682,12 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				// The workbench cache is authoritative; backend state can lag synchronous chip edits.
 				const config = { ...oldEntry.config };
 				const configVersion = oldEntry.configVersion;
-				const targetWorkingDirectory = oldEntry.workingDirectory ?? workingDirectory;
+				// The draft's own primary is authoritative: it mirrors what
+				// `_computeEntryWorkingDirectories(oldEntry)` sends to the backend, so
+				// the scalar and the array can't diverge. A cleared primary
+				// (`undefined`, last folder removed) therefore lets the host choose
+				// rather than resurrecting a folder that no longer exists.
+				const targetWorkingDirectory = oldEntry.workingDirectory;
 				if (!oldEntry.usesWorkspaceRootSet && (this._computeWorkingDirectories(targetWorkingDirectory, provider)?.length ?? 0) > 1) {
 					oldEntry.usesWorkspaceRootSet = true;
 				}
@@ -684,7 +722,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					return undefined;
 				}
 				if (oldEntry.configVersion !== configVersion
-					|| !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)
+					|| !this._sameUri(oldEntry.workingDirectory, targetWorkingDirectory)
 					|| !this._sameWorkingDirectories(oldEntry.provider, this._computeEntryWorkingDirectories(oldEntry), targetWorkingDirectories)) {
 					const disposed = await this._disposeBackend(created, 'obsolete rebound candidate');
 					if (!disposed) {
@@ -734,8 +772,13 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * session's cwd is immutable, so the only way to honor a folder change is to
 	 * dispose and recreate. The replacement uses a fresh backend URI so existing
 	 * subscribers acquire an authoritative snapshot for the new incarnation.
+	 *
+	 * `newWorkingDirectory` may be `undefined` when the workspace has no folders
+	 * left (e.g. the draft's only/primary folder was removed); the provisional is
+	 * then recreated with no working directory, letting the host choose — the same
+	 * as a draft first created in an empty workspace.
 	 */
-	private _changeWorkingDirectory(sessionResource: URI, newWorkingDirectory: URI): Promise<void> {
+	private _changeWorkingDirectory(sessionResource: URI, newWorkingDirectory: URI | undefined): Promise<void> {
 		const entry = this._entries.get(sessionResource);
 		if (!entry || entry.disposed || this._sameUri(entry.workingDirectory, newWorkingDirectory)) {
 			return Promise.resolve();

@@ -210,6 +210,41 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('skips notifications that opt out of transient chats without hiding others', () => {
+		const transient = createWidget({ delegate: { isTransientChat: true } });
+		const persistent = createWidget({ delegate: { isTransientChat: false } });
+		const rendered = (widget: ChatInputNotificationWidget) => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+
+		for (const { notificationService } of [transient, persistent]) {
+			showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+			showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], hideInTransientChats: true });
+		}
+
+		assert.deepStrictEqual({
+			transient: rendered(transient.widget),
+			persistent: rendered(persistent.widget),
+		}, {
+			transient: 'Ordinary notification',
+			persistent: 'Model promotion',
+		});
+	});
+
+	test('reactively hides notifications that opt out of started sessions', () => {
+		const sessionStarted = observableValue('sessionStarted', false);
+		const { widget, notificationService } = createWidget({ delegate: { sessionStarted } });
+		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+		showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], hideInStartedSessions: true });
+
+		const rendered = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		const before = rendered();
+		sessionStarted.set(true, undefined);
+
+		assert.deepStrictEqual({ before, after: rendered() }, {
+			before: 'Model promotion',
+			after: 'Ordinary notification',
+		});
+	});
+
 	test('standard workbench defers notifications for the first session only', () => {
 		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
 		let hasSessions = false;

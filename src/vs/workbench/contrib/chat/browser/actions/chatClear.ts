@@ -3,21 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { resolveDefaultNewChatSessionType } from '../../common/constants.js';
-import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
-
-function getNewChatSessionResource(sessionType: string): URI {
-	return sessionType === localChatSessionType
-		? LocalChatSessionUri.getNewSessionUri()
-		: URI.from({ scheme: sessionType, path: `/untitled-${generateUuid()}` });
-}
 
 export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput, targetSessionType?: string): Promise<void> {
 	const editorService = accessor.get(IEditorService);

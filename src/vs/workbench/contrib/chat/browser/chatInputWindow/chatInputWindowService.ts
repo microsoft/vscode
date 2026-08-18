@@ -328,6 +328,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const border = theme.getColor(inputBorder)?.toString() ?? 'transparent';
 			auxiliaryWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
 			surface.style.backgroundColor = surfaceColor;
+			surface.style.setProperty('--omni-input-editor-background', surfaceColor);
 			surface.style.border = `1px solid ${border}`;
 		};
 
@@ -498,7 +499,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const widget: ChatWidget = this._windowDisposables.add(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
-			{ isQuickChat: true },
+			{ isQuickChat: true, isChatInputWindow: true },
 			{
 				autoScroll: true,
 				renderInputOnTop: true,
@@ -648,7 +649,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		let pendingBounds: IRectangle | undefined;
 		let applyingBounds = false;
 		const getRowHeight = () => {
-			let contentHeight = Math.ceil(widget.contentHeight);
+			// Measure the input's rendered height synchronously rather than
+			// reading `widget.contentHeight`, which is backed by a
+			// ResizeObserver and lags a frame behind. `layout()` re-lays the
+			// editor synchronously, so the observable is stale until the
+			// observer fires next frame; sizing the window to that stale height
+			// while the editor grows (e.g. pasting text or cycling input
+			// history) clips the new lines and makes the window grow
+			// inconsistently until the observer catches up.
+			let contentHeight = Math.ceil(widget.input.element.offsetHeight);
 			if (widget.attachmentModel.size > 0) {
 				contentHeight += Math.max(0, CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT - widget.input.inputRowHeight);
 			}
@@ -940,7 +949,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const widget = this._windowDisposables.add(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
-			{ isQuickChat: true },
+			{ isQuickChat: true, isChatInputWindow: true },
 			{
 				autoScroll: true,
 				renderInputOnTop: true,

@@ -310,6 +310,8 @@ export interface IVoiceInputModePillOptions {
 	readonly toggleDictation?: () => void;
 	/** Whether this is the focused or last-focused chat input that owns live state. */
 	readonly isActive?: IObservable<boolean>;
+	/** Whether the dictation session belongs to this input. Defaults to `isActive`. */
+	readonly isDictationActive?: IObservable<boolean>;
 	/** Whether the shared Voice Mode transport belongs to this input. */
 	readonly isVoiceActive?: IObservable<boolean>;
 	/** Claim Voice Mode for this host instead of targeting the last focused chat session. */
@@ -438,7 +440,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._dictationCell.setAttribute('role', 'button');
 		this._dictationIcon = dom.append(this._dictationCell, dom.$('span.chat-voice-input-mode-icon'));
 		this._register(this.hoverService.setupManagedHover(hoverDelegate, this._dictationCell,
-			() => this.chatSpeechToTextService.isPreparingModel
+			() => (this._options?.isDictationActive?.get() ?? this._options?.isActive?.get() ?? true) && this.chatSpeechToTextService.isPreparingModel
 				? getDictationDownloadHoverContent(this.chatSpeechToTextService)
 				: getDictationHoverContent(this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID), this.configurationService)));
 		this._register(dom.addDisposableListener(this._dictationCell, dom.EventType.CLICK, e => {
@@ -451,7 +453,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
 			this.contextMenuService,
 		));
-		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService, this._options?.isActive, this.themeService));
+		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.accessibilityService, this._options?.isDictationActive ?? this._options?.isActive, this.themeService));
 
 		// --- Voice cell: a single waveform that transforms across states (no glyph). ---
 		this._voiceCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.voice'));
@@ -556,6 +558,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const handsFree = simHandsFree ?? this.voiceInputModeService.handsFree.read(reader);
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const isActive = sim !== undefined || (this._options?.isActive?.read(reader) ?? true);
+			const isDictationActive = sim !== undefined || (this._options?.isDictationActive?.read(reader) ?? isActive);
 			const isVoiceActive = sim !== undefined || (this._options?.isVoiceActive?.read(reader) ?? isActive);
 
 			// Resolve the effective state — a simulation override wins over live state.
@@ -571,7 +574,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				listening = sim === 'listening';
 				speaking = sim === 'speaking';
 			} else {
-				isDictating = isActive && dictationActive.read(reader);
+				isDictating = isDictationActive && dictationActive.read(reader);
 				connected = isVoiceActive && this.voiceSessionController.isConnected.read(reader);
 				// A reconnect is a connect in progress as far as this pill is concerned:
 				// without it the pill renders its idle state while the socket is retrying.
@@ -585,7 +588,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const voiceOn = connected || connecting;
 			this._voiceLive = voiceLive;
 			// First-use model download/load (real state only; simulations never prepare).
-			const dictationBusy = sim === undefined && isActive && dictationPreparing.read(reader);
+			const dictationBusy = sim === undefined && isDictationActive && dictationPreparing.read(reader);
 
 			// The dedicated listen (start/stop speaking) toggle shows in manual
 			// (non-hands-free) connected voice mode. In hands-free mode the auto-listen
