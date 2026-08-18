@@ -1160,13 +1160,13 @@ export interface IAgentConnection {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
-	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
 
 	/**
 	 * Read one bounded slice of an artifact previously returned by
 	 * {@link collectDebugLogs}. Only artifacts this host produced are readable.
 	 */
-	readDebugLogsChunk?(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 
 	/**
 	 * Create an additional peer chat inside an existing session. `chat` is a

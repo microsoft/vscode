@@ -172,9 +172,6 @@ export async function collectAgentHostDebugLogs(
 	} else {
 		connection = agentHostConnectionsService.ambientConnection;
 	}
-	if (!connection.collectDebugLogs) {
-		throw new Error('Connected Agent Host does not support debug-log collection');
-	}
 	// The Agent Host owns discovery and packaging of its own logs; failures
 	// surface to the user rather than being papered over by a second,
 	// path-guessing implementation on this side.
@@ -279,15 +276,7 @@ function createChunkReader(
 	connection: IAgentConnection,
 	resource: URI,
 ): (position: number) => Promise<IAgentHostDebugLogsChunk> {
-	if (!connection.readDebugLogsChunk) {
-		throw new Error('Connected Agent Host does not support streaming debug-log artifacts');
-	}
-	return position => {
-		if (!connection.readDebugLogsChunk) {
-			throw new Error('Agent Host does not support streaming debug log artifacts');
-		}
-		return connection.readDebugLogsChunk(resource, position);
-	};
+	return position => connection.readDebugLogsChunk(resource, position);
 }
 
 export async function exportAgentHostDebugLogs(
