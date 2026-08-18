@@ -5709,8 +5709,7 @@ suite('ClaudeAgent', () => {
 		const signals: AgentSignal[] = [];
 		disposables.add(session.onDidSessionProgress(s => signals.push(s)));
 
-		// A replayed invocation streams nothing, so the fired signal is the only
-		// way the host learns a client must execute this call.
+		// A replayed invocation streams nothing, so the fired signal is the only cue.
 		const handler = sdk.toolHandlers.find(t => t.name === 'echo')!.handler;
 		const callPromise = handler({ msg: 'hi' }, { _meta: { 'claudecode/toolUseId': 'tu_replay' } });
 		const fired = signals.filter(s => s.kind === 'client_tool_invoked');

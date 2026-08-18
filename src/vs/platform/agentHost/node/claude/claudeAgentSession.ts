@@ -1355,14 +1355,10 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	/**
 	 * Park the SDK's client-tool invocation until the workbench echoes its
-	 * result. `registerAndFire` collects a buffered result without firing;
-	 * otherwise the fired signal lets the host start execution when the call
-	 * never streamed (an SDK resume replaying a transcript-dangling
-	 * `tool_use`, which the stream mapper never sees).
+	 * result. `registerAndFire` collects a buffered result without firing.
 	 */
 	private _awaitClientToolResult(toolUseId: string, toolName: string, args: unknown): Promise<CallToolResult> {
-		// A tool called inside a subagent is routed by its parent spawn, exactly
-		// as the permission path resolves it.
+		// A tool called inside a subagent is routed by its parent spawn.
 		const parentToolCallId = this.subagents.getParentSpawn(toolUseId)?.toolUseId;
 		return this._pendingClientToolCalls.registerAndFire(toolUseId, () => this._onDidSessionProgress.fire({
 			kind: 'client_tool_invoked',
