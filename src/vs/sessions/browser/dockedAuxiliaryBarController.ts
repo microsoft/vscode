@@ -160,6 +160,6 @@ export class DockedAuxiliaryBarController extends Disposable {
 	}
 
 	private _getTop(): number {
-		return this.editorPartContainer.clientTop + this.host.getTitleHeight();
+		return this.host.getTitleHeight();
 	}
 }

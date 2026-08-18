@@ -1966,15 +1966,17 @@ suite('Sessions - Workbench', () => {
 				top: auxiliaryBarContainer.style.top,
 				height: auxiliaryBarContainer.style.height,
 			},
+			visualTop: editorContainer.clientTop + Number.parseInt(auxiliaryBarContainer.style.top, 10),
 		}, {
 			layouts: [
-				{ height: 566, top: 34 },
-				{ height: 537, top: 63 },
+				{ height: 567, top: 33 },
+				{ height: 538, top: 62 },
 			],
 			style: {
-				top: '63px',
-				height: '537px',
+				top: '62px',
+				height: '538px',
 			},
+			visualTop: 63,
 		});
 
 		controller.dispose();
@@ -2046,14 +2048,14 @@ suite('Sessions - Workbench', () => {
 			insets: [260, 260],
 			persistedWidths: [],
 			layouts: [
-				{ width: 260, height: 565, top: 35, left: 540 },
-				{ width: 260, height: 565, top: 35, left: 0 },
+				{ width: 260, height: 566, top: 34, left: 540 },
+				{ width: 260, height: 566, top: 34, left: 0 },
 			],
 			style: {
-				top: '35px',
+				top: '34px',
 				right: '0px',
 				width: '260px',
-				height: '565px',
+				height: '566px',
 			},
 			// The grid sash owns resizing/collapsing here; the overlay sash must be disabled.
 			sashState: SashState.Disabled,
