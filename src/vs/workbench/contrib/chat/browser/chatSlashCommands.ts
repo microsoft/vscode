@@ -72,8 +72,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_vscodePet',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat],
-			when: ChatContextKeys.inChatInputWindow.negate(),
+			locations: [ChatAgentLocation.Chat]
 		}, async () => {
 			chatPetService.toggle();
 		}));

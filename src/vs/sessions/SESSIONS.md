@@ -396,20 +396,6 @@ Use the narrowest mechanism that represents the change:
 Do not add an event that mirrors an observable value. Do not use storage keys or
 provider internals as a side channel between components.
 
-### Omni CI attention boundary
-
-The floating Omni Chat input owns the presentation contract for external
-attention items. `IChatInputWindowService` defines and owns the narrow
-`IChatInputWindowCIFailureProvider` registration API in `vs/workbench`; it must
-not depend on Sessions models or import from `vs/sessions`.
-
-The Sessions-layer `OmniCIFailureContribution` owns the registration lifetime.
-It adapts `BlockedSessions` into UI-neutral failure data and delegates actions
-to the singleton `BlockedSessionsCIFixModel`. The title-bar blocked-sessions
-dropdown uses that same singleton so optimistic hiding and duplicate-submission
-guards apply globally across both surfaces. Disposing the contribution removes
-the provider registration and all Sessions-owned observations.
-
 ## Agents Window telemetry
 
 On the first Agents-window handoff, `SelectAgentsFolderContribution` immediately
