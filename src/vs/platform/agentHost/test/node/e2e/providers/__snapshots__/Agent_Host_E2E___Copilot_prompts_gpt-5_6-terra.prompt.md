@@ -404,7 +404,7 @@ Your goal is to deliver complete, working solutions. If your first approach does
 Respond concisely to the user, but be thorough in your work.
 ~~~
 
-### Tools (29)
+### Tools (30)
 
 #### bash
 Runs a Bash command.
@@ -1182,6 +1182,24 @@ List sessions and their compact metadata (status, activity, working directory, p
     "createdBefore": {
       "type": "string",
       "description": "Only return sessions created at or before this time (ISO-8601 timestamp)."
+    }
+  }
+}
+```
+
+#### list_workspaces
+List distinct project roots and working directories known from existing sessions. Project roots are preferred so agents can start isolated work from the configured project instead of a transient worktree. Use a returned URI as the `workspace` for `create_session`.
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Optional case-insensitive text matched against workspace names and URIs."
+    },
+    "limit": {
+      "type": "number",
+      "description": "Maximum entries to return. Defaults to 20 and is capped at 50."
     }
   }
 }
