@@ -47,7 +47,11 @@ suite('ChatConfiguration defaults', () => {
 		return service;
 	}
 
-	/** Configuration service whose listed keys report a policy (managed settings) value. */
+	/**
+	 * Configuration service whose listed keys report a policy (managed settings) value. Only use
+	 * this for keys that actually declare a `policy` in their registration — the real
+	 * configuration service leaves `policyValue` undefined for every other key.
+	 */
 	class TestPolicyConfigurationService extends TestConfigurationService {
 		constructor(private readonly policyValues: Record<string, unknown>, configuration?: Record<string, unknown>) {
 			super({ ...configuration, ...policyValues });
@@ -606,31 +610,44 @@ suite('ChatConfiguration defaults', () => {
 		const managedOff = new TestPolicyConfigurationService({
 			[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.Off,
 		});
-		const managedWindows = new TestPolicyConfigurationService({
-			[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: AgentSandboxEnabledValue.On,
-		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
 		// A user- or workspace-level sandbox opt-in is not an enterprise decision, and a managed
-		// sandbox that is turned off enforces nothing. The Windows sandbox setting is managed
-		// separately, and is an equally valid governance signal.
+		// sandbox that is turned off enforces nothing.
 		assert.deepStrictEqual({
 			userLocalEnabled: isEditorLocalAgentEnabled(userEnabled, localWorkspace),
 			userComputed: getComputedDefaultSessionType(userEnabled, chatSessionsService, localWorkspace, true),
 			userFromLocal: resolveSessionType(userEnabled, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
 			managedOffLocalEnabled: isEditorLocalAgentEnabled(managedOff, localWorkspace),
 			managedOffComputed: getComputedDefaultSessionType(managedOff, chatSessionsService, localWorkspace, true),
-			managedWindowsLocalEnabled: isEditorLocalAgentEnabled(managedWindows, localWorkspace),
-			managedWindowsComputed: getComputedDefaultSessionType(managedWindows, chatSessionsService, localWorkspace, true),
 		}, {
 			userLocalEnabled: true,
 			userComputed: localChatSessionType,
 			userFromLocal: { sessionType: localChatSessionType },
 			managedOffLocalEnabled: true,
 			managedOffComputed: localChatSessionType,
-			managedWindowsLocalEnabled: false,
-			managedWindowsComputed: SessionType.AgentHostCopilot,
+		});
+	});
+
+	test('the Windows sandbox setting is not a governance signal', () => {
+		// `chat.agent.sandbox.enabledWindows` declares no policy, so it can never carry a policy
+		// value and must not be treated as an enterprise signal — otherwise a local user opt-in
+		// on Windows would silently retire the local harness.
+		const windowsUserEnabled = new TestConfigurationService({
+			[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: AgentSandboxEnabledValue.On,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storageService = disposables.add(new TestStorageService());
+
+		assert.deepStrictEqual({
+			localEnabled: isEditorLocalAgentEnabled(windowsUserEnabled, localWorkspace),
+			computed: getComputedDefaultSessionType(windowsUserEnabled, chatSessionsService, localWorkspace, true),
+			fromLocal: resolveSessionType(windowsUserEnabled, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
+		}, {
+			localEnabled: true,
+			computed: localChatSessionType,
+			fromLocal: { sessionType: localChatSessionType },
 		});
 	});
 

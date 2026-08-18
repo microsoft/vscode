@@ -50,7 +50,8 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService, PolicyValueSource } from '../../../platform/policy/common/policy.js';
-import { AgentSandboxSettingId } from '../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../platform/sandbox/common/settings.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { isVirtualWorkspace } from '../../../platform/workspace/common/virtualWorkspace.js';
 import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
@@ -1250,7 +1251,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			const policyValueLabel = (policyValue: unknown): string => policyValue !== undefined ? formatDiagnosticValue(policyValue) : 'not set';
 
 			content += '### Governance Signal\n\n';
-			content += '*Whether an administrator has turned the agent sandbox on. This is the input to the decision below, not the decision itself.*\n\n';
+			content += `*Whether an administrator has turned the agent sandbox on. This is the input to the decision below, not the decision itself. Only \`${AgentSandboxSettingId.AgentSandboxEnabled}\` is policy-backed; \`${AgentSandboxSettingId.AgentSandboxWindowsEnabled}\` declares no policy, so it cannot be enforced and is shown here for context only.*\n\n`;
 			content += markdownTable(
 				['Property', 'Value'],
 				[
@@ -1258,8 +1259,7 @@ class PolicyDiagnosticsAction extends Action2 {
 					[`${AgentSandboxSettingId.AgentSandboxEnabled} (policy)`, policyValueLabel(sandboxEnforcement.sandboxPolicyValue)],
 					[`${AgentSandboxSettingId.AgentSandboxEnabled} (policy source)`, policySourceLabel(AgentSandboxSettingId.AgentSandboxEnabled, sandboxEnforcement.sandboxPolicyValue)],
 					[`${AgentSandboxSettingId.AgentSandboxWindowsEnabled} (effective)`, formatDiagnosticValue(configurationService.inspect(AgentSandboxSettingId.AgentSandboxWindowsEnabled).value)],
-					[`${AgentSandboxSettingId.AgentSandboxWindowsEnabled} (policy)`, policyValueLabel(sandboxEnforcement.windowsSandboxPolicyValue)],
-					[`${AgentSandboxSettingId.AgentSandboxWindowsEnabled} (policy source)`, policySourceLabel(AgentSandboxSettingId.AgentSandboxWindowsEnabled, sandboxEnforcement.windowsSandboxPolicyValue)],
+					[`${AgentSandboxSettingId.AgentSandboxWindowsEnabled} (policy)`, 'not policy-backed'],
 					['Signal active', sandboxEnforcement.enforced ? 'yes' : 'no']
 				]
 			);
@@ -1270,6 +1270,11 @@ class PolicyDiagnosticsAction extends Action2 {
 			const virtualWorkspace = isVirtualWorkspace(workspaceContextService.getWorkspace());
 			const agentHostEnabled = agentHostEnablementService.enabled.get();
 			const applied = sandboxEnforcement.enforced && !virtualWorkspace && agentHostEnabled;
+			// Sandboxing itself is per-platform, so a fleet-wide policy can hide the local harness
+			// on a machine whose sandbox is not actually on. Report that rather than implying the
+			// enforced user is sandboxed.
+			const platformSandboxSettingId = isWindows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
+			const platformSandboxValue = configurationService.getValue<AgentSandboxEnabledSettingValue>(platformSandboxSettingId);
 			let localHarness: string;
 			let newChatHarness: string;
 			if (virtualWorkspace) {
@@ -1304,6 +1309,7 @@ class PolicyDiagnosticsAction extends Action2 {
 					['Workspace', virtualWorkspace ? 'Virtual' : 'Local or remote'],
 					['Agent Host enabled', agentHostEnabled ? 'yes' : 'no'],
 					['Enforcement applied', applied ? 'yes' : 'no'],
+					[`Sandbox active on this platform (${platformSandboxSettingId})`, isAgentSandboxEnabledValue(platformSandboxValue) ? 'yes' : 'no'],
 					['Legacy local harness', localHarness],
 					['New chat harness', newChatHarness]
 				]

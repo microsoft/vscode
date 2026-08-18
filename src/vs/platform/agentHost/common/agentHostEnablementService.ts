@@ -43,8 +43,6 @@ export interface IManagedSandboxHarnessEnforcement {
 	readonly enforced: boolean;
 	/** The policy value of `chat.agent.sandbox.enabled`, or `undefined` when it is not managed. */
 	readonly sandboxPolicyValue: AgentSandboxEnabledSettingValue | undefined;
-	/** The policy value of `chat.agent.sandbox.enabledWindows`, or `undefined` when it is not managed. */
-	readonly windowsSandboxPolicyValue: AgentSandboxEnabledSettingValue | undefined;
 }
 
 /**
@@ -52,19 +50,20 @@ export interface IManagedSandboxHarnessEnforcement {
  * or workspace opt-in to the sandbox deliberately does *not* count: only an administrator-enforced
  * sandbox retires the legacy local harness.
  *
- * Sandbox enablement is split per platform (`chat.agent.sandbox.enabled` covers macOS and Linux,
- * `chat.agent.sandbox.enabledWindows` covers Windows). Either one being managed on is treated as
- * the governance signal, so a fleet-wide policy behaves the same on every machine in that fleet.
+ * Only `chat.agent.sandbox.enabled` is consulted. Sandbox enablement is split per platform, but
+ * `chat.agent.sandbox.enabledWindows` declares no policy, so `inspect().policyValue` for it is
+ * always `undefined` and an administrator cannot enforce it — see the registrations in
+ * `terminalChatAgentToolsConfiguration.ts`. The enforceable setting is therefore treated as the
+ * fleet-wide governance signal on every platform, including Windows, where the sandbox itself
+ * stays off until the Windows setting is turned on locally.
  *
  * Existing local chat sessions keep working; only the harness used for *new* chats is affected.
  */
 export function getManagedSandboxHarnessEnforcement(configurationService: IConfigurationService): IManagedSandboxHarnessEnforcement {
 	const sandboxPolicyValue = configurationService.inspect<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxEnabled).policyValue;
-	const windowsSandboxPolicyValue = configurationService.inspect<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxWindowsEnabled).policyValue;
 	return {
-		enforced: isAgentSandboxEnabledValue(sandboxPolicyValue) || isAgentSandboxEnabledValue(windowsSandboxPolicyValue),
-		sandboxPolicyValue,
-		windowsSandboxPolicyValue
+		enforced: isAgentSandboxEnabledValue(sandboxPolicyValue),
+		sandboxPolicyValue
 	};
 }
 

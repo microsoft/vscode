@@ -192,8 +192,8 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				e.affectsConfiguration(ChatConfiguration.DefaultToCopilotHarness) ||
 				e.affectsConfiguration(ChatConfiguration.EditorLocalAgentEnabled) ||
 				// A policy-enforced sandbox hides the local harness and forces the Copilot SDK.
-				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) ||
-				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled)) {
+				// Only the non-Windows key is policy-backed, so only it can change the decision.
+				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled)) {
 				this._updateAgentSessionItems();
 				if (this.element) {
 					this.renderLabel(this.element);
