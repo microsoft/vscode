@@ -982,6 +982,13 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Ensure cancellation tracking is active
 					ensureCancellationTracking();
+
+					// A queued message the provider consumed arrives here under the
+					// id it was queued with, so the caller still awaiting
+					// `sendRequest` is told it was sent rather than left hanging.
+					// The queue-removal path reports cancellation, which is right
+					// for a message the user withdrew and wrong for this one.
+					this.settleConsumedPendingRequest(id, lastRequest, agent, disposables);
 				}));
 			}
 
@@ -2201,6 +2208,46 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
+	/**
+	 * Settle a queued message's `sendRequest` promise once the provider has
+	 * consumed it and the request exists. Distinct from
+	 * {@link removePendingRequest}, which retires a message the user withdrew
+	 * and therefore reports cancellation: a consumed message was delivered and
+	 * is being answered, so reporting it as cancelled tells every awaiting
+	 * caller the opposite of what happened.
+	 */
+	private settleConsumedPendingRequest(requestId: string, request: ChatRequestModel, agent: IChatAgentData | undefined, store: DisposableStore): void {
+		const deferred = this._queuedRequestDeferreds.get(requestId);
+		const response = request.response;
+		if (!deferred || !agent || !response) {
+			return;
+		}
+		this._queuedRequestDeferreds.delete(requestId);
+
+		const completed = new DeferredPromise<void>();
+		if (response.isComplete) {
+			completed.complete();
+		} else {
+			// Owned by the session's store: a response that never completes (the
+			// session is closed mid-turn) must not leave a listener behind.
+			const listener = store.add(response.onDidChange(() => {
+				if (response.isComplete) {
+					listener.dispose();
+					completed.complete();
+				}
+			}));
+		}
+
+		deferred.complete({
+			kind: 'sent',
+			data: {
+				agent,
+				responseCreatedPromise: Promise.resolve(response),
+				responseCompletePromise: completed.p,
+			},
+		});
+	}
+
 	setPendingRequests(sessionResource: URI, requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void {
 		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
 		if (model) {
@@ -2208,13 +2255,16 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	syncPendingRequestsFromRemote(sessionResource: URI, requests: readonly IRemotePendingRequest[]): void {
+	syncPendingRequestsFromRemote(sessionResource: URI, requests: readonly IRemotePendingRequest[], consumedRequestId?: string): void {
 		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
 		if (!model) {
 			return;
 		}
 
-		const existing = model.getPendingRequests();
+		// A copy: `getPendingRequests` hands back the model's live array, and
+		// `replacePendingRequests` below empties it in place, so retaining the
+		// reference would leave the settlement loop with nothing to iterate.
+		const existing = [...model.getPendingRequests()];
 		const existingById = new Map(existing.map(request => [request.request.id, request]));
 		const reconciled: IChatPendingRequest[] = requests.map(remote => {
 			const variableData = remote.variableData ?? { variables: [] };
@@ -2243,6 +2293,13 @@ export class ChatService extends Disposable implements IChatService {
 
 		for (const local of existing) {
 			if (reconciledIds.has(local.request.id)) {
+				continue;
+			}
+			if (local.request.id === consumedRequestId) {
+				// Left the queue because the provider is running it. The request
+				// created for it settles the caller's promise as sent; rejecting
+				// here would report the opposite, and would race that settlement
+				// since both follow the same provider state change.
 				continue;
 			}
 			const deferred = this._queuedRequestDeferreds.get(local.request.id);
