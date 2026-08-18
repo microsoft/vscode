@@ -608,7 +608,7 @@ export interface IVoiceClientService {
 	disconnect(): void;
 
 	// --- Outbound messages ---
-	sendPttStart(turnId: string, passive?: boolean): void;
+	sendPttStart(turnId: string, hasActiveSession: boolean, passive?: boolean): void;
 	sendPttAudioChunk(audio: string): void;
 	sendPttEnd(): void;
 	/**

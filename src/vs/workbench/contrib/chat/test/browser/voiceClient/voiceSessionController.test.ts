@@ -87,6 +87,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override disconnect(): void { this.connected = false; }
 	override async connect(): Promise<void> { }
 	readonly wireEvents: ({ type: 'session_context'; context: IVoiceSessionContext } | { type: 'request_narration'; kind: VoiceNarrationKind; text: string; confirmationType?: VoiceConfirmationType })[] = [];
+	readonly pttStarts: { turnId: string; hasActiveSession: boolean; passive: boolean }[] = [];
 	pttEndCalls = 0;
 	private pendingContext: IVoiceSessionContext | undefined;
 	override sendSessionContext(context: IVoiceSessionContext): void {
@@ -128,6 +129,9 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	}
 	override sendPttEnd(): void {
 		this.pttEndCalls++;
+	}
+	override sendPttStart(turnId: string, hasActiveSession: boolean, passive: boolean = false): void {
+		this.pttStarts.push({ turnId, hasActiveSession, passive });
 	}
 
 	fireAudioResponse(event: IVoiceAudioResponse): void {
@@ -324,7 +328,8 @@ class DeferredFirstTtsPlaybackService extends TestTtsPlaybackService {
 }
 
 class TestMicCaptureService extends mock<IMicCaptureService>() {
-	override readonly onPttStart = Event.None;
+	private readonly pttStartEmitter = new Emitter<boolean>();
+	override readonly onPttStart = this.pttStartEmitter.event;
 	override readonly onPttAudioChunk = Event.None;
 	override readonly onPttEnd = Event.None;
 	override readonly onPttDiagnostic = Event.None;
@@ -341,6 +346,10 @@ class TestMicCaptureService extends mock<IMicCaptureService>() {
 	}
 	override pttUp(): void { }
 	override abortPtt(): void { }
+
+	firePttStart(passive: boolean): void {
+		this.pttStartEmitter.fire(passive);
+	}
 }
 
 class TestAgentSessionsService extends mock<IAgentSessionsService>() {
@@ -771,6 +780,35 @@ suite('VoiceSessionController', () => {
 		};
 		return { changeEmitter, parts, response: state as unknown as IChatResponseModel, state };
 	}
+
+	test('reports whether a coding session is in progress when each voice request starts', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const micCaptureService = new TestMicCaptureService();
+		const session = agentSessionEntry('vscode-chat://session', 'Test session', AgentSessionStatus.Completed);
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			undefined,
+			undefined,
+			undefined,
+			new TestAgentSessionsService([session]),
+		);
+		await connectWithOmniOpen(controller, voiceClientService);
+
+		controller['_pttCurrentTurnId'] = 'turn-idle';
+		micCaptureService.firePttStart(false);
+		session.status = AgentSessionStatus.InProgress;
+		controller['_pttCurrentTurnId'] = 'turn-active';
+		micCaptureService.firePttStart(true);
+
+		assert.deepStrictEqual(voiceClientService.pttStarts, [
+			{ turnId: 'turn-idle', hasActiveSession: false, passive: false },
+			{ turnId: 'turn-active', hasActiveSession: true, passive: true },
+		]);
+	});
 
 	test('does not connect without a paid Copilot entitlement', async () => {
 		const voiceClientService = new TestVoiceClientService();
