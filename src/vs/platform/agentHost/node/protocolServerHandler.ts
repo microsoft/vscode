@@ -15,7 +15,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
@@ -66,6 +66,7 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -371,11 +372,11 @@ export class ProtocolServerHandler extends Disposable {
 		private readonly _config: IProtocolServerConfig,
 		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 	) {
 		super();
-		this._telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
+		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._connectionTelemetryTracker = this._config.connectionTelemetryTracker ?? this._register(new AgentHostClientConnectionTelemetryTracker());
 
 		this._register(this._server.onConnection(transport => {
@@ -596,6 +597,7 @@ export class ProtocolServerHandler extends Disposable {
 		}
 
 		const previousRecord = this._clients.get(params.clientId);
+		this._applyClientTelemetryLevel(params._meta);
 		const telemetryTransportToken = {};
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
@@ -736,6 +738,7 @@ export class ProtocolServerHandler extends Disposable {
 		if (!existingRecord) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Reconnect client not found: ${params.clientId}`);
 		}
+		this._applyClientTelemetryLevel(params._meta);
 
 		// Synchronously install the client so messages arriving on this transport
 		// while we restore subscriptions can find a valid client object. The
@@ -1192,6 +1195,13 @@ export class ProtocolServerHandler extends Disposable {
 			...(machineId ? { machineId } : {}),
 			...(devDeviceId ? { devDeviceId } : {}),
 		};
+	}
+
+	private _applyClientTelemetryLevel(meta: Record<string, unknown> | undefined): void {
+		const telemetryLevel = readClientTelemetryLevel(meta);
+		if (telemetryLevel !== undefined && isAgentHostTelemetryService(this._telemetryService)) {
+			this._telemetryService.updateTelemetryLevel(telemetryLevel);
+		}
 	}
 
 	private _reportClientDisconnected(client: IConnectedClient, subscriptionCount: number): void {

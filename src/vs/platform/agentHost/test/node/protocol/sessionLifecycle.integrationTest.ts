@@ -14,6 +14,7 @@ import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registr
 import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
 import { buildDefaultChatUri, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type MarkdownResponsePart, type ISessionWithDefaultChat, type ToolCallResponsePart } from '../../../common/state/sessionState.js';
 import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../common/agentService.js';
+import { AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey } from '../../../common/agentHostSchema.js';
 import { PRE_EXISTING_SESSION_URI } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
@@ -129,7 +130,25 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		// through the server's handleCreateSession -- simulating a session
 		// from a previous server lifetime.
 		const preExistingUri = PRE_EXISTING_SESSION_URI.toString();
+		client.notify('dispatchAction', {
+			channel: ROOT_STATE_URI,
+			clientSeq: 1,
+			action: {
+				type: 'root/configChanged',
+				config: { [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All },
+			},
+		});
+		await client.call('ping');
 		const list = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+		client.notify('dispatchAction', {
+			channel: ROOT_STATE_URI,
+			clientSeq: 2,
+			action: {
+				type: 'root/configChanged',
+				config: { [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.None },
+			},
+		});
+		await client.call('ping');
 		const preExisting = list.items.find(s => s.resource === preExistingUri);
 		assert.ok(preExisting, 'listSessions should include the pre-existing session');
 

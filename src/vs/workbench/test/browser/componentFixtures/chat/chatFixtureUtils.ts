@@ -27,6 +27,7 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -44,6 +45,7 @@ import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSes
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
@@ -57,6 +59,7 @@ import { IChatContextPickService } from '../../../../contrib/chat/browser/attach
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { IChatInputNoticeHubService } from '../../../../contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../contrib/chat/browser/chatSubmitRequestHandlerService.js';
@@ -157,6 +160,11 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	// overflow nodes (suggest widget, post-paste selector); the fixture document body
 	// is the closest equivalent.
 	reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() { override onDidChangePartVisibility = Event.None; override onDidChangeWindowMaximized = Event.None; override isVisible() { return true; } override getContainer(targetWindow: Window): HTMLElement { return targetWindow.document.body; } }());
+	reg.defineInstance(IHostService, new class extends mock<IHostService>() {
+		override readonly hasFocus = true;
+		override readonly onDidChangeFocus = Event.None;
+		override readonly onDidChangeActiveWindow = Event.None;
+	}());
 	reg.defineInstance(IViewDescriptorService, new class extends mock<IViewDescriptorService>() { override onDidChangeLocation = Event.None; }());
 	reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
 	reg.defineInstance(ISCMService, new class extends mock<ISCMService>() {
@@ -194,10 +202,12 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly variant = observableValue('chatPetVariant', 'stable' as const);
 		override readonly onTheRun = observableValue('chatPetOnTheRun', false);
 		override readonly scale = observableValue('chatPetScale', 1);
+		override readonly horizontalPosition = observableValue<number | undefined>('chatPetHorizontalPosition', undefined);
 		override toggle() { return false; }
 		override setVariant() { }
 		override setOnTheRun() { }
 		override setScale(scale: number) { this.scale.set(scale, undefined); }
+		override setHorizontalPosition(position: number) { this.horizontalPosition.set(position, undefined); }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;
@@ -226,6 +236,12 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
 		override readonly isVisible = false;
 		override registerHost() { return Disposable.None; }
+	}());
+	reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
+		override readonly onDidChangeState = Event.None;
+		override readonly onDidChangePreparingModel = Event.None;
+		override readonly state = ChatSpeechToTextState.Idle;
+		override readonly isPreparingModel = false;
 	}());
 	reg.defineInstance(IVoiceModeOnboardingService, new class extends mock<IVoiceModeOnboardingService>() {
 		override readonly isVisible = false;
@@ -341,6 +357,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() {
 		override readonly onDidChangeFolder = Event.None;
 		override getFolder() { return undefined; }
+	}());
+	reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+		override readonly onDidChangeCustomizations = Event.None;
+		override getFolderPickerDecision() { return undefined; }
 	}());
 	reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
 		override readonly enabled = constObservable(false);
