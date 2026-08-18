@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
-import { CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetShakeController, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -602,6 +602,49 @@ suite('ChatPetWidget', () => {
 			false,
 			true,
 		]);
+	});
+
+	test('shakes the pet loose after an aggressive shake and ignores lazy or short swings', () => {
+		const controller = new ChatPetShakeController(3, 10, 200);
+
+		assert.deepStrictEqual({
+			shortSwings: [
+				controller.record(100, 0),
+				controller.record(106, 20),
+				controller.record(100, 40),
+				controller.record(106, 60),
+				controller.record(100, 80),
+				controller.record(106, 100),
+			],
+			aggressiveShake: [
+				controller.record(140, 120),
+				controller.record(100, 140),
+				controller.record(140, 160),
+				controller.record(100, 180),
+			],
+			lazyShake: [
+				controller.record(140, 200),
+				controller.record(100, 600),
+				controller.record(140, 1_000),
+				controller.record(100, 1_400),
+			],
+		}, {
+			shortSwings: [false, false, false, false, false, false],
+			aggressiveShake: [false, false, false, true],
+			lazyShake: [false, false, false, false],
+		});
+	});
+
+	test('does not mistake a single throwing flick for a shake', () => {
+		const controller = new ChatPetShakeController();
+
+		assert.deepStrictEqual([
+			controller.record(100, 0),
+			controller.record(200, 16),
+			controller.record(320, 32),
+			controller.record(460, 48),
+			controller.record(600, 64),
+		], [false, false, false, false, false]);
 	});
 
 	test('maps activity and interaction states to their sprites', () => {

@@ -70,6 +70,9 @@ const THROW_CEILING_RESTITUTION = 0.2;
 const THROW_ROTATION_PER_PIXEL = 0.65;
 const THROW_SELF_RIGHTING_START_VELOCITY = -450;
 const THROW_SELF_RIGHTING_SPEED = 720;
+const SHAKE_SWING_COUNT = 6;
+const SHAKE_MINIMUM_SWING_DISTANCE = 16;
+const SHAKE_MAXIMUM_SWING_INTERVAL = 260;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
@@ -692,6 +695,77 @@ export class ChatPetDirectionChangeController {
 	}
 }
 
+type ChatPetShakeDirection = -1 | 1;
+
+/**
+ * Detects an aggressive back and forth shake of the pointer while the pet is being dragged. A swing
+ * only counts once the pointer has travelled far enough against its current direction, so ordinary
+ * dragging and single throwing flicks never register as a shake.
+ */
+export class ChatPetShakeController {
+
+	private _extreme: number | undefined;
+	private _direction: ChatPetShakeDirection | undefined;
+	private _swingCount = 0;
+	private _lastSwingTime: number | undefined;
+
+	constructor(
+		private readonly swingCount = SHAKE_SWING_COUNT,
+		private readonly minimumSwingDistance = SHAKE_MINIMUM_SWING_DISTANCE,
+		private readonly maximumSwingInterval = SHAKE_MAXIMUM_SWING_INTERVAL,
+	) { }
+
+	/**
+	 * Records a horizontal pointer position and returns whether the shake has become aggressive
+	 * enough to shake the pet loose.
+	 */
+	record(x: number, timestamp: number): boolean {
+		if (this._extreme === undefined) {
+			this._extreme = x;
+			return false;
+		}
+
+		const delta = x - this._extreme;
+		if (delta === 0) {
+			return false;
+		}
+
+		const direction: ChatPetShakeDirection = delta < 0 ? -1 : 1;
+		if (direction === this._direction) {
+			this._extreme = x;
+			return false;
+		}
+		if (Math.abs(delta) < this.minimumSwingDistance) {
+			return false;
+		}
+
+		const wasSwinging = this._direction !== undefined;
+		this._direction = direction;
+		this._extreme = x;
+		if (!wasSwinging) {
+			return false;
+		}
+		if (this._lastSwingTime !== undefined && timestamp - this._lastSwingTime > this.maximumSwingInterval) {
+			this._swingCount = 0;
+		}
+
+		this._lastSwingTime = timestamp;
+		if (++this._swingCount < this.swingCount) {
+			return false;
+		}
+
+		this.reset();
+		return true;
+	}
+
+	reset(): void {
+		this._extreme = undefined;
+		this._direction = undefined;
+		this._swingCount = 0;
+		this._lastSwingTime = undefined;
+	}
+}
+
 export function getChatPetHorizontalPosition(left: number, minimumLeft: number, maximumLeft: number): number {
 	return Math.max(minimumLeft, Math.min(Math.max(minimumLeft, maximumLeft), left));
 }
@@ -966,6 +1040,7 @@ export class ChatPetWidget extends Disposable {
 	private readonly _blinkController: ChatPetBlinkController;
 	private readonly _facingController = new ChatPetFacingController();
 	private readonly _directionChangeController = new ChatPetDirectionChangeController();
+	private readonly _shakeController = new ChatPetShakeController();
 	private readonly _gazeScheduler: dom.AnimationFrameScheduler;
 	private readonly _dragMonitor = this._register(new GlobalPointerMoveMonitor());
 	private readonly _idleExpired = observableValue(this, false);
@@ -998,6 +1073,7 @@ export class ChatPetWidget extends Disposable {
 		onRequest: () => this._transientScheduler.schedule(HOP_IDLE_DEBOUNCE),
 	}));
 	private readonly _contextMenuActions = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _shakeClickSuppression = this._register(new MutableDisposable());
 	private _cursorPosition: readonly [number, number] | undefined;
 	private _activeSprite: ChatPetSpriteElement | undefined;
 	private _pendingSprite: ChatPetSpriteElement | undefined;
@@ -1014,6 +1090,7 @@ export class ChatPetWidget extends Disposable {
 	private _contextMenuVisible = false;
 	private _lastClickInteraction: ChatPetClickInteraction | undefined;
 	private _fallLandsOnPlatform = false;
+	private _shakenLoose = false;
 	private _throwWallImpact: ChatPetWall | undefined;
 	private _throwGeometryDirty = false;
 	private _deathPosition: readonly [number, number] | undefined;
@@ -1409,6 +1486,8 @@ export class ChatPetWidget extends Disposable {
 		const startLeft = buttonBounds.left - overlayBounds.left;
 		const startTop = buttonBounds.top - overlayBounds.top;
 		let didDrag = false;
+		let shaken = false;
+		this._shakeController.reset();
 
 		this._dragMonitor.startMonitoring(this._button.element, event.pointerId, event.buttons, moveEvent => {
 			const deltaX = moveEvent.clientX - startX;
@@ -1432,10 +1511,19 @@ export class ChatPetWidget extends Disposable {
 			}
 			dom.EventHelper.stop(moveEvent, true);
 			this._setDragPosition(startLeft + deltaX, startTop + deltaY);
+			shaken = this._shakeController.record(moveEvent.clientX, sampleTime);
+			if (shaken) {
+				status(localize('chatPet.shakenLoose', "The VS Code pet was shaken silly and dropped dizzy"));
+				this._dragMonitor.stopMonitoring(true);
+			}
 		}, () => {
 			this._button.element.classList.remove('dragging', 'resisting', 'soft-resisting');
-			if (didDrag) {
-				this._suppressNextPointerClick = true;
+			if (!didDrag) {
+				return;
+			}
+
+			this._suppressNextPointerClick = true;
+			if (!shaken) {
 				this._clickSuppressionScheduler.schedule();
 				const throwVelocity = getChatPetThrowVelocity(pointerSamples, targetWindow.performance.now());
 				if (!this._motionReduced && throwVelocity) {
@@ -1443,7 +1531,17 @@ export class ChatPetWidget extends Disposable {
 				} else {
 					this._beginFall();
 				}
+				return;
 			}
+
+			// A shake ends the drag while the pointer is still down, so the click has to stay
+			// suppressed until the pointer is actually released.
+			this._shakeClickSuppression.value = dom.addDisposableListener(targetWindow, dom.EventType.POINTER_UP, () => {
+				this._shakeClickSuppression.clear();
+				this._clickSuppressionScheduler.schedule();
+			});
+			this._shakenLoose = true;
+			this._beginFall('dizzy');
 		});
 	}
 
@@ -1658,7 +1756,7 @@ export class ChatPetWidget extends Disposable {
 		return this._button.element.classList.contains('falling') || this._button.element.classList.contains('throwing');
 	}
 
-	private _beginFall(): void {
+	private _beginFall(airborneState: Extract<ChatPetState, 'falling' | 'dizzy'> = 'falling'): void {
 		const top = Number.parseFloat(this._button.element.style.top);
 		const target = this._getFallTarget();
 		this._transientScheduler.cancel();
@@ -1669,9 +1767,9 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.classList.remove('throwing');
 		this._button.element.classList.remove('resisting', 'soft-resisting');
 		this._fallLandsOnPlatform = target.landsOnPlatform;
-		this._transientState.set('falling', undefined);
+		this._transientState.set(airborneState, undefined);
 		this._isDragging.set(false, undefined);
-		this._renderState('falling', true);
+		this._renderState(airborneState, true);
 		this._button.element.style.transitionDuration = `${getChatPetFallDuration(target.top - top)}ms`;
 		this._button.element.getBoundingClientRect();
 		this._button.element.classList.add('falling');
@@ -1691,6 +1789,8 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _completeFall(announce: boolean, wallImpact?: ChatPetWall): void {
+		const shakenLoose = this._shakenLoose;
+		this._shakenLoose = false;
 		if (this._fallLandsOnPlatform) {
 			const respawned = this._respawnPhase === 'falling';
 			this._respawnPhase = 'none';
@@ -1698,9 +1798,11 @@ export class ChatPetWidget extends Disposable {
 			const left = this._getCurrentLeft();
 			this._setPlatformPosition(left);
 			if (announce) {
-				this._showTransientState('splat');
+				this._showTransientState(shakenLoose ? 'dizzy' : 'splat', !shakenLoose);
 				if (respawned) {
 					status(localize('chatPet.respawned', "The VS Code pet respawned"));
+				} else if (shakenLoose) {
+					status(localize('chatPet.shakenDizzy', "The VS Code pet landed dizzy on the chat input"));
 				} else if (wallImpact === 'left') {
 					status(localize('chatPet.bouncedOffLeftWall', "The VS Code pet bounced off the left wall and landed on the chat input"));
 				} else if (wallImpact === 'right') {
@@ -2173,6 +2275,8 @@ export class ChatPetWidget extends Disposable {
 		if (this._isDragging.get()) {
 			this._isDragging.set(false, undefined);
 		}
+		this._shakenLoose = false;
+		this._shakeController.reset();
 		this._throwAnimation.clear();
 		this._throwGeometryDirty = false;
 		this._button.element.style.transform = '';
