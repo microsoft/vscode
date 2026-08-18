@@ -55,7 +55,7 @@ capture enabled the recording shows unmodified UI, and step boundaries are still
 Add the step titles back afterwards, once the recording is finished:
 
 ```bash
-node test/mcp/scripts/render-evidence-chapters.mjs .build/vscode-playwright-mcp/evidence/<run-id>
+node test/mcp/out/renderEvidenceChapters.js .build/vscode-playwright-mcp/evidence/<run-id>
 ```
 
 This writes `videos/annotated.mp4` with a full-screen card before each step, inserted between
