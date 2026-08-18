@@ -46,8 +46,11 @@ class TypeofValidator<TKey extends keyof TypeOfMap> extends ValidatorBase<TypeOf
 	}
 
 	validate(content: unknown): { content: TypeOfMap[TKey]; error: undefined } | { content: undefined; error: ValidationError } {
-		if (typeof content !== this.type) {
-			return { content: undefined, error: { message: `Expected ${this.type}, but got ${typeof content}` } };
+		// `typeof null === 'object'`, so a plain typeof check lets null through vObjAny(),
+		// whose declared type and `{ type: 'object' }` schema both exclude it. ObjValidator
+		// rejects null the same way.
+		if (typeof content !== this.type || (this.type === 'object' && content === null)) {
+			return { content: undefined, error: { message: `Expected ${this.type}, but got ${content === null ? 'null' : typeof content}` } };
 		}
 
 		return { content: content as TypeOfMap[TKey], error: undefined };
