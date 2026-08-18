@@ -20,7 +20,8 @@ import { ThrottledDebouncer } from './throttledDebounce';
 import { ContextItemSummary, ErrorLocation, ErrorPart, type OnCachePopulatedEvent, type OnContextComputedEvent, type OnContextComputedOnTimeoutEvent } from './types';
 import { TS6LanguageContextService } from './tsc6/tsContextService';
 import { TS7LanguageContextService } from './ts7/tsContextService';
-import { currentTokenBudget, NullTSLanguageContextService, TypeScript, type TSLanguageContextService } from './tsContextService';
+import { currentTokenBudget, NullTSLanguageContextService, type TSLanguageContextService } from './tsContextService';
+import { TypeScript } from './tsService';
 import { TelemetrySender } from './telemetrySender';
 
 export class LanguageContextServiceImpl implements ILanguageContextService, vscode.Disposable {
@@ -46,7 +47,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		this._onContextComputed = new vscode.EventEmitter<OnContextComputedEvent>();
 		this._onContextComputedOnTimeout = new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>();
 		const runsTS7 = TypeScript.runsVersion7();
-		const enableTS7 = this.enableTS7LanguageContext();
+		const enableTS7 = TypeScript.isVersion7SupportEnabled(this.configurationService);
 		this.tsLanguageContextService = runsTS7
 			? enableTS7
 				? new TS7LanguageContextService(this.telemetryService, this.configurationService, this.experimentationService, this.logService)
@@ -97,7 +98,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 
 	private updateTSLanguageContextService(): void {
 		const runsTS7 = TypeScript.runsVersion7();
-		const enableTS7 = this.enableTS7LanguageContext();
+		const enableTS7 = TypeScript.isVersion7SupportEnabled(this.configurationService);
 		const oldService: TSLanguageContextService = this.tsLanguageContextService;
 		if (runsTS7) {
 			if (oldService instanceof TS6LanguageContextService) {
@@ -127,9 +128,6 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		this.tsLanguageContextService.onContextComputedOnTimeout(this._onContextComputedOnTimeout.fire.bind(this._onContextComputedOnTimeout));
 	}
 
-	private enableTS7LanguageContext(): boolean {
-		return this.configurationService.getConfig(ConfigKey.TypeScript7LanguageContext) ?? false;
-	}
 }
 
 interface TokenBudgetProvider {

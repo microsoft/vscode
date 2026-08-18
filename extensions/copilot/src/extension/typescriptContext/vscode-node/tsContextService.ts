@@ -18,14 +18,6 @@ import { TelemetrySender } from './telemetrySender';
 
 export const currentTokenBudget: number = 8 * 1024;
 
-export namespace TypeScript {
-	export const versionKey = 'js/ts.experimental.useTsgo';
-	export function runsVersion7(): boolean {
-		const value = vscode.workspace.getConfiguration('js/ts.experimental').get<boolean>('useTsgo', false);
-		return value === true;
-	}
-}
-
 type RequestInfo = {
 	readonly document: string;
 	readonly version: number;

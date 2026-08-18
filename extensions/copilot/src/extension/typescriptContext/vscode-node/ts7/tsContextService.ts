@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as inspector from 'inspector';
 
-import { API } from '@typescript/native/unstable/async';
+import type { API } from '@typescript/native/unstable/async';
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { type ContextItem, type RequestContext, KnownSources } from '../../../../platform/languageServer/common/languageContextService';
@@ -19,11 +19,7 @@ import { AbstractTSLanguageContextService, currentTokenBudget } from '../tsConte
 import { computeContext as computeServerContext } from './api';
 import { CharacterBudget, ComputeContextSession, ContextResult, RequestContext as ServerRequestContext, TokenBudgetExhaustedError } from './contextProvider';
 import { CancellationTokenWithTimer, OperationCanceledException } from './typescripts';
-
-interface NativePreviewExtensionApi {
-	onLanguageServerInitialized: vscode.Event<void>;
-	initializeAPIConnection(pipePath?: string): Promise<string>;
-}
+import { TypeScript7Api } from './ts7Api';
 
 class PendingRequestInfo {
 	public readonly document: string;
@@ -96,9 +92,7 @@ class OnTimeoutData {
 export class TS7LanguageContextService extends AbstractTSLanguageContextService {
 	private static readonly defaultCachePopulationRaceTimeout: number = 20;
 
-	private api: API<true> | undefined;
-	private apiPromise: Promise<API<true> | undefined> | undefined;
-	private nativePreviewApi: NativePreviewExtensionApi | undefined;
+	private readonly nativeApi: TypeScript7Api;
 	private readonly isDebugging: boolean;
 	private pendingRequest: PendingRequestInfo | undefined;
 	private inflightCachePopulationRequest: InflightRequestInfo | undefined;
@@ -112,17 +106,13 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 	) {
 		super(telemetryService, logService, configurationService, experimentationService);
 		this.isDebugging = inspector?.url() !== undefined;
+		this.nativeApi = this.disposables.add(new TypeScript7Api(logService));
+		this.disposables.add(this.nativeApi.onDidReconnect(() => this.reconnect()));
 	}
 
 	public override dispose(): void {
 		this.inflightCachePopulationRequest?.cancel();
 		this.inflightCachePopulationRequest = undefined;
-		const api = this.api;
-		this.api = undefined;
-		this.apiPromise = undefined;
-		if (api !== undefined) {
-			api.close().catch(error => this.logService.error(error, 'Error closing TypeScript 7 API connection'));
-		}
 		this.runnableResultManager.dispose();
 		this.neighborFileModel.dispose();
 		super.dispose();
@@ -396,35 +386,7 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 	}
 
 	private async getApi(): Promise<API<true> | undefined> {
-		if (this.api !== undefined) {
-			return this.api;
-		}
-		if (this.apiPromise === undefined) {
-			this.apiPromise = this.createApi();
-		}
-		return this.apiPromise;
-	}
-
-	private async createApi(): Promise<API<true> | undefined> {
-		try {
-			if (this.nativePreviewApi === undefined) {
-				const extension = vscode.extensions.getExtension<NativePreviewExtensionApi>('typescriptteam.native-preview');
-				if (extension === undefined) {
-					return undefined;
-				}
-				this.nativePreviewApi = await extension.activate();
-				this.disposables.add(this.nativePreviewApi.onLanguageServerInitialized(() => this.reconnect()));
-			}
-			const pipe = await this.nativePreviewApi.initializeAPIConnection();
-			const api = await API.fromLSPConnection({ pipe });
-			this.api = api;
-			return api;
-		} catch (error) {
-			this.logService.error(error, 'Error connecting to the TypeScript 7 API');
-			return undefined;
-		} finally {
-			this.apiPromise = undefined;
-		}
+		return this.nativeApi.getApi();
 	}
 
 	private reconnect(): void {
@@ -432,12 +394,6 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 		this.inflightCachePopulationRequest = undefined;
 		this.pendingRequest = undefined;
 		this.onTimeoutData = undefined;
-		const api = this.api;
-		this.api = undefined;
-		this.apiPromise = undefined;
 		this.runnableResultManager.clear();
-		if (api !== undefined) {
-			api.close().catch(error => this.logService.error(error, 'Error closing stale TypeScript 7 API connection'));
-		}
 	}
 }

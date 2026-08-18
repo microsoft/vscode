@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Project } from '@typescript/native/unstable/async';
+import type { API, Project, Snapshot } from '@typescript/native/unstable/async';
 import {
 	SyntaxKind,
 	isArrowFunction,
@@ -19,12 +19,14 @@ import {
 	type Node,
 	type SourceFile,
 } from '@typescript/native/unstable/ast';
+import * as protocol from '../../common/serverProtocol';
 import { CompilerOptionsRunnable } from './baseContextProviders';
 import { ClassContextProvider } from './classContextProvider';
 import { ContextProvider, ContextRunnableCollector, type ComputeContextSession, type ContextProviderFactory, type ContextResult, type ContextRunnable, type ProviderComputeContext, type RequestContext } from './contextProvider';
 import { FunctionContextProvider } from './functionContextProvider';
 import { AccessorProvider, ConstructorContextProvider, MethodContextProvider } from './methodContextProvider';
 import { ModuleContextProvider } from './moduleContextProvider';
+import { PrepareNesRenameResult, validateNesRename } from './nesRenameValidator';
 import { SourceFileContextProvider } from './sourceFileContextProvider';
 import { RecoverableError } from './types';
 import tss, { type CancellationTokenWithTimer } from './typescripts';
@@ -134,4 +136,144 @@ export async function computeContext(result: ContextResult, session: ComputeCont
 	}
 	const tokenInfo = tss.getRelevantTokens(sourceFile, position);
 	await new ContextProviders(tokenInfo).execute(result, session, project, token);
+}
+
+export async function prepareNesRename<FromLSP extends boolean>(result: PrepareNesRenameResult, api: API<FromLSP>, snapshot: Snapshot, project: Project, document: SourceFile, position: number, oldName: string | undefined, newName: string | undefined, lastSymbolRename: protocol.Range | undefined, token: CancellationTokenWithTimer): Promise<void> {
+	if (typeof oldName !== 'string' || oldName.length === 0) {
+		result.setCanRename(protocol.RenameKind.no, 'No old name provided');
+		return;
+	}
+	if (typeof newName !== 'string' || newName.length === 0) {
+		result.setCanRename(protocol.RenameKind.no, 'No new name provided');
+		return;
+	}
+
+	const state = await doPrepareNesRename(result, project, document, position, oldName, newName, token);
+	if (state !== PrepareState.unavailable || lastSymbolRename === undefined) {
+		return;
+	}
+
+	const [oldText, oldPosition] = getOldText(document, position, oldName, newName, lastSymbolRename);
+	await api.runWithTemporaryFileUpdate(snapshot, document.fileName, oldText, async updatedSnapshot => {
+		const updatedProject = await getUpdatedProject(updatedSnapshot, project, document.fileName);
+		const updatedSourceFile = await updatedProject?.program.getSourceFile(document.fileName);
+		if (updatedProject === undefined || updatedSourceFile === undefined) {
+			result.setCanRename(protocol.RenameKind.no, 'No source file found for document');
+			return;
+		}
+		const updatedState = await doPrepareNesRename(result, updatedProject, updatedSourceFile, oldPosition, oldName, newName, token);
+		if (updatedState === PrepareState.prepared && (result.getCanRename() === protocol.RenameKind.maybe || result.getCanRename() === protocol.RenameKind.yes)) {
+			result.setOnOldState(true);
+		}
+	});
+}
+
+export async function nesRename<FromLSP extends boolean>(api: API<FromLSP>, snapshot: Snapshot, project: Project, document: SourceFile, position: number, oldName: string | undefined, newName: string | undefined, lastSymbolRename: protocol.Range | undefined, token: CancellationTokenWithTimer): Promise<protocol.RenameGroup[]> {
+	if (oldName === undefined || newName === undefined || lastSymbolRename === undefined) {
+		return [];
+	}
+
+	const [oldText, oldPosition] = getOldText(document, position, oldName, newName, lastSymbolRename);
+	const groups = new Map<string, protocol.RenameGroup>();
+	const seen = new Set<string>();
+	await api.runWithTemporaryFileUpdate(snapshot, document.fileName, oldText, async updatedSnapshot => {
+		const updatedProject = await getUpdatedProject(updatedSnapshot, project, document.fileName);
+		const updatedSourceFile = await updatedProject?.program.getSourceFile(document.fileName);
+		if (updatedProject === undefined || updatedSourceFile === undefined) {
+			return;
+		}
+		const renameTarget = getRenameTarget(updatedSourceFile, oldPosition, oldName);
+		if (renameTarget.node.getText(updatedSourceFile) !== oldName) {
+			return;
+		}
+		const referencedSymbols = await updatedProject.languageService.getReferencedSymbolsForNode(renameTarget.node, renameTarget.position);
+		for (const referencedSymbol of referencedSymbols) {
+			for (const reference of referencedSymbol.references) {
+				token.throwIfCancellationRequested();
+				const node = await reference.resolve(updatedProject);
+				if (node === undefined) {
+					continue;
+				}
+				const sourceFile = node.getSourceFile();
+				const startPosition = node.getStart(sourceFile);
+				const endPosition = node.getEnd();
+				const key = `${sourceFile.path}:${startPosition}:${endPosition}`;
+				if (seen.has(key)) {
+					continue;
+				}
+				seen.add(key);
+				const start = sourceFile.getLineAndCharacterOfPosition(startPosition);
+				const end = sourceFile.getLineAndCharacterOfPosition(endPosition);
+				const delta = newName.length - oldName.length;
+				if (
+					sourceFile.fileName === document.fileName &&
+					start.line === lastSymbolRename.start.line && start.character === lastSymbolRename.start.character &&
+					end.line === lastSymbolRename.end.line && end.character === lastSymbolRename.end.character - delta
+				) {
+					continue;
+				}
+				let group = groups.get(sourceFile.fileName);
+				if (group === undefined) {
+					group = { file: sourceFile.fileName, changes: [] };
+					groups.set(sourceFile.fileName, group);
+				}
+				group.changes.push({
+					range: {
+						start: { line: start.line, character: start.character },
+						end: { line: end.line, character: end.character },
+					},
+				});
+			}
+		}
+	});
+	return Array.from(groups.values());
+}
+
+const enum PrepareState {
+	prepared,
+	unavailable,
+	mismatch,
+}
+
+async function doPrepareNesRename(result: PrepareNesRenameResult, project: Project, sourceFile: SourceFile, position: number, oldName: string, newName: string, token: CancellationTokenWithTimer): Promise<PrepareState> {
+	const renameTarget = getRenameTarget(sourceFile, position, oldName);
+	const tokenText = renameTarget.node.getText(sourceFile);
+	if (tokenText !== oldName) {
+		result.setCanRename(protocol.RenameKind.no, `Old name '${oldName}' does not match symbol name '${tokenText}'`);
+		return PrepareState.mismatch;
+	}
+	token.throwIfCancellationRequested();
+	if (await project.checker.getSymbolAtLocation(renameTarget.node) === undefined) {
+		result.setCanRename(protocol.RenameKind.no, 'No symbol found at location');
+		return PrepareState.unavailable;
+	}
+	result.setCanRename(protocol.RenameKind.maybe, oldName);
+	await validateNesRename(result, project, renameTarget.node, oldName, newName, token);
+	return PrepareState.prepared;
+}
+
+function getRenameTarget(sourceFile: SourceFile, position: number, oldName: string): { node: Node; position: number } {
+	const token = tss.getRelevantTokens(sourceFile, position).token;
+	if (token.getText(sourceFile) === oldName) {
+		return { node: token, position };
+	}
+	let current: Node | undefined = token.parent;
+	while (current !== undefined && !isSourceFile(current)) {
+		if (isFunctionDeclaration(current) && current.name?.getText(sourceFile) === oldName) {
+			return { node: current.name, position: current.name.getStart(sourceFile) };
+		}
+		current = current.parent;
+	}
+	return { node: token, position };
+}
+
+async function getUpdatedProject(snapshot: Snapshot, project: Project, fileName: string): Promise<Project | undefined> {
+	return snapshot.getProject(project.configFileName) ?? await snapshot.getDefaultProjectForFile(fileName);
+}
+
+function getOldText(sourceFile: SourceFile, position: number, oldName: string, newName: string, lastSymbolRename: protocol.Range): [string, number] {
+	const startPosition = sourceFile.getPositionOfLineAndCharacter(lastSymbolRename.start.line, lastSymbolRename.start.character);
+	const endPosition = sourceFile.getPositionOfLineAndCharacter(lastSymbolRename.end.line, lastSymbolRename.end.character);
+	const oldText = sourceFile.text.substring(0, startPosition) + oldName + sourceFile.text.substring(endPosition);
+	return [oldText, position < startPosition ? position : position - (newName.length - oldName.length)];
 }
