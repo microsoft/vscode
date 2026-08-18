@@ -33,7 +33,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { type IChatAcceptInputOptions, IChatContextPickerDelegate, IChatWidget, IChatWidgetService } from '../chat.js';
+import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
@@ -49,7 +49,6 @@ export interface IChatExecuteActionContext {
 	inputValue?: string;
 	acceptInputOptions?: IChatAcceptInputOptions;
 	voice?: IVoiceChatExecuteActionContext;
-	contextPicker?: IChatContextPickerDelegate;
 }
 
 abstract class SubmitAction extends Action2 {
@@ -195,9 +194,6 @@ export class ChatSubmitAction extends SubmitAction {
 			ChatContextKeys.inputHasSendableContent,
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
-			// A submission that is being routed/dispatched off-model (omni-chat)
-			// disables sending until it resolves or the draft changes.
-			ChatContextKeys.inputSubmitPending.negate(),
 		);
 
 		super({
@@ -228,7 +224,6 @@ export class ChatSubmitAction extends SubmitAction {
 						whenNoActiveRequest,
 						menuCondition,
 						ChatContextKeys.withinEditSessionDiff.negate(),
-						ChatContextKeys.inputSubmitPending.negate(),
 					),
 					group: 'navigation',
 					alt: {
@@ -248,33 +243,6 @@ export class ChatSubmitAction extends SubmitAction {
 				}]
 		});
 	}
-}
-
-class ChatSubmitPendingAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.submitPending';
-
-	constructor() {
-		super({
-			id: ChatSubmitPendingAction.ID,
-			title: localize2('interactive.submitPending.label', "Sending Request…"),
-			f1: false,
-			category: CHAT_CATEGORY,
-			icon: ThemeIcon.modify(Codicon.loading, 'spin'),
-			precondition: ChatContextKeys.inputSubmitPending,
-			menu: {
-				id: MenuId.ChatExecute,
-				order: 4,
-				when: ContextKeyExpr.and(
-					whenNoActiveRequest,
-					ChatContextKeys.withinEditSessionDiff.negate(),
-					ChatContextKeys.inputSubmitPending,
-				),
-				group: 'navigation',
-			},
-		});
-	}
-
-	run(): void { }
 }
 
 
@@ -763,8 +731,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasSendableContent,
 			notInProgressOrEditing,
-			ChatContextKeys.chatSessionOptionsValid,
-			ChatContextKeys.inputSubmitPending.negate(),
+			ChatContextKeys.chatSessionOptionsValid
 		);
 
 		super({
@@ -780,8 +747,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						notInProgressOrEditing,
-						menuCondition,
-						ChatContextKeys.inputSubmitPending.negate()),
+						menuCondition),
 					group: 'navigation',
 					alt: {
 						id: 'workbench.action.chat.sendToNewChat',
@@ -1202,7 +1168,6 @@ class ExecuteHandoffAction extends Action2 {
 export function registerChatExecuteActions(): DisposableStore {
 	const store = new DisposableStore();
 	store.add(registerAction2(ChatSubmitAction));
-	store.add(registerAction2(ChatSubmitPendingAction));
 	store.add(registerAction2(ChatEditingSessionSubmitAction));
 	store.add(registerAction2(SubmitWithoutDispatchingAction));
 	store.add(registerAction2(CancelAction));
