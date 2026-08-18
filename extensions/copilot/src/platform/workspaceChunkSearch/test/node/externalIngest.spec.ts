@@ -5,6 +5,9 @@
 
 import ingestUtils = require('@github/blackbird-external-ingest-utils');
 import assert from 'assert';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, suite, test, vi } from 'vitest';
 import type { FileSystemWatcher } from 'vscode';
 import { Result } from '../../../../util/common/result';
@@ -18,11 +21,13 @@ import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/commo
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { StaticGitHubAuthenticationService } from '../../../authentication/common/staticGitHubAuthenticationService';
+import { IVSCodeExtensionContext } from '../../../extContext/common/extensionContext';
 import { IFileSystemService } from '../../../filesystem/common/fileSystemService';
 import { FileType } from '../../../filesystem/common/fileTypes';
 import { GithubRequestOptions, IGithubApiFetcherService } from '../../../github/common/githubApiFetcherService';
 import { ISearchService } from '../../../search/common/searchService';
 import { createPlatformServices, TestingServiceCollection } from '../../../test/node/services';
+import { MockExtensionContext } from '../../../test/node/extensionContext';
 import { IWorkspaceService, NullWorkspaceService } from '../../../workspace/common/workspaceService';
 import { ExternalIngestClient, ExternalIngestFile, ExternalIngestFileSet, ExternalIngestUpdateIndexResult, IExternalIngestClient } from '../../node/codeSearch/externalIngestClient';
 import { ExternalIngestIndex } from '../../node/codeSearch/externalIngestIndex';
@@ -230,6 +235,23 @@ suite('ExternalIngestIndex', () => {
 
 		return { files, mockFs, mockClient, index };
 	}
+
+	test('creates the database and its missing workspace storage directory', () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), 'copilot-external-ingest-'));
+		const storagePath = join(tempRoot, 'workspaceStorage', 'GitHub.copilot-chat');
+		testingServiceCollection.define(IVSCodeExtensionContext, new SyncDescriptor(MockExtensionContext, [undefined, undefined, storagePath]));
+
+		const accessor = disposables.add(testingServiceCollection.createTestingAccessor());
+		const instantiationService = accessor.get(IInstantiationService);
+		const index = instantiationService.createInstance(ExternalIngestIndex, createMockExternalIngestClient(), []);
+
+		try {
+			assert.strictEqual(existsSync(join(storagePath, 'codebase-external.sqlite')), true);
+		} finally {
+			index.dispose();
+			rmSync(tempRoot, { recursive: true, force: true });
+		}
+	});
 
 	test('shouldIndexFile returns true by default for file in workspace', async () => {
 		const workspace = URI.file('/workspace');
