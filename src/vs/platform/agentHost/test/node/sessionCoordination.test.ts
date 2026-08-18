@@ -37,11 +37,33 @@ suite('SessionCoordination', () => {
 		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.InProgress, expected.orchestration), { notify: false });
 	});
 
+	test('notifies once when input is needed and deduplicates repeated status', () => {
+		const armed = { ...base, notificationArmed: true };
+		const transition = transitionSessionCoordination(SessionStatus.InputNeeded, armed);
+		assert.deepStrictEqual(transition, {
+			orchestration: { ...armed, notificationArmed: false, notificationSent: true },
+			notify: true,
+		});
+		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.InputNeeded, transition.orchestration!), { notify: false });
+	});
+
 	test('always rearms for later work', () => {
 		const always: ISessionOrchestration = { ...base, notifyOnIdle: 'always', notificationSent: true };
 		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.InProgress, always), {
 			orchestration: { ...always, notificationArmed: true },
 			notify: false,
 		});
+	});
+
+	test('always captures back-to-back work cycles', () => {
+		let orchestration: ISessionOrchestration = { ...base, notifyOnIdle: 'always' };
+		for (let cycle = 0; cycle < 2; cycle++) {
+			const started = transitionSessionCoordination(SessionStatus.InProgress, orchestration);
+			assert.strictEqual(started.notify, false);
+			orchestration = started.orchestration!;
+			const completed = transitionSessionCoordination(SessionStatus.Idle, orchestration);
+			assert.strictEqual(completed.notify, true);
+			orchestration = completed.orchestration!;
+		}
 	});
 });

@@ -34,7 +34,6 @@ import {
 	sessionServerToolDefinitions,
 	sessionToolRequiresConfirmation,
 	serializeSessions,
-	serializeWorkspaces,
 	type IChatContextSnapshot,
 	type ISessionServerToolAccessor,
 } from '../../node/shared/sessionServerTools.js';
@@ -78,20 +77,19 @@ suite('SessionServerTools', () => {
 	}
 
 	test('definitions and confirmation', () => {
-		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.ListWorkspaces, SessionServerToolName.GetCurrentSession, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
+		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateChat), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.SendMessage), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.DeleteSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.RenameChat), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ListSessions), false);
-		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ListWorkspaces), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetCurrentSession), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetSessionContext), false);
-		assert.deepStrictEqual(sessionServerToolDefinitions.slice(5, 6).map(def => ({ name: def.name, required: def.inputSchema?.required })), [
+		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 5).map(def => ({ name: def.name, required: def.inputSchema?.required })), [
 			{ name: SessionServerToolName.RenameChat, required: ['title'] },
 		]);
-		assert.deepStrictEqual(sessionServerToolDefinitions.slice(5, 6).map(def => def.inputSchema?.properties?.title), [
+		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 5).map(def => def.inputSchema?.properties?.title), [
 			{ type: 'string', maxLength: 200, description: 'Short, descriptive chat title, ideally 1-4 words.' },
 		]);
 	});
@@ -140,7 +138,6 @@ suite('SessionServerTools', () => {
 		}, {
 			disabledTools: [
 				SessionServerToolName.ListSessions,
-				SessionServerToolName.ListWorkspaces,
 				SessionServerToolName.GetCurrentSession,
 				SessionServerToolName.CreateSession,
 				SessionServerToolName.CreateChat,
@@ -221,7 +218,9 @@ suite('SessionServerTools', () => {
 				github: { owner: 'microsoft', repo: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1' },
 			}],
 		});
+	});
 
+	suite('orchestration metadata', () => {
 		test('serializeSessions and filters expose orchestration relationships', () => {
 			const child = {
 				...sessionMeta('child', SessionStatus.Idle, workspace),
@@ -289,18 +288,6 @@ suite('SessionServerTools', () => {
 			});
 		});
 
-		test('serializeWorkspaces deduplicates, filters, and limits known workspaces', () => {
-			const other = URI.parse('file:///workspace/other');
-			const sessions = [
-				{ ...sessionMeta('newest', SessionStatus.Idle, workspace), modifiedTime: 3, project: { uri: workspace, displayName: 'App' } },
-				{ ...sessionMeta('duplicate', SessionStatus.Idle, workspace), modifiedTime: 2 },
-				{ ...sessionMeta('other', SessionStatus.Idle, other), modifiedTime: 1 },
-			];
-
-			assert.deepStrictEqual(JSON.parse(serializeWorkspaces(sessions, { query: 'app', limit: 1 })), {
-				workspaces: [{ uri: workspace.toString(), name: 'App', provider: 'copilot' }],
-			});
-		});
 	});
 
 	test('serializeSessions reports archived status from the IsArchived status bit', () => {

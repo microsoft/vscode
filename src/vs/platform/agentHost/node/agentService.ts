@@ -591,7 +591,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._queueSessionListReconciliation();
 			}
 		}));
-		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => this._queueSessionCoordinationStatusChange(session, active)));
+		this._register(this._stateManager.onDidChangeSessionStatus(({ session, status }) => this._queueSessionCoordinationStatusChange(session, status)));
 
 		// Build a local instantiation scope so downstream components can
 		// consume {@link IAgentConfigurationService} (and later {@link ILogService})
@@ -1109,9 +1109,9 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.setSessionMeta(session, withSessionOrchestration(this._stateManager.getSessionSummary(session)?._meta, orchestration));
 	}
 
-	private _queueSessionCoordinationStatusChange(session: string, active: boolean): void {
+	private _queueSessionCoordinationStatusChange(session: string, status: SessionStatus): void {
 		const previous = this._sessionCoordinationQueues.get(session) ?? Promise.resolve();
-		const next = previous.catch(() => undefined).then(() => this._handleSessionCoordinationStatusChange(session, active));
+		const next = previous.catch(() => undefined).then(() => this._handleSessionCoordinationStatusChange(session, status));
 		this._sessionCoordinationQueues.set(session, next);
 		void next.catch(error => {
 			this._logService.error(`[AgentService] Failed to coordinate child session ${session}: ${toErrorMessage(error)}`);
@@ -1122,14 +1122,13 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 	}
 
-	private async _handleSessionCoordinationStatusChange(session: string, active: boolean): Promise<void> {
+	private async _handleSessionCoordinationStatusChange(session: string, status: SessionStatus): Promise<void> {
 		const summary = this._stateManager.getSessionSummary(session);
 		const orchestration = readSessionOrchestration(summary?._meta);
 		if (!summary || !orchestration?.notifyOnIdle) {
 			return;
 		}
 
-		const status = active ? SessionStatus.InProgress : summary.status;
 		const transition = transitionSessionCoordination(status, orchestration);
 		if (transition.orchestration) {
 			await this._setSessionOrchestration(session, transition.orchestration);
@@ -1144,7 +1143,9 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 
-		const outcome = (status & SessionStatus.Error) === SessionStatus.Error ? 'encountered an error' : 'became idle';
+		const outcome = (status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded
+			? 'needs input'
+			: (status & SessionStatus.Error) === SessionStatus.Error ? 'encountered an error' : 'became idle';
 		const childName = orchestration.label ? `${orchestration.label} (${session})` : session;
 		this._startCoordinationPrompt(parent, `Child session ${childName} ${outcome}. Use get_session_context with session "${session}" to inspect its result.`);
 	}

@@ -15,7 +15,8 @@ export function transitionSessionCoordination(status: SessionStatus, orchestrati
 		return { notify: false };
 	}
 
-	const inProgress = (status & SessionStatus.InProgress) === SessionStatus.InProgress
+	const inputNeeded = (status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded;
+	const inProgress = !inputNeeded && (status & SessionStatus.InProgress) === SessionStatus.InProgress
 		&& (status & SessionStatus.Error) !== SessionStatus.Error;
 	if (inProgress) {
 		if (!orchestration.notificationArmed && !(orchestration.notifyOnIdle === 'once' && orchestration.notificationSent)) {
@@ -24,7 +25,8 @@ export function transitionSessionCoordination(status: SessionStatus, orchestrati
 		return { notify: false };
 	}
 
-	const completed = (status & SessionStatus.Idle) === SessionStatus.Idle
+	const completed = inputNeeded
+		|| (status & SessionStatus.Idle) === SessionStatus.Idle
 		|| (status & SessionStatus.Error) === SessionStatus.Error;
 	if (!completed || !orchestration.notificationArmed || (orchestration.notifyOnIdle === 'once' && orchestration.notificationSent)) {
 		return { notify: false };
