@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
+import { ExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -28,7 +29,7 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
-import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -160,6 +161,15 @@ function workspaceFolder(uri: URI, index: number): IWorkspaceFolder {
 suite('AgentHostUntitledProvisionalSessionService', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('keeps case-distinct roots separate on case-sensitive remote filesystems', () => {
+		const extUri = new ExtUri(() => false);
+		assert.strictEqual(areCustomizationScopeRootsEqual(
+			[URI.parse('vscode-remote://ssh-remote+linux/work/Repo')],
+			[URI.parse('vscode-remote://ssh-remote+linux/work/repo')],
+			extUri,
+		), false);
+	});
+
 	let agentHost: MockAgentHostService;
 	let importStore: AgentHostImportConversationStore;
 	let provisional: IAgentHostUntitledProvisionalSessionService;
@@ -213,6 +223,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IAgentHostImportConversationStore, importStore);
 		customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', []);
 		insta.stub(IAgentHostActiveClientService, {
+			areScopeRootsEqual: (first, second) => areCustomizationScopeRootsEqual(first, second, new ExtUri(() => false)),
 			acquireScope: (_sessionType: string, _roots: readonly URI[]) => ({
 				customizations,
 				customAgents: constObservable([]),
