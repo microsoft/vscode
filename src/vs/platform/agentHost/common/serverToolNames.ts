@@ -18,6 +18,7 @@
  */
 export const enum SessionServerToolName {
 	ListSessions = 'list_sessions',
+	ListWorkspaces = 'list_workspaces',
 	GetCurrentSession = 'get_current_session',
 	CreateSession = 'create_session',
 	CreateChat = 'create_chat',

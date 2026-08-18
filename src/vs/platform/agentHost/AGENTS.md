@@ -227,6 +227,25 @@ Provider-private discovery helpers name their concrete source: Claude uses `_lis
 
 For every provider, migration and discovery partition the same native catalog: migration returns known entries as plain metadata, while discovery emits unknown entries with provider-classified provenance (external for Claude and Codex, and for Copilot everything except an unknown legacy extension-host chat, which is emitted as internal and adoptable). The partition is not quite exhaustive for Copilot: a chat whose session database exists but holds none of the metadata keys `listChatsToMigrate` requires is rejected by both halves. That is deliberate — an empty database is how Agent Host records a chat it already touched — and is asserted by `copilotAgent.test.ts`'s "does not discover an extension-host chat with an empty Agent Host database". Central `agent-host.db` remains the durable provenance authority.
 
+### Server-tool orchestration relationships
+
+Sessions created by the `create_session` server tool record provider-neutral
+orchestration metadata in the session summary `_meta` bag. The metadata names
+the parent session, an optional label, whether the child may discover its
+creator, and an optional idle-notification policy. `list_sessions` projects and
+filters this metadata without involving provider harnesses.
+
+Idle notifications use a durable arm/notify transition. Starting work arms the
+child; the next idle/error transition wakes the parent once or, for `always`,
+re-arms on the next work cycle. A busy parent default chat receives a queued
+system notification rather than a new active turn, so concurrent child
+completion cannot overwrite parent work. The existing pending-message drain
+starts that queued notification when the parent chat becomes idle.
+
+`list_workspaces` derives a deduplicated, recency-ordered catalog from current
+session metadata. Returned workspace URIs are accepted directly by
+`create_session`, including non-file URIs owned by remote providers.
+
 ---
 
 ## 4. Capabilities Gating

@@ -1711,6 +1711,58 @@ export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, dept
 	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
 }
 
+export type SessionIdleNotification = 'once' | 'always';
+
+export interface ISessionOrchestration {
+	readonly parentSession: string;
+	readonly label?: string;
+	readonly coordinateWithCreator: boolean;
+	readonly notifyOnIdle?: SessionIdleNotification;
+	readonly notificationArmed?: boolean;
+	readonly notificationSent?: boolean;
+}
+
+export const SESSION_META_ORCHESTRATION_KEY = 'agentHost/orchestration';
+export const AH_META_ORCHESTRATION_DB_KEY = 'agentHost.orchestration';
+
+export function readSessionOrchestration(meta: SessionSummaryMeta | undefined): ISessionOrchestration | undefined {
+	const value = meta?.[SESSION_META_ORCHESTRATION_KEY];
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { [key: string]: unknown };
+	if (typeof candidate.parentSession !== 'string' || typeof candidate.coordinateWithCreator !== 'boolean') {
+		return undefined;
+	}
+	const label = typeof candidate.label === 'string' ? candidate.label : undefined;
+	const notifyOnIdle = candidate.notifyOnIdle === 'once' || candidate.notifyOnIdle === 'always' ? candidate.notifyOnIdle : undefined;
+	const notificationArmed = typeof candidate.notificationArmed === 'boolean' ? candidate.notificationArmed : undefined;
+	const notificationSent = typeof candidate.notificationSent === 'boolean' ? candidate.notificationSent : undefined;
+	return {
+		parentSession: candidate.parentSession,
+		coordinateWithCreator: candidate.coordinateWithCreator,
+		...(label !== undefined ? { label } : {}),
+		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
+		...(notificationArmed !== undefined ? { notificationArmed } : {}),
+		...(notificationSent !== undefined ? { notificationSent } : {}),
+	};
+}
+
+export function parseSessionOrchestration(value: string | undefined): ISessionOrchestration | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	try {
+		return readSessionOrchestration({ [SESSION_META_ORCHESTRATION_KEY]: JSON.parse(value) });
+	} catch {
+		return undefined;
+	}
+}
+
+export function withSessionOrchestration(meta: SessionSummaryMeta | undefined, orchestration: ISessionOrchestration): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_ORCHESTRATION_KEY]: orchestration };
+}
+
 /**
  * Reserved key under {@link SessionSummaryMeta} marking a session as
  * workspace-less: a session with no workspace/folder binding (surfaced in the
