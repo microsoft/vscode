@@ -69,6 +69,10 @@ export interface IChatInputNotificationDelegate {
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
 	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly deferredNotificationsEnabled?: IObservable<boolean>;
+	/** Whether this input is a transient surface (inline, terminal, quick chat, chat input window). */
+	readonly isTransientChat?: boolean;
+	/** Whether the session this input is bound to already has a request. */
+	readonly sessionStarted?: IObservable<boolean>;
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
@@ -102,6 +106,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _modelTargetChatSessionType: string | undefined;
 	private _sessionResource: URI | undefined;
 	private _deferredNotificationsEnabled = true;
+	private _sessionStarted = false;
 	private _visible = false;
 	private _slot: HTMLElement | undefined;
 
@@ -130,6 +135,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			this._modelTargetChatSessionType = this._delegate?.modelTargetChatSessionType?.read(reader);
 			this._sessionResource = this._delegate?.sessionResource?.read(reader);
 			this._deferredNotificationsEnabled = this._delegate?.deferredNotificationsEnabled?.read(reader) ?? true;
+			this._sessionStarted = this._delegate?.sessionStarted?.read(reader) ?? false;
 			this._render();
 		}));
 	}
@@ -199,6 +205,8 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 	private _matchesSession(notification: IChatInputNotification): boolean {
 		return (!notification.deferForNewUsers || this._deferredNotificationsEnabled)
+			&& !(notification.hideInTransientChats && this._delegate?.isTransientChat)
+			&& !(notification.hideInStartedSessions && this._sessionStarted)
 			&& isChatInputNotificationApplicableToSession(notification, this._modelTargetChatSessionType, this._sessionResource);
 	}
 
