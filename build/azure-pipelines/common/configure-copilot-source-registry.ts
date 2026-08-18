@@ -17,10 +17,6 @@ export function sourceNpmrc(registry: string): string {
 	return `registry=${registryUrl(registry).href}\nalways-auth=true\n`;
 }
 
-export function corepackRegistry(registry: string): string {
-	return registryUrl(registry).href.replace(/\/+$/, '');
-}
-
 function requiredEnv(name: string): string {
 	const value = process.env[name]?.trim();
 	if (!value) {
@@ -33,8 +29,6 @@ function main(): void {
 	const registry = requiredEnv('COPILOT_SOURCE_REGISTRY');
 	const npmrc = requiredEnv('COPILOT_SOURCE_NPMRC');
 	fs.writeFileSync(npmrc, sourceNpmrc(registry));
-	const corepack = corepackRegistry(registry);
-	console.log(`##vso[task.setvariable variable=COPILOT_COREPACK_REGISTRY]${corepack}`);
 	console.log(`[copilot-source-registry] Configured ${registryUrl(registry).href}.`);
 }
 

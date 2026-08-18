@@ -15,8 +15,7 @@ import { sourceBuildVersion } from '../azure-pipelines/common/copilotSource.ts';
  */
 
 const IS_WINDOWS = process.platform === 'win32';
-const PNPM = IS_WINDOWS ? 'pnpm.cmd' : 'pnpm';
-const COREPACK = IS_WINDOWS ? 'corepack.cmd' : 'corepack';
+const NPM = IS_WINDOWS ? 'npm.cmd' : 'npm';
 
 /** Scratch dir (git-ignored under `.build`), relative to the repository root. */
 const OVERRIDES_DIR = path.join('.build', 'copilot-overrides');
@@ -105,13 +104,18 @@ export function gitEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv 
 	return { ...env, GIT_TERMINAL_PROMPT: '0' };
 }
 
-/**
- * Environment for the runtime's own toolchain. Corepack asks for confirmation
- * before downloading the pnpm version pinned by `packageManager`, which blocks
- * on stdin that no CI job can answer.
- */
-export function toolEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-	return { ...env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
+export function pnpmVersion(packageManager: string): string {
+	const match = /^pnpm@(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?)(?:\+.*)?$/.exec(packageManager);
+	if (!match?.groups?.version) {
+		throw new Error(`[copilot-runtime-source] Unsupported packageManager "${packageManager}". Expected pnpm@<semver>.`);
+	}
+	return match.groups.version;
+}
+
+function runPnpm(args: string[], srcDir: string, env: NodeJS.ProcessEnv = process.env): void {
+	const manifest = JSON.parse(fs.readFileSync(path.join(srcDir, 'package.json'), 'utf8')) as { packageManager?: string };
+	const version = pnpmVersion(manifest.packageManager ?? '');
+	run(NPM, ['exec', '--yes', `--package=pnpm@${version}`, '--', 'pnpm', ...args], srcDir, env);
 }
 
 /** Records the runtime source repository and commit for the build job. */
@@ -210,11 +214,11 @@ function ensureCheckout(marker: RuntimeMarker): string {
 		fs.rmSync(RUNTIME_TOKEN_FILE, { force: true });
 	}
 
-	// corepack provisions the pnpm version pinned by the runtime's packageManager
-	// field; `--ignore-scripts` skips dependency lifecycle builds (the runtime's
-	// own native build is invoked explicitly per target below).
-	run(COREPACK, ['enable'], srcDir, toolEnv());
-	run(PNPM, ['install', '--frozen-lockfile', '--ignore-scripts'], srcDir, toolEnv());
+	// npm provisions the pnpm version pinned by the runtime's packageManager field
+	// through the authenticated internal feed. `--ignore-scripts` skips dependency
+	// lifecycle builds (the runtime's own native build is invoked explicitly per
+	// target below).
+	runPnpm(['install', '--frozen-lockfile', '--ignore-scripts'], srcDir);
 
 	fs.writeFileSync(CHECKOUT_STAMP, marker.ref);
 	console.log(`[copilot-runtime-source] Prepared runtime source ${marker.repo}@${marker.ref} at ${srcDir}`);
@@ -324,13 +328,13 @@ function ensureTargetBuilt(marker: RuntimeMarker, copilotPackagePlatformArch: st
 		// build host's detected libc.
 		runtimeArgs.push(`--libc=${target.libc}`);
 	}
-	run(PNPM, ['run', 'build:runtime', ...runtimeArgs], srcDir, toolEnv({
+	runPnpm(['run', 'build:runtime', ...runtimeArgs], srcDir, {
 		...process.env,
 		...installLinuxSysroot(srcDir, target),
 		CARGO_TARGET_DIR: path.resolve(CARGO_TARGET_DIR),
-	}));
+	});
 	// 2. Bundle the JS and copy native addons into dist-cli (CI=1 → minify).
-	run(PNPM, ['exec', 'tsx', 'esbuild.ts'], srcDir, toolEnv({ ...process.env, CI: '1' }));
+	runPnpm(['exec', 'tsx', 'esbuild.ts'], srcDir, { ...process.env, CI: '1' });
 	// 3. Assemble the single-platform package (installs target native deps, trims).
 	run('node', ['script/cli-package-json.js', sourceBuildVersion(marker.ref), target.pkgPlatform, target.arch], srcDir);
 

@@ -74,7 +74,5 @@ jobs:
 
       - script: node build/azure-pipelines/common/build-copilot-runtime-target.ts --target=$(VSCODE_COPILOT_TARGET) --out=$(COPILOT_RUNTIME_STAGING)
         env:
-          COREPACK_NPM_REGISTRY: $(COPILOT_COREPACK_REGISTRY)
-          COREPACK_NPM_TOKEN: $(System.AccessToken)
           NPM_CONFIG_USERCONFIG: $(Agent.TempDirectory)/copilot-source.npmrc
         displayName: Build ${{ parameters.target }} from source
