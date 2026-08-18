@@ -758,8 +758,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
+		@IFileService fileService: IFileService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -797,8 +798,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
+		@IFileService fileService: IFileService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService);
 		this._now = now;
 	}
 
@@ -1356,6 +1358,41 @@ suite('CopilotAgent', () => {
 				disabledByDefault: undefined,
 				whenEnabled: { immutablePrimary: true },
 				afterDisabling: undefined,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('computeFolderPickerDecision hides the picker unless multiple folders carry .github/hooks', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const folder = (name: string) => URI.from({ scheme: Schemas.inMemory, path: `/${name}` });
+		const seedHook = (name: string, file = 'hook.json') => fileService.writeFile(URI.joinPath(folder(name), '.github', 'hooks', file), VSBuffer.fromString('{}'));
+		const [a, b, c] = [folder('wsA'), folder('wsB'), folder('wsC')];
+
+		const { agent, stateManager } = createTestAgentContext(disposables, { fileService });
+		try {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostCopilotMultiRootEnabledConfigKey]: true } });
+
+			await seedHook('wsB');
+			const soleHookFolder = await agent.computeFolderPickerDecision([a, b, c]);
+
+			await seedHook('wsA', 'nested/other.json');
+			const multipleHookFolders = await agent.computeFolderPickerDecision([a, b, c]);
+
+			const noHookFolders = await agent.computeFolderPickerDecision([folder('wsX'), folder('wsY')]);
+			const singleWorkingDirectory = await agent.computeFolderPickerDecision([b]);
+
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostCopilotMultiRootEnabledConfigKey]: false } });
+			const multiRootDisabled = await agent.computeFolderPickerDecision([a, b, c]);
+
+			assert.deepStrictEqual({ soleHookFolder, multipleHookFolders, noHookFolders, singleWorkingDirectory, multiRootDisabled }, {
+				soleHookFolder: { hidden: true, primary: b.toString() },
+				multipleHookFolders: { hidden: false },
+				noHookFolders: { hidden: true },
+				singleWorkingDirectory: undefined,
+				multiRootDisabled: undefined,
 			});
 		} finally {
 			await disposeAgent(agent);

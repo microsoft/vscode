@@ -90,7 +90,8 @@ import { ChatListWidget } from './chatListWidget.js';
 import { ChatFindWidget, IChatFindHost } from './chatFind/chatFindWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
-import { hasImmutablePrimaryWorkingDirectory } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { hasImmutablePrimaryWorkingDirectory, resolveFolderPickerDecisionUpdate, IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatTipService } from '../chatTipService.js';
 import { ChatInputTipPresenter } from './input/chatInputTipPresenter.js';
 import { ChatProgressSubPart } from './chatContentParts/chatProgressContentPart.js';
@@ -371,6 +372,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
 
 	private recentlyRestoredCheckpoint: boolean = false;
+	private _requestEditSnapshot: { readonly input: string; readonly attachmentIds: ReadonlySet<string> } | undefined;
+	private _requestEditCancellationPending = false;
 
 	/** Suppresses auto-scroll for the duration of an inline request edit. */
 	private readonly _editingAutoScrollHold = this._register(new MutableDisposable<IDisposable>());
@@ -414,6 +417,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _chatIsAgentHostSessionContextKey: IContextKey<boolean>;
 	private readonly _chatAgentHostProviderIdContextKey: IContextKey<string>;
 	private readonly _chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey: IContextKey<boolean>;
+	private readonly _chatAgentHostFolderPickerVisibleContextKey: IContextKey<boolean>;
+	/** The session resource the {@link _chatAgentHostFolderPickerVisibleContextKey} value currently reflects, so a transient `undefined` decision during provisional recreation retains the value instead of flashing the chip. */
+	private _folderPickerDecisionSessionResource: URI | undefined;
 	private readonly _chatSessionSupportsForkContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
@@ -539,6 +545,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
+		@IAgentHostNewSessionFolderService private readonly _agentHostNewSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 
@@ -554,6 +562,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatIsAgentHostSessionContextKey = ChatContextKeys.chatIsAgentHostSession.bindTo(this.contextKeyService);
 		this._chatAgentHostProviderIdContextKey = ChatContextKeys.chatAgentHostProviderId.bindTo(this.contextKeyService);
 		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey = ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.bindTo(this.contextKeyService);
+		this._chatAgentHostFolderPickerVisibleContextKey = ChatContextKeys.chatAgentHostFolderPickerVisible.bindTo(this.contextKeyService);
 		this._chatSessionSupportsForkContextKey = ChatContextKeys.chatSessionSupportsFork.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
@@ -585,6 +594,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		};
 		bindRootState();
 		this._register(this._agentHostService.onAgentHostStart(bindRootState));
+
+		// The harness may hide the Folder picker (and pin a primary) via a
+		// per-session decision in `_meta` — e.g. Copilot auto-selects the sole
+		// workspace folder carrying hooks. Read it from the customization service
+		// (which already subscribes to the session's state) and recompute when it
+		// changes or the widget rebinds to another session.
+		this._register(this._agentHostCustomizationService.onDidChangeCustomizations(() => this._updateFolderPickerDecision()));
+		this._register(this.onDidChangeViewModel(() => this._updateFolderPickerDecision()));
 
 		this.viewContext = viewContext ?? {};
 
@@ -809,6 +826,46 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _updateAgentHostWorkingDirectoryContextKeys(agentHostProviderId: string | undefined): void {
 		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey.set(
 			!!agentHostProviderId && hasImmutablePrimaryWorkingDirectory(this._agentHostService.rootState.value, agentHostProviderId));
+	}
+
+	/**
+	 * Applies the harness-owned Folder-picker decision for the current session:
+	 * it sets the visibility context key from the decision and, when the decision
+	 * pins a primary and the session is still empty, auto-selects that folder. The
+	 * decision lives in the session's `_meta` and is surfaced by
+	 * {@link IAgentHostCustomizationService}; the resolution itself lives in the
+	 * pure {@link resolveFolderPickerDecisionUpdate} so it stays testable.
+	 *
+	 * The picker is hidden by default and only revealed once a decision says so,
+	 * so it never flashes visible-then-hidden. A transient `undefined` decision
+	 * for the *same* session is retained rather than reset, so the chip does not
+	 * flicker while a folder change recreates the provisional session.
+	 */
+	private _updateFolderPickerDecision(): void {
+		const sessionResource = this.viewModel?.sessionResource;
+		const agentHostProviderId = this._lockedAgent?.agentHostProviderId;
+		const decision = sessionResource && agentHostProviderId
+			? this._agentHostCustomizationService.getFolderPickerDecision(sessionResource)
+			: undefined;
+		const update = resolveFolderPickerDecisionUpdate(
+			sessionResource,
+			agentHostProviderId,
+			decision,
+			this._folderPickerDecisionSessionResource,
+			!!this.viewOptions.isSessionsWindow,
+			(this.viewModel?.model.getRequests().length ?? 0) === 0,
+			sessionResource ? this._agentHostNewSessionFolderService.getFolder(sessionResource) : undefined,
+		);
+		if (update.kind === 'noop') {
+			return;
+		}
+		this._chatAgentHostFolderPickerVisibleContextKey.set(update.visible);
+		this._folderPickerDecisionSessionResource = update.trackedSessionResource;
+		// `setFolder` deliberately overrides any prior selection, since a hidden
+		// picker leaves the user no way to choose.
+		if (update.selectPrimary && sessionResource) {
+			this._agentHostNewSessionFolderService.setFolder(sessionResource, update.selectPrimary);
+		}
 	}
 
 	get supportsFileReferences(): boolean {
@@ -1952,7 +2009,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._register(this.listWidget.onDidFocusOutside(() => {
-			this.finishedEditing();
+			void this.cancelEditing();
 		}));
 
 		this._register(this.listWidget.onDidClickFollowup(item => {
@@ -2093,13 +2150,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
+			this._requestEditSnapshot = {
+				input: this.getInput(),
+				attachmentIds: this.input.attachmentModel.getAttachmentIDs(),
+			};
 			this._editingAutoScrollHold.value = this.listWidget.acquireAutoScrollHold();
 			this.onDidChangeItems();
 			this.input.inputEditor.focus();
 
 			this._register(this.inputPart.onDidClickOverlay(() => {
 				if (this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
-					this.finishedEditing();
+					void this.cancelEditing();
 				}
 			}));
 
@@ -2128,8 +2189,54 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 	}
 
+	async cancelEditing(): Promise<void> {
+		const editing = this.viewModel?.editing;
+		if (!editing || this._requestEditCancellationPending) {
+			return;
+		}
+
+		let confirmed = true;
+		if (this._hasRequestEditChanges()) {
+			this._requestEditCancellationPending = true;
+			try {
+				const result = await this.dialogService.confirm({
+					type: 'warning',
+					message: localize('chat.cancelEditing.confirm', "Discard Edits?"),
+					detail: localize('chat.cancelEditing.confirmDetail', "Your changes to this request will be lost."),
+					primaryButton: localize('chat.cancelEditing.discard', "Discard Edits"),
+				});
+				confirmed = result.confirmed;
+			} finally {
+				this._requestEditCancellationPending = false;
+			}
+		}
+
+		if (this.viewModel?.editing !== editing) {
+			return;
+		}
+		if (!confirmed) {
+			this.input.focus();
+			return;
+		}
+
+		this.finishedEditing();
+	}
+
+	private _hasRequestEditChanges(): boolean {
+		const snapshot = this._requestEditSnapshot;
+		if (!snapshot) {
+			return false;
+		}
+
+		const attachmentIds = this.input.attachmentModel.getAttachmentIDs();
+		return this.getInput() !== snapshot.input
+			|| attachmentIds.size !== snapshot.attachmentIds.size
+			|| [...attachmentIds].some(id => !snapshot.attachmentIds.has(id));
+	}
+
 	finishedEditing(completedEdit?: boolean): void {
 		// reset states
+		this._requestEditSnapshot = undefined;
 		this._editingAutoScrollHold.clear();
 		const editedRequest = this.listWidget.getTemplateDataForRequestId(this.viewModel?.editing?.id);
 		if (this.recentlyRestoredCheckpoint) {
@@ -2687,6 +2794,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatIsAgentHostSessionContextKey.set(!!agentHostProviderId);
 		this._chatAgentHostProviderIdContextKey.set(agentHostProviderId ?? '');
 		this._updateAgentHostWorkingDirectoryContextKeys(agentHostProviderId);
+		this._updateFolderPickerDecision();
 		this.renderWelcomeViewContentIfNeeded();
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
@@ -2710,6 +2818,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatIsAgentHostSessionContextKey.set(false);
 		this._chatAgentHostProviderIdContextKey.set('');
 		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey.set(false);
+		this._chatAgentHostFolderPickerVisibleContextKey.set(false);
+		this._folderPickerDecisionSessionResource = undefined;
 		this._chatSessionSupportsForkContextKey.set(false);
 		this._updateAgentCapabilitiesContextKeys(undefined);
 

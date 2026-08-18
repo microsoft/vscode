@@ -3591,6 +3591,8 @@ suite('AgentHostChatContribution', () => {
 				[ChatContextKeys.lockedCodingAgentId.key]: 'agent-host-copilot',
 				[ChatContextKeys.chatIsAgentHostSession.key]: true,
 				[ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.key]: true,
+				// Hidden by default; the harness decision reveals the picker.
+				[ChatContextKeys.chatAgentHostFolderPickerVisible.key]: true,
 			};
 
 			assert.deepStrictEqual({
@@ -3599,12 +3601,14 @@ suite('AgentHostChatContribution', () => {
 				sessionsWindow: evalWhen({ ...agentHost, workspaceFolderCount: 2, isSessionsWindow: true }),
 				nonAgentHost: evalWhen({ [ChatContextKeys.lockedCodingAgentId.key]: 'copilot', [ChatContextKeys.chatIsAgentHostSession.key]: false, workspaceFolderCount: 2, isSessionsWindow: false }),
 				noImmutablePrimary: evalWhen({ ...agentHost, [ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.key]: false, workspaceFolderCount: 2, isSessionsWindow: false }),
+				notRevealed: evalWhen({ ...agentHost, [ChatContextKeys.chatAgentHostFolderPickerVisible.key]: false, workspaceFolderCount: 2, isSessionsWindow: false }),
 			}, {
 				multiRootEditor: true,
 				singleFolder: false,
 				sessionsWindow: false,
 				nonAgentHost: false,
 				noImmutablePrimary: false,
+				notRevealed: false,
 			});
 		});
 	});

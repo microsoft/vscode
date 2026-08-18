@@ -7,9 +7,11 @@ import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
@@ -253,6 +255,19 @@ export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.en
  * `'off'`.
  */
 export const AgentHostSdkSandboxWindowsEnabledSettingId = 'chat.agentHost.sdkSandbox.enabledWindows';
+
+export type AgentHostCopilotSandboxSettingId =
+	| AgentSandboxSettingId.AgentSandboxEnabled
+	| AgentSandboxSettingId.AgentSandboxWindowsEnabled
+	| typeof AgentHostSdkSandboxEnabledSettingId
+	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
+
+export function getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
+	if (customTerminalToolEnabled) {
+		return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
+	}
+	return windows ? AgentHostSdkSandboxWindowsEnabledSettingId : AgentHostSdkSandboxEnabledSettingId;
+}
 
 /**
  * Selects whether the regular workbench surfaces Codex from the agent host

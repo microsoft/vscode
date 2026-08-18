@@ -5,7 +5,7 @@
 
 import type { CopilotClient } from '@github/copilot-sdk';
 import { appendFile, mkdir } from 'fs/promises';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
@@ -14,7 +14,7 @@ import { joinPath, dirname as uriDirname, extUriBiasedIgnorePathCase } from '../
 import { compare as compareStrings } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/common/path.js';
-import { IFileService, IFileStatWithMetadata } from '../../../files/common/files.js';
+import { FileOperationResult, IFileService, IFileStat, IFileStatWithMetadata, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, HookCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType } from '../../common/state/protocol/state.js';
@@ -1211,7 +1211,76 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 }
 
-
+/**
+ * Presence-only counterpart to {@link SessionCustomizationDiscovery}'s hook
+ * scan: resolves `true` as soon as a hook file (`*.json`) is found anywhere
+ * under `<workingDirectory>/.github/hooks/` (recursively, up to
+ * {@link MAX_HOOKS_RECURSION_DEPTH}), and `false` when the folder is missing or
+ * carries no hooks. Subdirectories at each level are scanned in parallel; the
+ * first branch to find a hook cancels the rest so no further directories are
+ * read once the answer is known. The optional {@link token} lets a caller abort
+ * the whole scan (e.g. if session creation is torn down).
+ *
+ * Errors are deliberately split: a **missing** `.github/hooks` (or subdirectory)
+ * is a definitive "no hooks here" and yields `false`, but any **other** failure
+ * (permission, transient IO) is rethrown rather than swallowed — so a caller
+ * can fail open (show the picker) instead of silently under-counting hook
+ * folders and hiding/pinning the wrong one.
+ *
+ * Scope note: this covers only the `.github/hooks/*.json` source, not the
+ * `settings.json`-based hook sources discovery also recognizes; it reuses
+ * {@link HOOK_FILE_SUFFIX} so the file-suffix stays single-sourced with
+ * discovery. It intentionally does NOT surface the hooks as customizations — it
+ * exists only to decide the multi-root Folder picker's primary — so what a
+ * session exposes as customizations is unchanged.
+ */
+export async function workspaceDirectoryHasHooks(fileService: IFileService, workingDirectory: URI, token: CancellationToken = CancellationToken.None): Promise<boolean> {
+	// Linked to the caller's token so external cancellation aborts the scan, and
+	// cancelled internally the moment a hook is found so the remaining parallel
+	// branches stop launching further reads.
+	const scanCts = new CancellationTokenSource(token);
+	let found = false;
+	const containsHook = async (directory: URI, depth: number): Promise<void> => {
+		if (scanCts.token.isCancellationRequested) {
+			return;
+		}
+		let stat: IFileStat;
+		try {
+			stat = await fileService.resolve(directory, { resolveMetadata: false });
+		} catch (err) {
+			// Ignore failures once we're winding down (a sibling already found a
+			// hook, or the caller cancelled). Otherwise treat a missing directory
+			// as "no hooks" and surface every other error so the caller fails open.
+			if (!scanCts.token.isCancellationRequested && toFileOperationResult(err as Error) !== FileOperationResult.FILE_NOT_FOUND) {
+				throw err;
+			}
+			return;
+		}
+		const children = stat.children ?? [];
+		if (children.some(child => child.isFile && child.name.toLowerCase().endsWith(HOOK_FILE_SUFFIX))) {
+			found = true;
+			scanCts.cancel();
+			return;
+		}
+		if (depth >= MAX_HOOKS_RECURSION_DEPTH) {
+			return;
+		}
+		await Promise.all(children
+			.filter(child => child.isDirectory)
+			.map(child => containsHook(child.resource, depth + 1)));
+	};
+	try {
+		await containsHook(joinPath(workingDirectory, '.github', 'hooks'), 0);
+	} finally {
+		scanCts.dispose();
+	}
+	// A caller-cancelled scan has an unreliable result; signal it rather than
+	// reporting a (possibly premature) `false`.
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
+	return found;
+}
 
 // Test-only helpers — exported as `_internal` to discourage production use.
 export const _internal = {
