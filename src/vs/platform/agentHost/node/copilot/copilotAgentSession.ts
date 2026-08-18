@@ -3948,9 +3948,14 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
 			this._resumeSubagentForEvent(e);
-			const modelCallId = e.data.apiCallId ?? e.data.clientRequestId ?? e.data.messageId;
+			const stableModelCallId = e.data.apiCallId ?? e.data.clientRequestId;
+			const isCompleteModelCall = stableModelCallId !== undefined
+				|| e.data.chunkCount === undefined
+				|| e.data.chunkCount <= 1
+				|| e.data.chunkIndex === e.data.chunkCount - 1;
+			const modelCallId = stableModelCallId ?? e.data.messageId;
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			if (!e.agentId || parentToolCallId) {
+			if (isCompleteModelCall && (!e.agentId || parentToolCallId)) {
 				this._emitModelCallCompleted(this._turnId, modelCallId, parentToolCallId);
 			}
 			// Report the enhanced GH `request.options.tools` event for this model call — parity with
@@ -3969,7 +3974,7 @@ export class CopilotAgentSession extends Disposable {
 				// too); the tool-count stats only apply to rounds that carried tool requests.
 				const turn = this._currentTurn;
 				if (turn) {
-					if (!turn.mainModelCallIds.has(modelCallId)) {
+					if (isCompleteModelCall && !turn.mainModelCallIds.has(modelCallId)) {
 						turn.mainModelCallIds.add(modelCallId);
 						turn.toolCallRounds++;
 					}

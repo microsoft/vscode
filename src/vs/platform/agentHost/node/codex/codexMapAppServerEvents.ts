@@ -505,7 +505,10 @@ export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification
 	}];
 }
 
-/** Uses cumulative usage as the stable identity because Codex can repeat token-usage notifications for rate-limit updates. */
+/**
+ * Codex does not expose its exact response-completion event on resumed threads, so cumulative
+ * usage changes are the closest lifecycle signal available across the full session population.
+ */
 export function mapTokenUsageModelCallCompleted(params: ThreadTokenUsageUpdatedNotification, resource: URI): IAgentModelCallCompletedSignal {
 	const total = params.tokenUsage.total;
 	return {

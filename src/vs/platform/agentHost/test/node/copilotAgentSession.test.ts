@@ -6417,7 +6417,6 @@ suite('CopilotAgentSession', () => {
 				messageId: 'msg-part-1',
 				content: 'reasoning',
 				model: 'gpt-x',
-				apiCallId: 'api-shared',
 				chunkIndex: 0,
 				chunkCount: 2,
 			} as SessionEventPayload<'assistant.message'>['data']);
@@ -6425,7 +6424,6 @@ suite('CopilotAgentSession', () => {
 				messageId: 'msg-part-2',
 				content: 'answer',
 				model: 'gpt-x',
-				apiCallId: 'api-shared',
 				chunkIndex: 1,
 				chunkCount: 2,
 			} as SessionEventPayload<'assistant.message'>['data']);
@@ -6436,7 +6434,7 @@ suite('CopilotAgentSession', () => {
 				modelCallIds: signals.filter(signal => signal.kind === 'model_call_completed').map(signal => signal.kind === 'model_call_completed' ? signal.modelCallId : undefined),
 			}, {
 				numRequests: 1,
-				modelCallIds: ['api-shared', 'api-shared'],
+				modelCallIds: ['msg-part-2'],
 			});
 		});
 
