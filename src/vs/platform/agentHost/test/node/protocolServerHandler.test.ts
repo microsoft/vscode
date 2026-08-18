@@ -917,6 +917,56 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('repeated listSessions flushes a pending status before returning the new baseline', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const summary = makeSessionSummary();
+			stateManager.restoreSession(summary, []);
+			const listedSession: IAgentSessionMetadata = {
+				session: URI.parse(summary.resource),
+				startTime: Date.parse(summary.createdAt),
+				modifiedTime: Date.parse(summary.modifiedAt),
+				summary: summary.title,
+				status: summary.status,
+			};
+			agentService.listedSessions.push(listedSession);
+
+			const transport = connectClient('client-repeat-list-status');
+			transport.sent.length = 0;
+			let responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			await responsePromise;
+			transport.sent.length = 0;
+
+			stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: new Date().toISOString(),
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			agentService.listedSessions[0] = { ...listedSession, status: SessionStatus.InProgress };
+			responsePromise = waitForResponse(transport, 3);
+			transport.simulateMessage(request(3, 'listSessions'));
+			const response = await responsePromise;
+			const listedStatus = (response as unknown as { result: ListSessionsResult }).result.items[0].status;
+
+			stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1,
+			});
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			const statusChanges = transport.sent
+				.filter(isJsonRpcNotification)
+				.filter(message => message.method === 'root/sessionSummaryChanged')
+				.map(message => (message.params as SessionSummaryChangedParams).changes.status);
+			assert.deepStrictEqual({ listedStatus, statusChanges }, {
+				listedStatus: SessionStatus.InProgress,
+				statusChanges: [SessionStatus.InProgress, SessionStatus.Idle],
+			});
+		});
+	});
+
 	test('listSessions omits project metadata when absent', async () => {
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),

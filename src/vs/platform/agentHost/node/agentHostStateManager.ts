@@ -261,6 +261,8 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _summaryNotifier: SessionSummaryNotifier;
 	/** Session summaries that clients have received through `root/listSessions` or `root/sessionAdded`. */
 	private readonly _publishedSessionSummaries = new Set<string>();
+	/** Session summaries for which `root/sessionAdded` has been emitted. */
+	private readonly _addedSessionSummaries = new Set<string>();
 
 	private readonly _onDidEmitEnvelope = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidEmitEnvelope: Event<ActionEnvelope> = this._onDidEmitEnvelope.event;
@@ -323,6 +325,18 @@ export class AgentHostStateManager extends Disposable {
 			},
 		));
 	}
+
+	private _emitSessionAdded(summary: SessionSummary): void {
+		this._summaryNotifier.announce(summary.resource, summary);
+		this._publishedSessionSummaries.add(summary.resource);
+		this._addedSessionSummaries.add(summary.resource);
+		this._onDidEmitNotification.fire({
+			type: 'root/sessionAdded',
+			channel: ROOT_STATE_URI,
+			summary,
+		});
+	}
+
 	private readonly _log = (msg: string) => this._logService.warn(`[AgentHostStateManager] ${msg}`);
 
 	get hasActiveSessions(): boolean {
@@ -718,13 +732,7 @@ export class AgentHostStateManager extends Disposable {
 			// its later flush emit incremental updates and what makes
 			// `markSessionPersisted` a no-op. Provisional sessions
 			// intentionally skip both until they are persisted.
-			this._summaryNotifier.announce(key, summary);
-			this._publishedSessionSummaries.add(key);
-			this._onDidEmitNotification.fire({
-				type: 'root/sessionAdded',
-				channel: ROOT_STATE_URI,
-				summary,
-			});
+			this._emitSessionAdded(summary);
 		}
 
 		return state;
@@ -753,7 +761,7 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] markSessionPersisted: unknown session ${key}`);
 			return;
 		}
-		if (!force && this._publishedSessionSummaries.has(key)) {
+		if (!force && this._addedSessionSummaries.has(key)) {
 			return;
 		}
 		// Propagate the materialization-resolved fields so subscribers calling
@@ -765,13 +773,7 @@ export class AgentHostStateManager extends Disposable {
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;
 		const full = this._toSummary(key, entry);
-		this._summaryNotifier.announce(key, full);
-		this._publishedSessionSummaries.add(key);
-		this._onDidEmitNotification.fire({
-			type: 'root/sessionAdded',
-			channel: ROOT_STATE_URI,
-			summary: full,
-		});
+		this._emitSessionAdded(full);
 	}
 
 	/**
@@ -791,13 +793,7 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already published ${key}`);
 			return;
 		}
-		this._summaryNotifier.announce(key, summary);
-		this._publishedSessionSummaries.add(key);
-		this._onDidEmitNotification.fire({
-			type: 'root/sessionAdded',
-			channel: ROOT_STATE_URI,
-			summary,
-		});
+		this._emitSessionAdded(summary);
 	}
 
 	/** Removes a surfaced session without affecting a live session. */
@@ -808,6 +804,7 @@ export class AgentHostStateManager extends Disposable {
 		if (!this._publishedSessionSummaries.delete(session)) {
 			return;
 		}
+		this._addedSessionSummaries.delete(session);
 		this._summaryNotifier.remove(session);
 		this._onDidEmitNotification.fire({
 			type: 'root/sessionRemoved',
@@ -828,15 +825,10 @@ export class AgentHostStateManager extends Disposable {
 				return;
 			}
 			const summary = this._toSummary(session, entry);
-			this._summaryNotifier.announce(session, summary);
-			this._publishedSessionSummaries.add(session);
-			this._onDidEmitNotification.fire({
-				type: 'root/sessionAdded',
-				channel: ROOT_STATE_URI,
-				summary,
-			});
+			this._emitSessionAdded(summary);
 		} else {
 			this._publishedSessionSummaries.delete(session);
+			this._addedSessionSummaries.delete(session);
 			this._summaryNotifier.remove(session);
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionRemoved',
@@ -850,6 +842,9 @@ export class AgentHostStateManager extends Disposable {
 	markSessionSummariesListed(summaries: readonly SessionSummary[]): void {
 		for (const summary of summaries) {
 			if (this._publishedSessionSummaries.has(summary.resource)) {
+				if (this._summaryNotifier.isDirty(summary.resource)) {
+					this._summaryNotifier.flush(summary.resource);
+				}
 				continue;
 			}
 			this._summaryNotifier.announce(summary.resource, summary);
@@ -1179,6 +1174,7 @@ export class AgentHostStateManager extends Disposable {
 		this.removeSession(session);
 		if (wasPublished) {
 			this._publishedSessionSummaries.delete(session.toString());
+			this._addedSessionSummaries.delete(session.toString());
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionRemoved',
 				channel: ROOT_STATE_URI,
