@@ -693,6 +693,36 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('fades tab actions only when they overlay clean tabs', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui-tabs';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const group = appendElement(appendElement(appendElement(root, 'part editor'), 'content'), 'editor-group-container active');
+		const getFadeContent = (titleClassName: string, tabClassName: string): string => {
+			const title = appendElement(group, titleClassName);
+			const tab = appendElement(appendElement(title, 'tabs-container'), tabClassName);
+			const actions = appendElement(tab, 'tab-actions');
+			const action = appendElement(actions, 'action-label');
+			action.tabIndex = 0;
+			action.focus();
+			return getWindow(actions).getComputedStyle(actions, '::before').content;
+		};
+
+		assert.deepStrictEqual({
+			overlaid: getFadeContent('title', 'tab'),
+			reserved: getFadeContent('title tab-actions-reserve-space', 'tab'),
+			dirty: getFadeContent('title', 'tab dirty'),
+			sticky: getFadeContent('title', 'tab sticky'),
+		}, {
+			overlaid: '""',
+			reserved: 'none',
+			dirty: 'none',
+			sticky: 'none',
+		});
+	});
+
 	test('uses legacy color customizations for Modern UI editor tabs only', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark', {
 			[editorBackground]: '#000000',
