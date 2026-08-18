@@ -957,6 +957,8 @@ export class SearchView extends ViewPane {
 			}
 		};
 
+		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders') && !this.accessibilityService.isScreenReaderOptimized();
+
 		this.searchDataSource = this.instantiationService.createInstance(SearchViewDataSource, this);
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
 		this.tree = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>,
@@ -980,7 +982,7 @@ export class SearchView extends ViewPane {
 			],
 			this.searchDataSource,
 			{
-				compressionEnabled: this.configurationService.getValue<boolean>('explorer.compactFolders') && !this.accessibilityService.isScreenReaderOptimized(),
+				compressionEnabled: isCompressionEnabled(),
 				identityProvider,
 				accessibilityProvider: this.treeAccessibilityProvider,
 				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, element => {
@@ -1011,10 +1013,10 @@ export class SearchView extends ViewPane {
 			}));
 
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'))(() =>
-			this.tree.updateOptions({ compressionEnabled: this.configurationService.getValue<boolean>('explorer.compactFolders') && !this.accessibilityService.isScreenReaderOptimized() })));
+			this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
 
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() =>
-			this.tree.updateOptions({ compressionEnabled: this.configurationService.getValue<boolean>('explorer.compactFolders') && !this.accessibilityService.isScreenReaderOptimized() })));
+			this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
 
 		Constants.SearchContext.SearchResultListFocusedKey.bindTo(this.tree.contextKeyService);
 
