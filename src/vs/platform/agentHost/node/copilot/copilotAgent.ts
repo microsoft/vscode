@@ -1736,7 +1736,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const envValue = process.env[AgentHostByokModelsEnabledEnvVar];
 		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
 		const enabled = isAgentHostByokModelsEnabled(envValue, rootConfigValue);
-		this._logService.info(`[Copilot] BYOK model publication enabled: ${enabled} (environment: ${envValue ?? 'unset'}, root config: ${rootConfigValue ?? 'unset'})`);
+		this._logService.trace(`[Copilot] BYOK model publication enabled: ${enabled} (environment: ${envValue ?? 'unset'}, root config: ${rootConfigValue ?? 'unset'})`);
 		if (!enabled) {
 			this._byokModels = [];
 			this._publishModels();

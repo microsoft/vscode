@@ -694,7 +694,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const envValue = process.env[AgentHostByokModelsEnabledEnvVar];
 		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
 		const enabled = isAgentHostByokModelsEnabled(envValue, rootConfigValue);
-		this._logService.info(`[Copilot:${sessionId}] BYOK session configuration enabled: ${enabled} (environment: ${envValue ?? 'unset'}, root config: ${rootConfigValue ?? 'unset'})`);
+		this._logService.trace(`[Copilot:${sessionId}] BYOK session configuration enabled: ${enabled} (environment: ${envValue ?? 'unset'}, root config: ${rootConfigValue ?? 'unset'})`);
 		if (!enabled) {
 			return Promise.resolve({});
 		}
