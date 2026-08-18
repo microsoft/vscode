@@ -244,7 +244,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostByokModelsEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, the agent host wires up the BYOK ('bring your own key') language-model bridge so extension-provided BYOK models can run in agent-host sessions. Changes take effect immediately."),
+			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, the agent host wires up the BYOK ('bring your own key') language-model bridge so extension-provided BYOK models can run in agent-host sessions. Changes take effect after the setting is synchronized to the agent host."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
