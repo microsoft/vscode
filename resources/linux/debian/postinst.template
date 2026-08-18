@@ -22,7 +22,10 @@ if hash update-mime-database 2>/dev/null; then
 	update-mime-database /usr/share/mime
 fi
 
-if [ "@@NAME@@" != "code-oss" ]; then
+# GitCortex Studio ships no APT repository. Skip the upstream Microsoft
+# packages.microsoft.com source/key registration and the legacy /usr/local/bin/code
+# cleanup so the GitCortex .deb never modifies the user's apt sources.
+if [ "@@NAME@@" != "code-oss" ] && [ "@@NAME@@" != "gitcortex" ]; then
 	# Remove the legacy bin command if this is the stable build
 	if [ "@@NAME@@" = "code" ]; then
 		rm -f /usr/local/bin/code
