@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -101,6 +102,7 @@ suite('Sessions - SessionsList', () => {
 					override readonly extUri = new ExtUri(() => true);
 				},
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -155,6 +157,7 @@ suite('Sessions - SessionsList', () => {
 				automationSessions,
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			const runResource = URI.parse('test-session:/workspace/automation');
 			const statuses: (SessionStatus | undefined)[] = [];
@@ -211,6 +214,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable([runningSession, needsInputSession]),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			runs.set([
 				{
@@ -773,7 +777,7 @@ suite('Sessions - SessionsList', () => {
 					isShorterThanStandardRow: false,
 					hasCompactClass: false,
 					hasChatIcon: true,
-					badge: 'Chat',
+					badge: 'No workspace',
 					time: 'now',
 					hasDiff: false,
 					ariaLabel: 'Investigate failure, chat, updated now',

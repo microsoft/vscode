@@ -238,6 +238,12 @@ parent relationships evolve.
 `list_sessions` projects and filters hierarchy metadata without involving
 provider harnesses.
 
+`list_sessions` exposes a session's configured project URI separately from its
+primary and additional working directories. `create_session` accepts those URIs
+directly and can resolve a unique project display name, preferring the
+configured project root over a transient worktree. Ambiguous names require an
+explicit project URI.
+
 ---
 
 ## 4. Capabilities Gating
