@@ -7,7 +7,7 @@ import assert from 'assert';
 import { disposableTimeout } from '../../common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../common/errors.js';
-import { IPager, PagedModel } from '../../common/paging.js';
+import { DelayedPagedModel, IPager, IterativePagedModel, PageIteratorPager, PagedModel, mapPager } from '../../common/paging.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<number[]> {
@@ -183,5 +183,70 @@ suite('PagedModel', () => {
 		}, 10));
 
 		return Promise.all([promise1, promise2]);
+	});
+
+	test('supports array pagers and mapped pagers', async () => {
+		const model = new PagedModel(['a', 'b', 'c']);
+		assert.strictEqual(model.length, 3);
+		assert.strictEqual(model.get(1), 'b');
+		assert.strictEqual(await model.resolve(2, CancellationToken.None), 'c');
+
+		const pager = mapPager(new TestPager(), value => value * 2);
+		assert.deepStrictEqual(pager.firstPage, [0, 2, 4, 6, 8]);
+		assert.deepStrictEqual(await pager.getPage(1, CancellationToken.None), [10, 12, 14, 16, 18]);
+	});
+
+	test('delays resolution and supports cancellation', async () => {
+		const model = new DelayedPagedModel(new PagedModel([42]), 0);
+		assert.strictEqual(await model.resolve(0, CancellationToken.None), 42);
+
+		const tokenSource = store.add(new CancellationTokenSource());
+		const promise = model.resolve(0, tokenSource.token);
+		tokenSource.cancel();
+		await assert.rejects(promise, err => isCancellationError(err));
+	});
+
+	test('loads pages from an iterator and caches them', async () => {
+		const pages = [
+			{ elements: [0, 1], total: 6, hasNextPage: true },
+			{ elements: [2, 3], total: 6, hasNextPage: true },
+			{ elements: [4, 5], total: 6, hasNextPage: false }
+		];
+		let pageIndex = 0;
+		const getPage = (index: number) => ({
+			elements: pages[index].elements,
+			total: pages[index].total,
+			hasNextPage: pages[index].hasNextPage,
+			getNextPage: async () => getPage(++pageIndex)
+		});
+		const pager = new PageIteratorPager({
+			...getPage(0)
+		});
+
+		assert.deepStrictEqual(await pager.getPage(2, CancellationToken.None), [4, 5]);
+		assert.deepStrictEqual(await pager.getPage(1, CancellationToken.None), [2, 3]);
+		await assert.rejects(pager.getPage(3, CancellationToken.None), /out of bounds/);
+	});
+
+	test('loads iterative pages and fires length events', async () => {
+		const lengths: number[] = [];
+		let pageIndex = 0;
+		const model = new IterativePagedModel({
+			firstPage: { items: [1], hasMore: true },
+			getNextPage: async () => ({
+				items: [++pageIndex + 1],
+				hasMore: pageIndex < 2
+			})
+		});
+		store.add(model.onDidIncrementLength(length => lengths.push(length)));
+
+		assert.strictEqual(model.length, 2);
+		assert(!model.isResolved(1));
+		assert.strictEqual(await model.resolve(1, CancellationToken.None), 2);
+		assert.strictEqual(await model.resolve(2, CancellationToken.None), 3);
+		assert.strictEqual(model.length, 3);
+		assert.deepStrictEqual(lengths, [3, 3]);
+		assert.throws(() => model.get(3), /not resolved/);
+		model.dispose();
 	});
 });
