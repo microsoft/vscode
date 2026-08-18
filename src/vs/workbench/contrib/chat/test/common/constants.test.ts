@@ -634,6 +634,29 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
+	test('managed sandbox never leaves a window without a usable harness', () => {
+		const configurationService = new TestPolicyConfigurationService({
+			[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
+		});
+		const noContributions = createChatSessionsService();
+		const copilotContributed = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storageService = disposables.add(new TestStorageService());
+
+		// The Agent Host is disabled in this window (e.g. on web), so the Copilot SDK is not
+		// reachable. The local harness stays visible whenever nothing else is contributed.
+		assert.deepStrictEqual({
+			noContributionsVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, noContributions, localWorkspace),
+			noContributionsComputed: getComputedDefaultSessionType(configurationService, noContributions, localWorkspace, false),
+			noContributionsResolved: resolveSessionType(configurationService, noContributions, storageService, localWorkspace, false, { currentSessionType: localChatSessionType }),
+			copilotUsable: isNewChatSessionTypeUsable(SessionType.AgentHostCopilot, configurationService, copilotContributed, localWorkspace, false),
+		}, {
+			noContributionsVisible: true,
+			noContributionsComputed: localChatSessionType,
+			noContributionsResolved: { sessionType: localChatSessionType },
+			copilotUsable: false,
+		});
+	});
+
 	test('virtual workspace keeps local available when the sandbox is managed', () => {
 		const configurationService = new TestPolicyConfigurationService({
 			[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
