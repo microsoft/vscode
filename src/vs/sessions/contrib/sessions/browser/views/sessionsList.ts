@@ -26,6 +26,8 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
@@ -48,7 +50,7 @@ import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprova
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -87,6 +89,7 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
+import { Menus } from '../../../../browser/menus.js';
 
 const $ = DOM.$;
 
@@ -98,6 +101,7 @@ export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
+export const NEW_SESSION_FOR_WORKSPACE_ACTION_ID = 'sessionsView.sectionNewSession';
 
 /** Controls whether the empty default Chats group is shown in the sessions list. */
 export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.showEmptyDefaultGroups';
@@ -953,11 +957,13 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly automationSessions: IObservable<readonly ISession[]>,
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly customViewService: ICustomViewService,
+		private readonly menuService: IMenuService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
+		const actionViewItemDisposables = disposables.add(new DisposableStore());
 
 		container.classList.add('session-section');
 		const icon = DOM.append(container, $('span.session-section-icon'));
@@ -974,6 +980,43 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, SessionSectionToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
+			actionViewItemProvider: (action, options) => {
+				actionViewItemDisposables.clear();
+
+				if (action.id !== NEW_SESSION_FOR_WORKSPACE_ACTION_ID || !(action instanceof MenuItemAction)) {
+					return undefined;
+				}
+
+				const dropdownActions = getFlatContextMenuActions(this.menuService.getMenuActions(
+					Menus.SessionSectionNewSession,
+					contextKeyService,
+					{ shouldForwardArgs: true },
+				));
+				if (dropdownActions.length === 0) {
+					return undefined;
+				}
+
+				const item = scopedInstantiationService.createInstance(
+					DropdownWithPrimaryActionViewItem,
+					action,
+					new Action('sessionsView.sectionNewSession.moreActions',
+						localize('newSessionForWorkspaceMoreActions', "More Actions")),
+					dropdownActions,
+					'',
+					{
+						hoverDelegate: options.hoverDelegate,
+						menuAsChild: false
+					},
+				);
+
+				actionViewItemDisposables.add(item.onDidChangeDropdownVisibility(visible =>
+					container.classList.toggle('dropdown-active', visible)));
+
+				actionViewItemDisposables.add(toDisposable(() =>
+					container.classList.remove('dropdown-active')));
+
+				return item;
+			},
 		}));
 
 		return { container, icon, statusIndicator, label, count, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
@@ -2010,7 +2053,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
 		};
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, selectHeader, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService);
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, selectHeader, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService, this.menuService);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
