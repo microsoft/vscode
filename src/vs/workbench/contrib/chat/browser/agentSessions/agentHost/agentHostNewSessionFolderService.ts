@@ -84,6 +84,9 @@ export type FolderPickerDecisionUpdate =
  * @param isSessionsWindow whether the widget lives in the Agents window (which owns folder choice).
  * @param sessionIsEmpty whether the session has no requests yet (its working directory isn't fixed).
  * @param currentSelectedFolder the folder already chosen for `sessionResource`, if any.
+ * @param folderExtUri provider-aware comparator (from `IUriIdentityService.extUri`) used to
+ * decide whether the pinned primary is already selected, so casing is honored per the folder's
+ * actual filesystem instead of assumed.
  */
 export function resolveFolderPickerDecisionUpdate(
 	sessionResource: URI | undefined,
@@ -93,6 +96,7 @@ export function resolveFolderPickerDecisionUpdate(
 	isSessionsWindow: boolean,
 	sessionIsEmpty: boolean,
 	currentSelectedFolder: URI | undefined,
+	folderExtUri: IExtUri,
 ): FolderPickerDecisionUpdate {
 	if (!sessionResource || !agentHostProviderId) {
 		return { kind: 'apply', visible: false, trackedSessionResource: undefined, selectPrimary: undefined };
@@ -113,9 +117,11 @@ export function resolveFolderPickerDecisionUpdate(
 	// window, which owns folder choice through its own workspace picker.
 	if (decision.primary && !isSessionsWindow && sessionIsEmpty) {
 		const primary = URI.parse(decision.primary);
-		// Folders are filesystem paths, so use the biased (case-insensitive on
-		// case-insensitive filesystems) comparison to avoid a redundant re-select.
-		if (!extUriBiasedIgnorePathCase.isEqual(currentSelectedFolder, primary)) {
+		// Use the provider-aware comparator so a folder differing only by case is
+		// treated as already-selected only when its filesystem is case-insensitive
+		// (avoids both a redundant re-select and wrongly suppressing a real change
+		// on a case-sensitive remote).
+		if (!folderExtUri.isEqual(currentSelectedFolder, primary)) {
 			selectPrimary = primary;
 		}
 	}

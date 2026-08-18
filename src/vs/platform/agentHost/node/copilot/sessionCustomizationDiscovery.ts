@@ -1212,20 +1212,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 }
 
 /**
- * Resolves `true` as soon as a hook file (`*.json`) is found under
- * `<workingDirectory>/.github/hooks/` (recursively, up to
- * {@link MAX_HOOKS_RECURSION_DEPTH}), else `false`. Subdirectories are scanned
- * in parallel and the first hook found cancels the rest; the optional
- * {@link token} aborts the whole scan.
- *
- * Errors are split so the caller can fail open: a **missing** directory yields a
- * definitive `false`, but any other failure (permission, transient IO) is
- * rethrown rather than swallowed.
- *
- * Covers only the `.github/hooks/*.json` source (not the `settings.json`-based
- * hook sources discovery also recognizes), reusing {@link HOOK_FILE_SUFFIX} so
- * the suffix stays single-sourced. It never surfaces hooks as customizations —
- * it exists only to decide the multi-root Folder picker's primary.
+ * Resolves `true` if a hook file (`*.json`) exists anywhere under
+ * `<workingDirectory>/.github/hooks/`, else `false`; a missing directory is a
+ * definitive `false`, but any other IO failure is rethrown so the caller can fail
+ * open, and the optional {@link token} aborts the scan.
  */
 export async function workspaceDirectoryHasHooks(fileService: IFileService, workingDirectory: URI, token: CancellationToken = CancellationToken.None): Promise<boolean> {
 	// Linked to the caller's token so external cancellation aborts the scan, and
