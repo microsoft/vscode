@@ -1248,7 +1248,7 @@ Create a session in a workspace and start it with an initial prompt. The UI show
     },
     "coordinateWithCreator": {
       "type": "boolean",
-      "description": "Whether the child receives its creator relationship and may use prompt-producing session tools targeting the creator. Defaults to true."
+      "description": "Allow the child to identify and contact the session that created it. Set false for an independent child that must not send messages or create chats in its creator. Defaults to true."
     },
     "notifyOnIdle": {
       "type": "string",
