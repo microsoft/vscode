@@ -818,6 +818,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		removePendingRequest(sessionResource: URI, requestId: string) {
 			this.removePendingRequestCalls.push({ sessionResource, requestId });
 		},
+		setChatSessionTitleCalls: [] as { sessionResource: URI; title: string }[],
+		async setChatSessionTitle(sessionResource: URI, title: string) {
+			this.setChatSessionTitleCalls.push({ sessionResource, title });
+		},
 		syncPendingRequestsFromRemoteCalls: [] as { sessionResource: URI; requests: readonly IRemotePendingRequest[] }[],
 		/** Set by tests that want to mirror remote pending messages into their fake chat model. */
 		applyRemotePendingRequests: undefined as ((sessionResource: URI, requests: readonly IRemotePendingRequest[]) => void) | undefined,
@@ -2947,6 +2951,49 @@ suite('AgentHostChatContribution', () => {
 			}, {
 				events: [['b']],
 				labels: ['A', 'B updated'],
+			});
+		});
+
+		test('session and default chat title actions update the session list item', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const backendSession = AgentSession.uri('copilot', 'chat-title');
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Session title' });
+
+			const sessionListStore = createSessionListStore(disposables, instantiationService, agentHostService);
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', sessionListStore, undefined, 'local'));
+			await listController.refresh(CancellationToken.None);
+
+			const events: string[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => {
+				events.push(...(delta.addedOrUpdated ?? []).map(item => item.label));
+			}));
+
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.SessionTitleChanged,
+					title: 'Renamed session',
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.SessionChatUpdated,
+					chat: buildDefaultChatUri(backendSession.toString()),
+					changes: { title: 'Renamed default chat' },
+				},
+				serverSeq: 2,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				label: listController.items[0].label,
+				events,
+			}, {
+				label: 'Renamed default chat',
+				events: ['Renamed session', 'Renamed default chat'],
 			});
 		});
 
@@ -10027,6 +10074,59 @@ suite('AgentHostChatContribution', () => {
 				firePendingRequestsChanged: () => onDidChangePendingRequests.fire(),
 			};
 		}
+
+		test('uses independent default chat titles for the editor', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'independent-chat-title');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/independent-chat-title' });
+			const defaultChat = buildDefaultChatUri(backendSession.toString());
+			const peerChat = buildChatUri(backendSession.toString(), 'peer');
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Session title',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat,
+				chats: [
+					{ ...createDefaultChatSummary(summary, defaultChat), title: 'Default chat title' },
+					{ ...createDefaultChatSummary(summary, peerChat), title: 'Peer chat title' },
+				],
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.SessionChatUpdated,
+					chat: defaultChat,
+					changes: { title: 'Renamed default chat' },
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				initialTitle: chatSession.title,
+				titleChanges: chatService.setChatSessionTitleCalls.map(call => ({
+					sessionResource: call.sessionResource.toString(),
+					title: call.title,
+				})),
+			}, {
+				initialTitle: 'Default chat title',
+				titleChanges: [{
+					sessionResource: sessionResource.toString(),
+					title: 'Renamed default chat',
+				}],
+			});
+		});
 
 		test('syncs queued messages added to restored active sessions idempotently', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
