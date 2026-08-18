@@ -89,7 +89,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 	}
 
 	public async *getContext(document: vscode.TextDocument, position: vscode.Position, context: RequestContext, token: vscode.CancellationToken): AsyncIterable<ContextItem> {
-		return this.tsLanguageContextService.getContext(document, position, context, token);
+		yield* this.tsLanguageContextService.getContext(document, position, context, token);
 	}
 
 	public getContextOnTimeout(document: vscode.TextDocument, position: vscode.Position, context: RequestContext): readonly ContextItem[] | undefined {

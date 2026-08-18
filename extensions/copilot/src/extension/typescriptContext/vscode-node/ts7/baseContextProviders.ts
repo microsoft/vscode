@@ -185,12 +185,13 @@ export class TypeOfLocalsRunnable extends AbstractContextRunnable {
 		const anchor = this.tokenInfo.previous ?? this.tokenInfo.token ?? this.tokenInfo.touching;
 		const symbols = this.symbols;
 		const checker = symbols.getTypeChecker();
-		const inScope = await symbols.getSymbolsInScope(anchor, SymbolFlags.BlockScopedVariable);
+		const sourceFile = anchor.getSourceFile();
+		// The AST navigation helpers hand out synthesized token nodes, so the checker can only resolve them via a document position.
+		const inScope = await symbols.getSymbolsInScope({ document: sourceFile.fileName, position: anchor.getStart(sourceFile) }, SymbolFlags.BlockScopedVariable);
 		if (inScope.length === 0) {
 			return;
 		}
 
-		const sourceFile = anchor.getSourceFile();
 		// When we try to capture locals outside of a callable (e.g. top level in a source file) we capture the declarations as
 		// scope. If we are inside the body of the callable defines the scope.
 		const cacheNodes = this.cacheScope === undefined ? new Set<Node>() : undefined;

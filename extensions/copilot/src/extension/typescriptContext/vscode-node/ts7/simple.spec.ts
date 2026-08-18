@@ -7,6 +7,7 @@ import assert from 'node:assert';
 import path from 'node:path';
 
 import { API } from '@typescript/native/unstable/async';
+import { version } from '@typescript/native';
 import type * as vscode from 'vscode';
 import { afterAll, beforeAll, suite, test } from 'vitest';
 import * as protocol from '../../common/serverProtocol';
@@ -35,7 +36,7 @@ suite('TypeScript 7 context engine', () => {
 		const items = await compute('p1', 'source/f1.ts', 0, 0);
 		const traits = items.filter(item => item.kind === protocol.ContextKind.Trait).map(item => [item.name, item.value]);
 		assert.deepStrictEqual(traits, [
-			['The TypeScript version used in this project is ', '7.0.2'],
+			['The TypeScript version used in this project is ', version],
 			['The TypeScript module system used in this project is ', 'Node16'],
 			['The TypeScript module resolution strategy used in this project is ', 'Node16'],
 			['The target version of JavaScript for this project is ', 'ES2022'],
