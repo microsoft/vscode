@@ -66,7 +66,7 @@ import type { ComponentToState, RootState, StateComponents } from '../common/sta
 
 const LOG_PREFIX = '[AgentHost:renderer]';
 
-export function notifyOnFatalAgentHostStartError(notificationService: INotificationService): void {
+function notifyOnFatalAgentHostStartError(notificationService: INotificationService): void {
 	notificationService.error(localize(
 		'agentHost.startFailed',
 		"The Agent Host failed to start. Restart the application to try again. See the logs for details."
