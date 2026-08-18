@@ -342,19 +342,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				if (entry.disposed) {
 					continue;
 				}
-				// The draft's primary working directory was removed from the
-				// workspace. A not-yet-started (untitled) session isn't pinned to
-				// it, so reselect the folder a freshly created chat would use and
-				// recreate the provisional there (an empty workspace resolves to no
-				// working directory, letting the host choose). Runs for every
-				// untitled draft — not only multi-root ones — so a single-folder
-				// draft reselects too. A started/rebound entry (keyed by its real,
-				// non-untitled resource) is deliberately excluded: its working
-				// directory is the agent's fixed process root, owned by
-				// AgentHostSessionWorkingDirectorySynchronizer, so it keeps the
-				// removed primary and only reconciles secondaries below.
-				// `_changeWorkingDirectory` re-acquires the active-client scope, so
-				// skip the shared update below to avoid acquiring it twice.
+				// Untitled drafts reselect removed primaries; rebound sessions retain their immutable primary.
 				if (isUntitledChatSession(sessionResource) && this._primaryWasRemoved(entry, e)) {
 					void this._changeWorkingDirectory(sessionResource, this._newSessionFolderService.resolveNewSessionPrimary(sessionResource));
 					continue;
