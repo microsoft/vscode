@@ -1105,6 +1105,50 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('setMuted gates outgoing audio while keeping the session connected', async () => {
+		const sentChunks: string[] = [];
+		const voiceClientService = new class extends TestVoiceClientService {
+			override sendPttAudioChunk(chunk: string): void { sentChunks.push(chunk); }
+		}();
+		const audioChunkEmitter = store.add(new Emitter<string>());
+		const micCaptureService = new class extends TestMicCaptureService {
+			override readonly onPttAudioChunk = audioChunkEmitter.event;
+		}();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }),
+		);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+
+		// Unmuted: chunks flow to the backend.
+		audioChunkEmitter.fire('chunk-1');
+		// Muted: chunks are dropped, session stays connected.
+		controller.setMuted(true);
+		audioChunkEmitter.fire('chunk-2');
+		// Unmuted again: chunks flow once more.
+		controller.setMuted(false);
+		audioChunkEmitter.fire('chunk-3');
+
+		assert.deepStrictEqual({
+			sentChunks,
+			micMuted: micCaptureService.isMuted,
+			isMuted: controller.isMuted.get(),
+			connected: controller.isConnected.get(),
+		}, {
+			sentChunks: ['chunk-1', 'chunk-3'],
+			micMuted: false,
+			isMuted: false,
+			connected: true,
+		});
+	});
+
 	test('hands-free warm-up failure returns to idle and allows retry', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const resetObserved = new DeferredPromise<void>();
