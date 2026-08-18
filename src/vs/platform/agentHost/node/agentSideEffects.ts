@@ -982,9 +982,7 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 		if (action.type === ActionType.ChatUsage) {
-			// A subagent's charges are already folded into its parent turn's
-			// total, so recording them here too would double-count them when
-			// `billedNanoAiu` is summed across turns. Mirrors `_trackTurnUsage`.
+			// Subagent charges are already folded into the parent turn's aggregate.
 			if (!isSubagentChatUri(sessionKey)) {
 				this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, readUsageInfoMeta(action.usage).copilotUsage?.totalNanoAiu);
 			}
