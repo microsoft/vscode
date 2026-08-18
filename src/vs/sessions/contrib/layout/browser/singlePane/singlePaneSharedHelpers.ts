@@ -19,6 +19,7 @@ const MARKDOWN_EDITOR_VIEW_TYPES = new Set([
 	'vscode.markdown.preview.editor',
 ]);
 const PULL_REQUEST_OVERVIEW_VIEW_TYPE = 'PullRequestOverview';
+const ISSUE_OVERVIEW_VIEW_TYPE = 'IssueOverview';
 
 /** Whether every group in the main editor part is empty (used by both the detail-panel and side-pane-visibility logic to detect an empty side pane). */
 export function isMainPartEmpty(editorGroupsService: IEditorGroupsService): boolean {
@@ -51,5 +52,8 @@ export function isFileEditorInput(editor: EditorInput): boolean {
 export function isEditorWithoutDockedDetails(editor: EditorInput): boolean {
 	return editor instanceof BrowserEditorInput
 		|| (editor instanceof WebviewInput
-			&& (editor.viewType === PULL_REQUEST_OVERVIEW_VIEW_TYPE || editor.providerId === PULL_REQUEST_OVERVIEW_VIEW_TYPE));
+			&& (editor.viewType === PULL_REQUEST_OVERVIEW_VIEW_TYPE
+				|| editor.providerId === PULL_REQUEST_OVERVIEW_VIEW_TYPE
+				|| editor.viewType === ISSUE_OVERVIEW_VIEW_TYPE
+				|| editor.providerId === ISSUE_OVERVIEW_VIEW_TYPE));
 }

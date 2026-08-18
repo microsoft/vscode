@@ -384,6 +384,26 @@ suite('LayoutController (desktop)', () => {
 
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.setPartHiddenCalls = [];
+		const issueEditor = Object.create(WebviewInput.prototype) as WebviewInput;
+		Object.defineProperties(issueEditor, {
+			viewType: { value: 'mainThreadWebview-IssueOverview' },
+			providerId: { value: 'IssueOverview' },
+		});
+		harness.activeEditorInput = issueEditor;
+		harness.onDidActiveEditorChange.fire();
+		assert.strictEqual(hasDockedDetails(), false, 'issue target should clear the editor chevron context');
+		await timeout(0);
+
+		assert.ok(
+			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'issue editors should hide the detail panel'
+		);
+
+		harness.activeEditorInput = pullRequestEditor;
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls = [];
 		harness.visibleSessionsObs.set([session, makeSession(URI.parse('session:2'))], undefined);
 		await timeout(0);
 		assert.ok(
