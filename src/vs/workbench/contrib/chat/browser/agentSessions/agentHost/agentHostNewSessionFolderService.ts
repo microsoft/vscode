@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { extUriBiasedIgnorePathCase, type IExtUri } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -97,7 +97,9 @@ export function resolveFolderPickerDecisionUpdate(
 	if (!sessionResource || !agentHostProviderId) {
 		return { kind: 'apply', visible: false, trackedSessionResource: undefined, selectPrimary: undefined };
 	}
-	const sameSession = previousTrackedSessionResource?.toString() === sessionResource.toString();
+	// Session resources are exact identifiers (their scheme encodes the
+	// provider), so compare them case-sensitively.
+	const sameSession = isEqual(previousTrackedSessionResource, sessionResource);
 	if (!decision) {
 		// Retain across a provisional recreation of the same session; stay hidden
 		// (the default) for a freshly bound session until a decision reveals it.
@@ -111,7 +113,9 @@ export function resolveFolderPickerDecisionUpdate(
 	// window, which owns folder choice through its own workspace picker.
 	if (decision.primary && !isSessionsWindow && sessionIsEmpty) {
 		const primary = URI.parse(decision.primary);
-		if (currentSelectedFolder?.toString() !== primary.toString()) {
+		// Folders are filesystem paths, so use the biased (case-insensitive on
+		// case-insensitive filesystems) comparison to avoid a redundant re-select.
+		if (!extUriBiasedIgnorePathCase.isEqual(currentSelectedFolder, primary)) {
 			selectPrimary = primary;
 		}
 	}

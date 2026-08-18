@@ -67,13 +67,14 @@ suite('resolveFolderPickerDecisionUpdate', () => {
 		});
 	});
 
-	test('reveals the picker without selecting anything when the harness does not pin a primary', () => {
-		assert.deepStrictEqual({
-			shownNoPrimary: norm(resolveFolderPickerDecisionUpdate(sessionA, provider, { hidden: false }, sessionA, false, true, undefined)),
-			hiddenNoPrimary: norm(resolveFolderPickerDecisionUpdate(sessionA, provider, { hidden: true }, sessionA, false, true, frontend)),
-		}, {
-			shownNoPrimary: { kind: 'apply', visible: true, tracked: sessionA.toString(), select: undefined },
-			hiddenNoPrimary: { kind: 'apply', visible: false, tracked: sessionA.toString(), select: undefined },
-		});
+	test('treats a prior pick that differs only by path casing as already-selected (resource equality, not string identity)', () => {
+		const decision = { hidden: true, primary: backend.toString() };
+		// On a case-insensitive filesystem `/ws/BACKEND` is the same folder as the
+		// pinned `/ws/backend`, so no redundant re-select (and no spurious change
+		// event) is issued.
+		assert.deepStrictEqual(
+			norm(resolveFolderPickerDecisionUpdate(sessionA, provider, decision, sessionA, false, true, URI.file('/ws/BACKEND'))),
+			{ kind: 'apply', visible: false, tracked: sessionA.toString(), select: undefined },
+		);
 	});
 });
