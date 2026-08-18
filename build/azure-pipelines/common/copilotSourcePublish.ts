@@ -62,11 +62,19 @@ function targetMetadata(target: string): { platform: string; arch: string; os: s
 	};
 }
 
-function assertRuntimePackage(dir: string, target: string): void {
-	for (const relativePath of ['index.js', 'npm-loader.js', 'sdk/index.js', 'sdk/index.d.ts', '.copilot-source-complete']) {
+function assertRuntimePackage(dir: string, target: string, expectedRef: string): void {
+	for (const relativePath of ['index.js', 'npm-loader.js', 'sdk/index.js', 'sdk/index.d.ts']) {
 		if (!fs.existsSync(path.join(dir, relativePath))) {
 			throw new Error(`[copilot-source-publish] ${runtimeArtifactName(target)} is incomplete: missing ${relativePath}.`);
 		}
+	}
+	const markerPath = path.join(dir, '.copilot-source-complete');
+	if (!fs.existsSync(markerPath)) {
+		throw new Error(`[copilot-source-publish] ${runtimeArtifactName(target)} is incomplete: missing .copilot-source-complete.`);
+	}
+	const actualRef = fs.readFileSync(markerPath, 'utf8').trim();
+	if (actualRef !== expectedRef) {
+		throw new Error(`[copilot-source-publish] ${runtimeArtifactName(target)} was built from ${actualRef || '<empty>'}, but this build requires ${expectedRef}.`);
 	}
 }
 
@@ -74,7 +82,7 @@ function assertRuntimePackage(dir: string, target: string): void {
  * Converts the eight target artifacts into the package layout consumed by npm:
  * one thin `@github/copilot` loader plus one full JS/native package per target.
  */
-export function assembleRuntimePackages(artifactsDir: string, outputDir: string, version: string): string[] {
+export function assembleRuntimePackages(artifactsDir: string, outputDir: string, version: string, runtimeRef: string): string[] {
 	assertSourceVersion(version);
 	fs.rmSync(outputDir, { recursive: true, force: true });
 	fs.mkdirSync(outputDir, { recursive: true });
@@ -85,7 +93,7 @@ export function assembleRuntimePackages(artifactsDir: string, outputDir: string,
 
 	for (const target of copilotPlatforms) {
 		const artifactDir = path.join(artifactsDir, runtimeArtifactName(target));
-		assertRuntimePackage(artifactDir, target);
+		assertRuntimePackage(artifactDir, target, runtimeRef);
 		mainSource ??= artifactDir;
 
 		const packageDir = path.join(outputDir, target);

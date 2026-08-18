@@ -6,7 +6,10 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { copilotPlatforms } from './copilotPlatforms.ts';
 import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOptions } from './npmPackage.ts';
+
+export { copilotPlatforms };
 
 /**
  * Options for {@link prepareBuiltInCopilotRipgrepShim}. Extends the npm packing
@@ -17,17 +20,6 @@ import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOp
 export interface PrepareBuiltInCopilotOptions extends EnsureNpmPackageOptions {
 	extensionLockfilePath?: string;
 }
-
-/**
- * The platforms that @github/copilot ships platform-specific packages for.
- * These are the `@github/copilot-{platform}` optional dependency packages.
- */
-export const copilotPlatforms = [
-	'darwin-arm64', 'darwin-x64',
-	'linux-arm64', 'linux-x64',
-	'linuxmusl-arm64', 'linuxmusl-x64',
-	'win32-arm64', 'win32-x64',
-];
 
 /**
  * Converts VS Code build platform/arch to the values that Node.js reports

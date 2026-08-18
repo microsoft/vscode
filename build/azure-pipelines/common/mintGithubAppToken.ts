@@ -46,14 +46,22 @@ function createJwt(appId: string, privateKey: string): string {
 	return `${header}.${payload}.${signature}`;
 }
 
-function request(options: https.RequestOptions, body?: object): Promise<any> {
-	return new Promise((resolve, reject) => {
+function request<T>(options: https.RequestOptions, body?: object): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
 		const req = https.request(options, res => {
 			let data = '';
 			res.on('data', chunk => data += chunk);
 			res.on('end', () => {
 				if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-					resolve(data ? JSON.parse(data) : {});
+					if (!data) {
+						reject(new Error(`HTTP ${res.statusCode}: empty response`));
+						return;
+					}
+					try {
+						resolve(JSON.parse(data) as T);
+					} catch (error) {
+						reject(error);
+					}
 				} else {
 					reject(new Error(`HTTP ${res.statusCode}: ${data}`));
 				}
@@ -81,14 +89,14 @@ const ghHeaders = (auth: string): https.RequestOptions['headers'] => ({
 export async function mintInstallationToken(appId: string, privateKey: string, owner: string, repo: string): Promise<string> {
 	const jwt = createJwt(appId, privateKey.includes('\\n') ? privateKey.replace(/\\n/g, '\n') : privateKey);
 
-	const installation: { id: number } = await request({
+	const installation = await request<{ id: number }>({
 		hostname: 'api.github.com',
 		path: `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/installation`,
 		method: 'GET',
 		headers: ghHeaders(`Bearer ${jwt}`),
 	});
 
-	const result: { token: string } = await request({
+	const result = await request<{ token: string }>({
 		hostname: 'api.github.com',
 		path: `/app/installations/${installation.id}/access_tokens`,
 		method: 'POST',

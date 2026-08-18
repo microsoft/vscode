@@ -18,7 +18,8 @@ const artifactsDir = path.resolve(requiredEnv('COPILOT_RUNTIME_ARTIFACTS_DIR'));
 const outputDir = path.resolve(requiredEnv('COPILOT_RUNTIME_PACKAGES_DIR'));
 const version = requiredEnv('COPILOT_SOURCE_VERSION');
 const registry = requiredEnv('COPILOT_SOURCE_REGISTRY');
+const runtimeRef = requiredEnv('COPILOT_RUNTIME_SOURCE_REF');
 
-for (const packageDir of assembleRuntimePackages(artifactsDir, outputDir, version)) {
+for (const packageDir of assembleRuntimePackages(artifactsDir, outputDir, version, runtimeRef)) {
 	publishPackage(packageDir, registry);
 }

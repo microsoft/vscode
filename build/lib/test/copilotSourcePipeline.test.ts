@@ -13,6 +13,7 @@ import { createProductBuildRequest } from '../../azure-pipelines/common/queue-co
 import { copilotPlatforms } from '../copilotPlatforms.ts';
 import { runtimeArtifactName } from '../copilotRuntimeSource.ts';
 
+const RUNTIME_REF = 'a'.repeat(40);
 let workspace: string;
 
 beforeEach(() => {
@@ -23,14 +24,14 @@ afterEach(() => {
 	fs.rmSync(workspace, { recursive: true, force: true });
 });
 
-function writeRuntimeArtifact(target: string): void {
+function writeRuntimeArtifact(target: string, ref = RUNTIME_REF): void {
 	const dir = path.join(workspace, 'artifacts', runtimeArtifactName(target));
 	fs.mkdirSync(path.join(dir, 'sdk'), { recursive: true });
 	fs.writeFileSync(path.join(dir, 'index.js'), '// runtime\n');
 	fs.writeFileSync(path.join(dir, 'npm-loader.js'), '// loader\n');
 	fs.writeFileSync(path.join(dir, 'sdk', 'index.js'), '// sdk\n');
 	fs.writeFileSync(path.join(dir, 'sdk', 'index.d.ts'), 'export { };\n');
-	fs.writeFileSync(path.join(dir, '.copilot-source-complete'), 'a'.repeat(40));
+	fs.writeFileSync(path.join(dir, '.copilot-source-complete'), ref);
 	fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
 		name: '@github/copilot',
 		version: '0.0.0-dev',
@@ -48,7 +49,7 @@ suite('Copilot source pipeline', () => {
 		}
 
 		const output = path.join(workspace, 'packages');
-		const packageDirs = assembleRuntimePackages(path.join(workspace, 'artifacts'), output, '0.0.0-vscode.123');
+		const packageDirs = assembleRuntimePackages(path.join(workspace, 'artifacts'), output, '0.0.0-vscode.123', RUNTIME_REF);
 		const mainManifest = JSON.parse(fs.readFileSync(path.join(output, 'copilot', 'package.json'), 'utf8'));
 		const muslManifest = JSON.parse(fs.readFileSync(path.join(output, 'linuxmusl-arm64', 'package.json'), 'utf8'));
 
@@ -91,6 +92,18 @@ suite('Copilot source pipeline', () => {
 				},
 			},
 		});
+	});
+
+	test('rejects a runtime artifact built from another commit', () => {
+		for (const target of copilotPlatforms) {
+			writeRuntimeArtifact(target);
+		}
+		writeRuntimeArtifact('linux-x64', 'b'.repeat(40));
+
+		assert.throws(
+			() => assembleRuntimePackages(path.join(workspace, 'artifacts'), path.join(workspace, 'packages'), '0.0.0-vscode.123', RUNTIME_REF),
+			/copilot_runtime_linux_x64 was built from b{40}, but this build requires a{40}/,
+		);
 	});
 
 	test('queues the product build with only supported override parameters', () => {

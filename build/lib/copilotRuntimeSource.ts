@@ -68,7 +68,7 @@ function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEn
 }
 
 /**
- * Re-wraps a `execFileSync` failure with credentials masked. Its message embeds
+ * Re-wraps an `execFileSync` failure with credentials masked. Its message embeds
  * the whole argument list, so an authenticated git call that fails would
  * otherwise print a live token into the build log.
  */

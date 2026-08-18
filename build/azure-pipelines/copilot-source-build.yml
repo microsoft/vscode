@@ -149,6 +149,7 @@ extends:
                 env:
                   COPILOT_RUNTIME_ARTIFACTS_DIR: $(Pipeline.Workspace)
                   COPILOT_RUNTIME_PACKAGES_DIR: $(Build.ArtifactStagingDirectory)/copilot-runtime-packages
+                  COPILOT_RUNTIME_SOURCE_REF: ${{ parameters.COPILOT_RUNTIME_SOURCE_REF }}
                   COPILOT_SOURCE_VERSION: $(COPILOT_SOURCE_VERSION)
                   COPILOT_SOURCE_REGISTRY: $(NPM_REGISTRY)
                   NPM_CONFIG_USERCONFIG: $(Agent.TempDirectory)/copilot-source.npmrc
