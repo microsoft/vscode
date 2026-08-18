@@ -43,11 +43,14 @@ function has(command: string): boolean {
 
 function ensureRustup(): void {
 	if (has('rustup')) {
-		console.log('[runtime-toolchain] rustup already present.');
-		tryRun('rustup', ['--version']);
-		return;
+		console.log('[runtime-toolchain] Checking existing rustup.');
+		if (tryRun('rustup', ['target', 'list'])) {
+			return;
+		}
+		console.log('[runtime-toolchain] Existing rustup cannot manage targets — installing OSS rustup.');
+	} else {
+		console.log('[runtime-toolchain] rustup not found — installing OSS rustup.');
 	}
-	console.log('[runtime-toolchain] rustup not found — installing.');
 	const cargoBin = path.join(os.homedir(), '.cargo', 'bin');
 	if (IS_WINDOWS) {
 		// Download and run rustup-init non-interactively.
@@ -64,6 +67,9 @@ function ensureRustup(): void {
 	const rustup = path.join(cargoBin, IS_WINDOWS ? 'rustup.exe' : 'rustup');
 	if (!fs.existsSync(rustup)) {
 		throw new Error(`[runtime-toolchain] rustup installation failed: ${rustup} not found. A runtime source build cannot proceed without it.`);
+	}
+	if (!tryRun(rustup, ['target', 'list'])) {
+		throw new Error(`[runtime-toolchain] rustup installation failed: ${rustup} cannot list targets.`);
 	}
 	console.log(`##vso[task.prependpath]${cargoBin}`);
 }
