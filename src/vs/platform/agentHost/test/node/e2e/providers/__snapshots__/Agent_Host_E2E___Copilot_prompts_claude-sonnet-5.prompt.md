@@ -1198,7 +1198,7 @@ List sessions and their compact metadata (status, activity, working directory, p
     },
     "workspace": {
       "type": "string",
-      "description": "Only return sessions whose working directory is this folder — an absolute path or a workspace URI."
+      "description": "Only return sessions for this project name, project URI, or working directory path/URI."
     },
     "withChanges": {
       "type": "boolean",
@@ -1245,7 +1245,7 @@ Create a session in a workspace and start it with an initial prompt. The UI show
   "properties": {
     "workspace": {
       "type": "string",
-      "description": "Absolute folder path, workspace URI, or a working directory from an existing session."
+      "description": "Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session."
     },
     "prompt": {
       "type": "string",
