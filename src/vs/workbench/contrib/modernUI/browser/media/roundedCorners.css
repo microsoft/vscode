@@ -217,12 +217,15 @@
 
 /*
  * Notification center (floats above the status bar). It already clips its
- * children with `overflow: hidden`, so rounding the container alone gives the
- * header its top corners and the list its bottom corners in one place. Anchor
- * the rule to the workbench root to override the base control-tier radius.
+ * children with `overflow: hidden`. Match the final row's bottom corners to the
+ * container so its focused and hover backgrounds follow the outer surface.
  */
 .modern-ui.monaco-workbench > .notifications-center {
 	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.modern-ui.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:last-child {
+	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
 }
 
 /*
