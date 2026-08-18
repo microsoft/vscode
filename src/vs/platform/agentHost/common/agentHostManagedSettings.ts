@@ -3,6 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * Compatibility bridge from legacy VS Code settings to Copilot SDK managed
+ * settings.
+ *
+ * Scope and limits, all deliberate:
+ *
+ * - **Restrictions only.** Mappings may add `deny`, `ask`, or the bypass lock;
+ *   they never widen what a session may do. See
+ *   {@link IAgentHostManagedSettingsPermissions} for why an `allow` list is not
+ *   contributed even to narrow another rule's reach.
+ * - **Global layers only.** Values are read from policy, user, and application;
+ *   workspace and folder values are ignored, because the agent host is shared by
+ *   every window connected to it and one workspace's settings must not leak into
+ *   another window's sessions.
+ * - **Only what survives translation.** A setting is mapped only when its VS
+ *   Code semantics can be expressed exactly in the SDK's rule grammar. Where
+ *   they cannot — a regular-expression terminal rule, an allow list that blocks
+ *   what it omits — the restriction is skipped rather than approximated, since a
+ *   near-miss silently changes what an administrator configured.
+ * - **Copilot sessions on a local host.** The renderer sends an empty
+ *   contribution to remote hosts, and other agents do not consume managed
+ *   settings, so restrictions bridged here do not reach them. Those agents
+ *   remain governed by the root-config path (see
+ *   `AgentHostAutoApprovePolicyRestrictedConfigKey`).
+ *
+ * New enterprise controls belong directly in the SDK's managed-settings
+ * contract; this table exists only so settings that predate it keep working.
+ */
+
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { buildManagedFamilyRule, buildManagedRule, ManagedRuleFamily } from './agentHostManagedRules.js';
