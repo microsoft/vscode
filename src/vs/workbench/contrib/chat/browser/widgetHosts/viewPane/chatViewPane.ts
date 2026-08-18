@@ -550,7 +550,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 			return {
 				connected: this.voiceSessionController.isConnected.get(),
-				voiceState: this.voiceSessionController.voiceState.get() as VoiceGlowState,
+				voiceState: this.voiceSessionController.isMuted.get() && this.voiceSessionController.voiceState.get() === 'listening'
+					? 'idle'
+					: this.voiceSessionController.voiceState.get() as VoiceGlowState,
 				simulating: false,
 			};
 		};
@@ -603,14 +605,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const muted = this.voiceSessionController.isMuted.read(reader);
 			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			// Only run the per-frame glow loop for states that actually render a
 			// glow. Idle renders none, so keeping the loop alive then would burn a
 			// requestAnimationFrame callback every frame for nothing. React to
 			// simulated states too, so the walkthrough commands light up the glow.
+			// A muted mic isn't heard, so the listening rim would misleadingly react
+			// to the user's voice; treat muted-listening as idle (no glow).
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
-			if (!omniInputOpen && (simGlow || (connected && isGlowingVoiceState(voiceState)))) {
+			const liveGlow = connected && isGlowingVoiceState(voiceState) && !(muted && voiceState === 'listening');
+			if (!omniInputOpen && (simGlow || liveGlow)) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -669,6 +675,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const muted = this.voiceSessionController.isMuted.read(reader);
 			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._currentSessionResource.read(reader);
@@ -745,7 +752,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
 					const listening = $('span.listening');
-					listening.textContent = localize('voiceMode.listening', "Listening...");
+					listening.textContent = muted
+						? localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...")
+						: localize('voiceMode.listening', "Listening...");
 					transcriptOverlay.append(listening);
 					transcriptScrollable.scanDomNode();
 				} else if (!showTranscript && voiceState === 'speaking') {

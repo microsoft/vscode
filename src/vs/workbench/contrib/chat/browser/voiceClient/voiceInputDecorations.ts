@@ -18,7 +18,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IMicCaptureService } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
-import { readVoiceGlowIntensity, resolveVoiceGlowColors, shouldRenderVoiceInputGlow } from './voiceGlow.js';
+import { readVoiceGlowIntensity, resolveVoiceGlowColors, shouldRenderVoiceInputGlow, VoiceGlowState } from './voiceGlow.js';
 import { createVoiceGlowController, IVoiceGlowController } from './voiceGlowController.js';
 import { IVoiceSessionController } from './voiceSessionController.js';
 
@@ -137,9 +137,13 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	store.add(autorun(reader => {
 		const connected = voiceSessionController.isConnected.read(reader);
 		const voiceState = voiceSessionController.voiceState.read(reader);
+		const muted = voiceSessionController.isMuted.read(reader);
 		const active = isActive.read(reader);
 		const ownsVoice = isSurfaceOwner(reader);
-		if (shouldRenderVoiceInputGlow(connected, active, ownsVoice, voiceState)) {
+		// A muted mic isn't heard, so the listening rim would misleadingly react to
+		// the user's voice; treat muted-listening as idle (no glow) until unmuted.
+		const glowState: VoiceGlowState = muted && voiceState === 'listening' ? 'idle' : voiceState;
+		if (shouldRenderVoiceInputGlow(connected, active, ownsVoice, glowState)) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();
@@ -152,6 +156,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		const turns = voiceSessionController.transcriptTurns.read(reader);
 		const connected = voiceSessionController.isConnected.read(reader);
 		const voiceState = voiceSessionController.voiceState.read(reader);
+		const muted = voiceSessionController.isMuted.read(reader);
 		const active = isActive.read(reader);
 		const hasInput = (options.inputValue?.read(reader).length ?? 0) > 0;
 		const showTranscript = configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
@@ -177,7 +182,9 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
 				const listening = dom.$('span.listening');
-				listening.textContent = localize('voiceMode.listening', "Listening...");
+				listening.textContent = muted
+					? localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...")
+					: localize('voiceMode.listening', "Listening...");
 				transcriptOverlay.append(listening);
 				transcriptScrollable.scanDomNode();
 			} else if (!showTranscript && voiceState === 'speaking') {
