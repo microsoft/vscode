@@ -1988,10 +1988,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _reconcileExternalSessions(previousMode?: AgentHostExternalSessionsMode): Promise<void> {
 		const startedAt = Date.now();
+		// Read the mode once: the announce calls below await, so re-reading it
+		// afterwards could attribute this pass's counts to a newer mode.
+		const mode = this._getExternalSessionsMode();
 		const previouslyBroadcast = new Set(this._broadcastExternalSessions);
 		const listed = previousMode !== undefined
-			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.All), previousMode, previouslyBroadcast)
-			: await this.listSessions();
+			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.All), previousMode, mode, previouslyBroadcast)
+			: await this.listSessions(mode);
 		const visible = new Set<string>();
 		let published = 0;
 		for (const metadata of listed) {
@@ -2029,7 +2032,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._broadcastExternalSessions.add(key);
 		}
 		const duration = Date.now() - startedAt;
-		const message = `[AgentService] External session reconciliation done in ${duration}ms (mode: '${this._getExternalSessionsMode()}'${previousMode !== undefined ? `, previous: '${previousMode}'` : ''}): ${published} published, ${retracted} retracted, ${visible.size} visible`;
+		const message = `[AgentService] External session reconciliation done in ${duration}ms (mode: '${mode}'${previousMode !== undefined ? `, previous: '${previousMode}'` : ''}): ${published} published, ${retracted} retracted, ${visible.size} visible`;
 		// A prompt no-op pass is steady-state noise.
 		if (published > 0 || retracted > 0 || duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {
 			this._logService.info(message);
@@ -2047,10 +2050,11 @@ export class AgentService extends Disposable implements IAgentService {
 	private _resolveModeChangeVisibility(
 		superset: readonly IAgentSessionMetadata[],
 		previousMode: AgentHostExternalSessionsMode,
+		mode: AgentHostExternalSessionsMode,
 		previouslyBroadcast: Set<string>,
 	): IAgentSessionMetadata[] {
 		const now = this._now();
-		const recentKeysFor = (mode: AgentHostExternalSessionsMode) => mode === AgentHostExternalSessionsMode.Recent
+		const recentKeysFor = (forMode: AgentHostExternalSessionsMode) => forMode === AgentHostExternalSessionsMode.Recent
 			? this._getRecentSessionKeys(superset, now)
 			: undefined;
 
@@ -2061,7 +2065,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		const mode = this._getExternalSessionsMode();
 		const recentKeys = recentKeysFor(mode);
 		const visible = superset.filter(session => this._shouldIncludeSession(session, mode, now, recentKeys));
 		// The pass ran as `All`, so report the mode actually in effect instead.

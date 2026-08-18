@@ -354,8 +354,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				return;
 			}
 			const patch: Record<string, unknown> = {};
-			// These keys are host-level and last-writer-wins across windows.
-			const mirrored: string[] = [];
 			for (const entry of getAgentHostConfigurationSyncEntries(this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY)) {
 				if (!e.affectsConfiguration(entry.settingId)) {
 					continue;
@@ -363,11 +361,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				const value = resolveAgentHostConfigurationSyncValue(this._configurationService, entry);
 				if (value !== undefined) {
 					patch[entry.sync.key] = value;
-					mirrored.push(`${entry.sync.key}=${formatAgentHostConfigurationSyncValueForLog(entry.settingId, value)} (${entry.settingId})`);
 				}
 			}
 			if (Object.keys(patch).length) {
-				this._logService.info(`[RemoteAgentHostProtocol] Mirroring configuration to host root config from ${ConfigurationTargetToString(e.source)}: ${mirrored.join(', ')}`);
+				this._logMirroredRootConfig(`triggered by ${ConfigurationTargetToString(e.source)}`, patch);
 				this._dispatchRootConfig(patch);
 			}
 			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
@@ -818,7 +815,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * settings contributed by an extension rather than by core.
 	 */
 	private _forwardClientConfig(includeManagedSettings = true): void {
-		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY));
+		const patch = resolveAgentHostConfigurationSyncPatch(this._configurationService, this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		this._logMirroredRootConfig('connect', patch);
+		this._dispatchRootConfig(patch);
 		this._updateTelemetryLevel();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
@@ -827,6 +826,26 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (includeManagedSettings) {
 			void this._updateManagedSettingsPermissions();
 		}
+	}
+
+	/**
+	 * Records a mirrored patch. These keys are host-level and last-writer-wins
+	 * across every window on the host, so both the connect-time push and later
+	 * configuration changes have to be attributable.
+	 */
+	private _logMirroredRootConfig(trigger: string, patch: Record<string, unknown>): void {
+		if (!Object.keys(patch).length) {
+			return;
+		}
+		const settingIds = new Map(getAgentHostConfigurationSyncEntries(this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY)
+			.map(entry => [entry.sync.key, entry.settingId] as const));
+		const mirrored = Object.entries(patch).map(([key, value]) => {
+			const settingId = settingIds.get(key);
+			return settingId
+				? `${key}=${formatAgentHostConfigurationSyncValueForLog(settingId, value)} (${settingId})`
+				: key;
+		});
+		this._logService.info(`[RemoteAgentHostProtocol] Mirroring configuration to host root config (${trigger}): ${mirrored.join(', ')}`);
 	}
 
 	private _updateAutoApprovePolicyRestriction(): void {
