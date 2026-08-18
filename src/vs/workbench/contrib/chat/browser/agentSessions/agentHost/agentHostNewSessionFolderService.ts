@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { extUriBiasedIgnorePathCase, type IExtUri } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -84,6 +84,9 @@ export type FolderPickerDecisionUpdate =
  * @param isSessionsWindow whether the widget lives in the Agents window (which owns folder choice).
  * @param sessionIsEmpty whether the session has no requests yet (its working directory isn't fixed).
  * @param currentSelectedFolder the folder already chosen for `sessionResource`, if any.
+ * @param folderExtUri provider-aware comparator (from `IUriIdentityService.extUri`) used to
+ * decide whether the pinned primary is already selected, so casing is honored per the folder's
+ * actual filesystem instead of assumed.
  */
 export function resolveFolderPickerDecisionUpdate(
 	sessionResource: URI | undefined,
@@ -93,11 +96,14 @@ export function resolveFolderPickerDecisionUpdate(
 	isSessionsWindow: boolean,
 	sessionIsEmpty: boolean,
 	currentSelectedFolder: URI | undefined,
+	folderExtUri: IExtUri,
 ): FolderPickerDecisionUpdate {
 	if (!sessionResource || !agentHostProviderId) {
 		return { kind: 'apply', visible: false, trackedSessionResource: undefined, selectPrimary: undefined };
 	}
-	const sameSession = previousTrackedSessionResource?.toString() === sessionResource.toString();
+	// Session resources are exact identifiers (their scheme encodes the
+	// provider), so compare them case-sensitively.
+	const sameSession = isEqual(previousTrackedSessionResource, sessionResource);
 	if (!decision) {
 		// Retain across a provisional recreation of the same session; stay hidden
 		// (the default) for a freshly bound session until a decision reveals it.
@@ -111,7 +117,11 @@ export function resolveFolderPickerDecisionUpdate(
 	// window, which owns folder choice through its own workspace picker.
 	if (decision.primary && !isSessionsWindow && sessionIsEmpty) {
 		const primary = URI.parse(decision.primary);
-		if (currentSelectedFolder?.toString() !== primary.toString()) {
+		// Use the provider-aware comparator so a folder differing only by case is
+		// treated as already-selected only when its filesystem is case-insensitive
+		// (avoids both a redundant re-select and wrongly suppressing a real change
+		// on a case-sensitive remote).
+		if (!folderExtUri.isEqual(currentSelectedFolder, primary)) {
 			selectPrimary = primary;
 		}
 	}

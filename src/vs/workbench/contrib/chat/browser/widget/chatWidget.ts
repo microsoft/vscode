@@ -33,6 +33,7 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -547,6 +548,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostNewSessionFolderService private readonly _agentHostNewSessionFolderService: IAgentHostNewSessionFolderService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -855,6 +857,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			!!this.viewOptions.isSessionsWindow,
 			(this.viewModel?.model.getRequests().length ?? 0) === 0,
 			sessionResource ? this._agentHostNewSessionFolderService.getFolder(sessionResource) : undefined,
+			this._uriIdentityService.extUri,
 		);
 		if (update.kind === 'noop') {
 			return;
