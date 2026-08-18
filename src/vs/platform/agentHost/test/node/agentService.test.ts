@@ -3925,33 +3925,142 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.listExternalChatsCalls, 1);
 		});
 
-		test('a discovery signal does not bypass completed legacy migration semantics', async () => {
-			class NotYetMigratableAgent extends MockAgent {
+		/** Keeps the bounded legacy-migration retry loop instant in tests. */
+		class FastRetryAgentService extends AgentService {
+			protected override readonly _legacyMigrationEnumerationDelaysMs: readonly number[] = [0, 0, 0];
+		}
+
+		test('a discovery signal does not re-run a legacy migration that already completed', async () => {
+			class MigratableAgent extends MockAgent {
 				migrationCalls = 0;
-				enumerable = false;
 			}
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = disposables.add(new NotYetMigratableAgent('copilot'));
-			const legacy = AgentSession.uri('copilot', 'legacy-migration-not-ready');
+			const svc = disposables.add(new FastRetryAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MigratableAgent('copilot'));
+			const legacy = AgentSession.uri('copilot', 'legacy-migration-completed');
 			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listChatsToMigrate = async () => {
 				agent.migrationCalls++;
-				return agent.enumerable
-					? [{ chat: URI.parse(buildDefaultChatUri(legacy)), startTime: 1, modifiedTime: 1 }]
-					: undefined;
+				return [{ chat: URI.parse(buildDefaultChatUri(legacy)), startTime: 1, modifiedTime: 1 }];
 			};
 			svc.registerProvider(agent);
 			await svc.listSessions();
 
-			agent.enumerable = true;
 			agent.fireDiscoveredChats([]);
 			await timeout(0);
 
 			assert.deepStrictEqual({
 				migrationCalls: agent.migrationCalls,
 				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+				backfilled: await svc.isProviderRegistryBackfilled('copilot'),
 			}, {
 				migrationCalls: 1,
+				registered: [legacy.toString()],
+				backfilled: true,
+			});
+		});
+
+		test('a provider that cannot enumerate its legacy catalog yet is retried until it can', async () => {
+			// `undefined` means "not ready yet" (e.g. the agent's client is
+			// still starting), not "there is nothing to migrate". Treating it
+			// as terminal used to leave a freshly-created registry unpopulated,
+			// hiding every session that already exists on disk.
+			class SlowToStartAgent extends MockAgent {
+				migrationCalls = 0;
+				enumerableFromCall = 3;
+			}
+			const svc = disposables.add(new FastRetryAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SlowToStartAgent('copilot'));
+			const legacy = AgentSession.uri('copilot', 'legacy-migration-slow-start');
+			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listChatsToMigrate = async () => {
+				agent.migrationCalls++;
+				return agent.migrationCalls >= agent.enumerableFromCall
+					? [{ chat: URI.parse(buildDefaultChatUri(legacy)), startTime: 1, modifiedTime: 1 }]
+					: undefined;
+			};
+			svc.registerProvider(agent);
+			await svc.listSessions();
+
+			assert.deepStrictEqual({
+				migrationCalls: agent.migrationCalls,
+				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+				backfilled: await svc.isProviderRegistryBackfilled('copilot'),
+			}, {
+				migrationCalls: 3,
+				registered: [legacy.toString()],
+				backfilled: true,
+			});
+		});
+
+		test('a registry read failure during migration still fails the listing instead of publishing an empty catalog', async () => {
+			// The provider must be flagged incomplete before any awaited work:
+			// a rejected marker read is swallowed by `Promise.allSettled`, so an
+			// unflagged provider would let an unbackfilled registry be published.
+			class FailingMarkerDatabase extends TransientRegistryWriteDatabase {
+				override async isProviderBackfilled(): Promise<boolean> {
+					throw new Error('registry read failed');
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, new FailingMarkerDatabase()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+
+			assert.strictEqual(await svc.listSessions().then(() => 'resolved', () => 'rejected'), 'rejected');
+		});
+
+		test('a provider that never becomes enumerable fails the listing instead of publishing an unbackfilled registry', async () => {
+			// Publishing "no sessions" for a provider whose backfill never ran
+			// states as fact something that is merely unknown; clients treat
+			// that as a deletion and drop sessions that are intact on disk.
+			class NeverEnumerableAgent extends MockAgent {
+				migrationCalls = 0;
+			}
+			const svc = disposables.add(new FastRetryAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new NeverEnumerableAgent('copilot'));
+			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listChatsToMigrate = async () => {
+				agent.migrationCalls++;
+				return undefined;
+			};
+			svc.registerProvider(agent);
+			const listed = await svc.listSessions().then(() => 'resolved', () => 'rejected');
+
+			assert.deepStrictEqual({
+				listed,
+				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+				backfilled: await svc.isProviderRegistryBackfilled('copilot'),
+			}, {
+				listed: 'rejected',
 				registered: [],
+				backfilled: false,
+			});
+		});
+
+		test('a provider that becomes enumerable after its initial migration failed recovers without a restart', async () => {
+			// The initial migration promise is already settled by then, so
+			// without an in-process re-arm these sessions would stay hidden
+			// until the next Agent Host process start.
+			class EventuallyEnumerableAgent extends MockAgent {
+				enumerable = false;
+			}
+			const svc = disposables.add(new FastRetryAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
+			const agent = disposables.add(new EventuallyEnumerableAgent('copilot'));
+			const legacy = AgentSession.uri('copilot', 'legacy-migration-eventually-ready');
+			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listChatsToMigrate = async () => agent.enumerable
+				? [{ chat: URI.parse(buildDefaultChatUri(legacy)), startTime: 1, modifiedTime: 1 }]
+				: undefined;
+			svc.registerProvider(agent);
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			const beforeReady = await svc.listSessions().then(() => 'resolved', () => 'rejected');
+
+			agent.enumerable = true;
+
+			assert.deepStrictEqual({
+				beforeReady,
+				afterReady: (await svc.listSessions()).map(s => s.session.toString()),
+				backfilled: await svc.isProviderRegistryBackfilled('copilot'),
+			}, {
+				beforeReady: 'rejected',
+				afterReady: [legacy.toString()],
+				backfilled: true,
 			});
 		});
 
