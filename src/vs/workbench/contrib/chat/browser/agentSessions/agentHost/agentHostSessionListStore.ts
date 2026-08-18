@@ -328,16 +328,15 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 	}
 
+	/** Projects independent default-chat titles, which are not part of the root session summary, into the flat editor session list. */
 	private _onAction(envelope: ActionEnvelope): void {
 		if (envelope.rejectionReason !== undefined) {
 			return;
 		}
 		const action = envelope.action;
-		const title = action.type === ActionType.SessionTitleChanged
-			? action.title
-			: action.type === ActionType.SessionChatUpdated && isDefaultChatUri(action.chat) && action.changes.title !== undefined
-				? action.changes.title
-				: undefined;
+		const title = action.type === ActionType.SessionChatUpdated && isDefaultChatUri(action.chat)
+			? action.changes.title
+			: undefined;
 		if (!title) {
 			return;
 		}

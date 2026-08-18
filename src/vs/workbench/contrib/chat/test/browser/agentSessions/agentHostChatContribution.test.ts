@@ -2954,7 +2954,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('session and default chat title actions update the session list item', async () => {
+		test('session summary and default chat title action update the session list item', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 			const backendSession = AgentSession.uri('copilot', 'chat-title');
 			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Session title' });
@@ -2968,11 +2968,18 @@ suite('AgentHostChatContribution', () => {
 				events.push(...(delta.addedOrUpdated ?? []).map(item => item.label));
 			}));
 
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { title: 'Renamed session' },
+			});
 			agentHostService.fireAction({
 				channel: backendSession.toString(),
 				action: {
-					type: ActionType.SessionTitleChanged,
-					title: 'Renamed session',
+					type: ActionType.SessionChatUpdated,
+					chat: buildDefaultChatUri(backendSession.toString()),
+					changes: { title: 'Renamed default chat' },
 				},
 				serverSeq: 1,
 				origin: undefined,
@@ -2982,19 +2989,9 @@ suite('AgentHostChatContribution', () => {
 				action: {
 					type: ActionType.SessionChatUpdated,
 					chat: buildDefaultChatUri(backendSession.toString()),
-					changes: { title: 'Renamed default chat' },
-				},
-				serverSeq: 2,
-				origin: undefined,
-			});
-			agentHostService.fireAction({
-				channel: backendSession.toString(),
-				action: {
-					type: ActionType.SessionChatUpdated,
-					chat: buildDefaultChatUri(backendSession.toString()),
 					changes: { title: 'Rejected title' },
 				},
-				serverSeq: 3,
+				serverSeq: 2,
 				origin: { clientId: agentHostService.clientId, clientSeq: 1 },
 				rejectionReason: 'Rename rejected',
 			});
