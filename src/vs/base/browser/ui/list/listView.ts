@@ -1242,8 +1242,12 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private onPotentialSelectionStart(e: MouseEvent) {
-		this.currentSelectionDisposable.dispose();
 		const doc = getDocument(this.domNode);
+		if (e.shiftKey && this.currentSelectionBounds && doc.getSelection()?.isCollapsed === false) {
+			return;
+		}
+
+		this.currentSelectionDisposable.dispose();
 
 		// Set up both the 'movement store' for watching the mouse, and the
 		// 'selection store' which lasts as long as there's a selection, even
