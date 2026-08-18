@@ -15,7 +15,7 @@ const outDir = path.join(import.meta.dirname, 'dist');
  */
 async function copyServerWorkerMain(outDir: string): Promise<void> {
 	const srcPath = path.join(import.meta.dirname, 'node_modules', 'vscode-markdown-languageserver', 'dist', 'node', 'workerMain.js');
-	const destPath = path.join(outDir, 'serverWorkerMain.js');
+	const destPath = path.join(outDir, 'serverWorkerMain.mjs');
 	await fs.promises.copyFile(srcPath, destPath);
 }
 
