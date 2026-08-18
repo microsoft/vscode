@@ -1334,8 +1334,7 @@ suite('ClaudeAgent', () => {
 			provider: 'claude',
 			id: 'claude-sonnet-4-5-20250929',
 			name: 'Claude Sonnet 4.5',
-			// The SDK reports no vision capability; claiming the models lack it
-			// made the workbench label received images as unsupported.
+			// Claiming the models lack vision made the workbench label received images unsupported.
 			supportsVision: true,
 			hasConfigSchema: true,
 			hasPolicyState: false,
