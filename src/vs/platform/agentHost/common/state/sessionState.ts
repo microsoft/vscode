@@ -1711,11 +1711,16 @@ export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, dept
 	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
 }
 
+export type SessionIdleNotification = 'once' | 'always';
+
 export interface ISessionOrchestration {
 	readonly parentSession: string;
 	readonly creatorSession: string;
 	readonly label?: string;
 	readonly coordinateWithCreator: boolean;
+	readonly notifyOnIdle?: SessionIdleNotification;
+	readonly notificationArmed?: boolean;
+	readonly notificationSent?: boolean;
 }
 
 export const SESSION_META_ORCHESTRATION_KEY = 'agentHost/orchestration';
@@ -1732,11 +1737,17 @@ export function readSessionOrchestration(meta: SessionSummaryMeta | undefined): 
 	}
 	const creatorSession = typeof candidate.creatorSession === 'string' ? candidate.creatorSession : candidate.parentSession;
 	const label = typeof candidate.label === 'string' ? candidate.label : undefined;
+	const notifyOnIdle = candidate.notifyOnIdle === 'once' || candidate.notifyOnIdle === 'always' ? candidate.notifyOnIdle : undefined;
+	const notificationArmed = typeof candidate.notificationArmed === 'boolean' ? candidate.notificationArmed : undefined;
+	const notificationSent = typeof candidate.notificationSent === 'boolean' ? candidate.notificationSent : undefined;
 	return {
 		parentSession: candidate.parentSession,
 		creatorSession,
 		coordinateWithCreator: candidate.coordinateWithCreator,
 		...(label !== undefined ? { label } : {}),
+		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
+		...(notificationArmed !== undefined ? { notificationArmed } : {}),
+		...(notificationSent !== undefined ? { notificationSent } : {}),
 	};
 }
 
