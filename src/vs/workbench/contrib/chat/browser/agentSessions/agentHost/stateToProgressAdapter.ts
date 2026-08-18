@@ -11,6 +11,7 @@ import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
+import { embeddedAttachmentContentType } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { buildSubagentChatUri, isMessageHiddenFromTranscript, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -1137,7 +1138,8 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
-		if (!attachment.contentType.startsWith('image/')) {
+		const contentType = embeddedAttachmentContentType(attachment);
+		if (!contentType?.startsWith('image/')) {
 			return {
 				kind: 'generic',
 				id: generateUuid(),
@@ -1152,7 +1154,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			id: generateUuid(),
 			name: attachment.label || 'image',
 			value: decodeBase64(attachment.data).buffer,
-			mimeType: attachment.contentType,
+			mimeType: contentType,
 			isURL: false,
 			_meta: attachment._meta,
 		};
