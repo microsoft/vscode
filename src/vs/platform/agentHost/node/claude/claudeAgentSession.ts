@@ -224,23 +224,8 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * The same roots, in the namespace of the machine this host runs on.
-	 *
-	 * A window connected to a remote hands the session its working directory
-	 * in the CLIENT's namespace, so in a dev container the primary root
-	 * arrives as `vscode-remote://dev-container+<hex>/workspace/repo`. The
-	 * host runs inside that container and its file service only answers for
-	 * `file:`, so reading customizations straight off those URIs silently
-	 * finds nothing: every project-scope agent, skill, command, rule, MCP
-	 * server and hook disappears, while user-scope ones keep working because
-	 * `userHome` is already host-local.
-	 *
-	 * The path is what both sides agree on, and materialize already relies on
-	 * that by handing the SDK `workingDirectory.fsPath` as its cwd. This
-	 * applies the same reading to the host's own disk access.
-	 *
-	 * Only for reads the host performs. Anything sent back to the client, or
-	 * compared against client-supplied URIs, must keep the original.
+	 * {@link workingDirectories} in this host's own namespace, for reads the host
+	 * performs itself. Anything sent to the client keeps the unconverted form.
 	 */
 	private get _hostLocalWorkingDirectories(): readonly URI[] | undefined {
 		return this.workingDirectories?.map(toHostLocalUri);

@@ -1076,16 +1076,23 @@ suite('toHostLocalUri', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('a remote window\'s working directory is reinterpreted as a local path', () => {
-		// What a dev-container window hands the session. The host runs inside
-		// that container, so it must read the path on its own filesystem.
+		// What a dev-container window hands the session.
 		const fromClient = URI.parse('vscode-remote://dev-container%2Babc/workspace/printstream');
 
 		assert.strictEqual(toHostLocalUri(fromClient).toString(), URI.file('/workspace/printstream').toString());
 	});
 
+	test('query and fragment survive the conversion', () => {
+		const withParts = URI.parse('vscode-remote://dev-container%2Babc/workspace/repo/x.ts?a=1#L4');
+
+		const local = toHostLocalUri(withParts);
+		assert.deepStrictEqual(
+			{ scheme: local.scheme, path: local.path, query: local.query, fragment: local.fragment },
+			{ scheme: 'file', path: '/workspace/repo/x.ts', query: 'a=1', fragment: 'L4' },
+		);
+	});
 	test('a scheme that is not the remote namespace is left alone', () => {
-		// Stripping the authority off one of these would name a local file that
-		// does not exist, rather than the resource it actually refers to.
+		// Stripping the authority here would name a local file that is not there.
 		const wrapped = URI.parse('vscode-agent-host://b64-abc/workspace/repo');
 		const untitled = URI.parse('untitled:Untitled-1');
 
