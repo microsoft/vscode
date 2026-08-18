@@ -126,7 +126,12 @@ export function parseOpenSessionLinkChatId(uri: URI | string): string | undefine
 		return undefined;
 	}
 	const match = /(?:^|&)chat=([^&]+)/.exec(parsed.query);
-	const chatId = match ? decodeURIComponent(match[1]) : undefined;
+	let chatId: string | undefined;
+	try {
+		chatId = match ? decodeURIComponent(match[1]) : undefined;
+	} catch {
+		return undefined;
+	}
 	return chatId === DEFAULT_CHAT_ID ? undefined : chatId;
 }
 

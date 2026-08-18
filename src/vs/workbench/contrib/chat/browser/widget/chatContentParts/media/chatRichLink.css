@@ -397,9 +397,52 @@
 	.chat-rich-link-detail,
 	.chat-rich-link-reference,
 	.chat-rich-link-changes,
-	.chat-rich-link-status
+	.chat-rich-link-secondary-status
 ) {
 	display: none;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-primary-status {
+	display: none;
+	align-items: center;
+	height: var(--vscode-codiconFontSize-compact);
+	margin-left: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+):is(
+	[data-chat-rich-link-status='pending'],
+	[data-chat-rich-link-status='warning'],
+	[data-chat-rich-link-status='error']
+) .chat-rich-link-primary-status {
+	display: inline-flex;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-primary-status .chat-rich-link-status-label {
+	display: none;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-primary-status :is(
+	.chat-rich-link-status-icon,
+	.monaco-pixel-spinner
+) {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
 .hc-black .chat-rich-link,

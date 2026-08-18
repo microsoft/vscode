@@ -56,6 +56,7 @@ suite('openSessionLink', () => {
 	test('parseOpenSessionLinkChatId treats chat=default as absent', () => {
 		assert.strictEqual(parseOpenSessionLinkChatId('agent-host-session://copilotcli/abc-123?chat=default'), undefined);
 		assert.strictEqual(parseOpenSessionLinkChatId('agent-host-session://copilotcli/abc-123?chat=peer1'), 'peer1');
+		assert.strictEqual(parseOpenSessionLinkChatId('agent-host-session://copilotcli/abc-123?chat=%ZZ'), undefined);
 	});
 
 	test('buildOpenSessionLinkForChatResource maps chat resources to session links', () => {
