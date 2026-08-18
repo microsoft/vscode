@@ -129,6 +129,9 @@ export interface IAgentDiscoveredChat extends IAgentChatMetadata {
 	readonly external: boolean;
 }
 
+/** Returns the candidate session URI keys already present in the host registry. */
+export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
+
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
 }
@@ -1090,6 +1093,9 @@ export interface IAgent {
 
 	/** Provides chats that are ready to be registered as Agent Host sessions. */
 	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]>;
+
+	/** Lets discovery drop registered candidates before per-session I/O. */
+	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
 
 	// ---- Legacy migration ---------------------------------------------------
 

@@ -18,6 +18,7 @@ import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
+import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
@@ -125,6 +126,7 @@ import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSumma
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
+import './sessionRouter/chatSessionRoutingProviderService.js';
 import { SessionRouterService } from './sessionRouter/sessionRouterService.js';
 import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import './telemetry/chatModelCountTelemetry.js';
@@ -335,6 +337,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental']
 		},
+		'dictation.experimental.llmCleanupModel': {
+			type: 'string',
+			enum: ['auto', 'copilot-utility-small', 'gpt-5.6-luna'],
+			markdownDescription: nls.localize('dictation.experimental.llmCleanupModel', "Controls the language model used for experimental dictation cleanup. `auto` follows the active experiment treatment."),
+			default: 'auto',
+			tags: ['experimental']
+		},
 		'chat.editor.fontSize': {
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in chat codeblocks."),
@@ -397,14 +406,15 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ShowExternalAgentSessions]: {
 			type: 'string',
-			enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.All, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days],
+			enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.Recent, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days, AgentHostExternalSessionsMode.All],
 			enumDescriptions: [
 				nls.localize('chat.agentSessions.showExternal.none', "Only shows sessions created by the Agent Host."),
-				nls.localize('chat.agentSessions.showExternal.all', "Shows all sessions discovered from supported external agent applications."),
+				nls.localize('chat.agentSessions.showExternal.recent', "Shows the 2 most recently updated external sessions from the last 7 days."),
 				nls.localize('chat.agentSessions.showExternal.last24Hours', "Shows external sessions updated in the last 24 hours."),
-				nls.localize('chat.agentSessions.showExternal.last7Days', "Shows external sessions updated in the last 7 days. This is the default."),
+				nls.localize('chat.agentSessions.showExternal.last7Days', "Shows external sessions updated in the last 7 days."),
+				nls.localize('chat.agentSessions.showExternal.all', "Shows all sessions discovered from supported external agent applications."),
 			],
-			default: AgentHostExternalSessionsMode.Last7Days,
+			default: AgentHostExternalSessionsMode.None,
 			markdownDescription: nls.localize('chat.agentSessions.showExternal', "Controls which external agent sessions, created outside VS Code's Agent Host, are shown."),
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
@@ -2445,6 +2455,24 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			[ChatConfiguration.PluginLocations, { value }]
 		])
 	},
+	// Agent Merge settings dropped the `agentHost` segment from their ids. Without
+	// this an explicit opt-out (for example `fixCI: false`) would silently revert to
+	// the permissive default for sessions that already have Agent Merge enabled.
+	...Object.values(AgentMergeSettingId).map(settingId => {
+		const legacyKey = settingId.replace(/^chat\./, 'chat.agentHost.');
+		return {
+			key: legacyKey,
+			migrateFn: (value: unknown, accessor: (key: string) => unknown): ConfigurationKeyValuePairs => {
+				const pairs: ConfigurationKeyValuePairs = [[legacyKey, { value: undefined }]];
+				// Never clobber an explicitly configured new key (e.g. after settings
+				// sync brought both keys across versions).
+				if (accessor(settingId) === undefined) {
+					pairs.push([settingId, { value }]);
+				}
+				return pairs;
+			}
+		};
+	}),
 	{
 		// The on-device dictation runtime moved to Foundry Local; the old
 		// transformers.js/onnxruntime model IDs no longer resolve and would fail

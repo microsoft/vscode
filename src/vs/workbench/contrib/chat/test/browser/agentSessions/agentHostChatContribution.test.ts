@@ -963,6 +963,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			};
 		},
 		acquireScope,
+		areScopeRootsEqual: (first, second) => JSON.stringify(first) === JSON.stringify(second),
 		isBundledMcpServer: () => false,
 	};
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);

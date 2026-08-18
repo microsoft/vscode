@@ -19,16 +19,23 @@ export const AgentMergeConfigKey = {
 } as const;
 
 export const AgentMergeSettingId = {
-	Enabled: 'chat.agentHost.agentMerge.enabled',
-	AddressReviews: 'chat.agentHost.agentMerge.addressReviews',
-	FixCI: 'chat.agentHost.agentMerge.fixCI',
-	ResolveConflicts: 'chat.agentHost.agentMerge.resolveConflicts',
-	MergePullRequest: 'chat.agentHost.agentMerge.mergePullRequest',
-	MergeMethod: 'chat.agentHost.agentMerge.mergeMethod',
-	ReplyAttribution: 'chat.agentHost.agentMerge.replyAttribution',
+	Enabled: 'chat.agentMerge.enabled',
+	AddressReviews: 'chat.agentMerge.addressReviews',
+	FixCI: 'chat.agentMerge.fixCI',
+	ResolveConflicts: 'chat.agentMerge.resolveConflicts',
+	MergePullRequest: 'chat.agentMerge.mergePullRequest',
+	MergeMethod: 'chat.agentMerge.mergeMethod',
+	ReplyAttribution: 'chat.agentMerge.replyAttribution',
 } as const;
 
-export type AgentMergeAction = 'addressReviews' | 'fixCI' | 'resolveConflicts' | 'mergePullRequest';
+/**
+ * Work the agent itself can be asked to perform. Merging is deliberately absent:
+ * it is executed by the host, never delegated to a model.
+ */
+export type AgentMergeRepairAction = 'addressReviews' | 'fixCI' | 'resolveConflicts';
+
+/** A user-authorizable Agent Merge action, including the host-executed merge. */
+export type AgentMergeAction = AgentMergeRepairAction | 'mergePullRequest';
 export type AgentMergeMethod = 'auto' | 'squash' | 'merge' | 'rebase';
 
 export interface AgentMergeActions {
@@ -61,6 +68,11 @@ export interface AgentMergeReviewThreadContext {
 	readonly id: string;
 	readonly path?: string;
 	readonly line?: number;
+	/** Authorized comments in the thread, oldest first, so later follow-ups are visible. */
+	readonly comments: readonly AgentMergeFeedbackComment[];
+}
+
+export interface AgentMergeFeedbackComment {
 	readonly author?: string;
 	readonly body: string;
 }
@@ -146,7 +158,7 @@ export type AgentMergeGateResult =
 	| { readonly kind: 'indeterminate'; readonly reason: string }
 	| { readonly kind: 'terminal' }
 	| { readonly kind: 'noWork'; readonly waitingOnChecks: boolean; readonly fingerprint: string }
-	| { readonly kind: 'prompt'; readonly actions: readonly AgentMergeAction[]; readonly fingerprint: string; readonly context: AgentMergePromptContext }
+	| { readonly kind: 'prompt'; readonly actions: readonly AgentMergeRepairAction[]; readonly fingerprint: string; readonly context: AgentMergePromptContext }
 	| { readonly kind: 'merge'; readonly fingerprint: string };
 
 export interface AgentMergePromptContext {
@@ -156,13 +168,22 @@ export interface AgentMergePromptContext {
 	readonly baseRef: string;
 	readonly headRef: string;
 	readonly reviewThreads: readonly AgentMergeReviewThreadContext[];
-	readonly reviewSummaries: readonly string[];
-	readonly newComments: readonly string[];
+	readonly reviewSummaries: readonly AgentMergeFeedbackComment[];
+	readonly newComments: readonly AgentMergeFeedbackComment[];
 	readonly failedChecks: readonly string[];
 	readonly behind: boolean;
 	readonly conflicting: boolean;
 	readonly commentWatermark: string;
 }
+
+/** Caps that keep an autonomous prompt bounded regardless of pull request size. */
+const maximumReviewThreads = 10;
+const maximumCommentsPerThread = 5;
+const maximumReviewSummaries = 5;
+const maximumNewComments = 5;
+const maximumFailedChecks = 20;
+const maximumFeedbackBodyLength = 1_000;
+const maximumFeedbackBudget = 20_000;
 
 const maintainerAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 const copilotPullRequestReviewerId = '175728472';
@@ -247,6 +268,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Truncates feedback bodies against one shared character budget so a
+ * comment-heavy pull request cannot grow the autonomous prompt without bound.
+ */
+class FeedbackBudget {
+
+	private _remaining: number;
+
+	constructor(budget: number) {
+		this._remaining = budget;
+	}
+
+	take(author: string | undefined, body: string | undefined): AgentMergeFeedbackComment {
+		const text = (body ?? '').slice(0, Math.max(0, Math.min(maximumFeedbackBodyLength, this._remaining)));
+		this._remaining -= text.length;
+		return {
+			...(author ? { author } : {}),
+			body: text,
+		};
+	}
+}
+
 export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, commentWatermark: string): AgentMergeGateResult {
 	const core = snapshot.core;
 	if (core.status !== 'ready' || !core.complete || !core.value) {
@@ -281,7 +324,7 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 	const mergeability = snapshot.mergeability.value!;
 	const behind = mergeability.mergeStateStatus?.toUpperCase() === 'BEHIND';
 	const conflicting = mergeability.mergeable === 'CONFLICTING';
-	const actions: AgentMergeAction[] = [];
+	const actions: AgentMergeRepairAction[] = [];
 	if (configuration.addressReviews && (reviewThreads.length > 0 || changesRequested.length > 0 || newComments.length > 0)) {
 		actions.push('addressReviews');
 	}
@@ -292,25 +335,29 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 		actions.push('resolveConflicts');
 	}
 
+	const budget = new FeedbackBudget(maximumFeedbackBudget);
 	const context: AgentMergePromptContext = {
 		pullRequestUrl: core.value.url,
 		title: core.value.title,
 		headSha: core.value.headSha,
 		baseRef: core.value.baseRef,
 		headRef: core.value.headRef,
-		reviewThreads: reviewThreads.slice(0, 20).map(thread => {
-			const comment = thread.comments.find(candidate => isAgentMergeFeedbackAuthor(candidate.author));
-			return {
-				id: thread.id,
-				...(thread.path ? { path: thread.path } : {}),
-				...(thread.line !== undefined ? { line: thread.line } : {}),
-				...(comment?.author?.login ? { author: comment.author.login } : {}),
-				body: (comment?.body ?? '').slice(0, 1_000),
-			};
-		}),
-		reviewSummaries: changesRequested.map(review => review.body ?? `Changes requested by ${review.author?.login ?? 'reviewer'}`),
-		newComments: newComments.map(comment => comment.body ?? `Comment by ${comment.author?.login ?? 'reviewer'}`),
-		failedChecks: checks.failed.map(check => check.name),
+		reviewThreads: reviewThreads.slice(0, maximumReviewThreads).map(thread => ({
+			id: thread.id,
+			...(thread.path ? { path: thread.path } : {}),
+			...(thread.line !== undefined ? { line: thread.line } : {}),
+			comments: thread.comments
+				.filter(comment => isAgentMergeFeedbackAuthor(comment.author))
+				.slice(-maximumCommentsPerThread)
+				.map(comment => budget.take(comment.author?.login, comment.body)),
+		})),
+		reviewSummaries: changesRequested
+			.slice(-maximumReviewSummaries)
+			.map(review => budget.take(review.author?.login, review.body)),
+		newComments: newComments
+			.slice(-maximumNewComments)
+			.map(comment => budget.take(comment.author?.login, comment.body)),
+		failedChecks: checks.failed.slice(0, maximumFailedChecks).map(check => check.name),
 		behind,
 		conflicting,
 		commentWatermark: newComments.reduce((latest, comment) => comment.createdAt && comment.createdAt > latest ? comment.createdAt : latest, commentWatermark),

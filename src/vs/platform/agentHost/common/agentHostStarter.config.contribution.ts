@@ -102,7 +102,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[AgentMergeSettingId.Enabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready."),
+			description: nls.localize('chat.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready."),
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -110,7 +110,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.AddressReviews]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.addressReviews', "Controls whether enabled Agent Merge sessions address unresolved review threads, changes-requested reviews, and new pull request comments from repository maintainers or the Copilot pull request reviewer."),
+			description: nls.localize('chat.agentMerge.addressReviews', "Controls whether enabled Agent Merge sessions address unresolved review threads, changes-requested reviews, and new pull request comments from repository maintainers or the Copilot pull request reviewer."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -118,7 +118,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.FixCI]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.fixCI', "Controls whether enabled Agent Merge sessions ask the agent to fix failed required CI checks."),
+			description: nls.localize('chat.agentMerge.fixCI', "Controls whether enabled Agent Merge sessions ask the agent to fix failed required CI checks."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -126,7 +126,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.ResolveConflicts]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.resolveConflicts', "Controls whether enabled Agent Merge sessions ask the agent to update branches that are behind or resolve merge conflicts."),
+			description: nls.localize('chat.agentMerge.resolveConflicts', "Controls whether enabled Agent Merge sessions ask the agent to update branches that are behind or resolve merge conflicts."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -134,7 +134,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.MergePullRequest]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.mergePullRequest', "Controls whether the Agent Host automatically merges or enqueues pull requests for enabled Agent Merge sessions after all selected maintenance work is complete."),
+			description: nls.localize('chat.agentMerge.mergePullRequest', "Controls whether the Agent Host automatically merges or enqueues pull requests for enabled Agent Merge sessions after all selected maintenance work is complete."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -144,12 +144,12 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['auto', 'squash', 'merge', 'rebase'],
 			enumDescriptions: [
-				nls.localize('chat.agentHost.agentMerge.mergeMethod.auto', "Uses the first repository-compatible method in this order: squash, merge commit, rebase."),
-				nls.localize('chat.agentHost.agentMerge.mergeMethod.squash', "Uses squash merge when the repository permits it."),
-				nls.localize('chat.agentHost.agentMerge.mergeMethod.merge', "Uses a merge commit when the repository permits it."),
-				nls.localize('chat.agentHost.agentMerge.mergeMethod.rebase', "Uses rebase merge when the repository permits it."),
+				nls.localize('chat.agentMerge.mergeMethod.auto', "Uses the first repository-compatible method in this order: squash, merge commit, rebase."),
+				nls.localize('chat.agentMerge.mergeMethod.squash', "Uses squash merge when the repository permits it."),
+				nls.localize('chat.agentMerge.mergeMethod.merge', "Uses a merge commit when the repository permits it."),
+				nls.localize('chat.agentMerge.mergeMethod.rebase', "Uses rebase merge when the repository permits it."),
 			],
-			description: nls.localize('chat.agentHost.agentMerge.mergeMethod', "Controls the native merge method used by Agent Merge."),
+			description: nls.localize('chat.agentMerge.mergeMethod', "Controls the native merge method used by Agent Merge."),
 			default: 'auto',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -157,7 +157,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.ReplyAttribution]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.replyAttribution', "Controls whether review-thread replies posted by Agent Merge include an automated-reply attribution note."),
+			description: nls.localize('chat.agentMerge.replyAttribution', "Controls whether review-thread replies posted by Agent Merge include an automated-reply attribution note."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
