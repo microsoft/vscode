@@ -72,6 +72,11 @@ export class AgentSessionRegistry extends Disposable {
 		await this._database.tombstoneAndUnregisterSession(session.toString());
 	}
 
+	/** Every registered session URI key without running legacy metadata migration. */
+	async listSessionKeys(): Promise<ReadonlySet<string>> {
+		return new Set((await this._database.listSessions()).map(entry => entry.session));
+	}
+
 	/**
 	 * Every session currently recorded, in no particular order. Legacy entries
 	 * are passed through `migrate`, when provided, before the resolved list is returned.

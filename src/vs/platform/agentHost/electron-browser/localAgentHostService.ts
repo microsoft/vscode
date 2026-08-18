@@ -22,7 +22,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
-import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
+import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel, NullAgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
@@ -30,7 +30,6 @@ import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.j
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
-	AgentHostByokModelsEnabledSettingId,
 	AgentHostIpcChannels,
 	AgentHostOTelPolicyIpcChannel,
 	AgentHostRestartIpcChannel,
@@ -265,7 +264,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				client,
 				this._instantiationService,
 				this._logService,
-				this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId) === true,
 			);
 			this._clientStore.value = store;
 			return client;
@@ -537,15 +535,13 @@ export function registerAgentHostClientChannels(
 	client: IChannelServer,
 	instantiationService: IInstantiationService,
 	logService: ILogService,
-	byokEnabled: boolean,
 ): void {
 	client.registerChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL, instantiationService.createInstance(AgentHostClientProxyChannel));
 
-	if (byokEnabled) {
-		try {
-			client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, instantiationService.createInstance(AgentHostClientByokLmChannel));
-		} catch (error) {
-			logService.warn(`${LOG_PREFIX} BYOK language-model bridge not registered for this window. ${error instanceof Error ? error.message : String(error)}`);
-		}
+	try {
+		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, instantiationService.createInstance(AgentHostClientByokLmChannel));
+	} catch (error) {
+		logService.warn(`${LOG_PREFIX} BYOK language-model bridge not registered for this window. ${error instanceof Error ? error.message : String(error)}`);
+		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, new NullAgentHostClientByokLmChannel());
 	}
 }

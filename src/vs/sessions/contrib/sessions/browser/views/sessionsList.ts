@@ -1340,7 +1340,7 @@ interface ISessionsAccessibilityProviderOptions {
 	readonly grouping: () => SessionsGrouping;
 	readonly isPinned: (session: ISession) => boolean;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
-	readonly includeQuickChatIdentity?: boolean;
+	readonly includeQuickChatInAriaLabel?: boolean;
 }
 
 class SessionsAccessibilityProvider {
@@ -1397,7 +1397,7 @@ class SessionsAccessibilityProvider {
 			const title = element.title.read(reader);
 			const updated = fromNow(element.updatedAt.read(reader), true);
 			let label: string;
-			if (this.options?.includeQuickChatIdentity && element.isQuickChat?.read(reader)) {
+			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, updated);
 			} else if (element.worktreePending?.read(reader)) {
 				label = localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated);
@@ -3803,7 +3803,7 @@ export class SessionsFlatList extends Disposable {
 				accessibilityProvider: new SessionsAccessibilityProvider(undefined, {
 					grouping: () => SessionsGrouping.Date,
 					isPinned: session => this._sessionsListModelService.isSessionPinned(session),
-					includeQuickChatIdentity: !useCompactQuickChatRows,
+					includeQuickChatInAriaLabel: !useCompactQuickChatRows,
 				}),
 				identityProvider: {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),
