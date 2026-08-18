@@ -6,17 +6,18 @@
 export type ModelSelectionConformanceModel = 'first' | 'second' | 'missing';
 
 /**
- * The authority behind a model already on the conversation. A choice blocks
- * `chat.defaultModel`; spillover leaves an empty conversation open to it.
+ * Whether a model already on the conversation is the conversation's own. Mirrors `ChatModelSource`:
+ * a chosen model blocks `chat.defaultModel`, a carried-over one leaves an empty conversation open
+ * to it.
  */
-export type ModelSelectionConformanceAuthority = 'choice' | 'spillover';
+export type ModelSelectionConformanceSource = 'chosen' | 'carriedOver';
 
 export interface IModelSelectionConformanceScenario {
 	readonly name: string;
 	readonly isEmpty: boolean;
 	readonly models: readonly Exclude<ModelSelectionConformanceModel, 'missing'>[];
 	readonly chatModel?: ModelSelectionConformanceModel;
-	readonly chatModelAuthority?: ModelSelectionConformanceAuthority;
+	readonly chatModelSource?: ModelSelectionConformanceSource;
 	readonly rememberedModel?: ModelSelectionConformanceModel;
 	readonly configuredModel?: ModelSelectionConformanceModel;
 	/** Whether the provider considers an absent requested model conclusively unavailable. */
@@ -35,7 +36,7 @@ export interface IModelSelectionConformanceInputs {
 	readonly isEmpty: boolean;
 	readonly models: readonly Exclude<ModelSelectionConformanceModel, 'missing'>[];
 	readonly chatModel: ModelSelectionConformanceModel | undefined;
-	readonly chatModelAuthority: ModelSelectionConformanceAuthority | undefined;
+	readonly chatModelSource: ModelSelectionConformanceSource | undefined;
 	readonly rememberedModel: ModelSelectionConformanceModel | undefined;
 	readonly configuredModel: ModelSelectionConformanceModel | undefined;
 	readonly catalogResolved: boolean;
@@ -46,7 +47,7 @@ export function conformanceInputs(scenario: IModelSelectionConformanceScenario):
 		isEmpty: scenario.isEmpty,
 		models: scenario.models,
 		chatModel: scenario.chatModel,
-		chatModelAuthority: scenario.chatModelAuthority,
+		chatModelSource: scenario.chatModelSource,
 		rememberedModel: scenario.rememberedModel,
 		configuredModel: scenario.configuredModel,
 		catalogResolved: scenario.catalogResolved ?? true,
@@ -56,13 +57,14 @@ export function conformanceInputs(scenario: IModelSelectionConformanceScenario):
 /**
  * Shared precedence cases for the Workbench controller and the Sessions adapter.
  *
- * Both surfaces adopt a conversation's model through the same entry point, differing only in the
- * authority they report, so these cases pin the shared policy rather than each surface's wiring.
+ * Both surfaces adopt a conversation's model through the same entry point, differing only in
+ * whether they report it as the conversation's own, so these cases pin the shared policy rather
+ * than each surface's wiring.
  *
- * How each surface *derives* that authority is its own business and is not covered here. Workbench
- * reads it from the conversation's in-memory intent, so it lasts only as long as the window;
- * Sessions reads it from the provider, which outlives a reload. The two therefore still answer
- * differently for a chat whose model predates the current window.
+ * How each surface works that out is its own business and is not covered here. Workbench reads it
+ * from the conversation's in-memory intent, so it lasts only as long as the window; Sessions reads
+ * it from the provider, which outlives a reload. The two therefore still answer differently for a
+ * chat whose model predates the current window.
  *
  * This matrix deliberately covers stable-catalog policy rather than publication lifecycle.
  * Workbench may display a stand-in while a model is pending; Sessions intentionally waits rather
@@ -95,37 +97,37 @@ export const modelSelectionConformanceScenarios: readonly IModelSelectionConform
 		isEmpty: true,
 		models: ['first', 'second'],
 		chatModel: 'first',
-		chatModelAuthority: 'choice',
+		chatModelSource: 'chosen',
 		configuredModel: 'second',
 		expected: { currentModel: 'first', conversationModel: 'first' },
 	},
 	{
 		// The case the two surfaces used to answer differently: Sessions knew the model was a
 		// choice, Workbench could only call it a restore and let the default win.
-		name: 'a restored choice is not treated as spillover on an empty conversation',
+		name: 'a restored model the chat owns is not treated as carried over on an empty conversation',
 		isEmpty: true,
 		models: ['first', 'second'],
 		chatModel: 'second',
-		chatModelAuthority: 'choice',
+		chatModelSource: 'chosen',
 		rememberedModel: 'first',
 		configuredModel: 'first',
 		expected: { currentModel: 'second', conversationModel: 'second' },
 	},
 	{
-		name: 'spillover yields to the configured default on an empty conversation',
+		name: 'a carried-over model yields to the configured default on an empty conversation',
 		isEmpty: true,
 		models: ['first', 'second'],
 		chatModel: 'first',
-		chatModelAuthority: 'spillover',
+		chatModelSource: 'carriedOver',
 		configuredModel: 'second',
 		expected: { currentModel: 'second', conversationModel: 'second' },
 	},
 	{
-		name: 'spillover remains selected when no configured default exists',
+		name: 'a carried-over model remains selected when no configured default exists',
 		isEmpty: true,
 		models: ['first', 'second'],
 		chatModel: 'first',
-		chatModelAuthority: 'spillover',
+		chatModelSource: 'carriedOver',
 		expected: { currentModel: 'first', conversationModel: 'first' },
 	},
 	{
@@ -133,16 +135,16 @@ export const modelSelectionConformanceScenarios: readonly IModelSelectionConform
 		isEmpty: false,
 		models: ['first', 'second'],
 		chatModel: 'first',
-		chatModelAuthority: 'choice',
+		chatModelSource: 'chosen',
 		configuredModel: 'second',
 		expected: { currentModel: 'first', conversationModel: 'first' },
 	},
 	{
-		name: 'configured default does not reseed non-empty spillover',
+		name: 'configured default does not reseed a non-empty carried-over model',
 		isEmpty: false,
 		models: ['first', 'second'],
 		chatModel: 'first',
-		chatModelAuthority: 'spillover',
+		chatModelSource: 'carriedOver',
 		configuredModel: 'second',
 		expected: { currentModel: 'first', conversationModel: 'first' },
 	},

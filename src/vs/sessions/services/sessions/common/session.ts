@@ -523,23 +523,17 @@ export interface IChatCapabilities {
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canDelete: true };
 
 /**
- * Where a chat's selected model came from. Distinguishes a model the conversation is meant to run
- * on from one that is only standing on it, which is what decides whether `chat.defaultModel` may
- * still seed the conversation.
+ * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
+ * question model selection asks of it: `chat.defaultModel` seeds a chat that has no model of its
+ * own, and the model id alone cannot say which case this is.
  *
- * Client-local: this is not persisted and does not cross the agent-host wire. It describes how the
- * current client came to put this model on the chat, so a reloaded window starts over rather than
- * inheriting a stale authority.
+ * Client-local: not persisted, and it does not cross the agent-host wire.
  */
 export const enum ChatModelSource {
-	/** The user picked this model for this chat. */
-	User = 'user',
-	/** The chat's own model, restored from the backend or persisted state. */
-	Restored = 'restored',
-	/** Carried over from another chat when this one was created; not a choice made here. */
-	Inherited = 'inherited',
-	/** Chosen for the chat by the client because it had no model of its own. */
-	Automatic = 'automatic',
+	/** The chat's own: the user picked it, or it was restored from where the chat left off. */
+	Chosen = 'chosen',
+	/** Put there for the chat: inherited from the chat it was created from, or picked for it. */
+	CarriedOver = 'carriedOver',
 }
 
 /**
@@ -574,15 +568,10 @@ export interface IChat {
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/**
-	 * Where {@link modelId} came from. Model selection has to tell a model the conversation is
-	 * meant to run on from one that is merely standing on it — an automatic pick, or the previous
-	 * chat's model a new peer chat was started with — because only the former outranks
-	 * `chat.defaultModel`. The identifier alone cannot express that difference.
-	 *
-	 * Required rather than optional: an absent value reads as "this model is the conversation's
-	 * own", which is the answer that blocks `chat.defaultModel`. A provider must not be able to
-	 * claim that by saying nothing, so it states `undefined` — no model, or none it can account
-	 * for — deliberately.
+	 * Whether {@link modelId} is this chat's own model. Required rather than optional: an absent
+	 * value is read as {@link ChatModelSource.Chosen}, which is what stops `chat.defaultModel`
+	 * overwriting it, and a provider should not be able to claim that by saying nothing. A
+	 * provider with no model, or one it cannot account for, states `undefined` deliberately.
 	 */
 	readonly modelSource: IObservable<ChatModelSource | undefined>;
 	/** Currently selected mode identifier and kind. */

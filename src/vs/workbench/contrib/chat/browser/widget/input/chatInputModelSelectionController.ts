@@ -6,11 +6,12 @@
 /**
  * Chat model selection.
  *
- * A model on a conversation is either that conversation's **choice** — the user picked it, a caller
- * selected it, or it was restored as its own — or **spillover**: the previous conversation's model
- * carried in, or an automatic pick. `chat.defaultModel` seeds spillover and yields to a choice.
- * {@link isInConversationModelChoice} is that line; every "may the default win here?" goes through
- * it. Which one happened cannot be read off a model identifier, so each surface states it.
+ * A model on a conversation is either the conversation's own — the user picked it, a caller
+ * selected it, or it was restored as its own — or carried over from somewhere else: the previous
+ * conversation's model, or an automatic pick. `chat.defaultModel` seeds a carried-over model and
+ * yields to the conversation's own. {@link isInConversationModelChoice} is that line; every "may
+ * the default win here?" goes through it. Which case it is cannot be read off a model identifier,
+ * so each surface states it.
  *
  * Models publish late and can be republished under new identifiers, so a conversation's model is
  * remembered per conversation and reclaimed when it appears. The two surfaces differ only in what

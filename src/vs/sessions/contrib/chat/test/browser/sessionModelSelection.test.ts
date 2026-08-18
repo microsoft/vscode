@@ -17,12 +17,11 @@ import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/c
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { isInConversationModelChoice, resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from '../../../../../workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.js';
-import { restoreReasonForSource } from '../../browser/sessionModelSource.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionModelSelection } from '../../browser/sessionModelSelection.js';
+import { restoreReasonForSource, SessionModelSelection } from '../../browser/sessionModelSelection.js';
 
 function model(identifier: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -65,7 +64,7 @@ interface ITestChat extends IChat {
 }
 
 /** A chat whose model says where it came from, as a real provider reports. */
-function createChat(resource: string, selectedModelId?: string, source = ChatModelSource.Restored, status = SessionStatus.Untitled): ITestChat {
+function createChat(resource: string, selectedModelId?: string, source = ChatModelSource.Chosen, status = SessionStatus.Untitled): ITestChat {
 	return {
 		resource: URI.parse(resource),
 		status: observableValue<SessionStatus>(`${resource}.status`, status),
@@ -86,12 +85,12 @@ interface ITestSession {
  * keep their own model, and the session merely reports the active one's.
  */
 function createSession(providerId: string, status: SessionStatus, selectedModelId?: string, sessionId = `${providerId}:session`, sessionType = 'type'): ITestSession {
-	const activeChat = observableValue<IChat>(`${providerId}.activeChat`, createChat(`chat:/${providerId}/one`, selectedModelId, ChatModelSource.Restored, status));
+	const activeChat = observableValue<IChat>(`${providerId}.activeChat`, createChat(`chat:/${providerId}/one`, selectedModelId, ChatModelSource.Chosen, status));
 	const modelId = {
 		get: () => activeChat.get().modelId.get(),
 		// Atomic, as the real providers are: an observer must never see a model paired with where
 		// the previous model came from.
-		set: (value: string | undefined, _tx: undefined, source = ChatModelSource.Restored) => {
+		set: (value: string | undefined, _tx: undefined, source = ChatModelSource.Chosen) => {
 			const chat = activeChat.get() as ITestChat;
 			transaction(tx => {
 				chat.modelSource.set(value ? source : undefined, tx);
@@ -187,7 +186,7 @@ function runConformanceScenario(
 	scenario: IModelSelectionConformanceScenario,
 	register: <T extends { dispose(): void }>(disposable: T) => T,
 ): IModelSelectionConformanceScenario['expected'] {
-	const { isEmpty, models: catalog, chatModel: chatModelName, chatModelAuthority, rememberedModel, configuredModel, catalogResolved } = conformanceInputs(scenario);
+	const { isEmpty, models: catalog, chatModel: chatModelName, chatModelSource, rememberedModel, configuredModel, catalogResolved } = conformanceInputs(scenario);
 	const models = new Map<ModelSelectionConformanceModel, ILanguageModelChatMetadataAndIdentifier>([
 		['first', first],
 		['second', second],
@@ -196,7 +195,7 @@ function runConformanceScenario(
 	const status = isEmpty ? SessionStatus.Untitled : SessionStatus.Completed;
 	const testSession = createSession('provider', status);
 	const chatModel = chatModelName ? models.get(chatModelName) : undefined;
-	const source = chatModelAuthority === 'spillover' ? ChatModelSource.Inherited : ChatModelSource.User;
+	const source = chatModelSource === 'carriedOver' ? ChatModelSource.CarriedOver : ChatModelSource.Chosen;
 	testSession.activeChat.set(createChat(
 		'chat:/provider/conformance',
 		chatModel?.identifier,
@@ -959,7 +958,7 @@ suite('SessionModelSelection', () => {
 
 	test('repairs a draft whose model went missing with the configured default', () => {
 		// Matches Workbench chat: a model restored onto a conversation that has not sent a request
-		// is spillover, so once it proves unavailable `chat.defaultModel` seeds the draft. Only a
+		// is carried over, so once it proves unavailable `chat.defaultModel` seeds the draft. Only a
 		// choice made inside the conversation outranks the configured default.
 		const testSession = createSession('provider', SessionStatus.Untitled, 'test/removed');
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
@@ -1070,7 +1069,7 @@ suite('SessionModelSelection', () => {
 			accepted: true,
 			writes: [gpt.identifier],
 			sessionModel: gpt.identifier,
-			source: ChatModelSource.User,
+			source: ChatModelSource.Chosen,
 		});
 	});
 
@@ -1125,7 +1124,7 @@ suite('SessionModelSelection', () => {
 			sessionModel: testSession.modelId.get(),
 		};
 		// The provider hydrates the model the session was actually running on.
-		testSession.modelId.set(gpt.identifier, undefined, ChatModelSource.Restored);
+		testSession.modelId.set(gpt.identifier, undefined, ChatModelSource.Chosen);
 
 		assert.deepStrictEqual({
 			beforeHydration,
@@ -1197,7 +1196,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		provider.models = [first, canonical];
 		provider.resolveDesired = desiredModelId => desiredModelId === second.identifier ? canonical : undefined;
-		testSession.activeChat.set(createChat('chat:/provider/one', second.identifier, ChatModelSource.User, SessionStatus.Untitled), undefined);
+		testSession.activeChat.set(createChat('chat:/provider/one', second.identifier, ChatModelSource.Chosen, SessionStatus.Untitled), undefined);
 		const selection = disposables.add(new SessionModelSelection(
 			observableValue<IActiveSession | undefined>('session', testSession.session),
 			createProvidersService([provider]),
@@ -1215,7 +1214,7 @@ suite('SessionModelSelection', () => {
 			countsAsConversationChoice: isInConversationModelChoice(restoreReasonForSource(writtenSource)),
 		}, {
 			current: canonical.identifier,
-			source: ChatModelSource.Restored,
+			source: ChatModelSource.Chosen,
 			countsAsConversationChoice: true,
 		});
 	});
@@ -1235,7 +1234,7 @@ suite('SessionModelSelection', () => {
 
 		const afterSeeding = selection.state.get().currentModel?.identifier;
 		// Another surface picks a different model for this same chat.
-		testSession.modelId.set(second.identifier, undefined, ChatModelSource.User);
+		testSession.modelId.set(second.identifier, undefined, ChatModelSource.Chosen);
 		const afterPeerSelection = selection.state.get().currentModel?.identifier;
 		provider.modelChanges.fire();
 
@@ -1269,7 +1268,7 @@ suite('SessionModelSelection', () => {
 		// Seeded with the only model available, then claimed by a peer as their own pick.
 		const seeded = selection.state.get().currentModel?.identifier;
 		const chat = testSession.activeChat.get() as ITestChat;
-		transaction(tx => chat.modelSource.set(ChatModelSource.User, tx));
+		transaction(tx => chat.modelSource.set(ChatModelSource.Chosen, tx));
 		// The location default publishes afterwards; it may upgrade a provisional pick, never a choice.
 		provider.models = [first, auto];
 		provider.modelChanges.fire();
@@ -1281,12 +1280,12 @@ suite('SessionModelSelection', () => {
 		}, {
 			seeded: first.identifier,
 			current: first.identifier,
-			source: ChatModelSource.User,
+			source: ChatModelSource.Chosen,
 		});
 	});
 
 	test('seeds a new peer chat that inherited the previous chat\'s model', () => {
-		// Providers start a peer chat on the model the previous chat used. That is spillover, not
+		// Providers start a peer chat on the model the previous chat used. That is carried over, not
 		// a choice, so `chat.defaultModel` still gets to seed the new chat.
 		const testSession = createSession('provider', SessionStatus.Untitled, first.identifier);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
@@ -1300,7 +1299,7 @@ suite('SessionModelSelection', () => {
 
 		const onFirstChat = selection.state.get().currentModel?.identifier;
 		// The provider starts the peer chat on the previous chat's model and says so.
-		testSession.activeChat.set(createChat('chat:/provider/two', first.identifier, ChatModelSource.Inherited), undefined);
+		testSession.activeChat.set(createChat('chat:/provider/two', first.identifier, ChatModelSource.CarriedOver), undefined);
 
 		assert.deepStrictEqual({
 			onFirstChat,
@@ -1360,7 +1359,7 @@ suite('SessionModelSelection', () => {
 
 		const onFinishedChat = selection.state.get().currentModel?.identifier;
 		// The provider starts the peer chat on the previous chat's model and says so.
-		testSession.activeChat.set(createChat('chat:/provider/two', first.identifier, ChatModelSource.Inherited, SessionStatus.Untitled), undefined);
+		testSession.activeChat.set(createChat('chat:/provider/two', first.identifier, ChatModelSource.CarriedOver, SessionStatus.Untitled), undefined);
 
 		assert.deepStrictEqual({
 			onFinishedChat,

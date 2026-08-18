@@ -308,9 +308,10 @@ export interface ISessionsProvider {
 	 * inferring the chat from whichever session is active would let a visible peer chat's picker
 	 * write to a different conversation.
 	 * @param modelId The ID of the model to set.
-	 * @param source Why the model is being set, surfaced back as {@link IChat.modelSource}. A
-	 * client that picks a model on the user's behalf must say so, or the chat becomes
-	 * indistinguishable from one the user chose for.
+	 * @param source Whether this is the chat's own model, surfaced back as
+	 * {@link IChat.modelSource}. A client picking a model for the chat must say
+	 * {@link ChatModelSource.CarriedOver}, or the chat becomes indistinguishable from one the user
+	 * chose a model for.
 	 */
 	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void;
 

@@ -1236,16 +1236,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/**
 	 * As {@link hydrateSelectedAgent}, for the model the session was last running on.
 	 *
-	 * Recorded as {@link ChatModelSource.Restored} because that is what it is: the conversation's
-	 * own model, read back from where the host persisted it. Without this the session reports no
-	 * model at all, and model selection has nothing to tell "this conversation chose something"
-	 * from "this conversation has never chosen".
+	 * {@link ChatModelSource.Chosen} because that is what it is: the session's own model, read back
+	 * from where the host persisted it. Without this a reopened session reports no model at all,
+	 * and model selection cannot tell it from one that has never had a model.
 	 */
 	hydrateSelectedModel(selection: ModelSelection): void {
 		if (this.modelId.get() !== undefined) {
 			return;
 		}
-		this.setChatModelId(this.resource, `${this._resourceScheme}:${selection.id}`, ChatModelSource.Restored);
+		this.setChatModelId(this.resource, `${this._resourceScheme}:${selection.id}`, ChatModelSource.Chosen);
 	}
 
 	getChatModelId(chatResource: URI): string | undefined {
@@ -4114,7 +4113,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		);
 
 		// The model comes from the chat this one was branched off, not from any choice made here.
-		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.Inherited);
+		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
 		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
@@ -4162,7 +4161,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		);
 
 		// The model comes from the chat this one was forked off, not from any choice made here.
-		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.Inherited);
+		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
 		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
@@ -4214,7 +4213,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		);
 
 		// The model comes from the chat this one was branched off, not from any choice made here.
-		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.Inherited);
+		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
 		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);

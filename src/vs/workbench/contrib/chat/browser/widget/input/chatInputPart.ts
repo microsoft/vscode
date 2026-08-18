@@ -554,7 +554,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * The draft state records which model, never who chose it — it is shared content, synced to
 	 * peers and the agent host. The conversation's intended model does record the authority, and it
 	 * is local to this client and outlives `clearState`, so a draft model matching an intent this
-	 * conversation established by choice is a restored choice rather than spillover. Anything else
+	 * conversation established by choice is a restored choice rather than carried over. Anything else
 	 * stays provisional, which is what lets `chat.defaultModel` seed a new session that merely
 	 * inherited the previous one's model.
 	 */

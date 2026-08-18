@@ -155,8 +155,8 @@ export const enum ModelSelectionReason {
 }
 
 /**
- * How a model already on a conversation is recorded: as the conversation's own, or as one merely
- * standing on it.
+ * How a model already on a conversation is recorded: as the conversation's own, or as one carried
+ * onto it.
  *
  * The distinction decides whether `chat.defaultModel` may still seed the conversation, and it
  * cannot be read off the model identifier: the same model can arrive because the user picked it,
@@ -191,7 +191,7 @@ export interface IIntendedModelSelection {
  * Whether a reason represents a choice made inside the current conversation. `chat.defaultModel`
  * seeds every new conversation but must never override one of these. `SessionRestore` is excluded
  * deliberately: it is a model carried onto the conversation rather than chosen in it, which on an
- * empty session is spillover from the previous one. A restore the surface can vouch for arrives as
+ * empty session came from the previous one. A restore the surface can vouch for arrives as
  * {@link ModelSelectionReason.RestoredChoice} instead and does block the default.
  */
 export function isInConversationModelChoice(reason: ModelSelectionReason | undefined): boolean {

@@ -2013,7 +2013,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, newWorkspace, this.id);
-		session.setModelId(chat.modelId.get(), ChatModelSource.Inherited);
+		session.setModelId(chat.modelId.get(), ChatModelSource.CarriedOver);
 		session.setIsolationMode('workspace');
 		session.setOption(PARENT_SESSION_OPTION_ID, chat.resource.path.slice(1));
 		session.setPermissionLevel(this._defaultPermissionLevel());

@@ -16,16 +16,35 @@ import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel 
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IPendingModelSelection, isInConversationModelChoice } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
-import { restoreReasonForSource, sourceForReason } from './sessionModelSource.js';
 
 /** Bounded: a long-lived window binds arbitrarily many chats, and old ones are not worth the memory. */
 const CONVERSATION_CACHE_SIZE = 50;
+
+/**
+ * Whether the chat owns this model. An absent source counts as owned, so a model the provider
+ * merely failed to account for is not overwritten by `chat.defaultModel`.
+ */
+function isChatOwnModel(source: ChatModelSource | undefined): boolean {
+	return source !== ChatModelSource.CarriedOver;
+}
+
+/** How the controller records a model the chat already has. */
+export function restoreReasonForSource(source: ChatModelSource | undefined): RestoredModelReason {
+	return isChatOwnModel(source)
+		? ModelSelectionReason.RestoredChoice
+		: ModelSelectionReason.SessionRestore;
+}
+
+/** How to report a decision the controller made. The same line, read the other way. */
+function sourceForReason(reason: ModelSelectionReason | undefined): ChatModelSource {
+	return isInConversationModelChoice(reason) ? ChatModelSource.Chosen : ChatModelSource.CarriedOver;
+}
 
 type ModelSelectionRefreshTrigger = 'sessionState' | 'configuration' | 'providers' | 'models';
 
@@ -163,7 +182,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const conversation = this._conversation();
 		try {
 			this._controller.applySelection(model, () => {
-				provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.User);
+				provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.Chosen);
 				storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
 			}, true, true);
 		} catch (error) {
@@ -243,7 +262,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const chat = session.activeChat.get();
 		const chatModelId = session.modelId.get();
 		// A model the provider cannot account for is read as the chat's own.
-		const chatModelSource = chatModelId ? (chat.modelSource.get() ?? ChatModelSource.Restored) : undefined;
+		const chatModelSource = chatModelId ? (chat.modelSource.get() ?? ChatModelSource.Chosen) : undefined;
 		// Undefined only when the chat has no model, which is the one case with no authority at all.
 		const chatModelReason = chatModelSource === undefined ? undefined : restoreReasonForSource(chatModelSource);
 		const baseSnapshot = provider.getModelsSnapshot(session.sessionId, chatModelId);
@@ -351,7 +370,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	}
 
 	/**
-	 * Whether the conversation's model, or whether it counts as a choice, differs from what we hold.
+	 * Whether the chat's model, or whether it counts as the chat's own, differs from what we hold.
 	 * Our own echo matches on both, since the source came from the reason we still hold.
 	 */
 	private _conversationSelectionChanged(
@@ -359,7 +378,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		source: ChatModelSource | undefined,
 	): boolean {
 		return chatModel.identifier !== this._controller.currentModel.get()?.identifier
-			|| isInConversationModelChoice(restoreReasonForSource(source)) !== isInConversationModelChoice(this._controller.selectionReason);
+			|| isChatOwnModel(source) !== isInConversationModelChoice(this._controller.selectionReason);
 	}
 
 	/** Adopts the model the chat is on, telling the controller whether it counts as a choice. */

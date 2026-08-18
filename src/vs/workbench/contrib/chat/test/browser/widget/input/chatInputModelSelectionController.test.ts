@@ -96,7 +96,7 @@ function runConformanceScenario(
 	scenario: IModelSelectionConformanceScenario,
 	register: <T extends { dispose(): void }>(disposable: T) => T,
 ): IModelSelectionConformanceScenario['expected'] {
-	const { isEmpty, models: catalog, chatModel, chatModelAuthority, rememberedModel, configuredModel, catalogResolved } = conformanceInputs(scenario);
+	const { isEmpty, models: catalog, chatModel, chatModelSource, rememberedModel, configuredModel, catalogResolved } = conformanceInputs(scenario);
 	const models = new Map<ModelSelectionConformanceModel, ILanguageModelChatMetadataAndIdentifier>([
 		['first', model('test/first')],
 		['second', model('test/second')],
@@ -139,7 +139,7 @@ function runConformanceScenario(
 			state.sessionType,
 			state.conversationKey!,
 			false,
-			chatModelAuthority === 'choice' ? ModelSelectionReason.RestoredChoice : ModelSelectionReason.SessionRestore,
+			chatModelSource === 'chosen' ? ModelSelectionReason.RestoredChoice : ModelSelectionReason.SessionRestore,
 		);
 		conversationModel = chatModel;
 	}
@@ -956,7 +956,7 @@ suite('ChatInputModelSelectionController', () => {
 	test('an explicit pick is not demoted when the conversation echoes it back', () => {
 		// Applying a model writes it into the conversation's draft state, which comes straight back
 		// as a restore. Workbench reads the authority off the conversation's own intent for exactly
-		// this, so the echo must not turn the user's pick into spillover the default can claim.
+		// this, so the echo must not turn the user's pick into a carried-over model the default can claim.
 		const picked = model('test/picked');
 		const configured = model('test/configured');
 		const modelChanges = disposables.add(new Emitter<string>());

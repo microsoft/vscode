@@ -1761,7 +1761,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Set Model Session');
 		assert.ok(session);
 
-		provider.setModel(session!.sessionId, session!.resource, 'agent-host-copilotcli:new-model', ChatModelSource.User);
+		provider.setModel(session!.sessionId, session!.resource, 'agent-host-copilotcli:new-model', ChatModelSource.Chosen);
 
 		assert.strictEqual(session!.modelId.get(), 'agent-host-copilotcli:new-model');
 		assert.deepStrictEqual(agentHost.dispatchedActions, []);
@@ -1774,7 +1774,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Set Model Config Session');
 		assert.ok(session);
 
-		provider.setModel(session!.sessionId, session!.resource, 'agent-host-copilotcli:configured-model', ChatModelSource.User);
+		provider.setModel(session!.sessionId, session!.resource, 'agent-host-copilotcli:configured-model', ChatModelSource.Chosen);
 
 		assert.strictEqual(session!.modelId.get(), 'agent-host-copilotcli:configured-model');
 		assert.deepStrictEqual(agentHost.dispatchedActions, []);
@@ -1886,7 +1886,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			modelSource: session!.mainChat.get().modelSource.get(),
 		}, {
 			modelId: 'agent-host-copilotcli:resumed-model',
-			modelSource: ChatModelSource.Restored,
+			modelSource: ChatModelSource.Chosen,
 		});
 	});
 
@@ -1898,7 +1898,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.ok(session);
 
 		// A live pick wins; a later draft snapshot must not clobber it.
-		provider.setModel(session!.sessionId, session!.resource, 'agent-host-copilotcli:live-model', ChatModelSource.User);
+		provider.setModel(session!.sessionId, session!.resource, 'agent-host-copilotcli:live-model', ChatModelSource.Chosen);
 		provider.getSessionConfig(session!.sessionId);
 
 		const defaultChatUri = buildDefaultChatUri(AgentSession.uri('copilotcli', 'resume-model-nooverride'));
@@ -1916,7 +1916,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			modelSource: session!.mainChat.get().modelSource.get(),
 		}, {
 			modelId: 'agent-host-copilotcli:live-model',
-			modelSource: ChatModelSource.User,
+			modelSource: ChatModelSource.Chosen,
 		});
 	});
 
@@ -4404,7 +4404,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const peer = session.chats.get().find(c => c.resource.fragment === 'peer-1');
 			assert.ok(peer);
 			activeSession.set({ sessionId: session.sessionId, activeChat: constObservable(peer!) } as IActiveSession, undefined);
-			provider.setModel(session.sessionId, peer!.resource, 'agent-host-copilotcli:peer-model', ChatModelSource.User);
+			provider.setModel(session.sessionId, peer!.resource, 'agent-host-copilotcli:peer-model', ChatModelSource.Chosen);
 
 			const forked = await provider.forkChat(session.sessionId, peer!.resource, 'turn-1');
 			const call = agentHost.createdChats.at(-1);
@@ -4425,7 +4425,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				createdModel: { id: 'peer-model' },
 				forkedModelId: 'agent-host-copilotcli:peer-model',
 				// Inherited, not a choice, so `chat.defaultModel` may still seed the new chat.
-				forkedModelSource: ChatModelSource.Inherited,
+				forkedModelSource: ChatModelSource.CarriedOver,
 				forkedInputSelectedModels: ['agent-host-copilotcli:peer-model'],
 			});
 		}));
@@ -4499,7 +4499,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const peer = session.chats.get().find(c => c.resource.fragment === 'peer-1');
 			assert.ok(peer);
 			activeSession.set({ sessionId: session.sessionId, activeChat: constObservable(peer!) } as IActiveSession, undefined);
-			provider.setModel(session.sessionId, peer!.resource, 'agent-host-copilotcli:peer-model', ChatModelSource.User);
+			provider.setModel(session.sessionId, peer!.resource, 'agent-host-copilotcli:peer-model', ChatModelSource.Chosen);
 			provider.setAgent?.(session.sessionId, { uri: 'agent://peer', name: 'peer' });
 
 			const sideChat = await provider.createSideChat(session.sessionId, peer!.resource, 'turn-1');
@@ -4522,7 +4522,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}, {
 				sideChatSource: peerChat,
 				createdModel: { id: 'peer-model' },
-				sourceOnPeer: ChatModelSource.User,
+				sourceOnPeer: ChatModelSource.Chosen,
 				peerInputSelectedModels: ['agent-host-copilotcli:peer-model'],
 				peerInputModes: ['agent://peer'],
 			});
@@ -4564,7 +4564,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				makeChatSummary(defaultChat, ''),
 			], { defaultChat }));
 
-			provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:selected-model', ChatModelSource.User);
+			provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:selected-model', ChatModelSource.Chosen);
 
 			const chat = await provider.createNewChat(session.sessionId);
 
@@ -4650,7 +4650,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.ok(peer);
 			activeSession.set({ sessionId: session.sessionId, activeChat: constObservable(peer!) } as IActiveSession, undefined);
 
-			provider.setModel(session.sessionId, peer!.resource, 'agent-host-copilotcli:peer-model', ChatModelSource.User);
+			provider.setModel(session.sessionId, peer!.resource, 'agent-host-copilotcli:peer-model', ChatModelSource.Chosen);
 
 			assert.deepStrictEqual({
 				defaultModelId: session.mainChat.get().modelId.get(),
@@ -4800,7 +4800,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const target = provider.getSessions().find(s => s.title.get() === 'Model Change');
 		assert.ok(target);
-		provider.setModel(target!.sessionId, target!.resource, 'agent-host-copilotcli:old-model', ChatModelSource.User);
+		provider.setModel(target!.sessionId, target!.resource, 'agent-host-copilotcli:old-model', ChatModelSource.Chosen);
 
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
@@ -5386,7 +5386,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionAdded(agentHost, 'send-draft', { title: 'Send Draft Session' });
 		const session = provider.getSessions().find(s => s.title.get() === 'Send Draft Session');
 		assert.ok(session);
-		provider.setModel(session!.sessionId, session!.resource, 'agent-host-copilotcli:selected-model', ChatModelSource.User);
+		provider.setModel(session!.sessionId, session!.resource, 'agent-host-copilotcli:selected-model', ChatModelSource.Chosen);
 		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
 		agentHost.dispatchedActions.length = 0;
 		inputStates.length = 0;

@@ -604,7 +604,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Set Model Session');
 		assert.ok(session);
 
-		provider.setModel(session!.sessionId, session!.resource, 'remote-localhost__4321-copilotcli:new-model', ChatModelSource.User);
+		provider.setModel(session!.sessionId, session!.resource, 'remote-localhost__4321-copilotcli:new-model', ChatModelSource.Chosen);
 
 		assert.strictEqual(session!.modelId.get(), 'remote-localhost__4321-copilotcli:new-model');
 		assert.strictEqual(connection.dispatchedActions.length, 0);
@@ -617,7 +617,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Set Model Config Session');
 		assert.ok(session);
 
-		provider.setModel(session!.sessionId, session!.resource, 'remote-localhost__4321-copilotcli:configured-model', ChatModelSource.User);
+		provider.setModel(session!.sessionId, session!.resource, 'remote-localhost__4321-copilotcli:configured-model', ChatModelSource.Chosen);
 
 		assert.strictEqual(session!.modelId.get(), 'remote-localhost__4321-copilotcli:configured-model');
 		assert.strictEqual(connection.dispatchedActions.length, 0);
@@ -798,7 +798,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const target = provider.getSessions().find(s => s.title.get() === 'Model Change');
 		assert.ok(target);
-		provider.setModel(target!.sessionId, target!.resource, 'remote-localhost__4321-copilotcli:old-model', ChatModelSource.User);
+		provider.setModel(target!.sessionId, target!.resource, 'remote-localhost__4321-copilotcli:old-model', ChatModelSource.Chosen);
 
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
