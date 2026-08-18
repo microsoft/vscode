@@ -588,7 +588,10 @@ function inputRequestResponsePartKey(part: InputRequestResponsePart): string {
 	return `ir:${part.request.id}:${JSON.stringify({ ...part.request, answers: undefined })}`;
 }
 
-function getChatTitle(state: Pick<SessionState, 'chats' | 'title'>, chatURI: string): string {
+function getChatTitle(state: Pick<SessionState, 'chats' | 'defaultChat' | 'title'>, chatURI: string): string {
+	if (state.defaultChat === chatURI && state.chats.length === 1) {
+		return state.title;
+	}
 	return state.chats.find(chat => chat.resource === chatURI)?.title || state.title;
 }
 

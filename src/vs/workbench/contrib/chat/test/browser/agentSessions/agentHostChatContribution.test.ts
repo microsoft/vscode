@@ -10128,6 +10128,50 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('uses the session title for a sole default chat', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'sole-chat-title');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/sole-chat-title' });
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Original session title',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.SessionTitleChanged,
+					title: 'Renamed session',
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				initialTitle: chatSession.title,
+				titleChanges: chatService.setChatSessionTitleCalls.map(call => ({
+					sessionResource: call.sessionResource.toString(),
+					title: call.title,
+				})),
+			}, {
+				initialTitle: 'Original session title',
+				titleChanges: [{
+					sessionResource: sessionResource.toString(),
+					title: 'Renamed session',
+				}],
+			});
+		});
+
 		test('syncs queued messages added to restored active sessions idempotently', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 
