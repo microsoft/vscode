@@ -330,7 +330,7 @@ suite('ChatSpeechToTextService', () => {
 		]);
 	});
 
-	test('uses low reasoning effort for Luna cleanup only', async () => {
+	test('disables reasoning for Luna cleanup only', async () => {
 		const requestConfigurations: Array<ILanguageModelChatRequestOptions['configuration']> = [];
 		const createService = (configuredModel: string): CleanupTestService => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
@@ -365,7 +365,7 @@ suite('ChatSpeechToTextService', () => {
 		await createService('copilot-utility-small')._cleanupWithLanguageModel('utility transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(requestConfigurations, [
-			{ reasoningEffort: 'low' },
+			{ reasoningEffort: 'none' },
 			undefined,
 		]);
 	});

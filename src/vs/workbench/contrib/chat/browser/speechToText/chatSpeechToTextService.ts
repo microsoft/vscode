@@ -1465,7 +1465,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			phase = 'startRequest';
 			this._logService.trace(`[chat-stt] language model cleanup sending request (elapsedMs=${Date.now() - cleanupStartMs})`);
 			const requestOptions = selectedCleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
-				? { configuration: { reasoningEffort: 'low' } }
+				? { configuration: { reasoningEffort: 'none' } }
 				: {};
 			const response = await raceCancellation(
 				this._languageModelsService.sendChatRequest(
