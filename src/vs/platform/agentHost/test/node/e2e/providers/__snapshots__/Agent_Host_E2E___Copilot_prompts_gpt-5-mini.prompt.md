@@ -381,7 +381,7 @@ Your goal is to deliver complete, working solutions. If your first approach does
 Respond concisely to the user, but be thorough in your work.
 ~~~
 
-### Tools (31)
+### Tools (30)
 
 #### bash
 Runs a Bash command.
@@ -1181,7 +1181,7 @@ List sessions and their compact metadata (status, activity, working directory, p
     },
     "workspace": {
       "type": "string",
-      "description": "Only return sessions whose working directory is this folder — an absolute path or a workspace URI."
+      "description": "Only return sessions for this project name, project URI, or working directory path/URI."
     },
     "withChanges": {
       "type": "boolean",
@@ -1211,24 +1211,6 @@ List sessions and their compact metadata (status, activity, working directory, p
 }
 ```
 
-#### list_workspaces
-List distinct project roots and working directories known from existing sessions. Project roots are preferred so agents can start isolated work from the configured project instead of a transient worktree. Use a returned URI as the `workspace` for `create_session`.
-```json
-{
-  "type": "object",
-  "properties": {
-    "query": {
-      "type": "string",
-      "description": "Optional case-insensitive text matched against workspace names and URIs."
-    },
-    "limit": {
-      "type": "number",
-      "description": "Maximum entries to return. Defaults to 20 and is capped at 50."
-    }
-  }
-}
-```
-
 #### get_current_session
 Get metadata and the open link for the session this conversation is running in. Use this to reference the current session (for example before adding a chat to it).
 ```json
@@ -1246,7 +1228,7 @@ Create a session in a workspace and start it with an initial prompt. The UI show
   "properties": {
     "workspace": {
       "type": "string",
-      "description": "Absolute folder path, workspace URI, or a working directory from an existing session."
+      "description": "Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session."
     },
     "prompt": {
       "type": "string",

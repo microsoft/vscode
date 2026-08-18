@@ -5,6 +5,7 @@
 
 import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
@@ -49,7 +50,7 @@ const listSessionsInputSchema: ToolDefinition['inputSchema'] = {
 			items: { type: 'string', enum: [...listSessionsStatusValues] },
 			description: 'Only return sessions whose status matches one of these (e.g. `inputNeeded` for sessions awaiting a reply, `inProgress` for running ones, `archived` for sessions marked Done/completed — implies `includeArchived`). Omit to return every status.',
 		},
-		workspace: { type: 'string', description: 'Only return sessions whose working directory is this folder — an absolute path or a workspace URI.' },
+		workspace: { type: 'string', description: 'Only return sessions for this project name, project URI, or working directory path/URI.' },
 		withChanges: { type: 'boolean', description: 'When true, only return sessions that have pending worktree changes.' },
 		unread: { type: 'boolean', description: 'When true, only return sessions with updates the user has not seen yet.' },
 		withPullRequest: { type: 'boolean', description: 'When true, only return sessions that have a linked GitHub pull request.' },
@@ -59,18 +60,10 @@ const listSessionsInputSchema: ToolDefinition['inputSchema'] = {
 	},
 };
 
-const listWorkspacesInputSchema: ToolDefinition['inputSchema'] = {
-	type: 'object',
-	properties: {
-		query: { type: 'string', description: 'Optional case-insensitive text matched against workspace names and URIs.' },
-		limit: { type: 'number', description: 'Maximum entries to return. Defaults to 20 and is capped at 50.' },
-	},
-};
-
 const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
-		workspace: { type: 'string', description: 'Absolute folder path, workspace URI, or a working directory from an existing session.' },
+		workspace: { type: 'string', description: 'Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session.' },
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model.' },
 	},
@@ -144,13 +137,6 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 		title: 'List Sessions',
 		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
 		inputSchema: listSessionsInputSchema,
-		annotations: { readOnlyHint: true },
-	},
-	{
-		name: SessionServerToolName.ListWorkspaces,
-		title: 'List Workspaces',
-		description: 'List distinct project roots and working directories known from existing sessions. Project roots are preferred so agents can start isolated work from the configured project instead of a transient worktree. Use a returned URI as the `workspace` for `create_session`.',
-		inputSchema: listWorkspacesInputSchema,
 		annotations: { readOnlyHint: true },
 	},
 	{
@@ -286,8 +272,12 @@ interface ISerializedSession {
 	/** Human-readable description of what the session is currently doing. */
 	readonly activity?: string;
 	readonly workingDirectory?: string;
+	/** Every working-directory URI when the session has more than one. */
+	readonly workingDirectories?: readonly string[];
 	/** Display name of the session's project/workspace. */
 	readonly project?: string;
+	/** Configured project root URI, which may differ from a transient working directory. */
+	readonly projectUri?: string;
 	/** `true` when the session has updates the user has not yet seen. */
 	readonly unread?: boolean;
 	/** ISO-8601 timestamp of when the session was created. */
@@ -380,15 +370,30 @@ function parseWorkspaceUri(workspace: string): URI | undefined {
 }
 
 function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMetadata[]): URI {
+	const parsed = parseWorkspaceUri(workspace);
 	for (const session of sessions) {
-		const match = session.workingDirectories?.find(d => d.toString() === workspace || d.fsPath === workspace);
-		if (match) {
-			return match;
+		for (const candidate of [session.project?.uri, ...(session.workingDirectories ?? [])]) {
+			if (candidate && parsed && isEqual(candidate, parsed)) {
+				return candidate;
+			}
 		}
 	}
-	const parsed = parseWorkspaceUri(workspace);
+
+	const projects: { readonly uri: URI; readonly displayName: string }[] = [];
+	for (const session of sessions) {
+		const project = session.project;
+		if (project?.displayName.toLowerCase() === workspace.toLowerCase() && !projects.some(candidate => isEqual(candidate.uri, project.uri))) {
+			projects.push(project);
+		}
+	}
+	if (projects.length === 1) {
+		return projects[0].uri;
+	}
+	if (projects.length > 1) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace "${workspace}" is ambiguous; use one of these project URIs: ${projects.map(project => project.uri.toString()).join(', ')}.`);
+	}
 	if (!parsed) {
-		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace must match a known session workingDirectory, an absolute path, or a valid URI string.`);
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace must match a unique known project name, project URI, working directory, absolute path, or valid URI string.`);
 	}
 	return parsed;
 }
@@ -544,19 +549,14 @@ function sessionIsUnread(session: IAgentSessionMetadata): boolean {
 	return session.status !== undefined && !isSessionStatusRead(session.status);
 }
 
-/** Whether any of a session's working directories matches the given folder (absolute path or URI). */
+/** Whether a session's project or any working directory matches the given workspace selector. */
 function sessionMatchesWorkspace(session: IAgentSessionMetadata, workspace: string): boolean {
-	const dirs = session.workingDirectories;
-	if (!dirs || dirs.length === 0) {
-		return false;
+	if (session.project?.displayName.toLowerCase() === workspace.toLowerCase()) {
+		return true;
 	}
 	const parsed = parseWorkspaceUri(workspace);
-	// Any-root membership: a session matches when the folder is any of its
-	// working directories, not only the primary.
-	return dirs.some(dir =>
-		dir.toString() === workspace
-		|| dir.fsPath === workspace
-		|| (!!parsed && parsed.toString() === dir.toString()));
+	return parsed !== undefined
+		&& [session.project?.uri, ...(session.workingDirectories ?? [])].some(candidate => candidate !== undefined && isEqual(candidate, parsed));
 }
 
 /** Applies the {@link IListSessionsArgs} filters to a set of sessions. */
@@ -639,7 +639,11 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(status !== undefined ? { status } : {}),
 		...(session.activity !== undefined ? { activity: session.activity } : {}),
 		...(session.workingDirectories?.[0] !== undefined ? { workingDirectory: session.workingDirectories[0].toString() } : {}),
+		...(session.workingDirectories !== undefined && session.workingDirectories.length > 1
+			? { workingDirectories: session.workingDirectories.map(directory => directory.toString()) }
+			: {}),
 		...(session.project !== undefined ? { project: session.project.displayName } : {}),
+		...(session.project !== undefined ? { projectUri: session.project.uri.toString() } : {}),
 		...(sessionIsUnread(session) ? { unread: true } : {}),
 		...(session.startTime > 0 ? { createdAt: new Date(session.startTime).toISOString() } : {}),
 		...(session.modifiedTime > 0 ? { modifiedAt: new Date(session.modifiedTime).toISOString() } : {}),
@@ -655,71 +659,6 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(git !== undefined ? { git } : {}),
 		...(github !== undefined ? { github } : {}),
 	};
-}
-
-interface IListWorkspacesArgs {
-	readonly query?: string;
-	readonly limit: number;
-}
-
-function getListWorkspacesArgs(rawArgs: unknown): IListWorkspacesArgs {
-	const args = (rawArgs ?? {}) as { query?: unknown; limit?: unknown };
-	const query = getOptionalString(args.query, 'query', SessionServerToolName.ListWorkspaces);
-	let limit = 20;
-	if (args.limit !== undefined) {
-		if (typeof args.limit !== 'number' || !Number.isFinite(args.limit) || args.limit < 1) {
-			throw new Error(`Invalid ${SessionServerToolName.ListWorkspaces} input: limit must be a positive number.`);
-		}
-		limit = Math.min(Math.floor(args.limit), 50);
-	}
-	return { ...(query !== undefined ? { query } : {}), limit };
-}
-
-export function serializeWorkspaces(sessions: readonly IAgentSessionMetadata[], rawArgs: unknown): string {
-	const args = getListWorkspacesArgs(rawArgs);
-	const query = args.query?.toLowerCase();
-	const sessionReferencesByWorkspaceUri = new Map<string, { uri: string; fallbackName: string; provider: string }>();
-	const projectNamesByWorkspaceUri = new Map<string, string>();
-	const workspaces: { uri: string; name: string; provider: string }[] = [];
-	for (const session of [...sessions].sort((a, b) => b.modifiedTime - a.modifiedTime)) {
-		if (session.project) {
-			const uri = session.project.uri.toString();
-			if (!sessionReferencesByWorkspaceUri.has(uri)) {
-				sessionReferencesByWorkspaceUri.set(uri, {
-					uri,
-					fallbackName: session.project.displayName,
-					provider: session.session.scheme,
-				});
-			}
-			if (!projectNamesByWorkspaceUri.has(uri)) {
-				projectNamesByWorkspaceUri.set(uri, session.project.displayName);
-			}
-		}
-		for (const directory of session.workingDirectories ?? []) {
-			const uri = directory.toString();
-			if (!sessionReferencesByWorkspaceUri.has(uri)) {
-				sessionReferencesByWorkspaceUri.set(uri, {
-					uri,
-					fallbackName: directory.path.split('/').filter(Boolean).at(-1) ?? uri,
-					provider: session.session.scheme,
-				});
-			}
-			if (!projectNamesByWorkspaceUri.has(uri) && session.project?.uri.toString() === uri) {
-				projectNamesByWorkspaceUri.set(uri, session.project.displayName);
-			}
-		}
-	}
-	for (const workspace of sessionReferencesByWorkspaceUri.values()) {
-		const name = projectNamesByWorkspaceUri.get(workspace.uri) ?? workspace.fallbackName;
-		if (query && !name.toLowerCase().includes(query) && !workspace.uri.toLowerCase().includes(query)) {
-			continue;
-		}
-		workspaces.push({ uri: workspace.uri, name, provider: workspace.provider });
-		if (workspaces.length >= args.limit) {
-			return JSON.stringify({ workspaces });
-		}
-	}
-	return JSON.stringify({ workspaces });
 }
 
 /** Serializes session metadata into the compact tool-result JSON payload. */
@@ -1253,11 +1192,6 @@ function getSessionToolDisplay(toolName: string, _args: unknown, _result?: IServ
 				displayName: localize('toolName.listSessions', "List Sessions"),
 				invocationMessage: localize('toolInvoke.listSessions', "List sessions"),
 			};
-		case SessionServerToolName.ListWorkspaces:
-			return {
-				displayName: localize('toolName.listWorkspaces', "List Workspaces"),
-				invocationMessage: localize('toolInvoke.listWorkspaces', "List workspaces"),
-			};
 		case SessionServerToolName.CreateSession:
 			return {
 				displayName: localize('toolName.createSession', "Create Session"),
@@ -1333,8 +1267,6 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 			switch (toolName) {
 				case SessionServerToolName.ListSessions:
 					return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs)));
-				case SessionServerToolName.ListWorkspaces:
-					return serializeWorkspaces(await accessor.listSessions(), rawArgs);
 				case SessionServerToolName.GetCurrentSession:
 					return serializeCurrentSession(currentSessionUri(currentChannel), await accessor.listSessions());
 				case SessionServerToolName.CreateSession: {
