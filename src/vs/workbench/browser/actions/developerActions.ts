@@ -15,7 +15,7 @@ import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTrack
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { getDomNodePagePosition, append, $, getActiveDocument, onDidRegisterWindow, getWindows, getWindow } from '../../../base/browser/dom.js';
+import { getDomNodePagePosition, append, $, getActiveDocument, onDidRegisterWindow, getWindows } from '../../../base/browser/dom.js';
 import { createCSSRule, createStyleSheet } from '../../../base/browser/domStylesheets.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
@@ -205,15 +205,6 @@ class ToggleScreencastModeAction extends Action2 {
 		updateMouseIndicatorSize();
 
 		disposables.add(onMouseDown.event(e => {
-			// Parent the marker to the container of the window where the event
-			// originates. The active container can point at a different window
-			// (e.g. the omni chat input window keeps the main window active
-			// while it is shown), which would otherwise offset the marker.
-			const targetContainer = layoutService.getContainer(getWindow(e));
-			if (mouseMarker.parentElement !== targetContainer) {
-				targetContainer.appendChild(mouseMarker);
-			}
-
 			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.display = 'block';
@@ -221,11 +212,6 @@ class ToggleScreencastModeAction extends Action2 {
 			mouseMarker.style.transition = 'transform 0.1s';
 
 			const mouseMoveListener = onMouseMove.event(e => {
-				const targetContainer = layoutService.getContainer(getWindow(e));
-				if (mouseMarker.parentElement !== targetContainer) {
-					targetContainer.appendChild(mouseMarker);
-				}
-
 				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 				mouseMarker.style.transform = `scale(${.8})`;

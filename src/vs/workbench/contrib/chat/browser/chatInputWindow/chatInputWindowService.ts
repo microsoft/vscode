@@ -352,19 +352,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
 		this._renderChatWidget(auxiliaryWindow, surface, row, bounds);
-		const pendingActiveWindowSync = this._windowDisposables.add(new MutableDisposable());
-		this._windowDisposables.add(autorun(reader => {
-			const ownsVoice = this.voiceSessionController.omniInputActive.read(reader);
-			if (ownsVoice || auxiliaryWindow.window.document.hasFocus()) {
-				return;
-			}
-			pendingActiveWindowSync.value = dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => {
-				const activeWindow = dom.getActiveWindow();
-				if (activeWindow !== auxiliaryWindow.window) {
-					this.voiceSessionController.setActiveWindow(activeWindow);
-				}
-			});
-		}));
 
 		const trail = dom.append(row, dom.$('.chat-input-window-trail'));
 		this._trail = trail;
