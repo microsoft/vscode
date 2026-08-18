@@ -27,14 +27,9 @@ export interface IAgentHostSessionListConnection {
 
 /**
  * Whether a working directory reported by an agent host names the given
- * workspace folder or something inside it.
- *
- * A host reports its directories wrapped for the agent-host filesystem, and
- * that wrapper carries the original URI, so unwrapping recovers the
- * directory exactly as the host named it: for a host running in a dev
- * container, the very `vscode-remote:` URI the window uses for that folder.
- * This is what makes the match trustworthy rather than assumed, since the
- * unwrapped authority identifies the machine the directory is on.
+ * workspace folder or something inside it. Unwrapping the agent-host URI
+ * recovers the directory as the host named it, so the authority identifies
+ * the machine rather than being assumed.
  */
 export function matchesFolder(directory: URI, folder: URI): boolean {
 	const reported = fromAgentHostUri(directory);
@@ -43,19 +38,9 @@ export function matchesFolder(directory: URI, folder: URI): boolean {
 
 /**
  * Reinterpret a working directory in the folder's namespace when the two
- * describe the same filesystem under different schemes.
- *
- * This is the fallback for a host that reports a bare `file:` path with no
- * agent-host wrapper to unwrap. `isEqualOrParent` compares schemes before
- * anything else, so such a path can never match the `vscode-remote:` folder
- * of the window showing the list, however identical the two are, and every
- * session on the workspace folder is filtered out.
- *
- * Only a `file:` directory against a folder with an authority is rewritten:
- * a local window compares `file:` to `file:` and is untouched. Unlike the
- * unwrapped form, this cannot confirm the directory belongs to the folder's
- * machine; it assumes this store's single host connection is that machine's
- * own host, which holds for a window connected to the host it lists.
+ * describe the same filesystem under different schemes. The fallback for a
+ * host that reports a bare `file:` path, which `isEqualOrParent` can never
+ * match against the `vscode-remote:` folder of a remote window.
  */
 export function toFolderNamespace(directory: URI, folder: URI): URI {
 	if (directory.scheme !== Schemas.file || folder.scheme === Schemas.file || !folder.authority) {

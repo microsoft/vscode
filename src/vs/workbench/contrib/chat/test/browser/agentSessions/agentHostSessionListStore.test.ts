@@ -17,8 +17,7 @@ suite('AgentHostSessionListStore - folder matching', () => {
 	const contains = (directory: URI, folder: URI) => matchesFolder(directory, folder);
 
 	test('a remote host reporting its own file: path matches the window folder', () => {
-		// What the host actually emits for a session in a dev container, against
-		// the vscode-remote: folder of the window showing the list.
+		// What the host emits for a session in a dev container.
 		assert.strictEqual(contains(URI.parse('file:///workspace/printstream'), remoteFolder), true);
 	});
 
@@ -55,8 +54,7 @@ suite('AgentHostSessionListStore - folder matching', () => {
 	});
 
 	test('a different remote authority does not match', () => {
-		// The rewrite adopts the folder's authority, so this only holds because
-		// the directory is already remote and is therefore left alone.
+		// Holds only because an already-remote directory is left alone.
 		assert.strictEqual(
 			contains(URI.parse('vscode-remote://dev-container%2Bother/workspace/printstream'), remoteFolder),
 			false,
@@ -64,9 +62,7 @@ suite('AgentHostSessionListStore - folder matching', () => {
 	});
 
 	test('a host in a dev container matches the window folder it reports', () => {
-		// The shape actually observed in a dev-container window: the host wraps
-		// the directory for the agent-host filesystem, and the wrapper carries
-		// the `vscode-remote:` URI the window itself uses for that folder.
+		// The wrapper carries the very `vscode-remote:` URI the window uses for that folder.
 		const wrapped = toAgentHostUri(remoteFolder, agentHostAuthority(remoteFolder.toString()));
 
 		assert.notStrictEqual(wrapped.scheme, remoteFolder.scheme, 'precondition: the reported directory is wrapped');
