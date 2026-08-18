@@ -1498,9 +1498,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _migrateLegacyProviderChats(provider: IAgent, force = false): Promise<void> {
-		// Marked before any awaited work: until a completed marker path or a real
-		// enumeration clears this, the provider's catalog is unknown rather than
-		// empty, so a rejection anywhere below cannot be published as a listing.
+		// Flagged before any awaited work so a rejection below cannot leave the
+		// catalog looking empty rather than unknown.
 		this._incompleteProviderCatalogs.add(provider.id);
 		if (!force) {
 			if (await this._sessionRegistry.isProviderBackfilled(provider.id)) {
@@ -1702,9 +1701,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions computation started');
-		// The first list waits for registration-time legacy migration if it is
-		// still in flight, and fails rather than publishing a registry whose
-		// backfill has not completed.
+		// Fails rather than publishing a registry whose backfill has not completed.
 		await this._ensureProviderCatalogsComplete();
 		// The registry is the source of truth for top-level sessions. Internal
 		// chat backings and subagent sessions never enter it, and a transiently
