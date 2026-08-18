@@ -6,6 +6,7 @@
 import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -26,6 +27,7 @@ import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsSer
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
+import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -69,6 +71,12 @@ function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[],
 		...(disabledRootMcpServers ?? []),
 	])];
 	return disabledMcpServers.length > 0 ? { disabledMcpServers } : {};
+}
+
+export function isMcpServerExplicitlyProjected(plugin: ICopilotPluginInfo, server: IMcpServerDefinition): boolean {
+	return !plugin.pluginDir
+		|| plugin.pluginDir.scheme !== Schemas.file
+		|| server.defaultCwd !== undefined && !isEqual(server.defaultCwd, plugin.pluginDir);
 }
 
 /**
@@ -224,6 +232,7 @@ interface ICopilotSessionLaunchBase {
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubToken: string | undefined;
+	readonly managedSandboxEnabled?: boolean;
 
 	/**
 	 * Whether this is a workspace-less session. Threaded into the
@@ -526,7 +535,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		const config = await this._buildSessionConfig(plan, runtime);
-		const sandboxConfig = this._computeSandboxConfig();
+		const sandboxConfig = this._computeSandboxConfig(plan.managedSandboxEnabled);
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig);
 		}
@@ -647,12 +656,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * `chat.agent.sandbox.*` settings), mirroring what
 	 * `buildSandboxConfigForCLI` does for the Copilot extension's CLI path.
 	 */
-	private _computeSandboxConfig(): CopilotSandboxConfig | undefined {
+	private _computeSandboxConfig(managedSandboxEnabled: boolean | undefined): CopilotSandboxConfig | undefined {
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		if (enableCustomTerminalTool) {
 			return undefined;
 		}
-		return buildSandboxConfigForSdk(process.platform, this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox));
+		return buildSandboxConfigForSdk(process.platform, this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox), managedSandboxEnabled);
 	}
 
 	/**
@@ -732,7 +741,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
-		const mcpServers = pluginsWithoutDirs.flatMap(plugin => plugin.mcpServers.filter(server => !plugin.disabledMcpServers?.includes(server.name)));
+		const explicitMcpServers = plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
+			!plugin.disabledMcpServers?.includes(server.name)
+			&& isMcpServerExplicitlyProjected(plugin, server)
+		));
 		const customAgents = await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
@@ -814,7 +826,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
 			}),
-			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(mcpServers) },
+			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) },
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			customAgents,

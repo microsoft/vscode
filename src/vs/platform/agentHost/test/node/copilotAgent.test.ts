@@ -757,8 +757,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
+		@IFileService fileService: IFileService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -796,8 +797,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
+		@IFileService fileService: IFileService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService);
 		this._now = now;
 	}
 
@@ -1354,6 +1356,41 @@ suite('CopilotAgent', () => {
 				disabledByDefault: undefined,
 				whenEnabled: { immutablePrimary: true },
 				afterDisabling: undefined,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('computeFolderPickerDecision hides the picker unless multiple folders carry .github/hooks', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const folder = (name: string) => URI.from({ scheme: Schemas.inMemory, path: `/${name}` });
+		const seedHook = (name: string, file = 'hook.json') => fileService.writeFile(URI.joinPath(folder(name), '.github', 'hooks', file), VSBuffer.fromString('{}'));
+		const [a, b, c] = [folder('wsA'), folder('wsB'), folder('wsC')];
+
+		const { agent, stateManager } = createTestAgentContext(disposables, { fileService });
+		try {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostCopilotMultiRootEnabledConfigKey]: true } });
+
+			await seedHook('wsB');
+			const soleHookFolder = await agent.computeFolderPickerDecision([a, b, c]);
+
+			await seedHook('wsA', 'nested/other.json');
+			const multipleHookFolders = await agent.computeFolderPickerDecision([a, b, c]);
+
+			const noHookFolders = await agent.computeFolderPickerDecision([folder('wsX'), folder('wsY')]);
+			const singleWorkingDirectory = await agent.computeFolderPickerDecision([b]);
+
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostCopilotMultiRootEnabledConfigKey]: false } });
+			const multiRootDisabled = await agent.computeFolderPickerDecision([a, b, c]);
+
+			assert.deepStrictEqual({ soleHookFolder, multipleHookFolders, noHookFolders, singleWorkingDirectory, multiRootDisabled }, {
+				soleHookFolder: { hidden: true, primary: b.toString() },
+				multipleHookFolders: { hidden: false },
+				noHookFolders: { hidden: true },
+				singleWorkingDirectory: undefined,
+				multiRootDisabled: undefined,
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -4870,7 +4907,12 @@ suite('CopilotAgent', () => {
 				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
 					await timeout(0);
 				}
-				assert.deepStrictEqual(discoveredChats.map(chats => chats.map(chat => sessionIdOfChat(chat.chat))), [[sessionId]]);
+				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+				for (let i = 0; i < 50 && discoveredChats.length < 2; i++) {
+					await timeout(0);
+				}
+				assert.deepStrictEqual(discoveredChats.map(chats => chats.map(chat => sessionIdOfChat(chat.chat))), [[sessionId], [sessionId]]);
 			} finally {
 				listener.dispose();
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -5291,6 +5333,115 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(await collectDiscoveredChats(agent), [
 					{ id: 'healthy', external: true, adoptable: false },
 				]);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('registry-known candidates are dropped without opening any session database', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/known-discovery-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/known-discovery-cwd-`);
+			const tryOpened: string[] = [];
+			class CountingSessionDataService extends TestSessionDataService {
+				override async tryOpenDatabase(session: URI): Promise<IReference<SessionDatabase> | undefined> {
+					tryOpened.push(AgentSession.id(session));
+					return super.tryOpenDatabase(session);
+				}
+			}
+			const sessionDataService = disposables.add(new CountingSessionDataService());
+			const client = new TestCopilotClient([
+				sdkSession('known-a', workingDirectory),
+				sdkSession('known-b', workingDirectory),
+				sdkSession('fresh', workingDirectory, { clientName: 'github/cli', repository: 'owner/repository', modifiedTime: new Date() }),
+			]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			const filterCalls: string[][] = [];
+			agent.setKnownSessionsFilter(async sessions => {
+				filterCalls.push(sessions.map(s => AgentSession.id(s)));
+				return new Set([
+					AgentSession.uri('copilotcli', 'known-a').toString(),
+					AgentSession.uri('copilotcli', 'known-b').toString(),
+				]);
+			});
+			try {
+				assert.deepStrictEqual({
+					discovered: await collectDiscoveredChats(agent),
+					filterCalls,
+					tryOpened,
+				}, {
+					discovered: [{ id: 'fresh', external: true, adoptable: false }],
+					filterCalls: [['known-a', 'known-b', 'fresh']],
+					tryOpened: [],
+				});
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not resolve projects for adoptable chats that migration will not emit', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adoptable-skip-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adoptable-skip-cwd-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const repositoryRootCalls: string[] = [];
+			class CountingGitService extends TestAgentHostGitService {
+				override async getRepositoryRoot(workingDirectory?: URI): Promise<URI | undefined> {
+					repositoryRootCalls.push(workingDirectory?.fsPath ?? '');
+					return super.getRepositoryRoot();
+				}
+			}
+			const gitService = new CountingGitService();
+			const client = new TestCopilotClient([sdkSession('ehcli-skipped', workingDirectory)]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, gitService });
+			try {
+				await writeExtensionHostMarker(userHome, 'ehcli-skipped');
+
+				assert.deepStrictEqual({
+					discovered: await collectDiscoveredChats(agent),
+					repositoryRootCalls,
+				}, {
+					discovered: [],
+					repositoryRootCalls: [],
+				});
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('reads stored session metadata with a single bulk metadata query', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/bulk-metadata-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/bulk-metadata-cwd-`);
+			const calls: string[] = [];
+			class CountingSessionDataService extends TestSessionDataService {
+				override async tryOpenDatabase(session: URI): Promise<IReference<SessionDatabase> | undefined> {
+					const ref = await super.tryOpenDatabase(session);
+					if (!ref) {
+						return ref;
+					}
+					const db = ref.object;
+					const object = {
+						getMetadata: (key: string) => { calls.push(`getMetadata:${key}`); return db.getMetadata(key); },
+						getMetadataObject: (keys: Record<string, unknown>) => { calls.push('getMetadataObject'); return db.getMetadataObject(keys); },
+					} as unknown as SessionDatabase;
+					return { object, dispose: () => ref.dispose() };
+				}
+			}
+			const sessionDataService = disposables.add(new CountingSessionDataService());
+			const session = AgentSession.uri('copilotcli', 'bulk-metadata');
+			const db = sessionDataService.openDatabase(session);
+			await db.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+			db.dispose();
+			const client = new TestCopilotClient([sdkSession('bulk-metadata', workingDirectory)]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await collectDiscoveredChats(agent);
+
+				assert.deepStrictEqual(calls, ['getMetadataObject']);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
