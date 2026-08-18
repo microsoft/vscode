@@ -31,10 +31,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			}
 		};
 		const sessionResource = URI.parse('copilotcli:/session-1');
-		const chatResource = sessionResource.with({ query: 'context=peer', fragment: 'chat-2' });
-		const chat = upcastPartial<IChat>({ resource: chatResource });
-		const chats = observableValue<readonly IChat[]>('chats', []);
-		const session = upcastPartial<ISession>({ resource: sessionResource, chats });
+		const session = upcastPartial<ISession>({ resource: sessionResource });
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {
 				return [session];
@@ -44,7 +41,6 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override async openSession(resource: URI): Promise<void> {
 				opened.push(`session:${resource.toString()}`);
-				chats.set([chat], undefined);
 			}
 
 			override async openChat(_session: ISession, resource: URI): Promise<void> {
@@ -83,8 +79,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			results: [true, true],
 			opened: [
 				'session:copilotcli:/session-1',
-				'session:copilotcli:/session-1',
-				'chat:copilotcli:/session-1?context%3Dpeer#chat-2',
+				'chat:copilotcli:/session-1#chat-2',
 			],
 		});
 	});
