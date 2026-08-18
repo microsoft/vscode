@@ -4778,6 +4778,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
+		this._applySessionActivityFromState(sessionId, state);
 		this._applySessionMetaFromState(sessionId, state);
 		this._applyChatCatalogFromState(sessionId, state);
 
@@ -4789,6 +4790,52 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// action.
 			this._applyChangesetsFromState(sessionId, state);
 		}
+	}
+
+	/** Reconciles the cached adapter's status and activity from a live session snapshot. */
+	private _applySessionActivityFromState(sessionId: string, state: SessionState): void {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+
+		transaction(tx => {
+			let didChange = this._updateProtocolStatus(cached, state.status, tx);
+			if (cached.setActivity(state.activity, tx)) {
+				didChange = true;
+			}
+			if (didChange) {
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			}
+		});
+	}
+
+	/** Applies protocol status bits to the provider-neutral session observables. */
+	private _updateProtocolStatus(cached: AgentHostSessionAdapter, status: ProtocolSessionStatus, tx: ITransaction): boolean {
+		let didChange = false;
+		const uiStatus = mapProtocolStatus(status);
+		if (uiStatus !== cached.status.get()) {
+			cached.status.set(uiStatus, tx);
+			didChange = true;
+		}
+
+		const isArchived = isSessionStatusArchived(status);
+		if (isArchived !== cached.isArchived.get()) {
+			cached.isArchived.set(isArchived, tx);
+			didChange = true;
+		}
+
+		const isRead = isSessionStatusRead(status);
+		if (isRead !== cached.isRead.get()) {
+			cached.isRead.set(isRead, tx);
+			didChange = true;
+		}
+
+		return didChange;
 	}
 
 	/**
@@ -5418,24 +5465,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 			let didChange = false;
 
-			if (changes.status !== undefined) {
-				const uiStatus = mapProtocolStatus(changes.status);
-				if (uiStatus !== cached.status.get()) {
-					cached.status.set(uiStatus, tx);
-					didChange = true;
-				}
-
-				const isArchived = !!(changes.status & ProtocolSessionStatus.IsArchived);
-				if (isArchived !== cached.isArchived.get()) {
-					cached.isArchived.set(isArchived, tx);
-					didChange = true;
-				}
-
-				const isRead = !!(changes.status & ProtocolSessionStatus.IsRead);
-				if (isRead !== cached.isRead.get()) {
-					cached.isRead.set(isRead, tx);
-					didChange = true;
-				}
+			if (changes.status !== undefined && this._updateProtocolStatus(cached, changes.status, tx)) {
+				didChange = true;
 			}
 
 			if (changes.title !== undefined && changes.title !== cached.title.get()) {

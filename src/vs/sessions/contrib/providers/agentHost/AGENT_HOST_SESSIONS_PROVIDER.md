@@ -178,6 +178,8 @@ Codex messages created by another thread remain in independent sessions, includi
 
 When an existing Agent Host session becomes active, `BaseAgentHostSessionsProvider` publishes the current Agents-window client through `session/activeClientSet`. This lets the host include the window's current customizations and tool definitions before a request is sent; the chat handler continues to update that active-client entry as customizations or tools change.
 
+Visible sessions keep a passive session-state subscription pinned. Each snapshot is authoritative for the adapter's status, activity, read/archive flags, metadata, configuration, and chat catalog, so those observables stay current between root-list refreshes while default or peer chats are active.
+
 The Agents window thus depends on the classic `ChatWidget` for rendering and on
 the `IChatSessionContentProvider` for content/send, but **not** on
 `IChatSessionItemController` — that API exists only to feed the classic chat
