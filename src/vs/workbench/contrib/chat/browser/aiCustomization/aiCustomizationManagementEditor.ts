@@ -40,6 +40,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
+import type { IAICustomizationItemSource } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
@@ -925,10 +926,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		)(() => {
 			void this.refreshCustomizationMigrationInfo();
 		}));
-		this.editorDisposables.add(autorun(reader => {
-			this.harnessService.activeSessionResource.read(reader);
-			void this.refreshCustomizationMigrationInfo();
-		}));
+		this.registerCustomizationMigrationSessionRefresh();
 
 		// Container for prompts-based content (Agents, Skills, Instructions, Prompts)
 		this.promptsContentContainer = DOM.append(contentInner, $('.prompts-content-container'));
@@ -1101,19 +1099,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 		void this.refreshCustomizationMigrationInfo();
 	}
 
+	private registerCustomizationMigrationSessionRefresh(): void {
+		this.editorDisposables.add(autorun(reader => {
+			this.harnessService.activeSessionResource.read(reader);
+			void this.refreshCustomizationMigrationInfo();
+		}));
+	}
+
 	private async refreshCustomizationMigrationInfo(): Promise<void> {
 		const activeHarnessId = this.harnessService.activeHarness.get();
 		const refreshSequence = ++this.customizationMigrationRefreshSequence;
 
 		if (!isAgentHostTarget(activeHarnessId)) {
-			this.setCustomizationsToMigrate(new Map());
+			this.setCustomizationsToMigrate(new Map(), new Map());
 			return;
 		}
 
 		try {
 			const enabledCategories = this.getEnabledMigrationCategories();
 			if (enabledCategories.length === 0) {
-				this.setCustomizationsToMigrate(new Map());
+				this.setCustomizationsToMigrate(new Map(), new Map());
 				return;
 			}
 
@@ -1147,7 +1152,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.setCustomizationsToMigrate(candidatesByCategory, targetFoldersByType);
 		} catch (error) {
 			if (refreshSequence === this.customizationMigrationRefreshSequence) {
-				this.setCustomizationsToMigrate(new Map());
+				this.setCustomizationsToMigrate(new Map(), new Map());
 			}
 			onUnexpectedError(error);
 		}
@@ -1155,7 +1160,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private setCustomizationsToMigrate(
 		candidatesByCategory: Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>,
-		targetFoldersByType = new Map<PromptsType, readonly ICustomizationSourceFolder[]>(),
+		targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>,
 	): void {
 		const previousItems = this.createCustomizationMigrationItemMap(this.getAllMigrationCandidates());
 		const selectedItems = new ResourceMap<Set<PromptsStorage>>();
@@ -1289,8 +1294,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const targetFolders = await this.resolveCustomizationMigrationTargetFolders(customizations);
-		if (!targetFolders) {
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		const itemSource = this.itemsModel.getActiveItemSource();
+		const targetFolders = await this.resolveCustomizationMigrationTargetFolders(customizations, itemSource, sessionResource);
+		if (!targetFolders || !this.isCustomizationMigrationSessionActive(sessionResource)) {
 			return;
 		}
 
@@ -1311,7 +1318,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			},
 			primaryButton: confirmation.primaryButton,
 		});
-		if (!confirmResult.confirmed) {
+		if (!confirmResult.confirmed || !this.isCustomizationMigrationSessionActive(sessionResource)) {
 			return;
 		}
 
@@ -1619,7 +1626,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		for (const [categoryId, candidates] of this.customizationsByMigrationCategory) {
 			updatedCandidates.set(categoryId, candidates.filter(item => !isEqual(item.uri, customization.uri)));
 		}
-		this.setCustomizationsToMigrate(updatedCandidates);
+		this.setCustomizationsToMigrate(updatedCandidates, this.customizationMigrationTargetFoldersByType);
 	}
 
 	private isMigrationCategoryEnabled(category: ICustomizationMigrationCategory): boolean {
@@ -1630,7 +1637,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return CUSTOMIZATION_MIGRATION_CATEGORIES.filter(category => this.isMigrationCategoryEnabled(category));
 	}
 
-	private async resolveCustomizationMigrationTargetFolders(customizations: readonly IPromptPath[]): Promise<CustomizationMigrationTargetFolders | undefined> {
+	private async resolveCustomizationMigrationTargetFolders(
+		customizations: readonly IPromptPath[],
+		itemSource: IAICustomizationItemSource,
+		sessionResource: URI,
+	): Promise<CustomizationMigrationTargetFolders | undefined> {
 		const requiredStorageByTargetType = new Map<PromptsType, Set<PromptsStorage>>();
 		for (const customization of customizations) {
 			const targetType = getCustomizationMigrationTargetType(customization);
@@ -1641,7 +1652,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const targetFolders = new Map<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>>();
 		for (const [targetType, requiredStorages] of requiredStorageByTargetType) {
-			const availableFolders = await this.itemsModel.getActiveItemSource().fetchSourceFolders(targetType);
+			const availableFolders = await itemSource.fetchSourceFolders(targetType);
+			if (!this.isCustomizationMigrationSessionActive(sessionResource)) {
+				return undefined;
+			}
 			const foldersByStorage = new Map<PromptsStorage, ICustomizationSourceFolder>();
 			for (const storage of requiredStorages) {
 				const matchingFolders = availableFolders.filter(folder => folder.source === storage);
@@ -1653,7 +1667,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				const targetFolder = matchingFolders.length === 1
 					? matchingFolders[0]
 					: await this.pickCustomizationMigrationTargetFolder(matchingFolders, targetType);
-				if (!targetFolder) {
+				if (!targetFolder || !this.isCustomizationMigrationSessionActive(sessionResource)) {
 					return undefined;
 				}
 				foldersByStorage.set(storage, targetFolder);
@@ -1661,6 +1675,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			targetFolders.set(targetType, foldersByStorage);
 		}
 		return targetFolders;
+	}
+
+	private isCustomizationMigrationSessionActive(sessionResource: URI): boolean {
+		return isEqual(sessionResource, this.harnessService.activeSessionResource.get());
 	}
 
 	private getMissingMigrationTargetFolderMessage(targetType: PromptsType, storage: PromptsStorage): string {

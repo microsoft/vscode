@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
@@ -40,6 +41,8 @@ suite('aiCustomizationManagementEditor', () => {
 		dimension: undefined;
 		hoverService: IHoverService;
 		configurationService: IConfigurationService;
+		editorDisposables: DisposableStore;
+		harnessService: { activeSessionResource: ISettableObservable<URI> };
 		migrationListContainer: HTMLElement | undefined;
 		migrationMigrateButton: { enabled: boolean; label: string } | undefined;
 		migrationTitleElement: HTMLElement | undefined;
@@ -61,8 +64,10 @@ suite('aiCustomizationManagementEditor', () => {
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
 		refreshCustomizationMigrationUi(): void;
+		refreshCustomizationMigrationInfo(): Promise<void>;
+		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationPage(): void;
-		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>): void;
+		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
 		filterCustomizationMigrationCandidatesByTargetFolders(customizations: readonly IPromptPath[], targetFoldersByType: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>): readonly IPromptPath[];
 		isCustomizationSelectedForMigration(customization: IPromptPath): boolean;
 		setCustomizationSelectedForMigration(customization: IPromptPath, selected: boolean): void;
@@ -93,6 +98,10 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorDisplayMode = 'preview';
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
 		editor.editorPreviewDisposables = new DisposableStore();
+		editor.editorDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
+		editor.harnessService = {
+			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
+		};
 		editor.hoverService = hoverService ?? {
 			setupManagedHover: () => ({
 				dispose() { },
@@ -295,9 +304,9 @@ suite('aiCustomizationManagementEditor', () => {
 			[CustomizationMigrationCategoryId.PromptFiles, [workspacePrompt, userPrompt]],
 		]);
 
-		editor.setCustomizationsToMigrate(candidates);
+		editor.setCustomizationsToMigrate(candidates, new Map());
 		editor.setCustomizationSelectedForMigration(workspacePrompt, false);
-		editor.setCustomizationsToMigrate(candidates);
+		editor.setCustomizationsToMigrate(candidates, new Map());
 
 		assert.deepStrictEqual({
 			workspaceSelected: editor.isCustomizationSelectedForMigration(workspacePrompt),
@@ -307,6 +316,49 @@ suite('aiCustomizationManagementEditor', () => {
 			workspaceSelected: false,
 			userSelected: true,
 			selectedStorages: [PromptsStorage.user],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('refreshes migration state when the active session changes within one harness', () => {
+		const editor = createTestEditor();
+		const sessionA = URI.parse('agent-host-test:/session-a');
+		const sessionB = URI.parse('agent-host-test:/session-b');
+		const refreshedSessions: string[] = [];
+		editor.harnessService.activeSessionResource.set(sessionA, undefined);
+		editor.refreshCustomizationMigrationInfo = async () => {
+			const sessionResource = editor.harnessService.activeSessionResource.get();
+			refreshedSessions.push(sessionResource.path);
+			editor.customizationsByMigrationCategory = new Map([[
+				CustomizationMigrationCategoryId.UserData,
+				[{
+					uri: URI.file(`/user-data${sessionResource.path}.instructions.md`),
+					storage: PromptsStorage.user,
+					type: PromptsType.instructions,
+					source: PromptFileSource.UserData,
+				} as IPromptPath],
+			]]);
+			editor.customizationMigrationTargetFoldersByType = new Map([[
+				PromptsType.instructions,
+				[{
+					uri: URI.file(`/home/test/.test-harness${sessionResource.path}/instructions`),
+					label: sessionResource.path,
+					source: AICustomizationSources.user,
+				}],
+			]]);
+		};
+
+		editor.registerCustomizationMigrationSessionRefresh();
+		editor.harnessService.activeSessionResource.set(sessionB, undefined);
+
+		assert.deepStrictEqual({
+			refreshedSessions,
+			candidatePaths: [...editor.customizationsByMigrationCategory.values()].flat().map(candidate => candidate.uri.path),
+			destinationPaths: [...editor.customizationMigrationTargetFoldersByType.values()].flat().map(folder => folder.uri.path),
+		}, {
+			refreshedSessions: ['/session-a', '/session-b'],
+			candidatePaths: ['/user-data/session-b.instructions.md'],
+			destinationPaths: ['/home/test/.test-harness/session-b/instructions'],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
