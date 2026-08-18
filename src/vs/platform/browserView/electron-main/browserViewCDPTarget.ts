@@ -57,7 +57,8 @@ export class BrowserViewCDPTarget extends Disposable implements ICDPTarget {
 		return {
 			...this._targetInfo,
 			attached: this._sessions.size > 0,
-			browserContextId: this.view.session.id
+			browserContextId: this.view.session.id,
+			vscodeBrowserViewId: this.view.id
 		};
 	}
 
