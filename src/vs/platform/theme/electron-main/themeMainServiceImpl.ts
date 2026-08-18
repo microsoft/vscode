@@ -30,6 +30,22 @@ const THEME_BG_STORAGE_KEY = 'themeBackground';
 
 const THEME_WINDOW_SPLASH_KEY = 'windowSplash';
 const THEME_WINDOW_SPLASH_OVERRIDE_KEY = 'windowSplashWorkspaceOverride';
+const THEME_SESSIONS_WINDOW_SPLASH_KEY = 'sessionsWindowSplash';
+const THEME_SESSIONS_WINDOW_SPLASH_OVERRIDE_KEY = 'sessionsWindowSplashWorkspaceOverride';
+
+interface INativeTheme extends Event.NodeEventEmitter {
+	themeSource: Electron.NativeTheme['themeSource'];
+	readonly shouldUseDarkColors: boolean;
+	readonly shouldUseHighContrastColors: boolean;
+	readonly shouldUseInvertedColorScheme: boolean;
+	readonly shouldUseDarkColorsForSystemIntegratedUI: boolean;
+}
+
+function getWindowSplashStorageKeys(isSessionsWindow: boolean): { splash: string; override: string } {
+	return isSessionsWindow
+		? { splash: THEME_SESSIONS_WINDOW_SPLASH_KEY, override: THEME_SESSIONS_WINDOW_SPLASH_OVERRIDE_KEY }
+		: { splash: THEME_WINDOW_SPLASH_KEY, override: THEME_WINDOW_SPLASH_OVERRIDE_KEY };
+}
 
 class Setting<T> {
 	constructor(public readonly key: string, public readonly defaultValue: T) {
@@ -76,6 +92,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
 
 	constructor(
+		private readonly nativeTheme: INativeTheme = electron.nativeTheme,
 		@IStateService private stateService: IStateService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ILogService private logService: ILogService
@@ -95,7 +112,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		this.logThemeSettings();
 
 		// Color Scheme changes
-		this._register(Event.fromNodeEventEmitter(electron.nativeTheme, 'updated')(() => {
+		this._register(Event.fromNodeEventEmitter(this.nativeTheme, 'updated')(() => {
 			this.logThemeSettings();
 			this._onDidChangeColorScheme.fire(this.getColorScheme());
 		}));
@@ -106,7 +123,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			const logSetting = (setting: Setting<string | boolean>) => `${setting.key}=${setting.getValue(this.configurationService)}`;
 			this.logService.debug(`[theme main service] ${logSetting(Setting.DETECT_COLOR_SCHEME)}, ${logSetting(Setting.DETECT_HC)}, ${logSetting(Setting.SYSTEM_COLOR_THEME)}`);
 
-			const logProperty = (property: keyof Electron.NativeTheme) => `${String(property)}=${electron.nativeTheme[property]}`;
+			const logProperty = (property: keyof INativeTheme) => `${String(property)}=${this.nativeTheme[property]}`;
 			this.logService.debug(`[theme main service] electron.nativeTheme: ${logProperty('themeSource')}, ${logProperty('shouldUseDarkColors')}, ${logProperty('shouldUseHighContrastColors')}, ${logProperty('shouldUseInvertedColorScheme')}, ${logProperty('shouldUseDarkColorsForSystemIntegratedUI')}	`);
 			this.logService.debug(`[theme main service] New color scheme: ${JSON.stringify(this.getColorScheme())}`);
 		}
@@ -114,24 +131,24 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 	private updateSystemColorTheme(): void {
 		if (isLinux || this.isAutoDetectColorScheme()) {
-			electron.nativeTheme.themeSource = 'system'; // only with `system` we can detect the system color scheme
+			this.nativeTheme.themeSource = 'system'; // only with `system` we can detect the system color scheme
 		} else {
 			switch (Setting.SYSTEM_COLOR_THEME.getValue(this.configurationService)) {
 				case 'dark':
-					electron.nativeTheme.themeSource = 'dark';
+					this.nativeTheme.themeSource = 'dark';
 					break;
 				case 'light':
-					electron.nativeTheme.themeSource = 'light';
+					this.nativeTheme.themeSource = 'light';
 					break;
 				case 'auto':
 					switch (this.getPreferredBaseTheme() ?? this.getStoredBaseTheme()) {
-						case ThemeTypeSelector.VS: electron.nativeTheme.themeSource = 'light'; break;
-						case ThemeTypeSelector.VS_DARK: electron.nativeTheme.themeSource = 'dark'; break;
-						default: electron.nativeTheme.themeSource = 'system';
+						case ThemeTypeSelector.VS: this.nativeTheme.themeSource = 'light'; break;
+						case ThemeTypeSelector.VS_DARK: this.nativeTheme.themeSource = 'dark'; break;
+						default: this.nativeTheme.themeSource = 'system';
 					}
 					break;
 				default:
-					electron.nativeTheme.themeSource = 'system';
+					this.nativeTheme.themeSource = 'system';
 					break;
 			}
 		}
@@ -141,29 +158,29 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 		// high contrast is reflected by the shouldUseInvertedColorScheme property
 		if (isWindows) {
-			if (electron.nativeTheme.shouldUseHighContrastColors) {
+			if (this.nativeTheme.shouldUseHighContrastColors) {
 				// shouldUseInvertedColorScheme is dark, !shouldUseInvertedColorScheme is light
-				return { dark: electron.nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
+				return { dark: this.nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
 			}
 		}
 
 		// high contrast is set if one of shouldUseInvertedColorScheme or shouldUseHighContrastColors is set,
 		// reflecting the 'Invert colours' and `Increase contrast` settings in MacOS
 		else if (isMacintosh) {
-			if (electron.nativeTheme.shouldUseInvertedColorScheme || electron.nativeTheme.shouldUseHighContrastColors) {
-				return { dark: electron.nativeTheme.shouldUseDarkColors, highContrast: true };
+			if (this.nativeTheme.shouldUseInvertedColorScheme || this.nativeTheme.shouldUseHighContrastColors) {
+				return { dark: this.nativeTheme.shouldUseDarkColors, highContrast: true };
 			}
 		}
 
 		// ubuntu gnome seems to have 3 states, light dark and high contrast
 		else if (isLinux) {
-			if (electron.nativeTheme.shouldUseHighContrastColors) {
+			if (this.nativeTheme.shouldUseHighContrastColors) {
 				return { dark: true, highContrast: true };
 			}
 		}
 
 		return {
-			dark: electron.nativeTheme.shouldUseDarkColors,
+			dark: this.nativeTheme.shouldUseDarkColors,
 			highContrast: false
 		};
 	}
@@ -219,17 +236,18 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 	}
 
-	saveWindowSplash(windowId: number | undefined, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, splash: IPartsSplash): void {
+	saveWindowSplash(windowId: number | undefined, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, splash: IPartsSplash, isSessionsWindow: boolean): void {
 
 		// Update override as needed
-		const splashOverride = this.updateWindowSplashOverride(workspace, splash);
+		const splashOverride = this.updateWindowSplashOverride(workspace, splash, isSessionsWindow);
+		const storageKeys = getWindowSplashStorageKeys(isSessionsWindow);
 
 		// Update in storage
 		this.stateService.setItems(coalesce([
 			{ key: THEME_STORAGE_KEY, data: splash.baseTheme },
 			{ key: THEME_BG_STORAGE_KEY, data: splash.colorInfo.background },
-			{ key: THEME_WINDOW_SPLASH_KEY, data: splash },
-			splashOverride ? { key: THEME_WINDOW_SPLASH_OVERRIDE_KEY, data: splashOverride } : undefined
+			{ key: storageKeys.splash, data: splash },
+			splashOverride ? { key: storageKeys.override, data: splashOverride } : undefined
 		]));
 
 		// Update in opened windows
@@ -241,11 +259,11 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		this.updateSystemColorTheme();
 	}
 
-	private updateWindowSplashOverride(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, splash: IPartsSplash): IPartsSplashOverride | undefined {
+	private updateWindowSplashOverride(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, splash: IPartsSplash, isSessionsWindow: boolean): IPartsSplashOverride | undefined {
 		let splashOverride: IPartsSplashOverride | undefined = undefined;
 		let changed = false;
 		if (workspace) {
-			splashOverride = { ...this.getWindowSplashOverride() }; // make a copy for modifications
+			splashOverride = { ...this.getWindowSplashOverride(isSessionsWindow) }; // make a copy for modifications
 
 			changed = this.doUpdateWindowSplashOverride(workspace, splash, splashOverride, 'sideBar');
 			changed = this.doUpdateWindowSplashOverride(workspace, splash, splashOverride, 'auxiliaryBar') || changed;
@@ -335,9 +353,9 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 	}
 
-	getWindowSplash(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined): IPartsSplash | undefined {
+	getWindowSplash(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, isSessionsWindow: boolean): IPartsSplash | undefined {
 		try {
-			return this.doGetWindowSplash(workspace);
+			return this.doGetWindowSplash(workspace, isSessionsWindow);
 		} catch (error) {
 			this.logService.error('[theme main service] Failed to get window splash', error);
 
@@ -345,13 +363,13 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 	}
 
-	private doGetWindowSplash(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined): IPartsSplash | undefined {
-		const partSplash = this.stateService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH_KEY);
+	private doGetWindowSplash(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, isSessionsWindow: boolean): IPartsSplash | undefined {
+		const partSplash = this.stateService.getItem<IPartsSplash>(getWindowSplashStorageKeys(isSessionsWindow).splash);
 		if (!partSplash?.layoutInfo) {
 			return partSplash; // return early: overrides currently only apply to layout info
 		}
 
-		const override = this.getWindowSplashOverride();
+		const override = this.getWindowSplashOverride(isSessionsWindow);
 
 		// Figure out side bar width based on workspace and overrides
 		let sideBarWidth: number;
@@ -403,8 +421,8 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		};
 	}
 
-	private getWindowSplashOverride(): IPartsSplashOverride {
-		let override = this.stateService.getItem<IPartsSplashOverride>(THEME_WINDOW_SPLASH_OVERRIDE_KEY);
+	private getWindowSplashOverride(isSessionsWindow: boolean): IPartsSplashOverride {
+		let override = this.stateService.getItem<IPartsSplashOverride>(getWindowSplashStorageKeys(isSessionsWindow).override);
 
 		if (!override?.layoutInfo) {
 			override = {
