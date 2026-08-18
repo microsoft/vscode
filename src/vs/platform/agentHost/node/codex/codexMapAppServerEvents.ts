@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import type { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import type { IAgentModelCallCompletedSignal } from '../../common/agent.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo } from '../../common/state/sessionState.js';
@@ -501,6 +503,24 @@ export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification
 			},
 		},
 	}];
+}
+
+/** Uses cumulative usage as the stable identity because Codex can repeat token-usage notifications for rate-limit updates. */
+export function mapTokenUsageModelCallCompleted(params: ThreadTokenUsageUpdatedNotification, resource: URI): IAgentModelCallCompletedSignal {
+	const total = params.tokenUsage.total;
+	return {
+		kind: 'model_call_completed',
+		resource,
+		turnId: params.turnId,
+		modelCallId: [
+			total.inputTokens,
+			total.cachedInputTokens,
+			total.cacheWriteInputTokens,
+			total.outputTokens,
+			total.reasoningOutputTokens,
+			total.totalTokens,
+		].join(':'),
+	};
 }
 
 /**

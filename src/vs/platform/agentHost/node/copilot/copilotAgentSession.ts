@@ -579,6 +579,7 @@ class CopilotTurn {
 	 * agent only), for the restricted `toolCallDetails` telemetry. `toolCounts` is keyed by tool name.
 	 */
 	readonly toolCounts = new Map<string, number>();
+	readonly mainModelCallIds = new Set<string>();
 	toolCallRounds = 0;
 	totalToolCalls = 0;
 	parallelToolCallRounds = 0;
@@ -1018,6 +1019,16 @@ export class CopilotAgentSession extends Disposable {
 			kind: 'action',
 			resource: isChatAction(action) ? this._chatChannelUri : this._ownerSessionUri,
 			action,
+			parentToolCallId,
+		});
+	}
+
+	private _emitModelCallCompleted(turnId: string, modelCallId: string, parentToolCallId?: string): void {
+		this._onDidSessionProgress.fire({
+			kind: 'model_call_completed',
+			resource: this._chatChannelUri,
+			turnId,
+			modelCallId,
 			parentToolCallId,
 		});
 	}
@@ -3937,6 +3948,11 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
 			this._resumeSubagentForEvent(e);
+			const modelCallId = e.data.apiCallId ?? e.data.clientRequestId ?? e.data.messageId;
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			if (!e.agentId || parentToolCallId) {
+				this._emitModelCallCompleted(this._turnId, modelCallId, parentToolCallId);
+			}
 			// Report the enhanced GH `request.options.tools` event for this model call — parity with
 			// the Copilot extension, which emits it per LLM request. `assistant.message` is the
 			// agent-host's per-model-call boundary; we correlate on its client-minted `x-request-id`.
@@ -3953,7 +3969,10 @@ export class CopilotAgentSession extends Disposable {
 				// too); the tool-count stats only apply to rounds that carried tool requests.
 				const turn = this._currentTurn;
 				if (turn) {
-					turn.toolCallRounds++;
+					if (!turn.mainModelCallIds.has(modelCallId)) {
+						turn.mainModelCallIds.add(modelCallId);
+						turn.toolCallRounds++;
+					}
 					if (e.data.model) {
 						turn.lastModel = e.data.model;
 					}
@@ -3982,7 +4001,6 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message')) {
 				return;
 			}
-			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			const markdownScope = parentToolCallId ?? '';
 			if (e.data.content && !this._currentTurn?.markdownPartIds.has(markdownScope)) {
 				const partId = generateUuid();
