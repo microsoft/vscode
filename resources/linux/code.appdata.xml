@@ -4,15 +4,15 @@
 	<metadata_license>@@LICENSE@@</metadata_license>
 	<project_license>@@LICENSE@@</project_license>
 	<name>@@NAME_LONG@@</name>
-	<url type="homepage">https://code.visualstudio.com</url>
-	<summary>Visual Studio Code. Code editing. Redefined.</summary>
+	<url type="homepage">https://github.com/Frankenstein-dev197/vscode</url>
+	<summary>GitCortex Studio. Code editing, reimagined.</summary>
 	<description>
-		<p>Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.</p>
+		<p>GitCortex Studio is a professional desktop code editor built on the open-source Code-OSS / VS Code platform (MIT licensed). It combines a fast, familiar editing experience with a neural-assisted workflow for the edit-build-debug cycle.</p>
 	</description>
 	<screenshots>
 		<screenshot type="default">
-			<image>https://code.visualstudio.com/home/home-screenshot-linux-lg.png</image>
-			<caption>Editing TypeScript and searching for extensions</caption>
+			<image>https://github.com/Frankenstein-dev197/vscode/raw/main/.build/artifacts/gitcortex-studio-min-bootscreen.png</image>
+			<caption>The GitCortex Studio workbench showing the Welcome experience</caption>
 		</screenshot>
 	</screenshots>
 </component>
