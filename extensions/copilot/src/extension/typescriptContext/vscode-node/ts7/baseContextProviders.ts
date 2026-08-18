@@ -22,11 +22,9 @@ import {
 	isNamedImports,
 	isNamespaceImport,
 	isPropertyAccessExpression,
-	isSourceFile,
 	isTypeLiteralNode,
 	isTypeReferenceNode,
 	isUnionTypeNode,
-	isVariableDeclaration,
 	type FunctionLikeDeclaration,
 	type ImportDeclaration,
 	type Node,
@@ -49,7 +47,7 @@ import {
 	type RunnableResult,
 	type SymbolData,
 } from './contextProvider';
-import tss, { type CancellationTokenWithTimer, Symbols } from './typescripts';
+import tss, { type CancellationTokenWithTimer } from './typescripts';
 
 export class CompilerOptionsRunnable extends AbstractContextRunnable {
 	private readonly sourceFile: SourceFile;
@@ -185,27 +183,46 @@ export class TypeOfLocalsRunnable extends AbstractContextRunnable {
 
 	protected override async run(_result: RunnableResult, token: CancellationTokenWithTimer): Promise<void> {
 		const anchor = this.tokenInfo.previous ?? this.tokenInfo.token ?? this.tokenInfo.touching;
-		const variableDeclarations = this.collectVisibleVariableDeclarations(anchor);
+		const symbols = this.symbols;
+		const checker = symbols.getTypeChecker();
+		const inScope = await symbols.getSymbolsInScope(anchor, SymbolFlags.BlockScopedVariable);
+		if (inScope.length === 0) {
+			return;
+		}
+
+		const sourceFile = anchor.getSourceFile();
+		// When we try to capture locals outside of a callable (e.g. top level in a source file) we capture the declarations as
+		// scope. If we are inside the body of the callable defines the scope.
 		const cacheNodes = this.cacheScope === undefined ? new Set<Node>() : undefined;
-		for (const declaration of variableDeclarations) {
+		// The symbols are block scope variables. We try to find the type of the variable
+		// to include it in the context.
+		for (const symbol of inScope) {
 			token.throwIfCancellationRequested();
-			if (!isIdentifier(declaration.name)) {
+			if (this.excludes.has(symbol)) {
 				continue;
 			}
-			const symbol = await this.symbols.getSymbolAtLocation(declaration.name);
-			if (symbol === undefined || !Symbols.isBlockScopedVariable(symbol) || this.excludes.has(symbol)) {
+			const declaration: VariableDeclaration | undefined = await symbols.getDeclaration(symbol, SyntaxKind.VariableDeclaration);
+			if (declaration === undefined) {
 				continue;
 			}
-			let symbolsToEmit: SymbolData[];
+			let symbolsToEmit: SymbolData[] | undefined = undefined;
 			if (declaration.type !== undefined) {
 				symbolsToEmit = await this.getSymbolsForTypeNode(declaration.type);
 			} else {
-				const type = await this.getProject().checker.getTypeAtLocation(declaration);
-				symbolsToEmit = type === undefined ? [] : await this.getSymbolsToEmitForType(type);
+				const type = await checker.getTypeAtLocation(declaration.type ?? declaration);
+				if (type !== undefined) {
+					symbolsToEmit = await this.getSymbolsToEmitForType(type);
+				}
 			}
-			for (const data of symbolsToEmit) {
-				await this.handleSymbol(data.symbol, data.name);
+			if (symbolsToEmit === undefined || symbolsToEmit.length === 0) {
+				continue;
 			}
+			for (const { symbol, name } of symbolsToEmit) {
+				token.throwIfCancellationRequested();
+				this.handleSymbol(symbol, name);
+			}
+
+
 			if (cacheNodes !== undefined) {
 				const declarationList = tss.Nodes.getParentOfKind(declaration, SyntaxKind.VariableDeclarationList);
 				if (declarationList !== undefined) {
@@ -214,48 +231,8 @@ export class TypeOfLocalsRunnable extends AbstractContextRunnable {
 			}
 		}
 		if (cacheNodes !== undefined && cacheNodes.size > 0 && this.runnableResult !== undefined) {
-			this.runnableResult.setCacheInfo({ emitMode: protocol.EmitMode.ClientBasedOnTimeout, scope: CacheScopes.createOutsideCacheScope(cacheNodes, this.getActiveSourceFile()) });
+			this.runnableResult.setCacheInfo({ emitMode:protocol.EmitMode.ClientBasedOnTimeout, scope: CacheScopes.createOutsideCacheScope(cacheNodes, sourceFile) });
 		}
-	}
-
-	private collectVisibleVariableDeclarations(anchor: Node): readonly VariableDeclaration[] {
-		const result: VariableDeclaration[] = [];
-		const visit = (node: Node): void => {
-			if (isVariableDeclaration(node)) {
-				const scope = this.getContainingScope(node);
-				if (scope !== undefined && this.isAncestor(scope, anchor)) {
-					result.push(node);
-				}
-			}
-			node.forEachChild(child => {
-				visit(child);
-				return undefined;
-			});
-		};
-		visit(this.getActiveSourceFile());
-		return result;
-	}
-
-	private getContainingScope(node: Node): Node | undefined {
-		let current: Node | undefined = node.parent;
-		while (current !== undefined) {
-			if (isBlock(current) || isSourceFile(current)) {
-				return current;
-			}
-			current = current.parent;
-		}
-		return undefined;
-	}
-
-	private isAncestor(ancestor: Node, node: Node): boolean {
-		let current: Node | undefined = node;
-		while (current !== undefined) {
-			if (current === ancestor) {
-				return true;
-			}
-			current = current.parent;
-		}
-		return false;
 	}
 }
 
@@ -462,17 +439,16 @@ export class TypeOfExpressionRunnable extends AbstractContextRunnable {
 		if (expressionSymbol === undefined) {
 			return;
 		}
-		const type = await this.getProject().checker.getTypeOfSymbolAtLocation(expressionSymbol, this.expression);
+		const checker = this.getProject().checker;
+		const type = await checker.getTypeOfSymbolAtLocation(expressionSymbol, this.expression);
 		for (const signature of [
-			...await this.getProject().checker.getSignaturesOfType(type, SignatureKind.Construct),
-			...await this.getProject().checker.getSignaturesOfType(type, SignatureKind.Call),
+			...await checker.getSignaturesOfType(type, SignatureKind.Construct),
+			...await checker.getSignaturesOfType(type, SignatureKind.Call),
 		]) {
 			token.throwIfCancellationRequested();
-			const returnType = await this.getProject().checker.getReturnTypeOfSignature(signature);
-			if (returnType !== undefined) {
-				for (const symbol of await this.symbols.getTypeSymbols(returnType)) {
-					await this.handleSymbol(symbol, symbol.name);
-				}
+			const returnType = await signature.getReturnType();
+			for (const symbol of await this.symbols.getTypeSymbols(returnType)) {
+				await this.handleSymbol(symbol, symbol.name);
 			}
 		}
 		for (const symbol of await this.symbols.getTypeSymbols(type)) {

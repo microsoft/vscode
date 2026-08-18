@@ -35,26 +35,14 @@ export class GlobalsRunnable extends AbstractContextRunnable {
 		}
 	}
 
-	protected async getSymbolsInScope(): Promise<NativeSymbol[]> {
+	protected async getSymbolsInScope(): Promise<readonly NativeSymbol[]> {
 		const result: NativeSymbol[] = [];
-		for (const fileName of await this.getProject().program.getSourceFileNames()) {
-			const sourceFile = await this.getProject().program.getSourceFile(fileName);
-			if (sourceFile === undefined || sourceFile.externalModuleIndicator !== undefined || sourceFile.path === this.getActiveSourceFile().path) {
+		const symbols = await this.symbols.getSymbolsInScope(this.getActiveSourceFile(), SymbolFlags.Function | SymbolFlags.Class | SymbolFlags.Interface | SymbolFlags.TypeAlias | SymbolFlags.ValueModule);
+		for (const symbol of symbols) {
+			if (await this.skipSymbolBasedOnDeclaration(symbol)) {
 				continue;
 			}
-			const metadata = await this.getProject().program.getSourceFileMetadata(fileName);
-			if (metadata?.isDefaultLibrary || metadata?.isFromExternalLibrary) {
-				continue;
-			}
-			const sourceSymbol = await this.symbols.getLeafSymbolAtLocation(sourceFile);
-			if (sourceSymbol === undefined) {
-				continue;
-			}
-			for (const member of (await sourceSymbol.getExports()).values()) {
-				if ((member.flags & (SymbolFlags.Function | SymbolFlags.Class | SymbolFlags.Interface | SymbolFlags.TypeAlias | SymbolFlags.ValueModule)) !== 0) {
-					result.push(await this.symbols.getLeafSymbol(member));
-				}
-			}
+			result.push(await this.symbols.getLeafSymbol(symbol));
 		}
 		return result;
 	}

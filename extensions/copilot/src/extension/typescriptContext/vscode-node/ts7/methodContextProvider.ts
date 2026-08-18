@@ -313,7 +313,7 @@ abstract class ClassPropertyContextProvider<T extends MethodDeclaration | Constr
 		const symbols = context.getSymbols(project);
 		for (const heritageClause of classDeclaration.heritageClauses ?? []) {
 			for (const type of heritageClause.types) {
-				const symbol = await symbols.getLeafSymbolAtLocation(type.expression);
+				const symbol = isExpressionWithTypeArguments(type) ? await symbols.getLeafSymbolAtLocation(type.expression) : await symbols.getLeafSymbolAtLocation(type.typeName);
 				if (Symbols.isClass(symbol)) {
 					result.add(symbol);
 				}
