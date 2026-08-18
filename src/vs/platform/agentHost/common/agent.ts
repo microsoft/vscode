@@ -714,6 +714,9 @@ export interface IAgentChats {
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI, context: AgentChatOperationContext): Promise<void>;
 
+	/** Return the model currently bound to `chat`, when the provider knows it. */
+	getModel?(chat: URI, context: AgentChatOperationContext): ModelSelection | undefined;
+
 	changeModel(chat: URI, model: ModelSelection, context: AgentChatOperationContext): Promise<void>;
 
 	/**

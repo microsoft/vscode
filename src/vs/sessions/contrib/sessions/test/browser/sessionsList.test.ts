@@ -777,7 +777,7 @@ suite('Sessions - SessionsList', () => {
 					isShorterThanStandardRow: false,
 					hasCompactClass: false,
 					hasChatIcon: true,
-					badge: 'Chat',
+					badge: 'No workspace',
 					time: 'now',
 					hasDiff: false,
 					ariaLabel: 'Investigate failure, chat, updated now',
