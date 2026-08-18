@@ -185,13 +185,6 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
 /**
- * Explicit environment override for {@link AgentHostByokModelsEnabledSettingId}.
- * Accepts `'true'` / `'false'`; when absent or invalid, the synchronized agent
- * host root configuration determines whether BYOK models are enabled.
- */
-export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
-
-/**
  * Overrides the grace period (in milliseconds) before an idle, fully
  * unsubscribed session is released from memory. Defaults to 30_000. Primarily a
  * test hook so real-SDK integration tests can force a prompt release without
@@ -221,10 +214,6 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 		return true;
 	}
 	return defaultEnabled;
-}
-
-export function isAgentHostByokModelsEnabled(envValue: string | undefined, rootConfigValue: boolean | undefined): boolean {
-	return isAgentEnabled(envValue, rootConfigValue ?? false);
 }
 
 /**
