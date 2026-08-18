@@ -60,14 +60,16 @@ export type FetchFn = typeof globalThis.fetch;
  * Telemetry Service can reassemble them, mirroring the Copilot extension's `multiplexProperties` so
  * events look identical on the wire and downstream.
  *
- * When a value is too long it is gzip + base64 compressed and emitted as `<key>Chunk`,
- * `<key>Chunk_2`, `<key>Chunk_3`, … (first column has no numeric suffix, the rest are NOT
- * zero-padded, each capped at {@link MAX_PROPERTY_LENGTH}), while the original `<key>` column
- * carries just the first uncompressed chunk of the value.
+ * When a value is too long it is gzip + base64 compressed and emitted under a compressed chunk
+ * family, normally `<key>Chunk`, `<key>Chunk_2`, `<key>Chunk_3`, … (first column has no numeric
+ * suffix, the rest are NOT zero-padded, each capped at {@link MAX_PROPERTY_LENGTH}), while the
+ * original `<key>` column carries just the first uncompressed chunk of the value.
+ * The `messagesJson` property is the schema exception: its compressed family is
+ * `messagesJSONChunk`, `messagesJSONChunk_2`, `messagesJSONChunk_3`, …
  *
  * Fields in {@link ALWAYS_COMPRESSED_CHUNK_KEYS} always get the compressed chunk family even when
- * they fit within {@link MAX_PROPERTY_LENGTH}, so the backend can always read them from the
- * `<key>Chunk` family without branching on size.
+ * they fit within {@link MAX_PROPERTY_LENGTH}, so the backend can always read them from their
+ * compressed chunk family without branching on size.
  */
 const MAX_PROPERTY_LENGTH = 8192;
 const MAX_CONCATENATED_PROPERTIES = 50;
@@ -77,7 +79,7 @@ const MAX_TELEMETRY_ITEM_BODY_LENGTH = MAX_PROPERTY_LENGTH * MAX_CONCATENATED_PR
 const COMPRESSED_CHUNK_SUFFIX = 'Chunk';
 
 // Fields that are always emitted as a compressed chunk family, regardless of their length. These
-// are known to frequently exceed the per-property limit, so always producing the `<key>Chunk`
+// are known to frequently exceed the per-property limit, so always producing the compressed chunk
 // family gives the backend a single, uniform place to read the value from.
 const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'diffsJSON']);
 
@@ -102,7 +104,7 @@ export async function multiplexProperties(properties: TelemetryProps): Promise<T
 			continue;
 		}
 		// Compressed chunking: keep the original column as just the first uncompressed chunk and emit
-		// the full value gzip + base64 compressed as <key>Chunk, <key>Chunk_2, … (no zero padding).
+		// the full value gzip + base64 compressed under its schema chunk family (no zero padding).
 		newProperties[key] = value!.slice(0, MAX_PROPERTY_LENGTH);
 		const compressed = await compressTelemetryValue(value!);
 		const compressedChunkKey = key === 'messagesJson' ? 'messagesJSON' : key;

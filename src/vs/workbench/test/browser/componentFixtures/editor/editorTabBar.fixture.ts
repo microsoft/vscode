@@ -57,7 +57,7 @@ import { LayoutSettings } from '../../../../services/layout/browser/layoutServic
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import '../../../../contrib/styleOverrides/browser/media/tabs.css';
+import '../../../../contrib/modernUI/browser/media/tabs.css';
 import './editorTabBar.fixture.css';
 
 // ============================================================================

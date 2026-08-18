@@ -1015,6 +1015,8 @@ export function renderForm(
 			telemetrySource: 'automations.dialog',
 		},
 		widgetViewKindTag: 'automations-dialog',
+		// A scheduling form, not a chat about to be sent: keep promos out.
+		isTransientChat: true,
 		inputEditorMinLines: 3,
 		// The dialog renders the composer flush with its form column (the
 		// `.interactive-input-part` margin is zeroed in CSS), so there is no

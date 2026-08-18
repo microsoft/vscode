@@ -19,7 +19,7 @@ import { ChatWidget } from '../widget/chatWidget.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatResponseFileChangesService } from '../chatResponseFileChangesService.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
-import { isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { budgetBucketPrompts, MAX_TICKS, PromptItem } from './promptBucketing.js';
 
 /** Aggregated diff stats for the edits a prompt (or bucket) produced. */
@@ -87,6 +87,10 @@ function itemKind(item: ChatTreeItem): PromptItemKind {
 		return 'response';
 	}
 	return 'other';
+}
+
+function isPromptTimelineRequest(item: ChatTreeItem): item is IChatRequestViewModel {
+	return isRequestVM(item) && !item.isSystemInitiated;
 }
 
 // Content "signal" = a cheap, unit-less size proxy (roughly the rendered line
@@ -275,7 +279,7 @@ export class PromptTimelineModel extends Disposable {
 		const marks: { requestId: string; top: number }[] = [];
 		for (let i = 0; i < items.length; i++) {
 			const item = items[i];
-			if (isRequestVM(item)) {
+			if (isPromptTimelineRequest(item)) {
 				marks.push({ requestId: item.id, top: tops[i] });
 			}
 		}
@@ -365,7 +369,7 @@ export class PromptTimelineModel extends Disposable {
 	private _recompute(): void {
 		const prompts: PromptItem[] = [];
 		for (const item of this.widget.viewModel?.getItems() ?? []) {
-			if (isRequestVM(item)) {
+			if (isPromptTimelineRequest(item)) {
 				prompts.push({ requestId: item.id, text: getPromptPreview(item.messageText), timestamp: item.timestamp });
 			}
 		}
@@ -393,35 +397,35 @@ export class PromptTimelineModel extends Disposable {
 			return;
 		}
 
-		// The active prompt is the last request whose top edge is at or above the
-		// viewport top. Positions come from the list's layout height model, so
-		// off-screen prompts resolve correctly (not just rendered ones). Rows are
-		// ordered, so the search stops at the first request below the viewport top
-		// instead of walking the whole (potentially long) transcript on every scroll.
+		// The active prompt is the last request whose top edge is at or above the viewport top.
 		const scrollTop = this.widget.scrollTop;
 		const isScrolledToBottom = scrollTop + this.widget.viewportHeight >= this.widget.scrollHeight - 2;
-		const threshold = 24;
 		let activeRequestId: string | undefined;
 		let activeTimestamp = 0;
 		let activeTop = -1;
 		if (isScrolledToBottom) {
 			for (let i = items.length - 1; i >= 0; i--) {
 				const item = items[i];
-				if (isRequestVM(item)) {
-					activeRequestId = item.id;
-					activeTimestamp = item.timestamp;
-					activeTop = this.widget.getElementTop(item) ?? -1;
-					break;
+				if (!isPromptTimelineRequest(item)) {
+					continue;
 				}
+				const top = this.widget.getElementTop(item);
+				if (top === undefined || top > scrollTop) {
+					continue;
+				}
+				activeRequestId = item.id;
+				activeTimestamp = item.timestamp;
+				activeTop = top;
+				break;
 			}
 		} else {
 			for (const item of items) {
-				if (isRequestVM(item)) {
+				if (isPromptTimelineRequest(item)) {
 					const top = this.widget.getElementTop(item);
 					if (top === undefined) {
 						continue;
 					}
-					if (top > scrollTop + threshold) {
+					if (top > scrollTop) {
 						break;
 					}
 					activeRequestId = item.id;

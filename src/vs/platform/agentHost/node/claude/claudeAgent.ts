@@ -23,7 +23,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { buildSideChatSourceContext, prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -33,7 +33,10 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { buildDefaultChatUri, ChatInputResponseKind, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChatInputResponseKind, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { IFileService } from '../../../files/common/files.js';
+import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
+import { claudeDirectoryQualifiesForPrimary } from './claudeFolderPickerCriteria.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -612,6 +615,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@IProductService private readonly _productService: IProductService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore);
@@ -1107,6 +1111,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		abort: (chatUri, context) => {
 			return this._abortSession(chatUri, context);
 		},
+		getModel: chatUri => this._chatBackings.get(chatUri.toString())?.model,
 		changeModel: (chatUri, model, context) => {
 			return this._changeModel(chatUri, model, context);
 		},
@@ -2216,6 +2221,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return Object.keys(inherited).length > 0 ? inherited : undefined;
 	}
 
+	getAutonomousSessionConfig(_config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) !== true
+			? { [ClaudeSessionConfigKey.PermissionMode]: 'auto' satisfies ClaudePermissionMode }
+			: undefined;
+	}
+
 	chatConfigCompletions(_params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		// Claude's only schema property is the `permissionMode` static enum,
 		// so dynamic completion is definitionally empty.
@@ -2568,6 +2579,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			sess.setHostCustomizations(hostCustomizations);
 		}
 		return sess.getSessionCustomizations();
+	}
+
+	/**
+	 * Hides the multi-root Folder picker unless several working directories carry
+	 * Claude configuration that would pin them as the primary — an `.mcp.json`
+	 * manifest or a non-empty `hooks` block in `.claude/settings.json` /
+	 * `settings.local.json` (see {@link claudeDirectoryQualifiesForPrimary}). With
+	 * one qualifying directory it pins that folder; with several it shows the
+	 * picker so the user chooses. This only reads files to decide the picker — it
+	 * never surfaces them as customizations.
+	 */
+	async computeFolderPickerDecision(workingDirectories: readonly URI[], token: CancellationToken = CancellationToken.None): Promise<ISessionFolderPickerDecision | undefined> {
+		if (!this._isMultiRootEnabled()) {
+			return undefined;
+		}
+		return computeFolderPickerDecisionForRoots(workingDirectories, (directory, t) => claudeDirectoryQualifiesForPrimary(this._fileService, directory, this._environmentService.userHome, t), token);
 	}
 
 	async startMcpServer(session: URI, id: string): Promise<void> {

@@ -248,8 +248,6 @@ export interface IDockedEditorLayout {
 	setDockedAuxiliaryBarWidth(width: number): void;
 	/** Returns the preferred editor-part width for an outer sash reset. */
 	getPreferredEditorPartWidth(): number | undefined;
-	/** Clears transient outer-sash reset behavior before applying a session layout. */
-	clearEditorPartSashResetState(): void;
 }
 
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
@@ -1924,8 +1922,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	getPreferredEditorPartWidth(): number | undefined {
 		return undefined;
 	}
-
-	clearEditorPartSashResetState(): void { }
 
 	private layoutMobileSidebar(): void {
 		const sidebarContainer = this.getContainer(mainWindow, Parts.SIDEBAR_PART);

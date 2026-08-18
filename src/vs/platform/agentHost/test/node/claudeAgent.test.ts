@@ -47,9 +47,10 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
+import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
@@ -67,10 +68,12 @@ import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../..
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
+import { createClaudeInternalMcpServerCustomization } from '../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
@@ -665,6 +668,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		readonly description: string;
 		readonly inputSchema: Record<string, any>;
 	}> = [];
+	readonly toolHandlers = new Map<string, (args: any, extra: unknown) => Promise<CallToolResult>>();
 	readonly createSdkMcpServerCalls: Array<{
 		readonly name: string;
 		readonly toolNames: readonly string[];
@@ -677,6 +681,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		_handler: (args: any, extra: unknown) => Promise<CallToolResult>,
 	): Promise<SdkMcpToolDefinition<any>> {
 		this.toolCalls.push({ name, description, inputSchema });
+		this.toolHandlers.set(name, _handler);
 		return { name } as unknown as SdkMcpToolDefinition<any>;
 	}
 
@@ -1261,6 +1266,18 @@ suite('ClaudeAgent', () => {
 			disabledByDefault: undefined,
 			whenEnabled: { immutablePrimary: true },
 			afterDisabling: undefined,
+		});
+	});
+
+	test('selects provider-native autonomous session config and respects policy', () => {
+		const { agent, configService } = createTestContext(disposables);
+		const selected = agent.getAutonomousSessionConfig({});
+		configService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+		const restricted = agent.getAutonomousSessionConfig({});
+
+		assert.deepStrictEqual({ selected, restricted }, {
+			selected: { [ClaudeSessionConfigKey.PermissionMode]: 'auto' },
+			restricted: undefined,
 		});
 	});
 
@@ -4698,12 +4715,18 @@ suite('ClaudeAgent', () => {
 			{
 				type: 'text',
 				text:
-					'The user attached specific feedback comments to act on (comment ids):\n' +
+					'The user selected these feedback comments for you to act on (comment ids):\n' +
 					'- feedback-1\n\n' +
-					'Use the `listComments` tool to read their content and focus on these comments.\n\n' +
-					'The user attached specific feedback comments to act on (comment ids):\n' +
+					'Use the `listComments` tool to read their content and focus on these comments. ' +
+					'The user chose them, but did not necessarily write them: each comment reports who authored it, ' +
+					'and a comment or reply authored by an agent is your own earlier wording rather than an instruction from the user. ' +
+					'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.\n\n' +
+					'The user selected these feedback comments for you to act on (comment ids):\n' +
 					'- feedback-2\n\n' +
-					'Use the `listComments` tool to read their content and focus on these comments.',
+					'Use the `listComments` tool to read their content and focus on these comments. ' +
+					'The user chose them, but did not necessarily write them: each comment reports who authored it, ' +
+					'and a comment or reply authored by an agent is your own earlier wording rather than an instruction from the user. ' +
+					'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.',
 			},
 		]);
 	});
@@ -8148,6 +8171,152 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual(pm.syncCalls, []);
 	});
 
+	test('disabled bundled MCP children are excluded from initial SDK startup', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const pluginUri = 'https://bundle';
+		const pluginDir = URI.file('/p/bundle');
+		const workspace = URI.file('/work');
+		await fileService.createFolder(URI.joinPath(pluginDir, '.claude-plugin'));
+		await fileService.writeFile(
+			URI.joinPath(pluginDir, '.claude-plugin', 'plugin.json'),
+			VSBuffer.fromString(JSON.stringify({ name: 'bundle' })),
+		);
+		await fileService.writeFile(
+			URI.joinPath(pluginDir, '.mcp.json'),
+			VSBuffer.fromString(JSON.stringify({
+				enabled: { type: 'http', url: 'https://enabled.example.com/mcp' },
+				disabled: { type: 'stdio', command: 'node', args: ['server.js'] },
+			})),
+		);
+		const disabledChild = makeMcpServerCustomization(URI.joinPath(pluginDir, '.mcp.json'), 'disabled');
+		const publishedDisabledChild = createClaudeInternalMcpServerCustomization('disabled');
+		const synced = makeSyncedRef(pluginUri, pluginDir.fsPath, [disabledChild]);
+		const mcpDefaultCwds = toClientPluginMcpDefaultCwdsMeta({ enabled: null, disabled: null });
+		pm.syncResult = [{
+			...synced,
+			customization: { ...synced.customization, _meta: mcpDefaultCwds },
+		}];
+		const created = await createSession(agent, {
+			workingDirectories: [workspace],
+			activeClient: {
+				clientId: 'client-1',
+				tools: [],
+				customizations: [{
+					...makeClientCustomization(pluginUri, 'Bundle'),
+					_meta: mcpDefaultCwds,
+					childEnablement: {
+						disabled: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+					},
+				}],
+			},
+		});
+		publishReducerCustomizations(stateManager, created.session, [publishedDisabledChild]);
+		stateManager.dispatchServerAction(created.session.toString(), {
+			type: ActionType.SessionCustomizationToggled,
+			id: publishedDisabledChild.id,
+			enablement: [
+				{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false },
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+			],
+		});
+
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [];
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		const startupOptions = sdk.capturedStartupOptions[0];
+		assert.deepStrictEqual({
+			explicitServers: Object.keys(startupOptions.mcpServers ?? {}).sort(),
+			deniedServers: typeof startupOptions.settings === 'string' ? undefined : startupOptions.settings?.deniedMcpServers,
+		}, {
+			explicitServers: ['enabled'],
+			deniedServers: [{
+				serverName: 'disabled',
+			}],
+		});
+	});
+
+	test('workspace MCP enablement gates SDK startup and rebuilds after re-enable', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager, configService } = buildCtxWith(pm);
+		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: true });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const primary = URI.file('/primary');
+		const additional = URI.file('/additional');
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(primary, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+				'primary-enabled': { type: 'http', url: 'https://primary-enabled.example.com/mcp' },
+				'primary-disabled': { type: 'http', url: 'https://primary-disabled.example.com/mcp' },
+			}))),
+			fileService.writeFile(URI.joinPath(additional, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+				'additional-enabled': { type: 'http', url: 'https://additional-enabled.example.com/mcp' },
+				'additional-disabled': { type: 'http', url: 'https://additional-disabled.example.com/mcp' },
+			}))),
+		]);
+		const created = await createSession(agent, { workingDirectories: [primary, additional] });
+		const chat = defaultChatUri(created.session);
+		const initial = await agent.getChatCustomizations!(chat, chatContext(chat), hostCustomizations(stateManager, created.session));
+		const customizations = [
+			...initial,
+			makeMcpServerCustomization(URI.joinPath(additional, '.mcp.json'), 'additional-enabled'),
+			makeMcpServerCustomization(URI.joinPath(additional, '.mcp.json'), 'additional-disabled'),
+		];
+		publishReducerCustomizations(stateManager, created.session, customizations);
+		for (const name of ['primary-disabled', 'additional-disabled']) {
+			const server = customizations.find(customization => customization.type === CustomizationType.McpServer && customization.name === name);
+			assert.ok(server);
+			stateManager.dispatchServerAction(created.session.toString(), {
+				type: ActionType.SessionCustomizationToggled,
+				id: server.id,
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+			});
+		}
+
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [];
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(chat, 'first', [primary, additional], undefined, 'turn-1', undefined, undefined, chatContext(chat));
+
+		const options = sdk.capturedStartupOptions[0];
+		const settings = options.settings;
+		assert.ok(settings && typeof settings !== 'string');
+		assert.deepStrictEqual({
+			explicitServers: Object.keys(options.mcpServers ?? {}).sort(),
+			deniedServers: settings.deniedMcpServers,
+		}, {
+			explicitServers: ['additional-enabled'],
+			deniedServers: [{
+				serverName: 'primary-disabled',
+			}],
+		});
+
+		for (const name of ['primary-disabled', 'additional-disabled']) {
+			const server = customizations.find(customization => customization.type === CustomizationType.McpServer && customization.name === name);
+			assert.ok(server);
+			stateManager.dispatchServerAction(created.session.toString(), {
+				type: ActionType.SessionCustomizationToggled,
+				id: server.id,
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+			});
+		}
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(chat, 'second', [primary, additional], undefined, 'turn-2', undefined, undefined, chatContext(chat));
+
+		const rebuiltOptions = sdk.capturedStartupOptions[1];
+		assert.ok(rebuiltOptions);
+		assert.deepStrictEqual({
+			explicitServers: Object.keys(rebuiltOptions.mcpServers ?? {}).sort(),
+			deniedServers: typeof rebuiltOptions.settings === 'string' ? undefined : rebuiltOptions.settings?.deniedMcpServers,
+		}, {
+			explicitServers: ['additional-disabled', 'additional-enabled'],
+			deniedServers: undefined,
+		});
+	});
+
 	test('session MCP enablement persists across materialization and customization refreshes', async () => {
 		const pm = new FakeAgentPluginManager();
 		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
@@ -10286,6 +10455,40 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 suite('ClaudeAgent — host seams', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a peer chat server tool executes against its exact Agent Host chat channel', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const toolName = 'peer_server_tool';
+		let executedChatUri: string | undefined;
+		agent.setServerToolHost({
+			definitions: [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
+			toolNames: [toolName],
+			advertise: () => { },
+			canRequireConfirmation: () => false,
+			requiresConfirmation: () => false,
+			executeTool: chatUri => {
+				executedChatUri = chatUri;
+				return 'done';
+			},
+		});
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const peerChat = URI.parse(buildChatUri(created.session.toString(), 'peer-server-tool'));
+		const peerCreated = await agent.chats.createChat(peerChat, { configurationResource: created.session, resource: peerChat }, { ...resolvedChatOptions() });
+		const peerSdkId = AgentSession.id(peerCreated!.backingSession!);
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+
+		await agent.chats.sendMessage(peerChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(peerChat));
+		const result = await sdk.toolHandlers.get(toolName)!({}, undefined);
+
+		assert.deepStrictEqual({
+			executedChatUri,
+			result,
+		}, {
+			executedChatUri: peerChat.toString(),
+			result: { content: [{ type: 'text', text: 'done' }] },
+		});
+	});
 
 	test('a subagent chat resolves its spawn edge only from the host-supplied origin', async () => {
 		const { agent, sdk, stateManager } = createTestContext(disposables);

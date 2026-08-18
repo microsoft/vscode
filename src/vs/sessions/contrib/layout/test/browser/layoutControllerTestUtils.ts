@@ -71,6 +71,7 @@ export function makeSession(resource: URI, opts?: {
 		checkpoints: observableValue('checkpoints', undefined),
 		changes: observableValue('changes', opts?.changes ?? []),
 		modelId: observableValue('modelId', undefined),
+		modelSource: observableValue('modelSource', undefined),
 		mode: observableValue('mode', undefined),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
@@ -199,7 +200,6 @@ export interface ITestLayoutHarness {
 	editorRevealedExplicitly: boolean;
 	/** Current suppression depth for `suppressEditorPartAutoVisibility()`. */
 	editorPartAutoVisibilitySuppressionDepth: number;
-	clearEditorPartSashResetStateCalls: number;
 	/** Whether the lifecycle `Restored` phase has resolved (activates single-pane managed-tab / detail-panel behaviour). */
 	activateAux: boolean;
 	/** Editors in the main part's active group (drives the single-pane managed-tab logic). */
@@ -319,7 +319,6 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		setPartHiddenCalls: [],
 		editorRevealedExplicitly: false,
 		editorPartAutoVisibilitySuppressionDepth: 0,
-		clearEditorPartSashResetStateCalls: 0,
 		activateAux: options.activateAux ?? false,
 		activeGroupEditors: [],
 		closedEditors: [],
@@ -448,9 +447,6 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 		isEditorPartAutoVisibilitySuppressed(): boolean {
 			return harness.editorPartAutoVisibilitySuppressionDepth > 0;
-		}
-		clearEditorPartSashResetState(): void {
-			harness.clearEditorPartSashResetStateCalls++;
 		}
 		setAuxiliaryBarHiddenForResize(hidden: boolean): void {
 			const wasVisible = harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true;

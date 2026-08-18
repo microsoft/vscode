@@ -17,7 +17,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { CollectAgentHostDebugLogsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
@@ -40,8 +40,8 @@ import { decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
-import { getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
@@ -348,6 +348,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				return;
 			}
 			const patch: Record<string, unknown> = {};
+			// These keys are host-level and last-writer-wins across windows.
+			const mirrored: string[] = [];
 			for (const entry of getAgentHostConfigurationSyncEntries(this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY)) {
 				if (!e.affectsConfiguration(entry.settingId)) {
 					continue;
@@ -355,10 +357,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				const value = resolveAgentHostConfigurationSyncValue(this._configurationService, entry);
 				if (value !== undefined) {
 					patch[entry.sync.key] = value;
+					mirrored.push(`${entry.sync.key}=${formatAgentHostConfigurationSyncValueForLog(entry.settingId, value)} (${entry.settingId})`);
 				}
 			}
 			if (Object.keys(patch).length) {
+				this._logService.info(`[RemoteAgentHostProtocol] Mirroring configuration to host root config from ${ConfigurationTargetToString(e.source)}: ${mirrored.join(', ')}`);
 				this._dispatchRootConfig(patch);
+			}
+			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
+				this._updateAutoApprovePolicyRestriction();
 			}
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
 				this._updateTelemetryLevel();
@@ -809,10 +816,16 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._updateTelemetryLevel();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
+		this._updateAutoApprovePolicyRestriction();
 		this._updateDisableRepoInfoTelemetry();
 		if (includeManagedSettings) {
 			void this._updateManagedSettingsPermissions();
 		}
+	}
+
+	private _updateAutoApprovePolicyRestriction(): void {
+		const policyRestricted = this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID)?.policyValue === false;
+		this._dispatchRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: policyRestricted });
 	}
 
 	/**
@@ -833,7 +846,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				if (envelope.origin?.clientId === this._clientId
 					&& envelope.origin.clientSeq !== undefined
 					&& !envelope.rejectionReason) {
-					this._subscriptionManager.dropPendingSessionAction(envelope.channel, envelope.origin.clientSeq);
+					this._subscriptionManager.dropPendingAction(envelope.channel, envelope.origin.clientSeq);
 				}
 				if (envelope.serverSeq > maxSeq) {
 					maxSeq = envelope.serverSeq;
@@ -862,7 +875,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 *
 	 * 1. Resend pending optimistic session actions that the server did NOT
 	 *    echo back in the replay buffer (i.e. anything still on
-	 *    {@link AgentSubscriptionManager.getPendingSessionActions}).
+	 *    {@link AgentSubscriptionManager.getPendingActions}).
 	 * 2. Flush every message that {@link _sendNotification} queued onto the
 	 *    outbox while the gate was engaged.
 	 *
@@ -883,7 +896,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 
 		const replays: ProtocolMessage[] = [];
-		for (const entry of this._subscriptionManager.getPendingSessionActions()) {
+		for (const entry of this._subscriptionManager.getPendingActions()) {
 			if (queuedSeqs.has(entry.clientSeq)) {
 				continue;
 			}
