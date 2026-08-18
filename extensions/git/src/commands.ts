@@ -1482,17 +1482,17 @@ export class CommandCenter {
 		const sections: string[] = [];
 
 		for (const { resource, staged } of resources) {
-			const relativePath = path.relative(repository.root, resource.resourceUri.fsPath);
+			const relativePath = path.relative(repository.root, resource.resourceUri.fsPath).split(path.sep).join('/');
 			const isDeleted = resource.type === Status.DELETED || resource.type === Status.INDEX_DELETED;
 
 			if (isDeleted) {
-				sections.push(`-------------- > /${relativePath}:\n[arquivo deletado]`);
+				sections.push(`-------------- > /${relativePath}:\n[${l10n.t('file deleted')}]`);
 				continue;
 			}
 
 			try {
 				if (await isBinaryFile(resource.resourceUri.fsPath)) {
-					sections.push(`-------------- > /${relativePath}:\n[arquivo binário alterado]`);
+					sections.push(`-------------- > /${relativePath}:\n[${l10n.t('binary file changed')}]`);
 					continue;
 				}
 
@@ -1502,7 +1502,13 @@ export class CommandCenter {
 					// Untracked files have no HEAD/index counterpart to diff against,
 					// so treat every line of the working tree file as added.
 					const content = await fs.readFile(resource.resourceUri.fsPath, 'utf8');
-					changedLines = content.replace(/\n$/, '').split('\n').map(line => `+${line}`);
+					const lines = content.split(/\r?\n/);
+					if (lines.length > 0 && lines[lines.length - 1] === '') {
+						// Drop the empty entry produced by a trailing line break, without
+						// dropping genuinely empty lines that occur earlier in the file.
+						lines.pop();
+					}
+					changedLines = lines.map(line => `+${line}`);
 				} else {
 					const rawDiff = staged
 						? await repository.diffIndexWithHEAD(resource.resourceUri.fsPath)
@@ -1518,11 +1524,24 @@ export class CommandCenter {
 
 				sections.push(`-------------- > /${relativePath}:\n${changedLines.join('\n')}`);
 			} catch {
-				sections.push(`-------------- > /${relativePath}:\n[erro ao gerar diff]`);
+				sections.push(`-------------- > /${relativePath}:\n[${l10n.t('error generating diff')}]`);
 			}
 		}
 
 		const output = `Changes to "${repoName}":\n${sections.join('\n\n')}`;
+
+		const clipboardSizeLimit = 1_000_000;
+		if (output.length > clipboardSizeLimit) {
+			const yes = l10n.t('Continue');
+			const no = l10n.t('Cancel');
+			const pick = await window.showWarningMessage(
+				l10n.t('The copied content is very large ({0} characters). Copying it to the clipboard may be slow or fail. Do you want to continue?', output.length),
+				{ modal: true }, yes, no);
+
+			if (pick !== yes) {
+				return;
+			}
+		}
 
 		await env.clipboard.writeText(output);
 		window.showInformationMessage(l10n.t('Changes copied to clipboard'));
