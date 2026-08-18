@@ -37,6 +37,8 @@ import { chartsOrange } from '../../../../../platform/theme/common/colors/charts
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { inputBackground, inputBorder } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { nativeHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { localize } from '../../../../../nls.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -201,6 +203,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IHostService private readonly hostService: IHostService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IChatSessionRoutingProviderService private readonly routingProviderService: IChatSessionRoutingProviderService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -373,6 +376,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			'aria-label': localize('chatInputWindow.close.label', "Close"),
 		}));
 		close.appendChild(renderIcon(Codicon.closeSmall));
+		// The omni window is a small frameless auxiliary window where custom hovers
+		// clip to the window bounds and flicker, so use a native tooltip that renders
+		// outside the window — matching the toolbar buttons.
+		this._windowDisposables.add(this.hoverService.setupManagedHover(nativeHoverDelegate, close, localize('chatInputWindow.close.label', "Close")));
 		this._windowDisposables.add(dom.addDisposableListener(close, dom.EventType.CLICK, () => this.closeWindow()));
 		this._windowDisposables.add(dom.addStandardDisposableListener(close, dom.EventType.KEY_DOWN, event => {
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
