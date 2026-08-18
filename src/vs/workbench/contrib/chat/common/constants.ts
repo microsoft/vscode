@@ -382,7 +382,7 @@ export function getDefaultNewChatSessionType(
 		return localChatSessionType;
 	}
 
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled);
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced);
 	if (remembered) {
 		return remembered;
 	}
@@ -414,7 +414,7 @@ export function resolveDefaultNewChatSessionType(
 		return { sessionType: localChatSessionType };
 	}
 
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled);
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced);
 	if (remembered && remembered !== localChatSessionType) {
 		return { sessionType: remembered };
 	}
@@ -434,9 +434,10 @@ function getUsableRememberedSessionType(
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
 	workspace: IWorkspace,
 	agentHostEnabled: boolean,
+	managedSandboxEnforced = false,
 ): string | undefined {
 	const remembered = getRememberedSessionType(storageService);
-	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace, agentHostEnabled) ? remembered : undefined;
+	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced) ? remembered : undefined;
 }
 
 export function getDefaultNewChatSessionResource(
@@ -445,9 +446,10 @@ export function getDefaultNewChatSessionResource(
 	storageService: IStorageService,
 	workspace: IWorkspace,
 	agentHostEnabled: boolean,
-	options?: IDefaultNewChatSessionTypeOptions
+	options?: IDefaultNewChatSessionTypeOptions,
+	managedSandboxEnforced = false
 ): URI {
-	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options);
+	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options, managedSandboxEnforced);
 	return getNewChatSessionResource(defaultType);
 }
 
@@ -471,7 +473,7 @@ export function recordUserSelectedSessionType(
  * whose managed settings mandate the SDK sandbox floor get this behavior without opting into
  * `chat.defaultToCopilotHarness`.
  */
-export function isCopilotHarnessDefault(configurationService: IConfigurationService, managedSandboxEnforced = false): boolean {
+function isCopilotHarnessDefault(configurationService: IConfigurationService, managedSandboxEnforced = false): boolean {
 	return configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness) === true
 		|| managedSandboxEnforced;
 }
@@ -480,7 +482,7 @@ export function isCopilotHarnessDefault(configurationService: IConfigurationServ
  * Whether the Agent Host Copilot SDK replaces the local harness whenever the local harness would
  * otherwise be picked for a new chat. Implied by an enterprise-mandated sandbox floor.
  */
-export function isCopilotHarnessPreferred(configurationService: IConfigurationService, managedSandboxEnforced = false): boolean {
+function isCopilotHarnessPreferred(configurationService: IConfigurationService, managedSandboxEnforced = false): boolean {
 	return configurationService.getValue<boolean>(ChatConfiguration.EditorPreferCopilotHarness) === true
 		|| managedSandboxEnforced;
 }

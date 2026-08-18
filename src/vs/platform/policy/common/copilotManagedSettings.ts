@@ -164,16 +164,18 @@ export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData 
 
 /**
  * Whether the enterprise-mandated sandbox floor ({@link COPILOT_SANDBOX_ENABLED_KEY}) is turned on
- * by any managed-settings channel, resolved with the standard per-key precedence (native MDM, then
- * the server endpoint, then the file on disk).
+ * by a managed-settings channel.
  *
  * The floor is `force-on-wins` in the runtime schema, so only `true` is meaningful: a channel that
- * sets it to `false` does not veto a higher-precedence `true`, and a non-boolean value is treated
- * as absent. This reads the *raw* channel bags rather than a configuration value, because the key
- * is runtime-owned and intentionally has no VS Code configuration policy.
+ * sets it to `false` does not veto another channel's `true`, and a non-boolean value is treated as
+ * absent. This reads the *raw* channel bags rather than a configuration value, because the key is
+ * runtime-owned and intentionally has no VS Code configuration policy.
+ *
+ * The file channel is not consulted: it is not registered in every window, so wiring it is left to
+ * a follow-up rather than shipping a precedence that silently does nothing.
  */
-export function isManagedSandboxEnabled(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): boolean {
-	for (const values of [nativeMdm, server, file]) {
+export function isManagedSandboxEnabled(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined): boolean {
+	for (const values of [nativeMdm, server]) {
 		if (values?.[COPILOT_SANDBOX_ENABLED_KEY] === true) {
 			return true;
 		}

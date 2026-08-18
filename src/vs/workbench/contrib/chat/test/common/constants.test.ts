@@ -17,7 +17,7 @@ import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefau
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { getRememberedSessionType } from '../../common/chatSessionTypePreference.js';
+import { getRememberedSessionType, storeUserSelectedSessionType } from '../../common/chatSessionTypePreference.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 
 suite('ChatConfiguration defaults', () => {
@@ -559,6 +559,24 @@ suite('ChatConfiguration defaults', () => {
 			computed: SessionType.AgentHostCopilot,
 			rememberedAware: SessionType.AgentHostCopilot,
 			fromLocal: SessionType.AgentHostCopilot,
+		});
+	});
+
+	test('managed sandbox floor reaches the New Chat entry points and overrides remembered local', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storageService = disposables.add(new TestStorageService());
+
+		// A local harness remembered from before the floor was mandated must not keep winning:
+		// otherwise the picker hides local while New Chat keeps opening local sessions.
+		storeUserSelectedSessionType(storageService, localChatSessionType);
+
+		assert.deepStrictEqual({
+			remembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, undefined, true),
+			resource: getChatSessionType(getDefaultNewChatSessionResource(configurationService, chatSessionsService, storageService, localWorkspace, true, undefined, true)),
+		}, {
+			remembered: SessionType.AgentHostCopilot,
+			resource: SessionType.AgentHostCopilot,
 		});
 	});
 

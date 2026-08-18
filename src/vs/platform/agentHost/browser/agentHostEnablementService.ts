@@ -12,7 +12,7 @@ import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { bindContextKey, observableConfigValue } from '../../observable/common/platformObservableUtils.js';
 import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
-import { INativeManagedSettingsService, isManagedSandboxEnabled, ManagedSettingsData } from '../../policy/common/copilotManagedSettings.js';
+import { INativeManagedSettingsService, isManagedSandboxEnabled } from '../../policy/common/copilotManagedSettings.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
 
 export class AgentHostEnablementService extends Disposable implements IAgentHostEnablementService {
@@ -28,11 +28,6 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 		contextKeyService: IContextKeyService,
 		nativeManagedSettingsService: INativeManagedSettingsService,
 		defaultAccountService: IDefaultAccountService,
-		/**
-		 * File-delivered managed settings. Desktop-only: the file channel is not registered in
-		 * web, so this is supplied by the concrete services rather than injected here.
-		 */
-		fileManagedSettings?: IObservable<ManagedSettingsData | undefined>,
 	) {
 		super();
 		const aiFeaturesDisabled = observableConfigValue(ChatAIDisabledSettingId, false, configurationService);
@@ -49,8 +44,7 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 			() => defaultAccountService.policyData?.managedSettings);
 		this.managedSandboxEnforced = derived(this, reader => isManagedSandboxEnabled(
 			nativeManagedSettings.read(reader),
-			serverManagedSettings.read(reader),
-			fileManagedSettings?.read(reader)));
+			serverManagedSettings.read(reader)));
 	}
 }
 
