@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellation, raceCancellationError, RunOnceScheduler } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
@@ -105,6 +105,43 @@ function mergeSessionChangeEvents(events: readonly ISessionChangeEvent[]): ISess
 		removed,
 		changed,
 	};
+}
+
+function debounceSessionChangeEvents(notifications: Event<ISessionChangeEvent>, immediate: Event<ISessionChangeEvent>, disposable: DisposableStore): Event<ISessionChangeEvent> {
+	const event: Event<ISessionChangeEvent> = (listener, thisArgs) => {
+		const store = new DisposableStore();
+		let pending: ISessionChangeEvent[] | undefined;
+		store.add(toDisposable(() => {
+			pending?.splice(0);
+			pending = undefined;
+		}));
+
+		const takePending = (event?: ISessionChangeEvent): ISessionChangeEvent | undefined => {
+			if (!pending?.length) {
+				pending = undefined;
+				return event;
+			}
+			const events = pending?.splice(0) ?? [];
+			pending = undefined;
+			if (event) {
+				events.push(event);
+			}
+			return mergeSessionChangeEvents(events);
+		};
+		const debounced = Event.debounce<ISessionChangeEvent, ISessionChangeEvent[]>(notifications, (events, event) => {
+			pending = events ?? [];
+			pending.push(event);
+			return pending;
+		}, SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS, false, false, undefined, store);
+		const onDebounced = Event.filter<ISessionChangeEvent, undefined>(
+			Event.map(debounced, () => takePending(), store),
+			(event): event is ISessionChangeEvent => event !== undefined,
+			store,
+		);
+		store.add(Event.any(onDebounced, Event.map(immediate, event => takePending(event) ?? event, store))(listener, thisArgs));
+		return store;
+	};
+	return Event.map(event, event => event, disposable);
 }
 
 // Well-known config chips whose last-resolved schemas are cached and seeded into
@@ -2349,18 +2386,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
 	private readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
-	private _hasSessionChangeConsumers = false;
-	private readonly _onDidChangeSessionsForConsumers = this._register(new Emitter<ISessionChangeEvent>({
-		onWillAddFirstListener: () => this._hasSessionChangeConsumers = true,
-		onDidRemoveLastListener: () => {
-			this._hasSessionChangeConsumers = false;
-			this._pendingSessionChangeNotifications.length = 0;
-			this._sessionChangeNotificationScheduler.cancel();
-		},
-	}));
-	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessionsForConsumers.event;
-	private readonly _pendingSessionChangeNotifications: ISessionChangeEvent[] = [];
-	private readonly _sessionChangeNotificationScheduler = this._register(new RunOnceScheduler(() => this._publishSessionChanges(), SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS));
+	readonly onDidChangeSessions = debounceSessionChangeEvents(this._onDidChangeSessionsFromNotifications.event, this._onDidChangeSessions.event, this._store);
 
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
@@ -2579,18 +2605,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
-		this._register(this._onDidChangeSessions.event(event => {
-			if (this._hasSessionChangeConsumers) {
-				this._publishSessionChanges(event);
-			}
-		}));
-		this._register(this._onDidChangeSessionsFromNotifications.event(event => {
-			if (!this._hasSessionChangeConsumers) {
-				return;
-			}
-			this._pendingSessionChangeNotifications.push(event);
-			this._sessionChangeNotificationScheduler.schedule();
-		}));
 		this._downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
 		this._register(toDisposable(() => {
 			for (const cached of this._sessionCache.values()) {
@@ -2633,22 +2647,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._cacheDirty = false;
 			}
 		}));
-	}
-
-	private _publishSessionChanges(immediate?: ISessionChangeEvent): void {
-		this._sessionChangeNotificationScheduler.cancel();
-		if (this._pendingSessionChangeNotifications.length === 0) {
-			if (immediate) {
-				this._onDidChangeSessionsForConsumers.fire(immediate);
-			}
-			return;
-		}
-
-		const events = this._pendingSessionChangeNotifications.splice(0);
-		if (immediate) {
-			events.push(immediate);
-		}
-		this._onDidChangeSessionsForConsumers.fire(mergeSessionChangeEvents(events));
 	}
 
 	// -- Subclass hooks -------------------------------------------------------
