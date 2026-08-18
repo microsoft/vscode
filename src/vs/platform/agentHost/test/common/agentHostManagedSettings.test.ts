@@ -145,4 +145,36 @@ suite('AgentHostManagedSettings', () => {
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), { deny: ['Domain'] });
 	});
+
+	test('requires approval for explicitly denied terminal commands', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
+				defaultValue: {},
+				policyValue: { rm: false, 'git push': false, npm: true },
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell(rm)', 'Shell(git push)'],
+		});
+	});
+
+	test('skips terminal denials the SDK shell grammar cannot express', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
+				defaultValue: {},
+				policyValue: {
+					'/^rm\\s/i': false,
+					'curl': { approve: false, matchCommandLine: true },
+					'wget': false,
+				},
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell(wget)'],
+		});
+	});
 });

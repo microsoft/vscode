@@ -7,7 +7,7 @@ import type { IConfigurationService } from '../../configuration/common/configura
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { buildManagedFamilyRule, buildManagedRule, ManagedRuleFamily } from './agentHostManagedRules.js';
 import { getGlobalConfigurationValue, inspectValue } from './agentHostConfigurationSync.js';
-import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from './agentHostSchema.js';
+import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, type AgentHostTerminalAutoApproveRules } from './agentHostSchema.js';
 
 /**
  * The restrictions this bridge contributes to the Copilot SDK.
@@ -121,6 +121,45 @@ function contributeNetworkDomainRules(configurationService: IConfigurationServic
 	return deny.length > 0 ? { deny } : undefined;
 }
 
+/**
+ * Translates VS Code's explicit terminal auto-approve denials into managed
+ * shell rules.
+ *
+ * A `false` entry means "require explicit approval", not "block" — the
+ * setting's own enum description says so, and the host-side auto-approver's
+ * `denied` result only causes a prompt. It therefore maps onto `ask`, which
+ * keeps the user's approval path, rather than `deny`, which is terminal and has
+ * no ask stage.
+ *
+ * Only literal command prefixes survive. A key wrapped in `/` is a regular
+ * expression and an object-valued entry matches the whole command line; neither
+ * has an equivalent in the SDK's shell rule grammar, so both are skipped rather
+ * than approximated.
+ */
+function contributeTerminalDenialRules(rules: AgentHostTerminalAutoApproveRules): IAgentHostManagedSettingsPermissions | undefined {
+	if (!rules || typeof rules !== 'object') {
+		return undefined;
+	}
+	const ask: string[] = [];
+	for (const [command, value] of Object.entries(rules)) {
+		if (value !== false || isRegexAutoApproveKey(command)) {
+			continue;
+		}
+		// `Shell(cmd)` already matches both the bare command and the command with
+		// arguments, so the trailing-wildcard form would be redundant.
+		const rule = buildManagedRule(ManagedRuleFamily.Shell, command);
+		if (rule) {
+			ask.push(rule);
+		}
+	}
+	return ask.length > 0 ? { ask } : undefined;
+}
+
+/** VS Code treats a key wrapped in `/` as a regular expression. */
+function isRegexAutoApproveKey(command: string): boolean {
+	return command.startsWith('/') && command.lastIndexOf('/') > 0;
+}
+
 /** Compatibility mappings for legacy settings only; new controls belong directly in the SDK. */
 const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] = [
 	// Disabling the SDK's bypass mode takes "Allow All" away from the user for
@@ -136,6 +175,9 @@ const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] =
 		[AgentNetworkDomainSettingId.AllowedNetworkDomains, AgentNetworkDomainSettingId.DeniedNetworkDomains],
 		contributeNetworkDomainRules,
 	),
+	// Mirrors the setting's own semantics, where a user or application value
+	// already forces approval for the matching command.
+	managedPermissionsSetting<AgentHostTerminalAutoApproveRules>(TERMINAL_AUTO_APPROVE_SETTING_ID, 'anyGlobal', contributeTerminalDenialRules),
 ];
 
 export const managedPermissionsConfigurationIds = [
