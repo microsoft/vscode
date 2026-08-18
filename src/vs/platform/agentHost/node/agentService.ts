@@ -37,7 +37,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, PendingMessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_ORCHESTRATION_DB_KEY, readSessionSpawnDepth, readSessionOrchestration, parseSessionOrchestration, withSessionSpawnDepth, withSessionOrchestration, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionOrchestration, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_ORCHESTRATION_DB_KEY, readSessionSpawnDepth, parseSessionOrchestration, withSessionSpawnDepth, withSessionOrchestration, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
@@ -95,7 +95,7 @@ import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetrySer
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
-import { transitionSessionCoordination } from './sessionCoordination.js';
+import { SessionCoordinationService } from './sessionCoordination.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
@@ -333,7 +333,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
-	private readonly _sessionCoordinationQueues = new Map<string, Promise<void>>();
+	private readonly _sessionCoordination: SessionCoordinationService;
 	private readonly _managedSettingsService = this._register(new AgentHostManagedSettingsService());
 
 	/**
@@ -591,8 +591,6 @@ export class AgentService extends Disposable implements IAgentService {
 				this._queueSessionListReconciliation();
 			}
 		}));
-		this._register(this._stateManager.onDidChangeSessionStatus(({ session, status }) => this._queueSessionCoordinationStatusChange(session, status)));
-
 		// Build a local instantiation scope so downstream components can
 		// consume {@link IAgentConfigurationService} (and later {@link ILogService})
 		// via DI rather than being plumbed plain-class references.
@@ -784,6 +782,16 @@ export class AgentService extends Disposable implements IAgentService {
 				void this._gitStateService.attachSessionGitHubReferences(session.toString(), text);
 			},
 		}));
+		this._sessionCoordination = this._register(new SessionCoordinationService(
+			this._stateManager,
+			this._sessionDataService,
+			this._logService,
+			{
+				getSessionMetadata: session => this._getSessionMetadata(session),
+				restoreSession: session => this.restoreSession(session),
+				handleAction: (chat, action) => this._sideEffects.handleAction(chat, action),
+			},
+		));
 
 		// Server-side tools, executed in-process against each session's own
 		// state. The set of groups (and their display) is the single source of
@@ -1094,92 +1102,12 @@ export class AgentService extends Disposable implements IAgentService {
 				type: ActionType.SessionMetaChanged,
 				_meta: withSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta, depth),
 			}),
-			setSessionOrchestration: (session, orchestration) => this._setSessionOrchestration(session.toString(), orchestration),
+			setSessionOrchestration: (session, orchestration) => this._sessionCoordination.setOrchestration(session.toString(), orchestration),
 		};
 	}
 
 	private _isActiveAgentTitleGenerationEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true;
-	}
-
-	private async _setSessionOrchestration(session: string, orchestration: ISessionOrchestration): Promise<void> {
-		await persistSessionMetadataValues(this._sessionDataService, session, {
-			[AH_META_ORCHESTRATION_DB_KEY]: JSON.stringify(orchestration),
-		});
-		this._stateManager.setSessionMeta(session, withSessionOrchestration(this._stateManager.getSessionSummary(session)?._meta, orchestration));
-	}
-
-	private _queueSessionCoordinationStatusChange(session: string, status: SessionStatus): void {
-		const previous = this._sessionCoordinationQueues.get(session) ?? Promise.resolve();
-		const next = previous.catch(() => undefined).then(() => this._handleSessionCoordinationStatusChange(session, status));
-		this._sessionCoordinationQueues.set(session, next);
-		void next.catch(error => {
-			this._logService.error(`[AgentService] Failed to coordinate child session ${session}: ${toErrorMessage(error)}`);
-		}).finally(() => {
-			if (this._sessionCoordinationQueues.get(session) === next) {
-				this._sessionCoordinationQueues.delete(session);
-			}
-		});
-	}
-
-	private async _handleSessionCoordinationStatusChange(session: string, status: SessionStatus): Promise<void> {
-		const summary = this._stateManager.getSessionSummary(session);
-		const orchestration = readSessionOrchestration(summary?._meta);
-		if (!summary || !orchestration?.notifyOnIdle) {
-			return;
-		}
-
-		const transition = transitionSessionCoordination(status, orchestration);
-		if (!transition.notify) {
-			if (transition.orchestration) {
-				await this._setSessionOrchestration(session, transition.orchestration);
-			}
-			return;
-		}
-
-		const creator = URI.parse(orchestration.creatorSession);
-		const creatorMetadata = await this._getSessionMetadata(creator);
-		if (!creatorMetadata || (creatorMetadata.status !== undefined && (creatorMetadata.status & SessionStatus.IsArchived) === SessionStatus.IsArchived)) {
-			return;
-		}
-		if (!this._stateManager.getSessionState(creator.toString())) {
-			try {
-				await this.restoreSession(creator);
-			} catch (error) {
-				this._logService.error(`[AgentService] Failed to restore creator session ${creator.toString()} for child notification: ${toErrorMessage(error)}`);
-				return;
-			}
-		}
-		const creatorSummary = this._stateManager.getSessionSummary(creator.toString());
-		if (!creatorSummary || (creatorSummary.status & SessionStatus.IsArchived) === SessionStatus.IsArchived) {
-			return;
-		}
-
-		const outcome = (status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded
-			? 'needs input'
-			: (status & SessionStatus.Error) === SessionStatus.Error ? 'encountered an error' : 'became idle';
-		const childName = orchestration.label ? `${orchestration.label} (${session})` : session;
-		this._startCoordinationPrompt(creator, `Child session ${childName} ${outcome}. Use get_session_context with session "${session}" to inspect its result.`);
-		if (transition.orchestration) {
-			await this._setSessionOrchestration(session, transition.orchestration);
-		}
-	}
-
-	private _startCoordinationPrompt(creator: URI, prompt: string): void {
-		const chat = buildDefaultChatUri(creator);
-		const message: Message = { text: prompt, origin: { kind: MessageKind.SystemNotification } };
-		if (this._stateManager.getActiveTurnId(chat)) {
-			this._stateManager.dispatchServerAction(chat, {
-				type: ActionType.ChatPendingMessageSet,
-				kind: PendingMessageKind.Queued,
-				id: generateUuid(),
-				message,
-			});
-			return;
-		}
-		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), startedAt: new Date().toISOString(), message } as const;
-		this._stateManager.dispatchServerAction(chat, action);
-		this._sideEffects.handleAction(chat, action);
 	}
 
 	private _getServerToolCreationDefaults(source: URI): ISessionCreationDefaults | undefined {

@@ -19,39 +19,39 @@ suite('SessionCoordination', () => {
 		notifyOnIdle: 'once',
 	};
 
-	test('arms only after work starts', () => {
+	test('waits for completion only after work starts', () => {
 		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.Idle, base), { notify: false });
 		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.InProgress, base), {
-			orchestration: { ...base, notificationArmed: true },
+			orchestration: { ...base, creatorNotificationState: 'waitingForCompletion' },
 			notify: false,
 		});
 	});
 
 	test('notifies once after idle or error', () => {
-		const armed = { ...base, notificationArmed: true };
+		const waiting = { ...base, creatorNotificationState: 'waitingForCompletion' as const };
 		const expected = {
-			orchestration: { ...armed, notificationArmed: false, notificationSent: true },
+			orchestration: { ...waiting, creatorNotificationState: 'notified' as const },
 			notify: true,
 		};
-		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.Idle, armed), expected);
-		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.Error, armed), expected);
+		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.Idle, waiting), expected);
+		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.Error, waiting), expected);
 		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.InProgress, expected.orchestration), { notify: false });
 	});
 
 	test('notifies once when input is needed and deduplicates repeated status', () => {
-		const armed = { ...base, notificationArmed: true };
-		const transition = transitionSessionCoordination(SessionStatus.InputNeeded, armed);
+		const waiting = { ...base, creatorNotificationState: 'waitingForCompletion' as const };
+		const transition = transitionSessionCoordination(SessionStatus.InputNeeded, waiting);
 		assert.deepStrictEqual(transition, {
-			orchestration: { ...armed, notificationArmed: false, notificationSent: true },
+			orchestration: { ...waiting, creatorNotificationState: 'notified' },
 			notify: true,
 		});
 		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.InputNeeded, transition.orchestration!), { notify: false });
 	});
 
-	test('always rearms for later work', () => {
-		const always: ISessionOrchestration = { ...base, notifyOnIdle: 'always', notificationSent: true };
+	test('always waits for later work to complete', () => {
+		const always: ISessionOrchestration = { ...base, notifyOnIdle: 'always', creatorNotificationState: 'notified' };
 		assert.deepStrictEqual(transitionSessionCoordination(SessionStatus.InProgress, always), {
-			orchestration: { ...always, notificationArmed: true },
+			orchestration: { ...always, creatorNotificationState: 'waitingForCompletion' },
 			notify: false,
 		});
 	});

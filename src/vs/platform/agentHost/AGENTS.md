@@ -238,12 +238,15 @@ placement preserves notification routing if parent relationships evolve.
 `list_sessions` projects and filters hierarchy metadata without involving
 provider harnesses.
 
-Idle notifications use a durable arm/notify transition. Starting work arms the
-child; the next input-needed/idle/error transition wakes the creator once or, for `always`,
-re-arms on the next work cycle. A busy creator default chat receives a queued
-system notification rather than a new active turn, so concurrent child
-completion cannot overwrite creator work. The existing pending-message drain
-starts that queued notification when the creator chat becomes idle.
+`SessionCoordinationService` owns idle-notification status observation,
+per-child sequencing, creator restoration, and delivery. Its durable
+`creatorNotificationState` is `waitingForCompletion` after work starts and
+`notified` after the next input-needed/idle/error transition wakes the creator.
+The `always` policy returns to `waitingForCompletion` on the next work cycle. A
+busy creator default chat receives a queued system notification rather than a
+new active turn, so concurrent child completion cannot overwrite creator work.
+The existing pending-message drain starts that queued notification when the
+creator chat becomes idle.
 
 
 ---

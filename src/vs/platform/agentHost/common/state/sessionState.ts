@@ -1712,6 +1712,7 @@ export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, dept
 }
 
 export type SessionIdleNotification = 'once' | 'always';
+export type SessionCreatorNotificationState = 'waitingForCompletion' | 'notified';
 
 export interface ISessionOrchestration {
 	readonly parentSession: string;
@@ -1719,8 +1720,8 @@ export interface ISessionOrchestration {
 	readonly label?: string;
 	readonly coordinateWithCreator: boolean;
 	readonly notifyOnIdle?: SessionIdleNotification;
-	readonly notificationArmed?: boolean;
-	readonly notificationSent?: boolean;
+	/** Durable delivery state used to wait for a work outcome and deduplicate replayed statuses. */
+	readonly creatorNotificationState?: SessionCreatorNotificationState;
 }
 
 export const SESSION_META_ORCHESTRATION_KEY = 'agentHost/orchestration';
@@ -1738,16 +1739,16 @@ export function readSessionOrchestration(meta: SessionSummaryMeta | undefined): 
 	const creatorSession = typeof candidate.creatorSession === 'string' ? candidate.creatorSession : candidate.parentSession;
 	const label = typeof candidate.label === 'string' ? candidate.label : undefined;
 	const notifyOnIdle = candidate.notifyOnIdle === 'once' || candidate.notifyOnIdle === 'always' ? candidate.notifyOnIdle : undefined;
-	const notificationArmed = typeof candidate.notificationArmed === 'boolean' ? candidate.notificationArmed : undefined;
-	const notificationSent = typeof candidate.notificationSent === 'boolean' ? candidate.notificationSent : undefined;
+	const creatorNotificationState = candidate.creatorNotificationState === 'waitingForCompletion' || candidate.creatorNotificationState === 'notified'
+		? candidate.creatorNotificationState
+		: undefined;
 	return {
 		parentSession: candidate.parentSession,
 		creatorSession,
 		coordinateWithCreator: candidate.coordinateWithCreator,
 		...(label !== undefined ? { label } : {}),
 		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
-		...(notificationArmed !== undefined ? { notificationArmed } : {}),
-		...(notificationSent !== undefined ? { notificationSent } : {}),
+		...(creatorNotificationState !== undefined ? { creatorNotificationState } : {}),
 	};
 }
 

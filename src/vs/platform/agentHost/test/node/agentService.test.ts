@@ -6150,15 +6150,17 @@ suite('AgentService (node dispatcher)', () => {
 				creatorSession: 'copilot:/missing',
 				coordinateWithCreator: true,
 				notifyOnIdle: 'once',
-				notificationArmed: true,
+				creatorNotificationState: 'waitingForCompletion',
 			};
 			const coordinator = localService as unknown as {
-				_setSessionOrchestration(session: string, value: ISessionOrchestration): Promise<void>;
-				_handleSessionCoordinationStatusChange(session: string, status: SessionStatus): Promise<void>;
+				_sessionCoordination: {
+					setOrchestration(session: string, value: ISessionOrchestration): Promise<void>;
+					handleStatusChange(session: string, status: SessionStatus): Promise<void>;
+				};
 			};
-			await coordinator._setSessionOrchestration(child.toString(), orchestration);
+			await coordinator._sessionCoordination.setOrchestration(child.toString(), orchestration);
 
-			await coordinator._handleSessionCoordinationStatusChange(child.toString(), SessionStatus.Idle);
+			await coordinator._sessionCoordination.handleStatusChange(child.toString(), SessionStatus.Idle);
 
 			assert.deepStrictEqual(readSessionOrchestration(localService.stateManager.getSessionSummary(child.toString())?._meta), orchestration);
 		});
@@ -6174,13 +6176,15 @@ suite('AgentService (node dispatcher)', () => {
 				creatorSession: creator.toString(),
 				coordinateWithCreator: true,
 				notifyOnIdle: 'once',
-				notificationArmed: true,
+				creatorNotificationState: 'waitingForCompletion',
 			};
 			const coordinator = localService as unknown as {
-				_setSessionOrchestration(session: string, value: ISessionOrchestration): Promise<void>;
-				_handleSessionCoordinationStatusChange(session: string, status: SessionStatus): Promise<void>;
+				_sessionCoordination: {
+					setOrchestration(session: string, value: ISessionOrchestration): Promise<void>;
+					handleStatusChange(session: string, status: SessionStatus): Promise<void>;
+				};
 			};
-			await coordinator._setSessionOrchestration(child.toString(), orchestration);
+			await coordinator._sessionCoordination.setOrchestration(child.toString(), orchestration);
 			localService.stateManager.removeSession(creator.toString());
 			assert.strictEqual(localService.stateManager.getSessionState(creator.toString()), undefined);
 			let notificationStarted = false;
@@ -6190,14 +6194,13 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}));
 
-			await coordinator._handleSessionCoordinationStatusChange(child.toString(), SessionStatus.Idle);
+			await coordinator._sessionCoordination.handleStatusChange(child.toString(), SessionStatus.Idle);
 
 			assert.ok(localService.stateManager.getSessionState(creator.toString()));
 			assert.strictEqual(notificationStarted, true);
 			assert.deepStrictEqual(readSessionOrchestration(localService.stateManager.getSessionSummary(child.toString())?._meta), {
 				...orchestration,
-				notificationArmed: false,
-				notificationSent: true,
+				creatorNotificationState: 'notified',
 			});
 		});
 
