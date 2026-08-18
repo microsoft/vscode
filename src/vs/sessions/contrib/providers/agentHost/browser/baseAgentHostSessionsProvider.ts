@@ -30,7 +30,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, aggregateSessionChatSummaries, buildChatUri, buildDefaultChatUri, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -4651,7 +4651,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetaFromState(sessionId, state);
 		this._applyChatCatalogFromState(sessionId, state);
-		this._applySessionSummaryFromState(sessionId, state);
 
 		if (!previous) {
 			// This is the first time we've seen this session and the initial
@@ -4722,32 +4721,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		cached.applyChatCatalog(state);
-	}
-
-	private _applySessionSummaryFromState(sessionId: string, state: SessionState): void {
-		const rawId = this._rawIdFromChatId(sessionId);
-		if (!rawId) {
-			return;
-		}
-		const cached = this._sessionCache.get(rawId);
-		if (!cached) {
-			return;
-		}
-
-		const aggregate = aggregateSessionChatSummaries(state.status, state.chats, state.defaultChat);
-		const status = mapProtocolStatus(aggregate.status ?? state.status);
-		const activity = aggregate.status !== undefined ? aggregate.activity : state.activity;
-		let didChange = false;
-		transaction(tx => {
-			if (status !== cached.status.get()) {
-				cached.status.set(status, tx);
-				didChange = true;
-			}
-			didChange = cached.setActivity(activity, tx) || didChange;
-		});
-		if (didChange) {
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-		}
 	}
 
 	/**

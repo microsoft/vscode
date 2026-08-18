@@ -1462,6 +1462,7 @@ export class ProtocolServerHandler extends Disposable {
 					...(s._meta !== undefined ? { _meta: s._meta } : {}),
 				} satisfies ListSessionsResult['items'][number];
 			});
+			this._stateManager.markSessionSummariesListed(items);
 			return { items };
 		},
 		resolveSessionConfig: async (_client, params) => {

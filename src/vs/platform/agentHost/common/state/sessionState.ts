@@ -877,46 +877,6 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 }
 
 /**
- * Aggregates the session-level activity fields from its chat catalog while
- * preserving session-scoped status flags.
- */
-export function aggregateSessionChatSummaries(
-	sessionStatus: SessionStatus,
-	chats: readonly ChatSummary[],
-	defaultChat: ProtocolURI | undefined,
-): { status: SessionStatus | undefined; activity: string | undefined; modifiedAt: number | undefined } {
-	if (chats.length === 0) {
-		return { status: undefined, activity: undefined, modifiedAt: undefined };
-	}
-
-	const base = (defaultChat !== undefined ? chats.find(chat => chat.resource === defaultChat) : undefined)
-		?? chats.reduce((first, second) => Date.parse(second.modifiedAt) > Date.parse(first.modifiedAt) ? second : first);
-	let activityStatus = base.status & STATUS_ACTIVITY_MASK;
-	let driver = base;
-	const errorChat = chats.find(chat => (chat.status & SessionStatus.Error) === SessionStatus.Error);
-	const inputChat = chats.find(chat => (chat.status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded);
-	const inProgressChat = chats.find(chat => (chat.status & SessionStatus.InputNeeded) === SessionStatus.InProgress);
-	if (inputChat) {
-		activityStatus = SessionStatus.InputNeeded;
-		driver = inputChat;
-	} else if (errorChat) {
-		activityStatus = SessionStatus.Error;
-		driver = errorChat;
-	} else if (inProgressChat) {
-		activityStatus = SessionStatus.InProgress;
-		driver = inProgressChat;
-	}
-
-	const sessionFlags = sessionStatus & ~STATUS_ACTIVITY_MASK;
-	const modifiedAt = chats.reduce((max, chat) => Math.max(max, Date.parse(chat.modifiedAt)), 0);
-	return {
-		status: activityStatus | sessionFlags,
-		activity: driver.activity,
-		modifiedAt,
-	};
-}
-
-/**
  * The effective interactivity of a chat given its session's archived state.
  *
  * `interactivity` is the general read-only mechanism (e.g. subagent worker

@@ -23,7 +23,7 @@ import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type Se
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
-import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
+import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
@@ -880,6 +880,41 @@ suite('ProtocolServerHandler', () => {
 
 		const result = (resp as unknown as { result: ListSessionsResult }).result;
 		assert.deepStrictEqual(result.items.map(item => item.project), [{ uri: URI.file('/workspace/project').toString(), displayName: 'Project' }]);
+	});
+
+	test('listSessions publishes subsequent status changes for restored sessions', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const summary = makeSessionSummary();
+			stateManager.restoreSession(summary, []);
+			agentService.listedSessions.push({
+				session: URI.parse(summary.resource),
+				startTime: Date.parse(summary.createdAt),
+				modifiedTime: Date.parse(summary.modifiedAt),
+				summary: summary.title,
+				status: summary.status,
+			});
+
+			const transport = connectClient('client-list-status');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			await responsePromise;
+			transport.sent.length = 0;
+
+			stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: new Date().toISOString(),
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			const statusChanges = transport.sent
+				.filter(isJsonRpcNotification)
+				.filter(message => message.method === 'root/sessionSummaryChanged')
+				.map(message => (message.params as SessionSummaryChangedParams).changes.status);
+			assert.deepStrictEqual(statusChanges, [SessionStatus.InProgress]);
+		});
 	});
 
 	test('listSessions omits project metadata when absent', async () => {
