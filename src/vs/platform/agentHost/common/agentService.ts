@@ -185,9 +185,9 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
 /**
- * Environment variable form of {@link AgentHostByokModelsEnabledSettingId}.
- * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`true`).
+ * Explicit environment override for {@link AgentHostByokModelsEnabledSettingId}.
+ * Accepts `'true'` / `'false'`; when absent or invalid, the synchronized agent
+ * host root configuration determines whether BYOK models are enabled.
  */
 export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
 
