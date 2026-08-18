@@ -33,10 +33,6 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 		return this._sessions;
 	}
 
-	fireChanged(session: ISession): void {
-		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
-	}
-
 	dispose(): void {
 		this._onDidChangeSessions.dispose();
 	}
@@ -91,7 +87,7 @@ suite('SessionsWindowNotifier', () => {
 	function createNotifier(
 		session: ISession,
 		configuration: Record<string, ChatNotificationMode>,
-	): { notifier: SessionsWindowNotifier; management: TestSessionsManagementService; sessions: TestSessionsService; host: TestHostService } {
+	): { notifier: SessionsWindowNotifier; sessions: TestSessionsService; host: TestHostService } {
 		const management = new TestSessionsManagementService([session]);
 		const sessions = new TestSessionsService();
 		const host = new TestHostService();
@@ -102,17 +98,16 @@ suite('SessionsWindowNotifier', () => {
 			new TestConfigurationService(configuration),
 		));
 		store.add(management);
-		return { notifier, management, sessions, host };
+		return { notifier, sessions, host };
 	}
 
 	test('uses confirmation setting for needs-input transitions', async () => {
 		const { session, status } = createSession('needs-input', SessionStatus.InProgress);
-		const { management, host } = createNotifier(session, {
+		const { host } = createNotifier(session, {
 			[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
 		});
 
 		status.set(SessionStatus.NeedsInput, undefined);
-		management.fireChanged(session);
 		await timeout(0);
 
 		assert.deepStrictEqual({
@@ -130,18 +125,15 @@ suite('SessionsWindowNotifier', () => {
 
 	test('uses response setting for completed and failed transitions', async () => {
 		const { session, status } = createSession('finished', SessionStatus.InProgress);
-		const { management, host } = createNotifier(session, {
+		const { host } = createNotifier(session, {
 			[ChatConfiguration.NotifyWindowOnResponseReceived]: ChatNotificationMode.Always,
 		});
 		host.hasFocus = true;
 
 		status.set(SessionStatus.Completed, undefined);
-		management.fireChanged(session);
 		await timeout(0);
 		status.set(SessionStatus.InProgress, undefined);
-		management.fireChanged(session);
 		status.set(SessionStatus.Error, undefined);
-		management.fireChanged(session);
 		await timeout(0);
 
 		assert.deepStrictEqual(host.toasts.map(toast => toast.body), [
@@ -152,16 +144,13 @@ suite('SessionsWindowNotifier', () => {
 
 	test('does not notify for initial or duplicate state and respects focus', async () => {
 		const { session, status } = createSession('quiet', SessionStatus.NeedsInput);
-		const { management, host } = createNotifier(session, {
+		const { host } = createNotifier(session, {
 			[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
 		});
 		host.hasFocus = true;
 
-		management.fireChanged(session);
 		status.set(SessionStatus.InProgress, undefined);
-		management.fireChanged(session);
 		status.set(SessionStatus.NeedsInput, undefined);
-		management.fireChanged(session);
 		await timeout(0);
 
 		assert.deepStrictEqual(host.toasts, []);
@@ -169,13 +158,12 @@ suite('SessionsWindowNotifier', () => {
 
 	test('opens the exact session when the toast is activated', async () => {
 		const { session, status } = createSession('open-me', SessionStatus.InProgress);
-		const { management, sessions, host } = createNotifier(session, {
+		const { sessions, host } = createNotifier(session, {
 			[ChatConfiguration.NotifyWindowOnResponseReceived]: ChatNotificationMode.WindowNotFocused,
 		});
 		host.toastResult = { supported: true, clicked: true };
 
 		status.set(SessionStatus.Completed, undefined);
-		management.fireChanged(session);
 		await timeout(0);
 
 		assert.deepStrictEqual({

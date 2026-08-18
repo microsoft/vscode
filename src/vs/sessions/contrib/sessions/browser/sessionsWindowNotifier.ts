@@ -5,7 +5,8 @@
 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableResourceMap, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorunDelta } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FocusMode } from '../../../../platform/native/common/native.js';
@@ -20,7 +21,7 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 
 	static readonly ID = 'workbench.contrib.sessionsWindowNotifier';
 
-	private readonly _statuses = new Map<string, SessionStatus>();
+	private readonly _statusListeners = this._register(new DisposableMap<string>());
 	private readonly _activeNotifications = this._register(new DisposableResourceMap());
 
 	constructor(
@@ -32,36 +33,31 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 		super();
 
 		for (const session of this._sessionsManagementService.getSessions()) {
-			this._statuses.set(session.sessionId, session.status.get());
+			this._trackSession(session);
 		}
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(event => {
 			for (const session of event.removed) {
-				this._statuses.delete(session.sessionId);
+				this._statusListeners.deleteAndDispose(session.sessionId);
 				this._clearNotification(session);
 			}
 			for (const session of event.added) {
-				this._statuses.set(session.sessionId, session.status.get());
-			}
-			for (const session of event.changed) {
-				this._handleStatusChange(session);
+				this._trackSession(session);
 			}
 		}));
 	}
 
-	private _handleStatusChange(session: ISession): void {
-		const previousStatus = this._statuses.get(session.sessionId);
-		const status = session.status.get();
-		this._statuses.set(session.sessionId, status);
+	private _trackSession(session: ISession): void {
+		this._statusListeners.set(session.sessionId, autorunDelta(session.status, ({ lastValue, newValue }) => {
+			if (lastValue === undefined || lastValue === newValue) {
+				return;
+			}
 
-		if (previousStatus === undefined || previousStatus === status) {
-			return;
-		}
-
-		this._clearNotification(session);
-		if (status === SessionStatus.NeedsInput || status === SessionStatus.Completed || status === SessionStatus.Error) {
-			void this._notify(session, status);
-		}
+			this._clearNotification(session);
+			if (newValue === SessionStatus.NeedsInput || newValue === SessionStatus.Completed || newValue === SessionStatus.Error) {
+				void this._notify(session, newValue);
+			}
+		}));
 	}
 
 	private async _notify(session: ISession, status: SessionStatus): Promise<void> {
