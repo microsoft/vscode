@@ -73,14 +73,17 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 			return;
 		}
 
-		if (!this._hostService.hasFocus) {
-			await this._hostService.focus(mainWindow, { mode: FocusMode.Notify });
-		}
-
 		const cts = new CancellationTokenSource();
 		this._activeNotifications.set(session.resource, toDisposable(() => cts.dispose(true)));
 
 		try {
+			if (!this._hostService.hasFocus) {
+				await this._hostService.focus(mainWindow, { mode: FocusMode.Notify });
+			}
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
 			const result = await this._hostService.showToast({
 				title: this._sanitizeOSToastText(localize('sessions.notification.title', "Session: {0}", session.title.get())),
 				body: this._sanitizeOSToastText(this._getNotificationBody(session, status)),
