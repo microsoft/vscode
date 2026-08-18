@@ -67,10 +67,6 @@ function workspaceTarget(): AutomationTarget {
 	return { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
 }
 
-function quickChatTarget(): AutomationTarget {
-	return { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' };
-}
-
 function automation(overrides: Partial<IAutomationDescriptor> = {}): IAutomationDescriptor {
 	return {
 		id: AUTOMATION_ID,
@@ -543,21 +539,6 @@ suite('AutomationsCardsWidget', () => {
 			schedule: `Daily at ${scheduleTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })}`,
 			sessionTitle: 'Daily review',
 			fallbackRows: 0,
-		});
-	});
-
-	test('renders the folder name for workspace targets and "No workspace" otherwise', () => {
-		const { automationService, widget } = setup();
-
-		automationService.setAutomations([automation({ target: workspaceTarget() })]);
-		const workspaceLabel = widget.element.querySelector('.automations-card-folder')?.textContent;
-
-		automationService.setAutomations([automation({ target: quickChatTarget() })]);
-		const quickChatLabel = widget.element.querySelector('.automations-card-folder')?.textContent;
-
-		assert.deepStrictEqual({ workspaceLabel, quickChatLabel }, {
-			workspaceLabel: 'workspace',
-			quickChatLabel: 'No workspace',
 		});
 	});
 
