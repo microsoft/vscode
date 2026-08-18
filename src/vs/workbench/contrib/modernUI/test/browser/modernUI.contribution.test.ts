@@ -173,18 +173,30 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('preserves horizontal panel section borders without drawing separators above column headers', () => {
+	test('uses part-specific pane colors and only draws panel header separators in vertical layouts', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui';
+		root.style.setProperty('--vscode-sideBar-background', '#FF8888');
+		root.style.setProperty('--vscode-sideBarSectionHeader-border', '#FF0000');
+		root.style.setProperty('--vscode-panel-background', '#8888FF');
+		root.style.setProperty('--vscode-panelSectionHeader-border', '#0000FF');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
-		const verticalPaneView = appendElement(root, 'monaco-pane-view');
+		const sideBarPaneView = appendElement(appendElement(root, 'part sidebar'), 'monaco-pane-view');
+		const firstSideBarPane = store.add(new ModernUITestPane());
+		appendElement(sideBarPaneView, 'split-view-view').appendChild(firstSideBarPane.element);
+
+		const followingSideBarPane = store.add(new ModernUITestPane());
+		appendElement(sideBarPaneView, 'split-view-view').appendChild(followingSideBarPane.element);
+
+		const panel = appendElement(root, 'part panel');
+		const verticalPaneView = appendElement(panel, 'monaco-pane-view');
 		const firstVerticalPane = store.add(new ModernUITestPane());
 		firstVerticalPane.style({
 			dropBackground: undefined,
 			headerForeground: undefined,
-			headerBackground: undefined,
+			headerBackground: '#FFFFFF',
 			headerBorder: '#00FF00',
 			leftBorder: undefined,
 		});
@@ -194,13 +206,13 @@ suite('ModernUIContribution', () => {
 		followingVerticalPane.style({
 			dropBackground: undefined,
 			headerForeground: undefined,
-			headerBackground: undefined,
+			headerBackground: '#FFFFFF',
 			headerBorder: '#00FF00',
 			leftBorder: undefined,
 		});
 		appendElement(verticalPaneView, 'split-view-view').appendChild(followingVerticalPane.element);
 
-		const horizontalPaneView = appendElement(root, 'monaco-pane-view');
+		const horizontalPaneView = appendElement(panel, 'monaco-pane-view');
 		const firstHorizontalPane = store.add(new ModernUITestPane());
 		firstHorizontalPane.orientation = Orientation.HORIZONTAL;
 		firstHorizontalPane.style({
@@ -225,6 +237,12 @@ suite('ModernUIContribution', () => {
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
+			sideBarPaneBackground: targetWindow.getComputedStyle(followingSideBarPane.element).backgroundColor,
+			sideBarHeaderBackground: targetWindow.getComputedStyle(followingSideBarPane.draggableElement!).backgroundColor,
+			sideBarHeaderSeparatorColor: targetWindow.getComputedStyle(followingSideBarPane.draggableElement!, '::before').backgroundColor,
+			panelPaneBackground: targetWindow.getComputedStyle(followingVerticalPane.element).backgroundColor,
+			panelHeaderBackground: targetWindow.getComputedStyle(followingVerticalPane.draggableElement!).backgroundColor,
+			panelHeaderSeparatorColor: targetWindow.getComputedStyle(followingVerticalPane.draggableElement!, '::before').backgroundColor,
 			firstVerticalHeaderSeparatorVisible: targetWindow.getComputedStyle(firstVerticalPane.draggableElement!, '::before').display !== 'none',
 			followingVerticalHeaderSeparatorVisible: targetWindow.getComputedStyle(followingVerticalPane.draggableElement!, '::before').display !== 'none',
 			followingVerticalHeaderBorderTopWidth: targetWindow.getComputedStyle(followingVerticalPane.draggableElement!).borderTopWidth,
@@ -233,6 +251,12 @@ suite('ModernUIContribution', () => {
 			followingHorizontalPaneBorderLeftWidth: targetWindow.getComputedStyle(followingHorizontalPane.element).borderLeftWidth,
 			followingHorizontalPaneBorderLeftColor: targetWindow.getComputedStyle(followingHorizontalPane.element).borderLeftColor,
 		}, {
+			sideBarPaneBackground: 'rgb(255, 136, 136)',
+			sideBarHeaderBackground: 'rgb(255, 136, 136)',
+			sideBarHeaderSeparatorColor: 'rgb(255, 0, 0)',
+			panelPaneBackground: 'rgb(136, 136, 255)',
+			panelHeaderBackground: 'rgb(136, 136, 255)',
+			panelHeaderSeparatorColor: 'rgb(0, 0, 255)',
 			firstVerticalHeaderSeparatorVisible: false,
 			followingVerticalHeaderSeparatorVisible: true,
 			followingVerticalHeaderBorderTopWidth: '0px',
