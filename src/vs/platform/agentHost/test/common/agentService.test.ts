@@ -7,7 +7,11 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, isAgentHostByokModelsEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
+import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
 suite('AgentSession namespace', () => {
 
@@ -66,6 +70,47 @@ suite('isAgentEnabled', () => {
 			assert.strictEqual(isAgentEnabled(envValue, defaultEnabled), expected);
 		});
 	}
+});
+
+suite('shouldSurfaceLocalAgentHostProvider', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('always surfaces Claude and uses window-specific Codex settings', () => {
+		const configurationService = new TestConfigurationService({
+			[AgentHostCodexAgentEnabledSettingId]: true,
+			[CodexPreferAgentHostEditorSettingId]: true,
+		});
+
+		assert.deepStrictEqual({
+			agentsClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, true),
+			editorClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, false),
+			agentsCodex: shouldSurfaceLocalAgentHostProvider('codex', configurationService, true),
+			editorCodex: shouldSurfaceLocalAgentHostProvider('codex', configurationService, false),
+			otherProvider: shouldSurfaceLocalAgentHostProvider('copilot', configurationService, true),
+		}, {
+			agentsClaude: true,
+			editorClaude: true,
+			agentsCodex: true,
+			editorCodex: true,
+			otherProvider: true,
+		});
+	});
+
+	test('hides Codex from the Agents window when the provider is disabled', () => {
+		const configurationService = new TestConfigurationService({
+			[AgentHostCodexAgentEnabledSettingId]: false,
+			[CodexPreferAgentHostEditorSettingId]: true,
+		});
+
+		assert.deepStrictEqual({
+			agentsCodex: shouldSurfaceLocalAgentHostProvider('codex', configurationService, true),
+			editorCodex: shouldSurfaceLocalAgentHostProvider('codex', configurationService, false),
+		}, {
+			agentsCodex: false,
+			editorCodex: true,
+		});
+	});
 });
 
 suite('buildAgentHostOTelEnv', () => {
@@ -238,5 +283,86 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 		const result = sanitizeAgentHostOTelPolicySettings(raw);
 		assert.deepStrictEqual(result.resourceAttributes, { 'service.namespace': 'acme' });
 		assert.strictEqual(({} as Record<string, unknown>).polluted, undefined);
+	});
+});
+
+suite('resolveChatUri', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const session = AgentSession.uri('copilot', 'sess-1');
+
+	test('default chat collapses onto the scope (session) URI', () => {
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+		assert.strictEqual(resolveChatUri(session, defaultChat).toString(), session.toString());
+	});
+
+	test('peer chat is addressed by its own URI', () => {
+		const peer = URI.parse(buildChatUri(session, 'peer-42'));
+		assert.strictEqual(resolveChatUri(session, peer).toString(), peer.toString());
+	});
+});
+
+suite('isAgentHostByokModelsEnabled', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses an explicit environment override before synchronized root config', () => {
+		assert.deepStrictEqual({
+			envFalseRootTrue: isAgentHostByokModelsEnabled('false', true),
+			envTrueRootFalse: isAgentHostByokModelsEnabled('true', false),
+			noEnvRootFalse: isAgentHostByokModelsEnabled(undefined, false),
+			noEnvRootTrue: isAgentHostByokModelsEnabled(undefined, true),
+			noSources: isAgentHostByokModelsEnabled(undefined, undefined),
+		}, {
+			envFalseRootTrue: false,
+			envTrueRootFalse: true,
+			noEnvRootFalse: false,
+			noEnvRootTrue: true,
+			noSources: false,
+		});
+	});
+});
+
+suite('protectedResourcesRequireGitHubCopilotSignIn', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const githubCopilotWithoutRequired: ProtectedResourceMetadata = { resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource };
+	const githubCopilotRequiredFalse: ProtectedResourceMetadata = { ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false };
+	const otherRequiredResource: ProtectedResourceMetadata = { resource: 'https://api.openai.com', required: true };
+
+	test('derives the requirement from advertised protected resources', () => {
+		const scenarios: Record<string, ProtectedResourceMetadata[]> = {
+			// Proxy-mode Copilot / Claude: advertises the resource as required.
+			copilotRequired: [GITHUB_COPILOT_PROTECTED_RESOURCE],
+			// Absent `required` is treated the same as `true`.
+			copilotRequiredAbsent: [githubCopilotWithoutRequired],
+			// An agent that advertises no protected resources at all.
+			noResourcesAdvertised: [],
+			// Codex on OpenAI: advertises the resource but marks it optional.
+			copilotRequiredFalse: [githubCopilotRequiredFalse],
+			// Only unrelated resources are advertised.
+			onlyOtherResource: [otherRequiredResource],
+			// Mixed: an optional GitHub Copilot resource alongside a required other one.
+			optionalCopilotWithOtherRequired: [githubCopilotRequiredFalse, otherRequiredResource],
+		};
+
+		const result = Object.fromEntries(
+			Object.entries(scenarios).map(([name, resources]) => [name, protectedResourcesRequireGitHubCopilotSignIn(resources)]),
+		);
+
+		assert.deepStrictEqual(result, {
+			copilotRequired: true,
+			copilotRequiredAbsent: true,
+			noResourcesAdvertised: false,
+			copilotRequiredFalse: false,
+			onlyOtherResource: false,
+			optionalCopilotWithOtherRequired: false,
+		});
+	});
+
+	test('the GitHub repo resource alone does not require Copilot sign-in', () => {
+		assert.strictEqual(protectedResourcesRequireGitHubCopilotSignIn([GITHUB_REPO_PROTECTED_RESOURCE]), false);
 	});
 });

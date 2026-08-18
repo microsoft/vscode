@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -29,6 +29,18 @@ function captureProtocolError(fn: () => void): ProtocolError {
 suite('agentHostSchema', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('active-agent title generation is an additive boolean root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostActiveAgentTitleGenerationConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, false);
+	});
+
+	test('Markdown plan rich links are an additive boolean root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostMarkdownPlanRichLinksEnabledConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, false);
+	});
 
 	// ---- schemaProperty / individual validators ---------------------------
 
@@ -285,13 +297,29 @@ suite('agentHostSchema', () => {
 	suite('platformSessionSchema', () => {
 
 		test('validates the autoApprove levels', () => {
-			const levels: AutoApproveLevel[] = ['default', 'autoApprove'];
+			const levels: AutoApproveLevel[] = ['default', 'assisted', 'autoApprove'];
 			for (const level of levels) {
 				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, level), true, level);
 			}
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'assisted'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'autopilot'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'bogus'), false);
+		});
+
+		test('exposes approval choices in picker order with current copy', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.AutoApprove];
+			assert.deepStrictEqual({
+				enum: property.enum,
+				enumLabels: property.enumLabels,
+				enumDescriptions: property.enumDescriptions,
+			}, {
+				enum: ['default', 'assisted', 'autoApprove'],
+				enumLabels: ['Manual permissions', 'Assisted permissions', 'Allow all'],
+				enumDescriptions: [
+					'Asks when approval settings don\'t apply',
+					'Evaluates risk before running tools',
+					'Runs tool calls without asking',
+				],
+			});
 		});
 
 		test('validates permissions shape', () => {

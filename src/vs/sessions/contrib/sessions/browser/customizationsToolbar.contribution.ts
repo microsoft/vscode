@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
@@ -34,6 +34,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -45,6 +46,8 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
+	/** Additional `when` clause beyond the standard harness-visibility gate. */
+	readonly when?: ContextKeyExpression;
 }
 
 /**
@@ -112,6 +115,12 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: toolsIcon,
 		section: AICustomizationManagementSection.Tools,
 		isTools: true,
+	},
+	{
+		id: 'sessions.customization.harnessSettings',
+		label: localize('harnessSettings', "Codex"),
+		icon: Codicon.openai,
+		section: AICustomizationManagementSection.HarnessSettings,
 	},
 ];
 
@@ -260,7 +269,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			visibilityKeys.set(config.section, key);
 		}
 		this._register(autorun(reader => {
-			harnessService.activeHarness.read(reader);
+			const activeHarness = harnessService.activeHarness.read(reader);
 			harnessService.availableHarnesses.read(reader);
 			const descriptor = harnessService.getActiveDescriptor();
 			const hidden = new Set(descriptor.hiddenSections ?? []);
@@ -268,7 +277,8 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				if (!config.section) {
 					continue;
 				}
-				visibilityKeys.get(config.section)!.set(!hidden.has(config.section));
+				const supported = config.section !== AICustomizationManagementSection.HarnessSettings || activeHarness === SessionType.AgentHostCodex;
+				visibilityKeys.get(config.section)!.set(!hidden.has(config.section) && supported);
 			}
 		}));
 
@@ -309,6 +319,9 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			}, undefined));
 
 			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
+			const combinedWhen = config.when
+				? ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen, config.when)
+				: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen);
 
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
@@ -320,7 +333,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 							id: Menus.SidebarCustomizations,
 							group: 'navigation',
 							order: index + 1,
-							when: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen),
+							when: combinedWhen,
 						}
 					});
 				}

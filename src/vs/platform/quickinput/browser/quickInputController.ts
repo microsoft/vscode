@@ -9,9 +9,10 @@ import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { isModifierKey } from '../../../base/common/keyCodes.js';
@@ -37,25 +38,41 @@ import { TriStateCheckbox, createToggleActionViewItemProvider } from '../../../b
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
-import { AnchorAlignment, AnchorPosition, layout2d } from '../../../base/common/layout.js';
+import { AnchorAlignment, AnchorPosition, IRect, layout2d } from '../../../base/common/layout.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 
 const $ = dom.$;
 
 const VIEWSTATE_STORAGE_KEY = 'workbench.quickInput.viewState';
+const QUICK_INPUT_MOTION_CLOSING_CLASS = 'quick-input-widget-closing';
+const QUICK_INPUT_OVERLAY_CLASS = 'quick-input-widget-overlay';
+const QUICK_INPUT_CLOSE_ANIMATION_DURATION = 150;
+const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'];
 
 type QuickInputViewState = {
 	readonly top?: number;
 	readonly left?: number;
 };
 
-export class QuickInputController extends Disposable {
-	private static readonly MAX_WIDTH = 600; // Max total width of quick input widget
+type QuickInputOverlayLayoutCorrection = {
+	readonly anchor: IRect;
+	readonly left: number;
+	readonly right: number;
+	readonly top: number;
+	readonly bottom: number;
+	readonly width: number;
+};
 
+export function getQuickInputWidth(availableWidth: number): number {
+	return Math.min(availableWidth * 0.62, 600);
+}
+
+export class QuickInputController extends Disposable {
 	private idPrefix: string;
 	private ui: QuickInputUI | undefined;
 	private dimension?: dom.IDimension;
 	private titleBarOffset?: number;
+	private overlayLayoutCorrection: QuickInputOverlayLayoutCorrection | undefined;
 	private enabled = true;
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
@@ -80,6 +97,7 @@ export class QuickInputController extends Disposable {
 
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
+	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
 	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
@@ -682,6 +700,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	private show(controller: IQuickInput) {
+		this.completeCloseAnimation();
 		const ui = this.getUI(true);
 		const oldController = this.controller;
 		this.controller = controller;
@@ -727,10 +746,13 @@ export class QuickInputController extends Disposable {
 		ui.ignoreFocusOut = false;
 		ui.inputBox.toggles = undefined;
 		ui.inputBox.actions = undefined;
+		ui.inputBox.setHeight(undefined);
 
 		const backKeybindingLabel = this.options.backKeybindingLabel();
 		backButton.tooltip = backKeybindingLabel ? localize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingLabel) : localize('quickInput.back', "Back");
 
+		this.overlayLayoutCorrection = undefined;
+		ui.container.classList.toggle(QUICK_INPUT_OVERLAY_CLASS, controller.anchorPosition === 'overlay');
 		ui.container.style.display = '';
 		this.updateLayout();
 		this.dndController?.setEnabled(!controller.anchor);
@@ -749,7 +771,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	isVisible(): boolean {
-		return !!this.ui && this.ui.container.style.display !== 'none';
+		return !!this.controller;
 	}
 
 	private setVisibilities(visibilities: Visibilities) {
@@ -770,6 +792,7 @@ export class QuickInputController extends Disposable {
 		ui.tree.displayed = !!visibilities.tree;
 		ui.container.classList.toggle('show-checkboxes', !!visibilities.checkBox);
 		ui.container.classList.toggle('hidden-input', !visibilities.inputBox && !visibilities.description);
+		this.overlayLayoutCorrection = undefined;
 		this.updateLayout(); // TODO
 	}
 
@@ -812,7 +835,13 @@ export class QuickInputController extends Disposable {
 		this.controller = null;
 		this.onHideEmitter.fire();
 		if (container) {
-			container.style.display = 'none';
+			if (!container.classList.contains(QUICK_INPUT_OVERLAY_CLASS) && dom.hasParentWithClass(container, QUICK_INPUT_MOTION_ANCESTOR_CLASSES)) {
+				container.inert = true;
+				container.classList.add(QUICK_INPUT_MOTION_CLOSING_CLASS);
+				this.closeAnimation.value = disposableTimeout(() => this.completeCloseAnimation(), QUICK_INPUT_CLOSE_ANIMATION_DURATION);
+			} else {
+				container.style.display = 'none';
+			}
 		}
 		if (!focusChanged) {
 			let currentElement = this.previousFocusElement;
@@ -827,6 +856,25 @@ export class QuickInputController extends Disposable {
 			}
 		}
 		controller.didHide(reason);
+	}
+
+	private completeCloseAnimation(): void {
+		if (!this.closeAnimation.value) {
+			return;
+		}
+
+		this.closeAnimation.clear();
+		const container = this.ui?.container;
+		if (container) {
+			container.inert = false;
+			container.classList.remove(QUICK_INPUT_MOTION_CLOSING_CLASS);
+			container.style.display = 'none';
+		}
+	}
+
+	override dispose(): void {
+		this.completeCloseAnimation();
+		super.dispose();
 	}
 
 	focus() {
@@ -889,16 +937,18 @@ export class QuickInputController extends Disposable {
 	layout(dimension: dom.IDimension, titleBarOffset: number): void {
 		this.dimension = dimension;
 		this.titleBarOffset = titleBarOffset;
+		this.overlayLayoutCorrection = undefined;
 		this.updateLayout();
 	}
 
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
-			let width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
+			let width = getQuickInputWidth(this.dimension!.width);
 			style.width = width + 'px';
 
 			let listHeight = this.dimension && this.dimension.height * 0.4;
+			let overlayAnchor: IRect | undefined;
 
 			// Position
 			if (this.controller?.anchor) {
@@ -914,14 +964,11 @@ export class QuickInputController extends Disposable {
 				let maxListHeight = 200;
 
 				if (this.controller.anchorPosition === 'overlay') {
-					width = anchor.width + 12;
+					overlayAnchor = anchor;
+					this.ui.inputBox.setHeight(anchor.height);
+					width = anchor.width;
 					listHeightRatio = 0.4;
-					anchor = {
-						top: anchor.top - 7,
-						left: anchor.left - 7,
-						width: anchor.width,
-						height: 0
-					};
+					anchor = { ...anchor, height: 0 };
 					maxListHeight = Math.min(400, container.bottom - anchor.top - verticalPadding);
 					preferredAnchorPosition = AnchorPosition.BELOW;
 				} else {
@@ -961,9 +1008,41 @@ export class QuickInputController extends Disposable {
 				style.height = '';
 			}
 
+			if (overlayAnchor) {
+				this.alignOverlayInput(overlayAnchor);
+			}
 			this.ui.inputBox.layout();
 			this.ui.list.layout(listHeight);
 			this.ui.tree.layout(listHeight);
+		}
+	}
+
+	private alignOverlayInput(anchor: IRect): void {
+		const style = this.ui!.container.style;
+		let correction = this.overlayLayoutCorrection;
+		if (!correction || correction.anchor.left !== anchor.left || correction.anchor.top !== anchor.top || correction.anchor.width !== anchor.width || correction.anchor.height !== anchor.height) {
+			this.ui!.inputBox.layout();
+			const input = this.ui!.filterContainer.getBoundingClientRect();
+			correction = this.overlayLayoutCorrection = {
+				anchor,
+				left: anchor.left - input.left,
+				right: input.right - (anchor.left + anchor.width),
+				top: anchor.top - input.top,
+				bottom: input.bottom - (anchor.top + anchor.height),
+				width: anchor.width - input.width,
+			};
+		}
+
+		style.width = `${parseFloat(style.width) + correction.width}px`;
+		if (style.left !== 'initial') {
+			style.left = `${parseFloat(style.left) + correction.left}px`;
+		} else {
+			style.right = `${parseFloat(style.right) + correction.right}px`;
+		}
+		if (style.top !== 'initial') {
+			style.top = `${parseFloat(style.top) + correction.top}px`;
+		} else {
+			style.bottom = `${parseFloat(style.bottom) + correction.bottom}px`;
 		}
 	}
 

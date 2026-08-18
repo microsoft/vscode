@@ -42,6 +42,14 @@ interface IItem<T> {
 	stale: boolean;
 }
 
+interface IDynamicHeightMeasurement<T> {
+	readonly item: IItem<T>;
+	readonly index: number;
+	readonly previousSize: number;
+	readonly row: IRow;
+	rendered: boolean;
+}
+
 const StaticDND = {
 	CurrentDragAndDropData: undefined as IDragAndDropData | undefined
 };
@@ -359,9 +367,7 @@ export class ListView<T> implements IListView<T> {
 		this.domNode.classList.toggle('horizontal-scrolling', this._horizontalScrolling);
 
 		if (this._horizontalScrolling) {
-			for (const item of this.items) {
-				this.measureItemWidth(item);
-			}
+			this.measureItemWidths(this.items);
 
 			this.updateScrollWidth();
 			this.scrollableElement.setScrollDimensions({ width: getContentWidth(this.domNode) });
@@ -702,7 +708,9 @@ export class ListView<T> implements IListView<T> {
 		const updateRange = Range.intersect(renderRange, renderedRestRange);
 
 		for (let i = updateRange.start; i < updateRange.end; i++) {
-			this.updateItemInDOM(this.items[i], i);
+			if (this.items[i].row) {
+				this.updateItemInDOM(this.items[i], i);
+			}
 		}
 
 		const removeRanges = Range.relativeComplement(renderedRestRange, renderRange);
@@ -716,6 +724,7 @@ export class ListView<T> implements IListView<T> {
 		const unrenderedRestRanges = previousUnrenderedRestRanges.map(r => shift(r, delta));
 		const elementsRange = { start, end: start + elements.length };
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r)).reverse();
+		const insertedItems: IItem<T>[] = [];
 
 		for (const range of insertRanges) {
 			for (let i = range.end - 1; i >= range.start; i--) {
@@ -723,6 +732,7 @@ export class ListView<T> implements IListView<T> {
 				const rows = rowsToDispose.get(item.templateId);
 				const row = rows?.pop();
 				this.insertItemInDOM(i, row);
+				insertedItems.push(item);
 			}
 		}
 
@@ -730,6 +740,11 @@ export class ListView<T> implements IListView<T> {
 			for (const row of rows) {
 				this.cache.release(row);
 			}
+		}
+
+		if (this.horizontalScrolling && insertedItems.length > 0) {
+			this.measureItemWidths(insertedItems);
+			this.eventuallyUpdateScrollWidth();
 		}
 
 		this.eventuallyUpdateScrollDimensions();
@@ -787,7 +802,7 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const item = this.items[index];
-		this.measureItemWidth(item);
+		this.measureItemWidths([item]);
 
 		if (typeof item.width !== 'undefined' && item.width > this.scrollWidth) {
 			this.scrollWidth = item.width;
@@ -919,6 +934,8 @@ export class ListView<T> implements IListView<T> {
 			}
 		}
 
+		const insertedItems: IItem<T>[] = [];
+
 		this.cache.transact(() => {
 			for (const range of rangesToRemove) {
 				for (let i = range.start; i < range.end; i++) {
@@ -929,9 +946,15 @@ export class ListView<T> implements IListView<T> {
 			for (const range of rangesToInsert) {
 				for (let i = range.end - 1; i >= range.start; i--) {
 					this.insertItemInDOM(i);
+					insertedItems.push(this.items[i]);
 				}
 			}
 		});
+
+		if (this.horizontalScrolling && insertedItems.length > 0) {
+			this.measureItemWidths(insertedItems);
+			this.eventuallyUpdateScrollWidth();
+		}
 
 		if (renderLeft !== undefined) {
 			this.rowsContainer.style.left = `-${renderLeft}px`;
@@ -951,7 +974,7 @@ export class ListView<T> implements IListView<T> {
 
 	// DOM operations
 
-	private insertItemInDOM(index: number, row?: IRow): void {
+	private insertItemInDOM(index: number, row?: IRow, alreadyRendered = false): void {
 		const item = this.items[index];
 
 		if (!item.row) {
@@ -995,7 +1018,9 @@ export class ListView<T> implements IListView<T> {
 			throw new Error(`No renderer found for template id ${item.templateId}`);
 		}
 
-		renderer?.renderElement(item.element, index, item.row.templateData, { height: item.size });
+		if (!alreadyRendered) {
+			renderer.renderElement(item.element, index, item.row.templateData, { height: item.size });
+		}
 
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();
@@ -1005,30 +1030,37 @@ export class ListView<T> implements IListView<T> {
 			item.dragStartDisposable = addDisposableListener(item.row.domNode, 'dragstart', event => this.onDragStart(item.element, uri, event));
 		}
 
-		if (this.horizontalScrolling) {
-			this.measureItemWidth(item);
-			this.eventuallyUpdateScrollWidth();
-		}
 	}
 
-	private measureItemWidth(item: IItem<T>): void {
-		if (!item.row || !item.row.domNode) {
-			return;
+	private measureItemWidths(items: readonly IItem<T>[]): void {
+		const itemsWithRows: { item: IItem<T>; domNode: HTMLElement }[] = [];
+
+		for (const item of items) {
+			if (item.row) {
+				itemsWithRows.push({ item, domNode: item.row.domNode });
+			}
 		}
 
-		item.row.domNode.style.width = 'fit-content';
-		item.width = getContentWidth(item.row.domNode);
-		const style = getWindow(item.row.domNode).getComputedStyle(item.row.domNode);
-
-		if (style.paddingLeft) {
-			item.width += parseFloat(style.paddingLeft);
+		for (const { domNode } of itemsWithRows) {
+			domNode.style.width = 'fit-content';
 		}
 
-		if (style.paddingRight) {
-			item.width += parseFloat(style.paddingRight);
+		for (const { item, domNode } of itemsWithRows) {
+			item.width = getContentWidth(domNode);
+			const style = getWindow(domNode).getComputedStyle(domNode);
+
+			if (style.paddingLeft) {
+				item.width += parseFloat(style.paddingLeft);
+			}
+
+			if (style.paddingRight) {
+				item.width += parseFloat(style.paddingRight);
+			}
 		}
 
-		item.row.domNode.style.width = '';
+		for (const { domNode } of itemsWithRows) {
+			domNode.style.width = '';
+		}
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
@@ -1539,82 +1571,128 @@ export class ListView<T> implements IListView<T> {
 	 * to be probed for dynamic height. Adjusts scroll height and top if necessary.
 	 */
 	protected _rerender(renderTop: number, renderHeight: number, inSmoothScrolling?: boolean): void {
-		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
+		let previousRenderRange = this.getRenderRange(renderTop, renderHeight);
+		const retainedMeasurements = new Map<number, IDynamicHeightMeasurement<T>>();
 
 		// Let's remember the second element's position, this helps in scrolling up
 		// and preserving a linear upwards scroll movement
 		let anchorElementIndex: number | undefined;
 		let anchorElementTopDelta: number | undefined;
 
-		if (renderTop === this.elementTop(previousRenderRange.start)) {
-			anchorElementIndex = previousRenderRange.start;
-			anchorElementTopDelta = 0;
-		} else if (previousRenderRange.end - previousRenderRange.start > 1) {
-			anchorElementIndex = previousRenderRange.start + 1;
-			anchorElementTopDelta = this.elementTop(anchorElementIndex) - renderTop;
-		}
+		const updateAnchorElement = () => {
+			anchorElementIndex = undefined;
+			anchorElementTopDelta = undefined;
+
+			if (renderTop === this.elementTop(previousRenderRange.start)) {
+				anchorElementIndex = previousRenderRange.start;
+				anchorElementTopDelta = 0;
+			} else if (previousRenderRange.end - previousRenderRange.start > 1) {
+				anchorElementIndex = previousRenderRange.start + 1;
+				anchorElementTopDelta = this.elementTop(anchorElementIndex) - renderTop;
+			}
+		};
+
+		updateAnchorElement();
 
 		let heightDiff = 0;
 
-		while (true) {
-			const renderRange = this.getRenderRange(renderTop, renderHeight);
+		try {
+			while (true) {
+				const renderRange = this.getRenderRange(renderTop, renderHeight);
 
-			let didChange = false;
+				let didChange = false;
 
-			for (let i = renderRange.start; i < renderRange.end; i++) {
-				const diff = this.probeDynamicHeight(i);
-
-				if (diff !== 0) {
-					this.rangeMap.splice(i, 1, [this.items[i]]);
-				}
-
-				heightDiff += diff;
-				didChange = didChange || diff !== 0;
-			}
-
-			if (!didChange) {
-				if (heightDiff !== 0) {
-					this.eventuallyUpdateScrollDimensions();
-				}
-
-				const unrenderRanges = Range.relativeComplement(previousRenderRange, renderRange);
-
-				for (const range of unrenderRanges) {
-					for (let i = range.start; i < range.end; i++) {
-						if (this.items[i].row) {
-							this.removeItemFromDOM(i);
+				const probedItems = this.items.slice(renderRange.start, renderRange.end);
+				const dynamicHeightDiffs = this.probeDynamicHeights(renderRange, retainedMeasurements);
+				const modelDidChange = this.items.length < renderRange.end
+					|| probedItems.some((item, index) => item !== this.items[renderRange.start + index]);
+				if (modelDidChange) {
+					for (let index = 0; index < probedItems.length; index++) {
+						const diff = dynamicHeightDiffs[index];
+						const currentIndex = this.items.indexOf(probedItems[index]);
+						if (diff !== 0 && currentIndex !== -1) {
+							this.rangeMap.splice(currentIndex, 1, [probedItems[index]]);
+							heightDiff += diff;
 						}
 					}
-				}
 
-				const renderRanges = Range.relativeComplement(renderRange, previousRenderRange).reverse();
-
-				for (const range of renderRanges) {
-					for (let i = range.end - 1; i >= range.start; i--) {
-						this.insertItemInDOM(i);
-					}
+					this.disposeDynamicHeightMeasurements(retainedMeasurements);
+					previousRenderRange = this.getRenderRange(renderTop, renderHeight);
+					updateAnchorElement();
+					continue;
 				}
 
 				for (let i = renderRange.start; i < renderRange.end; i++) {
-					if (this.items[i].row) {
-						this.updateItemInDOM(this.items[i], i);
+					const diff = dynamicHeightDiffs[i - renderRange.start];
+
+					if (diff !== 0) {
+						this.rangeMap.splice(i, 1, [this.items[i]]);
 					}
+
+					heightDiff += diff;
+					didChange = didChange || diff !== 0;
 				}
 
-				if (typeof anchorElementIndex === 'number') {
-					// To compute a destination scroll top, we need to take into account the current smooth scrolling
-					// animation, and then reuse it with a new target (to avoid prolonging the scroll)
-					// See https://github.com/microsoft/vscode/issues/104144
-					// See https://github.com/microsoft/vscode/pull/104284
-					// See https://github.com/microsoft/vscode/issues/107704
-					const deltaScrollTop = this.scrollable.getFutureScrollPosition().scrollTop - renderTop;
-					const newScrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta! + deltaScrollTop;
-					this.setScrollTop(newScrollTop, inSmoothScrolling);
-				}
+				if (!didChange) {
+					if (heightDiff !== 0) {
+						this.eventuallyUpdateScrollDimensions();
+					}
 
-				this._onDidChangeContentHeight.fire(this.contentHeight);
-				return;
+					const unrenderRanges = Range.relativeComplement(previousRenderRange, renderRange);
+
+					for (const range of unrenderRanges) {
+						for (let i = range.start; i < range.end; i++) {
+							if (this.items[i].row) {
+								this.removeItemFromDOM(i);
+							}
+						}
+					}
+
+					const insertedItems: IItem<T>[] = [];
+
+					for (let i = renderRange.end - 1; i >= renderRange.start; i--) {
+						const item = this.items[i];
+						if (!item.row) {
+							const measurement = retainedMeasurements.get(i);
+							const canPromoteMeasurement = measurement?.item === item && measurement.item.templateId === item.templateId;
+							if (canPromoteMeasurement) {
+								retainedMeasurements.delete(i);
+							}
+							this.insertItemInDOM(i, canPromoteMeasurement ? measurement.row : undefined, canPromoteMeasurement);
+							insertedItems.push(item);
+						}
+					}
+
+					this.disposeDynamicHeightMeasurements(retainedMeasurements);
+
+					if (this.horizontalScrolling && insertedItems.length > 0) {
+						this.measureItemWidths(insertedItems);
+						this.eventuallyUpdateScrollWidth();
+					}
+
+					for (let i = renderRange.start; i < renderRange.end; i++) {
+						if (this.items[i].row) {
+							this.updateItemInDOM(this.items[i], i);
+						}
+					}
+
+					if (typeof anchorElementIndex === 'number') {
+						// To compute a destination scroll top, we need to take into account the current smooth scrolling
+						// animation, and then reuse it with a new target (to avoid prolonging the scroll)
+						// See https://github.com/microsoft/vscode/issues/104144
+						// See https://github.com/microsoft/vscode/pull/104284
+						// See https://github.com/microsoft/vscode/issues/107704
+						const deltaScrollTop = this.scrollable.getFutureScrollPosition().scrollTop - renderTop;
+						const newScrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta! + deltaScrollTop;
+						this.setScrollTop(newScrollTop, inSmoothScrolling);
+					}
+
+					this._onDidChangeContentHeight.fire(this.contentHeight);
+					return;
+				}
 			}
+		} finally {
+			this.disposeDynamicHeightMeasurements(retainedMeasurements);
 		}
 	}
 
@@ -1624,22 +1702,12 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private probeDynamicHeightForItem(item: IItem<T>, index: number): number {
-		if (!!this.virtualDelegate.getDynamicHeight) {
-			const newSize = this.virtualDelegate.getDynamicHeight(item.element);
-			if (newSize !== null) {
-				const size = item.size;
-				item.size = newSize;
-				item.lastDynamicHeightWidth = this.renderWidth;
-				this.publishDynamicHeight(item);
-				return newSize - size;
-			}
+		const delegateHeightDiff = this.probeDynamicHeightFromDelegate(item);
+		if (delegateHeightDiff !== undefined) {
+			return delegateHeightDiff;
 		}
 
-		if (!item.hasDynamicHeight || item.lastDynamicHeightWidth === this.renderWidth) {
-			return 0;
-		}
-
-		if (!!this.virtualDelegate.hasDynamicHeight && !this.virtualDelegate.hasDynamicHeight(item.element)) {
+		if (!this.shouldProbeDynamicHeight(item)) {
 			return 0;
 		}
 
@@ -1680,6 +1748,102 @@ export class ListView<T> implements IListView<T> {
 		this.cache.release(row);
 
 		return item.size - size;
+	}
+
+	private probeDynamicHeights(range: IRange, retainedMeasurements: Map<number, IDynamicHeightMeasurement<T>>): number[] {
+		const diffs = new Array<number>(range.end - range.start).fill(0);
+		const measurements: IDynamicHeightMeasurement<T>[] = [];
+
+		for (let index = range.start; index < range.end; index++) {
+			const item = this.items[index];
+			const delegateHeightDiff = this.probeDynamicHeightFromDelegate(item);
+			if (delegateHeightDiff !== undefined) {
+				diffs[index - range.start] = delegateHeightDiff;
+				continue;
+			}
+
+			if (!this.shouldProbeDynamicHeight(item) || retainedMeasurements.has(index)) {
+				continue;
+			}
+
+			if (item.row) {
+				item.row.domNode.style.height = '';
+				measurements.push({ item, index, previousSize: item.size, row: item.row, rendered: true });
+				continue;
+			}
+
+			const { row } = this.cache.alloc(item.templateId);
+			const measurement: IDynamicHeightMeasurement<T> = { item, index, previousSize: item.size, row, rendered: false };
+			retainedMeasurements.set(index, measurement);
+			measurements.push(measurement);
+
+			row.domNode.style.height = '';
+			this.rowsContainer.appendChild(row.domNode);
+
+			const renderer = this.renderers.get(item.templateId);
+			if (!renderer) {
+				throw new BugIndicatingError('Missing renderer for templateId: ' + item.templateId);
+			}
+
+			measurement.rendered = true;
+			renderer.renderElement(item.element, index, row.templateData, { height: item.size });
+		}
+
+		for (const measurement of measurements) {
+			measurement.item.size = measurement.row.domNode.offsetHeight;
+		}
+
+		for (const measurement of measurements) {
+			const { item, index, previousSize, row } = measurement;
+			if (item.size === 0) {
+				if (!isAncestor(row.domNode, getWindow(row.domNode).document.body)) {
+					console.warn('Measuring item node that is not in DOM! Add ListView to the DOM before measuring row height!', new Error().stack);
+				} else {
+					console.warn('Measured item node at 0px- ensure that ListView is not display:none before measuring row height!', new Error().stack);
+				}
+			}
+
+			item.lastDynamicHeightWidth = this.renderWidth;
+			this.publishDynamicHeight(item);
+			diffs[index - range.start] = item.size - previousSize;
+		}
+
+		return diffs;
+	}
+
+	private disposeDynamicHeightMeasurements(measurements: Map<number, IDynamicHeightMeasurement<T>>): void {
+		for (const [measurementIndex, { item, index, row, rendered }] of measurements) {
+			measurements.delete(measurementIndex);
+			try {
+				if (rendered) {
+					this.renderers.get(item.templateId)?.disposeElement?.(item.element, index, row.templateData, { height: item.size });
+				}
+			} finally {
+				row.domNode.remove();
+				this.cache.release(row);
+			}
+		}
+	}
+
+	private probeDynamicHeightFromDelegate(item: IItem<T>): number | undefined {
+		const newSize = this.virtualDelegate.getDynamicHeight?.(item.element);
+		if (newSize === undefined || newSize === null) {
+			return undefined;
+		}
+
+		const size = item.size;
+		item.size = newSize;
+		item.lastDynamicHeightWidth = this.renderWidth;
+		this.publishDynamicHeight(item);
+		return newSize - size;
+	}
+
+	private shouldProbeDynamicHeight(item: IItem<T>): boolean {
+		if (!item.hasDynamicHeight || item.lastDynamicHeightWidth === this.renderWidth) {
+			return false;
+		}
+
+		return !this.virtualDelegate.hasDynamicHeight || this.virtualDelegate.hasDynamicHeight(item.element);
 	}
 
 	private publishDynamicHeight(item: IItem<T>): void {

@@ -10,6 +10,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatAutoModeResolutionPart } from '../../../common/chatService/chatService.js';
+import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
@@ -45,13 +46,7 @@ export class ChatAutoModeResolutionContentPart extends ChatCollapsibleContentPar
 		const body = $('.chat-auto-mode-resolution-body');
 
 		const explanation = $('.chat-auto-mode-resolution-explanation');
-		const explanationMd = new MarkdownString(
-			localize(
-				'autoModeResolution.explanation',
-				"Auto routes based on your task and real-time system health and model performance. [{0}](https://docs.github.com/en/copilot/concepts/models/auto-model-selection)",
-				localize('autoModeResolution.learnMore', "Learn more"),
-			),
-		);
+		const explanationMd = new MarkdownString(ILanguageModelChatMetadata.getAutoModelDescription());
 		const rendered = this._register(this.chatContentMarkdownRenderer.render(explanationMd));
 		explanation.appendChild(rendered.element);
 		body.appendChild(explanation);

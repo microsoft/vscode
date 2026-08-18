@@ -1,0 +1,209 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Phone Layout: Overscroll Containment ---- */
+
+.agent-sessions-workbench.phone-layout .monaco-scrollable-element > .scrollable-element,
+.agent-sessions-workbench.phone-layout .interactive-session,
+.agent-sessions-workbench.phone-layout .monaco-list {
+	overscroll-behavior: contain;
+}
+
+/* ---- Phone Layout: Touch Targets ---- */
+
+.agent-sessions-workbench.phone-layout .action-item > .action-label {
+	min-height: 44px;
+	min-width: 44px;
+}
+
+.agent-sessions-workbench.phone-layout .quick-input-widget .action-item > .action-label,
+.agent-sessions-workbench.phone-layout .chat-input-toolbars .action-item > .action-label {
+	min-height: 0;
+	min-width: 0;
+}
+
+.agent-sessions-workbench.phone-layout .action-item,
+.agent-sessions-workbench.phone-layout button {
+	touch-action: manipulation;
+}
+
+.agent-sessions-workbench.phone-layout .action-item,
+.agent-sessions-workbench.phone-layout .monaco-toolbar,
+.agent-sessions-workbench.phone-layout .sidebar-footer {
+	-webkit-touch-callout: none;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+/* ---- Phone Layout: Quick Picks and Dialogs ---- */
+
+.agent-sessions-workbench.phone-layout .quick-input-widget {
+	left: 8px !important;
+	right: 8px !important;
+	width: auto !important;
+	max-width: none !important;
+}
+
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list,
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-tree {
+	max-height: 50vh;
+}
+
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list .monaco-list-row,
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-tree .monaco-list-row {
+	min-height: 44px;
+}
+
+.agent-sessions-workbench.phone-layout .monaco-dialog-box {
+	width: calc(100% - 32px);
+	max-width: calc(100% - 32px);
+}
+
+.agent-sessions-workbench.phone-layout .monaco-dialog-box .dialog-buttons-row .monaco-button {
+	min-height: 44px;
+	font-size: 16px;
+}
+
+/* ---- Phone Layout: Notifications and Hovers ---- */
+
+.agent-sessions-workbench.phone-layout .notifications-toasts {
+	left: 8px !important;
+	right: 8px !important;
+	bottom: auto !important;
+	top: calc(env(safe-area-inset-top) + 48px) !important;
+	width: auto !important;
+}
+
+.agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast {
+	width: 100%;
+	max-width: 100%;
+}
+
+.agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast .notification-toast-container {
+	border-radius: var(--vscode-cornerRadius-xLarge);
+}
+
+.agent-sessions-workbench.phone-layout .monaco-hover {
+	display: none;
+}
+
+.agent-sessions-workbench.phone-layout .monaco-hover.visible-on-mobile {
+	display: block;
+}
+
+/* ---- Phone Layout: Inputs and Scrolling ---- */
+
+.agent-sessions-workbench.phone-layout input,
+.agent-sessions-workbench.phone-layout textarea,
+.agent-sessions-workbench.phone-layout .monaco-inputbox input,
+.agent-sessions-workbench.phone-layout .chat-input-container textarea {
+	font-size: 16px;
+}
+
+.agent-sessions-workbench.phone-layout .interactive-session .monaco-scrollable-element {
+	-webkit-overflow-scrolling: touch;
+}
+
+/* ---- Phone Layout: Workbench Parts ---- */
+
+.agent-sessions-workbench.phone-layout > .monaco-grid-view {
+	margin: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.agent-sessions-workbench .part.sidebar.mobile-overlay-sidebar {
+	background: var(--vscode-agents-background) !important;
+}
+
+.agent-sessions-workbench.phone-layout .monaco-modal-editor-part {
+	top: 0 !important;
+	left: 0 !important;
+	right: 0 !important;
+	bottom: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+	border-radius: 0 !important;
+	margin: 0 !important;
+	animation: editor-slide-up 250ms ease-out;
+}
+
+.agent-sessions-workbench.phone-layout .monaco-modal-editor-block {
+	background: rgba(0, 0, 0, 0.7);
+}
+
+.agent-sessions-workbench.phone-layout .monaco-modal-editor-part .title {
+	padding-top: env(safe-area-inset-top);
+}
+
+.agent-sessions-workbench.phone-layout .split-view-view:has(> .part.panel) {
+	position: absolute !important;
+	bottom: 0 !important;
+	left: 0 !important;
+	right: 0 !important;
+	height: 60vh !important;
+	z-index: 200;
+	animation: panel-slide-up 250ms ease-out;
+	border-radius: 16px 16px 0 0;
+	overflow: hidden;
+}
+
+.agent-sessions-workbench.phone-layout .part.panel::before {
+	content: '';
+	display: block;
+	width: 36px;
+	height: 5px;
+	background: var(--vscode-foreground);
+	opacity: 0.3;
+	border-radius: var(--vscode-cornerRadius-small);
+	margin: 8px auto 4px;
+}
+
+.agent-sessions-workbench.phone-layout .split-view-view:has(> .part.auxiliarybar) {
+	position: absolute !important;
+	top: 0 !important;
+	right: 0 !important;
+	bottom: 0 !important;
+	width: 85vw !important;
+	max-width: 400px;
+	z-index: 200;
+	animation: auxbar-slide-in 250ms ease-out;
+}
+
+@keyframes editor-slide-up {
+	from {
+		transform: translateY(30%);
+		opacity: 0.5;
+	}
+
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+@keyframes panel-slide-up {
+	from {
+		transform: translateY(100%);
+		opacity: 0.5;
+	}
+
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+@keyframes auxbar-slide-in {
+	from {
+		transform: translateX(100%);
+		opacity: 0;
+	}
+
+	to {
+		transform: translateX(0);
+		opacity: 1;
+	}
+}

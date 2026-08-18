@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ILogService } from '../../log/common/log.js';
-import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agentService.js';
+import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
 
 interface IStoredAuthToken {
 	readonly resource: string;
@@ -22,6 +22,7 @@ export class AgentHostAuthenticationService {
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
+		const providerList = [...providers];
 		// Multiple providers may share the same protected resource (e.g.
 		// both Copilot CLI and Claude consume the GitHub Copilot token).
 		// Fan out to every matching provider in parallel; the request is
@@ -29,29 +30,76 @@ export class AgentHostAuthenticationService {
 		// failures are isolated -- one provider rejecting (e.g. proxy
 		// server bind failure) MUST NOT prevent another provider from
 		// accepting the same token.
-		const matching = [...providers].filter(
+		const matching = providerList.filter(
 			p => p.getProtectedResources().some(r => r.resource === params.resource),
 		);
 		const settled = await Promise.allSettled(
 			matching.map(p => p.authenticate(params.resource, params.token)),
 		);
 		let authenticated = false;
+		let rejected = false;
 		for (let i = 0; i < settled.length; i++) {
 			const result = settled[i];
 			if (result.status === 'fulfilled') {
 				authenticated ||= result.value;
 			} else {
+				rejected = true;
 				this._logService.error(
 					result.reason,
 					`[AgentHostAuthenticationService] Provider '${matching[i].id}' authenticate threw for resource=${params.resource}`,
 				);
 			}
 		}
-		if (authenticated) {
-			const scopes = this._normalizeScopes(params.scopes);
-			this._tokens.set(this._key(params.resource, scopes), { resource: params.resource, scopes, token: params.token });
+		const sessionResourceHandlers = providerList.filter(p => p.handleAuthenticationToken);
+		const sessionResourceSettled = await Promise.allSettled(
+			sessionResourceHandlers.map(p => p.handleAuthenticationToken ? p.handleAuthenticationToken(params) : Promise.resolve(false)),
+		);
+		for (let i = 0; i < sessionResourceSettled.length; i++) {
+			const result = sessionResourceSettled[i];
+			if (result.status === 'fulfilled') {
+				authenticated ||= result.value;
+			} else {
+				rejected = true;
+				this._logService.error(
+					result.reason,
+					`[AgentHostAuthenticationService] Provider '${sessionResourceHandlers[i].id}' handleAuthenticationToken threw for resource=${params.resource}`,
+				);
+			}
+		}
+		const scopes = this._normalizeScopes(params.scopes);
+		const key = this._key(params.resource, scopes);
+		if (!authenticated && !rejected) {
+			authenticated = this._tokens.get(key)?.token === params.token;
+		}
+		if (!params.token) {
+			// Revocation must never remain replayable, even when a provider rejects
+			// while clearing its own live state.
+			this._tokens.delete(key);
+		} else if (authenticated) {
+			this._tokens.set(key, { resource: params.resource, scopes, token: params.token });
 		}
 		return { authenticated };
+	}
+
+	async replay(provider: IAgent): Promise<void> {
+		const protectedResources = new Set(provider.getProtectedResources().map(resource => resource.resource));
+		for (const stored of this._tokens.values()) {
+			const params: AuthenticateParams = { resource: stored.resource, scopes: stored.scopes, token: stored.token };
+			if (protectedResources.has(stored.resource)) {
+				try {
+					await provider.authenticate(stored.resource, stored.token);
+				} catch (error) {
+					this._logService.error(error, `[AgentHostAuthenticationService] Provider '${provider.id}' rejected replayed authentication for resource=${stored.resource}`);
+				}
+			}
+			if (provider.handleAuthenticationToken) {
+				try {
+					await provider.handleAuthenticationToken(params);
+				} catch (error) {
+					this._logService.error(error, `[AgentHostAuthenticationService] Provider '${provider.id}' rejected replayed session authentication for resource=${stored.resource}`);
+				}
+			}
+		}
 	}
 
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {

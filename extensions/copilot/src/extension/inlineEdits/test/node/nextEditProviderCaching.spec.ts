@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { outdent } from 'outdent';
-import { afterAll, assert, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, assert, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import { NullGitExtensionService } from '../../../../platform/git/common/nullGitExtensionService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
+import { ModelConfiguration, PromptingStrategy, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { ObservableGit } from '../../../../platform/inlineEdits/common/observableGit';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
@@ -28,6 +30,7 @@ import { Result } from '../../../../util/common/result';
 import { DeferredPromise, timeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { Event } from '../../../../util/vs/base/common/event';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { LineEdit, LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -35,7 +38,28 @@ import { StringEdit } from '../../../../util/vs/editor/common/core/edits/stringE
 import { LineRange } from '../../../../util/vs/editor/common/core/ranges/lineRange';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { NESInlineCompletionContext, NextEditProvider } from '../../node/nextEditProvider';
-import { NextEditProviderTelemetryBuilder } from '../../node/nextEditProviderTelemetry';
+import { ILlmNESTelemetry, NextEditProviderTelemetryBuilder } from '../../node/nextEditProviderTelemetry';
+
+const testModelName = 'test-patch-model';
+const testModelConfig = JSON.stringify({ promptingStrategy: 'patchBased02' });
+
+function createModelService(rejectedEditMemoryEnabled = false, promptingStrategy = PromptingStrategy.PatchBased02): IInlineEditsModelService {
+	const modelConfiguration: ModelConfiguration = {
+		modelName: testModelName,
+		promptingStrategy,
+		includeTagsInCurrentFile: false,
+		memory: { rejectedEdits: rejectedEditMemoryEnabled ? RejectedEditsMemoryMode.DiffWithTags : undefined },
+		lintOptions: undefined,
+	};
+	return {
+		_serviceBrand: undefined,
+		modelInfo: undefined,
+		onModelListUpdated: Event.None,
+		setCurrentModelId: async _modelId => { },
+		selectedModelConfiguration: () => modelConfiguration,
+		defaultModelConfiguration: () => modelConfiguration,
+	};
+}
 
 describe('NextEditProvider Caching', () => {
 
@@ -63,8 +87,10 @@ describe('NextEditProvider Caching', () => {
 	function createStatelessNextEditProvider(patchIndices?: readonly (number | undefined)[]): IStatelessNextEditProvider {
 		return {
 			ID: 'TestNextEditProvider',
-			provideNextEdit: async function*(request: StatelessNextEditRequest, logger: ILogger, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken) {
-				const telemetryBuilder = new StatelessNextEditTelemetryBuilder(request.headerRequestId);
+			provideNextEdit: async function* (request: StatelessNextEditRequest, logger: ILogger, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken) {
+				const telemetryBuilder = new StatelessNextEditTelemetryBuilder(request.headerRequestId)
+					.setModelName(testModelName)
+					.setModelConfig(testModelConfig);
 				const lineEdit = LineEdit.createFromUnsorted(
 					[
 						new LineReplacement(
@@ -102,7 +128,7 @@ describe('NextEditProvider Caching', () => {
 		const obsGit = new ObservableGit(gitExtensionService);
 		const statelessNextEditProvider = createStatelessNextEditProvider();
 
-		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, configService, snippyService, logService, expService, requestLogger);
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, createModelService(), configService, snippyService, logService, expService, requestLogger);
 
 		const doc = obsWorkspace.addDocument({
 			id: DocumentId.create(URI.file('/test/test.ts').toString()),
@@ -207,7 +233,7 @@ describe('NextEditProvider Caching', () => {
 		const obsGit = new ObservableGit(gitExtensionService);
 		const statelessNextEditProvider = createStatelessNextEditProvider();
 
-		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, configService, snippyService, logService, expService, requestLogger);
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, createModelService(), configService, snippyService, logService, expService, requestLogger);
 
 		// Use \r\n line endings to simulate a Windows document
 		const initialValue = [
@@ -287,7 +313,7 @@ describe('NextEditProvider Caching', () => {
 		const obsGit = new ObservableGit(gitExtensionService);
 		const statelessNextEditProvider = createStatelessNextEditProvider();
 
-		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, configService, snippyService, logService, expService, requestLogger);
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, createModelService(), configService, snippyService, logService, expService, requestLogger);
 
 		const doc = obsWorkspace.addDocument({
 			id: DocumentId.create(URI.file('/test/test.ts').toString()),
@@ -345,7 +371,7 @@ describe('NextEditProvider Caching', () => {
 		// then the variable declaration (patch 1).
 		const statelessNextEditProvider = createStatelessNextEditProvider([0, 0, 1]);
 
-		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, configService, snippyService, logService, expService, requestLogger);
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, createModelService(), configService, snippyService, logService, expService, requestLogger);
 
 		const doc = obsWorkspace.addDocument({
 			id: DocumentId.create(URI.file('/test/test.ts').toString()),
@@ -369,19 +395,105 @@ describe('NextEditProvider Caching', () => {
 		const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
 		const cancellationToken = CancellationToken.None;
 
-		const servedPatchIndices: (number | undefined)[] = [];
+		const servedTelemetry: Pick<ILlmNESTelemetry, 'sourcePatchIndex' | 'isFromCache' | 'modelName' | 'modelConfig' | 'hadStatelessNextEditProviderCall'>[] = [];
 		for (let i = 0; i < 3; i++) {
 			const tb = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
 			const result = await nextEditProvider.getNextEdit(doc.id, context, logContext, cancellationToken, tb.nesBuilder);
 			assert(result.result?.edit, `expected an edit on call ${i + 1}`);
-			servedPatchIndices.push(tb.nesBuilder.build(false).sourcePatchIndex);
+			const telemetry = tb.nesBuilder.build(false);
+			servedTelemetry.push({
+				sourcePatchIndex: telemetry.sourcePatchIndex,
+				isFromCache: telemetry.isFromCache,
+				modelName: telemetry.modelName,
+				modelConfig: telemetry.modelConfig,
+				hadStatelessNextEditProviderCall: telemetry.hadStatelessNextEditProviderCall,
+			});
 			tb.dispose();
 			doc.applyEdit(result.result.edit.toEdit());
 		}
 
 		// The first (fresh) edit must be attributed too, not just the cached ones;
 		// the split pair shares patch 0 while the final edit comes from patch 1.
-		expect(servedPatchIndices).toEqual([0, 0, 1]);
+		expect(servedTelemetry).toEqual([
+			{
+				sourcePatchIndex: 0,
+				isFromCache: false,
+				modelName: testModelName,
+				modelConfig: testModelConfig,
+				hadStatelessNextEditProviderCall: true,
+			},
+			{
+				sourcePatchIndex: 0,
+				isFromCache: true,
+				modelName: testModelName,
+				modelConfig: testModelConfig,
+				hadStatelessNextEditProviderCall: undefined,
+			},
+			{
+				sourcePatchIndex: 1,
+				isFromCache: true,
+				modelName: testModelName,
+				modelConfig: testModelConfig,
+				hadStatelessNextEditProviderCall: undefined,
+			},
+		]);
+	});
+
+	it('preserves model attribution for a cached no-edit result', async () => {
+		const obsWorkspace = new MutableObservableWorkspace();
+		const obsGit = new ObservableGit(gitExtensionService);
+		let providerCallCount = 0;
+		const statelessNextEditProvider: IStatelessNextEditProvider = {
+			ID: 'TestNoEditProvider',
+			provideNextEdit: async function* (request: StatelessNextEditRequest) {
+				providerCallCount++;
+				const telemetryBuilder = new StatelessNextEditTelemetryBuilder(request.headerRequestId)
+					.setModelName(testModelName)
+					.setModelConfig(testModelConfig);
+				const noSuggestions = new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, undefined);
+				return new WithStatelessProviderTelemetry(noSuggestions, telemetryBuilder.build(Result.error(noSuggestions)));
+			}
+		};
+		const nextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, createModelService(), configService, snippyService, logService, expService, requestLogger);
+		const doc = obsWorkspace.addDocument({
+			id: DocumentId.create(URI.file('/test/no-edit.ts').toString()),
+			initialValue: 'const value = 1;',
+		});
+		doc.setSelection([new OffsetRange(0, 0)], undefined);
+		doc.applyEdit(StringEdit.insert(15, '\n'));
+
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now(), enforceCacheDelay: false };
+		const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
+
+		const firstBuilder = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
+		const first = await nextEditProvider.getNextEdit(doc.id, context, logContext, CancellationToken.None, firstBuilder.nesBuilder);
+		firstBuilder.dispose();
+
+		const cachedBuilder = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
+		const cached = await nextEditProvider.getNextEdit(doc.id, context, logContext, CancellationToken.None, cachedBuilder.nesBuilder);
+		const cachedTelemetry = cachedBuilder.nesBuilder.build(false);
+		cachedBuilder.dispose();
+
+		expect({
+			firstResult: first.result,
+			cachedResult: cached.result,
+			providerCallCount,
+			isFromCache: cachedTelemetry.isFromCache,
+			modelName: cachedTelemetry.modelName,
+			modelConfig: cachedTelemetry.modelConfig,
+			hadStatelessNextEditProviderCall: cachedTelemetry.hadStatelessNextEditProviderCall,
+		}).toEqual({
+			firstResult: undefined,
+			cachedResult: undefined,
+			providerCallCount: 1,
+			isFromCache: true,
+			modelName: testModelName,
+			modelConfig: testModelConfig,
+			hadStatelessNextEditProviderCall: undefined,
+		});
+
+		nextEditProvider.dispose();
+		doc.dispose();
 	});
 
 	/**
@@ -414,8 +526,10 @@ describe('NextEditProvider Caching', () => {
 		const firstStreamEnded = new DeferredPromise<void>();
 		const provider: IStatelessNextEditProvider = {
 			ID: 'TestCrossFileNextEditProvider',
-			provideNextEdit: async function*(request: StatelessNextEditRequest, logger: ILogger, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken) {
-				const telemetryBuilder = new StatelessNextEditTelemetryBuilder(request.headerRequestId);
+			provideNextEdit: async function* (request: StatelessNextEditRequest, logger: ILogger, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken) {
+				const telemetryBuilder = new StatelessNextEditTelemetryBuilder(request.headerRequestId)
+					.setModelName(testModelName)
+					.setModelConfig(testModelConfig);
 				callCount++;
 				const isFirstCall = callCount === 1;
 				try {
@@ -434,7 +548,7 @@ describe('NextEditProvider Caching', () => {
 		return { provider, getCallCount: () => callCount, whenFirstStreamEnded: firstStreamEnded.p };
 	}
 
-	async function runCrossFileScenario(options?: { activeDocWindow?: OffsetRange; disposeTargetBeforeSecondRequest?: boolean; mutateTargetBeforeSecondRequest?: boolean; disableEditorChangeTrigger?: boolean }) {
+	async function runCrossFileScenario(options?: { activeDocWindow?: OffsetRange; disposeTargetBeforeSecondRequest?: boolean; mutateTargetBeforeSecondRequest?: boolean; disableEditorChangeTrigger?: boolean; rejectedEditMemoryEnabled?: boolean; promptingStrategy?: PromptingStrategy; rejectFirstSuggestion?: boolean }) {
 		const obsWorkspace = new MutableObservableWorkspace();
 		const obsGit = new ObservableGit(gitExtensionService);
 
@@ -450,7 +564,8 @@ describe('NextEditProvider Caching', () => {
 		const targetEdit = new LineReplacement(new LineRange(2, 3), ['\treturn 42;']);
 		const { provider: statelessNextEditProvider, getCallCount, whenFirstStreamEnded } = createCrossFileStatelessProvider(docBId, targetEdit, options?.activeDocWindow);
 
-		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, scenarioConfigService, expService), undefined, scenarioConfigService, snippyService, logService, expService, requestLogger);
+		const historyTracker = new NesXtabHistoryTracker(obsWorkspace, undefined, scenarioConfigService, expService);
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), historyTracker, undefined, createModelService(options?.rejectedEditMemoryEnabled, options?.promptingStrategy), scenarioConfigService, snippyService, logService, expService, requestLogger);
 
 		const docB = obsWorkspace.addDocument({ id: docBId, initialValue: ['export function helper() {', '\treturn 1;', '}'].join('\n') });
 		const docA = obsWorkspace.addDocument({ id: docAId, initialValue: ['class Point {', '\tconstructor(', '\t\tprivate readonly x: number,', '\t) { }', '}'].join('\n') });
@@ -483,6 +598,15 @@ describe('NextEditProvider Caching', () => {
 		await whenFirstStreamEnded;
 		await timeout(0);
 
+		if (options?.rejectFirstSuggestion) {
+			vi.useFakeTimers();
+			nextEditProvider.handleShown(first);
+			vi.advanceTimersByTime(1001);
+			nextEditProvider.handleRejection(docA.id, first);
+			vi.useRealTimers();
+		}
+		const rejectedEditHistory = historyTracker.getRejectedEditHistory();
+
 		// Optionally close the target document B before re-requesting, so the cached cross-file
 		// entry can no longer be resolved against live content.
 		if (options?.disposeTargetBeforeSecondRequest) {
@@ -498,6 +622,7 @@ describe('NextEditProvider Caching', () => {
 		// so any served suggestion must come from the cache.
 		const tb2 = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, docA);
 		const second = await nextEditProvider.getNextEdit(docA.id, context, logContext, cancellationToken, tb2.nesBuilder);
+		const secondTelemetry = tb2.nesBuilder.build(false);
 		tb2.dispose();
 
 		// Tear down the provider (which registers autoruns/watchers on `openDocuments` in its
@@ -509,11 +634,11 @@ describe('NextEditProvider Caching', () => {
 		docA.dispose();
 		docB.dispose();
 
-		return { first, second, docBId, getCallCount };
+		return { first, second, secondTelemetry, docBId, getCallCount, rejectedEditHistory };
 	}
 
 	it('re-serves a cross-file suggestion from cache while the cursor stays in the active document (surviving the no-suggestions stream end)', async () => {
-		const { first, second, docBId, getCallCount } = await runCrossFileScenario();
+		const { first, second, secondTelemetry, docBId, getCallCount } = await runCrossFileScenario();
 
 		// Fresh: the provider produced a suggestion that targets the other document.
 		assert(first.result?.edit, 'expected a cross-file edit on the first request');
@@ -527,6 +652,35 @@ describe('NextEditProvider Caching', () => {
 		expect(second.result.targetDocumentId).toBe(docBId);
 		expect(second.result.edit).toBe(first.result.edit);
 		expect(getCallCount()).toBe(1);
+		expect({
+			isFromCache: secondTelemetry.isFromCache,
+			modelName: secondTelemetry.modelName,
+			modelConfig: secondTelemetry.modelConfig,
+			hadStatelessNextEditProviderCall: secondTelemetry.hadStatelessNextEditProviderCall,
+		}).toEqual({
+			isFromCache: true,
+			modelName: testModelName,
+			modelConfig: testModelConfig,
+			hadStatelessNextEditProviderCall: undefined,
+		});
+
+	});
+
+	it('records a cross-file rejection based on memory capability, not prompting strategy', async () => {
+		const enabled = await runCrossFileScenario({ rejectedEditMemoryEnabled: true, promptingStrategy: PromptingStrategy.Xtab275, rejectFirstSuggestion: true });
+		const disabled = await runCrossFileScenario({ rejectedEditMemoryEnabled: false, promptingStrategy: PromptingStrategy.Xtab275, rejectFirstSuggestion: true });
+
+		expect({
+			enabled: enabled.rejectedEditHistory,
+			disabled: disabled.rejectedEditHistory,
+		}).toMatchObject({
+			enabled: [{
+				kind: 'rejectedEdit',
+				docId: enabled.docBId,
+				hunks: [{ oldLines: ['\treturn 1;'], newLines: ['\treturn 42;'] }],
+			}],
+			disabled: [],
+		});
 	});
 
 	it('re-serves a cross-file suggestion from cache when the cursor is within the cached edit window', async () => {

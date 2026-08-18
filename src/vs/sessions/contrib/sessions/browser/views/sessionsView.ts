@@ -7,6 +7,7 @@ import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -23,6 +24,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
@@ -93,7 +95,7 @@ export class SessionsView extends ViewPane {
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
 	private currentBodyHeight = 0;
 	private currentBodyWidth = 0;
-	private didInitializeCustomizationsPaneSize = false;
+	private didInitializePaneSizes = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -272,18 +274,6 @@ export class SessionsView extends ViewPane {
 			}
 		}));
 
-		// When the active session changes, select it in the list
-		this._register(autorun(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			if (activeSession) {
-				if (!sessionsControl.reveal(activeSession.resource)) {
-					sessionsControl.clearFocus();
-				}
-			} else {
-				sessionsControl.clearFocus();
-			}
-		}));
-
 		// Mobile filter chips (phone layout only) — created after sessionsControl
 		// so we can wire it as the filter host.
 		if (filterChipsContainer) {
@@ -295,6 +285,18 @@ export class SessionsView extends ViewPane {
 				this.openFind();
 			}));
 		}
+
+		// When the active session changes, reveal it in the sessions list.
+		this._register(autorun(reader => {
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			if (activeSession) {
+				if (!sessionsControl.reveal(activeSession.resource)) {
+					sessionsControl.clearFocus();
+				}
+			} else {
+				sessionsControl.clearFocus();
+			}
+		}));
 
 		const customizationsSection = DOM.append(this.sidebarSplitViewContainer, $('.agent-sessions-customizations-section'));
 		const customizationsSizeChange = this._register(new Emitter<void>());
@@ -394,6 +396,8 @@ export class SessionsView extends ViewPane {
 
 	private readonly registeredFilterTypeIds = new Set<string>();
 
+	private readonly archivedFilterRegistration = this._register(new DisposableStore());
+
 	private registerSessionTypeFilters(sessionsControl: SessionsList): void {
 		const sessionTypes = this.sessionsManagementService.getAllSessionTypes();
 		for (let i = 0; i < sessionTypes.length; i++) {
@@ -470,23 +474,35 @@ export class SessionsView extends ViewPane {
 		const archivedContextKeyInstance = archivedContextKey.bindTo(this.scopedContextKeyService);
 		this.filterContextKeys.set(archivedContextKey.key, { key: archivedContextKeyInstance, getDefault: () => false });
 
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'sessionsViewPane.filterArchived',
-					title: localize('filterArchived', "Done"),
-					toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
-					menu: [{
-						id: SessionsViewFilterOptionsSubMenu,
-						group: '3_props',
-						order: 0,
-					}]
-				});
-			}
-			override run() {
-				const excluding = sessionsControl.isExcludeArchived();
-				sessionsControl.setExcludeArchived(!excluding);
-				archivedContextKeyInstance.set(excluding); // was excluding → now showing
+		// The archived filter label follows the configured archive action wording,
+		// so the action is re-registered whenever that setting changes.
+		const registerArchivedFilter = () => {
+			this.archivedFilterRegistration.clear();
+			const title = getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService));
+			this.archivedFilterRegistration.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: 'sessionsViewPane.filterArchived',
+						title,
+						toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
+						menu: [{
+							id: SessionsViewFilterOptionsSubMenu,
+							group: '3_props',
+							order: 0,
+						}]
+					});
+				}
+				override run() {
+					const excluding = sessionsControl.isExcludeArchived();
+					sessionsControl.setExcludeArchived(!excluding);
+					archivedContextKeyInstance.set(excluding); // was excluding → now showing
+				}
+			}));
+		};
+		registerArchivedFilter();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
+				registerArchivedFilter();
 			}
 		}));
 
@@ -569,8 +585,8 @@ export class SessionsView extends ViewPane {
 			this.sidebarSplitViewContainer.style.height = `${height}px`;
 		}
 		this.sidebarSplitView.layout(height);
-		if (!this.didInitializeCustomizationsPaneSize) {
-			this.didInitializeCustomizationsPaneSize = true;
+		if (!this.didInitializePaneSizes) {
+			this.didInitializePaneSizes = true;
 			this.sidebarSplitView.resizeView(1, this.getCustomizationsPaneHeight());
 		}
 	}

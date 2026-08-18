@@ -5,14 +5,19 @@
 
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
+import { toClientPluginMcpDefaultCwdsMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 
 // Re-export so existing consumers don't need to change their import source.
@@ -43,9 +48,37 @@ function pluginDirForType(type: PromptsType): string | undefined {
 	}
 }
 
-interface ISyncableFile {
+export interface ISyncableFile {
 	readonly uri: URI;
 	readonly type: PromptsType;
+	/**
+	 * Where this file originally came from (extension, plugin, built-in, ...).
+	 * Optional because it is only used to populate the provenance reverse map;
+	 * files without it simply have no recoverable {@link ISyncedCustomizationOrigin}.
+	 */
+	readonly source?: AICustomizationSource;
+	/** Identifier of the contributing extension, when {@link source} is `extension`. */
+	readonly extensionId?: string;
+	/** Root URI of the contributing plugin, when {@link source} is `plugin`. */
+	readonly pluginUri?: URI;
+}
+
+/**
+ * Describes where a file bundled into the synthetic plugin originally came
+ * from. The bundle flattens files from many different sources (extensions,
+ * plugins, built-ins) into a single in-memory plugin, which erases their
+ * provenance. {@link SyncedCustomizationBundler.getOrigin} lets consumers
+ * recover it by mapping a synced (destination) URI back to this record.
+ */
+export interface ISyncedCustomizationOrigin {
+	/** The original local file URI before it was copied into the synthetic bundle. */
+	readonly uri: URI;
+	/** Where the file originally came from (extension, plugin, built-in, ...). */
+	readonly source: AICustomizationSource;
+	/** Identifier of the contributing extension, when {@link source} is `extension`. */
+	readonly extensionId?: string;
+	/** Root URI of the contributing plugin, when {@link source} is `plugin`. */
+	readonly pluginUri?: URI;
 }
 
 /**
@@ -56,6 +89,8 @@ interface ISyncableFile {
 export interface ISyncableMcpServer {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
+	readonly defaultCwd?: URI;
+	readonly enablement: readonly CustomizationEnablement[];
 }
 
 interface IBundleResult {
@@ -67,7 +102,8 @@ interface IBundleResult {
  * backed by an in-memory filesystem.
  *
  * Each bundler instance is namespaced by its authority string so that
- * multiple agents can coexist under the same scheme without conflicts.
+ * multiple agent workspace scopes can coexist under the same scheme without
+ * conflicts.
  * The plugin is mounted at `vscode-synced-customization:///{authority}/`
  * and structured as:
  *
@@ -88,6 +124,8 @@ export class SyncedCustomizationBundler extends Disposable {
 	private readonly _authority: string;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
+	/** Maps a synced (destination) URI string back to its original source location. Rebuilt on every {@link bundle}. */
+	private _originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 
 	constructor(
 		authority: string,
@@ -129,6 +167,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		// bundle (a frequent case when a change event fires but content is
 		// identical).
 		const entries: { destUri: URI; content: VSBuffer; hashPart: string }[] = [];
+		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 		await Promise.all(syncable.map(async file => {
 			const dir = pluginDirForType(file.type)!;
 			const fileName = basename(file.uri);
@@ -148,25 +187,53 @@ export class SyncedCustomizationBundler extends Disposable {
 				hashKey = `${dir}/${fileName}`;
 			}
 
+			// Record the reverse mapping so the flattened file's original
+			// provenance (extension/plugin/built-in) can be recovered later.
+			// Only files that carry a source have recoverable provenance.
+			if (file.source !== undefined) {
+				originByDest.set(destUri, {
+					uri: file.uri,
+					source: file.source,
+					extensionId: file.extensionId,
+					pluginUri: file.pluginUri,
+				});
+			}
+
 			const content = await this._fileService.readFile(file.uri);
 			entries.push({ destUri, content: content.value, hashPart: `${hashKey}:${content.value.toString()}` });
 		}));
+
+		// Publish the freshly computed provenance map. This is done before the
+		// nonce short-circuit below so the map always reflects the latest set of
+		// bundled files, even when the content nonce is unchanged.
+		this._originByDest = originByDest;
 
 		// Write MCP servers into `.mcp.json`. The agent host's Open Plugin
 		// adapter reads this file relative to the plugin root. Servers are
 		// sorted by name so the serialized content (and nonce) is stable.
 		let mcpContent: string | undefined;
+		let mcpDefaultCwds: ClientPluginMcpDefaultCwds | undefined;
+		const childEnablement: Record<string, CustomizationEnablement[]> = {};
 		if (mcpServers.length > 0) {
 			const servers: Record<string, IMcpServerConfiguration> = {};
+			const defaultCwds: Record<string, URI | null> = {};
 			for (const server of [...mcpServers].sort((a, b) => a.name.localeCompare(b.name))) {
+				// Deliberately retain disabled servers: step 4's host gate must
+				// apply childEnablement before the SDK discovers this `.mcp.json`.
 				servers[server.name] = server.configuration;
+				defaultCwds[server.name] = server.defaultCwd ?? null;
+				childEnablement[server.name] = server.enablement.slice();
 			}
+			mcpDefaultCwds = defaultCwds;
 			mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
 		}
 
 		const hashParts = entries.map(e => e.hashPart);
 		if (mcpContent !== undefined) {
 			hashParts.push(`.mcp.json:${mcpContent}`);
+		}
+		if (mcpDefaultCwds !== undefined) {
+			hashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
 		}
 
 		// Stable nonce: sort so file ordering doesn't matter.
@@ -176,6 +243,14 @@ export class SyncedCustomizationBundler extends Disposable {
 		// Nothing changed since the last successful bundle — reuse it and skip
 		// the delete + rewrite of the in-memory plugin tree.
 		if (nonce === this._lastNonce && this._lastRef) {
+			if (mcpServers.length > 0 && !equals(childEnablement, this._lastRef.ref.childEnablement)) {
+				return {
+					ref: {
+						...this._lastRef.ref,
+						childEnablement,
+					},
+				};
+			}
 			return this._lastRef;
 		}
 
@@ -211,8 +286,13 @@ export class SyncedCustomizationBundler extends Disposable {
 				id: customizationId(rootUriString),
 				uri: rootUriString,
 				name: DISPLAY_NAME,
-				enabled: true,
 				nonce,
+				_meta: mcpDefaultCwds ? toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds) : undefined,
+				enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+					kind: CustomizationEnablementKind.Global,
+					enabled: true,
+				}),
+				...(mcpServers.length > 0 ? { childEnablement } : {}),
 			},
 		};
 		this._lastRef = result;
@@ -224,5 +304,19 @@ export class SyncedCustomizationBundler extends Disposable {
 	 */
 	get lastNonce(): string | undefined {
 		return this._lastNonce;
+	}
+
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
+		return this._lastRef?.ref.uri === pluginUri
+			&& Object.hasOwn(this._lastRef.ref.childEnablement ?? {}, serverName);
+	}
+
+	/**
+	 * Recovers the original provenance of a file that was flattened into the
+	 * synthetic bundle, given its synced (destination) URI. Returns `undefined`
+	 * for URIs that are not part of the most recent bundle.
+	 */
+	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
+		return this._originByDest.get(syncedUri);
 	}
 }

@@ -5,6 +5,7 @@
 
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from '../../browser/sessionsPolicyBlocked.js';
 
@@ -20,6 +21,7 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 				override readonly quality = 'insider';
 				override readonly urlProtocol = 'vscode-insiders';
 			}());
+			reg.definePartialInstance(IWorkbenchLayoutService, { mainContainer: ctx.container });
 		},
 	});
 

@@ -1,0 +1,290 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-routing-badge {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	padding: 2px 10px;
+	overflow: hidden;
+	font-size: 12px;
+	line-height: 20px;
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	border-top: 1px solid var(--vscode-editorWidget-border, transparent);
+}
+
+.chat-routing-badge .chat-routing-badge-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-routing-badge .chat-routing-badge-label.chat-routing-badge-completed {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size20);
+}
+
+.chat-routing-badge-response-prefix {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-routing-badge-response-preview {
+	display: block;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-routing-badge-response-preview > * {
+	display: inline;
+	margin: 0;
+	white-space: inherit;
+}
+
+.chat-routing-badge .chat-routing-badge-countdown {
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+}
+
+.chat-routing-badge .chat-routing-badge-action {
+	flex-shrink: 0;
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+	/* Frameless-window drag regions swallow clicks; keep actions interactive. */
+	-webkit-app-region: no-drag;
+}
+
+.chat-routing-badge .chat-routing-badge-action:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.chat-routing-badge .chat-routing-badge-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-routing-badge.chat-routing-badge-ranked {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0;
+	padding: 6px 0 4px;
+	line-height: normal;
+}
+
+.chat-routing-badge-head {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 0 var(--omni-rail, 14px) 4px;
+}
+
+.chat-routing-badge-title {
+	flex: 1 1 auto;
+	font-size: 11px;
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	opacity: .5;
+}
+
+.chat-routing-badge-list {
+	display: flex;
+	flex-direction: column;
+	padding: 0 calc(var(--omni-rail, 14px) - 8px);
+}
+
+.chat-routing-badge-row {
+	display: flex;
+	align-items: center;
+	gap: var(--omni-row-gap, 8px);
+	padding: 4px 8px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+}
+
+.chat-routing-badge-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-routing-badge-row:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-routing-badge-row.selected {
+	position: relative;
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.chat-routing-badge-row.selected::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 2px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-focusBorder);
+}
+
+.chat-routing-badge-row.selected .chat-routing-badge-score {
+	color: inherit;
+}
+
+.chat-routing-badge-list.multiple .chat-routing-badge-row.selected::before {
+	display: none;
+}
+
+.chat-routing-badge-mark {
+	flex: 0 0 auto;
+	width: var(--omni-icon-column, 16px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	visibility: hidden;
+}
+
+.chat-routing-badge-row.selected .chat-routing-badge-mark {
+	visibility: visible;
+}
+
+.chat-routing-badge-mark .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-routing-badge-name {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-routing-badge-score {
+	flex: 0 0 auto;
+	min-width: 4ch;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-routing-badge-folder-action {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	max-width: 180px;
+	height: 22px;
+	padding: 0 6px;
+	color: inherit;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
+	font: inherit;
+	cursor: pointer;
+}
+
+.chat-routing-badge-folder-action:hover,
+.chat-routing-badge-folder-action[aria-expanded='true'] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-routing-badge-folder-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-routing-badge-folder-action-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-routing-badge-folder-action .codicon {
+	flex: 0 0 auto;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-routing-badge-folder-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-routing-badge-meter {
+	flex: 0 0 auto;
+	width: 44px;
+	height: 3px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+	overflow: hidden;
+}
+
+.chat-routing-badge-meter > span {
+	display: block;
+	height: 100%;
+	border-radius: inherit;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
+}
+
+.chat-routing-badge-row.selected .chat-routing-badge-meter > span {
+	background-color: var(--vscode-foreground);
+}
+
+.chat-routing-badge-foot {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px var(--omni-rail, 14px) 0;
+	font-size: 11px;
+	opacity: .5;
+}
+
+.chat-routing-badge-foot-end {
+	margin-left: auto;
+}
+
+.chat-routing-badge-sent-mark {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-foreground);
+}
+
+.chat-routing-badge-sent-mark .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-routing-badge.chat-routing-badge-outcomes {
+	align-items: stretch;
+	flex-direction: column;
+	padding-block: 6px;
+}
+
+.chat-routing-outcome-list {
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-routing-outcome-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
