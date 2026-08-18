@@ -49,7 +49,7 @@
 }
 
 .modern-ui .part.panel .monaco-pane-view .pane > .pane-header::before {
-	background-color: var(--vscode-panelSectionHeader-border);
+	background-color: var(--vscode-panelSectionHeader-border, var(--vscode-panel-border));
 }
 
 /*
