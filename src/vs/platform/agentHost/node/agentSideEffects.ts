@@ -982,7 +982,10 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 		if (action.type === ActionType.ChatUsage) {
-			this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, readUsageInfoMeta(action.usage).copilotUsage?.totalNanoAiu);
+			// Subagent charges are already folded into the parent turn's aggregate.
+			if (!isSubagentChatUri(sessionKey)) {
+				this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, readUsageInfoMeta(action.usage).copilotUsage?.totalNanoAiu);
+			}
 			if (action.usage.model && agent) {
 				const modelContext = this._getModelTelemetryContext(agent, action.usage.model);
 				this._turnTracker.updateModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);

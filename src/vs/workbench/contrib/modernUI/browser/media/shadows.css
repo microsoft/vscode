@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Style-override module: "No Part Shadows".
+ * Modern UI module: "No Part Shadows".
  *
  * The `workbench.shadows` setting (default on) casts elevation shadows from the
  * workbench parts onto their neighbours: the title bar, the activity bar, the
@@ -17,12 +17,12 @@
  * dialogs and notifications) are intentionally left alone — these are preserved
  * even when `workbench.shadows` is disabled.
  *
- * All rules are gated behind the `.style-override` class, which the
- * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * All rules are gated behind the `.modern-ui` class, which the
+ * ModernUIContribution toggles onto the workbench container(s) when the
  * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
  */
 
-.style-override.monaco-workbench {
+.modern-ui.monaco-workbench {
 	/*
 	 * Use zero-offset transparent shadows instead of `none` because these
 	 * variables are interpolated into multi-value box-shadow declarations.
@@ -33,20 +33,20 @@
 	--vscode-shadow-sm: 0 0 0 0 transparent;
 }
 
-.style-override.monaco-workbench .part.titlebar,
-.style-override.monaco-workbench .part.activitybar,
-.style-override.monaco-workbench.nosidebar .part.activitybar,
-.style-override.monaco-workbench.activitybar-right .part.activitybar,
-.style-override.monaco-workbench .part.editor .tabs-container > .tab,
-.style-override.monaco-workbench .part.editor .tabs-container > .tab:hover:not(.active),
-.style-override.monaco-workbench .part.editor .tabs-container > .tab.active {
+.modern-ui.monaco-workbench .part.titlebar,
+.modern-ui.monaco-workbench .part.activitybar,
+.modern-ui.monaco-workbench.nosidebar .part.activitybar,
+.modern-ui.monaco-workbench.activitybar-right .part.activitybar,
+.modern-ui.monaco-workbench .part.editor .tabs-container > .tab,
+.modern-ui.monaco-workbench .part.editor .tabs-container > .tab:hover:not(.active),
+.modern-ui.monaco-workbench .part.editor .tabs-container > .tab.active {
 	box-shadow: none !important;
 }
 
-.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .terminal-resize-overlay {
+.modern-ui.monaco-workbench:not(.hc-black):not(.hc-light) .terminal-resize-overlay {
 	box-shadow: var(--vscode-shadow-lg);
 }
 
-.style-override.monaco-workbench .monaco-diff-editor.side-by-side .editor.modified {
+.modern-ui.monaco-workbench .monaco-diff-editor.side-by-side .editor.modified {
 	border-left: 1px solid var(--vscode-surface-border);
 }

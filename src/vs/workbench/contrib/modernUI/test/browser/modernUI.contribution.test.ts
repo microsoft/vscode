@@ -23,9 +23,9 @@ import { ColorThemeData } from '../../../../services/themes/common/colorThemeDat
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
-import { StyleOverridesContribution } from '../../browser/styleOverrides.contribution.js';
+import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
 
-class StyleOverridesTestPane extends Pane {
+class ModernUITestPane extends Pane {
 
 	constructor() {
 		super({ title: 'Test', minimumBodySize: 0, maximumBodySize: 0 });
@@ -37,7 +37,7 @@ class StyleOverridesTestPane extends Pane {
 	protected layoutBody(height: number, width: number): void { }
 }
 
-class StyleOverridesTestLayoutService extends TestLayoutService {
+class ModernUITestLayoutService extends TestLayoutService {
 
 	override mainContainer = document.createElement('div');
 	override containers = [this.mainContainer];
@@ -85,7 +85,7 @@ function createCompositeAction(root: HTMLElement, titleHeight: number, checked: 
 	return { actionItem, actionLabel, indicator };
 }
 
-suite('StyleOverridesContribution', () => {
+suite('ModernUIContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
@@ -97,10 +97,10 @@ suite('StyleOverridesContribution', () => {
 			[LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]: true,
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		const layoutService = new StyleOverridesTestLayoutService();
+		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
-		store.add(new StyleOverridesContribution(configurationService, layoutService));
-		const pane = store.add(new StyleOverridesTestPane());
+		store.add(new ModernUIContribution(configurationService, layoutService));
+		const pane = store.add(new ModernUITestPane());
 		const paneView = document.createElement('div');
 		paneView.classList.add('monaco-pane-view');
 		paneView.appendChild(pane.element);
@@ -113,10 +113,10 @@ suite('StyleOverridesContribution', () => {
 		layoutService.addContainer(auxiliaryContainer, auxiliaryDisposables);
 
 		const startupState = {
-			mainEnabled: layoutService.mainContainer.classList.contains('style-override'),
+			mainEnabled: layoutService.mainContainer.classList.contains('modern-ui'),
 			mainTabsEnabled: layoutService.mainContainer.classList.contains('modern-ui-tabs'),
 			mainUppercaseViewHeaders: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
-			auxiliaryEnabled: auxiliaryContainer.classList.contains('style-override'),
+			auxiliaryEnabled: auxiliaryContainer.classList.contains('modern-ui'),
 			auxiliaryTabsEnabled: auxiliaryContainer.classList.contains('modern-ui-tabs'),
 			auxiliaryUppercaseViewHeaders: auxiliaryContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneHeaderSize: pane.minimumSize,
@@ -135,10 +135,10 @@ suite('StyleOverridesContribution', () => {
 
 		assert.deepStrictEqual({
 			startupState,
-			mainEnabledAfterToggle: layoutService.mainContainer.classList.contains('style-override'),
+			mainEnabledAfterToggle: layoutService.mainContainer.classList.contains('modern-ui'),
 			mainTabsEnabledAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-tabs'),
 			mainUppercaseViewHeadersAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
-			auxiliaryEnabledAfterToggle: auxiliaryContainer.classList.contains('style-override'),
+			auxiliaryEnabledAfterToggle: auxiliaryContainer.classList.contains('modern-ui'),
 			auxiliaryTabsEnabledAfterToggle: auxiliaryContainer.classList.contains('modern-ui-tabs'),
 			auxiliaryUppercaseViewHeadersAfterToggle: auxiliaryContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneHeaderSizeAfterToggle: pane.minimumSize,
@@ -177,9 +177,9 @@ suite('StyleOverridesContribution', () => {
 			[LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]: false,
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		const layoutService = new StyleOverridesTestLayoutService();
+		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
-		store.add(new StyleOverridesContribution(configurationService, layoutService));
+		store.add(new ModernUIContribution(configurationService, layoutService));
 
 		layoutService.mainContainer.classList.add('monaco-workbench');
 		const paneView = appendElement(layoutService.mainContainer, 'monaco-pane-view');
@@ -245,10 +245,10 @@ suite('StyleOverridesContribution', () => {
 
 	test('pane composite actions fill regular and Agents headers', () => {
 		const regularRoot = document.createElement('div');
-		regularRoot.className = 'monaco-workbench style-override modern-ui-tabs';
+		regularRoot.className = 'monaco-workbench modern-ui modern-ui-tabs';
 		document.body.appendChild(regularRoot);
 		store.add(toDisposable(() => regularRoot.remove()));
-		// Taller container than the fixed 32px override, so the override is verified rather than a 100% fallback.
+		// Taller container than the fixed 32px Modern UI height, so the fixed height is verified rather than a 100% fallback.
 		const regular = createCompositeAction(regularRoot, 40, true);
 		const regularIcon = createCompositeAction(regularRoot, 40, true, true);
 		const regularIconBadge = appendElement(regularIcon.actionItem, 'badge compact');
@@ -299,7 +299,7 @@ suite('StyleOverridesContribution', () => {
 
 	test('pane composite actions use regular label weight', () => {
 		const regularRoot = document.createElement('div');
-		regularRoot.className = 'monaco-workbench style-override modern-ui-tabs';
+		regularRoot.className = 'monaco-workbench modern-ui modern-ui-tabs';
 		document.body.appendChild(regularRoot);
 		store.add(toDisposable(() => regularRoot.remove()));
 		const regular = createCompositeAction(regularRoot, 40, true);
@@ -326,7 +326,7 @@ suite('StyleOverridesContribution', () => {
 
 	test('pane composite overflow uses the icon foreground', () => {
 		const root = document.createElement('div');
-		root.className = 'monaco-workbench style-override modern-ui-tabs';
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs';
 		root.style.setProperty('--vscode-icon-foreground', '#123456');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
@@ -340,7 +340,7 @@ suite('StyleOverridesContribution', () => {
 
 	test('preserves Modern UI activity indicators, badges and horizontal pane dividers', () => {
 		const root = document.createElement('div');
-		root.className = 'monaco-workbench style-override modern-ui-tabs';
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs';
 		root.style.setProperty('--activity-bar-action-height', '36px');
 		root.style.setProperty('--activity-bar-width', '36px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
@@ -406,7 +406,7 @@ suite('StyleOverridesContribution', () => {
 
 	test('uses the editor surface border color', () => {
 		const root = document.createElement('div');
-		root.className = 'monaco-workbench style-override floating-panels';
+		root.className = 'monaco-workbench modern-ui floating-panels';
 		root.style.setProperty('--vscode-editor-border', '#123456');
 		root.style.setProperty('--vscode-surface-border', '#654321');
 		document.body.appendChild(root);
@@ -452,7 +452,7 @@ suite('StyleOverridesContribution', () => {
 
 	test('hides collapsed primary side bar grips without hiding constrained auxiliary sash grips', () => {
 		const root = document.createElement('div');
-		root.className = 'monaco-workbench style-override nosidebar nopanel';
+		root.className = 'monaco-workbench modern-ui nosidebar nopanel';
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
@@ -995,7 +995,7 @@ suite('StyleOverridesContribution', () => {
 
 	test('keeps panel global actions above overflowing title actions', () => {
 		const root = document.createElement('div');
-		root.className = 'monaco-workbench style-override';
+		root.className = 'monaco-workbench modern-ui';
 		root.style.setProperty('--vscode-panel-background', '#123456');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
