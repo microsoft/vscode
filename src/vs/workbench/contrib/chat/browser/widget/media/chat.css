@@ -430,6 +430,105 @@
 	display: none;
 }
 
+/* Helpfulness feedback prototype. For the Auto model cohort the footer
+thumbs are replaced by "Helpful"/"Unhelpful" buttons shown inline on the footer
+toolbar row; casting a rating reveals a full-width detail box below, and
+submitting replaces the buttons inline with a short acknowledgement. */
+
+/* For the feedback cohort, let the footer grow to fit the full-width detail box
+below the toolbar row, and keep it visible (rather than the hover-only reveal
+used for the thumbs) so the follow-up prompt is discoverable. */
+.interactive-item-container.cohort-feedback.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 6px;
+	height: auto;
+	opacity: 1;
+	visibility: visible;
+}
+
+/* The buttons and thanks render inline on the toolbar row, to the right of the
+action icons. */
+.interactive-item-container .chat-helpfulness-prompt {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-left: 12px;
+}
+
+.interactive-item-container .chat-helpfulness-prompt.hidden,
+.interactive-item-container .chat-helpfulness-details.hidden,
+.interactive-item-container .chat-helpfulness-thanks.hidden {
+	display: none !important;
+}
+
+.interactive-item-container .chat-helpfulness-buttons {
+	display: flex;
+	gap: 6px;
+}
+
+.interactive-item-container .chat-helpfulness-vote.monaco-button {
+	width: auto;
+	padding: 2px 12px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.interactive-item-container .chat-helpfulness-vote.monaco-button.selected {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+/* The detail box takes its own row below the toolbar and spans the full chat
+width. */
+.interactive-item-container .chat-helpfulness-details {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	width: 100%;
+}
+
+.interactive-item-container .chat-helpfulness-input {
+	resize: vertical;
+	min-height: 36px;
+	padding: 6px 8px;
+	font-family: inherit;
+	font-size: var(--vscode-chat-font-size-body-s, 13px);
+	color: var(--vscode-input-foreground);
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	box-sizing: border-box;
+}
+
+.interactive-item-container .chat-helpfulness-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.interactive-item-container .chat-helpfulness-input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.interactive-item-container .chat-helpfulness-submit {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.interactive-item-container .chat-helpfulness-submit .monaco-button {
+	width: auto;
+	padding: 2px 14px;
+}
+
+.interactive-item-container .chat-helpfulness-thanks {
+	font-size: var(--vscode-chat-font-size-body-s, 13px);
+	color: var(--vscode-descriptionForeground);
+	margin-left: 12px;
+}
+
 .interactive-item-container .value {
 	width: 100%;
 }
