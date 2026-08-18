@@ -61,14 +61,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.defaultToCopilotHarness': {
 			type: 'boolean',
-			description: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot SDK instead of the local harness. Outside virtual workspaces, this behavior is also implied when the agent sandbox is enabled by policy."),
+			description: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot SDK instead of the local harness."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
 		'chat.editor.localAgent.enabled': {
 			type: 'boolean',
-			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker. Virtual workspaces ignore this setting and always keep the local chat harness available. Outside virtual workspaces, the local chat harness is always hidden when the agent sandbox is enabled by policy."),
+			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker. This setting is ignored in virtual workspaces, where the local chat harness is always available."),
 			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
