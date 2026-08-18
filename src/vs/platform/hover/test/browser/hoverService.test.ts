@@ -240,16 +240,21 @@ suite('HoverService', () => {
 			const hoverWidget = asHoverWidget(hover);
 			const contentsDomNode = hoverWidget.domNode.querySelector<HTMLElement>('.monaco-hover-content');
 			assert.ok(contentsDomNode);
+			const overflowingContent = document.createElement('div');
+			overflowingContent.style.height = `${mainWindow.innerHeight}px`;
+			contentsDomNode.appendChild(overflowingContent);
 
 			hoverWidget.layout();
 			const expectedMaxHeight = `${mainWindow.innerHeight * 0.25}px`;
 
 			assert.deepStrictEqual({
 				hoverMaxHeight: hoverWidget.domNode.style.maxHeight,
-				contentsMaxHeight: contentsDomNode.style.maxHeight
+				contentsMaxHeight: contentsDomNode.style.maxHeight,
+				contentOverflows: contentsDomNode.scrollHeight > contentsDomNode.clientHeight
 			}, {
 				hoverMaxHeight: expectedMaxHeight,
-				contentsMaxHeight: expectedMaxHeight
+				contentsMaxHeight: expectedMaxHeight,
+				contentOverflows: true
 			});
 			hover.dispose();
 		});
