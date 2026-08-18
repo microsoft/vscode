@@ -2452,8 +2452,7 @@ suite('CopilotAgentSession', () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			mockSession.commandListResult = { commands: [fleetCommand()] };
 
-			// `started:true` promotes the turn to running, so an abort before the first
-			// SDK event tears it down instead of stranding a pending turn.
+			// Marking the turn running ensures an abort before the first SDK event tears it down.
 			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
 			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
 
