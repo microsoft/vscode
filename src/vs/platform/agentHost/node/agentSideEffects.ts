@@ -982,7 +982,12 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 		if (action.type === ActionType.ChatUsage) {
-			this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, readUsageInfoMeta(action.usage).copilotUsage?.totalNanoAiu);
+			// A subagent's charges are already folded into its parent turn's
+			// total, so recording them here too would double-count them when
+			// `billedNanoAiu` is summed across turns. Mirrors `_trackTurnUsage`.
+			if (!isSubagentChatUri(sessionKey)) {
+				this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, readUsageInfoMeta(action.usage).copilotUsage?.totalNanoAiu);
+			}
 			if (action.usage.model && agent) {
 				const modelContext = this._getModelTelemetryContext(agent, action.usage.model);
 				this._turnTracker.updateModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
