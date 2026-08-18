@@ -9,6 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionEhcliAdoptable, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -25,21 +26,36 @@ export interface IAgentHostSessionListConnection {
 }
 
 /**
+ * Whether a working directory reported by an agent host names the given
+ * workspace folder or something inside it.
+ *
+ * A host reports its directories wrapped for the agent-host filesystem, and
+ * that wrapper carries the original URI, so unwrapping recovers the
+ * directory exactly as the host named it: for a host running in a dev
+ * container, the very `vscode-remote:` URI the window uses for that folder.
+ * This is what makes the match trustworthy rather than assumed, since the
+ * unwrapped authority identifies the machine the directory is on.
+ */
+export function matchesFolder(directory: URI, folder: URI): boolean {
+	const reported = fromAgentHostUri(directory);
+	return extUriBiasedIgnorePathCase.isEqualOrParent(toFolderNamespace(reported, folder), folder);
+}
+
+/**
  * Reinterpret a working directory in the folder's namespace when the two
  * describe the same filesystem under different schemes.
  *
- * An agent host reports working directories as paths on the machine it runs
- * on, so a host running in a remote (a dev container, say) reports `file:`
- * while the window's folder for that same directory is `vscode-remote:`.
- * `isEqualOrParent` compares schemes before anything else, so the two can
- * never match however identical their paths, and every session on the
- * workspace folder is filtered out of the list.
+ * This is the fallback for a host that reports a bare `file:` path with no
+ * agent-host wrapper to unwrap. `isEqualOrParent` compares schemes before
+ * anything else, so such a path can never match the `vscode-remote:` folder
+ * of the window showing the list, however identical the two are, and every
+ * session on the workspace folder is filtered out.
  *
  * Only a `file:` directory against a folder with an authority is rewritten:
- * a local window compares `file:` to `file:` and is untouched. The sessions
- * being matched all come from this store's single host connection, which in
- * such a window is the remote's own host, so its paths belong to the same
- * filesystem the folder names.
+ * a local window compares `file:` to `file:` and is untouched. Unlike the
+ * unwrapped form, this cannot confirm the directory belongs to the folder's
+ * machine; it assumes this store's single host connection is that machine's
+ * own host, which holds for a window connected to the host it lists.
  */
 export function toFolderNamespace(directory: URI, folder: URI): URI {
 	if (directory.scheme !== Schemas.file || folder.scheme === Schemas.file || !folder.authority) {
@@ -422,9 +438,7 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
-		return workingDirectories.some(directory =>
-			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(toFolderNamespace(directory, folder.uri), folder.uri))
-		);
+		return workingDirectories.some(directory => folders.some(folder => matchesFolder(directory, folder.uri)));
 	}
 
 	/**

@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { toFolderNamespace } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
+import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { matchesFolder } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
 
-suite('toFolderNamespace', () => {
+suite('AgentHostSessionListStore - folder matching', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const remoteFolder = URI.parse('vscode-remote://dev-container%2Babc/workspace/printstream');
-	const contains = (directory: URI, folder: URI) =>
-		extUriBiasedIgnorePathCase.isEqualOrParent(toFolderNamespace(directory, folder), folder);
+	const contains = (directory: URI, folder: URI) => matchesFolder(directory, folder);
 
 	test('a remote host reporting its own file: path matches the window folder', () => {
 		// What the host actually emits for a session in a dev container, against
@@ -62,5 +61,22 @@ suite('toFolderNamespace', () => {
 			contains(URI.parse('vscode-remote://dev-container%2Bother/workspace/printstream'), remoteFolder),
 			false,
 		);
+	});
+
+	test('a host in a dev container matches the window folder it reports', () => {
+		// The shape actually observed in a dev-container window: the host wraps
+		// the directory for the agent-host filesystem, and the wrapper carries
+		// the `vscode-remote:` URI the window itself uses for that folder.
+		const wrapped = toAgentHostUri(remoteFolder, agentHostAuthority(remoteFolder.toString()));
+
+		assert.notStrictEqual(wrapped.scheme, remoteFolder.scheme, 'precondition: the reported directory is wrapped');
+		assert.strictEqual(contains(wrapped, remoteFolder), true);
+	});
+
+	test('a wrapped directory on a different remote does not match', () => {
+		const other = URI.parse('vscode-remote://dev-container%2Bother/workspace/printstream');
+		const wrapped = toAgentHostUri(other, agentHostAuthority(other.toString()));
+
+		assert.strictEqual(contains(wrapped, remoteFolder), false);
 	});
 });
