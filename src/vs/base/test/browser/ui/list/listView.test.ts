@@ -563,13 +563,17 @@ suite('ListView', function () {
 			document.dispatchEvent(new MouseEvent('mouseup'));
 
 			listView.setScrollTop(100);
-			listView.domElement(7)!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, shiftKey: true }));
+			const extensionRow = listView.domElement(7)!;
+			extensionRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, shiftKey: true }));
+			extensionRow.dispatchEvent(new Event('selectstart', { bubbles: true }));
+			document.dispatchEvent(new MouseEvent('mousemove', { clientY: 30 }));
+			document.dispatchEvent(new MouseEvent('mouseup'));
 
 			assert.strictEqual(listView.domElement(0), firstRow);
 		} finally {
+			listView.dispose();
 			selection.removeAllRanges();
 			document.dispatchEvent(new Event('selectionchange'));
-			listView.dispose();
 			element.remove();
 		}
 	});
