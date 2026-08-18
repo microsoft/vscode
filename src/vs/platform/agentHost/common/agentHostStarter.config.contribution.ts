@@ -6,7 +6,7 @@
 import * as nls from '../../../nls.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -36,6 +36,7 @@ import {
 import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
+	AgentHostByokModelsEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
@@ -61,6 +62,12 @@ import { AgentMergeConfigKey, AgentMergeSettingId } from './agentMerge.js';
 //     (renderer registration for the settings UI).
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+// Experiment values resolve in the renderer, so they must sync to the agent host through root config.
+type AgentHostStarterConfigurationPropertySchema = IConfigurationPropertySchema & (
+	| { experiment?: never }
+	| Required<Pick<IConfigurationPropertySchema, 'experiment' | 'agentHost'>>
+);
 
 // Custom managed-settings resolvers for the enterprise OTel policies. The simple pass-through
 // keys use `managedSettingValue(KEY)`; these three combine or transform the managed value:
@@ -237,10 +244,11 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostByokModelsEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, the agent host wires up the BYOK ('bring your own key') language-model bridge so extension-provided BYOK models can run in agent-host sessions. The agent host process must be restarted for changes to take effect."),
+			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, the agent host wires up the BYOK ('bring your own key') language-model bridge so extension-provided BYOK models can run in agent-host sessions. Changes take effect immediately unless overridden by the agent host environment."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
+			agentHost: { key: AgentHostByokModelsEnabledConfigKey, localOnly: true },
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {
 			type: 'boolean',
@@ -530,5 +538,5 @@ configurationRegistry.registerConfiguration({
 				},
 			},
 		},
-	}
+	} satisfies Record<string, AgentHostStarterConfigurationPropertySchema>
 });
