@@ -787,6 +787,52 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
+	test('emits in-progress summary before a restarted turn can complete', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+			manager.dispatchServerAction(sessionChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'first', origin: { kind: MessageKind.User } },
+			});
+			manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			const notifications: INotification[] = [];
+			const emissions: string[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+			disposables.add(manager.onDidEmitEnvelope(envelope => emissions.push(envelope.action.type)));
+			disposables.add(manager.onDidEmitNotification(notification => emissions.push(notification.type)));
+
+			manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatTruncated });
+			manager.dispatchServerAction(sessionChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-2',
+				startedAt: '2025-01-01T00:00:01.000Z',
+				message: { text: 'second', origin: { kind: MessageKind.User } },
+			});
+			manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-2', duration: 1 });
+
+			const getStatuses = () => notifications
+				.filter(notification => notification.type === NotificationType.SessionSummaryChanged)
+				.map(notification => notification.changes.status);
+			const immediateStatuses = getStatuses();
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			assert.deepStrictEqual({
+				emissions: emissions.filter(emission => emission === ActionType.ChatTurnStarted || emission === NotificationType.SessionSummaryChanged),
+				immediateStatuses,
+				settledStatuses: getStatuses(),
+			}, {
+				emissions: [ActionType.ChatTurnStarted, NotificationType.SessionSummaryChanged, NotificationType.SessionSummaryChanged],
+				immediateStatuses: [SessionStatus.InProgress],
+				settledStatuses: [SessionStatus.InProgress, SessionStatus.Idle],
+			});
+		});
+	});
+
 	test('does not emit sessionSummaryChanged when summary is unchanged', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			manager.createSession(makeSessionSummary());
@@ -842,9 +888,6 @@ suite('AgentHostStateManager', () => {
 				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			});
-
-			// Let the scheduler fire so _lastNotifiedSummaries now has status=InProgress.
-			await new Promise(r => setTimeout(r, 150));
 
 			const notifications: INotification[] = [];
 			disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));

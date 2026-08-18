@@ -192,6 +192,18 @@ class SessionSummaryNotifier extends Disposable {
 			this._emit(session, changes);
 		}
 	}
+
+	/** Emits only a pending status delta, preserving the debounce for other summary fields. */
+	flushStatus(session: string): void {
+		const current = this._getSummary(session);
+		const lastNotified = this._lastNotified.get(session);
+		if (!current || !lastNotified || current.status === lastNotified.status) {
+			return;
+		}
+
+		this._lastNotified.set(session, { ...lastNotified, status: current.status });
+		this._emit(session, { status: current.status });
+	}
 }
 
 /**
@@ -1473,6 +1485,7 @@ export class AgentHostStateManager extends Disposable {
 
 	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined, clientContext?: IAgentHostClientTelemetryContext): unknown {
 		let resultingState: unknown = undefined;
+		let sessionStatusToFlush: string | undefined;
 		if (action.type === ActionType.RootConfigChanged && action.replace) {
 			action = {
 				...action,
@@ -1550,7 +1563,9 @@ export class AgentHostStateManager extends Disposable {
 			if (chat && chatEntry && sessionKey !== undefined) {
 				const newChat = chatReducer(chat, chatAction, this._log);
 				chatEntry.state = newChat;
-				this._onChatStateChanged(sessionKey, channel, chat, newChat);
+				if (this._onChatStateChanged(sessionKey, channel, chat, newChat)) {
+					sessionStatusToFlush = sessionKey;
+				}
 				resultingState = newChat;
 			} else {
 				this._logService.warn(`[AgentHostStateManager] Action for unknown chat: ${channel}, type=${action.type}`);
@@ -1599,6 +1614,9 @@ export class AgentHostStateManager extends Disposable {
 
 		this._logService.trace(`[AgentHostStateManager] Emitting envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}`);
 		this._onDidEmitEnvelope.fire(envelope);
+		if (sessionStatusToFlush) {
+			this._summaryNotifier.flushStatus(sessionStatusToFlush);
+		}
 
 		return resultingState;
 	}
@@ -1641,7 +1659,7 @@ export class AgentHostStateManager extends Disposable {
 	 *    chat's progress, not just the aggregated session summary; and
 	 *  - keep the session's `chats` catalog entry in sync.
 	 */
-	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
+	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): boolean {
 		// Any turn activity permanently retires the session's unused-draft
 		// status, so a later truncate-to-zero cannot make it look collectable.
 		if (next.turns.length > 0 || next.activeTurn) {
@@ -1674,7 +1692,7 @@ export class AgentHostStateManager extends Disposable {
 
 		const entry = this._sessionStates.get(sessionKey);
 		if (!entry) {
-			return;
+			return false;
 		}
 		const sessionState = entry.state;
 
@@ -1714,9 +1732,11 @@ export class AgentHostStateManager extends Disposable {
 			entry.modifiedAt = newModifiedAt;
 		}
 
+		const becameInProgress = statusChanged && (newStatus & SessionStatus.InputNeeded) === SessionStatus.InProgress;
 		if (statusChanged || activityChanged || modifiedAtChanged) {
 			this._summaryNotifier.markDirty(sessionKey);
 		}
+		return becameInProgress;
 	}
 
 	/**
