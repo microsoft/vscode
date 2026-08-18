@@ -1168,6 +1168,14 @@ List sessions and their compact metadata (status, activity, working directory, p
     "createdBefore": {
       "type": "string",
       "description": "Only return sessions created at or before this time (ISO-8601 timestamp)."
+    },
+    "parentSession": {
+      "type": "string",
+      "description": "Only return sessions created by this parent session URI or open-session link."
+    },
+    "label": {
+      "type": "string",
+      "description": "Only return sessions with this orchestration label."
     }
   }
 }
@@ -1199,6 +1207,14 @@ Create a session in a workspace and start it with an initial prompt. The UI show
     "model": {
       "type": "string",
       "description": "Optional model ID or display name. Defaults to the current chat's model."
+    },
+    "coordinateWithCreator": {
+      "type": "boolean",
+      "description": "Whether the child receives its creator relationship and may use prompt-producing session tools targeting the creator. Defaults to true."
+    },
+    "label": {
+      "type": "string",
+      "description": "Optional label used to group and filter related child sessions."
     }
   },
   "required": [
