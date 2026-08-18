@@ -70,7 +70,13 @@ export class PlaywrightDriver {
 		private _currentPage: playwright.Page,
 		private readonly serverProcess: ChildProcess | undefined,
 		private readonly whenLoaded: Promise<unknown>,
-		private readonly options: LaunchOptions
+		private readonly options: LaunchOptions,
+		/**
+		 * Wall-clock time at which the recording context was created, so captured
+		 * timestamps can be expressed as offsets into the video. Undefined when the
+		 * run is not recording.
+		 */
+		readonly videoStartedAt?: number
 	) {
 	}
 

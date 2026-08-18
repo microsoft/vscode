@@ -25,12 +25,12 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 	args.push('--enable-smoke-test-driver');
 
 	// Launch electron via playwright
-	const { electron, context, page } = await launchElectron({ electronPath, args, env }, options);
+	const { electron, context, page, videoStartedAt } = await launchElectron({ electronPath, args, env }, options);
 	const electronProcess = electron.process();
 
 	return {
 		electronProcess,
-		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, Promise.resolve() /* Window is open already */, options)
+		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, Promise.resolve() /* Window is open already */, options, videoStartedAt)
 	};
 }
 
@@ -54,6 +54,9 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 	} catch (error) {
 		throw enrichLaunchError(error, options);
 	}
+	// Recording begins with the Electron application, so this is the origin of
+	// the video timeline that captured timestamps are measured against.
+	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 
 	let window = electron.windows()[0];
 	if (!window) {
@@ -99,7 +102,7 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		}
 	});
 
-	return { electron, context, page: window };
+	return { electron, context, page: window, videoStartedAt };
 }
 
 /**

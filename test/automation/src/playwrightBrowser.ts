@@ -22,11 +22,11 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 	const { serverProcess, endpoint } = await launchServer(options);
 
 	// Launch browser
-	const { browser, context, page, pageLoadedPromise } = await launchBrowser(options, endpoint);
+	const { browser, context, page, pageLoadedPromise, videoStartedAt } = await launchBrowser(options, endpoint);
 
 	return {
 		serverProcess,
-		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options)
+		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options, videoStartedAt)
 	};
 }
 
@@ -119,6 +119,9 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		'browser.newContext',
 		logger
 	);
+	// Recording begins with the context, so this is the origin of the video
+	// timeline that captured timestamps are measured against.
+	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 
 	if (tracing) {
 		try {
@@ -182,7 +185,7 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 
 	await gotoPromise;
 
-	return { browser, context, page, pageLoadedPromise };
+	return { browser, context, page, pageLoadedPromise, videoStartedAt };
 }
 
 function waitForEndpoint(server: ChildProcess, logger: Logger): Promise<string> {
