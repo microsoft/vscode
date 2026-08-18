@@ -237,6 +237,10 @@ class DispatchingWorkspacePicker extends WorkspacePicker {
 	dispatchFolder(folderUri: URI, providerId: string): Promise<boolean> {
 		return this._dispatchPickerItem({ folderUri, providerId });
 	}
+
+	dispatchItem(item: IWorkspacePickerItem): Promise<boolean> {
+		return this._dispatchPickerItem(item);
+	}
 }
 
 class TestAutomationsWorkspacePicker extends AutomationsWorkspacePicker {
@@ -972,6 +976,36 @@ suite('WorkspacePicker - Connection Status', () => {
 			progressMessages: ['Connecting to Provider agenthost-remote-1...', 'Opening WSL...'],
 			errors: ['Failed to connect to Provider agenthost-remote-1.'],
 			selectedProvider: undefined,
+		});
+	});
+
+	test('preserves the chosen provider when multiple providers resolve the same URI', async () => {
+		const folderUri = URI.file('/shared/project');
+		const firstProvider = createMockProvider('first');
+		const secondBaseProvider = createMockProvider('second');
+		const secondProvider = {
+			...secondBaseProvider,
+			browseActions: [{
+				label: 'Select...',
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				icon: Codicon.folderOpened,
+				providerId: 'second',
+				run: async () => secondBaseProvider.resolveWorkspace(folderUri),
+			}],
+		} satisfies ISessionsProvider;
+		providersService.setProviders([firstProvider, secondProvider]);
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, DispatchingWorkspacePicker) as DispatchingWorkspacePicker;
+
+		await picker.dispatchFolder(folderUri, 'second');
+		const directProvider = picker.selectedResolved?.providerId;
+		await picker.dispatchItem({ browseActionIndex: 0 });
+
+		assert.deepStrictEqual({
+			directProvider,
+			browseProvider: picker.selectedResolved?.providerId,
+		}, {
+			directProvider: 'second',
+			browseProvider: 'second',
 		});
 	});
 

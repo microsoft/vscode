@@ -208,9 +208,6 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 
 	let occurrence = activePendingToolOccurrences.get(semanticKey);
 	if (!occurrence) {
-		occurrence = resolvedPendingToolOccurrences.get(semanticKey);
-	}
-	if (!occurrence) {
 		if (!mint) {
 			return undefined;
 		}

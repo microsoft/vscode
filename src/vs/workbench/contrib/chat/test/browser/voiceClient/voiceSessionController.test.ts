@@ -2005,169 +2005,169 @@ suite('VoiceSessionController', () => {
 		assert.notStrictEqual(firstPendingId, secondPendingId);
 	});
 
-		test('replaces an in-flight tool approval with the next identical approval', () => {
-			const voiceClientService = new TestVoiceClientService();
-			const chatService = new ControllableChatService();
-			const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
-			const sessionResource = URI.parse('chat-session:/sequential-tool-approvals');
-			const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
-				state: string;
-				detail?: string;
-				confirmation_type?: VoiceConfirmationType;
-			};
-			const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
-				sessionId: string,
-				state: string,
-				detail: string | undefined,
-				summary: string | undefined,
-				shown: string | undefined,
-				confirmationType?: VoiceConfirmationType,
-			) => void;
+	test('replaces an in-flight tool approval with the next identical approval', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/sequential-tool-approvals');
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
+			state: string;
+			detail?: string;
+			confirmation_type?: VoiceConfirmationType;
+		};
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
 
-			controller.setActiveSessionShown(sessionResource);
-			controller.setTargetSession(sessionResource);
-			const firstTool = waitingTerminalTool('first-tool');
-			const firstModel = pendingResponsePartModel(sessionResource, firstTool, 'Needs approval', true, 'routed-request');
-			chatService.setModels([firstModel]);
-			const firstState = getAgentStateInfo.call(controller, firstModel);
-			handleStateChange.call(controller, sessionResource.toString(), firstState.state, firstState.detail, undefined, sessionResource.toString(), firstState.confirmation_type);
+		controller.setActiveSessionShown(sessionResource);
+		controller.setTargetSession(sessionResource);
+		const firstTool = waitingTerminalTool('first-tool');
+		const firstModel = pendingResponsePartModel(sessionResource, firstTool, 'Needs approval', true, 'routed-request');
+		chatService.setModels([firstModel]);
+		const firstState = getAgentStateInfo.call(controller, firstModel);
+		handleStateChange.call(controller, sessionResource.toString(), firstState.state, firstState.detail, undefined, sessionResource.toString(), firstState.confirmation_type);
 
-			const secondTool = waitingTerminalTool('second-tool');
-			const secondModel = pendingResponsePartModel(sessionResource, secondTool, 'Needs approval', true, 'routed-request');
-			chatService.setModels([secondModel]);
-			const secondState = getAgentStateInfo.call(controller, secondModel);
-			Reflect.set(controller, '_pttHeld', true);
-			Reflect.set(controller, '_pttCurrentTurnPassive', true);
-			(Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void }).set('listening', undefined);
-			handleStateChange.call(controller, sessionResource.toString(), secondState.state, secondState.detail, undefined, sessionResource.toString(), secondState.confirmation_type);
+		const secondTool = waitingTerminalTool('second-tool');
+		const secondModel = pendingResponsePartModel(sessionResource, secondTool, 'Needs approval', true, 'routed-request');
+		chatService.setModels([secondModel]);
+		const secondState = getAgentStateInfo.call(controller, secondModel);
+		Reflect.set(controller, '_pttHeld', true);
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		(Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void }).set('listening', undefined);
+		handleStateChange.call(controller, sessionResource.toString(), secondState.state, secondState.detail, undefined, sessionResource.toString(), secondState.confirmation_type);
 
-			assert.deepStrictEqual({
-				requests: voiceClientService.requests.map(request => ({ kind: request.kind, pendingId: request.pendingId })),
-				listeningTurnHeld: Reflect.get(controller, '_pttHeld'),
-			}, {
-				requests: [
-					{ kind: 'confirmation', pendingId: derivePendingId('routed-request', firstTool) },
-					{ kind: 'confirmation', pendingId: derivePendingId('routed-request', secondTool) },
-				],
-				listeningTurnHeld: false,
-			});
+		assert.deepStrictEqual({
+			requests: voiceClientService.requests.map(request => ({ kind: request.kind, pendingId: request.pendingId })),
+			listeningTurnHeld: Reflect.get(controller, '_pttHeld'),
+		}, {
+			requests: [
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', firstTool) },
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', secondTool) },
+			],
+			listeningTurnHeld: false,
 		});
+	});
 
-		test('narrates three approvals when one tool invocation is re-armed', () => {
-			const voiceClientService = new TestVoiceClientService();
-			const chatService = new ControllableChatService();
-			const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
-			const sessionResource = URI.parse('chat-session:/rearmed-tool-approvals');
-			const tool = waitingTerminalTool('rearmed-tool');
-			const model = pendingResponsePartModel(sessionResource, tool, 'Needs approval', true, 'routed-request');
-			const toolState = tool.state as IChatToolInvocation['state'] & {
-				set(value: IChatToolInvocation.State, transaction: undefined): void;
-			};
-			const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
-				state: string;
-				detail?: string;
-				confirmation_type?: VoiceConfirmationType;
-			};
-			const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
-				sessionId: string,
-				state: string,
-				detail: string | undefined,
-				summary: string | undefined,
-				shown: string | undefined,
-				confirmationType?: VoiceConfirmationType,
-			) => void;
-			const markNarrationHeard = Reflect.get(controller, '_markNarrationHeard') as (narrationId: string) => void;
-			const pendingIds: (string | undefined)[] = [];
+	test('narrates three approvals when one tool invocation is re-armed', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/rearmed-tool-approvals');
+		const tool = waitingTerminalTool('rearmed-tool');
+		const model = pendingResponsePartModel(sessionResource, tool, 'Needs approval', true, 'routed-request');
+		const toolState = tool.state as IChatToolInvocation['state'] & {
+			set(value: IChatToolInvocation.State, transaction: undefined): void;
+		};
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
+			state: string;
+			detail?: string;
+			confirmation_type?: VoiceConfirmationType;
+		};
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
+		const markNarrationHeard = Reflect.get(controller, '_markNarrationHeard') as (narrationId: string) => void;
+		const pendingIds: (string | undefined)[] = [];
 
-			controller.setActiveSessionShown(sessionResource);
-			controller.setTargetSession(sessionResource);
-			chatService.setModels([model]);
+		controller.setActiveSessionShown(sessionResource);
+		controller.setTargetSession(sessionResource);
+		chatService.setModels([model]);
 
-			const narrateCurrentApproval = () => {
-				const state = getAgentStateInfo.call(controller, model);
-				handleStateChange.call(controller, sessionResource.toString(), state.state, state.detail, undefined, sessionResource.toString(), state.confirmation_type);
-				const request = voiceClientService.requests.at(-1)!;
-				pendingIds.push(request.pendingId);
-				markNarrationHeard.call(controller, request.narrationId);
-			};
-			const rearm = (command: string) => toolState.set({
-				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
-				parameters: { command },
-				confirmationMessages: {
-					title: 'Run zsh command?',
-					message: 'Installs dependencies - pulls untrusted third-party code.',
-				},
-				confirm: () => { },
-			}, undefined);
+		const narrateCurrentApproval = () => {
+			const state = getAgentStateInfo.call(controller, model);
+			handleStateChange.call(controller, sessionResource.toString(), state.state, state.detail, undefined, sessionResource.toString(), state.confirmation_type);
+			const request = voiceClientService.requests.at(-1)!;
+			pendingIds.push(request.pendingId);
+			markNarrationHeard.call(controller, request.narrationId);
+		};
+		const rearm = (command: string) => toolState.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command },
+			confirmationMessages: {
+				title: 'Run zsh command?',
+				message: 'Installs dependencies - pulls untrusted third-party code.',
+			},
+			confirm: () => { },
+		}, undefined);
 
-			narrateCurrentApproval();
-			rearm('npm install');
-			narrateCurrentApproval();
-			rearm('npm test');
-			narrateCurrentApproval();
+		narrateCurrentApproval();
+		rearm('npm install');
+		narrateCurrentApproval();
+		rearm('npm test');
+		narrateCurrentApproval();
 
-			assert.deepStrictEqual({
-				requestCount: voiceClientService.requests.length,
-				uniquePendingIds: new Set(pendingIds).size,
-				kinds: voiceClientService.requests.map(request => request.kind),
-			}, {
-				requestCount: 3,
-				uniquePendingIds: 3,
-				kinds: ['confirmation', 'confirmation', 'confirmation'],
-			});
+		assert.deepStrictEqual({
+			requestCount: voiceClientService.requests.length,
+			uniquePendingIds: new Set(pendingIds).size,
+			kinds: voiceClientService.requests.map(request => request.kind),
+		}, {
+			requestCount: 3,
+			uniquePendingIds: 3,
+			kinds: ['confirmation', 'confirmation', 'confirmation'],
 		});
+	});
 
-		test('confirmation watchdog narrates a sequential approval missed by the transition path', () => {
-			const voiceClientService = new TestVoiceClientService();
-			const chatService = new ControllableChatService();
-			const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
-			const sessionResource = URI.parse('chat-session:/watchdog-sequential-tool-approvals');
-			const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
-				state: string;
-				detail?: string;
-				confirmation_type?: VoiceConfirmationType;
-			};
-			const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
-				sessionId: string,
-				state: string,
-				detail: string | undefined,
-				summary: string | undefined,
-				shown: string | undefined,
-				confirmationType?: VoiceConfirmationType,
-			) => void;
-			const markNarrationHeard = Reflect.get(controller, '_markNarrationHeard') as (narrationId: string) => void;
-			const armConfirmationFlushWatchdog = Reflect.get(controller, '_armConfirmationFlushWatchdog') as (sessionId: string, label: string, isTransition: boolean) => void;
+	test('confirmation watchdog narrates a sequential approval missed by the transition path', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/watchdog-sequential-tool-approvals');
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
+			state: string;
+			detail?: string;
+			confirmation_type?: VoiceConfirmationType;
+		};
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
+		const markNarrationHeard = Reflect.get(controller, '_markNarrationHeard') as (narrationId: string) => void;
+		const armConfirmationFlushWatchdog = Reflect.get(controller, '_armConfirmationFlushWatchdog') as (sessionId: string, label: string, isTransition: boolean) => void;
 
-			controller.setActiveSessionShown(sessionResource);
-			controller.setTargetSession(sessionResource);
-			const firstTool = waitingTerminalTool('first-watchdog-tool');
-			const firstModel = pendingResponsePartModel(sessionResource, firstTool, 'Needs approval', true, 'routed-request');
-			chatService.setModels([firstModel]);
-			const firstState = getAgentStateInfo.call(controller, firstModel);
-			handleStateChange.call(controller, sessionResource.toString(), firstState.state, firstState.detail, undefined, sessionResource.toString(), firstState.confirmation_type);
-			markNarrationHeard.call(controller, voiceClientService.requests[0].narrationId);
+		controller.setActiveSessionShown(sessionResource);
+		controller.setTargetSession(sessionResource);
+		const firstTool = waitingTerminalTool('first-watchdog-tool');
+		const firstModel = pendingResponsePartModel(sessionResource, firstTool, 'Needs approval', true, 'routed-request');
+		chatService.setModels([firstModel]);
+		const firstState = getAgentStateInfo.call(controller, firstModel);
+		handleStateChange.call(controller, sessionResource.toString(), firstState.state, firstState.detail, undefined, sessionResource.toString(), firstState.confirmation_type);
+		markNarrationHeard.call(controller, voiceClientService.requests[0].narrationId);
 
-			const secondTool = waitingTerminalTool('second-watchdog-tool', 'npm install');
-			chatService.setModels([pendingResponsePartModel(sessionResource, secondTool, 'Needs approval', true, 'routed-request')]);
-			Reflect.set(controller, '_pttHeld', true);
-			Reflect.set(controller, '_pttCurrentTurnPassive', true);
-			(Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void }).set('listening', undefined);
-			armConfirmationFlushWatchdog.call(controller, sessionResource.toString(), 'Chat', true);
-			clock.tick(1_500);
+		const secondTool = waitingTerminalTool('second-watchdog-tool', 'npm install');
+		chatService.setModels([pendingResponsePartModel(sessionResource, secondTool, 'Needs approval', true, 'routed-request')]);
+		Reflect.set(controller, '_pttHeld', true);
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		(Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void }).set('listening', undefined);
+		armConfirmationFlushWatchdog.call(controller, sessionResource.toString(), 'Chat', true);
+		clock.tick(1_500);
 
-			assert.deepStrictEqual({
-				requests: voiceClientService.requests.map(request => ({ kind: request.kind, pendingId: request.pendingId })),
-				listeningTurnHeld: Reflect.get(controller, '_pttHeld'),
-			}, {
-				requests: [
-					{ kind: 'confirmation', pendingId: derivePendingId('routed-request', firstTool) },
-					{ kind: 'confirmation', pendingId: derivePendingId('routed-request', secondTool) },
-				],
-				listeningTurnHeld: false,
-			});
+		assert.deepStrictEqual({
+			requests: voiceClientService.requests.map(request => ({ kind: request.kind, pendingId: request.pendingId })),
+			listeningTurnHeld: Reflect.get(controller, '_pttHeld'),
+		}, {
+			requests: [
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', firstTool) },
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', secondTool) },
+			],
+			listeningTurnHeld: false,
 		});
+	});
 
-		test('same confirmation text with a new type is not deduplicated', async () => {
+	test('same confirmation text with a new type is not deduplicated', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);
 		const sessionId = 'chat-session:/typed-confirmation-dedup';
