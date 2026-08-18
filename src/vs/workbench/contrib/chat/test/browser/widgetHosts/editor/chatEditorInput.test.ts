@@ -68,7 +68,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false) , managedSandboxEnforced: constObservable(false)},
 		);
 
 		try {
@@ -123,7 +123,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false) , managedSandboxEnforced: constObservable(false)},
 		);
 
 		try {
@@ -156,7 +156,7 @@ suite('ChatEditorInput', () => {
 		}]);
 		const storageService = store.add(new TestStorageService());
 		const workspaceContextService = new TestContextService();
-		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true) } satisfies IAgentHostEnablementService;
+		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true) , managedSandboxEnforced: constObservable(false)} satisfies IAgentHostEnablementService;
 
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(IDialogService, {});

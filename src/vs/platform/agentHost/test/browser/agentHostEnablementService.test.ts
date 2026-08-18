@@ -11,6 +11,9 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../common/agentHostEnablement
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides } from '../../../configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { NullNativeManagedSettingsService } from '../../../policy/common/copilotManagedSettings.js';
+import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
+import { Event } from '../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../keybinding/test/common/mockKeybindingService.js';
 
 class AgentHostTestConfigurationService extends TestConfigurationService {
@@ -49,7 +52,7 @@ suite('AgentHostEnablementService', () => {
 		const configurationService = new AgentHostTestConfigurationService(aiDisabled);
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const contextKeyService = disposables.add(new MockContextKeyService());
-		const service = disposables.add(new AgentHostEnablementService(runtimeAvailable, configurationService, contextKeyService));
+		const service = disposables.add(new AgentHostEnablementService(runtimeAvailable, configurationService, contextKeyService, new NullNativeManagedSettingsService(), { policyData: null, onDidChangePolicyData: Event.None } as IDefaultAccountService));
 		return { service, configurationService, contextKeyService };
 	}
 

@@ -6,12 +6,10 @@
 import { IObservable } from '../../../base/common/observable.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import * as nls from '../../../nls.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Registry } from '../../registry/common/platform.js';
-import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../sandbox/common/settings.js';
 
 /** Context key set by {@link IAgentHostEnablementService}. Use in `when` clauses to gate Agent Host UI. */
 export const AGENT_HOST_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostEnabled', false, { type: 'boolean', description: nls.localize('agentHostEnabled', "Whether Agent Host features are available and AI features are enabled in this window.") });
@@ -24,52 +22,17 @@ export interface IAgentHostEnablementService {
 	 * Whether Agent Host features are available and AI features are enabled in this window.
 	 */
 	readonly enabled: IObservable<boolean>;
-}
-
-/**
- * How a managed (policy-controlled) agent sandbox affects the chat harness selection.
- *
- * An administrator who turns the agent sandbox on through managed settings is declaring that these
- * users are governed. Sandboxing is being built out on the Agent Host, so those users are moved off
- * the legacy local harness instead of being left on a harness that is going away.
- */
-export interface IManagedSandboxHarnessEnforcement {
 	/**
-	 * Whether the harness selection is forced because the agent sandbox is turned on by policy.
-	 * When true, the legacy local harness is hidden and new chats default to the Agent Host
-	 * Copilot SDK, regardless of `chat.editor.localAgent.enabled`, `chat.defaultToCopilotHarness`
-	 * and `chat.editor.preferCopilotHarness`.
+	 * Whether an enterprise has mandated the Copilot SDK sandbox floor through managed settings
+	 * (`sandbox.enabled`). The runtime owns composing and enforcing that floor; VS Code reads it
+	 * only to retire the legacy local harness for governed users, since the sandbox is implemented
+	 * by the Agent Host.
+	 *
+	 * A user- or workspace-level sandbox opt-in is not an enterprise decision and does not set
+	 * this. Existing local chat sessions keep working; only the harness used for *new* chats is
+	 * affected, and virtual workspaces are exempt.
 	 */
-	readonly enforced: boolean;
-	/** The policy value of `chat.agent.sandbox.enabled`, or `undefined` when it is not managed. */
-	readonly sandboxPolicyValue: AgentSandboxEnabledSettingValue | undefined;
-}
-
-/**
- * Resolves whether the agent sandbox is turned on by managed settings (enterprise policy). A user
- * or workspace opt-in to the sandbox deliberately does *not* count: only an administrator-enforced
- * sandbox retires the legacy local harness.
- *
- * Only `chat.agent.sandbox.enabled` is consulted. Sandbox enablement is split per platform, but
- * `chat.agent.sandbox.enabledWindows` declares no policy, so `inspect().policyValue` for it is
- * always `undefined` and an administrator cannot enforce it — see the registrations in
- * `terminalChatAgentToolsConfiguration.ts`. The enforceable setting is therefore treated as the
- * fleet-wide governance signal on every platform, including Windows, where the sandbox itself
- * stays off until the Windows setting is turned on locally.
- *
- * Existing local chat sessions keep working; only the harness used for *new* chats is affected.
- */
-export function getManagedSandboxHarnessEnforcement(configurationService: IConfigurationService): IManagedSandboxHarnessEnforcement {
-	const sandboxPolicyValue = configurationService.inspect<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxEnabled).policyValue;
-	return {
-		enforced: isAgentSandboxEnabledValue(sandboxPolicyValue),
-		sandboxPolicyValue
-	};
-}
-
-/** Shorthand for {@link getManagedSandboxHarnessEnforcement}'s `enforced` flag. */
-export function isCopilotHarnessForcedByManagedSandbox(configurationService: IConfigurationService): boolean {
-	return getManagedSandboxHarnessEnforcement(configurationService).enforced;
+	readonly managedSandboxEnforced: IObservable<boolean>;
 }
 
 /** Setting that replaces the local harness with the Agent Host Copilot SDK for new editor chats. */

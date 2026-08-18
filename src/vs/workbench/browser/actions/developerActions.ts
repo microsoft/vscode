@@ -50,11 +50,9 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService, PolicyValueSource } from '../../../platform/policy/common/policy.js';
-import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../platform/sandbox/common/settings.js';
-import { isWindows } from '../../../base/common/platform.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { isVirtualWorkspace } from '../../../platform/workspace/common/virtualWorkspace.js';
-import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ENABLED_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
@@ -62,7 +60,7 @@ import { isObject } from '../../../base/common/types.js';
 import * as json from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 import { IAgentHostService } from '../../../platform/agentHost/common/agentService.js';
-import { ChatDefaultToCopilotHarnessSettingId, ChatEditorLocalAgentEnabledSettingId, ChatEditorPreferCopilotHarnessSettingId, getManagedSandboxHarnessEnforcement, IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js';
+import { ChatDefaultToCopilotHarnessSettingId, ChatEditorLocalAgentEnabledSettingId, ChatEditorPreferCopilotHarnessSettingId, IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { markdownDetails, markdownJsonBlock, markdownTable, markdownText } from './policyDiagnosticsMarkdown.js';
@@ -1242,63 +1240,52 @@ class PolicyDiagnosticsAction extends Action2 {
 		content += '## Chat Harness Enforcement\n\n';
 		content += '*An agent sandbox that is turned on through managed settings retires the legacy local harness for this user: new chats use the Agent Host Copilot SDK and the local harness is hidden from the pickers. A user- or workspace-level sandbox opt-in does not trigger this, existing local chat sessions keep running on the local harness, and virtual workspaces and windows without the Agent Host are exempt.*\n\n';
 		try {
-			const sandboxEnforcement = getManagedSandboxHarnessEnforcement(configurationService);
-			const policySourceLabel = (settingKey: string, policyValue: unknown): string => {
-				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
-				const policyName = property?.policy?.name;
-				return policyValue !== undefined && policyName ? policyValueSourceLabel(policyService.getPolicyValueSource(policyName)) : 'n/a';
-			};
-			const policyValueLabel = (policyValue: unknown): string => policyValue !== undefined ? formatDiagnosticValue(policyValue) : 'not set';
+			// `sandbox.enabled` is runtime-owned and has no VS Code configuration policy, so it is
+			// reported from the managed-settings channels rather than the policy-controlled table above.
+			const sandboxEnforced = agentHostEnablementService.managedSandboxEnforced.get();
+			const sandboxChannelValue = (values: ManagedSettingsData | undefined): string =>
+				values?.[COPILOT_SANDBOX_ENABLED_KEY] !== undefined ? formatDiagnosticValue(values[COPILOT_SANDBOX_ENABLED_KEY]) : 'not set';
 
 			content += '### Governance Signal\n\n';
-			content += `*Whether an administrator has turned the agent sandbox on. This is the input to the decision below, not the decision itself. Only \`${AgentSandboxSettingId.AgentSandboxEnabled}\` is policy-backed; \`${AgentSandboxSettingId.AgentSandboxWindowsEnabled}\` declares no policy, so it cannot be enforced and is shown here for context only.*\n\n`;
+			content += `*Whether an administrator has mandated the Copilot SDK sandbox floor (\`${COPILOT_SANDBOX_ENABLED_KEY}\`) through managed settings. The runtime owns composing and enforcing that floor; VS Code reads it only to pick the chat harness, and declares no configuration policy for it. This is the input to the decision below, not the decision itself.*\n\n`;
 			content += markdownTable(
 				['Property', 'Value'],
 				[
-					[`${AgentSandboxSettingId.AgentSandboxEnabled} (effective)`, formatDiagnosticValue(configurationService.inspect(AgentSandboxSettingId.AgentSandboxEnabled).value)],
-					[`${AgentSandboxSettingId.AgentSandboxEnabled} (policy)`, policyValueLabel(sandboxEnforcement.sandboxPolicyValue)],
-					[`${AgentSandboxSettingId.AgentSandboxEnabled} (policy source)`, policySourceLabel(AgentSandboxSettingId.AgentSandboxEnabled, sandboxEnforcement.sandboxPolicyValue)],
-					[`${AgentSandboxSettingId.AgentSandboxWindowsEnabled} (effective)`, formatDiagnosticValue(configurationService.inspect(AgentSandboxSettingId.AgentSandboxWindowsEnabled).value)],
-					[`${AgentSandboxSettingId.AgentSandboxWindowsEnabled} (policy)`, 'not policy-backed'],
-					['Signal active', sandboxEnforcement.enforced ? 'yes' : 'no']
+					['Managed setting', COPILOT_SANDBOX_ENABLED_KEY],
+					['Native MDM', sandboxChannelValue(nativeManagedSettingsService?.managedSettings)],
+					['Server', sandboxChannelValue(defaultAccountService.policyData?.managedSettings)],
+					['File', sandboxChannelValue(fileManagedSettingsService?.managedSettings)],
+					['Signal active', sandboxEnforced ? 'yes' : 'no']
 				]
 			);
 
-			// The signal alone does not decide the harness: virtual workspaces always keep the
-			// local harness, and the Agent Host Copilot SDK is only reachable while the Agent Host
-			// is enabled in this window.
 			const virtualWorkspace = isVirtualWorkspace(workspaceContextService.getWorkspace());
 			const agentHostEnabled = agentHostEnablementService.enabled.get();
-			const applied = sandboxEnforcement.enforced && !virtualWorkspace && agentHostEnabled;
-			// Sandboxing itself is per-platform, so a fleet-wide policy can hide the local harness
-			// on a machine whose sandbox is not actually on. Report that rather than implying the
-			// enforced user is sandboxed.
-			const platformSandboxSettingId = isWindows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
-			const platformSandboxValue = configurationService.getValue<AgentSandboxEnabledSettingValue>(platformSandboxSettingId);
+			const applied = sandboxEnforced && !virtualWorkspace && agentHostEnabled;
 			let localHarness: string;
 			let newChatHarness: string;
 			if (virtualWorkspace) {
 				localHarness = 'Available (virtual workspaces always keep the local harness)';
 				newChatHarness = 'Local harness (virtual workspaces always default to it)';
-			} else if (!sandboxEnforcement.enforced) {
+			} else if (!sandboxEnforced) {
 				localHarness = `Follows ${ChatEditorLocalAgentEnabledSettingId}`;
 				newChatHarness = `Follows ${ChatDefaultToCopilotHarnessSettingId} / ${ChatEditorPreferCopilotHarnessSettingId}`;
 			} else if (!agentHostEnabled) {
-				localHarness = 'Hidden by the managed sandbox, unless no other harness is contributed';
+				localHarness = 'Hidden by the managed sandbox floor, unless no other harness is contributed';
 				newChatHarness = 'Not forced: the Agent Host is disabled in this window, so the first contributed harness is used, falling back to the local harness';
 			} else {
-				localHarness = 'Hidden (forced by managed sandbox)';
-				newChatHarness = 'Agent Host Copilot SDK (forced by managed sandbox)';
+				localHarness = 'Hidden (forced by managed sandbox floor)';
+				newChatHarness = 'Agent Host Copilot SDK (forced by managed sandbox floor)';
 			}
 
-			if (!sandboxEnforcement.enforced) {
+			if (!sandboxEnforced) {
 				summary.chatHarnessEnforcement = 'Not enforced';
 			} else if (virtualWorkspace) {
 				summary.chatHarnessEnforcement = 'Signal active, not applied (virtual workspace)';
 			} else if (!agentHostEnabled) {
 				summary.chatHarnessEnforcement = 'Signal active, not applied (Agent Host disabled)';
 			} else {
-				summary.chatHarnessEnforcement = 'Agent Host Copilot SDK forced by managed sandbox';
+				summary.chatHarnessEnforcement = 'Agent Host Copilot SDK forced by managed sandbox floor';
 			}
 
 			content += '### Effective Decision in This Window\n\n';
@@ -1309,7 +1296,6 @@ class PolicyDiagnosticsAction extends Action2 {
 					['Workspace', virtualWorkspace ? 'Virtual' : 'Local or remote'],
 					['Agent Host enabled', agentHostEnabled ? 'yes' : 'no'],
 					['Enforcement applied', applied ? 'yes' : 'no'],
-					[`Sandbox active on this platform (${platformSandboxSettingId})`, isAgentSandboxEnabledValue(platformSandboxValue) ? 'yes' : 'no'],
 					['Legacy local harness', localHarness],
 					['New chat harness', newChatHarness]
 				]

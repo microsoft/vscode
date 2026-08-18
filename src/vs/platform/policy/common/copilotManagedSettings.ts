@@ -56,11 +56,21 @@ export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
 export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRefresh';
 
 /**
+ * Enterprise-mandated sandbox floor (`sandbox.enabled` in the runtime's managed-settings schema).
+ * The runtime owns composing and enforcing this floor — it is `force-on-wins`, so a managed `true`
+ * cannot be loosened by the user. VS Code only *reads* it to decide which chat harness to offer,
+ * and deliberately declares no configuration policy for it: the control is runtime-owned, and
+ * mirroring it as a VS Code policy would invert ownership.
+ */
+export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
+
+/**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 };
 
 /** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
@@ -150,6 +160,25 @@ export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData 
 		return nativeValue;
 	}
 	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
+}
+
+/**
+ * Whether the enterprise-mandated sandbox floor ({@link COPILOT_SANDBOX_ENABLED_KEY}) is turned on
+ * by any managed-settings channel, resolved with the standard per-key precedence (native MDM, then
+ * the server endpoint, then the file on disk).
+ *
+ * The floor is `force-on-wins` in the runtime schema, so only `true` is meaningful: a channel that
+ * sets it to `false` does not veto a higher-precedence `true`, and a non-boolean value is treated
+ * as absent. This reads the *raw* channel bags rather than a configuration value, because the key
+ * is runtime-owned and intentionally has no VS Code configuration policy.
+ */
+export function isManagedSandboxEnabled(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): boolean {
+	for (const values of [nativeMdm, server, file]) {
+		if (values?.[COPILOT_SANDBOX_ENABLED_KEY] === true) {
+			return true;
+		}
+	}
+	return false;
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
