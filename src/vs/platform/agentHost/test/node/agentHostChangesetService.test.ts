@@ -1946,8 +1946,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		test('a session with no summary of its own advertises no chip, rather than the branch divergence', async () => {
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
-			// The branch is far from its upstream — commits made before this
-			// session existed, and by other people. None of it is this session's.
+			// Divergence from upstream: commits from before this session, and by other people.
 			git.computeSessionFileDiffs = async () => [gitDiff('/repoA/history.ts', 16070, 634)];
 			const db = new TestSessionDatabase();
 			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
@@ -1987,25 +1986,21 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		test('a branch refresh no longer writes the chip from the branch divergence', async () => {
 			const git = createNoopGitService();
 			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
-			// The branch has diverged far from its upstream — commits made before
-			// this session existed, and by other people. None of it is the
-			// session's own work, so none of it belongs in the session's chip.
+			// Divergence from upstream: commits from before this session, and by other people.
 			git.computeSessionFileDiffs = async () => [gitDiff('/wd/history.ts', 16070, 634)];
 			const db = new TestSessionDatabase();
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
 
 			svc.refreshBranchChangeset(sessionStr);
 			await waitForCount(() => stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status === ChangesetStatus.Ready ? 1 : 0, 1);
-			// `waitForCount` gives up silently, so assert what it was waiting for
-			// rather than letting a timeout surface as a confusing later failure.
+			// `waitForCount` gives up silently, so assert what it was waiting for.
 			assert.strictEqual(
 				stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
 				ChangesetStatus.Ready,
 				'branch changeset did not become ready',
 			);
 
-			// The branch changeset itself is still published — only its ownership
-			// of the chip is withdrawn.
+			// The branch changeset is still published; only its ownership of the chip is withdrawn.
 			assert.deepStrictEqual(
 				stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.files.map(f => f.id),
 				[URI.file('/wd/history.ts').toString()],
@@ -2030,8 +2025,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				'branch changeset did not become ready',
 			);
 
-			// Precondition: the branch payload does land under its own key, so the
-			// assertion below cannot pass merely because nothing was persisted.
+			// Precondition: otherwise the assertion below passes on an empty database.
 			let branchRaw: string | undefined;
 			for (let i = 0; i < 200 && !branchRaw; i++) {
 				await timeout(2);
@@ -2039,9 +2033,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			}
 			assert.ok(branchRaw, 'expected the branch refresh to persist its own key');
 
-			// `parsePersistedStaticChangesets` reads the legacy key as the SESSION
-			// changeset and seeds it into session state, so branch-vs-upstream diffs
-			// mirrored here return on restore as the session's own work.
+			// The legacy key is parsed as the SESSION changeset and seeded into session state.
 			assert.strictEqual(
 				await db.getMetadata(META_LEGACY_DIFFS),
 				undefined,
