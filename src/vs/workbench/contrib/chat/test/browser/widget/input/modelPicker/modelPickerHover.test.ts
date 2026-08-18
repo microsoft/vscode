@@ -82,7 +82,7 @@ suite('ModelPickerHover', () => {
 		model.metadata = {
 			...model.metadata,
 			warningText: { degradation: 'Currently degraded' },
-			infoText: { model_pending_deprecation: 'GPT-4.1 has a planned deprecation date of 2026-06-01.' },
+			infoText: { model_relocated: 'GPT-4.1 now serves from a new region.' },
 		} as ILanguageModelChatMetadata;
 
 		const hover = getModelHoverContent(model, false, undefined, NullOpenerService);
@@ -94,7 +94,7 @@ suite('ModelPickerHover', () => {
 			infos: Array.from(hover.element.querySelectorAll('.chat-model-hover-info-text'), element => element.textContent?.trim()),
 		}, {
 			warnings: ['Currently degraded'],
-			infos: ['GPT-4.1 has a planned deprecation date of 2026-06-01.'],
+			infos: ['GPT-4.1 now serves from a new region.'],
 		});
 	});
 });

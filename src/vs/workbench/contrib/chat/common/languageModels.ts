@@ -327,7 +327,7 @@ export interface ILanguageModelChatMetadata {
 	readonly warningText?: IStringDictionary<string>;
 	/**
 	 * Optional informational text to display in the model picker hover as an info banner.
-	 * The keys are info categories (e.g. "model_pending_deprecation") and the values are markdown strings.
+	 * The keys are info categories (e.g. "model_relocated") and the values are markdown strings.
 	 * Unlike {@link warningText}, these are neutral notices and never signal a problem with the model.
 	 */
 	readonly infoText?: IStringDictionary<string>;
