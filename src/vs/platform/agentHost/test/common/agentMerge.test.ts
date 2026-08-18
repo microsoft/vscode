@@ -28,7 +28,11 @@ suite('Agent Merge gate', () => {
 				isResolved: false,
 				path: 'src/example.ts',
 				line: 42,
-				comments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this' }],
+				comments: [
+					{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this' },
+					{ id: 'comment-2', author: { login: 'outsider', association: 'CONTRIBUTOR' }, body: 'Unauthorized' },
+					{ id: 'comment-3', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Actually rename it instead' },
+				],
 			}],
 			topLevelComments: [
 				{ id: 'old', author: { login: 'maintainer', association: 'OWNER' }, body: 'Old', createdAt: '2026-08-01T00:00:00.000Z' },
@@ -40,40 +44,34 @@ suite('Agent Merge gate', () => {
 			],
 		});
 
+		// Every authorized comment is carried so a later follow-up cannot be lost.
+		const expectedContext = {
+			pullRequestUrl: 'https://github.com/octo/repo/pull/1',
+			title: 'Change',
+			headSha: 'head',
+			baseRef: 'main',
+			headRef: 'feature',
+			reviewThreads: [{
+				id: 'thread-1',
+				path: 'src/example.ts',
+				line: 42,
+				comments: [
+					{ author: 'maintainer', body: 'Please fix this' },
+					{ author: 'maintainer', body: 'Actually rename it instead' },
+				],
+			}],
+			reviewSummaries: [],
+			newComments: [],
+			failedChecks: ['Build'],
+			behind: false,
+			conflicting: false,
+			commentWatermark: '2026-08-02T00:00:00.000Z',
+		};
 		assert.deepStrictEqual(evaluateAgentMerge(snapshot, configuration, '2026-08-02T00:00:00.000Z'), {
 			kind: 'prompt',
 			actions: ['addressReviews', 'fixCI'],
-			fingerprint: JSON.stringify({
-				actions: ['addressReviews', 'fixCI'],
-				context: {
-					pullRequestUrl: 'https://github.com/octo/repo/pull/1',
-					title: 'Change',
-					headSha: 'head',
-					baseRef: 'main',
-					headRef: 'feature',
-					reviewThreads: [{ id: 'thread-1', path: 'src/example.ts', line: 42, author: 'maintainer', body: 'Please fix this' }],
-					reviewSummaries: [],
-					newComments: [],
-					failedChecks: ['Build'],
-					behind: false,
-					conflicting: false,
-					commentWatermark: '2026-08-02T00:00:00.000Z',
-				},
-			}),
-			context: {
-				pullRequestUrl: 'https://github.com/octo/repo/pull/1',
-				title: 'Change',
-				headSha: 'head',
-				baseRef: 'main',
-				headRef: 'feature',
-				reviewThreads: [{ id: 'thread-1', path: 'src/example.ts', line: 42, author: 'maintainer', body: 'Please fix this' }],
-				reviewSummaries: [],
-				newComments: [],
-				failedChecks: ['Build'],
-				behind: false,
-				conflicting: false,
-				commentWatermark: '2026-08-02T00:00:00.000Z',
-			},
+			fingerprint: JSON.stringify({ actions: ['addressReviews', 'fixCI'], context: expectedContext }),
+			context: expectedContext,
 		});
 	});
 
@@ -117,6 +115,34 @@ suite('Agent Merge gate', () => {
 					commentWatermark: '2026-08-02T00:00:00.000Z',
 				},
 			}),
+		});
+	});
+
+	test('keeps feedback bounded for a comment-heavy pull request', () => {
+		const result = evaluateAgentMerge(readySnapshot({
+			reviewThreads: Array.from({ length: 40 }, (_, index) => ({
+				id: `thread-${index}`,
+				isResolved: false,
+				comments: Array.from({ length: 20 }, (_, comment) => ({
+					id: `comment-${index}-${comment}`,
+					author: { login: 'maintainer', association: 'MEMBER' },
+					body: 'x'.repeat(5_000),
+				})),
+			})),
+		}), configuration, '2026-08-02T00:00:00.000Z');
+
+		const context = result.kind === 'prompt' ? result.context : undefined;
+		const totalBodyLength = (context?.reviewThreads ?? [])
+			.flatMap(thread => thread.comments)
+			.reduce((total, comment) => total + comment.body.length, 0);
+		assert.deepStrictEqual({
+			threads: context?.reviewThreads.length,
+			commentsPerThread: context?.reviewThreads[0]?.comments.length,
+			withinBudget: totalBodyLength <= 20_000,
+		}, {
+			threads: 10,
+			commentsPerThread: 5,
+			withinBudget: true,
 		});
 	});
 

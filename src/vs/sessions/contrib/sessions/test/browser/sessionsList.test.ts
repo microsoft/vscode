@@ -23,7 +23,7 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 
@@ -720,6 +720,64 @@ suite('Sessions - SessionsList', () => {
 				date: [
 					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, in monaco' },
 				],
+			});
+		});
+	});
+
+	suite('SessionsFlatList quick-chat presentation', () => {
+
+		function renderQuickChat(useCompactQuickChatRows: boolean) {
+			const quickChat = createTestSession('Investigate failure', { isQuickChat: true }).session;
+			const harness = createListHarness(disposables, [quickChat]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				showSessionHover: false,
+				useCompactQuickChatRows,
+				onSessionOpen: () => { },
+			}));
+			list.setSessions([quickChat]);
+			const contentHeight = list.getContentHeight();
+			list.layout(contentHeight, 400);
+
+			const item = container.querySelector<HTMLElement>('.session-item');
+			assert.ok(item);
+			return {
+				usesStandardRowHeight: contentHeight === list.getRowHeight(),
+				isShorterThanStandardRow: contentHeight < list.getRowHeight(),
+				hasCompactClass: item.classList.contains('quick-chat'),
+				hasChatIcon: item.querySelector('.session-details-icon > .codicon')?.classList.contains('codicon-comment-discussion') ?? false,
+				badge: item.querySelector('.session-badge')?.textContent ?? undefined,
+				time: item.querySelector('.session-time')?.textContent ?? undefined,
+				hasDiff: !!item.querySelector('.session-diff'),
+				ariaLabel: item.closest('.monaco-list-row')?.getAttribute('aria-label') ?? null,
+			};
+		}
+
+		test('renders compact and regular quick-chat rows consistently', () => {
+			assert.deepStrictEqual({
+				compact: renderQuickChat(true),
+				regular: renderQuickChat(false),
+			}, {
+				compact: {
+					usesStandardRowHeight: false,
+					isShorterThanStandardRow: true,
+					hasCompactClass: true,
+					hasChatIcon: false,
+					badge: undefined,
+					time: undefined,
+					hasDiff: false,
+					ariaLabel: 'Investigate failure, updated now',
+				},
+				regular: {
+					usesStandardRowHeight: true,
+					isShorterThanStandardRow: false,
+					hasCompactClass: false,
+					hasChatIcon: true,
+					badge: 'Chat',
+					time: 'now',
+					hasDiff: false,
+					ariaLabel: 'Investigate failure, chat, updated now',
+				},
 			});
 		});
 	});

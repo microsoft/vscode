@@ -13,11 +13,11 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, plat
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionStatus, buildDefaultChatUri, MessageKind, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
-import { AgentMergeController } from '../../node/agentMergeController.js';
+import { AgentMergeController, parsePullRequestUrl } from '../../node/agentMergeController.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 let sessionCounter = 0;
@@ -40,6 +40,7 @@ suite('AgentMergeController', () => {
 		disposables.add(new AgentMergeController(
 			{
 				startTurn: () => false,
+				cancelTurn: () => { },
 				getAutonomousSessionConfig: () => ({
 					[SessionConfigKey.Mode]: 'autopilot',
 					[SessionConfigKey.AutoApprove]: 'assisted',
@@ -158,6 +159,65 @@ suite('AgentMergeController', () => {
 		});
 	});
 
+	test('tightened managed policy revokes an already elevated approval', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive',
+			[SessionConfigKey.AutoApprove]: 'default',
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const elevated = configurationService.getSessionConfigValues(session)?.[SessionConfigKey.AutoApprove];
+
+		// Policy revokes the elevated level while the session stays enabled.
+		configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+
+		const values = configurationService.getSessionConfigValues(session);
+		assert.deepStrictEqual({
+			elevated,
+			mode: values?.[SessionConfigKey.Mode],
+			autoApprove: values?.[SessionConfigKey.AutoApprove],
+			injected: readAgentMergeSessionState(values)?.injectedConfiguration,
+		}, {
+			elevated: 'assisted',
+			mode: 'autopilot',
+			autoApprove: 'default',
+			injected: {
+				previous: { [SessionConfigKey.Mode]: 'interactive' },
+				applied: { [SessionConfigKey.Mode]: 'autopilot' },
+			},
+		});
+	});
+
+	test('does not widen approvals while a turn is active', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive',
+			[SessionConfigKey.AutoApprove]: 'default',
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'user-turn',
+			startedAt: new Date().toISOString(),
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+
+		const values = configurationService.getSessionConfigValues(session);
+		assert.deepStrictEqual({
+			mode: values?.[SessionConfigKey.Mode],
+			autoApprove: values?.[SessionConfigKey.AutoApprove],
+			injected: readAgentMergeSessionState(values)?.injectedConfiguration,
+		}, {
+			mode: 'interactive',
+			autoApprove: 'default',
+			injected: undefined,
+		});
+	});
+
 	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
@@ -175,6 +235,7 @@ suite('AgentMergeController', () => {
 		disposables.add(new AgentMergeController(
 			{
 				startTurn: () => false,
+				cancelTurn: () => { },
 				getAutonomousSessionConfig: () => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
 					? { [SessionConfigKey.Mode]: 'autopilot' }
 					: {
@@ -197,6 +258,28 @@ suite('AgentMergeController', () => {
 		});
 		return { stateManager, configurationService, session };
 	}
+
+	test('resolves the API host a credential must match for every GitHub deployment', () => {
+		assert.deepStrictEqual({
+			dotCom: parsePullRequestUrl('https://github.com/octo/repo/pull/1')?.apiHost,
+			www: parsePullRequestUrl('https://www.github.com/octo/repo/pull/1')?.apiHost,
+			// GitHub Enterprise Cloud serves its API from an `api.` subdomain, which is
+			// the host the credential reports; comparing the web host rejects every PR.
+			enterpriseCloud: parsePullRequestUrl('https://tenant.ghe.com/octo/repo/pull/1')?.apiHost,
+			enterpriseServer: parsePullRequestUrl('https://ghe.corp.example/octo/repo/pull/1')?.apiHost,
+			parsed: parsePullRequestUrl('https://tenant.ghe.com/octo/repo/pull/42'),
+			notAPullRequest: parsePullRequestUrl('https://github.com/octo/repo/issues/1'),
+			notAUrl: parsePullRequestUrl('octo/repo#1'),
+		}, {
+			dotCom: 'api.github.com',
+			www: 'api.github.com',
+			enterpriseCloud: 'api.tenant.ghe.com',
+			enterpriseServer: 'ghe.corp.example',
+			parsed: { owner: 'octo', repo: 'repo', number: 42, apiHost: 'api.tenant.ghe.com' },
+			notAPullRequest: undefined,
+			notAUrl: undefined,
+		});
+	});
 });
 
 function summary(resource: string): SessionSummary {

@@ -23,5 +23,5 @@ export type PromptTimelineRailStyle = 'off' | 'ruler' | 'gutter';
 /** The selectable rail-style values, for the setting's `enum`. */
 export const PROMPT_TIMELINE_RAIL_STYLES: readonly PromptTimelineRailStyle[] = ['off', 'ruler', 'gutter'];
 
-/** Minimum number of user prompts before the timeline surfaces (rail and sticky header) are shown. */
-export const MIN_PROMPTS = 2;
+/** Minimum number of user prompts before the timeline rail is shown. */
+export const MIN_RAIL_PROMPTS = 2;
