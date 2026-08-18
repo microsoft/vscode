@@ -3,48 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+ * Permission sections reuse the customization sections' chrome — the panel container,
+ * `.section-title-header`, `.list-search-and-button-container` and
+ * `.ai-customization-group-header` are all styled in aiCustomizationManagement.css, which lists
+ * `.chat-permissions-section` alongside the other widgets so the two stay identical by
+ * construction. Only what is specific to a permission rule lives here.
+ */
+
 .chat-permissions-section {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
 	min-height: 0;
-	box-sizing: border-box;
-	padding: var(--vscode-spacing-size120);
-	gap: var(--vscode-spacing-size100);
 }
-
-/* Header */
-
-.chat-permissions-section .chat-permissions-header {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size100);
-}
-
-.chat-permissions-section .chat-permissions-title {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-	min-width: 0;
-}
-
-.chat-permissions-section .chat-permissions-title-label {
-	margin: 0;
-	font-size: var(--vscode-agents-fontSize-heading3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	color: var(--vscode-foreground);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.chat-permissions-section .chat-permissions-filter {
-	flex: 1;
-	min-width: 0;
-}
-
-/* Rule list */
 
 .chat-permissions-section .chat-permissions-list {
 	flex: 1;
@@ -52,30 +21,10 @@
 	overflow-y: auto;
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size20);
 }
 
-.chat-permissions-section .chat-permissions-scope-header {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-	margin-top: var(--vscode-spacing-size100);
-	padding: var(--vscode-spacing-size40) 0;
-	font-size: var(--vscode-agents-fontSize-label3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-	color: var(--vscode-descriptionForeground);
-}
-
-.chat-permissions-section .chat-permissions-scope-header:first-child {
-	margin-top: 0;
-}
-
-.chat-permissions-section .chat-permissions-scope-count {
-	margin-left: auto;
-	font-variant-numeric: tabular-nums;
-}
+/* Rule rows */
 
 .chat-permissions-section .chat-permissions-rule {
 	display: flex;
@@ -97,11 +46,7 @@
 	min-width: 0;
 }
 
-.chat-permissions-section .chat-permissions-rule-lock {
-	flex-shrink: 0;
-	color: var(--vscode-descriptionForeground);
-}
-
+.chat-permissions-section .chat-permissions-rule-lock,
 .chat-permissions-section .chat-permissions-rule-kind {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
@@ -156,12 +101,13 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-/* Banners and status */
+/* Banner and status */
 
 .chat-permissions-section .chat-permissions-banner {
 	display: flex;
 	align-items: flex-start;
 	gap: var(--vscode-spacing-size100);
+	margin-bottom: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size120);
 	background-color: var(--vscode-textBlockQuote-background, transparent);
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
@@ -183,22 +129,4 @@
 	padding: var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.45;
-}
-
-/* Footer */
-
-.chat-permissions-section .chat-permissions-footer {
-	flex-shrink: 0;
-	display: flex;
-	align-items: baseline;
-	gap: var(--vscode-spacing-size60);
-	padding-top: var(--vscode-spacing-size80);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.45;
-}
-
-.chat-permissions-section.narrow .chat-permissions-header {
-	flex-direction: column;
-	align-items: stretch;
 }

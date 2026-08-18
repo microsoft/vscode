@@ -13,14 +13,17 @@ import { ChatPermissionDomainId } from '../../../common/permissions/chatPermissi
  */
 export interface IChatPermissionDomain {
 	readonly id: ChatPermissionDomainId;
-	/** Sidebar and header label, in title-style capitalization. */
+	/** Section heading, in title-style capitalization. */
 	readonly label: string;
+	/** Sidebar icon. The section heading itself is text-only, matching the customization sections. */
 	readonly icon: ThemeIcon;
-	/** Sentence shown in the sidebar hover and as the section footer. */
+	/** Sentence shown under the heading and in the sidebar hover. */
 	readonly description: string;
-	/** Placeholder for the section's filter box. */
-	readonly filterPlaceholder: string;
-	/** Documentation target for the footer's "Learn more" link. */
+	/** Accessible name for the section's search box. */
+	readonly filterAriaLabel: string;
+	/** Link text for the inline "Learn more" that follows the description. */
+	readonly learnMoreLabel?: string;
+	/** Documentation target for {@link learnMoreLabel}. */
 	readonly learnMoreUrl?: string;
 }
 

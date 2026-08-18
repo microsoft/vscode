@@ -5,17 +5,17 @@
 
 import './media/chatPermissions.css';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
+import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { formatPermissionRuleText } from '../../../common/permissions/chatPermissionRuleSyntax.js';
 import {
@@ -93,35 +93,43 @@ function effectIcon(effect: ChatPermissionEffect): ThemeIcon {
 
 /**
  * Renders one permission domain: the ceiling banner, the rules grouped by the scope that declared
- * them, and a footer explaining the domain.
+ * them, and the layers the source could not read.
  *
- * The widget is deliberately generic — it knows nothing about terminals, files or URLs. A domain
- * contributes only labels, and every rule comes from {@link IChatPermissionSnapshotService}, so
- * this widget never decides what is permitted.
+ * The chrome deliberately mirrors the customization sections — same title/description/learn-more
+ * header, same search row, same collapsible group headers — so both sidebar groups read as one
+ * editor. What differs is what a row *is*: a permission rule is a read-only statement of what the
+ * runtime enforces, not something the user authors here, so there is no create button and
+ * uneditable rows carry a lock.
+ *
+ * The widget is generic — it knows nothing about terminals, files or URLs. A domain contributes
+ * only labels, and every rule comes from {@link IChatPermissionSnapshotService}, so this widget
+ * never decides what is permitted.
  */
 export class ChatPermissionsSectionWidget extends Disposable {
 
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly container: HTMLElement;
 	private readonly listContainer: HTMLElement;
+	private readonly filterInput: InputBox;
 	private filterText = '';
-	private filterInput: InputBox | undefined;
+	/** Scopes the user has collapsed. View-only state; deliberately not persisted. */
+	private readonly collapsedScopes = new Set<ChatPermissionScope>();
 
 	constructor(
 		parent: HTMLElement,
 		private readonly domain: IChatPermissionDomain,
 		@IChatPermissionSnapshotService private readonly snapshotService: IChatPermissionSnapshotService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
 		this.container = DOM.append(parent, $('.chat-permissions-section'));
-		this.createHeader();
+		this.createTitleHeader();
+		this.filterInput = this.createSearchRow();
 		this.listContainer = DOM.append(this.container, $('.chat-permissions-list'));
 		this.listContainer.setAttribute('role', 'list');
-		this.createFooter();
 
 		this._register(autorun(reader => this.render(this.snapshotService.snapshot.read(reader))));
 	}
@@ -131,41 +139,47 @@ export class ChatPermissionsSectionWidget extends Disposable {
 	}
 
 	focus(): void {
-		this.filterInput?.focus();
+		this.filterInput.focus();
 	}
 
-	private createHeader(): void {
-		const header = DOM.append(this.container, $('.chat-permissions-header'));
+	/** Title, description and inline "Learn more", matching the customization sections. */
+	private createTitleHeader(): void {
+		const header = DOM.append(this.container, $('.section-title-header'));
+		const titleRow = DOM.append(header, $('.section-title-row'));
+		DOM.append(titleRow, $('h2.section-title')).textContent = this.domain.label;
 
-		const title = DOM.append(header, $('.chat-permissions-title'));
-		DOM.append(title, $('span')).classList.add(...ThemeIcon.asClassNameArray(this.domain.icon));
-		DOM.append(title, $('h2.chat-permissions-title-label')).textContent = this.domain.label;
+		const description = DOM.append(header, $('p.section-title-description'));
+		DOM.append(description, $('span.section-title-description-text')).textContent = this.domain.description;
 
-		const filterContainer = DOM.append(header, $('.chat-permissions-filter'));
+		const learnMoreUrl = this.domain.learnMoreUrl;
+		if (learnMoreUrl) {
+			// A real whitespace node rather than a margin, so the gap collapses when the link wraps.
+			description.appendChild(document.createTextNode(' '));
+			const link = DOM.append(description, $('a.section-title-link')) as HTMLAnchorElement;
+			link.textContent = this.domain.learnMoreLabel ?? localize('chatPermissions.learnMore', "Learn more");
+			link.href = learnMoreUrl;
+			this._register(DOM.addDisposableListener(link, 'click', e => {
+				e.preventDefault();
+				this.openerService.open(URI.parse(learnMoreUrl));
+			}));
+		}
+	}
+
+	private createSearchRow(): InputBox {
+		const searchRow = DOM.append(this.container, $('.list-search-and-button-container'));
+		const searchContainer = DOM.append(searchRow, $('.list-search-container'));
 		// Registered on the widget, not on `renderDisposables`: that store is cleared on every
 		// render, which would dispose the input the user is typing into.
-		this.filterInput = this._register(new InputBox(filterContainer, undefined, {
-			placeholder: this.domain.filterPlaceholder,
-			ariaLabel: this.domain.filterPlaceholder,
+		const input = this._register(new InputBox(searchContainer, this.contextViewService, {
+			placeholder: localize('chatPermissions.searchPlaceholder', "Type to search..."),
+			ariaLabel: this.domain.filterAriaLabel,
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
-		this._register(this.filterInput.onDidChange(value => {
+		this._register(input.onDidChange(value => {
 			this.filterText = value.trim().toLowerCase();
 			this.render(this.snapshotService.snapshot.get());
 		}));
-	}
-
-	private createFooter(): void {
-		const footer = DOM.append(this.container, $('.chat-permissions-footer'));
-		DOM.append(footer, $('span.chat-permissions-footer-text')).textContent = this.domain.description;
-		if (this.domain.learnMoreUrl) {
-			this._register(this.instantiationService.createInstance(
-				Link,
-				footer,
-				{ label: localize('chatPermissions.learnMore', "Learn more"), href: this.domain.learnMoreUrl },
-				{ opener: href => this.openerService.open(href) },
-			));
-		}
+		return input;
 	}
 
 	private render(snapshot: ChatPermissionSnapshot): void {
@@ -187,11 +201,13 @@ export class ChatPermissionsSectionWidget extends Disposable {
 		this.renderCeiling(snapshot.ceiling);
 
 		const rules = filterRulesForDomain(snapshot.rules, this.domain.id).filter(rule => this.matchesFilter(rule));
+		let isFirstGroup = true;
 		for (const scope of CHAT_PERMISSION_SCOPE_ORDER) {
 			if (!snapshot.resolvedScopes.includes(scope)) {
 				continue;
 			}
-			this.renderScopeGroup(scope, rules.filter(rule => rule.scope === scope));
+			this.renderScopeGroup(scope, rules.filter(rule => rule.scope === scope), isFirstGroup);
+			isFirstGroup = false;
 		}
 
 		// Layers the source could not consult are called out rather than omitted, so an empty
@@ -235,21 +251,58 @@ export class ChatPermissionsSectionWidget extends Disposable {
 		DOM.append(banner, $('span.chat-permissions-banner-text')).textContent = messages.join(' ');
 	}
 
-	private renderScopeGroup(scope: ChatPermissionScope, rules: readonly IChatPermissionRule[]): void {
+	/**
+	 * Renders a collapsible scope group using the shared customization group-header markup, so a
+	 * permission group and a customization group are visually the same control.
+	 */
+	private renderScopeGroup(scope: ChatPermissionScope, rules: readonly IChatPermissionRule[], isFirst: boolean): void {
 		const presentation = scopePresentation(scope);
+		const collapsed = this.collapsedScopes.has(scope);
 
-		const header = DOM.append(this.listContainer, $('.chat-permissions-scope-header'));
-		DOM.append(header, $('span.chat-permissions-scope-icon')).classList.add(...ThemeIcon.asClassNameArray(presentation.icon));
-		DOM.append(header, $('span.chat-permissions-scope-label')).textContent = presentation.label;
-		DOM.append(header, $('span.chat-permissions-scope-count')).textContent = String(rules.length);
-		this.renderDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), header, presentation.description));
+		const header = DOM.append(this.listContainer, $('.ai-customization-group-header'));
+		header.classList.toggle('collapsed', collapsed);
+		header.classList.toggle('has-previous-group', !isFirst);
+		header.tabIndex = 0;
+		header.setAttribute('role', 'button');
+		header.setAttribute('aria-expanded', String(!collapsed));
+		header.setAttribute('aria-label', localize('chatPermissions.groupAriaLabel', "{0}, {1} rules", presentation.label, rules.length));
 
+		DOM.append(header, $('.group-chevron')).classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+		DOM.append(header, $('.group-icon')).classList.add(...ThemeIcon.asClassNameArray(presentation.icon));
+		const labelGroup = DOM.append(header, $('.group-label-group'));
+		DOM.append(labelGroup, $('.group-label')).textContent = presentation.label;
+		DOM.append(header, $('.group-count')).textContent = String(rules.length);
+		const info = DOM.append(header, $('.group-info'));
+		info.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+		this.renderDisposables.add(this.hoverService.setupDelayedHover(info, () => ({
+			content: presentation.description,
+			appearance: { compact: true, skipFadeInAnimation: true },
+		})));
+
+		const toggle = () => {
+			if (this.collapsedScopes.has(scope)) {
+				this.collapsedScopes.delete(scope);
+			} else {
+				this.collapsedScopes.add(scope);
+			}
+			this.render(this.snapshotService.snapshot.get());
+		};
+		this.renderDisposables.add(DOM.addDisposableListener(header, 'click', toggle));
+		this.renderDisposables.add(DOM.addDisposableListener(header, 'keydown', e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				toggle();
+			}
+		}));
+
+		if (collapsed) {
+			return;
+		}
 		if (rules.length === 0) {
 			DOM.append(this.listContainer, $('.chat-permissions-empty-group')).textContent =
 				localize('chatPermissions.noRulesInScope', "No rules.");
 			return;
 		}
-
 		for (const rule of rules) {
 			this.renderRule(rule);
 		}
