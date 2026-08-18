@@ -16,7 +16,7 @@ import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapsho
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationCommandAction, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationCommandAction, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 
 const SWITCH_TO_AUTO_TREATMENT_NAME = 'config.chatQuotaWarningSwitchToAuto';
 
