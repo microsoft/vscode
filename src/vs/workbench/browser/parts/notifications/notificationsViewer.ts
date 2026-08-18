@@ -44,7 +44,7 @@ export const onDidChangeNotificationRowHeight = onDidChangeNotificationRowHeight
 
 /**
  * Overrides the height (px) of a single notification row. Used by the Modern UI
- * style-override experiment to shrink the collapsed notification card.
+ * Modern UI experiment to shrink the collapsed notification card.
  */
 export function setNotificationRowHeight(height: number): void {
 	if (height !== notificationRowHeight) {
