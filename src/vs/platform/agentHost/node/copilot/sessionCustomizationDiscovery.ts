@@ -1212,27 +1212,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 }
 
 /**
- * Presence-only counterpart to {@link SessionCustomizationDiscovery}'s hook
- * scan: resolves `true` as soon as a hook file (`*.json`) is found anywhere
- * under `<workingDirectory>/.github/hooks/` (recursively, up to
- * {@link MAX_HOOKS_RECURSION_DEPTH}), and `false` when the folder is missing or
- * carries no hooks. Subdirectories at each level are scanned in parallel; the
- * first branch to find a hook cancels the rest so no further directories are
- * read once the answer is known. The optional {@link token} lets a caller abort
- * the whole scan (e.g. if session creation is torn down).
- *
- * Errors are deliberately split: a **missing** `.github/hooks` (or subdirectory)
- * is a definitive "no hooks here" and yields `false`, but any **other** failure
- * (permission, transient IO) is rethrown rather than swallowed — so a caller
- * can fail open (show the picker) instead of silently under-counting hook
- * folders and hiding/pinning the wrong one.
- *
- * Scope note: this covers only the `.github/hooks/*.json` source, not the
- * `settings.json`-based hook sources discovery also recognizes; it reuses
- * {@link HOOK_FILE_SUFFIX} so the file-suffix stays single-sourced with
- * discovery. It intentionally does NOT surface the hooks as customizations — it
- * exists only to decide the multi-root Folder picker's primary — so what a
- * session exposes as customizations is unchanged.
+ * Resolves `true` if a hook file (`*.json`) exists anywhere under
+ * `<workingDirectory>/.github/hooks/`, else `false`; a missing directory is a
+ * definitive `false`, but any other IO failure is rethrown so the caller can fail
+ * open, and the optional {@link token} aborts the scan.
  */
 export async function workspaceDirectoryHasHooks(fileService: IFileService, workingDirectory: URI, token: CancellationToken = CancellationToken.None): Promise<boolean> {
 	// Linked to the caller's token so external cancellation aborts the scan, and
@@ -1272,7 +1255,10 @@ export async function workspaceDirectoryHasHooks(fileService: IFileService, work
 	try {
 		await containsHook(joinPath(workingDirectory, '.github', 'hooks'), 0);
 	} finally {
-		scanCts.dispose();
+		// Cancel (not merely dispose) so that if a branch threw, sibling scans
+		// still in flight wind down instead of leaking outstanding recursive IO
+		// on the fail-open error path.
+		scanCts.dispose(true);
 	}
 	// A caller-cancelled scan has an unreliable result; signal it rather than
 	// reporting a (possibly premature) `false`.

@@ -39,7 +39,7 @@ import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agent
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -916,6 +916,117 @@ suite('AgentService (node dispatcher)', () => {
 			readSessionFolderPickerDecision(localService.stateManager.getSessionState(session.toString())?._meta),
 			{ hidden: true, primary: URI.file('/workspace/two').toString() },
 		);
+	});
+
+	test('persists the folder-picker decision at create and restores it on reopen (shown and pinned)', async () => {
+		class DecidingFolderPickerAgent extends MockAgent {
+			decision: ISessionFolderPickerDecision = { hidden: false };
+			override getDescriptor() {
+				const base = super.getDescriptor();
+				return { ...base, capabilities: { ...base.capabilities, multipleWorkingDirectories: { immutablePrimary: true } } };
+			}
+			computeFolderPickerDecision(): Promise<ISessionFolderPickerDecision | undefined> {
+				return Promise.resolve(this.decision);
+			}
+		}
+
+		const cases: ISessionFolderPickerDecision[] = [
+			{ hidden: false },
+			{ hidden: true, primary: URI.file('/workspace/two').toString() },
+		];
+		for (const decision of cases) {
+			const db = new TestSessionDatabase();
+
+			// Create writes the frozen decision into the session DB (non-provisional).
+			const creating = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const creatingAgent = new DecidingFolderPickerAgent('copilot');
+			creatingAgent.decision = decision;
+			disposables.add(toDisposable(() => creatingAgent.dispose()));
+			creating.registerProvider(creatingAgent);
+			const session = await creating.createSession({
+				provider: creatingAgent.id,
+				workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
+			});
+
+			// Reopen: a fresh service on the same DB rediscovers the provider-native
+			// session and must restore the persisted decision into `_meta`.
+			const reopened = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			reopened.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
+			const reopenedAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => reopenedAgent.dispose()));
+			(reopenedAgent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			reopened.registerProvider(reopenedAgent);
+			const restored = (await reopened.listSessions()).find(s => s.session.toString() === session.toString());
+
+			assert.deepStrictEqual({
+				seeded: readSessionFolderPickerDecision(creating.stateManager.getSessionState(session.toString())?._meta),
+				persisted: await db.getMetadata(SESSION_META_FOLDER_PICKER_KEY),
+				restored: readSessionFolderPickerDecision(restored?._meta),
+			}, {
+				seeded: decision,
+				persisted: JSON.stringify(decision),
+				restored: decision,
+			});
+		}
+	});
+
+	test('defers folder-picker persistence to materialization for a provisional session, then restores on reopen', async () => {
+		class ProvisionalDecidingAgent extends MockAgent {
+			private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
+			override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
+			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+				createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
+			}));
+			override getDescriptor() {
+				const base = super.getDescriptor();
+				return { ...base, capabilities: { ...base.capabilities, multipleWorkingDirectories: { immutablePrimary: true } } };
+			}
+			computeFolderPickerDecision(workingDirectories: readonly URI[]): Promise<ISessionFolderPickerDecision | undefined> {
+				return Promise.resolve({ hidden: true, primary: workingDirectories[1].toString() });
+			}
+			materialize(session: URI, workingDirectories: readonly URI[]): void {
+				this._onDidMaterializeChat.fire({ chat: URI.parse(buildDefaultChatUri(session)), workingDirectories, project: undefined });
+			}
+			override dispose(): void {
+				this._onDidMaterializeChat.dispose();
+				super.dispose();
+			}
+		}
+
+		const db = new TestSessionDatabase();
+		const creating = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = new ProvisionalDecidingAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		creating.registerProvider(agent);
+		const decision = { hidden: true, primary: URI.file('/work/two').toString() };
+		const session = await creating.createSession({
+			provider: agent.id,
+			workingDirectories: [URI.file('/work/one'), URI.file('/work/two')],
+		});
+
+		const persistedBeforeMaterialize = await db.getMetadata(SESSION_META_FOLDER_PICKER_KEY);
+		agent.materialize(session, [URI.file('/work/one'), URI.file('/work/two')]);
+		await timeout(0);
+
+		const reopened = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		reopened.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
+		const reopenedAgent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => reopenedAgent.dispose()));
+		(reopenedAgent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+		reopened.registerProvider(reopenedAgent);
+		const restored = (await reopened.listSessions()).find(s => s.session.toString() === session.toString());
+
+		assert.deepStrictEqual({
+			seeded: readSessionFolderPickerDecision(creating.stateManager.getSessionState(session.toString())?._meta),
+			persistedBeforeMaterialize,
+			persistedAfterMaterialize: await db.getMetadata(SESSION_META_FOLDER_PICKER_KEY),
+			restored: readSessionFolderPickerDecision(restored?._meta),
+		}, {
+			seeded: decision,
+			persistedBeforeMaterialize: undefined,
+			persistedAfterMaterialize: JSON.stringify(decision),
+			restored: decision,
+		});
 	});
 
 	test('provisional materialization preserves and persists multi-root metadata', async () => {

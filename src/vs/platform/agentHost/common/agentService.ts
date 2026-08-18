@@ -185,9 +185,9 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
 /**
- * Environment variable form of {@link AgentHostByokModelsEnabledSettingId}.
- * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`true`).
+ * Explicit environment override for {@link AgentHostByokModelsEnabledSettingId}.
+ * Accepts `'true'` / `'false'`; when absent or invalid, the synchronized agent
+ * host root configuration determines whether BYOK models are enabled.
  */
 export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
 
@@ -221,6 +221,10 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 		return true;
 	}
 	return defaultEnabled;
+}
+
+export function isAgentHostByokModelsEnabled(envValue: string | undefined, rootConfigValue: boolean | undefined): boolean {
+	return isAgentEnabled(envValue, rootConfigValue ?? false);
 }
 
 /**
@@ -608,7 +612,6 @@ export interface IAgentSdkStarterSettings {
 	readonly codexBinaryArgs?: readonly string[];
 	readonly claudeAgentEnabled?: boolean;
 	readonly codexAgentEnabled?: boolean;
-	readonly byokModelsEnabled?: boolean;
 }
 
 export function buildAgentSdkEnv(
@@ -632,9 +635,6 @@ export function buildAgentSdkEnv(
 	}
 	if (settings.codexAgentEnabled !== undefined) {
 		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
-	}
-	if (settings.byokModelsEnabled !== undefined) {
-		setIfMissing(AgentHostByokModelsEnabledEnvVar, settings.byokModelsEnabled ? 'true' : 'false');
 	}
 	return out;
 }

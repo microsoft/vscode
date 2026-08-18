@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -73,5 +75,48 @@ suite('workspaceDirectoryHasHooks', () => {
 			workspaceDirectoryHasHooks(fileService, workspace, CancellationToken.Cancelled),
 			err => err instanceof CancellationError,
 		);
+	});
+
+	test('cancels still-pending sibling scans when one branch fails (no leaked recursive IO)', async () => {
+		// Directory layout under the scan root: `a` fails to stat while `b` is
+		// still resolving; once `a`'s error tears the scan down, `b`'s deeper
+		// child must never be read.
+		const root = URI.from({ scheme: Schemas.inMemory, path: '/ws/.github/hooks' });
+		const dirA = URI.from({ scheme: Schemas.inMemory, path: '/ws/.github/hooks/a' });
+		const dirB = URI.from({ scheme: Schemas.inMemory, path: '/ws/.github/hooks/b' });
+		const dirBChild = URI.from({ scheme: Schemas.inMemory, path: '/ws/.github/hooks/b/child' });
+		const dirBResolved = new DeferredPromise<IFileStatWithMetadata>();
+		const resolvedPaths: string[] = [];
+		const dir = (resource: URI, children: URI[] = []): IFileStatWithMetadata => ({
+			resource, name: basename(resource), isFile: false, isDirectory: true, isSymbolicLink: false,
+			mtime: 0, ctime: 0, etag: '', size: 0, readonly: false, locked: false, executable: false,
+			children: children.map(child => dir(child)),
+		});
+
+		const throwingFileService = new class extends mock<IFileService>() {
+			override async resolve(resource: URI): Promise<IFileStatWithMetadata> {
+				resolvedPaths.push(resource.toString());
+				if (resource.toString() === root.toString()) {
+					return dir(root, [dirA, dirB]);
+				}
+				if (resource.toString() === dirA.toString()) {
+					throw new FileOperationError('permission denied', FileOperationResult.FILE_PERMISSION_DENIED);
+				}
+				if (resource.toString() === dirB.toString()) {
+					return dirBResolved.p;
+				}
+				return dir(resource);
+			}
+		};
+
+		const scan = workspaceDirectoryHasHooks(throwingFileService, URI.from({ scheme: Schemas.inMemory, path: '/ws' }));
+		await assert.rejects(scan);
+		// The scan has already failed and disposed(cancelled) its token; let the
+		// slow `b` branch resume — it must observe cancellation and stop.
+		dirBResolved.complete(dir(dirB, [dirBChild]));
+		await timeout(0);
+		await timeout(0);
+
+		assert.ok(!resolvedPaths.includes(dirBChild.toString()), 'sibling scan should be cancelled and not read deeper directories');
 	});
 });
