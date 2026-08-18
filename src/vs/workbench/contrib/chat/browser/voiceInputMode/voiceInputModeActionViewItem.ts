@@ -365,7 +365,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._listenCell?.setAttribute('aria-label', this._listenCell.classList.contains('active')
 			? this._getLabelWithKeybinding(localize('voiceInputMode.stopListening', "Stop Listening"), ChatVoiceInputModeToggleListenAction.ID)
 			: this._getLabelWithKeybinding(localize('voiceInputMode.startListening', "Start Listening"), ChatVoiceInputModeToggleListenAction.ID));
-		this._muteCell?.setAttribute('aria-label', this.voiceSessionController.isMuted.get()
+		this._muteCell?.setAttribute('aria-label', this._muteCell.classList.contains('active')
 			? localize('voiceInputMode.unmuteMicrophone', "Unmute Microphone")
 			: localize('voiceInputMode.muteMicrophone', "Mute Microphone"));
 	}
