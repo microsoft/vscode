@@ -802,6 +802,17 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expr, 'BaR', { ignoreCase: true }), '**/BAR');
 	});
 
+	test('expression cache does not collide with string pattern cache', function () {
+		glob.parse('**/BAR', { ignoreCase: true });
+
+		const expr = {
+			'**/bar': true,
+			'**/baz': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'bar', { ignoreCase: true }), '**/bar');
+	});
+
 	test('expression with two basename globs and a siblings expression', function () {
 		const expr = {
 			'**/bar': true,
