@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotSession, CurrentToolMetadata, JsonValue, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
@@ -572,7 +572,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 } | {
 	readonly kind: 'custom-tool';
 	readonly toolName?: string;
-	readonly args?: JsonValue;
+	readonly args?: Extract<PermissionRequest, { kind: 'custom-tool' }>['args'];
 });
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
@@ -3250,15 +3250,16 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['off']);
 		});
 
-		test('per-request sandbox: disabled under session bypass approvals', async () => {
+		test('per-request sandbox: applies the configured policy under session bypass approvals', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['on']);
 		});
 
@@ -3632,7 +3633,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto', 'off']);
 		});
 
-		test('syncs sandbox when the session approval level changes', async () => {
+		test('keeps sandbox enabled when the session approval level changes', async () => {
 			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
@@ -3655,7 +3656,7 @@ suite('CopilotAgentSession', () => {
 				permissionModes: ['off', 'on', 'off'],
 				sandboxConfigs: [
 					buildSandboxConfigForSdk('linux', sandbox),
-					{ enabled: false },
+					buildSandboxConfigForSdk('linux', sandbox),
 					buildSandboxConfigForSdk('linux', sandbox),
 				],
 			});
@@ -3738,17 +3739,18 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('per-request sandbox: disabled under global auto-approve', async () => {
+		test('per-request sandbox: applies the configured policy under global auto-approve', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: {
-					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostSandboxConfigKey.Sandbox]: sandbox,
 					[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
 				},
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
 		});
 
 		test('per-request sandbox: applies the configured policy on Windows', async () => {
@@ -3769,6 +3771,32 @@ suite('CopilotAgentSession', () => {
 			await session.send('hello', undefined, 'turn-1');
 
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('server-managed sandbox enablement skips host updates and removal restores the local setting', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			session.setManagedSandboxEnabled(true);
+			await timeout(0);
+			const managedEnabled = mockSession.sandboxConfigUpdates.at(-1);
+
+			session.setManagedSandboxEnabled(false);
+			await timeout(0);
+			const managedDisabled = mockSession.sandboxConfigUpdates.at(-1);
+
+			session.setManagedSandboxEnabled(undefined);
+			await timeout(0);
+			const localRestored = mockSession.sandboxConfigUpdates.at(-1);
+
+			assert.deepStrictEqual({
+				managedEnabled,
+				managedDisabled,
+				localRestored,
+			}, {
+				managedEnabled: buildSandboxConfigForSdk('linux', undefined, true),
+				managedDisabled: undefined,
+				localRestored: { enabled: false },
+			});
 		});
 
 		test('per-request sandbox: left untouched when the custom terminal tool is enabled', async () => {

@@ -232,6 +232,7 @@ interface ICopilotSessionLaunchBase {
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubToken: string | undefined;
+	readonly managedSandboxEnabled?: boolean;
 
 	/**
 	 * Whether this is a workspace-less session. Threaded into the
@@ -534,7 +535,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		const config = await this._buildSessionConfig(plan, runtime);
-		const sandboxConfig = this._computeSandboxConfig();
+		const sandboxConfig = this._computeSandboxConfig(plan.managedSandboxEnabled);
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig);
 		}
@@ -655,12 +656,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * `chat.agent.sandbox.*` settings), mirroring what
 	 * `buildSandboxConfigForCLI` does for the Copilot extension's CLI path.
 	 */
-	private _computeSandboxConfig(): CopilotSandboxConfig | undefined {
+	private _computeSandboxConfig(managedSandboxEnabled: boolean | undefined): CopilotSandboxConfig | undefined {
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		if (enableCustomTerminalTool) {
 			return undefined;
 		}
-		return buildSandboxConfigForSdk(process.platform, this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox));
+		return buildSandboxConfigForSdk(process.platform, this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox), managedSandboxEnabled);
 	}
 
 	/**

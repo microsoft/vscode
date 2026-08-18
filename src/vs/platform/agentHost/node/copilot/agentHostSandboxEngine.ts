@@ -14,9 +14,10 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { IProductService } from '../../../product/common/productService.js';
 import { ISandboxHelperService, type ISandboxDependencyStatus, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
+import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { getAppNodeModulesDirName } from '../appNodeModules.js';
-import { AgentHostSandboxConfigKey, sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
 
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
 const SANDBOX_TEMP_DIR_NAME = 'tmp';
@@ -37,6 +38,7 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 		private readonly _environmentService: INativeEnvironmentService,
 		private readonly _productService: IProductService,
 		private readonly _agentConfigurationService: IAgentConfigurationService,
+		private readonly _getManagedSandboxEnabled: () => boolean | undefined,
 		sandboxHelper: ISandboxHelperService,
 	) {
 		this._sandboxHelper = sandboxHelper;
@@ -114,6 +116,12 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 		if (innerKey === undefined) {
 			return undefined;
 		}
+		if (innerKey === AgentHostSandboxKey.Enabled || innerKey === AgentHostSandboxKey.WindowsEnabled) {
+			const managedEnabled = this._getManagedSandboxEnabled();
+			if (typeof managedEnabled === 'boolean') {
+				return (managedEnabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off) as T;
+			}
+		}
 		const sandbox = this._agentConfigurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
 		return sandbox?.[innerKey] as T | undefined;
 	}
@@ -133,8 +141,8 @@ export function createAgentHostSandboxEngine(
 	sandboxHelper: ISandboxHelperService,
 	sessionId: string,
 	workingDirectory: URI | undefined,
+	getManagedSandboxEnabled: () => boolean | undefined,
 ): TerminalSandboxEngine {
-	const host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sandboxHelper);
+	const host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, getManagedSandboxEnabled, sandboxHelper);
 	return instantiationService.createInstance(TerminalSandboxEngine, host);
 }
-
