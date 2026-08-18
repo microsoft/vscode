@@ -65,9 +65,9 @@ suite('registerAgentHostClientChannels', () => {
 		} as unknown as IInstantiationService;
 	}
 
-	test('registers both channels when BYOK is enabled and the handler is available', () => {
+	test('registers both channels when the BYOK handler is available', () => {
 		const { server, registered } = fakeChannelServer();
-		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService(), true);
+		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService());
 		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
 	});
 
@@ -107,18 +107,10 @@ suite('registerAgentHostClientChannels', () => {
 		});
 	});
 
-	test('registers only the proxy channel and does NOT throw when the BYOK handler is missing', () => {
+	test('registers a null BYOK channel when the handler is missing', () => {
 		const { server, registered } = fakeChannelServer();
-		// Must not throw: the agent host connection has to come up even if a
-		// window connects without the handler and so cannot serve BYOK itself.
-		registerAgentHostClientChannels(server, fakeInstantiationService(true), new NullLogService(), true);
-		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL]);
-	});
-
-	test('registers only the proxy channel when BYOK is disabled', () => {
-		const { server, registered } = fakeChannelServer();
-		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService(), false);
-		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL]);
+		registerAgentHostClientChannels(server, fakeInstantiationService(true), new NullLogService());
+		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
 	});
 });
 

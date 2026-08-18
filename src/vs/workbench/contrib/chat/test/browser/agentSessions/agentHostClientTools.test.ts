@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { constObservable, observableValue, autorun } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -66,6 +67,7 @@ import { IAuthenticationService } from '../../../../../services/authentication/c
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 // =============================================================================
 // Unit tests for toolDataToDefinition and toolResultToProtocol
@@ -85,6 +87,9 @@ suite('AgentHostClientTools', () => {
 			ensureSyncedCustomizationProvider: () => { },
 		});
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+			override readonly extUri = extUriBiasedIgnorePathCase;
+		});
 		instantiationService.stub(IConfigurationService, {
 			getValue: () => false,
 			onDidChangeConfiguration: Event.None,
@@ -630,6 +635,9 @@ suite('AgentHostClientTools', () => {
 			} as Partial<IConfigurationService>;
 
 			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+				override readonly extUri = extUriBiasedIgnorePathCase;
+			});
 			instantiationService.stub(IProductService, { quality: 'insider' });
 			instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
 			instantiationService.stub(IChatAgentService, {

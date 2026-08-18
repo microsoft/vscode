@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { AgentMergeAction, AgentMergeConfiguration, AgentMergeSessionOverrides, AgentMergeSettingId, defaultAgentMergeConfiguration, resolveAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
@@ -27,9 +32,49 @@ const agentMergeCommandPrecondition = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${AgentMergeSettingId.Enabled}`, true),
 );
 
+/** Whether Agent Merge is currently enabled on the active session. */
+const AgentMergeSessionEnabledContext = new RawContextKey<boolean>('sessionAgentMergeEnabled', false, {
+	type: 'boolean',
+	description: localize('sessionAgentMergeEnabled', "True when Agent Merge is enabled for the active agent session."),
+});
+
+/**
+ * Mirrors the active session's Agent Merge enablement into a context key so the
+ * command palette only offers the action that actually applies.
+ */
+class AgentMergeContextContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.contrib.agentMergeContext';
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionsService sessionsService: ISessionsService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+	) {
+		super();
+		const enabledKey = AgentMergeSessionEnabledContext.bindTo(contextKeyService);
+		const providerListener = this._register(new MutableDisposable());
+		this._register(autorun(reader => {
+			const session = sessionsService.activeSession.read(reader);
+			const provider = session && sessionsProvidersService.getProvider(session.providerId);
+			const agentHostProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
+			const update = () => enabledKey.set(
+				!!session && !!agentHostProvider && agentHostProvider.getAgentMergeSessionState(session.sessionId)?.enabled === true,
+			);
+			providerListener.value = agentHostProvider?.onDidChangeSessionConfig(changed => {
+				if (changed === session?.sessionId) {
+					update();
+				}
+			});
+			update();
+		}));
+	}
+}
+
+registerWorkbenchContribution2(AgentMergeContextContribution.ID, AgentMergeContextContribution, WorkbenchPhase.AfterRestored);
+
 interface IAgentMergeActionPick extends IQuickPickItem {
-	readonly action?: AgentMergeAction;
-	readonly reset?: boolean;
+	readonly action: AgentMergeAction;
 }
 
 abstract class AgentMergeActionBase extends Action2 {
@@ -47,7 +92,7 @@ registerAction2(class EnableAgentMergeAction extends AgentMergeActionBase {
 			id: 'sessions.agentHost.agentMerge.enable',
 			title: localize2('agentMerge.enable', "Enable Agent Merge for Active Session"),
 			f1: true,
-			precondition: agentMergeCommandPrecondition,
+			precondition: ContextKeyExpr.and(agentMergeCommandPrecondition, AgentMergeSessionEnabledContext.negate()),
 		});
 	}
 
@@ -70,7 +115,7 @@ registerAction2(class DisableAgentMergeAction extends AgentMergeActionBase {
 			id: 'sessions.agentHost.agentMerge.disable',
 			title: localize2('agentMerge.disable', "Disable Agent Merge for Active Session"),
 			f1: true,
-			precondition: agentMergeCommandPrecondition,
+			precondition: ContextKeyExpr.and(agentMergeCommandPrecondition, AgentMergeSessionEnabledContext),
 		});
 	}
 
@@ -114,25 +159,55 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 			{ action: 'fixCI', label: localize('agentMerge.action.fixCI', "Fix CI Failures"), picked: effective.fixCI },
 			{ action: 'resolveConflicts', label: localize('agentMerge.action.resolveConflicts', "Resolve Conflicts and Behind Branches"), picked: effective.resolveConflicts },
 			{ action: 'mergePullRequest', label: localize('agentMerge.action.mergePullRequest', "Automatically Merge When Ready"), picked: effective.mergePullRequest },
-			{ reset: true, label: localize('agentMerge.action.reset', "Reset to Global Defaults"), description: localize('agentMerge.action.reset.description', "Remove all action overrides for this session") },
 		];
-		const selected = await quickInputService.pick(picks, {
-			canPickMany: true,
-			placeHolder: localize('agentMerge.action.select', "Select actions Agent Merge may perform for this session"),
-		});
-		if (!selected) {
+		const result = await pickAgentMergeActions(quickInputService, picks);
+		if (!result) {
 			return;
 		}
-		const reset = selected.some(item => item.reset);
-		const selectedActions = new Set(selected.flatMap(item => item.action ? [item.action] : []));
-		const overrides = reset ? undefined : toOverrides(selectedActions);
+		const overrides = result.reset ? undefined : toOverrides(result.actions);
 		await active.provider.setAgentMergeOverrides(active.session.sessionId, overrides);
-		logService.info(`[AgentMergeActions] Action overrides updated: session=${active.session.sessionId}, provider=${active.session.providerId}, reset=${reset}, enabledActions=${[...selectedActions].sort().join(',') || 'none'}`);
-		notificationService.info(reset
+		logService.info(`[AgentMergeActions] Action overrides updated: session=${active.session.sessionId}, provider=${active.session.providerId}, reset=${result.reset}, enabledActions=${[...result.actions].sort().join(',') || 'none'}`);
+		notificationService.info(result.reset
 			? localize('agentMerge.action.reset.complete', "Agent Merge now follows the global action defaults for this session.")
 			: localize('agentMerge.action.updated', "Agent Merge actions were updated for the active session."));
 	}
 });
+
+/**
+ * Selects the session's authorized actions. Reset is a title button rather than
+ * a pick so it can never silently override an explicit multi-selection.
+ */
+function pickAgentMergeActions(
+	quickInputService: IQuickInputService,
+	picks: readonly IAgentMergeActionPick[],
+): Promise<{ readonly reset: boolean; readonly actions: ReadonlySet<AgentMergeAction> } | undefined> {
+	const store = new DisposableStore();
+	return new Promise(resolve => {
+		const quickPick = store.add(quickInputService.createQuickPick<IAgentMergeActionPick>());
+		quickPick.title = localize('agentMerge.action.title', "Agent Merge");
+		quickPick.placeholder = localize('agentMerge.action.select', "Select actions Agent Merge may perform for this session");
+		quickPick.canSelectMany = true;
+		quickPick.items = picks;
+		quickPick.selectedItems = picks.filter(pick => pick.picked);
+		quickPick.buttons = [{
+			iconClass: ThemeIcon.asClassName(Codicon.discard),
+			tooltip: localize('agentMerge.action.reset', "Reset to Global Defaults"),
+		}];
+		store.add(quickPick.onDidTriggerButton(() => {
+			resolve({ reset: true, actions: new Set() });
+			quickPick.hide();
+		}));
+		store.add(quickPick.onDidAccept(() => {
+			resolve({ reset: false, actions: new Set(quickPick.selectedItems.map(item => item.action)) });
+			quickPick.hide();
+		}));
+		store.add(quickPick.onDidHide(() => {
+			resolve(undefined);
+			store.dispose();
+		}));
+		quickPick.show();
+	});
+}
 
 function getGlobalConfiguration(configurationService: IConfigurationService): AgentMergeConfiguration {
 	return {

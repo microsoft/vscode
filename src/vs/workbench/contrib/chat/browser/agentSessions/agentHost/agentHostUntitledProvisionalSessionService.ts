@@ -74,7 +74,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
-import { areCustomizationScopeRootsEqual, IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
@@ -361,7 +361,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	private _updateActiveClientScope(entry: IEntry): void {
 		const roots = this._computeEntryWorkingDirectories(entry) ?? [];
-		if (entry.activeClientBinding.value && areCustomizationScopeRootsEqual(entry.activeClientBinding.value.roots, roots)) {
+		if (entry.activeClientBinding.value && this._activeClientService.areScopeRootsEqual(entry.activeClientBinding.value.roots, roots)) {
 			return;
 		}
 
