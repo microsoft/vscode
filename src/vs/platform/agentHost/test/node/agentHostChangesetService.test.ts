@@ -19,7 +19,7 @@ import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
+import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_LEGACY_DIFFS } from '../../common/agentHostChangesetService.js';
 import type { ChangesSummary } from '../../common/state/protocol/state.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
@@ -2013,6 +2013,40 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			);
 			assert.strictEqual(stateManager.getSessionSummary(sessionStr)?.changes, undefined, 'a branch refresh must not write the chip');
 			assert.strictEqual(await db.getMetadata(META_CHANGES_SUMMARY), undefined, 'the branch divergence must not be persisted as the chip');
+		});
+
+		test('a branch refresh does not persist the legacy session key', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async () => [gitDiff('/wd/history.ts', 16070, 634)];
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForCount(() => stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status === ChangesetStatus.Ready ? 1 : 0, 1);
+			assert.strictEqual(
+				stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+				ChangesetStatus.Ready,
+				'branch changeset did not become ready',
+			);
+
+			// Precondition: the branch payload does land under its own key, so the
+			// assertion below cannot pass merely because nothing was persisted.
+			let branchRaw: string | undefined;
+			for (let i = 0; i < 200 && !branchRaw; i++) {
+				await timeout(2);
+				branchRaw = await db.getMetadata(META_CHANGESET_BRANCH);
+			}
+			assert.ok(branchRaw, 'expected the branch refresh to persist its own key');
+
+			// `parsePersistedStaticChangesets` reads the legacy key as the SESSION
+			// changeset and seeds it into session state, so branch-vs-upstream diffs
+			// mirrored here return on restore as the session's own work.
+			assert.strictEqual(
+				await db.getMetadata(META_LEGACY_DIFFS),
+				undefined,
+				'branch divergence must not be persisted where it is restored as session-owned work',
+			);
 		});
 
 		test('a repository whose branch diff throws is skipped and logged, without failing the aggregate', async () => {

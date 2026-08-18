@@ -21,7 +21,7 @@ import {
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
-import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
+import type { ChangesSummary } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import {
 	ChangesetStatus,
@@ -1256,11 +1256,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._persistSessionFlag(session, persistKeyFor(kind), JSON.stringify(diffs));
 
 			if (kind === ChangesetKind.Branch) {
-				// Migration: also overwrite the legacy `'diffs'` key with the
-				// session-changeset payload so older readers stay correct
-				// during the rollout window.
-				this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
-
 				// MULTI-folder: the primary-only `diffs` under-count the session,
 				// so recompute the ALL-FOLDER aggregate independently from every
 				// repository so a subsequent branch recompute keeps the all-folder
@@ -1283,6 +1278,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// and by other people; sourcing the chip from it labels all of that
 			// as this session's changes.
 			if (kind === ChangesetKind.Session) {
+				// Migration: mirror the session payload into the legacy `'diffs'`
+				// key so older readers stay correct during the rollout window.
+				// It belongs here and not on the branch path:
+				// `parsePersistedStaticChangesets` reads this key as the SESSION
+				// changeset and seeds it into session state, so branch diffs written
+				// here come back on restore as the session's own work, which is the
+				// very mislabelling this change removes from the chip.
+				this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
+
 				const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
 				// `summariseDiffs` separates "computed, and empty" (a zero chip,
 				// which is a real answer) from "could not compute" (`undefined`),
