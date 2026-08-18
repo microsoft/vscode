@@ -288,7 +288,7 @@ suite('VoiceClientService', () => {
 		const { service } = createService();
 
 		await service.connect(createTestWindow());
-		service.sendPttStart('turn-1', false);
+		service.sendPttStart('turn-1', { hasActiveSession: false });
 		service.sendPttAudioChunk('cGNt');
 		service.sendPttEnd();
 
@@ -488,9 +488,9 @@ suite('VoiceClientService', () => {
 		const { service } = createService();
 
 		await service.connect(createTestWindow());
-		service.sendPttStart('turn-passive', true, true);
-		service.sendPttStart('turn-real', true, false);
-		service.sendPttStart('turn-default', false);
+		service.sendPttStart('turn-passive', { hasActiveSession: true, passive: true });
+		service.sendPttStart('turn-real', { hasActiveSession: true, passive: false });
+		service.sendPttStart('turn-default', { hasActiveSession: false });
 
 		assert.deepStrictEqual(socket().sent, [
 			{ type: 'ptt_start', turn_id: 'turn-passive', has_active_session: true, passive: true },

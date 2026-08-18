@@ -600,6 +600,11 @@ export interface IVoiceFeedbackTranscriptTurn {
 	readonly timestamp: string;
 }
 
+export interface IVoicePttStartOptions {
+	readonly hasActiveSession: boolean;
+	readonly passive?: boolean;
+}
+
 export interface IVoiceClientService {
 	readonly _serviceBrand: undefined;
 
@@ -608,7 +613,7 @@ export interface IVoiceClientService {
 	disconnect(): void;
 
 	// --- Outbound messages ---
-	sendPttStart(turnId: string, hasActiveSession: boolean, passive?: boolean): void;
+	sendPttStart(turnId: string, options: IVoicePttStartOptions): void;
 	sendPttAudioChunk(audio: string): void;
 	sendPttEnd(): void;
 	/**

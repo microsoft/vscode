@@ -1197,7 +1197,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Streaming PTT: send start/chunks/end as they arrive
 		this._voiceEventDisposables.add(this.micCaptureService.onPttStart((passive) => {
-			this.voiceClientService.sendPttStart(this._pttCurrentTurnId, this._hasSessionInProgress(), passive);
+			this.voiceClientService.sendPttStart(this._pttCurrentTurnId, {
+				hasActiveSession: this._hasSessionInProgress(),
+				passive,
+			});
 		}));
 		this._voiceEventDisposables.add(this.micCaptureService.onPttAudioChunk(b64 => {
 			this.voiceClientService.sendPttAudioChunk(b64);
@@ -7378,7 +7381,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		);
 		if (session) {
 			const model = this.chatService.getSession(session.resource);
-			return model ? this._getAgentStateInfo(model).state === 'thinking' : session.status === AgentSessionStatus.InProgress;
+			return session.status === AgentSessionStatus.InProgress || (model !== undefined && this._getAgentStateInfo(model).state === 'thinking');
 		}
 		for (const model of this.chatService.chatModels.get()) {
 			if (model.sessionResource.toString() === activeSessionId) {

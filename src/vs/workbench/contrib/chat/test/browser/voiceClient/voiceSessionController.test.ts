@@ -39,7 +39,7 @@ import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToo
 import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID } from '../../../common/chatInputWindow.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoicePttStartOptions, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -130,8 +130,8 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override sendPttEnd(): void {
 		this.pttEndCalls++;
 	}
-	override sendPttStart(turnId: string, hasActiveSession: boolean, passive: boolean = false): void {
-		this.pttStarts.push({ turnId, hasActiveSession, passive });
+	override sendPttStart(turnId: string, options: IVoicePttStartOptions): void {
+		this.pttStarts.push({ turnId, hasActiveSession: options.hasActiveSession, passive: options.passive ?? false });
 	}
 
 	fireAudioResponse(event: IVoiceAudioResponse): void {
@@ -346,6 +346,9 @@ class TestMicCaptureService extends mock<IMicCaptureService>() {
 	}
 	override pttUp(): void { }
 	override abortPtt(): void { }
+	dispose(): void {
+		this.pttStartEmitter.dispose();
+	}
 
 	firePttStart(passive: boolean): void {
 		this.pttStartEmitter.fire(passive);
@@ -716,6 +719,9 @@ suite('VoiceSessionController', () => {
 	): VoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
+		if (micCaptureService instanceof TestMicCaptureService) {
+			store.add(micCaptureService);
+		}
 		return store.add(new VoiceSessionController(
 			voiceClientService,
 			micCaptureService,
@@ -786,6 +792,12 @@ suite('VoiceSessionController', () => {
 		const micCaptureService = new TestMicCaptureService();
 		const focusedSession = agentSessionEntry('vscode-chat://focused', 'Focused session', AgentSessionStatus.Completed);
 		const backgroundSession = agentSessionEntry('vscode-chat://background', 'Background session', AgentSessionStatus.InProgress);
+		const loadedModel = new class extends mock<IChatModel>() { };
+		const chatService = new class extends TestChatService {
+			override getSession(): IChatModel | undefined {
+				return focusedSession.status === AgentSessionStatus.InProgress ? loadedModel : undefined;
+			}
+		};
 		const controller = createController(
 			voiceClientService,
 			undefined,
@@ -793,7 +805,7 @@ suite('VoiceSessionController', () => {
 			undefined,
 			micCaptureService,
 			undefined,
-			undefined,
+			chatService,
 			undefined,
 			new TestAgentSessionsService([focusedSession, backgroundSession]),
 		);
