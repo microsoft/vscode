@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, suite, test } from 'node:test';
-import { sourceNpmrc } from '../../azure-pipelines/common/configure-copilot-source-registry.ts';
+import { corepackRegistry, sourceNpmrc } from '../../azure-pipelines/common/configure-copilot-source-registry.ts';
 import { assembleRuntimePackages } from '../../azure-pipelines/common/copilotSourcePublish.ts';
 import { createProductBuildRequest } from '../../azure-pipelines/common/queue-copilot-product-build.ts';
 import { copilotSourceVersion } from '../../azure-pipelines/common/set-copilot-source-version.ts';
@@ -57,9 +57,11 @@ suite('Copilot source pipeline', () => {
 	test('writes queue-time registry values without shell interpretation', () => {
 		assert.deepStrictEqual({
 			npmrc: sourceNpmrc('https://example.test/npm/;echo-not-a-command'),
+			corepackRegistry: corepackRegistry('https://example.test/npm/'),
 			insecureRegistry: errorMessage(() => sourceNpmrc('http://example.test/npm/')),
 		}, {
 			npmrc: 'registry=https://example.test/npm/;echo-not-a-command\nalways-auth=true\n',
+			corepackRegistry: 'https://example.test/npm',
 			insecureRegistry: '[copilot-source-registry] Registry must use HTTPS: http://example.test/npm/',
 		});
 	});

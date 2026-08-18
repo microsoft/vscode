@@ -5,12 +5,20 @@
 
 import * as fs from 'fs';
 
-export function sourceNpmrc(registry: string): string {
+function registryUrl(registry: string): URL {
 	const url = new URL(registry);
 	if (url.protocol !== 'https:') {
 		throw new Error(`[copilot-source-registry] Registry must use HTTPS: ${registry}`);
 	}
-	return `registry=${registry}\nalways-auth=true\n`;
+	return url;
+}
+
+export function sourceNpmrc(registry: string): string {
+	return `registry=${registryUrl(registry).href}\nalways-auth=true\n`;
+}
+
+export function corepackRegistry(registry: string): string {
+	return registryUrl(registry).href.replace(/\/+$/, '');
 }
 
 function requiredEnv(name: string): string {
@@ -25,7 +33,9 @@ function main(): void {
 	const registry = requiredEnv('COPILOT_SOURCE_REGISTRY');
 	const npmrc = requiredEnv('COPILOT_SOURCE_NPMRC');
 	fs.writeFileSync(npmrc, sourceNpmrc(registry));
-	console.log(`[copilot-source-registry] Configured ${registry}.`);
+	const corepack = corepackRegistry(registry);
+	console.log(`##vso[task.setvariable variable=COPILOT_COREPACK_REGISTRY]${corepack}`);
+	console.log(`[copilot-source-registry] Configured ${registryUrl(registry).href}.`);
 }
 
 if (import.meta.main) {
