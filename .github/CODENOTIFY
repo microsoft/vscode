@@ -12,6 +12,7 @@ src/vs/base/browser/ui/table/** @benibenj
 src/vs/base/browser/ui/tree/** @benibenj
 
 # Platform
+src/vs/platform/agentHost/node/claude/** @TylerLeonhardt
 src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/quickinput/** @TylerLeonhardt
 src/vs/platform/secrets/** @TylerLeonhardt
@@ -38,6 +39,7 @@ src/vs/workbench/services/views/** @sandy081 @benibenj
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
 src/vs/workbench/contrib/browserView/** @kycutler @jruales
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
+src/vs/workbench/contrib/chat/electron-browser/builtInTools/fetchPageTool.ts @TylerLeonhardt
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
 src/vs/workbench/contrib/scm/** @lszomoru
@@ -70,6 +72,8 @@ src/vs/workbench/api/common/extHostQuickOpen.ts @TylerLeonhardt
 src/vs/workbench/api/browser/mainThreadSecretState.ts @TylerLeonhardt
 
 # Extensions
+extensions/copilot/src/extension/chatSessions/claude/** @TylerLeonhardt
+extensions/copilot/src/extension/chatSessions/vscode-node/claudeChatSession* @TylerLeonhardt
 extensions/microsoft-authentication/** @TylerLeonhardt
 extensions/github-authentication/** @TylerLeonhardt
 extensions/git/** @lszomoru
@@ -78,6 +82,7 @@ extensions/github/** @lszomoru
 extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts @kycutler @jruales
 
 # Testing
+test/mcp/** @TylerLeonhardt
 test/sanity/** @dmitrivMS
 
 # Agents Workbench

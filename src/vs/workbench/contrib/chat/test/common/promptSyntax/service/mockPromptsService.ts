@@ -37,7 +37,7 @@ export class MockPromptsService implements IPromptsService {
 	getSyntaxParserFor(_model: any): any { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	listPromptFiles(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
-	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> { throw new Error('Not implemented'); }
+	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	getSourceFolders(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,6 +67,8 @@ export class MockPromptsService implements IPromptsService {
 	getHooks(_token: CancellationToken): Promise<any> { throw new Error('Method not implemented.'); }
 	getInstructionFiles(_token: CancellationToken): Promise<readonly IInstructionFile[]> { throw new Error('Method not implemented.'); }
 	getDiscoveryInfo(_type: PromptsType, _token: CancellationToken): Promise<IPromptDiscoveryInfo> { throw new Error('Method not implemented.'); }
+	async getVoiceInstructions(_token: CancellationToken): Promise<undefined> { return undefined; }
+	async getDictationInstructions(_token: CancellationToken): Promise<undefined> { return undefined; }
 	dispose(): void { }
 	onDidChangeInstructions: Event<void> = Event.None;
 	onDidChangeAgentInstructions: Event<void> = Event.None;

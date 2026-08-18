@@ -38,7 +38,7 @@ import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerMo
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { isHorizontal, IWorkbenchLayoutService, LayoutSettings, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
+import { isHorizontal, IWorkbenchLayoutService, LayoutSettings, FLOATING_PANEL_MARGIN, Position } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ViewContainerMenuActions } from './viewMenuActions.js';
@@ -632,7 +632,12 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 			// pane does not sit flush against the part edge, matching the 4px
 			// horizontal margins on the pane headers. Add 1px for the part's bottom
 			// border so the visible gap lines up with the horizontal margins.
-			const bottomGap = this.layoutService.isFloatingPanelsEnabled() ? FLOATING_PANEL_MARGIN + 1 : 0;
+			// Exception: when the panel is at the TOP, its bottom faces the editor
+			// card, so the tighter inner card gap is sufficient.
+			const bottomGap = !this.layoutService.isFloatingPanelsEnabled() ? 0
+				: (this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel
+					&& this.layoutService.getPanelPosition() === Position.TOP) ? 1
+					: FLOATING_PANEL_MARGIN + 1;
 			this.paneview.layout(Math.max(0, dimension.height - bottomGap), dimension.width);
 		}
 

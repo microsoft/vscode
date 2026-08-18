@@ -17,6 +17,7 @@ import { IConfigurationService, ConfigurationTarget } from '../../../../platform
 import { isWeb } from '../../../../base/common/platform.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { IHostColorSchemeService } from './hostColorSchemeService.js';
+import { IColorScheme } from '../../../../platform/window/common/window.js';
 
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -349,6 +350,17 @@ export class ThemeConfiguration {
 
 	public isDetectingColorScheme(): boolean {
 		return this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME);
+	}
+
+	public isPreferredColorSchemeChange(previous: IColorScheme): boolean {
+		const darkChanged = previous.dark !== this.hostColorService.dark;
+		if (this.isDetectingColorScheme() && darkChanged) {
+			return true;
+		}
+		if (this.isDetectingHighContrast()) {
+			return previous.highContrast !== this.hostColorService.highContrast || (this.hostColorService.highContrast && darkChanged);
+		}
+		return false;
 	}
 
 	public getColorThemeSettingId(): ThemeSettings {

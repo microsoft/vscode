@@ -27,9 +27,7 @@
  * `:focus` but not `:focus-visible`, so drop the row ring in that case. Keyboard
  * focus (`:focus-visible`) keeps it.
  */
-.style-override .part.sidebar .monaco-list:focus:not(:focus-visible) .monaco-list-row.focused,
-.style-override .part.panel .monaco-list:focus:not(:focus-visible) .monaco-list-row.focused,
-.style-override .part.auxiliarybar .monaco-list:focus:not(:focus-visible) .monaco-list-row.focused {
+.style-override :is(.part.sidebar, .part.panel, .part.auxiliarybar) .monaco-list:focus:not(:focus-visible) .monaco-list-row.focused {
 	outline: 0 !important;
 }
 
@@ -40,13 +38,7 @@
  * keyboard focus. The part element is listed explicitly because a descendant
  * combinator would not match the part itself.
  */
-.style-override .part.sidebar:focus:not(:focus-visible),
-.style-override .part.sidebar :focus:not(:focus-visible),
-.style-override .part.panel:focus:not(:focus-visible),
-.style-override .part.panel :focus:not(:focus-visible),
-.style-override .part.auxiliarybar:focus:not(:focus-visible),
-.style-override .part.auxiliarybar :focus:not(:focus-visible),
-.style-override .part.statusbar:focus:not(:focus-visible),
-.style-override .part.statusbar :focus:not(:focus-visible) {
+.style-override :is(.part.sidebar, .part.panel, .part.auxiliarybar, .part.statusbar):focus:not(:focus-visible),
+.style-override :is(.part.sidebar, .part.panel, .part.auxiliarybar, .part.statusbar) :focus:not(:focus-visible) {
 	outline-color: transparent !important;
 }

@@ -6,6 +6,7 @@
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
+import type { IStatelessNextEditModelTelemetry } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
 import { ILogger, ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -16,11 +17,13 @@ import { AnnotatedStringReplacement, StringEdit, StringReplacement } from '../..
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../util/vs/editor/common/core/text/abstractText';
 import { checkEditConsistency, EditDataWithIndex, NesRebaseConfigs, tryRebase } from '../common/editRebase';
-import { NextEditFetchRequest } from './nextEditProvider';
+import type { NextEditFetchRequest } from './nextEditProvider';
 import { RebaseFailureInfo, type RebaseResult } from './rebaseResult';
 
 export interface CachedEditOpts {
 	isFromCursorJump: boolean;
+	/** Model attribution for the request that produced this edit. */
+	modelTelemetry: IStatelessNextEditModelTelemetry;
 	/**
 	 * For cursor jump edits, this is the edit window around the original cursor position
 	 * (before the jump), allowing the edit to be served from cache when the cursor is
@@ -108,6 +111,8 @@ export interface CachedEdit {
 	 * edits, addressed by `rebasedEditIndex`, can be attributed to the right patch.
 	 */
 	patchIndices?: readonly (number | undefined)[];
+	/** Model attribution for the request that produced this edit. */
+	modelTelemetry: IStatelessNextEditModelTelemetry;
 	source: NextEditFetchRequest;
 	cacheTime: number;
 	/**
@@ -185,12 +190,12 @@ export class NextEditCache extends Disposable {
 		return docCache.setKthNextEdit(documentContents, editWindow, nextEdit, nextEdits, userEditSince, subsequentN, source, opts);
 	}
 
-	public setNoNextEdit(docId: DocumentId, documentContents: StringText, editWindow: OffsetRange | undefined, source: NextEditFetchRequest) {
+	public setNoNextEdit(docId: DocumentId, documentContents: StringText, editWindow: OffsetRange | undefined, source: NextEditFetchRequest, modelTelemetry: IStatelessNextEditModelTelemetry) {
 		const docCache = this._documentCaches.get(docId);
 		if (!docCache) {
 			return;
 		}
-		docCache.setNoNextEdit(documentContents, editWindow, source);
+		docCache.setNoNextEdit(documentContents, editWindow, source, modelTelemetry);
 	}
 
 	private _getNesRebaseConfigs(): NesRebaseConfigs {
@@ -200,6 +205,7 @@ export class NextEditCache extends Disposable {
 			absorbSubsequenceTyping: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAbsorbSubsequenceTyping, this._expService),
 			reverseAgreement: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsReverseAgreement, this._expService),
 			maxImperfectAgreementLength: typeof maxImperfectAgreementLength === 'number' ? Math.max(0, maxImperfectAgreementLength) : maxImperfectAgreementLength,
+			reanchorContentOnIndentationMismatch: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsReanchorContentOnIndentationMismatch, this._expService),
 		};
 	}
 
@@ -288,7 +294,7 @@ class DocumentEditCache {
 
 	public setKthNextEdit(documentContents: StringText, editWindow: OffsetRange | undefined, nextEdit: StringReplacement, nextEdits: StringReplacement[] | undefined, userEditSince: StringEdit | undefined, subsequentN: number, source: NextEditFetchRequest, opts: CachedEditOpts): CachedEdit {
 		const key = this._getKey(documentContents.value);
-		const cachedEdit: CachedEdit = { docId: this.docId, targetDocId: opts.targetDocId, targetDocumentBeforeEdit: opts.targetDocumentBeforeEdit, edit: nextEdit, edits: nextEdits, detailedEdits: [], userEditSince, subsequentN, patchIndex: opts.patchIndex, patchIndices: opts.patchIndices, source, documentBeforeEdit: documentContents, editWindow, originalEditWindow: opts.originalEditWindow, cacheTime: Date.now(), isFromCursorJump: opts.isFromCursorJump, cursorOffsetAtCacheTime: opts.cursorOffset };
+		const cachedEdit: CachedEdit = { docId: this.docId, targetDocId: opts.targetDocId, targetDocumentBeforeEdit: opts.targetDocumentBeforeEdit, edit: nextEdit, edits: nextEdits, detailedEdits: [], userEditSince, subsequentN, patchIndex: opts.patchIndex, patchIndices: opts.patchIndices, modelTelemetry: opts.modelTelemetry, source, documentBeforeEdit: documentContents, editWindow, originalEditWindow: opts.originalEditWindow, cacheTime: Date.now(), isFromCursorJump: opts.isFromCursorJump, cursorOffsetAtCacheTime: opts.cursorOffset };
 		if (userEditSince) {
 			if (!checkEditConsistency(cachedEdit.documentBeforeEdit.value, userEditSince, this._doc.value.get().value, this._logger.createSubLogger('setKthNextEdit'))) {
 				cachedEdit.userEditSince = undefined;
@@ -307,9 +313,9 @@ class DocumentEditCache {
 		return cachedEdit;
 	}
 
-	public setNoNextEdit(documentContents: StringText, editWindow: OffsetRange | undefined, source: NextEditFetchRequest) {
+	public setNoNextEdit(documentContents: StringText, editWindow: OffsetRange | undefined, source: NextEditFetchRequest, modelTelemetry: IStatelessNextEditModelTelemetry) {
 		const key = this._getKey(documentContents.value);
-		const cachedEdit: CachedEdit = { docId: this.docId, edit: undefined, edits: [], detailedEdits: [], source, documentBeforeEdit: documentContents, editWindow, cacheTime: Date.now(), isFromCursorJump: false };
+		const cachedEdit: CachedEdit = { docId: this.docId, edit: undefined, edits: [], detailedEdits: [], modelTelemetry, source, documentBeforeEdit: documentContents, editWindow, cacheTime: Date.now(), isFromCursorJump: false };
 		const existing = this._sharedCache.get(key);
 		if (existing) {
 			this.evictedCachedEdit(existing);
@@ -382,6 +388,22 @@ class DocumentEditCache {
 			for (const window of windowsToTry) {
 				const res = tryRebase(cachedEdit.documentBeforeEdit.value, window, originalEdits, cachedEdit.detailedEdits, cachedEdit.userEditSince, currentDocumentContents.value, currentSelection, 'strict', logger, nesRebaseConfigs);
 				if (res === 'rebaseFailed') {
+					// Strict rebase treats indentation literally, so re-typing a line's
+					// leading whitespace differently than the model predicted (e.g. pressing
+					// Tab to insert a tab character or a different number of spaces on an
+					// empty body line) makes the whole suggestion drop. The model's content
+					// intent is still valid, so re-anchor it as a clean at-cursor insertion
+					// that respects the indentation the user actually typed. Gated behind a
+					// setting so the behavior can be rolled out / disabled independently.
+					if (nesRebaseConfigs.reanchorContentOnIndentationMismatch) {
+						const reanchored = tryReanchorContentAfterIndentation(originalEdits, cachedEdit.documentBeforeEdit.value, currentDocumentContents.value, currentSelection);
+						if (reanchored) {
+							if (!cachedEdit.rejected && this.isRejectedNextEdit(currentDocumentContents, reanchored)) {
+								cachedEdit.rejected = true;
+							}
+							return { edit: { ...cachedEdit, rebasedEdit: reanchored, rebasedEditIndex: 0, baseCacheEntry: cachedEdit } };
+						}
+					}
 					cachedEdit.rebaseFailed = true;
 					return {
 						edit: undefined,
@@ -433,4 +455,66 @@ class DocumentEditCache {
 	private _getKey(val: string): string {
 		return JSON.stringify([this.docId.uri, val]);
 	}
+}
+
+/**
+ * Salvage a cached next edit whose strict rebase failed *only* because the user
+ * re-typed the leading indentation of an (otherwise empty) line differently than
+ * the model predicted — for example pressing Tab to insert a tab character, or a
+ * different number of spaces, on an empty body line where the model wanted to add
+ * a statement.
+ *
+ * The rebase engine matches indentation literally, so a tab-vs-spaces (or
+ * different-width) mismatch drops the whole suggestion even though the model's
+ * *content* intent (the non-whitespace text it wanted to add on that line) is
+ * still valid. Re-anchor that content as a clean at-cursor insertion that respects
+ * the indentation the user actually typed. This mirrors the reconciliation the
+ * engine already performs when the user's indentation happens to match, and yields
+ * a pure insertion the display layer can render as ghost text.
+ *
+ * Returns the salvaged insertion, or `undefined` when the narrow pattern doesn't
+ * apply (in which case the caller keeps the original rebase-failed behavior).
+ */
+function tryReanchorContentAfterIndentation(
+	originalEdits: readonly StringReplacement[],
+	documentBeforeEdit: string,
+	currentDocument: string,
+	currentSelection: readonly OffsetRange[],
+): StringReplacement | undefined {
+	// Only handle the single-edit, single-empty-cursor case.
+	if (originalEdits.length !== 1 || currentSelection.length !== 1 || !currentSelection[0].isEmpty) {
+		return undefined;
+	}
+	const cursor = currentSelection[0].start;
+
+	// The model must only have touched indentation: the text it replaced is
+	// whitespace-only (typically empty for an insertion, or the line's existing
+	// indentation for a line-prefix replacement).
+	const modelEdit = originalEdits[0];
+	const replaced = modelEdit.replaceRange.substring(documentBeforeEdit);
+	if (!/^[ \t]*$/.test(replaced)) {
+		return undefined;
+	}
+
+	// The content the model wanted to add on that line, with its predicted
+	// indentation stripped. Must be a non-empty, single-line insertion.
+	const content = modelEdit.newText.replace(/^[ \t]*/, '');
+	if (content.length === 0 || content.includes('\n')) {
+		return undefined;
+	}
+
+	// The cursor must sit at the end of the current line's leading whitespace,
+	// on a line that has no real content yet (the user is indenting an empty line).
+	const lineStart = currentDocument.lastIndexOf('\n', cursor - 1) + 1;
+	let lineEnd = currentDocument.indexOf('\n', cursor);
+	if (lineEnd === -1) {
+		lineEnd = currentDocument.length;
+	}
+	const prefix = currentDocument.substring(lineStart, cursor);
+	const suffix = currentDocument.substring(cursor, lineEnd);
+	if (!/^[ \t]*$/.test(prefix) || !/^[ \t]*$/.test(suffix)) {
+		return undefined;
+	}
+
+	return StringReplacement.insert(cursor, content);
 }

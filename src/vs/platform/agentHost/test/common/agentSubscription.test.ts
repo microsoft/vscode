@@ -7,10 +7,11 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
+import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
+import { ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type AnnotationsState, type ChangesetState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
 // Helpers
 
@@ -80,6 +81,47 @@ const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toStri
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
 const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
+
+suite('ChangesetStateSubscription', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('optimistically applies and reconciles file review state', () => {
+		const state: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///test.txt',
+				edit: {
+					before: { uri: 'file:///test.txt', content: { uri: 'file:///before.txt' } },
+					after: { uri: 'file:///test.txt', content: { uri: 'file:///after.txt' } },
+				},
+			}],
+		};
+		const subscription = disposables.add(new ChangesetStateSubscription(changesetUri, 'c1', () => 1, noop));
+		subscription.handleSnapshot(state, 0);
+
+		const action: ClientChangesetAction = {
+			type: ActionType.ChangesetFilesReviewChanged,
+			files: ['file:///test.txt'],
+			reviewed: true,
+		};
+		const clientSeq = subscription.applyOptimistic(action);
+		const optimisticState = subscription.value as ChangesetState;
+		subscription.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }));
+
+		assert.deepStrictEqual({
+			optimisticReviewed: optimisticState.files[0].reviewed,
+			verifiedBeforeEcho: state.files[0].reviewed,
+			verifiedAfterEcho: subscription.verifiedValue?.files[0].reviewed,
+			pendingCleared: subscription.value === subscription.verifiedValue,
+		}, {
+			optimisticReviewed: true,
+			verifiedBeforeEcho: undefined,
+			verifiedAfterEcho: true,
+			pendingCleared: true,
+		});
+	});
+
+});
 
 // RootStateSubscription
 
@@ -322,7 +364,7 @@ suite('SessionStateSubscription', () => {
 		sub.handleSnapshot(state, 0);
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 			1,
 			undefined,
 		));
@@ -412,6 +454,36 @@ suite('SessionStateSubscription', () => {
 		assert.strictEqual(fired.length, 1);
 		assert.strictEqual(fired[0].title, 'Changed');
 	});
+
+	suite('ordinary optimistic working-directory actions', () => {
+
+		test('accepted action moves the optimistic directory into confirmed state', () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+			const action = { type: ActionType.SessionWorkingDirectorySet as const, directory: 'file:///ws2' };
+
+			const clientSeq = sub.applyOptimistic(action);
+			assert.deepStrictEqual((sub.value as SessionState).workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.verifiedValue?.workingDirectories, undefined);
+
+			sub.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }));
+
+			assert.deepStrictEqual(sub.verifiedValue?.workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.value, sub.verifiedValue);
+		});
+
+		test('rejected action rolls optimistic working directories back', () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+			const action = { type: ActionType.SessionWorkingDirectorySet as const, directory: 'file:///ws2' };
+
+			const clientSeq = sub.applyOptimistic(action);
+			sub.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }, 'denied'));
+
+			assert.strictEqual(sub.verifiedValue?.workingDirectories, undefined);
+			assert.strictEqual((sub.value as SessionState).workingDirectories, undefined);
+		});
+	});
 });
 
 // ChatStateSubscription
@@ -443,13 +515,14 @@ suite('ChatStateSubscription', () => {
 		sub.applyOptimistic({
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
 		assert.strictEqual((sub.value as ChatState | undefined)?.activeTurn?.id, 'turn-1');
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 			1,
 			undefined,
 		));
@@ -492,6 +565,39 @@ suite('TerminalStateSubscription', () => {
 		assert.deepStrictEqual((sub.value as TerminalState).content, [
 			{ type: 'unclassified', value: 'hello' },
 		]);
+	});
+
+	test('data between command executed and finished is attributed to the command', () => {
+		const sub = disposables.add(new TerminalStateSubscription(terminalUri, 'c1', noop));
+		sub.handleSnapshot(makeTerminalState(), 0);
+
+		// The server dispatches data in stream order relative to command
+		// events, so a command's output arrives between the executed and
+		// finished actions and must land in the command part, not in a
+		// trailing unclassified part.
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalCommandExecuted, commandId: 'cmd-1', commandLine: 'echo hi', timestamp: 1000 },
+			1,
+		));
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalData, data: 'hi\r\n' },
+			2,
+		));
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalCommandFinished, commandId: 'cmd-1', exitCode: 0, durationMs: 5 },
+			3,
+		));
+
+		assert.deepStrictEqual((sub.value as TerminalState).content, [{
+			type: 'command',
+			commandId: 'cmd-1',
+			commandLine: 'echo hi',
+			output: 'hi\r\n',
+			timestamp: 1000,
+			isComplete: true,
+			exitCode: 0,
+			durationMs: 5,
+		}]);
 	});
 
 	test('ignores terminal actions for other URIs', () => {
@@ -551,9 +657,12 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState; fromSeq: number }> = async (resource) => {
+	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState; fromSeq: number }> = async (resource) => {
 		subscribedResources.push(resource.toString());
 		const key = resource.toString();
+		if (key.endsWith('/annotations')) {
+			return { resource: key, state: { annotations: [] }, fromSeq: 0 };
+		}
 		if (key.startsWith('copilot:')) {
 			return { resource: key, state: makeSessionState(key), fromSeq: 0 };
 		}
@@ -718,6 +827,40 @@ suite('AgentSubscriptionManager', () => {
 		ref.dispose();
 	});
 
+	test('dispatchOptimistic applies to matching changeset subscription', async () => {
+		const state: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///test.txt',
+				edit: {
+					after: { uri: 'file:///test.txt', content: { uri: 'file:///after.txt' } },
+				},
+			}],
+		};
+		const mgr = createManager(async resource => ({ resource: resource.toString(), state, fromSeq: 0 }));
+		const uri = URI.parse(changesetUri);
+		const ref = mgr.getSubscription<ChangesetState>(StateComponents.Changeset, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		const clientSeq = mgr.dispatchOptimistic(uri.toString(), {
+			type: ActionType.ChangesetFilesReviewChanged,
+			files: ['file:///test.txt'],
+			reviewed: true,
+		});
+
+		assert.deepStrictEqual({
+			clientSeq,
+			optimisticReviewed: (ref.object.value as ChangesetState).files[0].reviewed,
+			verifiedReviewed: ref.object.verifiedValue?.files[0].reviewed,
+		}, {
+			clientSeq: 1,
+			optimisticReviewed: true,
+			verifiedReviewed: undefined,
+		});
+
+		ref.dispose();
+	});
+
 	test('dispose clears all subscriptions and calls unsubscribe for each', async () => {
 		const mgr = createManager();
 
@@ -876,5 +1019,63 @@ suite('AgentSubscriptionManager', () => {
 			[{ kind: StateComponents.Session, status: 'error' }],
 		);
 		ref.dispose();
+	});
+
+	suite('ordinary optimistic reconnect state', () => {
+
+		test('applyReconnectSnapshot clears pending actions and applies the fresh state', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///ws2' });
+			assert.deepStrictEqual((ref.object.value as SessionState).workingDirectories, ['file:///ws2']);
+
+			mgr.applyReconnectSnapshot(sessionUri, makeSessionState(sessionUri, { workingDirectories: ['file:///fresh'] }), 5);
+
+			assert.deepStrictEqual((ref.object.value as SessionState).workingDirectories, ['file:///fresh']);
+			assert.deepStrictEqual(mgr.getPendingActions(), []);
+			ref.dispose();
+		});
+
+		test('markSubscriptionsMissing clears pending actions and exposes an error', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///ws2' });
+
+			mgr.markSubscriptionsMissing([URI.parse(sessionUri)]);
+
+			assert.ok(ref.object.value instanceof Error);
+			assert.deepStrictEqual(mgr.getPendingActions(), []);
+			ref.dispose();
+		});
+
+		test('fresh reconnect snapshots preserve pending annotation actions for replay', async () => {
+			const mgr = createManager();
+			const annotationsUri = buildAnnotationsUri(sessionUri);
+			const ref = mgr.getSubscription<AnnotationsState>(StateComponents.Annotations, URI.parse(annotationsUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+			const annotation = {
+				id: 'feedback-1',
+				turnId: 'turn-1',
+				resource: 'file:///reviewed.ts',
+				resolved: false,
+				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+			};
+
+			mgr.dispatchOptimistic(annotationsUri, { type: ActionType.AnnotationsSet, annotation });
+			mgr.applyReconnectSnapshot(annotationsUri, { annotations: [] }, 5, true);
+
+			assert.deepStrictEqual({
+				state: ref.object.value,
+				pending: mgr.getPendingActions().map(entry => entry.action),
+			}, {
+				state: { annotations: [annotation] },
+				pending: [{ type: ActionType.AnnotationsSet, annotation }],
+			});
+			ref.dispose();
+		});
 	});
 });

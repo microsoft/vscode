@@ -5,18 +5,20 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { deriveGitHubEndpoints, IGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 
 const LOG_PREFIX = '[GitHubApiClient]';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
-const GITHUB_API_BASE = 'https://api.github.com';
-const GITHUB_GRAPHQL_ENDPOINT = `${GITHUB_API_BASE}/graphql`;
 
 export interface IGitHubApiRequestOptions {
 	readonly data?: unknown;
 	readonly etag?: string;
+	readonly token?: CancellationToken;
+	readonly createAuthenticationSession?: boolean;
 }
 
 export interface IGitHubApiResponse<T> {
@@ -45,6 +47,13 @@ export class GitHubApiError extends Error {
 	}
 }
 
+export class GitHubAuthenticationError extends Error {
+	constructor() {
+		super('No GitHub authentication sessions available');
+		this.name = 'GitHubAuthenticationError';
+	}
+}
+
 /**
  * Low-level GitHub REST API client. Handles authentication,
  * request construction, and error classification.
@@ -57,23 +66,31 @@ export class GitHubApiClient extends Disposable {
 	constructor(
 		@IRequestService private readonly _requestService: IRequestService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
 
-	async request<T>(method: string, path: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
-		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, options);
+	get enterpriseHost(): string | undefined {
+		return this._getConnection().endpoints.enterpriseHost;
 	}
 
-	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>): Promise<T> {
+	async request<T>(method: string, path: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
+		const connection = this._getConnection();
+		return this._request<T>(method, `${connection.endpoints.apiBaseUri}${path}`, path, 'application/vnd.github.v3+json', callSite, connection.authenticationProviderId, options);
+	}
+
+	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>, options?: Pick<IGitHubApiRequestOptions, 'token' | 'createAuthenticationSession'>): Promise<T> {
+		const connection = this._getConnection();
 		const response = await this._request<IGitHubGraphQLResponse<T>>(
 			'POST',
-			GITHUB_GRAPHQL_ENDPOINT,
+			connection.endpoints.graphQlUri,
 			'/graphql',
 			'application/vnd.github+json',
 			callSite,
-			{ data: { query, variables } }
+			connection.authenticationProviderId,
+			{ ...options, data: { query, variables } }
 		);
 
 		if (response.data?.errors?.length) {
@@ -91,8 +108,17 @@ export class GitHubApiClient extends Disposable {
 		return response.data.data;
 	}
 
-	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
-		const token = await this._getAuthToken();
+	private _getConnection(): { readonly authenticationProviderId: string; readonly endpoints: IGitHubEndpoints } {
+		const authenticationProvider = this._defaultAccountService.getDefaultAccountAuthenticationProvider();
+		const enterpriseUri = authenticationProvider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
+		return {
+			authenticationProviderId: authenticationProvider.id,
+			endpoints: deriveGitHubEndpoints(enterpriseUri),
+		};
+	}
+
+	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, authenticationProviderId: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
+		const token = await this._getAuthToken(authenticationProviderId, options?.createAuthenticationSession !== false);
 
 		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
 		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] -> ${method} ${pathForLogging} (callSite ${callSite}${options?.etag !== undefined ? `, ifNoneMatch ${options.etag}` : ''})`);
@@ -111,7 +137,7 @@ export class GitHubApiClient extends Disposable {
 			// Bypass the renderer HTTP cache so conditional polling reaches GitHub (see PR_ICON_POLLING.md).
 			disableCache: true,
 			callSite
-		}, CancellationToken.None);
+		}, options?.token ?? CancellationToken.None);
 
 		const rateLimitRemaining = parseRateLimitHeader(response.res.headers?.['x-ratelimit-remaining']);
 		if (rateLimitRemaining !== undefined && rateLimitRemaining < 100) {
@@ -151,13 +177,13 @@ export class GitHubApiClient extends Disposable {
 		return { data, statusCode, etag: responseETag };
 	}
 
-	private async _getAuthToken(): Promise<string> {
-		let sessions = await this._authenticationService.getSessions('github', [], { silent: true });
-		if (!sessions || sessions.length === 0) {
-			sessions = await this._authenticationService.getSessions('github', [], { createIfNone: true });
+	private async _getAuthToken(authenticationProviderId: string, createIfNone: boolean): Promise<string> {
+		let sessions = await this._authenticationService.getSessions(authenticationProviderId, [], { silent: true });
+		if ((!sessions || sessions.length === 0) && createIfNone) {
+			sessions = await this._authenticationService.getSessions(authenticationProviderId, [], { createIfNone: true });
 		}
 		if (!sessions || sessions.length === 0) {
-			throw new Error('No GitHub authentication sessions available');
+			throw new GitHubAuthenticationError();
 		}
 
 		// Prefer a session with 'repo' scope, but fall back to the first available session
