@@ -135,12 +135,17 @@ suite('stateToProgressAdapter', () => {
 
 		// A pasted image persisted with no `contentType`. Reading it unguarded
 		// threw, so the attachment rendered as a broken image.
-		const pastedImage: MessageEmbeddedResourceAttachment = {
+		//
+		// The protocol declares `contentType` required and every current producer
+		// sets it, so this record is only expressible by asserting past the
+		// declared type. That is exactly what it is: a record written by an older
+		// build, still on disk, that the type system says cannot exist.
+		const pastedImage = {
 			type: MessageAttachmentKind.EmbeddedResource,
 			label: 'Pasted Image',
 			displayKind: 'image',
 			data: 'iVBORw0KGgo=',
-		};
+		} as unknown as MessageEmbeddedResourceAttachment;
 
 		test('an image attachment with no content type still restores as an image', () => {
 			const restored = messageAttachmentsToVariableData([pastedImage], 'local')?.variables[0];
@@ -161,7 +166,7 @@ suite('stateToProgressAdapter', () => {
 				type: MessageAttachmentKind.EmbeddedResource,
 				label: 'notes.txt',
 				data: 'aGVsbG8=',
-			}], 'local')?.variables[0];
+			} as unknown as MessageEmbeddedResourceAttachment], 'local')?.variables[0];
 
 			assert.strictEqual(restored?.kind, 'generic');
 		});

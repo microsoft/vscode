@@ -748,25 +748,13 @@ export interface SimpleMessageAttachment extends MessageAttachmentBase {
  *
  * @category Turn Types
  */
-/**
- * Content type of an embedded attachment, inferred from `displayKind` when the
- * producer omitted it. Attachments persisted without one exist on disk.
- */
-export function embeddedAttachmentContentType(attachment: Pick<MessageEmbeddedResourceAttachment, 'contentType' | 'displayKind'>): string | undefined {
-	return attachment.contentType ?? (attachment.displayKind === 'image' ? 'image/png' : undefined);
-}
-
 export interface MessageEmbeddedResourceAttachment extends MessageAttachmentBase {
 	/** Discriminant */
 	type: MessageAttachmentKind.EmbeddedResource;
 	/** Base64-encoded binary data */
 	data: string;
-	/**
-	 * Content MIME type (e.g. `"image/png"`, `"application/pdf"`). Optional
-	 * because attachments persisted without one exist, and reading it
-	 * unguarded threw rather than rendering the attachment.
-	 */
-	contentType?: string;
+	/** Content MIME type (e.g. `"image/png"`, `"application/pdf"`) */
+	contentType: string;
 	/**
 	 * Optional selection within the attached textual resource.
 	 *
