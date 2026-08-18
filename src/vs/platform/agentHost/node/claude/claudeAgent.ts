@@ -167,7 +167,13 @@ export function fromSdkModelInfo(m: ModelInfo, provider: AgentProvider): IAgentM
 		// ids are SDK format end to end; `toSdkModelId` is identity at this seam.
 		id: m.value,
 		name: m.displayName,
-		supportsVision: false,
+		// `ModelInfo` carries no vision capability, so this is the transport's
+		// answer rather than the model's: every row it offers is a Claude model,
+		// and image input is available across them. Reporting `false` was read as
+		// a positive claim downstream — the attachment renders with a warning and
+		// "{model} does not support images" — for images the model does receive.
+		// The CAPI projection above reads the real flag and is unaffected.
+		supportsVision: true,
 		...(configSchema ? { configSchema } : {}),
 	};
 }
