@@ -240,6 +240,22 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('serializeWorkspaces prefers project roots before their working directories', () => {
+		const project = URI.parse('file:///workspace/vscode');
+		const worktree = URI.parse('file:///worktrees/pr-331525');
+		const sessions = [
+			{ ...sessionMeta('newest', SessionStatus.Idle, worktree), modifiedTime: 3, project: { uri: project, displayName: 'Visual Studio Code' } },
+			{ ...sessionMeta('duplicate', SessionStatus.Idle, project), modifiedTime: 2, project: { uri: project, displayName: 'Visual Studio Code' } },
+		];
+
+		assert.deepStrictEqual(JSON.parse(serializeWorkspaces(sessions, { limit: 2 })), {
+			workspaces: [
+				{ uri: project.toString(), name: 'Visual Studio Code', provider: 'copilot' },
+				{ uri: worktree.toString(), name: 'pr-331525', provider: 'copilot' },
+			],
+		});
+	});
+
 	test('serializeSessions reports archived status from the IsArchived status bit', () => {
 		const archived: IAgentSessionMetadata = { ...sessionMeta('archived', SessionStatus.Idle | SessionStatus.IsArchived, workspace) };
 		const notArchived: IAgentSessionMetadata = { ...sessionMeta('notArchived', SessionStatus.Idle, workspace) };

@@ -149,7 +149,7 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: SessionServerToolName.ListWorkspaces,
 		title: 'List Workspaces',
-		description: 'List distinct workspaces known from existing sessions. Use a returned URI as the `workspace` for `create_session`.',
+		description: 'List distinct project roots and working directories known from existing sessions. Project roots are preferred so agents can start isolated work from the configured project instead of a transient worktree. Use a returned URI as the `workspace` for `create_session`.',
 		inputSchema: listWorkspacesInputSchema,
 		annotations: { readOnlyHint: true },
 	},
@@ -682,6 +682,19 @@ export function serializeWorkspaces(sessions: readonly IAgentSessionMetadata[], 
 	const projectNamesByWorkspaceUri = new Map<string, string>();
 	const workspaces: { uri: string; name: string; provider: string }[] = [];
 	for (const session of [...sessions].sort((a, b) => b.modifiedTime - a.modifiedTime)) {
+		if (session.project) {
+			const uri = session.project.uri.toString();
+			if (!sessionReferencesByWorkspaceUri.has(uri)) {
+				sessionReferencesByWorkspaceUri.set(uri, {
+					uri,
+					fallbackName: session.project.displayName,
+					provider: session.session.scheme,
+				});
+			}
+			if (!projectNamesByWorkspaceUri.has(uri)) {
+				projectNamesByWorkspaceUri.set(uri, session.project.displayName);
+			}
+		}
 		for (const directory of session.workingDirectories ?? []) {
 			const uri = directory.toString();
 			if (!sessionReferencesByWorkspaceUri.has(uri)) {
