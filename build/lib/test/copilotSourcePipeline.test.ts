@@ -8,8 +8,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, suite, test } from 'node:test';
+import { sourceNpmrc } from '../../azure-pipelines/common/configure-copilot-source-registry.ts';
 import { assembleRuntimePackages } from '../../azure-pipelines/common/copilotSourcePublish.ts';
 import { createProductBuildRequest } from '../../azure-pipelines/common/queue-copilot-product-build.ts';
+import { copilotSourceVersion } from '../../azure-pipelines/common/set-copilot-source-version.ts';
 import { copilotPlatforms } from '../copilotPlatforms.ts';
 import { runtimeArtifactName } from '../copilotRuntimeSource.ts';
 
@@ -41,7 +43,38 @@ function writeRuntimeArtifact(target: string, ref = RUNTIME_REF): void {
 	}));
 }
 
+function errorMessage(callback: () => void): string {
+	try {
+		callback();
+	} catch (error) {
+		return error instanceof Error ? error.message : String(error);
+	}
+	throw new Error('Expected callback to throw.');
+}
+
 suite('Copilot source pipeline', () => {
+
+	test('writes queue-time registry values without shell interpretation', () => {
+		assert.deepStrictEqual({
+			npmrc: sourceNpmrc('https://example.test/npm/;echo-not-a-command'),
+			insecureRegistry: errorMessage(() => sourceNpmrc('http://example.test/npm/')),
+		}, {
+			npmrc: 'registry=https://example.test/npm/;echo-not-a-command\nalways-auth=true\n',
+			insecureRegistry: '[copilot-source-registry] Registry must use HTTPS: http://example.test/npm/',
+		});
+	});
+
+	test('uses the VS Code version and pipeline build ID in source package versions', () => {
+		assert.deepStrictEqual({
+			version: copilotSourceVersion('1.134.0', '464620'),
+			invalidVersion: errorMessage(() => copilotSourceVersion('1.134.0-insider', '464620')),
+			invalidBuildId: errorMessage(() => copilotSourceVersion('1.134.0', '20260818.1')),
+		}, {
+			version: '0.0.0-vscode.1.134.0.464620',
+			invalidVersion: '[copilot-source-version] Invalid VS Code package version "1.134.0-insider". Expected a numeric major.minor.patch version.',
+			invalidBuildId: '[copilot-source-version] Invalid Azure Pipelines build ID "20260818.1". Expected a non-negative integer.',
+		});
+	});
 
 	test('assembles runtime packages for the internal feed', () => {
 		for (const target of copilotPlatforms) {

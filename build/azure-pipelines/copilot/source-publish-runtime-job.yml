@@ -41,6 +41,20 @@ jobs:
           versionSource: fromFile
           versionFilePath: .nvmrc
 
+      - script: node build/azure-pipelines/common/set-copilot-source-version.ts
+        displayName: Set Copilot source package version
+
+      - script: node build/azure-pipelines/common/configure-copilot-source-registry.ts
+        env:
+          COPILOT_SOURCE_REGISTRY: $(NPM_REGISTRY)
+          COPILOT_SOURCE_NPMRC: $(Agent.TempDirectory)/copilot-source.npmrc
+        displayName: Configure internal NPM feed
+
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: $(Agent.TempDirectory)/copilot-source.npmrc
+        displayName: Authenticate internal NPM feed
+
       - task: AzureKeyVault@2
         displayName: Get Copilot runtime GitHub App key
         inputs:
@@ -59,4 +73,8 @@ jobs:
         displayName: Install runtime build toolchain
 
       - script: node build/azure-pipelines/common/build-copilot-runtime-target.ts --target=$(VSCODE_COPILOT_TARGET) --out=$(COPILOT_RUNTIME_STAGING)
+        env:
+          COREPACK_NPM_REGISTRY: $(NPM_REGISTRY)
+          COREPACK_NPM_TOKEN: $(System.AccessToken)
+          NPM_CONFIG_USERCONFIG: $(Agent.TempDirectory)/copilot-source.npmrc
         displayName: Build ${{ parameters.target }} from source

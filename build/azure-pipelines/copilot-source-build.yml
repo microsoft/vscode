@@ -49,8 +49,6 @@ variables:
     value: true
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
-  - name: COPILOT_SOURCE_VERSION
-    value: 0.0.0-vscode.$(Build.BuildId)
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (Copilot source)"
 
@@ -131,13 +129,17 @@ extends:
                   versionSource: fromFile
                   versionFilePath: .nvmrc
 
+              - script: node build/azure-pipelines/common/set-copilot-source-version.ts
+                displayName: Set Copilot source package version
+
               - download: current
                 patterns: copilot_runtime_*/**
                 displayName: Download runtime artifacts
 
-              - script: |
-                  set -e
-                  printf 'registry=%s\nalways-auth=true\n' "$NPM_REGISTRY" > "$(Agent.TempDirectory)/copilot-source.npmrc"
+              - script: node build/azure-pipelines/common/configure-copilot-source-registry.ts
+                env:
+                  COPILOT_SOURCE_REGISTRY: $(NPM_REGISTRY)
+                  COPILOT_SOURCE_NPMRC: $(Agent.TempDirectory)/copilot-source.npmrc
                 displayName: Configure internal NPM feed
 
               - task: npmAuthenticate@0
