@@ -169,6 +169,7 @@ Key properties on the harness descriptor:
 | `sectionOverrides` | Per-section `ISectionOverride` map for button behavior |
 | `requiredAgentId` | Agent ID that must be registered for harness to appear |
 | `instructionFileFilter` | Filename/path patterns to filter instruction items |
+| `hiddenMcpServerCollectionIds` | Local MCP collections that do not apply to the harness; host-published servers remain visible |
 
 ### IStorageSourceFilter
 
@@ -217,6 +218,8 @@ Claude additionally applies:
 - `instructionFileFilter: ['CLAUDE.md', 'CLAUDE.local.md', '.claude/rules/', 'copilot-instructions.md']`
 - `workspaceSubpaths: ['.claude']` (instruction files matching `instructionFileFilter` are exempt)
 - `sectionOverrides`: Instructions → "Add CLAUDE.md" primary, "Rule" type label, `.md` file extension
+
+Copilot, Claude, and Codex Agent Host harnesses hide the Copilot Chat extension's local GitHub MCP collection because that duplicate is intentionally excluded from synchronization; the provider's host-published GitHub MCP server remains visible.
 
 ### Built-in Extension Grouping (Core VS Code)
 

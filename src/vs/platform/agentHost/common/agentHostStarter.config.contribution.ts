@@ -12,6 +12,7 @@ import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostByokModelsEnabledSettingId,
+	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostActiveAgentTitleGenerationSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostClaudeMultiRootEnabledSettingId,
@@ -37,6 +38,7 @@ import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
+	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
@@ -195,6 +197,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostSystemProxyEnabledConfigKey },
+		},
+		[AgentHostGitHubMcpServerEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.githubMcpServer.enabled', "When enabled, agent-host sessions include the GitHub MCP server."),
+			default: true,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
+			agentHost: { key: AgentHostGitHubMcpServerEnabledConfigKey },
 		},
 		[AgentHostCopilotMultiRootEnabledSettingId]: {
 			type: 'boolean',

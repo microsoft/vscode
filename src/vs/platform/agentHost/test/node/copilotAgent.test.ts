@@ -36,7 +36,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostByokModelsEnabledEnvVar } from '../../common/agentService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -3555,6 +3555,62 @@ suite('CopilotAgent', () => {
 				await agent.listChatsToMigrate();
 
 				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['RUBBER_DUCK_AGENT'], undefined);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('enables the built-in GitHub MCP server by default and removes its environment variable when disabled', async () => {
+			const enabledClient = new TestCopilotClient([]);
+			const { agent: enabledAgent } = createTestAgentContext(disposables, { copilotClient: enabledClient });
+			const previousEnvValue = process.env['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'];
+			try {
+				await enabledAgent.listChatsToMigrate();
+				process.env['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'] = 'true';
+
+				const disabledClient = new TestCopilotClient([]);
+				const { agent: disabledAgent } = createTestAgentContext(disposables, {
+					copilotClient: disabledClient,
+					rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				});
+				try {
+					await disabledAgent.listChatsToMigrate();
+					assert.deepStrictEqual([
+						getCreatedClientOptions(enabledAgent).at(-1)?.env?.['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'],
+						getCreatedClientOptions(disabledAgent).at(-1)?.env?.['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'],
+					], ['true', undefined]);
+				} finally {
+					await disposeAgent(disabledAgent);
+				}
+			} finally {
+				if (previousEnvValue === undefined) {
+					delete process.env['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'];
+				} else {
+					process.env['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'] = previousEnvValue;
+				}
+				await disposeAgent(enabledAgent);
+			}
+		});
+
+		test('restarts the client when built-in GitHub MCP support is enabled', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+			});
+			try {
+				await agent.listChatsToMigrate();
+				configurationService.updateRootConfig({ [AgentHostGitHubMcpServerEnabledConfigKey]: true });
+				await Promise.resolve();
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					stopCount: client.stopCount,
+					env: getCreatedClientOptions(agent).at(-1)?.env?.['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'],
+				}, {
+					stopCount: 1,
+					env: 'true',
+				});
 			} finally {
 				await disposeAgent(agent);
 			}

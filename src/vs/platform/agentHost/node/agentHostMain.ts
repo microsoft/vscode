@@ -20,6 +20,7 @@ import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, Ag
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostPromptCache } from './agentHostPromptCache.js';
 import { IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
@@ -213,6 +214,7 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
 		diServices.set(IAgentService, agentService);
+		diServices.set(IAgentHostAuthenticationService, agentService.authenticationService);
 		diServices.set(IAgentHostStateManager, agentService.stateManager);
 		// Narrow host seams providers consume instead of the whole state manager.
 		diServices.set(IAgentHostPromptCache, agentService.promptCache);

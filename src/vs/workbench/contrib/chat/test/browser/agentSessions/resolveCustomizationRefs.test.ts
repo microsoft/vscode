@@ -598,24 +598,29 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(bundler.receivedMcp, []);
 	});
 
-	test('retains the Copilot Chat GitHub MCP provider for agent hosts without a built-in server', async () => {
-		const bundler = new FakeBundler();
+	test('excludes the Copilot Chat GitHub MCP provider for all built-in agent-host providers', async () => {
+		const receivedMcpByProvider: Record<string, readonly ISyncableMcpServer[][]> = {};
+		for (const provider of ['copilotcli', 'claude', 'codex']) {
+			const bundler = new FakeBundler();
+			await resolveCustomizationRefs(
+				makeFileService(),
+				makePromptsService(new Map()),
+				new FakeSyncProvider(),
+				makeAgentPluginService(),
+				makeMcpService([makeCopilotChatGitHubMcpServer()]),
+				makeConfigurationResolverService(),
+				bundler as unknown as SyncedCustomizationBundler,
+				`agent-host-${provider}`,
+				undefined,
+			);
+			receivedMcpByProvider[provider] = bundler.receivedMcp;
+		}
 
-		await resolveCustomizationRefs(
-			makeFileService(),
-			makePromptsService(new Map()),
-			new FakeSyncProvider(),
-			makeAgentPluginService(),
-			makeMcpService([makeCopilotChatGitHubMcpServer()]),
-			makeConfigurationResolverService(),
-			bundler as unknown as SyncedCustomizationBundler,
-			'agent-host-claude',
-			undefined,
-		);
-
-		assert.deepStrictEqual(bundler.receivedMcp, [[
-			{ name: 'GitHub', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(true) },
-		]]);
+		assert.deepStrictEqual(receivedMcpByProvider, {
+			copilotcli: [],
+			claude: [],
+			codex: [],
+		});
 	});
 
 	test('excludes plugin-sourced MCP servers from the bundle', async () => {
