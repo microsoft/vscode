@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isLinux } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { parseExtensionHostDebugPort } from '../../common/environmentService.js';
 import { OPTIONS, parseArgs } from '../../node/argv.js';
@@ -67,6 +68,69 @@ suite('EnvironmentService', () => {
 
 		const service2 = new NativeEnvironmentService(args, { _serviceBrand: undefined, ...product });
 		assert.notStrictEqual(service1.userDataPath, service2.userDataPath);
+	});
+
+	test('argvResource - portable mode', () => {
+		const origPortable = process.env['VSCODE_PORTABLE'];
+		try {
+			process.env['VSCODE_PORTABLE'] = '/portable-dir';
+			const service = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
+			assert.ok(service.argvResource.fsPath.includes('portable-dir'));
+			assert.ok(service.argvResource.fsPath.endsWith('argv.json'));
+		} finally {
+			if (typeof origPortable === 'string') {
+				process.env['VSCODE_PORTABLE'] = origPortable;
+			} else {
+				delete process.env['VSCODE_PORTABLE'];
+			}
+		}
+	});
+
+	test('argvResource - default', () => {
+		const service = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
+		assert.ok(service.argvResource.fsPath.endsWith('argv.json'));
+		assert.ok(service.argvResource.fsPath.includes(product.dataFolderName));
+	});
+
+	test('argvResource - XDG_CONFIG_HOME on Linux', () => {
+		if (!isLinux) {
+			return; // This test is only relevant on Linux
+		}
+
+		const origXdgConfigHome = process.env['XDG_CONFIG_HOME'];
+		try {
+			process.env['XDG_CONFIG_HOME'] = '/custom/config';
+			const service = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
+			assert.ok(service.argvResource.fsPath.startsWith('/custom/config'));
+			assert.ok(service.argvResource.fsPath.endsWith('argv.json'));
+			assert.ok(service.argvResource.fsPath.includes(product.dataFolderName));
+		} finally {
+			if (typeof origXdgConfigHome === 'string') {
+				process.env['XDG_CONFIG_HOME'] = origXdgConfigHome;
+			} else {
+				delete process.env['XDG_CONFIG_HOME'];
+			}
+		}
+	});
+
+	test('argvResource - XDG_CONFIG_HOME defaults to ~/.config on Linux', () => {
+		if (!isLinux) {
+			return; // This test is only relevant on Linux
+		}
+
+		const origXdgConfigHome = process.env['XDG_CONFIG_HOME'];
+		try {
+			delete process.env['XDG_CONFIG_HOME'];
+			const service = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
+			assert.ok(service.argvResource.fsPath.includes('.config'));
+			assert.ok(service.argvResource.fsPath.endsWith('argv.json'));
+		} finally {
+			if (typeof origXdgConfigHome === 'string') {
+				process.env['XDG_CONFIG_HOME'] = origXdgConfigHome;
+			} else {
+				delete process.env['XDG_CONFIG_HOME'];
+			}
+		}
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
