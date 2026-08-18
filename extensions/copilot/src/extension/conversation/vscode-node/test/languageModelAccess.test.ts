@@ -11,6 +11,7 @@ import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockCha
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../../platform/authentication/common/copilotToken';
 import { ICopilotTokenManager } from '../../../../platform/authentication/common/copilotTokenManager';
 import { IAutomodeService } from '../../../../platform/endpoint/node/automodeService';
+import { AutoChatEndpoint } from '../../../../platform/endpoint/node/autoChatEndpoint';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { CopilotChatEndpoint } from '../../../../platform/endpoint/node/copilotChatEndpoint';
@@ -462,10 +463,15 @@ suite('LanguageModelAccess model info', () => {
 			getCopilotToken: async () => copilotToken,
 			resetCopilotToken: () => { },
 		} as unknown as ICopilotTokenManager);
+		// The picker resolves through an `AutoChatEndpoint` wrapper (published under
+		// the pseudo model id `auto`), so mirror that here rather than handing back the
+		// raw hidden endpoint. Returning `lunaEndpoint` directly would publish
+		// `gpt-5.6-luna` as a top-level model, which production never does.
+		let autoPickerEndpoint: IChatEndpoint;
 		testingServiceCollection.define(IAutomodeService, {
 			_serviceBrand: undefined,
 			resolveAutoModeEndpoint: async () => lunaEndpoint,
-			resolveAutoModePickerEndpoint: async () => lunaEndpoint,
+			resolveAutoModePickerEndpoint: async () => autoPickerEndpoint,
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
 			areAutoModeTiersSupported: () => false,
 			onDidChangeAutoModeTierSupport: Event.None,
@@ -481,10 +487,12 @@ suite('LanguageModelAccess model info', () => {
 			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
 		} as unknown as IEndpointProvider);
 		const accessor = testingServiceCollection.createTestingAccessor();
+		autoPickerEndpoint = accessor.get(IInstantiationService).createInstance(AutoChatEndpoint, lunaEndpoint, '', 0, { low: 0, high: 0 });
 		const extensionContext = accessor.get(IVSCodeExtensionContext);
 		const version = accessor.get(IEnvService).getVersion();
 		await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', { extensionVersion: version, baseCount: 0 });
 		await extensionContext.globalState.update('lmBaseCount/some-hidden-model', { extensionVersion: version, baseCount: 0 });
+		await extensionContext.globalState.update('lmBaseCount/auto', { extensionVersion: version, baseCount: 0 });
 		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
 		try {
 			const testAccess = languageModelAccess as unknown as {
@@ -527,6 +535,7 @@ suite('LanguageModelAccess model info', () => {
 			languageModelAccess.dispose();
 			await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', undefined);
 			await extensionContext.globalState.update('lmBaseCount/some-hidden-model', undefined);
+			await extensionContext.globalState.update('lmBaseCount/auto', undefined);
 		}
 	});
 });
