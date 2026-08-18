@@ -1130,10 +1130,10 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const transition = transitionSessionCoordination(status, orchestration);
-		if (transition.orchestration) {
-			await this._setSessionOrchestration(session, transition.orchestration);
-		}
 		if (!transition.notify) {
+			if (transition.orchestration) {
+				await this._setSessionOrchestration(session, transition.orchestration);
+			}
 			return;
 		}
 
@@ -1142,16 +1142,31 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!creatorMetadata || (creatorMetadata.status !== undefined && (creatorMetadata.status & SessionStatus.IsArchived) === SessionStatus.IsArchived)) {
 			return;
 		}
+		if (!this._stateManager.getSessionState(creator.toString())) {
+			try {
+				await this.restoreSession(creator);
+			} catch (error) {
+				this._logService.error(`[AgentService] Failed to restore creator session ${creator.toString()} for child notification: ${toErrorMessage(error)}`);
+				return;
+			}
+		}
+		const creatorSummary = this._stateManager.getSessionSummary(creator.toString());
+		if (!creatorSummary || (creatorSummary.status & SessionStatus.IsArchived) === SessionStatus.IsArchived) {
+			return;
+		}
 
 		const outcome = (status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded
 			? 'needs input'
 			: (status & SessionStatus.Error) === SessionStatus.Error ? 'encountered an error' : 'became idle';
 		const childName = orchestration.label ? `${orchestration.label} (${session})` : session;
 		this._startCoordinationPrompt(creator, `Child session ${childName} ${outcome}. Use get_session_context with session "${session}" to inspect its result.`);
+		if (transition.orchestration) {
+			await this._setSessionOrchestration(session, transition.orchestration);
+		}
 	}
 
-	private _startCoordinationPrompt(parent: URI, prompt: string): void {
-		const chat = buildDefaultChatUri(parent);
+	private _startCoordinationPrompt(creator: URI, prompt: string): void {
+		const chat = buildDefaultChatUri(creator);
 		const message: Message = { text: prompt, origin: { kind: MessageKind.SystemNotification } };
 		if (this._stateManager.getActiveTurnId(chat)) {
 			this._stateManager.dispatchServerAction(chat, {

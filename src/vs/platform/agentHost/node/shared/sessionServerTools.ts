@@ -67,7 +67,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		workspace: { type: 'string', description: 'Absolute folder path, workspace URI, or a working directory from an existing session.' },
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model.' },
-		coordinateWithCreator: { type: 'boolean', description: 'Whether the child can discover and message its creator. Defaults to true.' },
+		coordinateWithCreator: { type: 'boolean', description: 'Whether the child receives its creator relationship and may use prompt-producing session tools targeting the creator. Defaults to true.' },
 		notifyOnIdle: { type: 'string', enum: ['once', 'always'], description: 'Wake the creator when the child needs input, becomes idle, or errors, either once or after every work cycle.' },
 		label: { type: 'string', description: 'Optional label used to group and filter related child sessions.' },
 	},
