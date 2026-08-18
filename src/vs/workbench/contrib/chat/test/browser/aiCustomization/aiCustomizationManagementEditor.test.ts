@@ -429,8 +429,8 @@ suite('aiCustomizationManagementEditor', () => {
 			[CustomizationMigrationCategoryId.PromptFiles, promptFiles],
 		]);
 		editor.customizationMigrationTargetFoldersByType = new Map([
-			[PromptsType.agent, [{ uri: URI.file('/home/test/.copilot/agents'), label: 'Agents', source: AICustomizationSources.user }]],
-			[PromptsType.instructions, [{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Instructions', source: AICustomizationSources.user }]],
+			[PromptsType.agent, [{ uri: URI.file('/home/test/.copilot/agents'), label: '~/.copilot', source: AICustomizationSources.user }]],
+			[PromptsType.instructions, [{ uri: URI.file('/home/test/.copilot/instructions'), label: '~/.copilot', source: AICustomizationSources.user }]],
 		]);
 		editor.selectedCustomizationMigrationItems = new ResourceMap();
 		editor.migrationListContainer = document.createElement('div');
@@ -439,9 +439,6 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationBannerContainer = document.createElement('div');
 		editor.migrationLinkElement = document.createElement('a');
 		editor.migrationMigrateButton = { enabled: false, label: '' };
-		editor.labelService = {
-			getUriLabel: uri => uri.path === '/home/test/.copilot' ? '~/.copilot' : uri.path,
-		};
 		document.body.appendChild(editor.migrationListContainer);
 
 		const readBanner = () => ({

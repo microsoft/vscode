@@ -16,6 +16,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
@@ -1739,6 +1740,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 		if (uniqueFolders.length === 0) {
 			return undefined;
+		}
+
+		const commonLabel = uniqueFolders[0].label;
+		if (commonLabel && uniqueFolders.every(folder => folder.label === commonLabel)) {
+			return commonLabel;
+		}
+
+		const labelParent = dirnamePath(uniqueFolders[0].label);
+		if (labelParent !== '.' && uniqueFolders.every(folder => dirnamePath(folder.label) === labelParent)) {
+			return labelParent;
 		}
 
 		let destination = uniqueFolders[0].uri;

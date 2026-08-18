@@ -90,6 +90,8 @@ Both pages share the same machinery: search, per-item and per-group selection, i
 
 The User Data migration names the resolved destination folder in its banner and confirmation. The banner clarifies that files moved there remain available to both VS Code and the selected harness, and accurately notes that those files are not currently included in Settings Sync without recommending that users commit a broader harness data directory.
 
+Agent-host component fixtures provide writable source folders for agents, instructions, and skills so migration availability and destination copy are exercised instead of rendering an unsupported-harness empty state.
+
 Migration is transactional per source URI. All selected storage identities for one source are copied before the original is deleted once. Targets are created with overwrite disabled and become rollback-owned only after creation succeeds, so a conflicting pre-existing target is preserved. If any target creation or the source deletion fails, every target created by this migration for that source is rolled back, so retrying does not create suffixed duplicates. When a destination type exposes multiple matching roots, migration prompts once for that target and reuses it for every selected file of that type and storage.
 
 Migration overview cards use their native action button as the only interactive target; the surrounding card is presentational rather than a focusable button containing another button. The full User Data migration page fixture is `blocksCi` because its warning and migration controls form a distinct full-page state.
