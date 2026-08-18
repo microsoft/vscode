@@ -358,10 +358,6 @@
 	display: none;
 }
 
-.chat-input-window .chat-input-window-pending-ci-title {
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
 .chat-input-window .chat-input-window-pending-ci-detail {
 	color: var(--vscode-descriptionForeground);
 }
@@ -373,8 +369,29 @@
 	gap: 8px;
 }
 
-.chat-input-window .chat-input-window-pending-approval-title {
+.chat-input-window .chat-input-window-pending-approval-title,
+.chat-input-window .chat-input-window-pending-ci-title {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-input-window .chat-input-window-pending-approval-title-text,
+.chat-input-window .chat-input-window-pending-ci-title-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-input-window .chat-input-window-pending-approval-title .chat-input-window-pending-session-show,
+.chat-input-window .chat-input-window-pending-ci-title .chat-input-window-pending-session-show {
+	flex: 0 0 auto;
+	margin-left: auto;
+	font-weight: var(--vscode-fontWeight-normal);
+	font-size: var(--vscode-chat-font-size-body-s);
+	white-space: nowrap;
 }
 
 .chat-input-window .chat-input-window-pending-approval-message,

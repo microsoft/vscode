@@ -768,12 +768,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const navigation = dom.append(header, dom.$('.chat-input-window-pending-navigation'));
 		const previous = this._appendPendingNavigationButton(navigation, Codicon.chevronLeft, localize('chatInputWindow.pending.previous', "Previous Item"));
 		const next = this._appendPendingNavigationButton(navigation, Codicon.chevronRight, localize('chatInputWindow.pending.next', "Next Item"));
+		// "Show Session" link. It is reparented inline into the active card's title
+		// row (approval fallback / CI failure) so it sits on the same line as the
+		// title; for the question widget it falls back to its own compact row.
 		const sessionInfo = dom.append(panel, dom.$('.chat-input-window-pending-session.hidden'));
 		let displayedSessionResource: URI | undefined;
-		const sessionShow = dom.append(sessionInfo, dom.$('a.chat-input-window-pending-session-show', {
+		const sessionShow = dom.$('a.chat-input-window-pending-session-show', {
 			role: 'button',
 			tabindex: '0',
-		}, localize('chatInputWindow.pending.showSession', "Show Session")));
+		}, localize('chatInputWindow.pending.showSession', "Show Session"));
 		const showSession = () => {
 			const resource = displayedSessionResource;
 			if (!resource) {
@@ -792,7 +795,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const updateSessionInfo = (resource: URI | undefined) => {
 			displayedSessionResource = resource;
 			if (!resource) {
-				sessionInfo.classList.add('hidden');
 				sessionShow.removeAttribute('title');
 				return;
 			}
@@ -804,16 +806,37 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			} else {
 				sessionShow.removeAttribute('title');
 			}
-			sessionInfo.classList.remove('hidden');
+		};
+		// Move the link inline into a card title (approval / CI), into its own
+		// compact row for the question widget, or detach it when there is no session.
+		const placeSessionLink = (slot: 'row' | HTMLElement | undefined) => {
+			if (!displayedSessionResource || slot === undefined) {
+				sessionInfo.classList.add('hidden');
+				sessionShow.remove();
+				return;
+			}
+			if (slot === 'row') {
+				if (sessionShow.parentElement !== sessionInfo) {
+					sessionInfo.appendChild(sessionShow);
+				}
+				sessionInfo.classList.remove('hidden');
+				return;
+			}
+			sessionInfo.classList.add('hidden');
+			if (sessionShow.parentElement !== slot) {
+				slot.appendChild(sessionShow);
+			}
 		};
 		const approvalFallback = dom.append(panel, dom.$('.chat-input-window-pending-approval-fallback'));
 		const approvalTitle = dom.append(approvalFallback, dom.$('.chat-input-window-pending-approval-title'));
+		const approvalTitleText = dom.append(approvalTitle, dom.$('span.chat-input-window-pending-approval-title-text'));
 		const approvalMessage = dom.append(approvalFallback, dom.$('.chat-input-window-pending-approval-message'));
 		const approvalCommand = dom.append(approvalFallback, dom.$('code.chat-input-window-pending-approval-command'));
 		const approvalDisclaimer = dom.append(approvalFallback, dom.$('.chat-input-window-pending-approval-disclaimer'));
 		const approvalActions = dom.append(approvalFallback, dom.$('.chat-input-window-pending-approval-actions'));
 		const ciFallback = dom.append(panel, dom.$('.chat-input-window-pending-ci-fallback'));
 		const ciTitle = dom.append(ciFallback, dom.$('.chat-input-window-pending-ci-title'));
+		const ciTitleText = dom.append(ciTitle, dom.$('span.chat-input-window-pending-ci-title-text'));
 		const ciDetail = dom.append(ciFallback, dom.$('.chat-input-window-pending-ci-detail', { 'aria-live': 'polite' }));
 		const ciActions = dom.append(ciFallback, dom.$('.chat-input-window-pending-ci-actions'));
 		const approvalActionDisposables = this._windowDisposables.add(new MutableDisposable<DisposableStore>());
@@ -864,12 +887,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				}
 			}
 			if (!entry) {
-				ciTitle.textContent = '';
+				ciTitleText.textContent = '';
 				ciDetail.textContent = '';
 				return;
 			}
 
-			ciTitle.textContent = localize('chatInputWindow.pending.ciTitle', "CI is failing for {0}", entry.failure.label);
+			ciTitleText.textContent = localize('chatInputWindow.pending.ciTitle', "CI is failing for {0}", entry.failure.label);
 			ciDetail.textContent = localize(
 				'chatInputWindow.pending.ciDetail',
 				"{0} checks failed, {1} pending",
@@ -890,7 +913,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 			const messages = state.confirmationMessages;
 			const confirmationTitle = renderAsPlaintext(messages?.title ?? approval.invocation.invocationMessage);
-			approvalTitle.textContent = confirmationTitle;
+			approvalTitleText.textContent = confirmationTitle;
 			const confirmationMessage = renderAsPlaintext(messages?.message ?? '');
 			const showConfirmationMessage = !!confirmationMessage && confirmationMessage !== confirmationTitle;
 			approvalMessage.textContent = showConfirmationMessage ? confirmationMessage : '';
@@ -1116,6 +1139,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				lastActivatedPendingItem = undefined;
 				this._activePendingSessionResource = undefined;
 				updateSessionInfo(undefined);
+				placeSessionLink(undefined);
 				panel.classList.remove('shown', 'question', 'tool-approval-fallback', 'ci-failure');
 				widget.setModel(undefined);
 				this._fitWindowToContent();
@@ -1144,11 +1168,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 			if (item.kind === 'ciFailure') {
 				this._activePendingSessionResource = undefined;
-				updateSessionInfo(undefined);
+				updateSessionInfo(item.failure.sessionResource);
 				displayedApproval = undefined;
 				displayedPendingOccurrence = undefined;
 				renderApprovalFallback(undefined);
 				renderCIFailure(item);
+				placeSessionLink(ciTitle);
 				panel.classList.remove('question', 'tool-approval-fallback');
 				panel.classList.add('ci-failure');
 				widget.setModel(undefined);
@@ -1173,6 +1198,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 			panel.classList.toggle('question', hasPendingQuestion);
 			panel.classList.toggle('tool-approval-fallback', !hasPendingQuestion && !!pendingApproval);
+			if (hasPendingQuestion) {
+				placeSessionLink('row');
+			} else if (pendingApproval) {
+				placeSessionLink(approvalTitle);
+			} else {
+				placeSessionLink(undefined);
+			}
 			widget.setModel(model);
 			if (pendingOccurrence && omniInputOpen && pendingOccurrence !== lastActivatedPendingItem) {
 				// The pending card is the most direct observation that this exact
