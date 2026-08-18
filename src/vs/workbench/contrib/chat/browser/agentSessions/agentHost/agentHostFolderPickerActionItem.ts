@@ -128,11 +128,8 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		const sessionResource = this._sessionResource();
 		const stored = sessionResource ? this._newSessionFolderService.getFolder(sessionResource) : undefined;
-		// Honor an explicit choice while it is still a workspace folder. Staleness
-		// (a folder removed from the workspace) is owned by
-		// IAgentHostNewSessionFolderService, which clears the selection on the
-		// workspace-folders change; rendering stays side-effect free.
-		if (stored && folders.some(folder => folder.uri.toString() === stored.toString())) {
+		// Stale workspace selections are cleared by the folder service; standalone selections remain valid.
+		if (stored) {
 			return stored;
 		}
 		// A started session's working directory is fixed at creation time and may
