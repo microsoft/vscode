@@ -19,11 +19,11 @@ import { IOpenURLOptions, IURLService } from '../../../../../platform/url/common
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
-import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import '../../browser/pullRequestActions.js';
 
-function createSessionWithPullRequest(pullRequestUri: URI | undefined): ISession {
+function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRef?: IGitHubPullRequestRef): ISession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });
 	const workspace: ISessionWorkspace = {
 		uri: workspaceUri,
@@ -42,6 +42,7 @@ function createSessionWithPullRequest(pullRequestUri: URI | undefined): ISession
 					owner: 'owner',
 					repo: 'repo',
 					pullRequest: { number: 1, uri: pullRequestUri },
+					pullRequests: pullRequestRef ? [pullRequestRef] : undefined,
 				}),
 			} : undefined,
 		}],
@@ -162,6 +163,36 @@ suite('Pull Request Actions', () => {
 		}, {
 			handledUris: [],
 			opened: [{ resource: pullRequestUri, openExternal: true }],
+		});
+	});
+
+	test('Open Pull Request prefers the explicit pull request repository identity', async () => {
+		const pullRequestUri = URI.parse('https://github.com/upstream/project/pull/7');
+		const session = createSessionWithPullRequest(pullRequestUri, {
+			owner: 'upstream',
+			repo: 'project',
+			number: 7,
+			uri: pullRequestUri,
+		});
+		const instantiationService = new TestInstantiationService();
+		const urlService = new TestURLService();
+		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+			override async getExtension(): Promise<IExtensionDescription | undefined> {
+				return new class extends mock<IExtensionDescription>() { };
+			}
+		});
+		instantiationService.stub(IOpenerService, new TestOpenerService());
+		instantiationService.stub(IURLService, urlService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor, session));
+
+		assert.deepStrictEqual(JSON.parse(urlService.opened[0].uri.query), {
+			owner: 'upstream',
+			repo: 'project',
+			pullRequestNumber: 7,
 		});
 	});
 

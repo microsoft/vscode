@@ -130,6 +130,10 @@ registerAction2(OpenPullRequestAction);
 
 function getSessionPullRequest(session: ISession | undefined): IGitHubPullRequestRef | undefined {
 	const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
+	const pullRequestRef = gitHubInfo?.pullRequests?.[0];
+	if (pullRequestRef) {
+		return pullRequestRef;
+	}
 	if (!gitHubInfo?.pullRequest) {
 		return undefined;
 	}
