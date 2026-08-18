@@ -341,7 +341,7 @@ suite('ListView', function () {
 			getHeight() { return 100; },
 			getTemplateId() { return 'template'; },
 			hasDynamicHeight() { return true; },
-			getDynamicHeight(element) { return element.delegated ? element.height : undefined; }
+			getDynamicHeight(element) { return element.delegated ? element.height : null; }
 		};
 
 		const listViewRef: { value?: ListView<TestElement> } = {};
