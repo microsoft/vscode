@@ -1967,12 +1967,15 @@ export class BrowserViewAttachmentWidget extends AbstractChatAttachmentWidget {
 export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, resource: URI): IDisposable {
 	const contextKeyService = accessor.get(IContextKeyService);
 	const instantiationService = accessor.get(IInstantiationService);
+	const fileService = accessor.get(IFileService);
+	const languageService = accessor.get(ILanguageService);
+	const modelService = accessor.get(IModelService);
 
 	const store = new DisposableStore();
 
 	// Context
 	const scopedContextKeyService = store.add(contextKeyService.createScoped(widget));
-	setResourceContext(accessor, scopedContextKeyService, resource);
+	setResourceContext(scopedContextKeyService, resource, fileService, languageService, modelService);
 
 	// Drag and drop
 	widget.draggable = true;
@@ -1993,6 +1996,11 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 	const textModelService = accessor.get(ITextModelService);
 	const contextMenuService = accessor.get(IContextMenuService);
 	const menuService = accessor.get(IMenuService);
+	// Resolve services eagerly while the accessor is valid, since the context key
+	// service is initialized lazily on first context menu open (outside this scope).
+	const fileService = accessor.get(IFileService);
+	const languageService = accessor.get(ILanguageService);
+	const modelService = accessor.get(IModelService);
 
 	const store = new DisposableStore();
 
@@ -2019,7 +2027,7 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 		if (!scopedContextKeyService) {
 			scopedContextKeyService = store.add(parentContextKeyService.createScoped(widget));
 			chatAttachmentResourceContextKey.bindTo(scopedContextKeyService).set(attachment.value.uri.toString());
-			setResourceContext(accessor, scopedContextKeyService, attachment.value.uri);
+			setResourceContext(scopedContextKeyService, attachment.value.uri, fileService, languageService, modelService);
 		}
 		return scopedContextKeyService;
 	};
@@ -2074,11 +2082,7 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 	return store;
 }
 
-function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService: IScopedContextKeyService, resource: URI): void {
-	const fileService = accessor.get(IFileService);
-	const languageService = accessor.get(ILanguageService);
-	const modelService = accessor.get(IModelService);
-
+function setResourceContext(scopedContextKeyService: IScopedContextKeyService, resource: URI, fileService: IFileService, languageService: ILanguageService, modelService: IModelService): void {
 	const resourceContextKey = new StaticResourceContextKey(scopedContextKeyService, fileService, languageService, modelService);
 	resourceContextKey.set(resource);
 }
