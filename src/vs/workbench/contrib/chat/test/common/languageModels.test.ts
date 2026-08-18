@@ -35,11 +35,15 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 suite('LanguageModels', function () {
 
 	let languageModels: LanguageModelsService;
+	let warnings: string[];
+	let traces: string[];
 
 	const store = new DisposableStore();
 	const activationEvents = new Set<string>();
 
 	setup(function () {
+		warnings = [];
+		traces = [];
 
 		languageModels = new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
@@ -48,7 +52,10 @@ suite('LanguageModels', function () {
 					return Promise.resolve();
 				}
 			},
-			new NullLogService(),
+			new class extends NullLogService {
+				override warn(message: string | Error): void { warnings.push(String(message)); }
+				override trace(message: string): void { traces.push(message); }
+			},
 			new TestStorageService(),
 			new MockContextKeyService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
@@ -127,6 +134,23 @@ suite('LanguageModels', function () {
 		assert.deepStrictEqual(result1.length, 2);
 		assert.deepStrictEqual(result1[0], 'test-id-1');
 		assert.deepStrictEqual(result1[1], 'test-id-12');
+	});
+
+	test('silent resolution traces an optional provider that is not registered', async function () {
+		await languageModels.selectLanguageModels({ vendor: 'actual-vendor' });
+
+		assert.deepStrictEqual(warnings, []);
+		assert.ok(traces.includes('[LM] No provider registered for vendor actual-vendor'));
+	});
+
+	test('explicit provider management warns when its provider is not registered', async function () {
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'managed-vendor', displayName: 'Managed Vendor', configuration: undefined, managementCommand: 'test.manage', when: undefined }
+		], []);
+
+		await languageModels.configureLanguageModelsProviderGroup('managed-vendor');
+
+		assert.deepStrictEqual(warnings, ['[LM] No provider registered for vendor managed-vendor']);
 	});
 
 	test('selector with id works properly', async function () {
