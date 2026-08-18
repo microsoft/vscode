@@ -3417,6 +3417,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		abort: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			return this._abort(chat, context);
 		},
+		getModel: (chat: URI, context: URI | IAgentChatContext): ModelSelection | undefined => {
+			const session = this._resolveConversationSession(chat, context);
+			return session ? this._sessions.get(AgentSession.id(session))?.model : undefined;
+		},
 		changeModel: (chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chat, model, context);
 		},

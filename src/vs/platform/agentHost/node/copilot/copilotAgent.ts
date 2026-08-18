@@ -2704,6 +2704,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		abort: (chatUri: URI, context: URI | IAgentChatContext): Promise<void> => {
 			return this._abortSession(chatUri, context);
 		},
+		getModel: (chatUri: URI): ModelSelection | undefined => this._chatBackings.get(chatUri.toString())?.model,
 		changeModel: (chatUri: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chatUri, model, context);
 		},
@@ -2870,7 +2871,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				project,
 				workspaceless: isWorkspaceless,
 			});
-			this._chatBackings.set(chat.toString(), { sdkSessionId });
+			this._chatBackings.set(chat.toString(), { sdkSessionId, ...(options.model ? { model: options.model } : {}) });
 		}
 
 		this._logService.info(`[Copilot] Chat created; its backing stays deferred until the first send: ${session.toString()}`);

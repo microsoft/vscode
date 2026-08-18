@@ -3965,14 +3965,16 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.listExternalChatsCalls, 1);
 		});
 
-		test('a discovery signal does not bypass completed legacy migration semantics', async () => {
+		test('listSessions rejects an unavailable migration catalog and retries it on the next call', async () => {
 			class NotYetMigratableAgent extends MockAgent {
 				migrationCalls = 0;
 				enumerable = false;
 			}
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = disposables.add(new NotYetMigratableAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'legacy-migration-not-ready');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listChatsToMigrate = async () => {
 				agent.migrationCalls++;
 				return agent.enumerable
@@ -3980,18 +3982,20 @@ suite('AgentService (node dispatcher)', () => {
 					: undefined;
 			};
 			svc.registerProvider(agent);
-			await svc.listSessions();
+			await assert.rejects(svc.listSessions(), /cannot enumerate its native session catalog yet/);
+			const callsAfterFailure = agent.migrationCalls;
 
 			agent.enumerable = true;
-			agent.fireDiscoveredChats([]);
 			await timeout(0);
-
+			const listed = await svc.listSessions();
 			assert.deepStrictEqual({
-				migrationCalls: agent.migrationCalls,
-				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+				retriedBeforeFailure: callsAfterFailure > 1,
+				retriedAfterFailure: agent.migrationCalls > callsAfterFailure,
+				listed: listed.map(session => session.session.toString()),
 			}, {
-				migrationCalls: 1,
-				registered: [],
+				retriedBeforeFailure: true,
+				retriedAfterFailure: true,
+				listed: [legacy.toString()],
 			});
 		});
 
