@@ -877,13 +877,8 @@ export interface IAgentToolPendingConfirmationSignal {
 
 /**
  * The runtime invoked a client-provided tool and is awaiting its result.
- *
- * Kept as a non-action signal because the host must decide whether the call
- * needs driving: a normally streamed tool call already has protocol state and
- * a client executing it, but a call replayed from the transcript (an SDK
- * resume finishing a `tool_use` that never received its result) streams
- * nothing, so the host must synthesize the start/ready pair the stream would
- * have produced or no client will ever execute it.
+ * Kept as a non-action signal because a call replayed from the transcript
+ * streams nothing, so the host must drive it for any client to execute it.
  */
 export interface IAgentClientToolInvokedSignal {
 	readonly kind: 'client_tool_invoked';

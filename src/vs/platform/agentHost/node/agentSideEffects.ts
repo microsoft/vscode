@@ -955,12 +955,9 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * The runtime invoked a client tool whose call never streamed — an SDK
-	 * resume replaying a transcript-dangling `tool_use` emits no assistant
-	 * events, so no client execution was ever requested and the runtime would
-	 * wait forever. Synthesize the start/ready pair the stream would have
-	 * produced; a call that did stream already has protocol state and is left
-	 * alone.
+	 * The runtime invoked a client tool whose call never streamed, so no client
+	 * execution was ever requested. Synthesizes the start/ready pair the stream
+	 * would have produced; a call that did stream is left alone.
 	 */
 	private _handleClientToolInvoked(signal: IAgentClientToolInvokedSignal, sessionKey: ProtocolURI, turnId: string): void {
 		if (this._findToolCall(sessionKey, turnId, signal.toolCallId)) {
@@ -969,8 +966,7 @@ export class AgentSideEffects extends Disposable {
 		const sessionUri = parseRequiredSessionUriFromChatUri(sessionKey);
 		const owner = this._stateManager.getSessionState(sessionUri)?.activeClients.find(client => client.tools.some(tool => tool.name === signal.toolName));
 		if (!owner) {
-			// The runtime is already parked on this call, so failing it is the
-			// only way to unwind: returning would wedge the turn indefinitely.
+			// The runtime is parked on this call, so failing it is the only way to unwind the turn.
 			this._logService.warn(`[AgentSideEffects] No active client provides replayed tool ${signal.toolName}; failing ${signal.toolCallId}`);
 			const error = { message: localize('agentHost.clientTool.noOwner', "No connected client provides the tool \"{0}\".", signal.toolName), code: 'toolUnavailable' };
 			this._stateManager.dispatchServerAction(sessionKey, {
