@@ -139,8 +139,29 @@ extends:
                 displayName: Set Copilot source package version
 
               - download: current
-                patterns: copilot_runtime_*/**
-                displayName: Download runtime artifacts
+                artifact: copilot_runtime_darwin_arm64
+                displayName: Download darwin-arm64 runtime
+              - download: current
+                artifact: copilot_runtime_darwin_x64
+                displayName: Download darwin-x64 runtime
+              - download: current
+                artifact: copilot_runtime_linux_arm64
+                displayName: Download linux-arm64 runtime
+              - download: current
+                artifact: copilot_runtime_linux_x64
+                displayName: Download linux-x64 runtime
+              - download: current
+                artifact: copilot_runtime_linuxmusl_arm64
+                displayName: Download linuxmusl-arm64 runtime
+              - download: current
+                artifact: copilot_runtime_linuxmusl_x64
+                displayName: Download linuxmusl-x64 runtime
+              - download: current
+                artifact: copilot_runtime_win32_arm64
+                displayName: Download win32-arm64 runtime
+              - download: current
+                artifact: copilot_runtime_win32_x64
+                displayName: Download win32-x64 runtime
 
               - script: node build/azure-pipelines/common/configure-copilot-source-registry.ts
                 env:

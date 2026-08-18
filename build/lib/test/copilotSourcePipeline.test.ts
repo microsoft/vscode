@@ -16,6 +16,7 @@ import { copilotPlatforms } from '../copilotPlatforms.ts';
 import { pnpmVersion, runtimeArtifactName } from '../copilotRuntimeSource.ts';
 
 const RUNTIME_REF = 'a'.repeat(40);
+const PIPELINE_PATH = path.join(import.meta.dirname, '../../azure-pipelines/copilot-source-build.yml');
 let workspace: string;
 
 beforeEach(() => {
@@ -74,6 +75,13 @@ suite('Copilot source pipeline', () => {
 			prerelease: '12.0.0-rc.1',
 			unsupported: '[copilot-runtime-source] Unsupported packageManager "yarn@1.22.22". Expected pnpm@<semver>.',
 		});
+	});
+
+	test('downloads every runtime artifact by name', () => {
+		const pipeline = fs.readFileSync(PIPELINE_PATH, 'utf8');
+		const downloadedArtifacts = [...pipeline.matchAll(/^\s+artifact: (copilot_runtime_\w+)$/gm)].map(match => match[1]);
+
+		assert.deepStrictEqual(downloadedArtifacts, copilotPlatforms.map(runtimeArtifactName));
 	});
 
 	test('uses the VS Code version and pipeline build ID in source package versions', () => {
