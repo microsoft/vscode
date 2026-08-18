@@ -30,7 +30,7 @@ suite('ChatDebugServiceImpl', () => {
 	const agentHostSession = URI.parse('agent-host-copilotcli:/test-session-id');
 
 	setup(() => {
-		contextKeyService = new MockContextKeyService();
+		contextKeyService = disposables.add(new MockContextKeyService());
 		service = disposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService));
 	});
 
@@ -61,6 +61,16 @@ suite('ChatDebugServiceImpl', () => {
 			[true, true],
 			[false, false],
 		]);
+	});
+
+	test('resets the active session context keys on dispose', () => {
+		service.activeSessionResource = agentHostSession;
+		service.dispose();
+
+		assert.deepStrictEqual([
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_HAS_ACTIVE_SESSION.key),
+			contextKeyService.getContextKeyValue(CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.key),
+		], [false, false]);
 	});
 
 	suite('addEvent and getEvents', () => {

@@ -162,6 +162,10 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		super();
 		this._hasActiveSessionContextKey = CHAT_DEBUG_HAS_ACTIVE_SESSION.bindTo(contextKeyService);
 		this._activeSessionIsAgentHostContextKey = CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.bindTo(contextKeyService);
+		this._register(toDisposable(() => {
+			this._hasActiveSessionContextKey.reset();
+			this._activeSessionIsAgentHostContextKey.reset();
+		}));
 	}
 
 	/** Priority for deduplicating events with the same ID: lower = richer. */

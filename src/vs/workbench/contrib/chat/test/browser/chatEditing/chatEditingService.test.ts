@@ -93,7 +93,8 @@ suite('ChatEditingService', function () {
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
-		collection.set(IChatDebugService, new ChatDebugServiceImpl(new TestConfigurationService(), new MockContextKeyService()));
+		const contextKeyService = store.add(new MockContextKeyService());
+		collection.set(IChatDebugService, store.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {
 				return Disposable.None;
