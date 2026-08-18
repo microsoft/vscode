@@ -3,116 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { LinkPresentation } from '@vscode/markdown-editor';
-import { autorun, type IObservable } from '@vscode/observables';
 import * as vscode from 'vscode';
 import type { ILogger } from '../logging';
 import { Disposable } from '../util/dispose';
-import { MdLinkOpener } from '../util/openDocumentLink';
-import { AgentSessionLinkPresentationResolver } from './agentSessionLinkPresentationResolver';
-import { GitHubLinkPresentationResolver } from './githubLinkPresentationResolver';
-import { GitLinkPresentationResolver } from './gitLinkPresentationResolver';
-import { ImmutableLinkPresentationCache, LinkPresentationCache, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
-import { WorkspaceLinkPresentationResolver } from './workspaceLinkPresentationResolver';
-
-const refreshIntervalMs = 30_000;
-
-interface LinkPresentationEntry {
-	readonly presentation: IObservable<LinkPresentation>;
-	readonly refreshOnInterval: boolean;
-	readonly subscription: vscode.Disposable;
-}
+import { getAbsoluteUri, MdLinkOpener } from '../util/openDocumentLink';
+import type { LinkPresentation } from './linkPresentation/linkPresentationResolver';
 
 export class MarkdownEditorRichLinkController extends Disposable {
+	readonly #documentUri: vscode.Uri;
+	readonly #linkOpener: MdLinkOpener;
 	readonly #logger: ILogger;
 	readonly #postMessage: (message: object) => Thenable<boolean>;
-	readonly #gitResolver: GitLinkPresentationResolver;
-	readonly #resolvers: readonly LinkPresentationResolver[];
-	readonly #entries = new Map<string, LinkPresentationEntry>();
-	readonly #onDidRequestRefresh = this._register(new vscode.EventEmitter<void>());
-	#refreshTimer: ReturnType<typeof setTimeout> | undefined;
+	readonly #entries = new Map<string, vscode.Disposable>();
 
 	constructor(
 		document: vscode.TextDocument,
 		linkOpener: MdLinkOpener,
 		logger: ILogger,
-		gitCache: ImmutableLinkPresentationCache,
-		githubCache: LinkPresentationCache,
 		postMessage: (message: object) => Thenable<boolean>,
 	) {
 		super();
+		this.#documentUri = document.uri;
+		this.#linkOpener = linkOpener;
 		this.#logger = logger;
 		this.#postMessage = postMessage;
-		this.#gitResolver = this._register(new GitLinkPresentationResolver(gitCache));
-		this.#resolvers = [
-			this._register(new AgentSessionLinkPresentationResolver()),
-			this.#gitResolver,
-			this._register(new GitHubLinkPresentationResolver(githubCache)),
-			this._register(new WorkspaceLinkPresentationResolver(document.uri, linkOpener)),
-		];
-		this._register(vscode.window.onDidChangeWindowState(event => {
-			if (event.focused) {
-				this.#refresh();
-			}
-		}));
-	}
-
-	openLink(href: string): Promise<boolean> {
-		return this.#gitResolver.open(href);
 	}
 
 	updateTargets(hrefs: readonly string[]): void {
 		const targets = new Set(hrefs);
 		for (const [href, entry] of this.#entries) {
 			if (!targets.has(href)) {
-				entry.subscription.dispose();
+				entry.dispose();
 				this.#entries.delete(href);
 			}
 		}
 		for (const href of targets) {
 			if (!this.#entries.has(href)) {
-				const entry = this.#resolve(href);
-				if (entry) {
-					this.#entries.set(href, entry);
-				}
+				this.#entries.set(href, new ApiLinkPresentationEntry(
+					href,
+					this.#documentUri,
+					this.#linkOpener,
+					presentation => this.#publishPresentation(href, presentation),
+					this.#logger,
+				));
 			}
 		}
-		this.#scheduleRefresh();
 	}
 
 	override dispose(): void {
-		this.#cancelRefresh();
 		for (const entry of this.#entries.values()) {
-			entry.subscription.dispose();
+			entry.dispose();
 		}
 		this.#entries.clear();
 		super.dispose();
 	}
 
-	#resolve(href: string): LinkPresentationEntry | undefined {
-		for (const resolver of this.#resolvers) {
-			const context: LinkPresentationResolverContext = {
-				onDidRequestRefresh: this.#onDidRequestRefresh.event,
-				logger: this.#logger,
-			};
-			const presentation = resolver.resolve(href, context);
-			if (!presentation) {
-				continue;
-			}
-			const subscription = autorun(reader => {
-				void this.#publishPresentation(href, presentation.read(reader));
-			});
-			return {
-				presentation,
-				refreshOnInterval: resolver.refreshOnInterval,
-				subscription,
-			};
-		}
-
-		return undefined;
-	}
-
-	async #publishPresentation(href: string, presentation: LinkPresentation): Promise<void> {
+	async #publishPresentation(href: string, presentation: LinkPresentation | undefined): Promise<void> {
 		try {
 			await this.#postMessage({
 				type: 'richLinkPresentations',
@@ -122,23 +68,65 @@ export class MarkdownEditorRichLinkController extends Disposable {
 			this.#logger.trace('Markdown rich link', `Failed to publish ${href}`, error);
 		}
 	}
+}
 
-	#refresh(): void {
-		this.#onDidRequestRefresh.fire();
-		this.#scheduleRefresh();
+class ApiLinkPresentationEntry extends Disposable {
+	constructor(
+		href: string,
+		documentUri: vscode.Uri,
+		linkOpener: MdLinkOpener,
+		publishPresentation: (presentation: LinkPresentation | undefined) => void,
+		logger: ILogger,
+	) {
+		super();
+		void this.#initialize(href, documentUri, linkOpener, publishPresentation, logger);
 	}
 
-	#scheduleRefresh(): void {
-		this.#cancelRefresh();
-		if ([...this.#entries.values()].some(entry => entry.refreshOnInterval)) {
-			this.#refreshTimer = setTimeout(() => this.#refresh(), refreshIntervalMs);
+	async #initialize(
+		href: string,
+		documentUri: vscode.Uri,
+		linkOpener: MdLinkOpener,
+		publishPresentation: (presentation: LinkPresentation | undefined) => void,
+		logger: ILogger,
+	): Promise<void> {
+		try {
+			const resource = await resolveLinkResource(href, documentUri, linkOpener);
+			if (this.isDisposed) {
+				return;
+			}
+			if (!resource) {
+				publishPresentation(undefined);
+				return;
+			}
+			const resourceString = resource.toString(true);
+			const rule = vscode.window.linkPresentationRules.find(rule => matchesRule(rule.uriPattern, resourceString));
+			if (!rule) {
+				publishPresentation(undefined);
+				return;
+			}
+
+			const watcher = this._register(vscode.window.createLinkPresentationWatcher(rule.id, resource));
+			publishPresentation(watcher.presentation);
+			this._register(watcher.onDidChangePresentation(() => publishPresentation(watcher.presentation)));
+		} catch (error) {
+			logger.trace('Markdown rich link', `Failed to resolve ${href}`, error);
+			if (!this.isDisposed) {
+				publishPresentation(undefined);
+			}
 		}
 	}
+}
 
-	#cancelRefresh(): void {
-		if (this.#refreshTimer !== undefined) {
-			clearTimeout(this.#refreshTimer);
-			this.#refreshTimer = undefined;
-		}
+async function resolveLinkResource(href: string, documentUri: vscode.Uri, linkOpener: MdLinkOpener): Promise<vscode.Uri | undefined> {
+	const absoluteUri = getAbsoluteUri(href);
+	if (absoluteUri) {
+		return absoluteUri;
 	}
+	const resolved = await linkOpener.resolveDocumentLink(href, documentUri);
+	return resolved && resolved.kind !== 'external' ? vscode.Uri.from(resolved.uri) : undefined;
+}
+
+function matchesRule(rule: RegExp, value: string): boolean {
+	rule.lastIndex = 0;
+	return rule.test(value);
 }

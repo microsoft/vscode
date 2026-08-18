@@ -73,11 +73,12 @@ suite('ChatSessionRoutingController', () => {
 					attachments: [],
 				},
 				input: { setSubmitPending: () => { } },
-				getSelectedModelRequestOptions: () => ({}),
+				getSelectedModelRequestOptions: () => ({ userSelectedModelId: 'copilot/claude-opus-4.6' }),
 				getModeRequestOptions: () => ({}),
 			},
 			getOwnSessionResource: () => undefined,
 			getNewSessionTarget: () => AgentSessionProviders.AgentHostCopilot,
+			getSelectedModelLabel: () => 'Claude Opus 4.6',
 			onDidChangeActionWidgetVisibility: (visible: boolean) => pickerVisibility.push(visible),
 			getActionWidgetContainer: () => container,
 			getActionWidgetAnchor: (anchor: HTMLElement) => anchor,
@@ -109,17 +110,20 @@ suite('ChatSessionRoutingController', () => {
 
 		await controller.handleSubmit('create a new session to update docs', undefined!);
 		const label = container.querySelector<HTMLElement>('.chat-routing-badge-name');
+		const model = container.querySelector<HTMLElement>('.chat-routing-badge-score');
 		const changeFolder = container.querySelector<HTMLButtonElement>('.chat-routing-badge-folder-action');
 		const countdown = container.querySelector<HTMLElement>('.chat-routing-badge-countdown');
 		assert.deepStrictEqual({
 			submitted,
 			label: label?.textContent,
+			model: model?.textContent,
 			changeFolder: changeFolder?.textContent,
 			countdown: countdown?.textContent,
 			hasPopup: changeFolder?.getAttribute('aria-haspopup'),
 		}, {
 			submitted: false,
 			label: 'New session in docs',
+			model: 'Claude Opus 4.6',
 			changeFolder: 'docs',
 			countdown: 'sending in 5s',
 			hasPopup: 'menu',
@@ -617,6 +621,7 @@ suite('ChatSessionRoutingController', () => {
 			reveal: async () => { },
 		});
 		await Promise.resolve();
+		assert.strictEqual(container.querySelector('.chat-routing-badge-label')?.textContent, 'In progress: New session');
 		snapshot = {
 			sessionId: 'provider:session',
 			label: 'Update routing badge',
@@ -631,12 +636,144 @@ suite('ChatSessionRoutingController', () => {
 			label: container.querySelector('.chat-routing-badge-label')?.textContent,
 			link: container.querySelector('.chat-routing-badge-response-preview a')?.textContent,
 		}, {
-			label: 'Completed update routing badge:done. I created megan.md.',
+			label: 'Completed update routing badge:Done. I created megan.md.',
 			link: 'megan.md',
 		});
 		const clearCompletedDeliveries = Reflect.get(controller, '_clearCompletedDeliveryConfirmations') as () => void;
 		clearCompletedDeliveries.call(controller);
 		assert.strictEqual(container.querySelector('.chat-routing-badge'), null);
+
+		controller.dispose();
+		sessionsChanged.dispose();
+		container.remove();
+	});
+
+	test('flattens a heading response preview and indicates more content', async () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const resource = URI.parse('session:/provider-heading');
+		const sessionsChanged = new Emitter<void>();
+		let snapshot: IRoutableSession = {
+			sessionId: 'provider:session',
+			label: 'New session',
+			status: 'working',
+			lastActivity: 1,
+		};
+		const provider = {
+			watchSession: (_resource: URI, listener: () => void) => sessionsChanged.event(listener),
+			getSessionSnapshot: async () => snapshot,
+		} as unknown as IChatSessionRoutingProvider;
+		const controller = new ChatSessionRoutingController(
+			{
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+				getRoutingProvider: () => provider,
+			} as unknown as IChatSessionRoutingHost,
+			'test',
+			{ getSession: () => undefined } as unknown as IChatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
+			label: string,
+			result: { status: 'sent'; resource: URI; reveal: () => Promise<void> },
+		) => void;
+
+		showDeliveryConfirmation.call(controller, 'New session', {
+			status: 'sent',
+			resource,
+			reveal: async () => { },
+		});
+		await Promise.resolve();
+		snapshot = {
+			sessionId: 'provider:session',
+			label: 'Session activity',
+			status: 'idle',
+			lastActivity: 2,
+			lastResponse: '# Current session activity\n\nThree sessions are running.',
+		};
+		sessionsChanged.fire();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			label: container.querySelector('.chat-routing-badge-label')?.textContent,
+			heading: container.querySelector('.chat-routing-badge-response-preview h1'),
+		}, {
+			label: 'Completed session activity:Current session activity\u2026',
+			heading: null,
+		});
+
+		controller.dispose();
+		sessionsChanged.dispose();
+		container.remove();
+	});
+
+	test('keeps a bare-URL response preview linking to the correct target', async () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const resource = URI.parse('session:/provider-bare-url');
+		const sessionsChanged = new Emitter<void>();
+		let snapshot: IRoutableSession = {
+			sessionId: 'provider:session',
+			label: 'New session',
+			status: 'working',
+			lastActivity: 1,
+		};
+		const provider = {
+			watchSession: (_resource: URI, listener: () => void) => sessionsChanged.event(listener),
+			getSessionSnapshot: async () => snapshot,
+		} as unknown as IChatSessionRoutingProvider;
+		const controller = new ChatSessionRoutingController(
+			{
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+				getRoutingProvider: () => provider,
+			} as unknown as IChatSessionRoutingHost,
+			'test',
+			{ getSession: () => undefined } as unknown as IChatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
+			label: string,
+			result: { status: 'sent'; resource: URI; reveal: () => Promise<void> },
+		) => void;
+
+		showDeliveryConfirmation.call(controller, 'New session', {
+			status: 'sent',
+			resource,
+			reveal: async () => { },
+		});
+		await Promise.resolve();
+		snapshot = {
+			sessionId: 'provider:session',
+			label: 'Bare URL',
+			status: 'idle',
+			lastActivity: 2,
+			lastResponse: 'https://example.com/page\n\nMore details follow.',
+		};
+		sessionsChanged.fire();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			label: container.querySelector('.chat-routing-badge-label')?.textContent,
+			href: container.querySelector<HTMLAnchorElement>('.chat-routing-badge-response-preview a')?.dataset.href,
+		}, {
+			label: 'Completed bare URL:https://example.com/page\u2026',
+			href: 'https://example.com/page',
+		});
 
 		controller.dispose();
 		sessionsChanged.dispose();
@@ -748,6 +885,7 @@ suite('ChatSessionRoutingController', () => {
 		const resource = URI.parse('agent-host-copilotcli:/new-route');
 		const folder = URI.file('/workspace');
 		let dispatched: { folder: URI | undefined; providerId: string | undefined; message: string; modelId: string | undefined } | undefined;
+		let resolvedRequestId: string | undefined;
 		let localCreateCount = 0;
 		const routingProvider: IChatSessionRoutingProvider = {
 			getCandidateSessions: () => [],
@@ -766,9 +904,15 @@ suite('ChatSessionRoutingController', () => {
 					attachmentModel: { attachments: [], clear: () => { } },
 				},
 				getRoutingProvider: () => routingProvider,
+				onDidResolveRoute: (_resource: URI | undefined, _kind: 'existing_session' | 'new_session' | undefined, _voice: boolean | undefined, requestId: string | undefined) => {
+					resolvedRequestId = requestId;
+				},
 			} as unknown as IChatSessionRoutingHost,
 			'test',
-			{ startNewLocalSession: () => { localCreateCount++; return undefined; } } as unknown as IChatService,
+			{
+				startNewLocalSession: () => { localCreateCount++; return undefined; },
+				getSession: () => ({ lastRequest: { id: 'durable-provider-request' } }),
+			} as unknown as IChatService,
 			undefined!,
 			undefined!,
 			undefined!,
@@ -789,15 +933,17 @@ suite('ChatSessionRoutingController', () => {
 			target: { folder: URI; providerId: string },
 		) => Promise<{ status: string; resource?: URI; reveal?: () => Promise<void> }>;
 
-		const result = await dispatch.call(controller, 'run', [], 'run', { userSelectedModelId: 'model' }, CancellationToken.None, false, { folder, providerId: 'provider' });
+		const result = await dispatch.call(controller, 'run', [], 'run', { userSelectedModelId: 'model' }, CancellationToken.None, true, { folder, providerId: 'provider' });
 
 		assert.deepStrictEqual({
 			dispatched,
 			localCreateCount,
+			resolvedRequestId,
 			result: { status: result.status, resource: result.resource?.toString(), hasReveal: !!result.reveal },
 		}, {
 			dispatched: { folder, providerId: 'provider', message: 'run', modelId: 'model' },
 			localCreateCount: 0,
+			resolvedRequestId: 'durable-provider-request',
 			result: { status: 'sent', resource: resource.toString(), hasReveal: true },
 		});
 		controller.dispose();

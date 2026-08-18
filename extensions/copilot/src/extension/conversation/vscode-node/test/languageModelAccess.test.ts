@@ -11,6 +11,7 @@ import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockCha
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../../platform/authentication/common/copilotToken';
 import { ICopilotTokenManager } from '../../../../platform/authentication/common/copilotTokenManager';
 import { IAutomodeService } from '../../../../platform/endpoint/node/automodeService';
+import { AutoChatEndpoint } from '../../../../platform/endpoint/node/autoChatEndpoint';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { CopilotChatEndpoint } from '../../../../platform/endpoint/node/copilotChatEndpoint';
@@ -368,6 +369,169 @@ suite('LanguageModelAccess model info', () => {
 			assert.strictEqual(internals._resolvedUtilityEndpoints.size, 0);
 		} finally {
 			languageModelAccess.dispose();
+		}
+	});
+
+	test('publishes both context size options with the longer window as default for a free long-context model', async () => {
+		const endpoint = {
+			model: 'free-long-context',
+			name: 'Free Long Context',
+			family: 'free-long-context',
+			version: '1',
+			modelProvider: 'copilot',
+			modelMaxPromptTokens: 1_000_000,
+			maxOutputTokens: 8_192,
+			multiplier: 1,
+			supportsToolCalls: true,
+			supportsVision: false,
+			supportsPrediction: false,
+			showInModelPicker: false,
+			isFallback: false,
+			tokenizer: TokenizerType.O200K,
+			urlOrRequestMetadata: '',
+			// Free long context: default tier 200K, full window 1M, no surcharge — picker offers both.
+			tokenPricing: { default: { inputPrice: 1, outputPrice: 1, contextMax: 200_000 } },
+		} as unknown as IChatEndpoint;
+		const copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'token', username: 'fake', copilot_plan: 'unknown' }));
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(ICopilotTokenManager, {
+			_serviceBrand: undefined,
+			onDidCopilotTokenRefresh: Event.None,
+			getCopilotToken: async () => copilotToken,
+			resetCopilotToken: () => { },
+		} as unknown as ICopilotTokenManager);
+		testingServiceCollection.define(IAutomodeService, {
+			_serviceBrand: undefined,
+			resolveAutoModeEndpoint: async () => endpoint,
+			resolveAutoModePickerEndpoint: async () => endpoint,
+			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
+			areAutoModeTiersSupported: () => false,
+			onDidChangeAutoModeTierSupport: Event.None,
+			consumeLastRoutingDecision: () => undefined,
+			invalidateRouterCache: () => { },
+		} as unknown as IAutomodeService);
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [endpoint],
+			getChatEndpoint: async () => endpoint,
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const extensionContext = accessor.get(IVSCodeExtensionContext);
+		const baseCountCacheKey = 'lmBaseCount/free-long-context';
+		await extensionContext.globalState.update(baseCountCacheKey, { extensionVersion: accessor.get(IEnvService).getVersion(), baseCount: 0 });
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		try {
+			const modelInfo = await raceTimeout((languageModelAccess as unknown as { _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> })._provideLanguageModelChatInfo({ silent: true }, CancellationToken.None), 2_000);
+			assert.ok(modelInfo, 'provideLanguageModelChatInfo did not resolve');
+			const model = modelInfo.find(m => m.id === 'free-long-context');
+			const contextSize = (model as unknown as { configurationSchema?: { properties?: Record<string, { enum?: unknown[]; default?: unknown }> } } | undefined)?.configurationSchema?.properties?.contextSize;
+			assert.deepStrictEqual(contextSize?.enum, [200_000, 1_000_000]);
+			assert.strictEqual(contextSize?.default, 1_000_000);
+		} finally {
+			languageModelAccess.dispose();
+			await extensionContext.globalState.update(baseCountCacheKey, undefined);
+		}
+	});
+
+	test('publishes a core-only Luna alias for dictation cleanup without publishing hidden models directly', async () => {
+		const makeHiddenEndpoint = (model: string): IChatEndpoint => ({
+			model,
+			name: model,
+			family: model,
+			version: '1',
+			modelProvider: 'copilot',
+			modelMaxPromptTokens: 128_000,
+			maxOutputTokens: 4_096,
+			supportsToolCalls: true,
+			supportsVision: false,
+			supportsPrediction: false,
+			showInModelPicker: false,
+			isFallback: false,
+			tokenizer: TokenizerType.O200K,
+			urlOrRequestMetadata: '',
+		} as unknown as IChatEndpoint);
+		const lunaEndpoint = makeHiddenEndpoint('gpt-5.6-luna');
+		const otherEndpoint = makeHiddenEndpoint('some-hidden-model');
+		const copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'token', username: 'fake', copilot_plan: 'unknown' }));
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(ICopilotTokenManager, {
+			_serviceBrand: undefined,
+			onDidCopilotTokenRefresh: Event.None,
+			getCopilotToken: async () => copilotToken,
+			resetCopilotToken: () => { },
+		} as unknown as ICopilotTokenManager);
+		const autoPickerEndpoint = new DeferredPromise<IChatEndpoint>();
+		testingServiceCollection.define(IAutomodeService, {
+			_serviceBrand: undefined,
+			resolveAutoModeEndpoint: async () => lunaEndpoint,
+			resolveAutoModePickerEndpoint: () => autoPickerEndpoint.p,
+			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
+			areAutoModeTiersSupported: () => false,
+			onDidChangeAutoModeTierSupport: Event.None,
+			consumeLastRoutingDecision: () => undefined,
+			invalidateRouterCache: () => { },
+		} as unknown as IAutomodeService);
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [lunaEndpoint, otherEndpoint],
+			getChatEndpoint: async () => lunaEndpoint,
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		autoPickerEndpoint.complete(accessor.get(IInstantiationService).createInstance(AutoChatEndpoint, lunaEndpoint, '', 0, { low: 0, high: 0 }));
+		const extensionContext = accessor.get(IVSCodeExtensionContext);
+		const version = accessor.get(IEnvService).getVersion();
+		await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', { extensionVersion: version, baseCount: 0 });
+		await extensionContext.globalState.update('lmBaseCount/some-hidden-model', { extensionVersion: version, baseCount: 0 });
+		await extensionContext.globalState.update('lmBaseCount/auto', { extensionVersion: version, baseCount: 0 });
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		try {
+			const testAccess = languageModelAccess as unknown as {
+				_refreshUtilityOverrides(): Promise<void>;
+				_provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]>;
+				_provideLanguageModelChatResponse(
+					model: vscode.LanguageModelChatInformation,
+					messages: vscode.LanguageModelChatMessage[],
+					options: vscode.ProvideLanguageModelChatResponseOptions,
+					progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
+					token: vscode.CancellationToken,
+				): Promise<void>;
+			};
+			await testAccess._refreshUtilityOverrides();
+			const modelInfo = await raceTimeout(testAccess._provideLanguageModelChatInfo({ silent: true }, CancellationToken.None), 2_000);
+			assert.ok(modelInfo, 'provideLanguageModelChatInfo did not resolve');
+			const dictationAlias = modelInfo.find(m => m.id === 'copilot-dictation-cleanup-luna');
+			assert.deepStrictEqual({
+				dictationAliasPublished: Boolean(dictationAlias),
+				dictationAliasUserSelectable: dictationAlias?.isUserSelectable,
+				lunaPublishedDirectly: modelInfo.some(m => m.id === 'gpt-5.6-luna'),
+				otherPublished: modelInfo.some(m => m.id === 'some-hidden-model'),
+			}, {
+				dictationAliasPublished: true,
+				dictationAliasUserSelectable: false,
+				lunaPublishedDirectly: false,
+				otherPublished: false,
+			});
+			await assert.rejects(
+				testAccess._provideLanguageModelChatResponse(
+					dictationAlias!,
+					[],
+					{ requestInitiator: 'publisher.extension' } as vscode.ProvideLanguageModelChatResponseOptions,
+					{ report: () => { } },
+					CancellationToken.None,
+				),
+				/only available to VS Code core/,
+			);
+		} finally {
+			languageModelAccess.dispose();
+			await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', undefined);
+			await extensionContext.globalState.update('lmBaseCount/some-hidden-model', undefined);
+			await extensionContext.globalState.update('lmBaseCount/auto', undefined);
 		}
 	});
 });

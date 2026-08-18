@@ -442,6 +442,7 @@ suite('AgentPlugin format detection', () => {
 		await waitForState(plugins[0].mcpServerDefinitions, defs => defs.length > 0);
 		const mcpDefs = plugins[0].mcpServerDefinitions.get();
 		assert.deepStrictEqual(mcpDefs.map(d => d.name), ['my-server']);
+		assert.strictEqual(mcpDefs[0].defaultCwd?.toString(), uri.toString());
 	}));
 
 	test('Open Plugin reads MCP definitions from standalone .mcp.json', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1197,13 +1198,15 @@ suite('AgentPlugin format detection', () => {
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].mcpServerDefinitions, d => d.length === 2);
-		const servers = new Map(plugins[0].mcpServerDefinitions.get().map(server => [server.name, server.configuration]));
-		const defaultCwdConfig = servers.get('copilot-server');
+		const servers = new Map(plugins[0].mcpServerDefinitions.get().map(server => [server.name, server]));
+		const defaultCwdDefinition = servers.get('copilot-server');
+		assert.ok(defaultCwdDefinition);
+		const defaultCwdConfig = defaultCwdDefinition?.configuration;
 		assert.strictEqual(defaultCwdConfig?.type, McpServerType.LOCAL);
 		if (defaultCwdConfig?.type !== McpServerType.LOCAL) {
 			assert.fail('Expected a local MCP server configuration');
 		}
-		const explicitCwdConfig = servers.get('explicit-cwd-server');
+		const explicitCwdConfig = servers.get('explicit-cwd-server')?.configuration;
 		assert.strictEqual(explicitCwdConfig?.type, McpServerType.LOCAL);
 		if (explicitCwdConfig?.type !== McpServerType.LOCAL) {
 			assert.fail('Expected a local MCP server configuration');
@@ -1213,6 +1216,7 @@ suite('AgentPlugin format detection', () => {
 				command: defaultCwdConfig.command,
 				args: defaultCwdConfig.args,
 				cwd: defaultCwdConfig.cwd,
+				defaultCwd: defaultCwdDefinition.defaultCwd?.toString(),
 				env: defaultCwdConfig.env,
 			},
 			explicitCwd: {
@@ -1223,7 +1227,8 @@ suite('AgentPlugin format detection', () => {
 			defaultCwd: {
 				command: `${uri.fsPath}/bin/server`,
 				args: ['--data', `${uri.fsPath}/data`],
-				cwd: uri.fsPath,
+				cwd: undefined,
+				defaultCwd: uri.toString(),
 				env: {
 					CONFIG_DIR: `${uri.fsPath}/etc`,
 					PLUGIN_ROOT: uri.fsPath,

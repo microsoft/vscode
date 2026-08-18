@@ -20,7 +20,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { AgentFeedbackEditorInputContribution, AgentFeedbackInputWidget } from '../../browser/agentFeedbackEditorInputContribution.js';
 import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import '../../browser/media/agentFeedbackEditorInput.css';
 
@@ -88,7 +88,8 @@ function renderInputWidget(context: ComponentFixtureContext, options: IInputFixt
 	context.container.style.padding = '24px';
 	context.container.style.background = 'var(--vscode-editor-background)';
 
-	const widget = context.disposableStore.add(new AgentFeedbackInputWidget(createFakeEditor()));
+	const instantiationService = createEditorServices(context.disposableStore, { colorTheme: context.theme, additionalServices: registerWorkbenchServices });
+	const widget = context.disposableStore.add(instantiationService.createInstance(AgentFeedbackInputWidget, createFakeEditor()));
 	const domNode = widget.getDomNode();
 	domNode.style.position = 'static';
 	// When absolutely positioned (as in the editor) the widget shrinks to its
@@ -142,8 +143,13 @@ function renderInEditor(context: ComponentFixtureContext): Promise<void> {
 	const session = createFixtureSession();
 	const agentFeedbackService = new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
+		override readonly onDidRevealSessionComment = Event.None;
+		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
+			return new Set();
+		}
 		override getSessionForFile(resourceUri: URI): ISession | undefined {
 			return isEqual(resourceUri, fileResource) ? session : undefined;
 		}
@@ -165,6 +171,7 @@ function renderInEditor(context: ComponentFixtureContext): Promise<void> {
 	const instantiationService = createEditorServices(scopedDisposables, {
 		colorTheme: context.theme,
 		additionalServices: reg => {
+			registerWorkbenchServices(reg);
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
 			reg.defineInstance(IContextKeyService, contextKeyService);
 		},

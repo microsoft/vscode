@@ -194,9 +194,15 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench.vs.agent-sessions-workbench .agents-part-card,
-.monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar,
+.monaco-workbench.vs.agent-sessions-workbench .agents-part-card {
+	border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)));
+}
+
 .monaco-workbench.vs.agent-sessions-workbench .part.panel {
+	border-color: var(--vscode-agentsBottomPanel-border, var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)));
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar {
 	border-color: var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent));
 }
 
