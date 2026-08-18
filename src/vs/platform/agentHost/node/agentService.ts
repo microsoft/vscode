@@ -1837,8 +1837,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._logHiddenSessions(hiddenByExternalMode, combined.length, mode);
 
-		// A catalog pass opens every registered session's database, so it can take
-		// tens of seconds and delays every session-list refresh.
+		// A catalog pass opens every registered session's database, so it can be slow.
 		const duration = Date.now() - startedAt;
 		const message = `[AgentService] listSessions computed ${visible.length} of ${combined.length} session(s) for mode '${mode}' in ${duration}ms (${additions.length} state-manager fallback)`;
 		if (duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {
@@ -1988,8 +1987,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _reconcileExternalSessions(previousMode?: AgentHostExternalSessionsMode): Promise<void> {
-		// A slow pass shows up as a session list that ignores the setting and
-		// only updates much later, so time it.
 		const startedAt = Date.now();
 		const previouslyBroadcast = new Set(this._broadcastExternalSessions);
 		const listed = previousMode !== undefined
@@ -2042,15 +2039,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Derives the visibility sets for a mode *change* from a single catalog pass.
-	 *
-	 * Listing per mode would walk the catalog twice, and a walk opens every
-	 * registered session's database. {@link AgentHostExternalSessionsMode.All} is
-	 * a superset of every mode and {@link _shouldIncludeSession} is a pure
-	 * predicate, so one pass answers both questions.
-	 *
-	 * Adds the sessions `previousMode` had published into `previouslyBroadcast`
-	 * and returns the rows visible under the current mode.
+	 * Derives both the previous and current mode's visible sets from one catalog
+	 * pass, since {@link AgentHostExternalSessionsMode.All} is a superset of every
+	 * mode and the mode is just a parameter to {@link _shouldIncludeSession}.
+	 * Adds what `previousMode` had published into `previouslyBroadcast`.
 	 */
 	private _resolveModeChangeVisibility(
 		superset: readonly IAgentSessionMetadata[],
