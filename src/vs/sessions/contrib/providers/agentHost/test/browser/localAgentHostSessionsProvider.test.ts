@@ -681,7 +681,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.sessionTypes, []);
 	});
 
-	test('rebinds session types when Agent Host starts with a new root subscription', () => {
+	test('rebinds session types when Agent Host starts with a new root subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.clearRootState();
 		const provider = createProvider(disposables, agentHost);
 		let addedSessions = 0;
@@ -691,6 +691,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 		]);
 		fireSessionAdded(agentHost, 'after-rebind');
+		await timeout(100);
 
 		assert.deepStrictEqual({
 			sessionTypes: provider.sessionTypes.map(type => ({ id: type.id, label: type.label })),
@@ -701,15 +702,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 			rootStateListenerCount: 1,
 			addedSessions: 1,
 		});
-	});
+	}));
 
-	test('does not duplicate listeners when Agent Host starts after listeners bind', () => {
+	test('does not duplicate listeners when Agent Host starts after listeners bind', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		let addedSessions = 0;
 		disposables.add(provider.onDidChangeSessions(event => addedSessions += event.added.length));
 
 		agentHost.fireAgentHostStart();
 		fireSessionAdded(agentHost, 'after-start');
+		await timeout(100);
 
 		assert.deepStrictEqual({
 			rootStateListenerCount: agentHost.rootStateListenerCount,
@@ -718,7 +720,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			rootStateListenerCount: 1,
 			addedSessions: 1,
 		});
-	});
+	}));
 
 	test('reports no session types when rootState advertises no agents', () => {
 		agentHost.setAgents([]);
@@ -898,20 +900,48 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via notifications -------
 
-	test('onDidChangeSessions fires when session added notification arrives', () => {
+	test('batches session added and removed notifications', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		fireSessionAdded(agentHost, 'remove-1');
+		fireSessionAdded(agentHost, 'remove-2');
+
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
-		fireSessionAdded(agentHost, 'notif-1', { title: 'Notif Session' });
+		fireSessionAdded(agentHost, 'add-1');
+		fireSessionAdded(agentHost, 'add-2');
+		fireSessionAdded(agentHost, 'transient');
+		fireSessionRemoved(agentHost, 'remove-1');
+		fireSessionRemoved(agentHost, 'remove-2');
+		fireSessionRemoved(agentHost, 'transient');
 
-		assert.strictEqual(changes.length, 1);
-		assert.strictEqual(changes[0].added.length, 1);
-		assert.strictEqual(changes[0].added[0].title.get(), 'Notif Session');
-	});
+		const eventCountBeforeDebounce = changes.length;
+		const cachedBeforeDebounce = provider.getSessions().map(session => AgentSession.id(session.resource)).sort();
+		await timeout(100);
 
-	test('session removed notification clears cache and metadata', () => {
+		assert.deepStrictEqual({
+			eventCountBeforeDebounce,
+			events: changes.map(change => ({
+				added: change.added.map(session => AgentSession.id(session.resource)),
+				removed: change.removed.map(session => AgentSession.id(session.resource)),
+				changed: change.changed.map(session => AgentSession.id(session.resource)),
+			})),
+			cachedBeforeDebounce,
+		}, {
+			eventCountBeforeDebounce: 0,
+			events: [{
+				added: ['add-1', 'add-2'],
+				removed: ['remove-1', 'remove-2', 'transient'],
+				changed: [],
+			}],
+			cachedBeforeDebounce: ['add-1', 'add-2'],
+		});
+	}));
+
+	test('session removed notification clears cache and metadata', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
 		fireSessionAdded(agentHost, 'to-remove', { title: 'Removed' });
 		const metadata = Reflect.get(provider, '_metaByRawId') as Map<string, IAgentSessionMetadata>;
 
@@ -919,6 +949,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		fireSessionRemoved(agentHost, 'to-remove');
+		await timeout(100);
 
 		assert.deepStrictEqual({
 			removed: changes[0]?.removed.length,
@@ -929,19 +960,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 			session: undefined,
 			metadata: undefined,
 		});
-	});
+	}));
 
-	test('identical session added notification is ignored', () => {
+	test('identical session added notification is ignored', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		const timestamp = new Date(0).toISOString();
 		fireSessionAdded(agentHost, 'dup-sess', { title: 'Dup', createdAt: timestamp, modifiedAt: timestamp });
 		fireSessionAdded(agentHost, 'dup-sess', { title: 'Dup', createdAt: timestamp, modifiedAt: timestamp });
+		await timeout(100);
 
 		assert.strictEqual(changes.length, 1);
-	});
+	}));
 
 	test('removing non-existent session is no-op', () => {
 		const provider = createProvider(disposables, agentHost);
@@ -985,6 +1018,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionSummaryChanged(agentHost, 'worktree-upsert', {
 			_meta: { git: { branchName: 'agents/worktree-session', baseBranchName: 'main' } },
 		});
+		await timeout(100);
 
 		const current = provider.getSessions()[0]!;
 		const currentWorkspace = current.workspace.get()!;
@@ -999,7 +1033,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			originalWorkingDirectory: originalWorkingDirectory.toString(),
 			workingDirectory: worktreeWorkingDirectory,
 			branchName: 'agents/worktree-session',
-			changedEvents: [[true], [true]],
+			changedEvents: [[true]],
 		});
 	}));
 
@@ -3868,7 +3902,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('deleteSession does not remove a session twice when the host also notifies', async () => {
+	test('deleteSession does not remove a session twice when the host also notifies', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'delete-notified', { title: 'Delete Notified' });
 		const target = provider.getSessions().find(s => s.title.get() === 'Delete Notified');
@@ -3879,6 +3913,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.onDisposeSession = session => fireSessionRemoved(agentHost, AgentSession.id(session));
 
 		await provider.deleteSession(target.sessionId);
+		await timeout(100);
 
 		assert.deepStrictEqual({
 			disposedSessions: agentHost.disposedSessions.length,
@@ -3889,7 +3924,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			removedEvents: 1,
 			session: undefined,
 		});
-	});
+	}));
 
 	test('deleteSessions disposes all sessions and removes them from cache', async () => {
 		const provider = createProvider(disposables, agentHost);
