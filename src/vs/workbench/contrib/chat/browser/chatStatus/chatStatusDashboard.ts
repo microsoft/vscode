@@ -39,7 +39,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { DomWidget } from '../../../../../platform/domWidget/browser/domWidget.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName, getQuotaUsage, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { isNewUser } from './chatStatus.js';
@@ -245,9 +245,9 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Premium chat included indicator (shown when premium chat is unlimited)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
-		const creditsUsed = hasPremiumUnlimited && !isPooledQuotaDepleted ? premiumChat?.creditsUsed : undefined;
-		if (typeof creditsUsed === 'number') {
-			this.createCreditsUsedIndicator(this.element, creditsUsed, premiumChat?.resetAt);
+		const premiumChatUsage = getQuotaUsage(premiumChat);
+		if (premiumChatUsage?.kind === QuotaUsageKind.CreditsUsed) {
+			this.createCreditsUsedIndicator(this.element, premiumChatUsage.creditsUsed, premiumChat?.resetAt);
 		} else if (hasPremiumUnlimited) {
 			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
 				? localize('includedTitleTBB', "Credits")
@@ -858,18 +858,21 @@ export class ChatStatusDashboard extends DomWidget {
 		};
 
 		const showCredits = () => {
-			if (typeof currentQuota !== 'string' && currentQuota.entitlement) {
-				const total = currentQuota.entitlement;
-				const used = currentQuota.quotaRemaining !== undefined
-					? total - currentQuota.quotaRemaining
-					: total * (100 - currentQuota.percentRemaining) / 100;
-				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
-				const totalFormatted = this.quotaCreditsFormatter.value.format(total);
-				quotaValueText.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
-				quotaValueSuffix.textContent = isCompact
-					? localize('quotaLabelUsed', "{0} used", label)
-					: ` ${localize('quotaUsed', "used")}`;
+			if (typeof currentQuota === 'string') {
+				return;
 			}
+
+			const usage = getQuotaUsage(currentQuota);
+			if (usage?.kind !== QuotaUsageKind.Percentage || usage.used === undefined || usage.total === undefined) {
+				return;
+			}
+
+			const usedFormatted = this.quotaCreditsFormatter.value.format(usage.used);
+			const totalFormatted = this.quotaCreditsFormatter.value.format(usage.total);
+			quotaValueText.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
+			quotaValueSuffix.textContent = isCompact
+				? localize('quotaLabelUsed', "{0} used", label)
+				: ` ${localize('quotaUsed', "used")}`;
 		};
 
 		const hoverTarget = isCompact ? quotaValueText : quotaPercentage;

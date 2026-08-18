@@ -809,6 +809,68 @@ export interface IQuotaSnapshot {
 	readonly creditsUsed?: number;
 }
 
+export const enum QuotaUsageKind {
+
+	/**
+	 * Consumption measured against a known entitlement, best surfaced as a percentage.
+	 */
+	Percentage,
+
+	/**
+	 * Absolute credits consumed. Used for plans without a cap to measure a percentage against.
+	 */
+	CreditsUsed
+}
+
+export type IQuotaUsage = {
+	readonly kind: QuotaUsageKind.Percentage;
+	readonly usedPercentage: number;
+	/**
+	 * Credits consumed and the entitlement they are measured against. Both are
+	 * `undefined` when the plan reports no entitlement to break the percentage down into.
+	 */
+	readonly used: number | undefined;
+	readonly total: number | undefined;
+} | {
+	readonly kind: QuotaUsageKind.CreditsUsed;
+	readonly creditsUsed: number;
+};
+
+/**
+ * Derives how a quota snapshot should be surfaced, so that every quota display agrees on
+ * what "used" means. Returns `undefined` when the snapshot carries no usage worth showing,
+ * i.e. an unlimited plan that reports no credits, or a depleted pooled organization quota.
+ */
+export function getQuotaUsage(quota: IQuotaSnapshot | undefined): IQuotaUsage | undefined {
+	if (!quota) {
+		return undefined;
+	}
+
+	if (quota.unlimited) {
+		if (quota.hasQuota === false || typeof quota.creditsUsed !== 'number') {
+			return undefined;
+		}
+
+		return { kind: QuotaUsageKind.CreditsUsed, creditsUsed: quota.creditsUsed };
+	}
+
+	// An entitlement of `0` carries no ratio to report, so it is treated as absent.
+	const total = quota.entitlement || undefined;
+	let used: number | undefined;
+	if (total !== undefined) {
+		used = quota.creditsUsed ?? (quota.quotaRemaining !== undefined
+			? total - quota.quotaRemaining
+			: total * (100 - quota.percentRemaining) / 100);
+	}
+
+	return {
+		kind: QuotaUsageKind.Percentage,
+		usedPercentage: Math.max(0, 100 - quota.percentRemaining),
+		used,
+		total
+	};
+}
+
 export interface IRateLimitSnapshot {
 	readonly percentRemaining: number;
 	readonly unlimited: boolean;

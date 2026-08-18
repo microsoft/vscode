@@ -13,7 +13,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatEntitlementService, parseQuotas } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlementService, getQuotaUsage, parseQuotas, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
@@ -498,6 +498,35 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.additionalUsageEntitlement, 50);
 		assert.strictEqual(quotas.additionalUsageCount, 3);
 		assert.strictEqual(quotas.additionalUsageEnabled, true);
+	});
+});
+
+suite('getQuotaUsage', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('derives usage for every quota shape', () => {
+		assert.deepStrictEqual({
+			missing: getQuotaUsage(undefined),
+			unlimitedWithCredits: getQuotaUsage({ percentRemaining: 100, unlimited: true, creditsUsed: 206141 }),
+			unlimitedWithoutCredits: getQuotaUsage({ percentRemaining: 100, unlimited: true }),
+			unlimitedPooledDepleted: getQuotaUsage({ percentRemaining: 0, unlimited: true, hasQuota: false, creditsUsed: 500 }),
+			cappedWithRemaining: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400, quotaRemaining: 100 }),
+			cappedPrefersCreditsUsed: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400, quotaRemaining: 100, creditsUsed: 303 }),
+			cappedWithoutRemaining: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400 }),
+			cappedWithoutEntitlement: getQuotaUsage({ percentRemaining: 25, unlimited: false }),
+			cappedZeroEntitlement: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 0 }),
+		}, {
+			missing: undefined,
+			unlimitedWithCredits: { kind: QuotaUsageKind.CreditsUsed, creditsUsed: 206141 },
+			unlimitedWithoutCredits: undefined,
+			unlimitedPooledDepleted: undefined,
+			cappedWithRemaining: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 300, total: 400 },
+			cappedPrefersCreditsUsed: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 303, total: 400 },
+			cappedWithoutRemaining: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 300, total: 400 },
+			cappedWithoutEntitlement: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: undefined, total: undefined },
+			cappedZeroEntitlement: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: undefined, total: undefined },
+		});
 	});
 });
 
