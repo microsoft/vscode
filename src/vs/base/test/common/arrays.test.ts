@@ -23,6 +23,33 @@ suite('Arrays', () => {
 		assert.deepStrictEqual(array, [64, 69, 5, 7, 55, 59, 60]);
 	});
 
+	test('array helpers', () => {
+		assert.deepStrictEqual(arrays.tail([1, 2, 3]), [[1, 2], 3]);
+		assert.throws(() => arrays.tail([]), /Invalid tail call/);
+
+		assert.strictEqual(arrays.equals([1, 2], [1, 2]), true);
+		assert.strictEqual(arrays.equals([1], [1, 2]), false);
+		assert.strictEqual(arrays.equals([1], undefined), false);
+		assert.strictEqual(arrays.equals([{ value: 1 }], [{ value: 1 }], (a, b) => a.value === b.value), true);
+
+		assert.deepStrictEqual(
+			Array.from(arrays.groupAdjacentBy([1, 1, 2, 3, 3], (a, b) => a === b)),
+			[[1, 1], [2], [3, 3]]
+		);
+		assert.deepStrictEqual(Array.from(arrays.groupAdjacentBy([], () => true)), []);
+
+		const adjacent: Array<[number | undefined, number | undefined]> = [];
+		arrays.forEachAdjacent([1, 2], (before, after) => adjacent.push([before, after]));
+		assert.deepStrictEqual(adjacent, [[undefined, 1], [1, 2], [2, undefined]]);
+
+		const neighbors: Array<[number | undefined, number, number | undefined]> = [];
+		arrays.forEachWithNeighbors([1, 2], (before, element, after) => neighbors.push([before, element, after]));
+		assert.deepStrictEqual(neighbors, [[undefined, 1, 2], [1, 2, undefined]]);
+
+		assert.deepStrictEqual(arrays.concatArrays([1, 2], [3]), [1, 2, 3]);
+		assert.throws(() => arrays.quickSelect(2, [1, 2], (a, b) => a - b), /invalid index/);
+	});
+
 	test('findFirst', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
