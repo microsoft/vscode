@@ -44,7 +44,7 @@ export interface IAccountPolicyGateInfo {
 export const ChatAccountPolicyGateActiveContext = new RawContextKey<boolean>(
 	'chatAccountPolicyGateActive',
 	false,
-	{ type: 'boolean', description: localize('chatAccountPolicyGateActive', "True when the 'Require Approved Account' policy is in effect and the user is not yet signed into an approved GitHub organization, so all AI features are disabled until they sign in.") }
+	{ type: 'boolean', description: localize('chatAccountPolicyGateActive', "True when account or managed-settings compatibility policy prevents this client from using AI features.") }
 );
 
 /**
@@ -235,7 +235,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// Per-key precedence: native MDM wins over the server-delivered channel, which in turn wins
 		// over the file-based channel — but resolved key-by-key, so a key left unset by a higher
 		// channel is still filled in by a lower one. A key locked by a higher channel cannot be
-		// overwritten. See `.github/skills/add-policy/github-managed-settings.md` for the rationale.
+		// overwritten. See `.github/skills/policy-and-managed-settings/github-managed-settings.md` for the rationale.
 		const pick = pickManagedSettings(nativeManagedSettings, accountPolicyData?.managedSettings, fileManagedSettings);
 		if (!accountPolicyData && pick.activeSources.length === 0) {
 			return undefined;

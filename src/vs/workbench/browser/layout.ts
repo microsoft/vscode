@@ -34,6 +34,7 @@ import { coalesce } from '../../base/common/arrays.js';
 import { assertReturnsDefined } from '../../base/common/types.js';
 import { INotificationService, NotificationsFilter } from '../../platform/notification/common/notification.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
+import { isHighContrast } from '../../platform/theme/common/theme.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
 import { LineNumbersType } from '../../editor/common/config/editorOptions.js';
 import { URI } from '../../base/common/uri.js';
@@ -112,10 +113,10 @@ enum LayoutClasses {
 	FLOATING_PANELS = 'floating-panels',
 	// Presentation class for the Modern UI Update experiment, owned/toggled at
 	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
-	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
-	// the 32px vs 35px part title height in `PartLayout`, and the editor tab
-	// height) via `.closest('.style-override')`.
-	STYLE_OVERRIDE = 'style-override'
+	// time (see `getLayoutClasses`) to avoid a flash of unstyled workbench chrome.
+	STYLE_OVERRIDE = 'style-override',
+	// Module-specific gate shared with the Agents workbench.
+	MODERN_UI_TABS = 'modern-ui-tabs'
 }
 
 interface IPathToOpen extends IPath {
@@ -640,6 +641,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// card margins) to the main container so auxiliary windows — whose parts do
 		// not apply the matching content insets in code — are left untouched.
 		this.mainContainer.classList.toggle(LayoutClasses.FLOATING_PANELS, this.isFloatingPanelsEnabled());
+		this.updateWindowBorder();
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -676,6 +678,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateWindowBorder(skipLayout = false) {
+		const theme = this.themeService.getColorTheme();
+		const didHaveMainWindowBorder = this.hasMainWindowBorder();
+		const suppressMainWindowBorder = this.isFloatingPanelsEnabled() && !isHighContrast(theme.type);
+
 		if (
 			isWeb ||
 			isWindows || 											// not working well with zooming (border often not visible)
@@ -688,24 +694,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		const theme = this.themeService.getColorTheme();
-
 		const activeBorder = theme.getColor(WINDOW_ACTIVE_BORDER);
 		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
-
-		const didHaveMainWindowBorder = this.hasMainWindowBorder();
 
 		for (const container of this.containers) {
 			const isMainContainer = container === this.mainContainer;
 			const isActiveContainer = this.activeContainer === container;
 
 			let windowBorder = false;
-			if (!this.state.runtime.mainWindowFullscreen && (activeBorder || inactiveBorder)) {
+			if (!(isMainContainer && suppressMainWindowBorder) && !this.state.runtime.mainWindowFullscreen && (activeBorder || inactiveBorder)) {
 				windowBorder = true;
 
 				// If the inactive color is missing, fallback to the active one
 				const borderColor = isActiveContainer && this.state.runtime.hasFocus ? activeBorder : inactiveBorder ?? activeBorder;
 				container.style.setProperty('--window-border-color', borderColor?.toString() ?? 'transparent');
+			} else {
+				container.style.removeProperty('--window-border-color');
 			}
 
 			if (isMainContainer) {
@@ -1928,6 +1932,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
 			// Also seed the style-override class here (see `LayoutClasses.STYLE_OVERRIDE`).
 			this.isFloatingPanelsEnabled() ? LayoutClasses.STYLE_OVERRIDE : undefined,
+			this.isFloatingPanelsEnabled() ? LayoutClasses.MODERN_UI_TABS : undefined,
 			`panel-position-${positionToString(this.getPanelPosition())}`,
 			`panel-alignment-${this.getPanelAlignment()}`
 		]);

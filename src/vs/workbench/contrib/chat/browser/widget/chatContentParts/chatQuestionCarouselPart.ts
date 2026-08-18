@@ -41,6 +41,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
+import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
@@ -48,6 +49,7 @@ const NEXT_QUESTION_ACTION_ID = 'workbench.action.chat.nextQuestion';
 export interface IChatQuestionCarouselOptions {
 	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => void;
 	shouldAutoFocus?: boolean;
+	fitContent?: boolean;
 }
 
 class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
@@ -167,6 +169,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this.domNode = dom.$('.chat-question-carousel-container');
 		this.domNode.classList.toggle('chat-question-carousel-conversation', carousel.answerPresentation === 'conversation');
+		this.domNode.classList.toggle('chat-question-carousel-fit-content', this._options.fitContent === true);
 		this.domNode.id = generateUuid();
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
 		this._chatQuestionCarouselHasTerminalContextKey = ChatContextKeys.chatQuestionCarouselHasTerminal.bindTo(this._contextKeyService);
@@ -241,7 +244,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._closeButtonContainer = dom.$('.chat-question-close-container');
 			const skipAllTitle = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
 			const skipAllButton = interactiveStore.add(new Button(this._closeButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			skipAllButton.label = `$(${Codicon.close.id})`;
+			skipAllButton.label = `$(${Codicon.closeSmall.id})`;
 			skipAllButton.element.classList.add('chat-question-close');
 			skipAllButton.element.setAttribute('aria-label', skipAllTitle);
 			interactiveStore.add(this._hoverService.setupDelayedHover(skipAllButton.element, { content: skipAllTitle }));
@@ -546,7 +549,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const availableScrollableHeight = Math.floor(maxContainerHeight - contentVerticalPadding - nonScrollableContentHeight);
 
 		const contentScrollableHeight = scrollableContent.scrollHeight;
-		const constrainedScrollableHeight = Math.max(0, Math.min(availableScrollableHeight, contentScrollableHeight));
+		const constrainedScrollableHeight = this._options.fitContent
+			? contentScrollableHeight
+			: Math.max(0, Math.min(availableScrollableHeight, contentScrollableHeight));
 		const constrainedScrollableHeightPx = `${constrainedScrollableHeight}px`;
 
 		// Constrain wrapper + content so no stale flex sizing survives between steps.
@@ -781,7 +786,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (this.carousel.message && this._currentIndex === 0) {
 			const messageMd = isMarkdownString(this.carousel.message) ? MarkdownString.lift(this.carousel.message) : new MarkdownString(this.carousel.message);
 			const carouselMessage = dom.$('.chat-question-carousel-message');
-			const renderedMessage = questionRenderStore.add(this._markdownRendererService.render(messageMd));
+			const renderedMessage = questionRenderStore.add(this._markdownRendererService.render(messageMd, getChatMarkdownRenderOptions()));
 			carouselMessage.appendChild(renderedMessage.element);
 			headerRow.appendChild(carouselMessage);
 		}
@@ -797,7 +802,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const md = isMarkdownString(questionText)
 				? MarkdownString.lift({ ...questionText, value: suffixed })
 				: new MarkdownString(suffixed);
-			const rendered = questionRenderStore.add(this._markdownRendererService.render(md));
+			const rendered = questionRenderStore.add(this._markdownRendererService.render(md, getChatMarkdownRenderOptions()));
 			title.appendChild(rendered.element);
 			titleRow.appendChild(title);
 		}
@@ -836,7 +841,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				? MarkdownString.lift(question.detailedMessage)
 				: new MarkdownString(question.detailedMessage);
 			const detailedMessageEl = dom.$('.chat-question-detailed-message');
-			const renderedDetailedMessage = questionRenderStore.add(this._markdownRendererService.render(detailedMd));
+			const renderedDetailedMessage = questionRenderStore.add(this._markdownRendererService.render(detailedMd, getChatMarkdownRenderOptions()));
 			detailedMessageEl.appendChild(renderedDetailedMessage.element);
 			inputContainer.appendChild(detailedMessageEl);
 		}

@@ -10,11 +10,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
+import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -53,6 +54,23 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(chatState?.turns.length, 0);
 		assert.strictEqual(chatState?.activeTurn, undefined);
 		assert.strictEqual(manager.getSessionSummary(sessionUri)?.resource.toString(), sessionUri.toString());
+	});
+
+	test('onDidChangeSessionWorkingDirectories fires only when the working-directory set changes', () => {
+		manager.createSession(makeSessionSummary());
+		const fired: string[] = [];
+		disposables.add(manager.onDidChangeSessionWorkingDirectories(({ session }) => fired.push(session)));
+
+		// Adding a root changes the set -> fires.
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///a' });
+		// Re-adding the same root is a reducer no-op -> does not fire.
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///a' });
+		// Adding a second root changes the set -> fires.
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///b' });
+		// Removing a root changes the set -> fires.
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///b' });
+
+		assert.deepStrictEqual(fired, [sessionUri, sessionUri, sessionUri]);
 	});
 
 	test('getSnapshot returns undefined for unknown session', () => {
@@ -254,6 +272,25 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.getSnapshot(sessionUri), undefined);
 		assert.strictEqual(notifications.length, 1);
 		assert.strictEqual(notifications[0].type, NotificationType.SessionRemoved);
+	});
+
+	test('deleteSession clears parent and subagent annotations', () => {
+		const subagent = buildSubagentSessionUri(sessionUri, 'tool-call');
+		const parentAnnotations = buildAnnotationsUri(sessionUri);
+		const subagentAnnotations = buildAnnotationsUri(subagent);
+		manager.createSession(makeSessionSummary());
+		manager.restoreAnnotations(sessionUri, { annotations: [] });
+		manager.restoreAnnotations(subagent, { annotations: [] });
+
+		manager.deleteSession(sessionUri);
+
+		assert.deepStrictEqual({
+			parent: manager.getAnnotationsState(parentAnnotations),
+			subagent: manager.getAnnotationsState(subagentAnnotations),
+		}, {
+			parent: undefined,
+			subagent: undefined,
+		});
 	});
 
 	test('createSession emits sessionAdded notification', () => {
@@ -583,6 +620,55 @@ suite('AgentHostStateManager', () => {
 		manager.restoreSession(makeSessionSummary(), []);
 
 		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
+	});
+
+	test('restored unpublished sessions retain summary changes without notifying root clients', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Hidden Title' });
+			await new Promise(resolve => setTimeout(resolve, 150));
+			const hiddenChanges = notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged);
+			const retainedTitle = manager.getSessionSummary(sessionUri)?.title;
+
+			manager.setSessionSummaryPublished(sessionUri, true);
+			const added = notifications.find(notification => notification.type === NotificationType.SessionAdded);
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Visible Title' });
+			await new Promise(resolve => setTimeout(resolve, 150));
+			const visibleChanges = notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedParams[];
+
+			assert.deepStrictEqual({
+				hiddenChangeCount: hiddenChanges.length,
+				retainedTitle,
+				addedTitle: added?.type === NotificationType.SessionAdded ? added.summary.title : undefined,
+				visibleChanges: visibleChanges.map(change => change.changes.title),
+			}, {
+				hiddenChangeCount: 0,
+				retainedTitle: 'Hidden Title',
+				addedTitle: 'Hidden Title',
+				visibleChanges: ['Visible Title'],
+			});
+		});
+	});
+
+	test('restoreSession emits sessionSummaryChanged clearing the adoptable marker for a previously surfaced session', () => {
+		// A surfaced adoptable-legacy session is announced with the marker; adopting
+		// it via restoreSession must notify clients the marker was cleared so they
+		// update the entry in place instead of dropping the just-opened session.
+		manager.announceSurfacedSession({ ...makeSessionSummary(), _meta: withSessionEhcliAdoptable(undefined) });
+
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+		manager.restoreSession(makeSessionSummary(), []);
+
+		const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedParams[];
+		assert.strictEqual(changed.length, 1);
+		assert.strictEqual(changed[0].session, sessionUri);
+		assert.strictEqual(Object.prototype.hasOwnProperty.call(changed[0].changes, '_meta'), true);
+		assert.strictEqual(readSessionEhcliAdoptable(changed[0].changes._meta), false);
 	});
 
 	suite('unused-draft tracking', () => {

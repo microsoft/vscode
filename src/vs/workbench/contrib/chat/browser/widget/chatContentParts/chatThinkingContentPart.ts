@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, clearNode, DisposableResizeObserver, getWindow, hide, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, DisposableResizeObserver, EventHelper, EventType, getWindow, hide, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { IChatExternalEdit, IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
-import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
+import { IChatContentPart, IChatContentPartDiffData, IChatContentPartDiffResource, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -20,7 +22,8 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { extractCodeblockUrisFromText } from '../../../common/widget/annotations.js';
-import { basename } from '../../../../../../base/common/resources.js';
+import { basename, getComparisonKey } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { localize } from '../../../../../../nls.js';
@@ -36,6 +39,7 @@ import { ChatMessageRole, ILanguageModelsService } from '../../../common/languag
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
@@ -355,8 +359,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly _pendingExternalResources = new Map<string, IChatToolInvocation | IChatToolInvocationSerialized>();
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
-	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
+	private readonly diffDataByPartId = new Map<string, IChatContentPartDiffData>();
 	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
+	private readonly diffButtonStore = this._register(new DisposableStore());
+	private diffButton: Button | undefined;
 	private containsReasoning: boolean;
 	private containsGroupedItems: boolean = false;
 	private reasoningDurationMs: number | undefined;
@@ -405,6 +411,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@IHoverService hoverService: IHoverService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const containsReasoning = initialText.trim().length > 0;
@@ -920,23 +927,120 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Show aggregated diff stats from edit pills (only when there are actual changes)
-		if (this.diffStatsByPartId.size > 0) {
+		if (this.diffDataByPartId.size > 0) {
 			const { added, removed } = this._aggregatedDiff;
 			if (added > 0 || removed > 0) {
-				const diffContainer = $('span.chat-thinking-title-diff');
-				diffContainer.appendChild($('span.label-added', {}, `+${added}`));
-				diffContainer.appendChild($('span.label-removed', {}, `-${removed}`));
-				labelElement.appendChild(diffContainer);
+				this.renderDiffButton(added, removed);
 
 				const insertionsFragment = added === 1 ? localize('chat.thinking.insertions.one', "1 insertion") : localize('chat.thinking.insertions', "{0} insertions", added);
 				const deletionsFragment = removed === 1 ? localize('chat.thinking.deletions.one', "1 deletion") : localize('chat.thinking.deletions', "{0} deletions", removed);
 				this.setAriaLabel(localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", displayTitle, insertionsFragment, deletionsFragment));
 			} else {
+				this.clearDiffButton();
 				this.setAriaLabel(displayTitle);
 			}
 		} else {
+			this.clearDiffButton();
 			this.setAriaLabel(displayTitle);
 		}
+	}
+
+	private renderDiffButton(added: number, removed: number): void {
+		const resources = this.getAggregatedDiffResources();
+		if (resources.length === 0) {
+			this.clearDiffButton();
+			return;
+		}
+
+		if (!this.diffButton) {
+			const collapseButton = this._collapseButton;
+			const container = collapseButton?.element.parentElement;
+			if (!container) {
+				return;
+			}
+
+			collapseButton.element.classList.add('chat-thinking-title-with-diff');
+			const button = this.diffButtonStore.add(new Button(container, {}));
+			button.element.classList.add('chat-thinking-title-diff');
+			this.diffButtonStore.add(button.onDidClick(event => {
+				EventHelper.stop(event, true);
+				this.openDiffs();
+			}));
+			this.diffButtonStore.add(this.hoverService.setupDelayedHover(button.element, {
+				content: localize('chat.thinking.viewChanges', "View File Changes"),
+				style: HoverStyle.Pointer,
+			}));
+			this.diffButton = button;
+
+			if (this._hoverChevron) {
+				container.appendChild(this._hoverChevron);
+				this.diffButtonStore.add(addDisposableListener(this._hoverChevron, EventType.CLICK, event => {
+					EventHelper.stop(event, true);
+					this.toggleExpanded();
+				}));
+			}
+		}
+
+		this.diffButton.element.replaceChildren(
+			$('span.label-added', {}, `+${added}`),
+			$('span.label-removed', {}, `-${removed}`),
+		);
+		this.diffButton.setAriaLabel(localize(
+			'chat.thinking.viewChangesAccessible',
+			'View file changes, {0} lines added, {1} lines deleted',
+			added,
+			removed,
+		));
+	}
+
+	private clearDiffButton(): void {
+		this.diffButtonStore.clear();
+		this.diffButton = undefined;
+		this._collapseButton?.element.classList.remove('chat-thinking-title-with-diff');
+		if (this._collapseButton && this._hoverChevron) {
+			this._collapseButton.element.appendChild(this._hoverChevron);
+		}
+	}
+
+	private getAggregatedDiffResources(): IChatContentPartDiffResource[] {
+		const result = new Map<string, {
+			resource: URI;
+			originalURI: URI | undefined;
+			modifiedURI: URI | undefined;
+		}>();
+
+		for (const data of this.diffDataByPartId.values()) {
+			for (const resource of data.resources) {
+				const key = getComparisonKey(resource.resource);
+				const existing = result.get(key);
+				if (existing) {
+					existing.resource = resource.resource;
+					existing.modifiedURI = resource.modifiedURI;
+				} else {
+					result.set(key, { ...resource });
+				}
+			}
+		}
+
+		return [...result.values()].filter(resource => resource.originalURI !== undefined || resource.modifiedURI !== undefined);
+	}
+
+	private openDiffs(): void {
+		const resources = this.getAggregatedDiffResources();
+		if (resources.length === 0) {
+			return;
+		}
+
+		const source = URI.parse(`multi-diff-editor:${Date.now().toString()}-${Math.random().toString(36).slice(2)}`);
+		this.editorService.openEditor({
+			multiDiffSource: source,
+			label: localize('chat.thinking.changes.title', "Section File Changes"),
+			resources: resources.map(resource => ({
+				original: { resource: resource.originalURI },
+				modified: { resource: resource.modifiedURI },
+				goToFileResource: resource.resource,
+			})),
+		});
 	}
 
 	private getFinalizedDisplayTitle(title: string): string {
@@ -1563,9 +1667,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	private updateAggregatedDiff(): void {
 		let totalAdded = 0;
 		let totalRemoved = 0;
-		for (const stats of this.diffStatsByPartId.values()) {
-			totalAdded += stats.added;
-			totalRemoved += stats.removed;
+		for (const data of this.diffDataByPartId.values()) {
+			totalAdded += data.added;
+			totalRemoved += data.removed;
 		}
 		this._aggregatedDiff = { added: totalAdded, removed: totalRemoved };
 
@@ -1620,7 +1724,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		toolInvocationId?: string,
 		toolInvocationOrMarkdown?: ChatThinkingItemMetadata,
 		originalParent?: HTMLElement,
-		onDidChangeDiff?: Event<IEditSessionDiffStats>,
+		onDidChangeDiff?: Event<IChatContentPartDiffData>,
 		eagerDisposable?: IDisposable,
 	): void {
 		this.processPendingRemovals();
@@ -1633,8 +1737,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		// Listen for diff changes from edit pills
 		if (onDidChangeDiff && toolInvocationId) {
-			this._register(onDidChangeDiff(stats => {
-				this.diffStatsByPartId.set(toolInvocationId, stats);
+			this.diffDataByPartId.set(toolInvocationId, { added: 0, removed: 0, resources: [] });
+			this._register(onDidChangeDiff(data => {
+				this.diffDataByPartId.set(toolInvocationId, data);
 				this.updateAggregatedDiff();
 			}));
 		}
@@ -1730,7 +1835,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			removed = true;
 		}
 
-		if (this.diffStatsByPartId.delete(partId)) {
+		if (this.diffDataByPartId.delete(partId)) {
 			this.updateAggregatedDiff();
 			removed = true;
 		}
@@ -2091,6 +2196,10 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	private updateExternalResourceParts(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		if (toolInvocation.toolSpecificData?.kind === 'terminal') {
+			return;
+		}
+
 		// In fixed scrolling mode, defer rendering aggregated images at the bottom while
 		// the response is still streaming. The images would otherwise overlap the pinned
 		// scrolling viewport. They are flushed once streaming completes.

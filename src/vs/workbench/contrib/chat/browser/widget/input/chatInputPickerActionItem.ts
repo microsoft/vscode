@@ -32,8 +32,8 @@ export interface IChatInputPickerOptions {
 
 export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
 	return {
-		...withActionWidgetDropdownMotion(listOptions),
 		anchorPosition: AnchorPosition.ABOVE,
+		...withActionWidgetDropdownMotion(listOptions),
 	};
 }
 
@@ -52,11 +52,16 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		// Inject the anchor getter into the options
+		const listOptionsProvider = actionWidgetOptions.listOptions === undefined ? actionWidgetOptions.listOptionsProvider : undefined;
 		const optionsWithAnchor: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			...actionWidgetOptions,
 			getAnchor: () => this.getAnchorElement(),
-			listOptions: withChatInputPickerMotion(actionWidgetOptions.listOptions),
+			listOptions: listOptionsProvider
+				? undefined
+				: withChatInputPickerMotion(actionWidgetOptions.listOptions),
+			listOptionsProvider: listOptionsProvider
+				? { getListOptions: () => withChatInputPickerMotion(listOptionsProvider.getListOptions()) }
+				: undefined,
 		};
 
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);

@@ -36,6 +36,15 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	readonly background?: boolean;
 }
 
+export interface IDeferredNewSessionRequestOptions {
+	readonly kind: 'deferred';
+	readonly activity: string;
+	resolve(): Promise<ISendRequestOptions>;
+}
+
+/** Request options, optionally prepared alongside provisional session configuration. */
+export type NewSessionRequestOptions = ISendRequestOptions | IDeferredNewSessionRequestOptions;
+
 /**
  * A (provider, session-type) pair returned by
  * {@link ISessionsManagementService.getSessionTypesForFolder} so the UI can
@@ -63,6 +72,8 @@ export interface ICreateNewSessionOptions {
 	 * chosen provider advertises for the folder URI.
 	 */
 	readonly sessionTypeId?: string;
+	/** Initial provider metadata to associate with the session. */
+	readonly metadata?: Record<string, unknown>;
 	/**
 	 * Optional model identifier to apply to the new session via
 	 * {@link ISessionsProvider.setModel}. If the provider throws, the
@@ -99,6 +110,11 @@ export interface ICreateNewSessionOptions {
 	 * programmatic session creation and is not surfaced in the new-session UI.
 	 */
 	readonly worktreeBranchTrack?: boolean;
+	/**
+	 * Invoked after the provider creates the provisional session, before its
+	 * configuration and first request are applied.
+	 */
+	readonly onSessionCreated?: (session: ISession) => void;
 }
 
 /**
@@ -445,6 +461,9 @@ export interface ISessionsManagementService {
 	 * Create a new session for the given folder and send a chat request to it,
 	 * without navigating into the started session.
 	 *
+	 * A request-options factory starts after the provisional session is created,
+	 * runs concurrently with its configuration, and is awaited before sending.
+	 *
 	 * The started session appears in the sessions list once the provider
 	 * commits it, while the user's current view is left untouched. Intended for
 	 * callers outside the new-session composer that want to kick off a session
@@ -452,7 +471,7 @@ export interface ISessionsManagementService {
 	 * service was disposed during the send. Rejects (after disposing the
 	 * stranded draft) if the send fails.
 	 */
-	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
+	createAndSendNewChatRequest(folderUri: URI, options: NewSessionRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
 
 	/**
 	 * Create a workspace-less quick chat and send a request without navigating
@@ -470,6 +489,9 @@ export interface ISessionsManagementService {
 	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
 
 	// -- Session Actions --
+
+	/** Cancel the current request in a session's main chat. */
+	cancelCurrentRequest(session: ISession): Promise<void>;
 
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
@@ -524,12 +546,10 @@ export const ISessionsManagementService = createDecorator<ISessionsManagementSer
  *
  * "New Session" gestures default to the harness the user is currently working
  * in, but a harness can stop being advertised while one of its sessions is
- * still open — e.g. the extension-host Copilot CLI once
- * `chat.agents.copilotCli.hideExtensionHost` is on. Inheriting it then makes
- * session creation fail (the provider no longer offers the type), which drops
- * the folder and leaves the composer on an agent the harness picker doesn't
- * list. Contributing nothing lets the folder's preferred harness serve the new
- * session instead.
+ * still open. Inheriting it then makes session creation fail (the provider no
+ * longer offers the type), which drops the folder and leaves the composer on
+ * an agent the harness picker doesn't list. Contributing nothing lets the
+ * folder's preferred harness serve the new session instead.
  */
 export function inheritableSessionTarget(
 	sessionsManagementService: ISessionsManagementService,

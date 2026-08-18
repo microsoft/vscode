@@ -4,7 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { IProductConfiguration } from '../../../../base/common/product.js';
+import { isString } from '../../../../base/common/types.js';
+import { IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+
+/**
+ * Client identity VS Code reports to the managed settings service. It names this codebase's own
+ * managed settings implementation, which is distinct from the `copilot-runtime` implementation
+ * VS Code relays a subset of these settings into.
+ */
+const MANAGED_SETTINGS_CLIENT_ID = 'vscode';
 
 /**
  * A single MCP server matcher entry in the `allowedMcpServers` / `deniedMcpServers` managed
@@ -30,7 +40,18 @@ export type IManagedMcpServerMatcher =
 export interface IManagedSettingsResponse {
 	readonly permissions?: {
 		readonly disableBypassPermissionsMode?: string;
+		/**
+		 * Legacy location for the default chat model. Retained for deployments authored against
+		 * the original schema; the top-level {@link IManagedSettingsResponse.model} wins when both
+		 * are present.
+		 */
+		readonly model?: string;
 	};
+	/**
+	 * Default chat model (`auto`, a model family name, or a full model id). Canonical top-level
+	 * location in the current schema; supersedes the legacy nested `permissions.model`.
+	 */
+	readonly model?: string;
 	readonly enabledPlugins?: Record<string, boolean>;
 	readonly extraKnownMarketplaces?: Record<string, {
 		readonly source:
@@ -56,6 +77,61 @@ export interface IManagedSettingsResponse {
 	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
+}
+
+/**
+ * Append the client identity to a `managed_settings` request URL, naming the implementations that
+ * parse and enforce the response so the service can fail closed when they are too old to honor a
+ * setting it would otherwise deliver. `copilot_runtime_version` is present only when a runtime is
+ * bundled.
+ *
+ * Existing query parameters are preserved, and the URL is returned unchanged when it cannot be
+ * parsed so a malformed `managedSettingsUrl` cannot turn into a thrown request. The identity
+ * travels in the query string because neither header channel reaches the service; see the PR and
+ * ADR for that rationale.
+ */
+export function appendManagedSettingsClientIdentity(url: string, product: Pick<IProductConfiguration, 'version' | 'copilotVersions'>): string {
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return url;
+	}
+
+	parsed.searchParams.set('client_id', MANAGED_SETTINGS_CLIENT_ID);
+	parsed.searchParams.set('client_version', product.version);
+	const runtimeVersion = product.copilotVersions?.runtime;
+	if (runtimeVersion) {
+		parsed.searchParams.set('copilot_runtime_version', runtimeVersion);
+	} else {
+		// Never let a value configured on the endpoint URL stand in for a runtime we did not bundle.
+		parsed.searchParams.delete('copilot_runtime_version');
+	}
+	return parsed.toString();
+}
+
+interface IManagedSettingsCompatibilityErrorResponse {
+	readonly error_code?: unknown;
+	readonly client_version?: unknown;
+	readonly minimum_client_version?: unknown;
+}
+
+function isManagedSettingsCompatibilityErrorResponse(response: unknown): response is IManagedSettingsCompatibilityErrorResponse {
+	return typeof response === 'object' && response !== null;
+}
+
+export function parseManagedSettingsCompatibilityError(response: unknown): IManagedSettingsCompatibilityError | undefined {
+	if (!isManagedSettingsCompatibilityErrorResponse(response) || response.error_code !== MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE) {
+		return undefined;
+	}
+
+	const clientVersion = isString(response.client_version) ? response.client_version : undefined;
+	const minimumClientVersion = isString(response.minimum_client_version) ? response.minimum_client_version : undefined;
+	return {
+		errorCode: MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE,
+		...(clientVersion ? { clientVersion } : {}),
+		...(minimumClientVersion ? { minimumClientVersion } : {}),
+	};
 }
 
 /**

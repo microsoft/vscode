@@ -12,6 +12,7 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, derived, derivedObservableWithCache, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -44,10 +45,10 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionIsActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
 import { ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -59,6 +60,7 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
@@ -80,13 +82,13 @@ import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
+import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IChangesViewService } from '../common/changesViewService.js';
+import { ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -104,11 +106,11 @@ const singlePaneChangesEditorHeader = ContextKeyExpr.and(
 );
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
 
-/** Maximum number of file rows the tree pane's minimum size grows to accommodate. */
-const TREE_PANE_MIN_SIZE_MAX_ROWS = 13;
-
 /** Breathing room rendered beneath the last file row when the whole list fits. */
 const TREE_PANE_LIST_BOTTOM_PADDING = 12;
+
+/** The file changes section always reserves room for at least this many file rows. */
+const TREE_PANE_MIN_VISIBLE_ROWS = 5;
 
 // --- ButtonBar widget
 
@@ -155,6 +157,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		});
 
 		const runningLabelObs = observableValue<string | IMarkdownString | undefined>(this, undefined);
+		const sessionIsActiveObs = observableFromEvent(contextKeyService.onDidChangeContext, () => SessionIsActiveContext.getValue(contextKeyService) ?? false);
 
 		// Clear the running label override
 		this._register(autorun(reader => {
@@ -165,6 +168,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 
 		this._register(autorun(reader => {
 			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
+			sessionIsActiveObs.read(reader);
 			const sessionResource = changesViewService.activeSessionResourceObs.read(reader);
 			const outgoingChanges = outgoingChangesObs.read(reader) ?? 0;
 
@@ -173,10 +177,16 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 				MenuId.AgentsChangesToolbar,
 				{
 					telemetrySource: 'changesView',
+					renderSecondaryActions: false,
 					menuOptions: sessionResource
 						? { arg: sessionResource }
 						: { shouldForwardArgs: true },
-					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs)
+					buttonConfigProvider: (action, index) => {
+						const configuration = this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs);
+						return index === 0
+							? { ...configuration, showIcon: false, showLabel: true }
+							: configuration;
+					}
 				},
 				menuService, contextKeyService, contextMenuService, keybindingService, telemetryService, hoverService
 			);
@@ -218,10 +228,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			}
 			return { showIcon: false, showLabel: true, isSecondary: false, customLabel: `$(loading) ${labelWithCount}` };
 		}
-		if (
-			action.id === 'github.copilot.claude.sessions.sync' ||
-			action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID
-		) {
+		if (action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID) {
 			const customLabel = outgoingChanges > 0
 				? `${action.label} ${outgoingChanges}↑`
 				: action.label;
@@ -243,9 +250,6 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			action.id === 'github.copilot.chat.checkoutPullRequestReroute' ||
 			action.id === 'pr.checkoutFromChat' ||
 			action.id === 'github.copilot.sessions.initializeRepository' ||
-			action.id === 'github.copilot.claude.sessions.initializeRepository' ||
-			action.id === 'github.copilot.claude.sessions.commit' ||
-			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
 			action.id === 'agentSession.restore' ||
 			action.id === 'sessions.action.fixCIChecks' ||
 			isAgentHostSkillButtonId(action.id)
@@ -284,15 +288,18 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 	) {
 		super();
 
-		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService));
+		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		const buttonBar = this._buttonBar = this._register(instantiationService.createInstance(
 			WorkbenchButtonBar,
 			container,
 			{
 				telemetrySource: 'changesView',
-				buttonConfigProvider: (_action, index) => {
-					return { showIcon: true, showLabel: index === 0 };
+				renderSecondaryActions: false,
+				buttonConfigProvider: (action, index) => {
+					return index === 0
+						? { showIcon: false, showLabel: true, customLabel: stripIcons(action.label) }
+						: { showIcon: true, showLabel: false };
 				}
 			}
 		));
@@ -531,16 +538,15 @@ export class ChangesViewPane extends ViewPane {
 
 	private changesProgressBar!: ProgressBar;
 	private tree: WorkbenchCompressibleObjectTree<ChangesTreeElement> | undefined;
+	private renderedTreeState: { readonly sessionResource: URI; readonly viewMode: ChangesViewMode } | undefined;
+	private detailsViewStateTransfer: IChangesDetailsViewStateTransfer | undefined;
 	private ciStatusWidget: CIStatusWidget | undefined;
 	private sessionFilesWidget: SessionFilesWidget | undefined;
 	private splitView: SplitView | undefined;
 	private splitViewContainer: HTMLElement | undefined;
 	private readonly treePaneSizeChange = this._register(new Emitter<number | undefined>());
-
-	/** Computes the CI pane's default height (content, capped to a third of the split). */
-	private computeCIPreferredHeight: (() => number) | undefined;
-	/** Once the user drags a sash we stop imposing the CI pane's default height. */
-	private ciPaneUserResized = false;
+	private rebalanceSectionPanes: (() => void) | undefined;
+	private sectionPanesUserResized = false;
 
 	private readonly isMergeBaseBranchProtectedContextKey: IContextKey<boolean>;
 	private readonly isolationModeContextKey: IContextKey<IsolationMode>;
@@ -583,6 +589,7 @@ export class ChangesViewPane extends ViewPane {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
+		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -705,32 +712,37 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		// Shared constants for pane sizing
+		const sessionFilesWidget = this.sessionFilesWidget;
+		const ciWidget = this.ciStatusWidget;
 		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT;
 		const sessionFilesMinHeight = SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.MIN_BODY_HEIGHT;
-		const getSessionFilesContentHeight = () => Math.max(SessionFilesWidget.HEADER_HEIGHT, this.sessionFilesWidget?.desiredHeight ?? 0);
-		const getSessionFilesMinimumHeight = () => this.sessionFilesWidget?.collapsed ? SessionFilesWidget.HEADER_HEIGHT : Math.min(sessionFilesMinHeight, getSessionFilesContentHeight());
-		const getSessionFilesPreferredHeight = () => Math.max(getSessionFilesMinimumHeight(), SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.PREFERRED_BODY_HEIGHT);
-		const getCIContentHeight = () => Math.max(CIStatusWidget.HEADER_HEIGHT, this.ciStatusWidget?.desiredHeight ?? 0);
-		const getCIMinimumHeight = () => this.ciStatusWidget?.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.min(ciMinHeight, getCIContentHeight());
-		// Preferred default size for the CI pane: content height, capped to a third of the split.
-		const getCIPreferredHeight = () => {
-			const contentHeight = getCIContentHeight();
-			if (this.ciStatusWidget?.collapsed) {
-				return CIStatusWidget.HEADER_HEIGHT;
+		const getSessionFilesContentHeight = () => Math.max(SessionFilesWidget.HEADER_HEIGHT, sessionFilesWidget.desiredHeight);
+		const getSessionFilesMinimumHeight = () => sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : Math.min(sessionFilesMinHeight, getSessionFilesContentHeight());
+		const getSessionFilesPreferredHeight = () => Math.max(
+			getSessionFilesMinimumHeight(),
+			Math.min(getSessionFilesContentHeight(), SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.PREFERRED_BODY_HEIGHT)
+		);
+		const getCIContentHeight = () => Math.max(CIStatusWidget.HEADER_HEIGHT, ciWidget.desiredHeight);
+		const getCIMinimumHeight = () => ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.min(ciMinHeight, getCIContentHeight());
+		const getCIPreferredHeight = () => Math.max(
+			getCIMinimumHeight(),
+			Math.min(getCIContentHeight(), CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT)
+		);
+		const getReservedSectionHeight = () =>
+			(sessionFilesWidget.visible ? getSessionFilesMinimumHeight() : 0) +
+			(ciWidget.visible ? getCIMinimumHeight() : 0);
+		this.rebalanceSectionPanes = () => {
+			if (!this.splitView || this.sectionPanesUserResized || !ciWidget.visible || ciWidget.collapsed) {
+				return;
 			}
-			const availableHeight = this.getSplitViewAvailableHeight();
-			if (availableHeight > 0) {
-				return Math.max(getCIMinimumHeight(), Math.min(contentHeight, Math.round(availableHeight / 3)));
-			}
-			return contentHeight;
+			this.splitView.resizeView(2, getCIMinimumHeight());
 		};
-		this.computeCIPreferredHeight = getCIPreferredHeight;
 		const thisView = this;
 
 		// Top pane: file tree
 		const treePane: IView = {
 			element: this.contentContainer,
-			get minimumSize() { return thisView.getTreePaneMinimumSize(); },
+			get minimumSize() { return thisView.getTreePaneMinimumSize(getReservedSectionHeight()); },
 			get maximumSize() { return thisView.getTreePaneMaximumSize(); },
 			onDidChange: this.treePaneSizeChange.event,
 			layout: (height) => {
@@ -741,11 +753,10 @@ export class ChangesViewPane extends ViewPane {
 
 		// Middle pane: other files
 		const sessionFilesElement = this.sessionFilesWidget.element;
-		const sessionFilesWidget = this.sessionFilesWidget;
 		const sessionFilesPane: IView = {
 			element: sessionFilesElement,
 			get minimumSize() { return getSessionFilesMinimumHeight(); },
-			get maximumSize() { return sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : Number.POSITIVE_INFINITY; },
+			get maximumSize() { return sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : getSessionFilesContentHeight(); },
 			priority: LayoutPriority.High,
 			onDidChange: Event.map(this.sessionFilesWidget.onDidChangeHeight, () => undefined),
 			layout: (height) => {
@@ -757,13 +768,12 @@ export class ChangesViewPane extends ViewPane {
 
 		// Bottom pane: CI checks
 		const ciElement = this.ciStatusWidget.element;
-		const ciWidget = this.ciStatusWidget;
 		const ciPane: IView = {
 			element: ciElement,
 			get minimumSize() { return getCIMinimumHeight(); },
 			get maximumSize() { return ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : getCIContentHeight(); },
 			priority: LayoutPriority.Low,
-			onDidChange: Event.map(this.ciStatusWidget.onDidChangeHeight, () => getCIContentHeight()),
+			onDidChange: Event.map(this.ciStatusWidget.onDidChangeHeight, () => undefined),
 			layout: (height) => {
 				ciElement.style.height = `${height}px`;
 				const bodyHeight = Math.max(0, height - CIStatusWidget.HEADER_HEIGHT);
@@ -782,9 +792,7 @@ export class ChangesViewPane extends ViewPane {
 		};
 		updateSplitViewStyles();
 		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
-
-		// A manual sash drag hands layout control to the user: stop imposing the CI default size.
-		this._register(this.splitView.onDidSashChange(() => { this.ciPaneUserResized = true; }));
+		this._register(this.splitView.onDidSashChange(() => this.sectionPanesUserResized = true));
 
 		// Initially hide the other files and CI panes until content arrives
 		this.splitView.setViewVisible(1, false);
@@ -795,12 +803,21 @@ export class ChangesViewPane extends ViewPane {
 		this._register(this.sessionFilesWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
 
 		// CI checks pane (index 2)
-		this._wireSectionPane(this.ciStatusWidget, 2, CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight, () => { this.ciPaneUserResized = false; });
+		this._wireSectionPane(this.ciStatusWidget, 2, CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight);
+		this._register(this.ciStatusWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
+		this._register(autorun(reader => {
+			const state = this.changesViewService.activeSessionSectionCollapseStateObs.read(reader);
+			sessionFilesWidget.setCollapsed(state.otherFiles);
+			ciWidget.setCollapsed(state.checks);
+		}));
+		this._register(sessionFilesWidget.onDidToggleCollapsed(collapsed => this.setActiveSectionCollapsed('otherFiles', collapsed)));
+		this._register(ciWidget.onDidToggleCollapsed(collapsed => this.setActiveSectionCollapsed('checks', collapsed)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				this.onVisible();
 			} else {
+				this.captureDetailsViewState();
 				this.renderDisposables.clear();
 			}
 		}));
@@ -969,15 +986,38 @@ export class ChangesViewPane extends ViewPane {
 		this.renderDisposables.add(autorun(reader => {
 			const changes = changesObs.read(reader);
 			const viewMode = this.changesViewService.viewModeObs.read(reader);
-			const changesetLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
+			const activeSessionLoading = this.changesViewService.activeSessionLoadingObs.read(reader);
+			const sessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
 
 			// Read session state so this autorun re-runs when git state (e.g. branch
 			// name) arrives asynchronously, since the tree root label depends on it.
 			this.changesViewService.activeSessionStateObs.read(reader);
 
-			if (!this.tree || changesetLoading) {
+			if (!this.tree || activeSessionLoading) {
 				return;
 			}
+			const detailsViewStateTransfer = this.changesViewService.detailsViewStateTransferObs.read(reader);
+			if (detailsViewStateTransfer !== this.detailsViewStateTransfer) {
+				this.detailsViewStateTransfer = detailsViewStateTransfer;
+				if (detailsViewStateTransfer && this.renderedTreeState) {
+					const renderedSessionResource = this.renderedTreeState.sessionResource;
+					if (isEqual(renderedSessionResource, detailsViewStateTransfer.from)) {
+						this.captureDetailsViewState(detailsViewStateTransfer.to);
+						this.renderedTreeState = undefined;
+						if (sessionResource && isEqual(sessionResource, detailsViewStateTransfer.from)) {
+							return;
+						}
+					} else if (!isEqual(renderedSessionResource, detailsViewStateTransfer.to)) {
+						this.captureDetailsViewState();
+						if (sessionResource && isEqual(sessionResource, renderedSessionResource)) {
+							return;
+						}
+					}
+				}
+			} else {
+				this.captureDetailsViewState();
+			}
+			const detailsViewState = sessionResource ? this.changesViewService.getDetailsViewState(sessionResource, viewMode) : undefined;
 
 			// Toggle list-mode class to remove tree indentation in list mode
 			this.listContainer?.classList.toggle('list-mode', viewMode === ChangesViewMode.List);
@@ -986,19 +1026,73 @@ export class ChangesViewPane extends ViewPane {
 				// Tree mode: build hierarchical tree from file entries
 				const treeRootInfo = this.getTreeRootInfo(changes);
 				const treeChildren = buildTreeChildren(changes, treeRootInfo);
-				this.tree.setChildren(null, treeChildren);
+				this.setDetailsTreeChildren(sessionResource, viewMode, detailsViewState, treeChildren);
 			} else {
 				// List mode: flat list of file items
 				const listChildren = changes.map(item => ({
 					element: item,
 					collapsible: false,
 				} satisfies IObjectTreeElement<ChangesTreeElement>));
-				this.tree.setChildren(null, listChildren);
+				this.setDetailsTreeChildren(sessionResource, viewMode, detailsViewState, listChildren);
 			}
 
 			this.fireTreePaneSizeChange();
 			this.layoutSplitView();
 		}));
+	}
+
+	override saveState(): void {
+		this.captureDetailsViewState();
+		super.saveState();
+	}
+
+	private captureDetailsViewState(sessionResource?: URI): void {
+		if (!this.tree || !this.renderedTreeState) {
+			return;
+		}
+
+		const state = this.tree.getViewState().toJSON();
+		this.changesViewService.setDetailsViewState(sessionResource ?? this.renderedTreeState.sessionResource, this.renderedTreeState.viewMode, {
+			...state,
+			focus: Array.from(state.focus),
+			selection: Array.from(state.selection),
+		});
+	}
+
+	private setDetailsTreeChildren(sessionResource: URI | undefined, viewMode: ChangesViewMode, state: IChangesDetailsViewState | undefined, children: readonly IObjectTreeElement<ChangesTreeElement>[]): void {
+		if (!this.tree) {
+			return;
+		}
+
+		const elementsById = new Map<string, ChangesTreeElement>();
+		const restoredChildren = this.applyDetailsViewState(children, state, elementsById);
+
+		this.renderedTreeState = undefined;
+		this.tree.setChildren(null, restoredChildren);
+		this.tree.setFocus(state ? Array.from(state.focus, id => elementsById.get(id)).filter(element => element !== undefined) : []);
+		this.tree.setSelection(state ? Array.from(state.selection, id => elementsById.get(id)).filter(element => element !== undefined) : []);
+		this.tree.scrollTop = state?.scrollTop ?? 0;
+		this.renderedTreeState = sessionResource ? { sessionResource, viewMode } : undefined;
+	}
+
+	private applyDetailsViewState(
+		children: readonly IObjectTreeElement<ChangesTreeElement>[],
+		state: IChangesDetailsViewState | undefined,
+		elementsById: Map<string, ChangesTreeElement>,
+	): IObjectTreeElement<ChangesTreeElement>[] {
+		return children.map(child => {
+			const id = child.element.uri.toString();
+			elementsById.set(id, child.element);
+			const restoredChildren = child.children
+				? this.applyDetailsViewState(Array.from(child.children), state, elementsById)
+				: undefined;
+			const expanded = state?.expanded[id];
+			return {
+				...child,
+				children: restoredChildren,
+				collapsed: expanded === undefined ? child.collapsed : expanded === 0,
+			};
+		});
 	}
 
 	private _bindContextKeys(topLevelStats: IObservable<{ files: number } | undefined>): void {
@@ -1053,30 +1147,39 @@ export class ChangesViewPane extends ViewPane {
 		this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 	}
 
-	private getTreePaneMinimumSize(): number {
+	private getTreePaneMinimumSize(reservedSectionHeight: number): number {
 		if (this.listContainer?.style.display === 'none') {
 			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
 
-		// Grow the minimum size to fit the file list (capped at TREE_PANE_MIN_SIZE_MAX_ROWS rows) plus header chrome.
-		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
-		const treeContentHeight = this.tree?.contentHeight ?? 0;
-		const maxRowsHeight = TREE_PANE_MIN_SIZE_MAX_ROWS * ChangesTreeDelegate.ROW_HEIGHT;
-		const cappedContentHeight = Math.min(treeContentHeight, maxRowsHeight);
-		const bottomPadding = treeContentHeight <= maxRowsHeight ? TREE_PANE_LIST_BOTTOM_PADDING : 0;
-
-		return Math.max(EMPTY_FILE_CHANGES_MIN_HEIGHT, filesHeaderHeight + cappedContentHeight + bottomPadding);
+		const desiredSize = Math.max(this.getTreePaneDesiredSize(), this.getTreePaneReservedRowsSize());
+		const availableSize = this.getSplitViewAvailableHeight() - reservedSectionHeight;
+		return Math.min(desiredSize, Math.max(EMPTY_FILE_CHANGES_MIN_HEIGHT, availableSize));
 	}
 
-	private getTreePaneMaximumSize(): number {
-		if (!this.sessionFilesWidget?.visible || this.sessionFilesWidget.collapsed) {
-			return Number.POSITIVE_INFINITY;
+	private getTreePaneDesiredSize(): number {
+		if (this.listContainer?.style.display === 'none') {
+			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
 
 		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
-		const treeContentHeight = this.listContainer?.style.display === 'none' ? 0 : this.tree?.contentHeight ?? 0;
+		const treeContentHeight = this.tree?.contentHeight ?? 0;
 		const bottomPadding = treeContentHeight > 0 ? TREE_PANE_LIST_BOTTOM_PADDING : 0;
-		return Math.max(this.getTreePaneMinimumSize(), filesHeaderHeight + treeContentHeight + bottomPadding);
+		return filesHeaderHeight + treeContentHeight + bottomPadding;
+	}
+
+	/** Height needed to show {@link TREE_PANE_MIN_VISIBLE_ROWS} file rows, regardless of how many are listed. */
+	private getTreePaneReservedRowsSize(): number {
+		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
+		return filesHeaderHeight + TREE_PANE_MIN_VISIBLE_ROWS * ChangesTreeDelegate.ROW_HEIGHT + TREE_PANE_LIST_BOTTOM_PADDING;
+	}
+
+	private getTreePaneMaximumSize(): number {
+		if (this.listContainer?.style.display === 'none') {
+			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
+		}
+
+		return Math.max(this.getTreePaneDesiredSize(), this.getTreePaneReservedRowsSize());
 	}
 
 	private fireTreePaneSizeChange(): void {
@@ -1089,7 +1192,7 @@ export class ChangesViewPane extends ViewPane {
 		if (bodyHeight <= 0) {
 			return 0;
 		}
-		const bodyPadding = 16; // 8px top + 8px bottom from .changes-view-body
+		const bodyPadding = 16;
 		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
 		const actionsMargin = actionsHeight > 0 ? 8 : 0;
 		return Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);
@@ -1106,26 +1209,7 @@ export class ChangesViewPane extends ViewPane {
 		}
 		this.splitViewContainer.style.height = `${availableHeight}px`;
 		this.splitView.layout(availableHeight);
-		this.applyCIDefaultSize();
-	}
-
-	/**
-	 * Re-assert the CI pane's default height (capped to a third of the split) after layout.
-	 * This is where the split height is reliably known — the preferred height can otherwise be
-	 * evaluated during wiring when the body height is still 0, yielding an uncapped fallback.
-	 * Once the user drags a sash we back off and preserve their chosen size.
-	 */
-	private applyCIDefaultSize(): void {
-		if (!this.splitView || this.ciPaneUserResized || !this.computeCIPreferredHeight) {
-			return;
-		}
-		if (!this.ciStatusWidget?.visible || this.ciStatusWidget.collapsed) {
-			return;
-		}
-		const preferred = this.computeCIPreferredHeight();
-		if (this.splitView.getViewSize(2) !== preferred) {
-			this.splitView.resizeView(2, preferred);
-		}
+		this.rebalanceSectionPanes?.();
 	}
 
 	/**
@@ -1139,7 +1223,6 @@ export class ChangesViewPane extends ViewPane {
 		paneIndex: number,
 		headerHeight: number,
 		getPreferredHeight: () => number,
-		onDidBecomeVisible?: () => void,
 	): void {
 		let savedPaneHeight = getPreferredHeight();
 
@@ -1169,14 +1252,20 @@ export class ChangesViewPane extends ViewPane {
 			const isCurrentlyVisible = this.splitView.isViewVisible(paneIndex);
 			if (visible !== isCurrentlyVisible) {
 				this.splitView.setViewVisible(paneIndex, visible);
-				if (visible && !widget.collapsed) {
-					onDidBecomeVisible?.();
+				if (visible && !widget.collapsed && !this.sectionPanesUserResized) {
 					savedPaneHeight = getPreferredHeight();
 					this.splitView.resizeView(paneIndex, savedPaneHeight);
 				}
 			}
 			this.layoutSplitView();
 		}));
+	}
+
+	private setActiveSectionCollapsed(section: ChangesViewSection, collapsed: boolean): void {
+		const sessionResource = this.changesViewService.activeSessionResourceObs.get();
+		if (sessionResource) {
+			this.changesViewService.setSectionCollapsed(sessionResource, section, collapsed);
+		}
 	}
 
 	private getTreeSelection(): IChangesFileItem[] {
@@ -1189,39 +1278,36 @@ export class ChangesViewPane extends ViewPane {
 			return undefined;
 		}
 
-		// Get the repository details for the session
-		// - uri: location of the repository
-		// - workingDirectory: location of the worktree
 		const activeSession = this.sessionsService.activeSession.get();
 		const folder = activeSession?.workspace.get()?.folders[0];
-		const workspaceFolderUri = folder?.workingDirectory;
-		if (!folder?.root || !workspaceFolderUri) {
+		if (!folder) {
 			return undefined;
 		}
 
-		let name: string = '';
-		let resourceTreeRootUri = workspaceFolderUri;
-
+		const workspaceFolderUri = folder.workingDirectory;
 		if (workspaceFolderUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			// Cloud session
-			resourceTreeRootUri = URI.from({ scheme: Schemas.copilotPr, path: '/' });
 			const segments = workspaceFolderUri.path.split('/').filter(Boolean);
-			name = `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`;
-		} else {
-			// Local session
-			const branchName = this.changesViewService.activeSessionStateObs.get()?.branchName;
-			name = branchName
-				? `${basename(folder.workingDirectory)} (${branchName})`
-				: basename(folder.workingDirectory);
+			return {
+				root: {
+					type: 'root',
+					uri: workspaceFolderUri,
+					name: `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`
+				},
+				resourceTreeRootUri: URI.from({ scheme: Schemas.copilotPr, path: '/' })
+			};
 		}
 
+		const folderLabel = this.workspaceFolderLabelService.getWorkspaceFolderLabel(
+			new WorkspaceFolder({ uri: folder.workingDirectory, name: folder.name, index: 0 }),
+			true
+		) ?? folder.name;
 		return {
 			root: {
 				type: 'root',
 				uri: workspaceFolderUri,
-				name
+				name: folderLabel
 			},
-			resourceTreeRootUri
+			resourceTreeRootUri: workspaceFolderUri
 		};
 	}
 
@@ -1614,7 +1700,7 @@ export class ChangesViewPane extends ViewPane {
 		// current change list, so the multi-diff editor can navigate to it.
 		let options: IMultiDiffEditorOptions | undefined;
 		if (reveal) {
-			const target = changes.find(c => isEqual(c.modifiedUri, reveal));
+			const target = changes.find(c => isChangesFileResource(c, reveal));
 			if (target) {
 				options = {
 					viewState: {

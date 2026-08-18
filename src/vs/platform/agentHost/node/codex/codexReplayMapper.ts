@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 import {
 	MessageKind,
 	ResponsePartKind,
@@ -15,15 +17,23 @@ import {
 	type ToolCallResponsePart,
 	type ToolResultContent,
 	type Turn,
+	type ModelSelection,
 } from '../../common/state/sessionState.js';
 import {
 	describeFileChange,
 	describeWebSearch,
 	codexCompactionLabels,
+	codexImageGenerationLabels,
 	fileChangeOutput,
+	mapCodexTurnError,
 	turnStateFromStatus,
+	webSearchInvocationMessage,
+	webSearchPastTenseMessage,
 } from './codexMapAppServerEvents.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
+import { parseCodexDelegation } from './codexDelegation.js';
+import { buildCodexThreadOpenLink, extractCodexCreatedThreadDirectives, getCodexThreadCoordinationCall, type ICodexThreadCoordinationCall } from './codexThreadCoordination.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
 import type { ThreadItem } from './protocol/generated/v2/ThreadItem.js';
 import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
@@ -41,7 +51,9 @@ import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
  *  - `agentMessage`     → `MarkdownResponsePart` with the full text
  *  - `commandExecution` → completed terminal `ToolCallResponsePart`
  *  - `webSearch`        → completed web-search `ToolCallResponsePart`
+ *  - `imageGeneration`  → completed image-generation `ToolCallResponsePart`
  *  - `fileChange`       → completed file-edit `ToolCallResponsePart`
+ *  - thread coordination tools → completed session-link `ToolCallResponsePart`
  *  - `contextCompaction` → completed compaction `ToolCallResponsePart`
  *  - everything else    → currently dropped (reasoning/plan/mcp/collab)
  *
@@ -49,10 +61,18 @@ import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
  * pre-flight coalescing (see {@link codexMapAppServerEvents}) — so restored
  * sessions render identically to active ones.
  */
-export function replayThreadToTurns(thread: Thread): Turn[] {
+export function replayThreadToTurns(
+	thread: Thread,
+	modelsByTurnId?: ReadonlyMap<string, ModelSelection>,
+	_threadCoordinationByTurnId?: ReadonlyMap<string, readonly ICodexThreadCoordinationCall[]>,
+): Turn[] {
 	const turns: Turn[] = [];
 	for (const codexTurn of thread.turns ?? []) {
-		const turn = replayTurnToTurn(codexTurn);
+		const turn = replayTurnToTurn(
+			codexTurn,
+			modelsByTurnId?.get(codexTurn.id),
+			_threadCoordinationByTurnId?.get(codexTurn.id),
+		);
 		if (turn) {
 			turns.push(turn);
 		}
@@ -63,9 +83,19 @@ export function replayThreadToTurns(thread: Thread): Turn[] {
 /** A completed `commandExecution` item narrowed to its terminal fields. */
 type CommandExecutionItem = Extract<ThreadItem, { type: 'commandExecution' }>;
 
-function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
+function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefined, rolloutCoordination: readonly ICodexThreadCoordinationCall[] | undefined): Turn | undefined {
 	let userText = '';
 	const parts: ResponsePart[] = [];
+	const linkedCreatedThreadIds = new Set<string>();
+	const remainingRolloutCoordination = new Map<string, number>();
+	for (const coordination of rolloutCoordination ?? []) {
+		const key = threadCoordinationKey(coordination);
+		remainingRolloutCoordination.set(key, (remainingRolloutCoordination.get(key) ?? 0) + 1);
+		if (coordination.toolName === SessionServerToolName.CreateSession) {
+			linkedCreatedThreadIds.add(coordination.targetThreadId);
+		}
+		parts.push(threadCoordinationToolCallPart(coordination));
+	}
 	// Separate consecutive agent messages so the chat model's separator-less
 	// markdown coalescing keeps a following heading on its own line.
 	let agentMessageCount = 0;
@@ -118,19 +148,47 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 				userText = collected.join('\n\n');
 			}
 		} else if (item.type === 'agentMessage') {
-			if (item.text && item.text.length > 0) {
+			const message = extractCodexCreatedThreadDirectives(item.text ?? '');
+			if (message.text.length > 0) {
 				const separator = agentMessageCount > 0 ? '\n\n' : '';
 				agentMessageCount++;
 				parts.push({
 					kind: ResponsePartKind.Markdown,
 					id: generateUuid(),
-					content: separator + item.text,
+					content: separator + message.text,
 				});
+			}
+			for (const threadId of message.threadIds) {
+				if (!linkedCreatedThreadIds.has(threadId)) {
+					linkedCreatedThreadIds.add(threadId);
+					parts.push(threadCoordinationToolCallPart({
+						toolName: SessionServerToolName.CreateSession,
+						targetThreadId: threadId,
+						openLink: buildCodexThreadOpenLink(threadId),
+						toolInput: { prompt: getServerToolPastTenseMessage(SessionServerToolName.CreateSession) },
+					}));
+				}
 			}
 		} else if (item.type === 'webSearch') {
 			parts.push(webSearchToolCallPart(item));
+		} else if (item.type === 'imageGeneration') {
+			parts.push(imageGenerationToolCallPart(item));
 		} else if (item.type === 'fileChange') {
 			parts.push(fileChangeToolCallPart(item));
+		} else if (item.type === 'dynamicToolCall') {
+			const coordination = getCodexThreadCoordinationCall(item);
+			if (coordination) {
+				const key = threadCoordinationKey(coordination);
+				const duplicateCount = remainingRolloutCoordination.get(key) ?? 0;
+				if (duplicateCount > 0) {
+					remainingRolloutCoordination.set(key, duplicateCount - 1);
+				} else {
+					if (coordination.toolName === SessionServerToolName.CreateSession) {
+						linkedCreatedThreadIds.add(coordination.targetThreadId);
+					}
+					parts.push(threadCoordinationToolCallPart(coordination));
+				}
+			}
 		} else if (item.type === 'contextCompaction') {
 			if (!userText) {
 				userText = '/compact';
@@ -141,6 +199,7 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 		// are not yet reconstructed in replay.
 	}
 	flushPreflight();
+	const delegation = parseCodexDelegation(userText);
 
 	// If we got nothing recognizable, drop the turn — there's nothing for
 	// the UI to render.
@@ -150,11 +209,45 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 	return {
 		id: codexTurn.id,
 		...codexTurnTiming(codexTurn),
-		message: { text: userText, origin: { kind: MessageKind.User } },
+		message: {
+			text: delegation?.input ?? userText,
+			origin: { kind: MessageKind.User },
+			...(model ? { model } : {}),
+			...(delegation ? { _meta: toAgentMessageDelegationMeta({ sourceThreadId: delegation.sourceThreadId }) } : {}),
+		},
 		responseParts: parts,
-		usage: undefined,
+		usage: model ? { model: model.id } : undefined,
 		state: turnStateFromStatus(codexTurn.status),
+		...(codexTurn.status === 'failed' && codexTurn.error ? { error: mapCodexTurnError(codexTurn.error) } : {}),
 	};
+}
+
+function threadCoordinationToolCallPart(coordination: ICodexThreadCoordinationCall): ToolCallResponsePart {
+	const display = getServerToolDisplay(coordination.toolName, coordination.toolInput, { text: coordination.openLink, success: true });
+	return {
+		kind: ResponsePartKind.ToolCall,
+		toolCall: {
+			status: ToolCallStatus.Completed,
+			toolCallId: generateUuid(),
+			toolName: coordination.toolName,
+			displayName: display?.displayName ?? coordination.toolName,
+			invocationMessage: display?.invocationMessage ?? coordination.toolName,
+			toolInput: JSON.stringify(coordination.toolInput, null, 2),
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			success: true,
+			pastTenseMessage: display?.pastTenseMessage ?? coordination.toolName,
+			content: [{ type: ToolResultContentType.Text, text: coordination.openLink }],
+		},
+	};
+}
+
+function threadCoordinationKey(coordination: ICodexThreadCoordinationCall): string {
+	return `${coordination.toolName}\0${coordination.targetThreadId}`;
+}
+
+function getServerToolPastTenseMessage(toolName: SessionServerToolName.CreateSession): string {
+	const pastTenseMessage = getServerToolDisplay(toolName, {})?.pastTenseMessage;
+	return typeof pastTenseMessage === 'string' ? pastTenseMessage : pastTenseMessage?.markdown ?? toolName;
 }
 
 /** Restores turn timing from codex's persisted thread: Unix-second stamps widen to ISO 8601 `startedAt` plus a millisecond `duration`. */
@@ -216,11 +309,32 @@ function webSearchToolCallPart(item: Extract<ThreadItem, { type: 'webSearch' }>)
 			toolName: 'web_search',
 			displayName: 'Web search',
 			_meta: toToolCallMeta({ toolKind: 'search' }),
-			invocationMessage: query,
+			invocationMessage: webSearchInvocationMessage(query),
 			toolInput: query,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: true,
-			pastTenseMessage: `Searched ${query}`,
+			pastTenseMessage: webSearchPastTenseMessage(query),
+		},
+	};
+}
+
+function imageGenerationToolCallPart(item: Extract<ThreadItem, { type: 'imageGeneration' }>): ToolCallResponsePart {
+	const success = item.status === 'completed' && item.result.length > 0;
+	const labels = codexImageGenerationLabels(item.status);
+	return {
+		kind: ResponsePartKind.ToolCall,
+		toolCall: {
+			status: ToolCallStatus.Completed,
+			toolCallId: generateUuid(),
+			toolName: 'image_gen.imagegen',
+			displayName: labels.displayName,
+			invocationMessage: labels.invocationMessage,
+			toolInput: JSON.stringify({ prompt: item.revisedPrompt ?? labels.displayName }),
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			success,
+			pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
+			content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: item.result, contentType: 'image/png' }] : undefined,
+			error: success ? undefined : { message: labels.errorMessage },
 		},
 	};
 }
@@ -239,7 +353,7 @@ function fileChangeToolCallPart(item: Extract<ThreadItem, { type: 'fileChange' }
 			invocationMessage: summary,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success,
-			pastTenseMessage: success ? 'Applied file changes' : 'Failed to apply file changes',
+			pastTenseMessage: success ? summary : 'Failed to apply file changes',
 			content: textContent(output),
 			error: success ? undefined : { message: `Patch ${item.status}` },
 		},

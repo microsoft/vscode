@@ -8,7 +8,7 @@ import '../../chat/browser/voiceClient/micCaptureService.js';
 import '../../chat/browser/voiceClient/ttsPlaybackService.js';
 import '../../chat/browser/voiceClient/voiceClientService.js';
 import { IVoiceSessionController, isVoiceEntitled } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { VOICE_AGENT_PROGRESS_SETTING } from '../../chat/common/voiceClient/voiceClientService.js';
+import { normalizeAgentsVoiceId, VOICE_AGENT_PROGRESS_SETTING } from '../../chat/common/voiceClient/voiceClientService.js';
 import '../../chat/browser/voiceClient/voiceToolDispatchService.js';
 import '../../chat/common/voicePlaybackService.js';
 
@@ -35,7 +35,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING, AGENTS_VOICE_RECONNECTING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -44,10 +44,10 @@ import {
 	VoiceEnabledClassification, VoiceEnabledEvent,
 	VoiceDisabledClassification, VoiceDisabledEvent,
 } from '../../chat/browser/voiceClient/voiceTelemetry.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
@@ -101,9 +101,11 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 		const connectedKey = AGENTS_VOICE_CONNECTED.bindTo(contextKeyService);
 		const connectingKey = AGENTS_VOICE_CONNECTING.bindTo(contextKeyService);
 		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
+		const reconnectingKey = AGENTS_VOICE_RECONNECTING.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			connectedKey.set(voiceSessionController.isConnected.read(reader));
 			connectingKey.set(voiceSessionController.isConnecting.read(reader));
+			reconnectingKey.set(voiceSessionController.isReconnecting.read(reader));
 			listeningKey.set(voiceSessionController.voiceState.read(reader) === 'listening');
 		}));
 	}
@@ -186,7 +188,10 @@ registerAction2(class extends Action2 {
 			icon: Codicon.loadingCompact,
 			precondition: ContextKeyExpr.and(
 				AGENTS_VOICE_ENABLED,
-				AGENTS_VOICE_CONNECTING.isEqualTo(true),
+				ContextKeyExpr.or(
+					AGENTS_VOICE_CONNECTING.isEqualTo(true),
+					AGENTS_VOICE_RECONNECTING.isEqualTo(true),
+				),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
@@ -195,7 +200,10 @@ registerAction2(class extends Action2 {
 					AGENTS_VOICE_ENABLED,
 					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					AGENTS_VOICE_CONNECTING.isEqualTo(true),
+					ContextKeyExpr.or(
+						AGENTS_VOICE_CONNECTING.isEqualTo(true),
+						AGENTS_VOICE_RECONNECTING.isEqualTo(true),
+					),
 					VOICE_ACTIVE_ON_SURFACE,
 				),
 				group: 'navigation',
@@ -225,6 +233,7 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.negate(),
 					AGENTS_VOICE_CONNECTING.negate(),
+					AGENTS_VOICE_RECONNECTING.negate(),
 					// Hide Voice Mode while dictation is active (recording or the
 					// model is loading) so the two mic affordances never compete.
 					ChatContextKeys.speechToTextRecording.negate(),
@@ -248,6 +257,9 @@ registerAction2(class extends Action2 {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
 		const handsFree = accessor.get(IConfigurationService).getValue<boolean>('agents.voice.handsFree') === true;
+		const omniHasFocus = accessor.get(IContextKeyService).getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
+		const activeWindow = getActiveWindow();
+		voiceController.setActiveWindow(activeWindow);
 
 		// Capture hold-mode FIRST, synchronously, before any `await`. The
 		// keybinding service only reports a held chord while it is still
@@ -261,8 +273,13 @@ registerAction2(class extends Action2 {
 
 		// An explicit press in another composer transfers Voice Mode ownership to
 		// that composer. The draft sentinel deliberately clears the concrete target.
-		const currentSession = await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
-		if (currentSession) {
+		const currentSession = omniHasFocus
+			? undefined
+			: await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+		voiceController.setOmniInputActive(omniHasFocus);
+		if (omniHasFocus) {
+			voiceController.setDraftTarget();
+		} else if (currentSession) {
 			try {
 				const resource = URI.parse(currentSession);
 				if (resource.scheme === 'sessions-voice') {
@@ -284,7 +301,7 @@ registerAction2(class extends Action2 {
 		// controller then treats it as a quick tap (toggle on).
 		const wasConnected = voiceController.isConnected.get();
 		if (!wasConnected) {
-			await voiceController.connect(mainWindow);
+			await voiceController.connect(activeWindow);
 		}
 
 		if (!holdMode && !handsFree && !wasConnected) {
@@ -542,7 +559,7 @@ registerAction2(class extends Action2 {
 
 		// Auto-connect on first PTT press
 		if (!voiceController.isConnected.get() && !voiceController.isConnecting.get()) {
-			await voiceController.connect(mainWindow);
+			await voiceController.connect(getActiveWindow());
 		}
 		if (!voiceController.isConnected.get()) {
 			return;
@@ -616,16 +633,16 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.voice': {
 			type: 'string',
-			enum: ['victoria_neutral', 'kevin_neutral', 'maya_neutral', 'daniel_neutral'],
-			enumItemLabels: ['Victoria', 'Kevin', 'Maya', 'Daniel'],
+			enum: ['harper_neutral', 'birch_neutral', 'junho_neutral', 'oak_neutral'],
+			enumItemLabels: ['Harper', 'Birch', 'Junho', 'Oak'],
 			enumDescriptions: [
-				nls.localize('agents.voice.voice.victoria', "Victoria."),
-				nls.localize('agents.voice.voice.kevin', "Kevin."),
-				nls.localize('agents.voice.voice.maya', "Maya."),
-				nls.localize('agents.voice.voice.daniel', "Daniel."),
+				nls.localize('agents.voice.voice.harper', "Harper."),
+				nls.localize('agents.voice.voice.birch', "Birch."),
+				nls.localize('agents.voice.voice.junho', "Junho."),
+				nls.localize('agents.voice.voice.oak', "Oak."),
 			],
 			markdownDescription: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. Changing this while voice mode is connected takes effect immediately. Use [Voice Mode instructions](command:{0}) to customize Voice Mode behavior and terminology.", CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID),
-			default: 'maya_neutral',
+			default: 'birch_neutral',
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.language': {
@@ -699,6 +716,10 @@ configurationRegistry.registerConfiguration({
 // old mode was `phrase` or `both`.
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
+		key: 'agents.voice.voice',
+		includeApplication: true,
+		migrateFn: (value: unknown) => ({ value: normalizeAgentsVoiceId(value) }),
+	}, {
 		key: 'agents.voice.turn.autoEndMode',
 		migrateFn: (value: unknown) => {
 			const result: ConfigurationKeyValuePairs = [['agents.voice.turn.autoEndMode', { value: undefined }]];

@@ -5,8 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
+import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
-import { MessageKind, ResponsePartKind, ToolCallStatus, TurnState } from '../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ModelSelection } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
 
@@ -40,6 +42,389 @@ suite('codexReplayMapper', () => {
 		const part = turns[0].responseParts[0];
 		assert.strictEqual(part.kind, ResponsePartKind.Markdown);
 		assert.strictEqual((part as { content: string }).content, 'hello back');
+	});
+
+	test('restored turn carries its original model on the request and response usage', () => {
+		const model: ModelSelection = { id: 'codex-model:openai:gpt-5.6-sol' };
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'hi', text_elements: [] }] },
+					{ type: 'agentMessage', id: 'a1', text: 'hello back', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never, new Map([['turn_a', model]]));
+
+		assert.deepStrictEqual({
+			messageModel: turns[0].message.model,
+			usage: turns[0].usage,
+		}, {
+			messageModel: model,
+			usage: { model: model.id },
+		});
+	});
+
+	test('restores delegated user messages as visible prompts with source provenance', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [{
+					type: 'userMessage',
+					id: 'u1',
+					content: [{
+						type: 'text',
+						text: '<codex_delegation><source_thread_id>source-thread</source_thread_id><input>Open &lt;the control&gt;.</input></codex_delegation>',
+						text_elements: [],
+					}],
+				}],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			}],
+		} as never);
+
+		assert.deepStrictEqual({
+			text: turns[0].message.text,
+			delegation: readAgentMessageDelegationMeta(turns[0].message),
+		}, {
+			text: 'Open <the control>.',
+			delegation: { sourceThreadId: 'source-thread' },
+		});
+	});
+
+	test('restores create-thread outcomes as one link tool and removes the matching directive', () => {
+		const targetThreadId = '019ff590-65e5-7940-943f-d2a8718c358b';
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'Create another chat', text_elements: [] }] },
+					{
+						type: 'dynamicToolCall',
+						id: 'tool-1',
+						namespace: 'codex_app',
+						tool: 'create_thread',
+						arguments: { prompt: 'Remember this word: capybara', target: { type: 'projectless' } },
+						status: 'completed',
+						contentItems: [
+							{ type: 'inputText', text: 'Script completed' },
+							{ type: 'inputText', text: JSON.stringify({ threadId: targetThreadId, hostId: 'local' }) },
+						],
+						success: true,
+						durationMs: 300,
+					},
+					{
+						type: 'agentMessage',
+						id: 'a1',
+						text: `Created another chat.\n\n::created-thread{threadId="${targetThreadId}"}`,
+						phase: 'final_answer',
+						memoryCitation: null,
+					},
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			}],
+		} as never);
+		const toolPart = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		const markdownPart = turns[0].responseParts.find(part => part.kind === ResponsePartKind.Markdown);
+		const toolCall = toolPart?.kind === ResponsePartKind.ToolCall && toolPart.toolCall.status === ToolCallStatus.Completed ? toolPart.toolCall : undefined;
+
+		assert.deepStrictEqual({
+			partKinds: turns[0].responseParts.map(part => part.kind),
+			toolName: toolCall?.toolName,
+			toolInput: toolCall?.toolInput,
+			toolOutput: toolCall?.content,
+			markdown: markdownPart?.kind === ResponsePartKind.Markdown ? markdownPart.content : undefined,
+		}, {
+			partKinds: [ResponsePartKind.ToolCall, ResponsePartKind.Markdown],
+			toolName: SessionServerToolName.CreateSession,
+			toolInput: JSON.stringify({ prompt: 'Remember this word: capybara', target: { type: 'projectless' } }, null, 2),
+			toolOutput: [{ type: 'text', text: `agent-host-session://codex/${targetThreadId}` }],
+			markdown: 'Created another chat.',
+		});
+	});
+
+	test('restores send-message outcomes as links to the target thread', () => {
+		const targetThreadId = 'target-thread';
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'Send foo', text_elements: [] }] },
+					{
+						type: 'dynamicToolCall',
+						id: 'tool-1',
+						namespace: 'codex_app',
+						tool: 'send_message_to_thread',
+						arguments: { threadId: targetThreadId, prompt: 'foo' },
+						status: 'completed',
+						contentItems: [{ type: 'inputText', text: JSON.stringify({ threadId: targetThreadId }) }],
+						success: true,
+						durationMs: 300,
+					},
+					{ type: 'agentMessage', id: 'a1', text: 'Sent “foo” to that chat.', phase: 'final_answer', memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			}],
+		} as never);
+		const toolPart = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		const toolCall = toolPart?.kind === ResponsePartKind.ToolCall && toolPart.toolCall.status === ToolCallStatus.Completed ? toolPart.toolCall : undefined;
+
+		assert.deepStrictEqual({
+			toolName: toolCall?.toolName,
+			toolOutput: toolCall?.content,
+		}, {
+			toolName: SessionServerToolName.SendMessage,
+			toolOutput: [{ type: 'text', text: `agent-host-session://codex/${targetThreadId}` }],
+		});
+	});
+
+	test('restores rollout thread operations when thread/read omits their tool items', () => {
+		const targetThreadId = 'target-thread';
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn-create',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'Create another chat', text_elements: [] }] },
+					{
+						type: 'agentMessage',
+						id: 'a1',
+						text: `Created another chat.\n\n::created-thread{threadId="${targetThreadId}"}`,
+						phase: 'final_answer',
+						memoryCitation: null,
+					},
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			}, {
+				id: 'turn-send',
+				items: [
+					{ type: 'userMessage', id: 'u2', content: [{ type: 'text', text: 'Send foo', text_elements: [] }] },
+					{ type: 'agentMessage', id: 'a2', text: 'Sent “foo” to that chat.', phase: 'final_answer', memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			}],
+		} as never, undefined, new Map([
+			['turn-create', [{
+				toolName: SessionServerToolName.CreateSession,
+				targetThreadId,
+				openLink: `agent-host-session://codex/${targetThreadId}`,
+				toolInput: { prompt: 'Remember capybara' },
+			}]],
+			['turn-send', [{
+				toolName: SessionServerToolName.SendMessage,
+				targetThreadId,
+				openLink: `agent-host-session://codex/${targetThreadId}`,
+				toolInput: { prompt: 'foo' },
+			}]],
+		]));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			markdown: turn.responseParts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content),
+			tools: turn.responseParts.filter(part => part.kind === ResponsePartKind.ToolCall).map(part => part.toolCall.toolName),
+		})), [{
+			markdown: ['Created another chat.'],
+			tools: [SessionServerToolName.CreateSession],
+		}, {
+			markdown: ['Sent “foo” to that chat.'],
+			tools: [SessionServerToolName.SendMessage],
+		}]);
+	});
+
+	test('keeps create and send outcomes to the same target while deduplicating equivalent replay data', () => {
+		const targetThreadId = 'target-thread';
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn-a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'Create and message a chat', text_elements: [] }] },
+					{
+						type: 'dynamicToolCall',
+						id: 'create-tool',
+						namespace: 'codex_app',
+						tool: 'create_thread',
+						arguments: { prompt: 'Remember capybara' },
+						status: 'completed',
+						contentItems: [{ type: 'inputText', text: JSON.stringify({ threadId: targetThreadId }) }],
+						success: true,
+						durationMs: 100,
+					},
+					{
+						type: 'dynamicToolCall',
+						id: 'send-tool',
+						namespace: 'codex_app',
+						tool: 'send_message_to_thread',
+						arguments: { threadId: targetThreadId, prompt: 'foo' },
+						status: 'completed',
+						contentItems: [{ type: 'inputText', text: JSON.stringify({ threadId: targetThreadId }) }],
+						success: true,
+						durationMs: 100,
+					},
+					{
+						type: 'agentMessage',
+						id: 'a1',
+						text: `Done.\n\n::created-thread{threadId="${targetThreadId}"}`,
+						phase: 'final_answer',
+						memoryCitation: null,
+					},
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			}],
+		} as never, undefined, new Map([['turn-a', [{
+			toolName: SessionServerToolName.CreateSession,
+			targetThreadId,
+			openLink: `agent-host-session://codex/${targetThreadId}`,
+			toolInput: { prompt: 'Remember capybara' },
+		}]]]));
+
+		assert.deepStrictEqual({
+			tools: turns[0].responseParts
+				.filter(part => part.kind === ResponsePartKind.ToolCall)
+				.map(part => part.toolCall.toolName),
+			markdown: turns[0].responseParts
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content),
+		}, {
+			tools: [SessionServerToolName.CreateSession, SessionServerToolName.SendMessage],
+			markdown: ['Done.'],
+		});
+	});
+
+	test('uses a directive fallback but leaves directive examples inside code fences unchanged', () => {
+		const targetThreadId = 'target-thread';
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'Create another chat', text_elements: [] }] },
+					{
+						type: 'agentMessage',
+						id: 'a1',
+						text: [
+							'Created another chat.',
+							'',
+							`::created-thread{threadId="${targetThreadId}"}`,
+							'',
+							'```text',
+							'::created-thread{threadId="example-only"}',
+							'```typescript',
+							'::created-thread{threadId="after-info-string"}',
+							'',
+							'',
+							'',
+							'    ::created-thread{threadId="indented-example"}',
+							'```',
+							'',
+							'    ::created-thread{threadId="indented-outside"}',
+						].join('\n'),
+						phase: 'final_answer',
+						memoryCitation: null,
+					},
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			}],
+		} as never);
+		const toolParts = turns[0].responseParts.filter(part => part.kind === ResponsePartKind.ToolCall);
+		const markdownPart = turns[0].responseParts.find(part => part.kind === ResponsePartKind.Markdown);
+
+		assert.deepStrictEqual({
+			toolCount: toolParts.length,
+			toolName: toolParts[0]?.kind === ResponsePartKind.ToolCall ? toolParts[0].toolCall.toolName : undefined,
+			markdown: markdownPart?.kind === ResponsePartKind.Markdown ? markdownPart.content : undefined,
+		}, {
+			toolCount: 1,
+			toolName: SessionServerToolName.CreateSession,
+			markdown: [
+				'Created another chat.',
+				'',
+				'```text',
+				'::created-thread{threadId="example-only"}',
+				'```typescript',
+				'::created-thread{threadId="after-info-string"}',
+				'',
+				'',
+				'',
+				'    ::created-thread{threadId="indented-example"}',
+				'```',
+				'',
+				'    ::created-thread{threadId="indented-outside"}',
+			].join('\n'),
+		});
+	});
+
+	test('ignores similarly named dynamic tools from other namespaces', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn-a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'Call another tool', text_elements: [] }] },
+					{
+						type: 'dynamicToolCall',
+						id: 'tool-1',
+						namespace: 'other_app',
+						tool: 'send_message_to_thread',
+						arguments: { threadId: 'target-thread', prompt: 'foo' },
+						status: 'completed',
+						contentItems: [{ type: 'inputText', text: JSON.stringify({ threadId: 'target-thread' }) }],
+						success: true,
+						durationMs: 100,
+					},
+					{ type: 'agentMessage', id: 'a1', text: 'Done.', phase: 'final_answer', memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			}],
+		} as never);
+
+		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind), [ResponsePartKind.Markdown]);
 	});
 
 	test('restores turn timing from the persisted codex thread', () => {
@@ -90,8 +475,10 @@ suite('codexReplayMapper', () => {
 				startedAt: null, completedAt: null, durationMs: null,
 			}],
 		} as never);
-		assert.strictEqual(turns.length, 1);
-		assert.strictEqual(turns[0].state, TurnState.Error);
+		assert.deepStrictEqual(turns.map(turn => ({ state: turn.state, error: turn.error })), [{
+			state: TurnState.Error,
+			error: { errorType: 'CodexError', message: 'oops' },
+		}]);
 	});
 
 	test('turn with no recognizable items is dropped', () => {
@@ -200,6 +587,38 @@ suite('codexReplayMapper', () => {
 			pastTenseMessage: 'Ran `ls -la`',
 			success: true,
 			output: 'total 0',
+		});
+	});
+
+	test('imageGeneration restores its generated image', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'draw it', text_elements: [] }] },
+					{ type: 'imageGeneration', id: 'image_1', status: 'completed', revisedPrompt: 'A watercolor fox', result: 'aW1hZ2U=' },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		const part = turns[0].responseParts[0];
+		assert.deepStrictEqual(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
+			toolName: part.toolCall.toolName,
+			displayName: part.toolCall.displayName,
+			toolInput: part.toolCall.toolInput,
+			success: part.toolCall.success,
+			pastTenseMessage: part.toolCall.pastTenseMessage,
+			content: part.toolCall.content,
+		} : undefined, {
+			toolName: 'image_gen.imagegen',
+			displayName: 'Generate image',
+			toolInput: '{"prompt":"A watercolor fox"}',
+			success: true,
+			pastTenseMessage: 'Generated image',
+			content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
 		});
 	});
 

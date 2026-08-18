@@ -17,6 +17,7 @@ import { TerminalSettingId } from '../../../../../../platform/terminal/common/te
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { ITerminalProfileResolverService, ITerminalProfileService } from '../../../../../../workbench/contrib/terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
 
 /** Terminal settings whose change should re-resolve the agent host shell. */
@@ -57,22 +58,24 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
-		const keys: readonly IForwardedRootConfigKey[] = [
-			{
-				key: AgentHostConfigKey.DefaultShell,
-				computeValue: () => this._resolveDefaultShell(),
-				registerTriggers: (store, push) => {
-					store.add(this._configurationService.onDidChangeConfiguration(e => {
-						if (AGENT_HOST_SHELL_DEPENDENT_SETTINGS.some(s => e.affectsConfiguration(s))) {
-							push();
-						}
-					}));
-					store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => push()));
-				},
+		const defaultShellKey: IForwardedRootConfigKey = {
+			key: AgentHostConfigKey.DefaultShell,
+			computeValue: () => this._resolveDefaultShell(),
+			registerTriggers: (store, push) => {
+				store.add(this._configurationService.onDidChangeConfiguration(e => {
+					if (AGENT_HOST_SHELL_DEPENDENT_SETTINGS.some(s => e.affectsConfiguration(s))) {
+						push();
+					}
+				}));
+				store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => push()));
 			},
+		};
+		const keys: readonly IForwardedRootConfigKey[] = [
+			...(environmentService.remoteAuthority ? [] : [defaultShellKey]),
 			{
 				key: CopilotCliConfigKey.EnableCustomTerminalTool,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true,

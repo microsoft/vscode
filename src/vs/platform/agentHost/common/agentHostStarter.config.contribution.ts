@@ -12,6 +12,7 @@ import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostByokModelsEnabledSettingId,
+	AgentHostActiveAgentTitleGenerationSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostClaudeMultiRootEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
@@ -20,6 +21,7 @@ import {
 	AgentHostCodexAgentSdkRootSettingId,
 	AgentHostCodexAgentCodexHomeSettingId,
 	AgentHostCopilotMultiRootEnabledSettingId,
+	AgentHostMarkdownPlanRichLinksEnabledSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
 	AgentHostOTelEnabledSettingId,
@@ -33,11 +35,14 @@ import {
 } from './agentService.js';
 import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
+	AgentHostActiveAgentTitleGenerationConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
+	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 } from './agentHostSchema.js';
+import { AgentMergeConfigKey, AgentMergeSettingId } from './agentMerge.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -95,6 +100,87 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('chatAgentHostStarterConfigurationTitle', "Chat Agent Host Starter"),
 	type: 'object',
 	properties: {
+		[AgentMergeSettingId.Enabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready."),
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: { key: AgentMergeConfigKey.Enabled },
+		},
+		[AgentMergeSettingId.AddressReviews]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentMerge.addressReviews', "Controls whether enabled Agent Merge sessions address unresolved review threads, changes-requested reviews, and new pull request comments from repository maintainers or the Copilot pull request reviewer."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: { key: AgentMergeConfigKey.AddressReviews },
+		},
+		[AgentMergeSettingId.FixCI]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentMerge.fixCI', "Controls whether enabled Agent Merge sessions ask the agent to fix failed required CI checks."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: { key: AgentMergeConfigKey.FixCI },
+		},
+		[AgentMergeSettingId.ResolveConflicts]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentMerge.resolveConflicts', "Controls whether enabled Agent Merge sessions ask the agent to update branches that are behind or resolve merge conflicts."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: { key: AgentMergeConfigKey.ResolveConflicts },
+		},
+		[AgentMergeSettingId.MergePullRequest]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentMerge.mergePullRequest', "Controls whether the Agent Host automatically merges or enqueues pull requests for enabled Agent Merge sessions after all selected maintenance work is complete."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: { key: AgentMergeConfigKey.MergePullRequest },
+		},
+		[AgentMergeSettingId.MergeMethod]: {
+			type: 'string',
+			enum: ['auto', 'squash', 'merge', 'rebase'],
+			enumDescriptions: [
+				nls.localize('chat.agentMerge.mergeMethod.auto', "Uses the first repository-compatible method in this order: squash, merge commit, rebase."),
+				nls.localize('chat.agentMerge.mergeMethod.squash', "Uses squash merge when the repository permits it."),
+				nls.localize('chat.agentMerge.mergeMethod.merge', "Uses a merge commit when the repository permits it."),
+				nls.localize('chat.agentMerge.mergeMethod.rebase', "Uses rebase merge when the repository permits it."),
+			],
+			description: nls.localize('chat.agentMerge.mergeMethod', "Controls the native merge method used by Agent Merge."),
+			default: 'auto',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: { key: AgentMergeConfigKey.MergeMethod },
+		},
+		[AgentMergeSettingId.ReplyAttribution]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentMerge.replyAttribution', "Controls whether review-thread replies posted by Agent Merge include an automated-reply attribution note."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
+		},
+		[AgentHostActiveAgentTitleGenerationSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.experimental.activeAgentTitleGeneration', "When enabled, the active agent names new sessions and chats using rename tools. When disabled, a utility model generates titles. Changes apply to sessions and chats created afterward."),
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostActiveAgentTitleGenerationConfigKey },
+		},
+		[AgentHostMarkdownPlanRichLinksEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.experimental.markdownPlanRichLinks', "When enabled, agents receive guidance for using rich links to issues, pull requests, commits, sessions, and chats, plus running task markers, when creating or editing Markdown plan documents."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostMarkdownPlanRichLinksEnabledConfigKey },
+		},
 		[AgentHostSystemProxyEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.systemProxy.enabled', "When enabled, Copilot sessions automatically discover and use the operating system's proxy configuration when no proxy environment variable is set."),
@@ -132,14 +218,10 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostClaudeAgentEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the agent host registers the Claude provider (subject to the Claude SDK being reachable). Independent of `#chat.agents.claude.preferAgentHost#` and `#chat.editor.claude.preferAgentHost#`, which choose which integration surfaces Claude. The agent host process must be restarted for changes to take effect."),
+			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the agent host registers the Claude provider, subject to the Claude SDK being reachable. The agent host process must be restarted for changes to take effect."),
 			default: true,
 			tags: ['experimental', 'advanced'],
-			// Owns the `Claude3PIntegration` policy; gating here disables Claude across all surfaces.
-			// The user-facing copilot-chat setting `github.copilot.chat.claudeAgent.enabled` attaches
-			// to this policy via a `policyReference` declared in the distro `product.json`. Ownership
-			// lives here (not in `product.json`) so the policy can carry a `value` callback that honors
-			// the account-side editor preview-features flag.
+			// Owns the policy so the account-side preview-features flag can disable Claude across all surfaces.
 			policy: {
 				name: 'Claude3PIntegration',
 				category: PolicyCategory.InteractiveSession,

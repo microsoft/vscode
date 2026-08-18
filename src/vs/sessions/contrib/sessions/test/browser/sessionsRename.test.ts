@@ -5,74 +5,22 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
-import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
-import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionsChatAccessibilityHelp } from '../../../chat/browser/sessionsChatAccessibilityHelp.js';
 import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { createListHarness, createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
-
-const ITestAgentSessionsService = createDecorator<object>('agentSessions');
-
-class TestCommandService extends mock<ICommandService>() {
-	readonly calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
-
-	override async executeCommand<T = unknown>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
-		this.calls.push({ commandId, args });
-		return undefined;
-	}
-}
-
-class TestSessionsManagementService extends mock<ISessionsManagementService>() {
-	override readonly onDidChangeSessions = Event.None;
-	sessions: ISession[];
-	readonly readSessions: ISession[] = [];
-	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
-	renameError: Error | undefined;
-
-	constructor(sessions: ISession[]) {
-		super();
-		this.sessions = sessions;
-	}
-
-	override getSessions(): ISession[] {
-		return this.sessions;
-	}
-
-	override async markRead(session: ISession): Promise<void> {
-		this.readSessions.push(session);
-	}
-
-	override async renameSession(session: ISession, title: string): Promise<void> {
-		this.renamed.push({ session, title });
-		if (this.renameError) {
-			throw this.renameError;
-		}
-	}
-}
 
 class TestQuickInputService extends mock<IQuickInputService>() {
 	result: string | undefined;
@@ -84,123 +32,6 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 		this.options = options;
 		return this.result;
 	}
-}
-
-function createSession(title: string, resourceId: string = title): { readonly session: ISession; readonly capabilities: ISettableObservable<ISessionCapabilities, void> } {
-	const now = new Date();
-	const resource = URI.parse(`test-session://${resourceId}`);
-	const capabilities = observableValue<ISessionCapabilities>(`capabilities-${resourceId}`, { supportsMultipleChats: false, supportsRename: true });
-	const session: ISession = {
-		sessionId: resourceId,
-		resource,
-		providerId: 'test',
-		sessionType: 'test',
-		icon: Codicon.account,
-		createdAt: now,
-		workspace: constObservable({
-			uri: URI.parse(`test-workspace://${resourceId}`),
-			label: 'Workspace',
-			icon: Codicon.folder,
-			folders: [],
-			requiresWorkspaceTrust: false,
-			isVirtualWorkspace: false,
-		}),
-		isQuickChat: constObservable(false),
-		title: constObservable(title),
-		updatedAt: constObservable(now),
-		status: constObservable(SessionStatus.Completed),
-		changesets: constObservable([]),
-		changes: constObservable([]),
-		modelId: constObservable(undefined),
-		mode: constObservable(undefined),
-		loading: constObservable(false),
-		isArchived: constObservable(false),
-		isRead: constObservable(true),
-		description: constObservable(undefined),
-		lastTurnEnd: constObservable(undefined),
-		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
-		capabilities,
-	};
-	return { session, capabilities };
-}
-
-interface IListHarness {
-	readonly store: DisposableStore;
-	readonly instantiationService: TestInstantiationService;
-	readonly managementService: TestSessionsManagementService;
-	readonly commandService: TestCommandService;
-	createContainer(): HTMLElement;
-}
-
-function createListHarness(disposables: Pick<DisposableStore, 'add'>, sessions: ISession[]): IListHarness {
-	const store = disposables.add(new DisposableStore());
-	const instantiationService = workbenchInstantiationService(undefined, store);
-	const managementService = new TestSessionsManagementService(sessions);
-	const commandService = new TestCommandService();
-
-	instantiationService.stub(ISessionsManagementService, managementService);
-	instantiationService.stub(ICommandService, commandService);
-	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
-	});
-	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
-		override readonly onDidChange = Event.None;
-		override isSessionPinned(): boolean { return false; }
-		override migrateLegacyReadState(): void { }
-		override getSortKey(session: ISession, mode: SessionSortMode): number {
-			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
-		}
-		override getStatusIcon() { return Codicon.circleSmallFilled; }
-	});
-	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
-		override readonly onDidChange = Event.None;
-		override getGroups() { return []; }
-		override getGroupOfSession() { return undefined; }
-		override getSessionIdsInGroup() { return []; }
-	});
-	instantiationService.stub(ISessionSectionOrderService, new class extends mock<ISessionSectionOrderService>() {
-		override readonly onDidChange = Event.None;
-		override resolveOrder(ids: readonly string[]) { return [...ids]; }
-		override isPromoted() { return false; }
-		override retain(): void { }
-	});
-	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
-		override readonly onDidChange = Event.None;
-		override readonly selectedProviderId = undefined;
-	});
-	instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
-		override readonly onDidRefetchAssignments = Event.None;
-		override async getTreatment<T extends string | number | boolean>(): Promise<T | undefined> { return undefined; }
-	});
-	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
-		override readonly onDidChangeProviders = Event.None;
-		override getProviders() { return []; }
-	});
-	instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
-		override readonly pendingResponseVersion = constObservable(0);
-		override hasPendingResponse() { return false; }
-	});
-	instantiationService.stub(ITestAgentSessionsService, {
-		model: {
-			observeSession: () => constObservable(undefined),
-		},
-	});
-	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
-		override readonly chatModels = constObservable([]);
-	});
-
-	const createContainer = () => {
-		const container = mainWindow.document.createElement('div');
-		container.style.width = '400px';
-		container.style.height = '300px';
-		mainWindow.document.body.appendChild(container);
-		store.add({ dispose: () => container.remove() });
-		return container;
-	};
-
-	return { store, instantiationService, managementService, commandService, createContainer };
 }
 
 function dispatchDoubleClick(target: HTMLElement, options: MouseEventInit = {}): MouseEvent {
@@ -216,7 +47,7 @@ suite('Sessions rename', () => {
 
 	suite('list interaction', () => {
 		test('title double-click opens once and requests rename once', () => {
-			const { session } = createSession('First');
+			const { session } = createTestSession('First');
 			const harness = createListHarness(disposables, [session]);
 			const openCalls: URI[] = [];
 			const container = harness.createContainer();
@@ -247,7 +78,7 @@ suite('Sessions rename', () => {
 		});
 
 		test('rename is title-only, unmodified, capability-gated, and rebound safely', () => {
-			const first = createSession('First', 'shared');
+			const first = createTestSession('First', { resourceId: 'shared' });
 			const harness = createListHarness(disposables, [first.session]);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -272,7 +103,7 @@ suite('Sessions rename', () => {
 			assert.strictEqual(unsupported.defaultPrevented, false);
 			assert.strictEqual(harness.commandService.calls.filter(call => call.commandId === RENAME_SESSION_COMMAND_ID).length, 0);
 
-			const replacement = createSession('Replacement', 'shared');
+			const replacement = createTestSession('Replacement', { resourceId: 'shared' });
 			harness.managementService.sessions = [replacement.session];
 			list.refresh();
 			list.layout(300, 400);
@@ -288,7 +119,7 @@ suite('Sessions rename', () => {
 		});
 
 		test('flat session lists do not request rename', () => {
-			const { session } = createSession('Flat');
+			const { session } = createTestSession('Flat');
 			const harness = createListHarness(disposables, [session]);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
@@ -311,7 +142,7 @@ suite('Sessions rename', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const quickInputService = new TestQuickInputService();
 			const managementService = new TestSessionsManagementService([]);
-			const sessionData = createSession(title);
+			const sessionData = createTestSession(title);
 			sessionData.capabilities.set({ supportsMultipleChats: false, supportsRename }, undefined);
 			instantiationService.stub(IQuickInputService, quickInputService);
 			instantiationService.stub(ISessionsManagementService, managementService);

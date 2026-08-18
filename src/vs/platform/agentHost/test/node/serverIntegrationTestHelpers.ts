@@ -13,7 +13,7 @@ import { userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { CapiReplayProxy, type CapiReplayMode } from './e2e/harness/capiReplayProxy.js';
-import { dirname, join, resolve as resolvePath } from '../../../../base/common/path.js';
+import { dirname, resolve as resolvePath } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import {
 	ContentEncoding,
@@ -46,7 +46,7 @@ import { ActionType, type ActionEnvelope } from '../../common/state/sessionActio
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcRequest,
@@ -62,6 +62,7 @@ import {
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
 import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isCI, isWindows } from '../../../../base/common/platform.js';
+import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
 
 const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
 
@@ -779,17 +780,17 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly homeDir?: string; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
-	const realCapture = options?.capiReplay?.real === true;
-	const mockLlmServer = (options?.mockLlm || (options?.capiReplay && !realCapture)) ? await startMockLlmServer(options?.mockScenarios) : undefined;
-	let capiReplayProxy = options?.existingCapiReplay;
-	if (capiReplayProxy && !options?.capiReplay) {
+	const realCapture = options.capiReplay?.real === true;
+	const mockLlmServer = (options.mockLlm || (options.capiReplay && !realCapture)) ? await startMockLlmServer(options.mockScenarios) : undefined;
+	let capiReplayProxy = options.existingCapiReplay;
+	if (capiReplayProxy && !options.capiReplay) {
 		throw new Error('Reusing a CAPI replay proxy requires its replay configuration');
 	}
-	if (options?.capiReplay && !capiReplayProxy) {
+	if (options.capiReplay && !capiReplayProxy) {
 		capiReplayProxy = new CapiReplayProxy(realCapture ? {
 			fixturePath: options.capiReplay.fixturePath,
 			mode: options.capiReplay.mode,
@@ -818,41 +819,26 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
-		if (options?.claudeSdkRoot) {
+		if (options.claudeSdkRoot) {
 			args.push('--claude-sdk-root', options.claudeSdkRoot);
 		}
-		if (options?.codexSdkRoot) {
+		if (options.codexSdkRoot) {
 			args.push('--codex-sdk-root', options.codexSdkRoot);
 		}
-		if (options?.userDataDir) {
+		if (options.userDataDir) {
 			args.push('--user-data-dir', options.userDataDir);
 		}
-		if (options?.logLevel) {
+		if (options.logLevel) {
 			args.push('--log', options.logLevel);
 		}
 		const childEnv = withAgentHostCoverage({
-			...process.env,
-			...(options?.env ?? {}),
-			...(options?.homeDir ? {
-				HOME: options.homeDir,
-				USERPROFILE: options.homeDir,
-				APPDATA: join(options.homeDir, 'AppData', 'Roaming'),
-				LOCALAPPDATA: join(options.homeDir, 'AppData', 'Local'),
-				XDG_CONFIG_HOME: join(options.homeDir, '.config'),
-				COPILOT_HOME: join(options.homeDir, '.copilot'),
-				COPILOT_SKILLS_DIRS: undefined,
-				CLAUDE_CONFIG_DIR: undefined,
-				CODEX_HOME: undefined,
-				...(isWindows && options.homeDir.match(/^[A-Za-z]:[\\/]/) ? {
-					HOMEDRIVE: options.homeDir.slice(0, 2),
-					HOMEPATH: options.homeDir.slice(2).replace(/\//g, '\\'),
-				} : {}),
-			} : {}),
-			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
+			...createIsolatedProviderEnvironment(options.homeDir, { ...process.env, ...(options.env ?? {}) }),
+			...(options.codexHomeDir ? { [AgentHostCodexAgentCodexHomeEnvVar]: options.codexHomeDir } : {}),
+			// Codex defaults to disabled; opt it in for the agent host E2E suite when a
 			// codex SDK root is supplied so the provider actually registers.
-			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: String(options.codexAgentEnabled ?? true) } : {}),
+			...(options.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: String(options.codexAgentEnabled ?? true) } : {}),
 			// Fixtures use Codex's unified exec tool, so keep record and replay on the same shell protocol.
-			...(options?.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
+			...(options.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
 			...(realCapture ? {
 				// Real-CAPI capture/replay: route all CAPI + GitHub-API traffic through
 				// the proxy. The real GitHub token flows via the `authenticate`

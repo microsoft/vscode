@@ -40,6 +40,7 @@ import assert from 'assert';
 import type * as http from 'http';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -50,16 +51,20 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { type AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateSessionConfig, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolResultContentType, ChatInputResponseKind, ChatInputAnswerState, ChatInputAnswerValueKind, type ChatInputRequest, type ClientPluginCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ResponsePartKind, ToolResultContentType, ChatInputResponseKind, ChatInputAnswerState, ChatInputAnswerValueKind, type ChatInputRequest, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
@@ -390,6 +395,8 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return true;
 	}
 
+	async ensureAvailableForDiscovery(): Promise<void> { }
+
 	async getSessionInfo(_sessionId: string): Promise<SDKSessionInfo | undefined> {
 		return undefined;
 	}
@@ -633,6 +640,45 @@ function parseSseFrames(raw: string): { type: string; data: unknown }[] {
 
 // #endregion
 
+// #region Session helpers
+
+/**
+ * Provisions a session the way Agent Host does: the host mints both the session
+ * URI and the chat URI it starts the session with, and creates them together
+ * through the single `IAgentChats.createChat` seam with the session's create
+ * config flattened onto the creation options. Returns the chat URI plus the SDK
+ * conversation id the provider bound to it — independent of the AH session id —
+ * which these tests need to stage the fake SDK transcript.
+ */
+async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConfig): Promise<{ session: URI; chat: URI; sessionId: string }> {
+	const session = AgentSession.uri('claude', generateUuid());
+	const chat = URI.parse(buildDefaultChatUri(session));
+	const created = await agent.chats.createChat(chat, chatContext(chat, session), {
+		model: config.model,
+		agent: config.agent,
+		workingDirectories: config.workingDirectories,
+		config: config.config,
+		activeClient: config.activeClient,
+		deferBacking: !config.fork && !config.importConversation,
+		importConversation: config.importConversation,
+	});
+	if (!created?.backingSession) {
+		throw new Error('Expected chat backing metadata');
+	}
+	return { session, chat, sessionId: AgentSession.id(created.backingSession) };
+}
+
+/**
+ * The host-owned {@link IAgentChatContext} Agent Host stamps on every addressed
+ * chat operation. A session-backed default chat is scoped to the session
+ * resource, mirroring the orchestrator's own context builder.
+ */
+function chatContext(chat: URI, session: URI): IAgentChatContext {
+	return { configurationResource: session, resource: session };
+}
+
+// #endregion
+
 // #region Suite
 
 suite('ClaudeAgent integration (proxy-backed)', function () {
@@ -672,8 +718,11 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
+			[IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService()],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
@@ -684,16 +733,16 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		assert.strictEqual(accepted, true);
 
 		// Create a provisional session — no SDK contact yet.
-		const created = await agent.createSession({ workingDirectories: [URI.file('/integration-cwd')] });
-		assert.strictEqual(sdk.capturedStartupOptions.length, 0, 'createSession does not touch the SDK');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/integration-cwd')] });
+		assert.strictEqual(sdk.capturedStartupOptions.length, 0, 'createChat does not touch the SDK');
 
 		// Stage a transcript on the SDK so `sendMessage` resolves.
-		const sessionId = created.session.path.replace(/^\//, '');
+		const sessionId = created.sessionId;
 		sdk.queryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
 		// First send materializes — drives `startup()`, which performs
 		// the real HTTP round-trip on the real proxy.
-		await agent.chats.sendMessage(created.session, 'hi', undefined, undefined, 'turn-1');
+		await agent.chats.sendMessage(created.chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(created.chat, created.session));
 
 		// Snapshot what flowed through the integration in a single
 		// assertion so the failure surface is the whole pipeline.
@@ -743,10 +792,12 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			],
 		});
 
-		// Cleanup: dispose the agent and assert the WarmQuery was
-		// closed via Symbol.asyncDispose (no orphan subprocess).
-		await agent.disposeSession(created.session);
-		assert.strictEqual(sdk.warmQueries[0].asyncDisposeCount, 1, 'WarmQuery is asyncDisposed on session dispose');
+		// Cleanup: tear the chat down and assert the WarmQuery was
+		// closed via Symbol.asyncDispose (no orphan subprocess). Trace-context
+		// release for the default chat now happens inside disposeChat itself —
+		// there is no separate finalize step.
+		await agent.chats.disposeChat(created.chat, chatContext(created.chat, created.session));
+		assert.strictEqual(sdk.warmQueries[0].asyncDisposeCount, 1, 'WarmQuery is asyncDisposed on chat dispose');
 	});
 
 	test('proxy rejects a request whose bearer carries a wrong nonce (auth contract)', async () => {
@@ -805,16 +856,19 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
+			[IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService()],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'gh-int-test-token');
-		const created = await agent.createSession({ workingDirectories: [URI.file('/integration-cwd')] });
-		const sessionId = created.session.path.replace(/^\//, '');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/integration-cwd')] });
+		const sessionId = created.sessionId;
 		sdk.queryMessages = [
 			makeSystemInitMessage(sessionId),
 			{
@@ -825,13 +879,13 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		];
 
 		const inputRequested = new DeferredPromise<ChatInputRequest>();
-		disposables.add(agent.onDidSessionProgress(s => {
+		disposables.add(agent.onDidChatProgress(s => {
 			if (s.kind === 'action' && s.action.type === ActionType.ChatInputRequested) {
 				inputRequested.complete(s.action.request);
 			}
 		}));
 
-		const sendPromise = agent.chats.sendMessage(created.session, 'hi', undefined, undefined, 'turn-1');
+		const sendPromise = agent.chats.sendMessage(created.chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(created.chat, created.session));
 		const inputRequest = await inputRequested.p;
 
 		const startup = sdk.capturedStartupOptions[0];
@@ -882,16 +936,19 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
+			[IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService()],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'gh-int-test-token');
-		const created = await agent.createSession({ workingDirectories: [URI.file('/integration-cwd')] });
-		const sessionId = created.session.path.replace(/^\//, '');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/integration-cwd')] });
+		const sessionId = created.sessionId;
 
 		// Canned turn: assistant says "reading", calls `Read`, the SDK
 		// invokes `canUseTool`, then a synthetic user `tool_result`
@@ -918,14 +975,14 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		];
 
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => {
+		disposables.add(agent.onDidChatProgress(s => {
 			signals.push(s);
 			if (s.kind === 'pending_confirmation' && s.state.toolCallId === TOOL_USE_ID) {
 				agent.respondToPermissionRequest(TOOL_USE_ID, true);
 			}
 		}));
 
-		await agent.chats.sendMessage(created.session, 'please read /tmp/x', undefined, undefined, 'turn-1');
+		await agent.chats.sendMessage(created.chat, 'please read /tmp/x', undefined, undefined, 'turn-1', undefined, undefined, chatContext(created.chat, created.session));
 
 		// Snapshot the agent-side emission stream as a single shape so
 		// the failure surface is the whole pipeline.

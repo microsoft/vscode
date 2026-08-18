@@ -45,11 +45,13 @@ struct EndpointsDocument {
 /// array is a valid, meaningful answer ("nothing is running right now"),
 /// distinct from failing to resolve/read the registry itself.
 pub async fn agent_endpoints(
-	ctx: CommandContext,
+	mut ctx: CommandContext,
 	args: AgentEndpointsArgs,
 ) -> Result<i32, AnyError> {
+	ctx.log = crate::log::Logger::new(crate::log::Level::Off);
 	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
-	let endpoints = agent_discovery::discover_live_endpoints(&ctx, args.user_data_dir.as_deref());
+	let endpoints =
+		agent_discovery::discover_live_endpoints(&ctx, args.user_data_dir.as_deref()).await;
 
 	let doc = EndpointsDocument {
 		user_data_path: user_data_path.display().to_string(),
@@ -73,6 +75,7 @@ mod tests {
 	use super::*;
 	use crate::log;
 	use crate::tunnels::agent_host_registry::{self, AgentHostEndpointMetadata};
+	use tokio::net::TcpListener;
 
 	#[test]
 	fn endpoints_document_serializes_with_camel_case_and_full_metadata() {
@@ -109,12 +112,14 @@ mod tests {
 	async fn agent_endpoints_uses_user_data_dir_override_to_find_registry() {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("custom-user-data");
+		let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+		let port = listener.local_addr().unwrap().port();
 
 		let entry = AgentHostEndpointMetadata::new_standalone(
 			std::process::id(),
 			"instance-b".to_string(),
 			"127.0.0.1".to_string(),
-			1234,
+			port,
 			"tok".to_string(),
 			"0.1.0".to_string(),
 			None,
@@ -133,7 +138,8 @@ mod tests {
 		let resolved = resolve_user_data_path(args.user_data_dir.as_deref());
 		assert_eq!(resolved, user_data_path);
 
-		let endpoints = agent_host_registry::list_live_endpoints(&log::Logger::test(), &resolved);
+		let endpoints =
+			agent_host_registry::list_live_endpoints(&log::Logger::test(), &resolved).await;
 		assert_eq!(endpoints.len(), 1);
 		assert_eq!(endpoints[0].instance_id, "instance-b");
 	}

@@ -161,6 +161,35 @@ export interface UsageInfoMeta {
 	[key: string]: unknown;
 }
 
+const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscript';
+const MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-hidden-from-transcript -->\n';
+
+function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean } {
+	const meta = message._meta;
+	return {
+		hiddenFromTranscript: meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true,
+	};
+}
+
+export function isMessageHiddenFromTranscript(message: Message): boolean {
+	return readMessageMeta(message).hiddenFromTranscript
+		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
+}
+
+export function withMessageHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
+	if (!hidden) {
+		return message;
+	}
+	return {
+		...message,
+		text: message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX) ? message.text : MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX + message.text,
+		_meta: {
+			...message._meta,
+			[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
+		},
+	};
+}
+
 /** Whole-turn token consumption attributed to a single model. */
 export interface ITurnTokenTotal {
 	readonly model: string;
@@ -1153,9 +1182,15 @@ export const SESSION_META_GIT_KEY = 'git';
  */
 export const SESSION_META_GITHUB_KEY = 'github';
 
+/** Reserved key for durable source-control workflow provenance. */
+export const SESSION_META_SOURCE_CONTROL_KEY = 'vscode.sourceControl';
+
 export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
+
+/** Reserved key for whether a session was first discovered in a provider-native catalog. */
+export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
 
@@ -1239,6 +1274,83 @@ export function withSessionPromptCacheState(meta: SessionMeta | undefined, promp
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/** Reserved key for the harness-owned new-session folder-picker decision. */
+export const SESSION_META_FOLDER_PICKER_KEY = 'vscode.folderPicker';
+
+/**
+ * Harness-owned decision about the multi-root new-session Folder picker for an
+ * agent-host session, carried under {@link SessionMeta} at
+ * {@link SESSION_META_FOLDER_PICKER_KEY}.
+ *
+ * The provider (harness) owns this because the signal differs per backend — for
+ * example Copilot hides the picker when at most one workspace folder carries
+ * hooks under `.github/hooks/` (pinning that folder as {@link primary} when
+ * exactly one does), since the Copilot agent only applies hooks from the primary
+ * working directory, and shows the picker when several folders carry hooks so
+ * the user resolves the ambiguity. When {@link primary} is set, it names the
+ * working directory the client should auto-select before the session starts.
+ */
+export interface ISessionFolderPickerDecision {
+	/** Whether the client should hide the multi-root Folder picker. */
+	readonly hidden: boolean;
+	/**
+	 * The working directory the client should auto-select as the primary, as a
+	 * URI string. Present only when the harness pins a specific folder (it
+	 * always accompanies `hidden: true`, but a `hidden` decision need not pin
+	 * one — e.g. when no folder carries hooks the current selection is kept).
+	 */
+	readonly primary?: string;
+}
+
+/** Reads the validated folder-picker decision from session metadata. */
+export function readSessionFolderPickerDecision(meta: SessionMeta | undefined): ISessionFolderPickerDecision | undefined {
+	return validateSessionFolderPickerDecision(meta?.[SESSION_META_FOLDER_PICKER_KEY]);
+}
+
+/** Parses the validated folder-picker decision from its persisted JSON representation. */
+export function parseSessionFolderPickerDecision(value: string | undefined): ISessionFolderPickerDecision | undefined {
+	if (!value) {
+		return undefined;
+	}
+	try {
+		return validateSessionFolderPickerDecision(JSON.parse(value));
+	} catch {
+		return undefined;
+	}
+}
+
+function validateSessionFolderPickerDecision(value: unknown): ISessionFolderPickerDecision | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['hidden'] !== 'boolean') {
+		return undefined;
+	}
+	const primary = raw['primary'];
+	// `primary` is only valid on a hidden, pinned decision (see
+	// ISessionFolderPickerDecision); reject the contradictory `{ hidden: false,
+	// primary }` so malformed persisted/remote metadata can't make the client
+	// both reveal the picker and auto-select/recreate the session.
+	if (primary !== undefined && (typeof primary !== 'string' || primary.length === 0 || raw['hidden'] !== true)) {
+		return undefined;
+	}
+	return primary !== undefined ? { hidden: true, primary } : { hidden: raw['hidden'] };
+}
+
+/** Returns session metadata with the folder-picker decision updated or removed. */
+export function withSessionFolderPickerDecision(meta: SessionMeta | undefined, decision: ISessionFolderPickerDecision | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (decision) {
+		next[SESSION_META_FOLDER_PICKER_KEY] = decision.primary !== undefined
+			? { hidden: decision.hidden, primary: decision.primary }
+			: { hidden: decision.hidden };
+	} else {
+		delete next[SESSION_META_FOLDER_PICKER_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 /**
  * Git state of a session's working directory, carried under
  * {@link SessionMeta} at {@link SESSION_META_GIT_KEY}. Used by clients to
@@ -1264,12 +1376,64 @@ export interface ISessionGitState {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** Whether the current branch has commits not contained in its local base branch. */
+	readonly hasBaseBranchChanges?: boolean;
 	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubOwner?: string;
-	/** GitHub owner parsed from the current branch's upstream remote. */
+	/** GitHub owner parsed from the current branch's upstream or push remote. */
 	readonly githubHeadOwner?: string;
 	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubRepo?: string;
+}
+
+export const enum SessionSourceControlOutcome {
+	Merge = 'merge',
+	PullRequest = 'pullRequest',
+}
+
+/** Durable source-control workflow provenance for a session. */
+export interface ISessionSourceControlState {
+	readonly merge?: {
+		/** Resulting target-branch HEAD after the most recent successful merge. */
+		readonly commit: string;
+	};
+	readonly latestOutcome?: SessionSourceControlOutcome;
+}
+
+/** Reads validated source-control workflow provenance from session metadata. */
+export function readSessionSourceControlState(meta: SessionMeta | undefined): ISessionSourceControlState | undefined {
+	const value = meta?.[SESSION_META_SOURCE_CONTROL_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+
+	const raw = value as Record<string, unknown>;
+	let merge: ISessionSourceControlState['merge'];
+	const rawMerge = raw['merge'];
+	if (rawMerge && typeof rawMerge === 'object' && !Array.isArray(rawMerge)) {
+		const commit = (rawMerge as Record<string, unknown>)['commit'];
+		merge = typeof commit === 'string' && commit.length > 0 ? { commit } : undefined;
+	}
+
+	const rawLatestOutcome = raw['latestOutcome'];
+	const latestOutcome = rawLatestOutcome === SessionSourceControlOutcome.Merge || rawLatestOutcome === SessionSourceControlOutcome.PullRequest
+		? rawLatestOutcome
+		: undefined;
+	if (!merge && (!latestOutcome || latestOutcome === SessionSourceControlOutcome.Merge)) {
+		return undefined;
+	}
+	return { merge, latestOutcome };
+}
+
+/** Returns session metadata with source-control workflow provenance updated. */
+export function withSessionSourceControlState(meta: SessionMeta | undefined, state: ISessionSourceControlState | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (state) {
+		next[SESSION_META_SOURCE_CONTROL_KEY] = state;
+	} else {
+		delete next[SESSION_META_SOURCE_CONTROL_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
 }
 
 /**
@@ -1286,8 +1450,12 @@ export interface ISessionGitHubState {
 	readonly owner?: string;
 	/** The name of the GitHub repository. */
 	readonly repo?: string;
-	/** GitHub pull request URLs associated with the session, most recent first. */
+	/** GitHub pull request URLs found for the session's checkouts, most recent first. */
 	readonly pullRequestUrls?: readonly string[];
+	/** Pull requests that predate a folder-isolated session. An empty array is a captured baseline. */
+	readonly initialPullRequestUrls?: readonly string[];
+	/** Pull requests explicitly associated through user intent, most recent first. */
+	readonly associatedPullRequestUrls?: readonly string[];
 	/**
 	 * URLs of the GitHub issues referenced by the session's user messages, in
 	 * order of first appearance.
@@ -1318,15 +1486,24 @@ export function hasSessionPullRequestForBranch(gitHubState: ISessionGitHubState 
 	return gitHubState.pullRequestBranchName === undefined || gitHubState.pullRequestBranchName === branchName;
 }
 
+/** Returns pull requests related to the session rather than inherited from its folder checkout. */
+export function getSessionRelatedPullRequestUrls(gitHubState: ISessionGitHubState | undefined): readonly string[] {
+	const pullRequestUrls = gitHubState?.pullRequestUrls ?? [];
+	const initialPullRequestUrls = gitHubState?.initialPullRequestUrls;
+	const initialUrls = new Set(initialPullRequestUrls?.map(url => url.toLowerCase()) ?? []);
+	const associatedUrls = new Set(gitHubState?.associatedPullRequestUrls?.map(url => url.toLowerCase()) ?? []);
+	return pullRequestUrls.filter(url => !initialUrls.has(url.toLowerCase()) || associatedUrls.has(url.toLowerCase()));
+}
+
 /** Maximum pull requests retained for a session. */
 export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
 
 function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 	const normalizedUrls = urls.map(url => {
-		const match = /^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
+		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
 		const groups = match?.groups;
 		return groups
-			? `https://github.com/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
+			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
 			: url;
 	});
 	return distinct(normalizedUrls, url => url.toLowerCase()).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
@@ -1342,6 +1519,45 @@ export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubStat
 	return {
 		pullRequestUrls,
 		pullRequestBranchName: branchName,
+	};
+}
+
+/** Returns state that promotes a pull request from the folder baseline into the session. */
+export function withMostRecentRelatedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string, branchName: string): ISessionGitHubState {
+	const next = withMostRecentSessionPullRequest(gitHubState, pullRequestUrl, branchName);
+	const promotedUrl = normalizeSessionPullRequestUrls([pullRequestUrl])[0]?.toLowerCase();
+	const initialPullRequestUrls = gitHubState?.initialPullRequestUrls;
+	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
+		pullRequestUrl,
+		...(gitHubState?.associatedPullRequestUrls ?? [])
+	]);
+	return {
+		...next,
+		associatedPullRequestUrls,
+		...(initialPullRequestUrls !== undefined ? {
+			initialPullRequestUrls: initialPullRequestUrls.filter(url => url.toLowerCase() !== promotedUrl)
+		} : {}),
+	};
+}
+
+/** Returns state that records a pull request in the folder-session baseline. */
+export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl?: string): ISessionGitHubState {
+	return {
+		initialPullRequestUrls: normalizeSessionPullRequestUrls([
+			...(pullRequestUrl ? [pullRequestUrl] : []),
+			...(gitHubState?.initialPullRequestUrls ?? [])
+		])
+	};
+}
+
+/** Returns state that records a user-referenced pull request without changing checkout PR state. */
+export function withMostRecentReferencedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string): ISessionGitHubState {
+	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
+		pullRequestUrl,
+		...(gitHubState?.associatedPullRequestUrls ?? [])
+	]);
+	return {
+		associatedPullRequestUrls,
 	};
 }
 
@@ -1370,6 +1586,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
+		hasBaseBranchChanges?: boolean;
 		githubOwner?: string;
 		githubHeadOwner?: string;
 		githubRepo?: string;
@@ -1381,6 +1598,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
+	if (typeof raw['hasBaseBranchChanges'] === 'boolean') { result.hasBaseBranchChanges = raw['hasBaseBranchChanges']; }
 	if (typeof raw['githubOwner'] === 'string') { result.githubOwner = raw['githubOwner']; }
 	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
 	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
@@ -1423,6 +1641,8 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		owner?: string;
 		repo?: string;
 		pullRequestUrls?: readonly string[];
+		initialPullRequestUrls?: readonly string[];
+		associatedPullRequestUrls?: readonly string[];
 		issueUrls?: readonly string[];
 		pullRequestBranchName?: string;
 	} = {};
@@ -1436,6 +1656,15 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 			: [];
 	if (pullRequestUrls.length > 0) {
 		result.pullRequestUrls = normalizeSessionPullRequestUrls(pullRequestUrls);
+	}
+	if (Array.isArray(raw['initialPullRequestUrls'])) {
+		result.initialPullRequestUrls = normalizeSessionPullRequestUrls(raw['initialPullRequestUrls'].filter((url): url is string => typeof url === 'string'));
+	}
+	if (Array.isArray(raw['associatedPullRequestUrls'])) {
+		const associatedPullRequestUrls = normalizeSessionPullRequestUrls(raw['associatedPullRequestUrls'].filter((url): url is string => typeof url === 'string'));
+		if (associatedPullRequestUrls.length > 0) {
+			result.associatedPullRequestUrls = associatedPullRequestUrls;
+		}
 	}
 	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
@@ -1555,6 +1784,22 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		next[SESSION_META_WORKSPACELESS_KEY] = true;
 	} else {
 		delete next[SESSION_META_WORKSPACELESS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Whether the session was first discovered in a provider-native catalog. */
+export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EXTERNAL_KEY] === true;
+}
+
+/** Returns a copy of `meta` with the external-session provenance marker updated. */
+export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (external) {
+		next[SESSION_META_EXTERNAL_KEY] = true;
+	} else {
+		delete next[SESSION_META_EXTERNAL_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }

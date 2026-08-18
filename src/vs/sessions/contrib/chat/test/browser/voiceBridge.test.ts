@@ -28,7 +28,6 @@ suite('SessionsVoiceNewComposerContribution', () => {
 			focus: () => { },
 			getVoiceModels: () => [],
 			selectVoiceModel: () => false,
-			attach: () => { },
 		};
 	}
 
@@ -37,6 +36,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		const controller = new class extends mock<IVoiceSessionController>() {
 			override readonly isConnected = isConnected;
 			override readonly isConnecting = isConnecting;
+			override readonly omniInputOpen = constObservable(false);
 			override disconnect(): void { disconnectCount++; }
 		};
 		return { controller, getDisconnectCount: () => disconnectCount };

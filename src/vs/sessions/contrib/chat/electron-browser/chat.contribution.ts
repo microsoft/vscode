@@ -25,8 +25,9 @@ import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../pl
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
-import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
+import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { SessionsWindowStartupExperiment } from '../../sessions/browser/sessionsWindowStartupExperiment.js';
+import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -45,6 +46,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 	) {
 		super();
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
@@ -66,7 +68,9 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 			return;
 		}
 		this._didHandleInitialWindowOpen = true;
-		if (this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) !== 0) {
+		const hasPreviouslyStartedSession = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) !== 0;
+		new SessionsWindowSessionStartTelemetry(source, hasPreviouslyStartedSession, this.telemetryService);
+		if (hasPreviouslyStartedSession) {
 			return;
 		}
 
@@ -94,10 +98,20 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 	private _getWindowOpenViewState(): ISessionsWindowOpenViewState {
 		const activeSession = this.sessionsService.activeSession.get();
+		const isNewSessionView = !activeSession || !activeSession.isCreated.get();
+		if (!isNewSessionView) {
+			return {
+				workspacePreselected: undefined,
+				workspacePreselectionSource: undefined,
+			};
+		}
+		const composerSource = this.newSessionComposerService.activeComposer.get()?.workspacePreselectionSource;
+		const workspacePreselected = activeSession?.workspace.get() !== undefined
+			|| (composerSource !== undefined && composerSource !== NewSessionWorkspacePreselectionSource.None);
 		return {
-			workspacePreselected: !activeSession || !activeSession.isCreated.get()
-				? activeSession?.workspace.get() !== undefined
-				: undefined,
+			workspacePreselected,
+			workspacePreselectionSource: composerSource
+				?? (workspacePreselected ? NewSessionWorkspacePreselectionSource.Unknown : NewSessionWorkspacePreselectionSource.None),
 		};
 	}
 

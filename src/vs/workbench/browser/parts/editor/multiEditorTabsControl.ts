@@ -12,16 +12,13 @@ import { computeEditorAriaLabel } from '../../editor.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { toAction } from '../../../../base/common/actions.js';
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from '../../labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
-import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { EditorCommandsContextActionRunner, EditorTabsControl } from './editorTabsControl.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -35,10 +32,10 @@ import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdenti
 import { Color } from '../../../../base/common/color.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, $ } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $ } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
-import { CloseEditorTabAction, UnpinEditorAction } from './editorActions.js';
+import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { basenameOrAuthority } from '../../../../base/common/resources.js';
@@ -61,8 +58,8 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+
+const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -104,7 +101,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		shrink: 80 as const,
 		fit: 120 as const
 	};
-	private static readonly STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH = 28 as const;
+	private static readonly MODERN_UI_COMPACT_PINNED_TAB_WIDTH = 28 as const;
 
 	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
 
@@ -121,6 +118,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
 	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
+	private readonly closeOtherEditorTabsInGroupAction = this._register(this.instantiationService.createInstance(CloseOtherEditorTabsInGroupAction, CloseOtherEditorTabsInGroupAction.ID, CloseOtherEditorTabsInGroupAction.LABEL));
+
+	// Alt-hold alternative to a tab's close action (JetBrains-style); see updateTabActionsForAltState().
+	private wantsCloseOthersAction: boolean;
 
 	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	private tabLabels: IEditorInputLabel[] = [];
@@ -149,6 +150,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		groupView: IEditorGroupView,
 		tabsModel: IReadonlyEditorGroupModel,
 		menuIds: IEditorGroupMenuIds | undefined,
+		breadcrumbsInHeader: boolean,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -163,7 +165,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IHostService hostService: IHostService,
 		@IMenuService menuService: IMenuService,
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, menuIds, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, menuIds, breadcrumbsInHeader, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -172,6 +174,25 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// React to decorations changing for our resource labels
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
+
+		// React to Alt being held/released to swap in the "Close Others" tab action. Initialize
+		// from the current state too, in case this control is created mid-hold.
+		this.wantsCloseOthersAction = modifierKeyEmitter.keyStatus.altKey;
+		this._register(modifierKeyEmitter.event(() => this.updateTabActionsForAltState()));
+	}
+
+	private updateTabActionsForAltState(): void {
+		const wantsCloseOthersAction = modifierKeyEmitter.keyStatus.altKey;
+		if (wantsCloseOthersAction === this.wantsCloseOthersAction) {
+			return;
+		}
+
+		this.wantsCloseOthersAction = wantsCloseOthersAction;
+
+		// Only the action items need to change here, not labels/decorations/toolbar/layout.
+		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+			this.redrawTabAction(editor, tabIndex, tabContainer, tabActionBar);
+		});
 	}
 
 	protected override create(parent: HTMLElement): HTMLElement {
@@ -209,43 +230,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// is created and the last tab remains the last child of the tabs
 		// container, which tab layout logic relies on (see #324902).
 		if (this.menuIds?.tabsBarAddTab) {
-			this.createAddTabControl(this.menuIds.tabsBarAddTab);
+			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab);
 		}
 
 		// Create Editor Toolbar
-		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
+		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions'], !!this.menuIds?.tabsBarAddTab);
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
 
 		return this.tabsAndActionsContainer;
-	}
-
-	private createAddTabControl(menuId: MenuId): void {
-		const tabsContainer = assertReturnsDefined(this.tabsContainer);
-		const container = $('.tabs-bar-add-tab');
-		tabsContainer.appendChild(container);
-		this.addTabContainer = container;
-
-		const menu = this._register(this.menuService.createMenu(menuId, this.contextKeyService));
-		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
-
-		const addTabAction = toAction({
-			id: 'editor.tabs.addTab',
-			label: localize('addTab', "Add Tab"),
-			class: ThemeIcon.asClassName(Codicon.add),
-			run: () => { }
-		});
-
-		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, this.contextMenuService, {
-			classNames: ThemeIcon.asClassNameArray(Codicon.add),
-			keybindingProvider: action => this.getKeybinding(action)
-		}));
-		dropdown.render(container);
-
-		const updateVisibility = () => this.addTabContainer?.classList.toggle('hidden', getActions().length === 0);
-		updateVisibility();
-		this._register(menu.onDidChange(() => updateVisibility()));
 	}
 
 	private get tabCount(): number {
@@ -807,6 +801,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar));
 	}
 
+	updateEditorCapabilities(editor: EditorInput): void {
+		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTab(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar));
+	}
+
 	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 		super.updateOptions(oldOptions, newOptions);
 
@@ -926,7 +924,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
 		const tabActionListener = tabActionBar.onWillRun(e => {
-			if (e.action.id === this.closeEditorAction.id) {
+			if (e.action.id === this.closeEditorAction.id || e.action.id === this.closeOtherEditorTabsInGroupAction.id) {
 				this.blockRevealActiveTabOnce();
 			}
 		});
@@ -1057,7 +1055,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (editor) {
-					if (preventEditorClose(this.tabsModel, editor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
+					if (editor.hasCapability(EditorInputCapabilities.CannotClose) || preventEditorClose(this.tabsModel, editor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
 						return;
 					}
 
@@ -1614,21 +1612,22 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions, options);
 	}
 
-	private redrawTab(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
+	// Split out from redrawTab() so updateTabActionsForAltState() can refresh just the action items, not a full tab bar redraw.
+	private redrawTabAction(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 		const isTabSticky = this.tabsModel.isSticky(tabIndex);
+		const isCloseable = !editor.hasCapability(EditorInputCapabilities.CannotClose);
 		const options = this.groupsView.partOptions;
 
-		// Label
-		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
-
-		// Action
 		const hasUnpinAction = isTabSticky && options.tabActionUnpinVisibility;
-		const hasCloseAction = !hasUnpinAction && options.tabActionCloseVisibility;
+		const hasCloseAction = isCloseable && !hasUnpinAction && options.tabActionCloseVisibility;
 		const hasAction = hasUnpinAction || hasCloseAction;
+
+		// Alt swaps a visible Close action to Close Others; Unpin is unaffected.
+		const wantsCloseOthersAction = hasCloseAction && this.wantsCloseOthersAction;
 
 		let tabAction;
 		if (hasAction) {
-			tabAction = hasUnpinAction ? this.unpinEditorAction : this.closeEditorAction;
+			tabAction = hasUnpinAction ? this.unpinEditorAction : wantsCloseOthersAction ? this.closeOtherEditorTabsInGroupAction : this.closeEditorAction;
 		} else {
 			// Even if the action is not visible, add it as it contains the dirty indicator
 			tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
@@ -1639,15 +1638,29 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabActionBar.clear();
 			}
 
-			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
+			// Close Others has no real keybinding to look up; hint at the gesture that triggers it instead.
+			const keybinding = tabAction === this.closeOtherEditorTabsInGroupAction ? (isMacintosh ? localize('altClickMac', "⌥+Click") : localize('altClick', "Alt+Click")) : this.getKeybindingLabel(tabAction);
+			tabActionBar.push(tabAction, { icon: true, label: false, keybinding });
 		}
 
 		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && !hasUnpinAction);
 		tabContainer.classList.toggle(`close-action-off`, !hasUnpinAction && !hasCloseAction);
+		tabContainer.classList.toggle('cannot-close', !isCloseable);
 
 		for (const option of ['left', 'right']) {
 			tabContainer.classList.toggle(`tab-actions-${option}`, hasAction && options.tabActionLocation === option);
 		}
+	}
+
+	private redrawTab(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
+		const isTabSticky = this.tabsModel.isSticky(tabIndex);
+		const options = this.groupsView.partOptions;
+
+		// Label
+		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
+
+		// Action
+		this.redrawTabAction(editor, tabIndex, tabContainer, tabActionBar);
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
 		for (const option of ['fit', 'shrink', 'fixed']) {
@@ -2237,11 +2250,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getStickyTabWidth(pinnedTabSizing: IEditorPartOptions['pinnedTabSizing']): number {
-		const hasStyleOverride = Boolean(this.parent.closest('.style-override'));
+		const hasModernUITabs = Boolean(this.parent.closest('.modern-ui-tabs'));
 
 		switch (pinnedTabSizing) {
 			case 'compact':
-				return hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact;
+				return hasModernUITabs ? MultiEditorTabsControl.MODERN_UI_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact;
 			case 'shrink':
 				return MultiEditorTabsControl.TAB_WIDTH.shrink;
 			default:

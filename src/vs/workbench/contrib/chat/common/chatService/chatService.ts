@@ -808,7 +808,7 @@ export interface IChatToolInvocationOtherClientData {
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
@@ -1096,7 +1096,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfiguredData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfiguredData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -1212,6 +1212,15 @@ export interface IChatSessionCreatedData {
 	readonly label: string;
 	/** Whether this is a `create_chat` result (vs `create_session`); selects the pill icon. */
 	readonly isChat?: boolean;
+}
+
+/**
+ * Marks a successful image-generation tool result as a durable response
+ * outcome. The image bytes remain in the invocation's result details so they
+ * can use the shared image preview, carousel, and save affordances.
+ */
+export interface IChatGeneratedImageData {
+	readonly kind: 'generatedImage';
 }
 
 /**
@@ -1752,6 +1761,7 @@ export type ChatSendResult =
 export interface ChatSendResultRejected {
 	readonly kind: 'rejected';
 	readonly reason: string;
+	readonly reasonCode?: 'cancelled' | 'providerRemoved';
 	/** Set when the session was replaced before the request was rejected (e.g. untitled -> read-only contributed session). */
 	readonly newSessionResource?: URI;
 }
@@ -1765,6 +1775,8 @@ export interface ChatSendResultSent {
 
 export interface ChatSendResultQueued {
 	readonly kind: 'queued';
+	/** The id of the request model created for this queued message. */
+	readonly requestId: string;
 	/**
 	 * Promise that resolves when the queued message is actually processed.
 	 * Will resolve to a 'sent' or 'rejected' result.
@@ -1892,6 +1904,9 @@ export interface IChatSendRequestOptions {
 	 */
 	isSystemInitiated?: boolean;
 
+	/** Hide the request and its response from the transcript while retaining them in history. */
+	hideFromTranscript?: boolean;
+
 	/**
 	 * Display label for system-initiated requests. When set, the request row renders
 	 * this label as a compact progress-style message instead of the full request text.
@@ -1919,13 +1934,20 @@ export interface IChatSendRequestOptions {
 
 export type IChatModelReference = IReference<IChatModel>;
 
+/** Data from a chat request after submission begins. */
+export interface IChatRequestSubmittedEvent {
+	readonly chatSessionResource: URI;
+	readonly message?: IParsedChatRequest;
+	readonly attachedContext?: IChatRequestVariableEntry[];
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
+	readonly onDidSubmitRequest: Event<IChatRequestSubmittedEvent>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 

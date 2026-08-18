@@ -9,17 +9,43 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ChangesContextKeys } from '../../common/changes.js';
-import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
 import '../../browser/changesViewActions.js';
 
 suite('Changes View Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	let changesViewWhen: ContextKeyExpression | undefined;
+
+	suiteSetup(async () => {
+		({ changesViewWhen } = await import('../../browser/changes.contribution.js'));
+	});
+
+	test('Changes view is hidden until the session is created', () => {
+		assert.ok(changesViewWhen);
+		const context = new Context(1, null);
+		context.setValue(IsPhoneLayoutContext.key, false);
+		context.setValue(SessionHasWorkspaceContext.key, true);
+		context.setValue(SessionIsCreatedContext.key, false);
+		const whileNew = changesViewWhen.evaluate(context);
+
+		context.setValue(SessionIsCreatedContext.key, true);
+		assert.deepStrictEqual({
+			whileNew,
+			afterCreation: changesViewWhen.evaluate(context),
+		}, {
+			whileNew: false,
+			afterCreation: true,
+		});
+	});
 
 	test('primary header actions gate themselves to the single-pane Changes editor', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
@@ -101,7 +127,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('toggle inline view is contributed to the single-pane editor header (1_diff group) with toggle state', () => {
+	test('toggle inline view is contributed to multi-file and single-file diff editor headers with toggle state', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
@@ -110,6 +136,13 @@ suite('Changes View Actions', () => {
 		const when = item.when?.serialize() ?? '';
 		const toggled = item.command.toggled;
 		const toggledInfo = isICommandActionToggleInfo(toggled) ? toggled : undefined;
+		const nonTextDiffContext = new Context(1, null);
+		nonTextDiffContext.setValue(IsSessionsWindowContext.key, true);
+		nonTextDiffContext.setValue(SinglePaneDiffEditorInputActiveContext.key, true);
+		nonTextDiffContext.setValue(SinglePaneLayoutEnabledContext.key, true);
+		nonTextDiffContext.setValue(IsAuxiliaryWindowContext.key, false);
+		nonTextDiffContext.setValue(IsTopRightEditorGroupContext.key, true);
+		nonTextDiffContext.setValue(MainEditorAreaVisibleContext.key, true);
 		assert.deepStrictEqual({
 			id: item.command.id,
 			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
@@ -117,11 +150,14 @@ suite('Changes View Actions', () => {
 			order: item.order,
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			toggledTitle: toggledInfo?.title,
-			toggledOnSideBySide: toggledInfo?.condition.serialize() === EditorContextKeys.multiDiffEditorRenderSideBySide.serialize(),
+			toggledOnMultiDiffSideBySide: toggledInfo?.condition.serialize().includes(EditorContextKeys.multiDiffEditorRenderSideBySide.key),
+			toggledOnSingleDiffSideBySide: toggledInfo?.condition.serialize().includes(EditorContextKeys.diffEditorInlineMode.key),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+			hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
+			matchesNonTextDiffContext: item.when?.evaluate(nonTextDiffContext) ?? false,
 		}, {
 			id: 'toggle.diff.renderSideBySide',
 			title: 'Show Side by Side Diff',
@@ -129,11 +165,14 @@ suite('Changes View Actions', () => {
 			order: 20,
 			icon: Codicon.diffSidebyside.id,
 			toggledTitle: 'Show Inline Diff',
-			toggledOnSideBySide: true,
+			toggledOnMultiDiffSideBySide: true,
+			toggledOnSingleDiffSideBySide: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
+			hasTextCompareEditorGate: true,
 			hasSinglePaneConfigGate: true,
 			hasEditorAreaVisibleGate: true,
+			matchesNonTextDiffContext: false,
 		});
 	});
 
@@ -150,6 +189,7 @@ suite('Changes View Actions', () => {
 			category: item.command.category && typeof item.command.category !== 'string' ? item.command.category.value : item.command.category,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+			hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
@@ -158,19 +198,31 @@ suite('Changes View Actions', () => {
 			category: 'Changes',
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
+			hasTextCompareEditorGate: true,
 			hasSinglePaneConfigGate: true,
 			hasEditorAreaVisibleGate: true,
 		});
 	});
 
 
-	test('view mode toggles are contributed to the single-pane editor header overflow', () => {
+	test('view mode toggles include non-text single-file diff editor headers', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode');
 
 		const actual = items.map(item => {
 			const when = item.when?.serialize() ?? '';
+			const context = new Context(1, null);
+			context.setValue(IsSessionsWindowContext.key, true);
+			context.setValue(SinglePaneDiffEditorInputActiveContext.key, true);
+			context.setValue(SinglePaneLayoutEnabledContext.key, true);
+			context.setValue(IsAuxiliaryWindowContext.key, false);
+			context.setValue(IsTopRightEditorGroupContext.key, true);
+			context.setValue(AuxiliaryBarVisibleContext.key, true);
+			context.setValue(
+				ChangesContextKeys.ViewMode.key,
+				item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' ? ChangesViewMode.Tree : ChangesViewMode.List
+			);
 			return {
 				id: item.command.id,
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
@@ -179,9 +231,11 @@ suite('Changes View Actions', () => {
 				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 				hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 				hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+				hasDiffEditorInputGate: when.includes(SinglePaneDiffEditorInputActiveContext.key),
 				hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 				hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
 				hasViewModeGate: when.includes(ChangesContextKeys.ViewMode.key),
+				matchesSingleFileDiffContext: item.when?.evaluate(context) ?? false,
 			};
 		}).sort((a, b) => a.id.localeCompare(b.id));
 
@@ -193,9 +247,11 @@ suite('Changes View Actions', () => {
 			icon: Codicon.listFlat.id,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
+			hasDiffEditorInputGate: true,
 			hasSinglePaneConfigGate: true,
 			hasAuxBarVisibleGate: true,
 			hasViewModeGate: true,
+			matchesSingleFileDiffContext: true,
 		}, {
 			id: 'workbench.action.agentSessions.setChangesTreeViewMode',
 			title: 'View as Tree',
@@ -204,9 +260,11 @@ suite('Changes View Actions', () => {
 			icon: Codicon.listTree.id,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
+			hasDiffEditorInputGate: true,
 			hasSinglePaneConfigGate: true,
 			hasAuxBarVisibleGate: true,
 			hasViewModeGate: true,
+			matchesSingleFileDiffContext: true,
 		}]);
 	});
 

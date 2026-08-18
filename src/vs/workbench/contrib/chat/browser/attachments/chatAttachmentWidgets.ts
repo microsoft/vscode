@@ -22,7 +22,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -73,10 +73,11 @@ import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, isPastedTextArtifact, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IChatRequestTranscriptContextVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { IChatResponseResourceFileSystemProvider } from '../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
 import { CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE, getOrCreateImageThumbnail } from '../chatImageUtils.js';
@@ -161,7 +162,9 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 
 	protected attachClearButton() {
 
-		if (this.attachment.range || !this.options.supportsDeletion) {
+		// Pasted text artifacts keep their clear button: the pill is the primary
+		// handle on content that only exists in the attachment.
+		if ((this.attachment.range && !isPastedTextArtifact(this.attachment)) || !this.options.supportsDeletion) {
 			// no clear button for attachments with ranges because range means
 			// referenced from prompt
 			return;
@@ -175,7 +178,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			title: localize('chat.attachment.clearButton', "Remove from context")
 		});
 		clearButton.element.tabIndex = -1;
-		clearButton.icon = Codicon.close;
+		clearButton.icon = Codicon.closeCompact;
 		this._register(clearButton);
 		this._register(event.Event.once(clearButton.onDidClick)((e) => {
 			this._onDidDelete.fire(e);
@@ -772,6 +775,36 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	return disposable;
 }
 
+/**
+ * Opens a pasted-text attachment so its full contents can be reviewed; the
+ * attachment pill is otherwise the only handle on that text. The contents are
+ * derived from the attachment on demand — so nothing is held for an artifact
+ * that is never opened — and backed by a read-only resource keyed on the
+ * attachment, which keeps one editor per artifact and prevents edits that would
+ * not reach the attachment. The association is dropped once the editor closes.
+ */
+export async function openPastedTextArtifact(accessor: ServicesAccessor, attachment: IChatRequestPasteVariableEntry): Promise<void> {
+	const editorService = accessor.get(IEditorService);
+	const owned = accessor.get(IChatResponseResourceFileSystemProvider)
+		.associate(VSBuffer.fromString(attachment.code).buffer, { id: attachment.id, name: attachment.name });
+
+	try {
+		await editorService.openEditor({ resource: owned.resource, options: { pinned: true } });
+	} catch (error) {
+		owned.dispose();
+		throw error;
+	}
+
+	// Watched only once the editor is open, so an editor this open replaces cannot
+	// be mistaken for the artifact's own editor closing.
+	const listener = editorService.onDidCloseEditor(() => {
+		if (!editorService.editors.some(editor => isEqual(editor.resource, owned.resource))) {
+			owned.dispose();
+			listener.dispose();
+		}
+	});
+}
+
 export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 
 	constructor(
@@ -818,6 +851,11 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (copiedFromResource) {
 			this._register(this.instantiationService.invokeFunction(hookUpResourceAttachmentDragAndContextMenu, this.element, copiedFromResource));
 			this.addResourceOpenHandlers(copiedFromResource, range);
+		} else if (isPastedTextArtifact(attachment)) {
+			this.element.style.cursor = 'pointer';
+			this._register(registerOpenEditorListeners(this.element, async () => {
+				await this.instantiationService.invokeFunction(openPastedTextArtifact, attachment);
+			}));
 		}
 	}
 }
@@ -1150,6 +1188,7 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 				dom.EventHelper.stop(e, true);
 				this._openReferencedChat(chatResource);
 			}
+
 		}));
 	}
 
@@ -1163,6 +1202,38 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 		// gracefully in that case — the chip stays but no error dialog is shown.
 		await this.openerService.open(link);
 	}
+}
+
+export class TranscriptContextAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: IChatRequestTranscriptContextVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
+	) {
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
+
+		const label = attachment.fullName ?? attachment.name;
+		this.label.setLabel(attachment.icon ? `$(${attachment.icon.id})\u00A0${label}` : label, undefined);
+		this.element.style.cursor = 'pointer';
+		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment.transcriptContext', "Open {0} in Browser", attachment.name));
+		this._register(hoverService.setupDelayedHover(this.element, {
+			...commonHoverOptions,
+			content: attachment.tooltip ?? localize('chat.attachment.transcriptContext.hover', "Open {0} in Browser", attachment.name),
+		}, commonHoverLifecycleOptions));
+		this._register(registerOpenEditorListeners(this.element, async () => {
+			await openTranscriptContextAttachment(this.openerService, attachment);
+		}));
+	}
+}
+
+export function openTranscriptContextAttachment(openerService: IOpenerService, attachment: IChatRequestTranscriptContextVariableEntry): Promise<boolean> {
+	return openerService.open(attachment.uri, { openExternal: true });
 }
 
 export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachmentWidget {
