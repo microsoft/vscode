@@ -191,6 +191,30 @@ export function createAgentHostResourceUriMapper(connectionAuthority: string): I
 }
 
 /**
+ * Reinterpret a URI as a path on the machine this agent host runs on.
+ *
+ * The host reads and writes its own filesystem through `file:`, but a window
+ * connected to a remote describes that same filesystem in its own namespace,
+ * for example `vscode-remote://dev-container+<hex>/workspace/repo`. Handing
+ * such a URI to the host's file service finds nothing, and does so quietly:
+ * the read returns empty rather than failing.
+ *
+ * The path is the part both namespaces agree on, which is why materialize can
+ * already pass `workingDirectory.fsPath` to the SDK as its cwd.
+ *
+ * A `file:` URI is returned unchanged, so a local window is untouched.
+ */
+export function toHostLocalUri(resource: URI): URI {
+	// Only the remote namespace is rewritten. Any other scheme either is
+	// already host-local or names something this host cannot resolve by path,
+	// and stripping its authority would invent a local file that is not there.
+	if (resource.scheme !== Schemas.vscodeRemote) {
+		return resource;
+	}
+	return URI.file(resource.fsPath);
+}
+
+/**
  * Strips the redundant `ws://` scheme from an address. The transport layer
  * already defaults to `ws://`, so only `wss://` needs to be preserved.
  */
