@@ -5,7 +5,7 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { DeferredPromise, disposableTimeout, Limiter, Promises, ResourceQueue } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, Limiter, Promises, ResourceQueue, timeout } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -341,6 +341,23 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private readonly _providerMigrations = new Map<AgentProvider, IProviderDiscoveryState>();
 	private readonly _initialProviderMigrations = new Map<AgentProvider, Promise<void>>();
+
+	/**
+	 * Providers whose legacy-catalog backfill has not completed a real
+	 * enumeration yet. Their registry rows are therefore *unknown*, not empty,
+	 * so {@link listSessions} must not answer while any entry remains; see
+	 * {@link _ensureProviderCatalogsComplete}.
+	 */
+	private readonly _incompleteProviderCatalogs = new Set<AgentProvider>();
+
+	/**
+	 * Backoff delays between legacy-catalog enumeration attempts. The number of
+	 * entries bounds how long a provider that never becomes ready can hold up
+	 * the first authoritative session list; see
+	 * {@link _enumerateLegacyProviderChatsWithRetry}. Overridable so tests can
+	 * exercise the retry behavior without real waits.
+	 */
+	protected readonly _legacyMigrationEnumerationDelaysMs: readonly number[] = [250, 500, 1_000, 2_000];
 
 	/**
 	 * Backing-session URIs (as strings) whose {@link CHAT_BACKING_METADATA_KEY}
@@ -1297,6 +1314,35 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * Awaits legacy migration started at provider registration, then re-attempts
+	 * any provider whose backfill has not yet completed a real enumeration, and
+	 * finally fails when the catalog is still incomplete.
+	 *
+	 * The registry is the source of truth for {@link listSessions}, so answering
+	 * while a provider has not been backfilled would publish "no sessions" for
+	 * that provider as an authoritative fact. Clients legitimately treat that as
+	 * a deletion and drop the sessions from their own caches, hiding data that is
+	 * intact on disk. Failing instead is the safe signal: it is transient, and
+	 * clients keep showing what they already have and retry.
+	 *
+	 * The re-attempt is what re-arms migration in-process. Without it the initial
+	 * migration promise is already settled, so a provider that was not ready
+	 * during startup would stay unavailable until the next process start.
+	 */
+	private async _ensureProviderCatalogsComplete(): Promise<void> {
+		await this._awaitInitialProviderMigration();
+		if (this._incompleteProviderCatalogs.size === 0) {
+			return;
+		}
+		const pending = [...this._providers.values()].filter(provider => this._incompleteProviderCatalogs.has(provider.id));
+		await Promise.allSettled(pending.map(provider => this._ensureLegacyChatsMigrated(provider)));
+		if (this._incompleteProviderCatalogs.size > 0) {
+			const incomplete = [...this._incompleteProviderCatalogs].join(', ');
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Session catalog is not available yet for provider(s): ${incomplete}`);
+		}
+	}
+
+	/**
 	 * Awaits legacy migration started at provider registration. Provider-owned
 	 * discovery is independent and surfaces unknown chats additively.
 	 */
@@ -1462,15 +1508,26 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _migrateLegacyProviderChats(provider: IAgent, force = false): Promise<void> {
 		if (!force) {
 			if (await this._sessionRegistry.isProviderBackfilled(provider.id)) {
+				this._incompleteProviderCatalogs.delete(provider.id);
 				return;
 			}
 			if (await this._sessionRegistry.isBackfilled()) {
 				await this._sessionRegistry.markProviderBackfilled(provider.id);
+				this._incompleteProviderCatalogs.delete(provider.id);
 				return;
 			}
 		}
-		const sessions = await this._enumerateLegacyProviderSessions(provider);
+		// Until a real enumeration succeeds this provider's catalog is *unknown*,
+		// not empty. Mark it so a failed or exhausted pass — including one that
+		// throws below — cannot be published as an authoritative listing.
+		this._incompleteProviderCatalogs.add(provider.id);
+		const sessions = await this._enumerateLegacyProviderChatsWithRetry(provider);
 		if (sessions === undefined) {
+			// Still unable to enumerate after every attempt. Return *without*
+			// marking the provider backfilled, and leave it flagged incomplete so
+			// `listSessions` reports the catalog as unavailable rather than
+			// publishing a registry that has not been backfilled yet.
+			this._logService.warn(`[AgentService] registry migration: provider ${provider.id} could not enumerate its catalog; its sessions are reported as unavailable until it can`);
 			return;
 		}
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
@@ -1483,13 +1540,18 @@ export class AgentService extends Disposable implements IAgentService {
 			return { session: s.session, provider: provider.id, startTime: s.startTime, external, source: external ? 'discovery' : 'restore' };
 		})));
 		let registeredExternal = false;
+		let registeredCount = 0;
 		for (let index = 0; index < identities.length; index++) {
 			const identity = identities[index];
 			if (!identity) {
 				continue;
 			}
-			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
+			const registered = await this._retryRegistryMutation(
+				() => this._sessionRegistry.register(identity.session, identity, { checkTombstone: true }),
+				`legacy migration registration for ${identity.session.toString()}`,
+			);
 			if (registered) {
+				registeredCount++;
 				this._invalidateSessionList();
 				const metadata = sessions[index];
 				if (identity.external && existing.get(identity.session.toString()) !== true) {
@@ -1504,8 +1566,49 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		await this._sessionRegistry.markProviderBackfilled(provider.id);
+		this._incompleteProviderCatalogs.delete(provider.id);
+		this._logService.info(`[AgentService] registry migration for provider ${provider.id}: ${sessions.length} legacy session(s) enumerated, ${registeredCount} registered`);
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
+		}
+	}
+
+	/**
+	 * Enumerates `provider`'s legacy chats, retrying while the provider reports
+	 * that it cannot enumerate yet.
+	 *
+	 * `undefined` from {@link _enumerateLegacyProviderSessions} means "not ready
+	 * yet" (e.g. the agent's client is still starting), *not* "there is nothing
+	 * to migrate". Treating it as terminal loses a race that is easy to lose:
+	 * migration starts the moment a provider registers, while its client can
+	 * take seconds to come up. Because this backfill is what populates a newly
+	 * created registry, giving up hides every session that exists on disk until
+	 * the registry is repopulated some other way.
+	 *
+	 * The retries are awaited (rather than scheduled in the background) so the
+	 * promise `registerProvider` stores in `_initialProviderMigrations` — which
+	 * {@link listSessions} awaits via {@link _awaitInitialProviderMigration} —
+	 * does not resolve until a real enumeration happened. That keeps the first
+	 * authoritative session list from being published while the registry is
+	 * still incomplete, which clients would otherwise treat as a deletion.
+	 *
+	 * Bounded so a provider that never becomes ready cannot stall enumeration.
+	 */
+	private async _enumerateLegacyProviderChatsWithRetry(provider: IAgent): Promise<readonly IAgentSessionMetadata[] | undefined> {
+		for (let attempt = 1; ; attempt++) {
+			const sessions = await this._enumerateLegacyProviderSessions(provider);
+			if (sessions !== undefined) {
+				return sessions;
+			}
+			if (attempt >= this._legacyMigrationEnumerationDelaysMs.length + 1 || this._store.isDisposed) {
+				return undefined;
+			}
+			const delay = this._legacyMigrationEnumerationDelaysMs[attempt - 1];
+			this._logService.info(`[AgentService] registry migration: provider ${provider.id} cannot enumerate its catalog yet; retrying in ${delay}ms`);
+			await timeout(delay);
+			if (this._store.isDisposed) {
+				return undefined;
+			}
 		}
 	}
 
@@ -1623,8 +1726,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions computation started');
-		// The first list waits for registration-time legacy migration if it is still in flight.
-		await this._awaitInitialProviderMigration();
+		// The first list waits for registration-time legacy migration if it is
+		// still in flight, and fails rather than publishing a registry whose
+		// backfill has not completed.
+		await this._ensureProviderCatalogsComplete();
 		// The registry is the source of truth for top-level sessions. Internal
 		// chat backings and subagent sessions never enter it, and a transiently
 		// missing provider snapshot no longer evicts a session.
