@@ -233,6 +233,27 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should constrain scrollable content to the maximum hover height', () => {
+			const hover = showHover('Scrollable hover', undefined, {
+				appearance: { maxHeightRatio: 0.25 }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const contentsDomNode = hoverWidget.domNode.querySelector<HTMLElement>('.monaco-hover-content');
+			assert.ok(contentsDomNode);
+
+			hoverWidget.layout();
+			const expectedMaxHeight = `${mainWindow.innerHeight * 0.25}px`;
+
+			assert.deepStrictEqual({
+				hoverMaxHeight: hoverWidget.domNode.style.maxHeight,
+				contentsMaxHeight: contentsDomNode.style.maxHeight
+			}, {
+				hoverMaxHeight: expectedMaxHeight,
+				contentsMaxHeight: expectedMaxHeight
+			});
+			hover.dispose();
+		});
+
 		test('should call onDidShow callback when hover is shown', () => {
 			const target = createTarget();
 			let didShowCalled = false;
