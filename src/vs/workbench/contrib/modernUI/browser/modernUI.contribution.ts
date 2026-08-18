@@ -11,17 +11,17 @@ import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
 import { DEFAULT_PANE_HEADER_SIZE, setGlobalPaneHeaderSize } from '../../../../base/browser/ui/splitview/paneview.js';
 
-/** Reduced scrollbar size (px) applied when the style-override experiment is on. */
-const SCROLLBAR_OVERRIDE_SIZE = 8;
+/** Reduced scrollbar size (px) applied when Modern UI is on. */
+const MODERN_UI_SCROLLBAR_SIZE = 8;
 
-/** Reduced collapsed notification row height (px) applied when the style-override experiment is on. */
-const NOTIFICATION_ROW_OVERRIDE_HEIGHT = 34;
+/** Reduced collapsed notification row height (px) applied when Modern UI is on. */
+const MODERN_UI_NOTIFICATION_ROW_HEIGHT = 34;
 
-/** Increased pane header size (px) applied when the style-override experiment is on. */
-const PANE_HEADER_OVERRIDE_SIZE = 28;
+/** Increased pane header size (px) applied when Modern UI is on. */
+const MODERN_UI_PANE_HEADER_SIZE = 28;
 
-// Bundle the CSS for every style-override module. Every file gates all of its
-// rules behind the single `.style-override` ancestor class, so the styles are
+// Bundle the CSS for every Modern UI module. Every file gates all of its
+// rules behind the single `.modern-ui` ancestor class, so the styles are
 // inert until that class is toggled onto the workbench container(s) below.
 import './media/activityBar.css';
 import './media/commandCenter.css';
@@ -39,7 +39,7 @@ import './media/tabs.css';
 import './media/titlebar.css';
 import '../../../services/themes/browser/modernTabColorCustomizations.js';
 
-interface IStyleOverrideModule {
+interface IModernUIModule {
 	readonly id: string;
 	/**
 	 * Whether this module changes layout metrics. Toggling such a module requires
@@ -50,23 +50,23 @@ interface IStyleOverrideModule {
 
 /**
  * The single class toggled onto the workbench container(s) when the Modern UI
- * Update experiment is enabled. Every style-override module's CSS is gated
- * behind this class (`.style-override ...`), so all modules are applied together
+ * Update experiment is enabled. Every Modern UI module's CSS is gated
+ * behind this class (`.modern-ui ...`), so all modules are applied together
  * as a group.
  */
-const STYLE_OVERRIDE_CLASS = 'style-override';
+const MODERN_UI_CLASS = 'modern-ui';
 const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
 const MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS = 'modern-ui-uppercase-view-headers';
 
 /**
- * The fixed catalog of built-in style-override modules. The CSS for each module
+ * The fixed catalog of built-in Modern UI modules. The CSS for each module
  * ships with the product (imported above) and is gated behind the shared
- * `.style-override` class. All modules are enabled together as part of the
+ * `.modern-ui` class. All modules are enabled together as part of the
  * Modern UI Update experiment (`LayoutSettings.MODERN_UI`). This catalog is
  * retained to track per-module metadata (e.g. whether a module is
  * layout-affecting).
  */
-const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
+const MODERN_UI_MODULES: readonly IModernUIModule[] = [
 	{ id: 'activityBar' },
 	{ id: 'commandCenter' },
 	{ id: 'editorBorder' },
@@ -85,16 +85,16 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 ];
 
 /**
- * A contribution that toggles the built-in CSS style-override modules on or off
+ * A contribution that toggles the built-in CSS Modern UI modules on or off
  * as a group, based on the `workbench.experimental.modernUI` setting. When the
  * Modern UI Update experiment is enabled, all modules are applied together;
  * otherwise none are.
  */
-export class StyleOverridesContribution extends Disposable implements IWorkbenchContribution {
+export class ModernUIContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.styleOverrides';
+	static readonly ID = 'workbench.contrib.modernUI';
 
-	private readonly hasLayoutAffectingModule = STYLE_OVERRIDE_MODULES.some(m => m.layoutAffecting);
+	private readonly hasLayoutAffectingModule = MODERN_UI_MODULES.some(m => m.layoutAffecting);
 
 	/** Whether a layout-affecting module was active at the last applied selection. */
 	private layoutAffectingActive = false;
@@ -156,27 +156,27 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 	}
 
 	private applyTo(container: HTMLElement, enabled: boolean, useUppercaseViewHeaders: boolean): void {
-		container.classList.toggle(STYLE_OVERRIDE_CLASS, enabled);
+		container.classList.toggle(MODERN_UI_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_TABS_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS, useUppercaseViewHeaders);
 	}
 
 	private applyScrollbarSize(enabled: boolean): void {
-		setGlobalDefaultScrollbarSize(enabled ? SCROLLBAR_OVERRIDE_SIZE : DEFAULT_SCROLLBAR_SIZE);
+		setGlobalDefaultScrollbarSize(enabled ? MODERN_UI_SCROLLBAR_SIZE : DEFAULT_SCROLLBAR_SIZE);
 	}
 
 	private applyNotificationRowHeight(enabled: boolean): void {
-		setNotificationRowHeight(enabled ? NOTIFICATION_ROW_OVERRIDE_HEIGHT : DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		setNotificationRowHeight(enabled ? MODERN_UI_NOTIFICATION_ROW_HEIGHT : DEFAULT_NOTIFICATION_ROW_HEIGHT);
 	}
 
 	private applyPaneHeaderSize(enabled: boolean): void {
-		setGlobalPaneHeaderSize(enabled ? PANE_HEADER_OVERRIDE_SIZE : DEFAULT_PANE_HEADER_SIZE);
+		setGlobalPaneHeaderSize(enabled ? MODERN_UI_PANE_HEADER_SIZE : DEFAULT_PANE_HEADER_SIZE);
 	}
 
 	override dispose(): void {
 		// Remove the class this contribution added so it leaves no DOM state behind.
 		for (const container of this.layoutService.containers) {
-			container.classList.remove(STYLE_OVERRIDE_CLASS);
+			container.classList.remove(MODERN_UI_CLASS);
 			container.classList.remove(MODERN_UI_TABS_CLASS);
 			container.classList.remove(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS);
 		}
@@ -187,4 +187,4 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 	}
 }
 
-registerWorkbenchContribution2(StyleOverridesContribution.ID, StyleOverridesContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ModernUIContribution.ID, ModernUIContribution, WorkbenchPhase.BlockRestore);

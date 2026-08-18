@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Style-override module: "Agents Window Command Center".
+ * Modern UI module: "Agents Window Command Center".
  *
  * Mirrors the Agents window title-bar styling (see
  * src/vs/sessions/contrib/sessions/browser/media/sessionsTitleBarWidget.css and
@@ -13,13 +13,13 @@
  * rest and only reveal the command-center active background/border on hover,
  * instead of carrying a solid fill the whole time.
  *
- * All rules are gated behind the `.style-override` class, which
- * the StyleOverridesContribution toggles onto the workbench container(s) when
+ * All rules are gated behind the `.modern-ui` class, which
+ * the ModernUIContribution toggles onto the workbench container(s) when
  * the `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
  */
 
 /* Keep unavailable navigation actions on the contributed command-center foreground. */
-.style-override.monaco-workbench .part.titlebar .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label:is(.codicon-arrow-left, .codicon-arrow-right) {
+.modern-ui.monaco-workbench .part.titlebar .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label:is(.codicon-arrow-left, .codicon-arrow-right) {
 	color: var(--vscode-commandCenter-foreground);
 }
 
@@ -29,8 +29,8 @@
  * `:hover` rules already reveal the active background, and the connected
  * `session-mode` pill keeps its active fill (excluded below).
  */
-.style-override .agent-status-pill:not(.session-mode),
-.style-override .agent-status-pill .agent-status-input-area {
+.modern-ui .agent-status-pill:not(.session-mode),
+.modern-ui .agent-status-pill .agent-status-input-area {
 	background-color: transparent !important;
 }
 
@@ -41,7 +41,7 @@
  * rule still reveals the active background, and the `filtered` state keeps its
  * own active fill (excluded below).
  */
-.style-override .agent-status-badge-section:not(.filtered),
-.style-override .agent-status-command-center-toolbar {
+.modern-ui .agent-status-badge-section:not(.filtered),
+.modern-ui .agent-status-command-center-toolbar {
 	background-color: transparent !important;
 }
