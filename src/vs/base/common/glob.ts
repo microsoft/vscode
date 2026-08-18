@@ -359,7 +359,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions, ca
 	};
 
 	// Check cache
-	const patternKey = `${cacheKey ?? (ignoreCase ? pattern.toLowerCase() : pattern)}_${!!options.trimForExclusions}_${ignoreCase}`;
+	const patternKey = `${cacheKey === undefined ? `default:${ignoreCase ? pattern.toLowerCase() : pattern}` : `custom:${cacheKey}`}_${!!options.trimForExclusions}_${ignoreCase}`;
 	let parsedPattern = CACHE.get(patternKey);
 	if (parsedPattern) {
 		return wrapRelativePattern(parsedPattern, arg1, internalOptions);
