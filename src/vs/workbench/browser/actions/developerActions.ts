@@ -10,14 +10,18 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { DomEmitter } from '../../../base/browser/event.js';
 import { Color } from '../../../base/common/color.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
 import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { getDomNodePagePosition, append, $, getActiveDocument, onDidRegisterWindow, getWindows } from '../../../base/browser/dom.js';
 import { createCSSRule, createStyleSheet } from '../../../base/browser/domStylesheets.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
 import { Context } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { RunOnceScheduler } from '../../../base/common/async.js';
+import { raceTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { registerAction2, Action2, MenuRegistry } from '../../../platform/actions/common/actions.js';
@@ -39,22 +43,25 @@ import { IQuickInputService, IQuickPickItem } from '../../../platform/quickinput
 import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import product from '../../../platform/product/common/product.js';
-import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
-import { IPolicyService } from '../../../platform/policy/common/policy.js';
-import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingResolution, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
-import { IManagedSettingPolicyDefinition, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
-import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
-import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
+import { IPolicyService, PolicyValueSource } from '../../../platform/policy/common/policy.js';
+import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
+import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
+import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
 import { isObject } from '../../../base/common/types.js';
 import * as json from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 import { IAgentHostService } from '../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { markdownDetails, markdownJsonBlock, markdownTable, markdownText } from './policyDiagnosticsMarkdown.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -693,31 +700,60 @@ function managedSettingsSourceShortLabel(source: ManagedSettingsSource): string 
 	}
 }
 
-/** Render a value as a fenced JSON code block for the diagnostics report. */
-function jsonBlock(value: unknown): string {
-	return '```json\n' + JSON.stringify(value ?? {}, null, 2) + '\n```\n\n';
+function policyValueSourceLabel(source: PolicyValueSource | undefined): string {
+	switch (source) {
+		case PolicyValueSource.Device: return 'Device';
+		case PolicyValueSource.NativeMdm: return 'Managed Settings: Native MDM';
+		case PolicyValueSource.ServerManagedSettings: return 'Managed Settings: Server';
+		case PolicyValueSource.FileManagedSettings: return 'Managed Settings: File';
+		case PolicyValueSource.MixedManagedSettings: return 'Managed Settings: Mixed';
+		case PolicyValueSource.Account: return 'Account';
+		case PolicyValueSource.AccountGate: return 'Account Policy Gate';
+		case undefined: return 'Unknown';
+	}
 }
 
 function managedSettingsPipeline(rawLabel: string, raw: unknown | undefined, normalized: ManagedSettingsData, projected: ManagedSettingsData, rawUnavailableMessage?: string): string {
-	let content = `**${rawLabel}**\n\n`;
-	content += raw === undefined ? `*${rawUnavailableMessage ?? 'Unavailable'}*\n\n` : jsonBlock(raw);
+	let content = `**${markdownText(rawLabel)}**\n\n`;
+	content += raw === undefined ? `*${markdownText(rawUnavailableMessage ?? 'Unavailable')}*\n\n` : markdownJsonBlock(raw);
 	content += '**Normalized bag**\n\n';
-	content += jsonBlock(normalized);
+	content += markdownJsonBlock(normalized);
 	content += '**VS Code policy projection**\n\n';
-	content += jsonBlock(projected);
-	return content;
+	content += markdownJsonBlock(projected);
+	return markdownDetails('Source, normalized, and VS Code projection', content);
 }
 
-/** Render a managed-settings value for a Markdown table cell: compact JSON with pipes escaped, or a dash when absent. */
-function managedValueCell(value: ManagedSettingValue | undefined): string {
-	if (value === undefined) {
-		return '—';
-	}
-	return `\`${JSON.stringify(value).replace(/\|/g, '\\|')}\``;
+function formatDiagnosticValue(value: unknown): string {
+	return JSON.stringify(value) ?? String(value);
 }
 
-/** Header row + separator for the report's two-column `Property | Value` tables. */
-const PROPERTY_VALUE_TABLE_HEADER = '| Property | Value |\n|----------|-------|\n';
+const AGENT_RUNTIME_DIAGNOSTICS_TIMEOUT = 6000;
+
+interface IPolicyDiagnosticsSummary {
+	accountPolicyGate: string;
+	managedSettingsSources: string;
+	effectiveManagedSettings: string;
+	managedSettingsIssues: string;
+	agentRuntime: string;
+	policyControlledSettings: string;
+}
+
+interface IPolicyDiagnosticsServices {
+	editorService: IEditorService;
+	commandService: ICommandService;
+	notificationService: INotificationService;
+	configurationService: IConfigurationService;
+	productService: IProductService;
+	defaultAccountService: IDefaultAccountService;
+	authenticationService: IAuthenticationService;
+	authenticationAccessService: IAuthenticationAccessService;
+	policyService: IPolicyService;
+	accountPolicyGateService: IAccountPolicyGateService;
+	agentHostService: IAgentHostService;
+	agentHostEnablementService: IAgentHostEnablementService;
+	nativeManagedSettingsService: INativeManagedSettingsService | undefined;
+	fileManagedSettingsService: IFileManagedSettingsService | undefined;
+}
 
 class PolicyDiagnosticsAction extends Action2 {
 
@@ -732,6 +768,8 @@ class PolicyDiagnosticsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
 		const configurationService = accessor.get(IConfigurationService);
 		const productService = accessor.get(IProductService);
 		const defaultAccountService = accessor.get(IDefaultAccountService);
@@ -741,6 +779,7 @@ class PolicyDiagnosticsAction extends Action2 {
 		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
 		const agentHostService = accessor.get(IAgentHostService);
 		const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
+		const progressService = accessor.get(IProgressService);
 		// Native MDM is a desktop-only channel, registered in the renderer service collection on
 		// desktop and Agents windows but absent in web. Resolve it now, synchronously, because the
 		// accessor is only valid before the first `await` below.
@@ -759,15 +798,66 @@ class PolicyDiagnosticsAction extends Action2 {
 			// no file channel in this window (e.g. web)
 		}
 
+		return progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: localize('policyDiagnostics.progress', "Generating policy diagnostics..."),
+			type: 'loading',
+		}, () => this.openPolicyDiagnostics({
+			editorService,
+			commandService,
+			notificationService,
+			configurationService,
+			productService,
+			defaultAccountService,
+			authenticationService,
+			authenticationAccessService,
+			policyService,
+			accountPolicyGateService,
+			agentHostService,
+			agentHostEnablementService,
+			nativeManagedSettingsService,
+			fileManagedSettingsService,
+		}));
+	}
+
+	private async openPolicyDiagnostics(services: IPolicyDiagnosticsServices): Promise<void> {
+		const {
+			editorService,
+			commandService,
+			notificationService,
+			configurationService,
+			productService,
+			defaultAccountService,
+			authenticationService,
+			authenticationAccessService,
+			policyService,
+			accountPolicyGateService,
+			agentHostService,
+			agentHostEnablementService,
+			nativeManagedSettingsService,
+			fileManagedSettingsService,
+		} = services;
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
-		let content = '# VS Code Policy Diagnostics\n\n';
-		content += '*WARNING: This file may contain sensitive information.*\n\n';
+		const summary: IPolicyDiagnosticsSummary = {
+			accountPolicyGate: 'Unavailable',
+			managedSettingsSources: 'Unavailable',
+			effectiveManagedSettings: 'Unavailable',
+			managedSettingsIssues: 'Unavailable',
+			agentRuntime: 'Unavailable',
+			policyControlledSettings: 'Unavailable'
+		};
+
+		let content = '';
 		content += '## System Information\n\n';
-		content += PROPERTY_VALUE_TABLE_HEADER;
-		content += `| Generated | ${new Date().toISOString()} |\n`;
-		content += `| Product | ${productService.nameLong} ${productService.version} |\n`;
-		content += `| Commit | ${productService.commit || 'n/a'} |\n\n`;
+		content += markdownTable(
+			['Property', 'Value'],
+			[
+				['Generated', new Date().toISOString()],
+				['Product', `${productService.nameLong} ${productService.version}`],
+				['Commit', productService.commit || 'n/a']
+			]
+		);
 
 		// Account information
 		content += '## Account Information\n\n';
@@ -794,37 +884,34 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 
 				content += '### Default Account Summary\n\n';
-				content += `**Account ID/Username**: ${username}\n\n`;
-				content += `**Account Label**: ${accountLabel}\n\n`;
+				content += markdownTable(
+					['Property', 'Value'],
+					[
+						['Account ID/Username', username],
+						['Account Label', accountLabel]
+					]
+				);
 
-				content += '### Detailed Account Properties\n\n';
-				content += PROPERTY_VALUE_TABLE_HEADER;
-
-				// Iterate through all properties of the account object
+				const accountPropertyRows: string[][] = [];
 				for (const [key, value] of Object.entries(account)) {
 					if (value !== undefined && value !== null) {
-						let displayValue: string;
-
-						// Mask sensitive information
-						if (sensitiveKeys.includes(key)) {
-							displayValue = '***';
-						} else if (typeof value === 'object') {
-							displayValue = JSON.stringify(value);
-						} else {
-							displayValue = String(value);
-						}
-
-						content += `| ${key} | ${displayValue} |\n`;
+						const displayValue = sensitiveKeys.includes(key)
+							? '***'
+							: typeof value === 'object' ? formatDiagnosticValue(value) : String(value);
+						accountPropertyRows.push([key, displayValue]);
 					}
 				}
 				const policyData = defaultAccountService.policyData;
-				content += `| policyData | ${policyData ? JSON.stringify(policyData) : 'No Policy Data'} |\n`;
-				content += '\n';
+				accountPropertyRows.push(['policyData', policyData ? formatDiagnosticValue(policyData) : 'No Policy Data']);
+				content += markdownDetails(
+					'Detailed account properties',
+					markdownTable(['Property', 'Value'], accountPropertyRows)
+				);
 			} else {
 				content += '*No default account configured*\n\n';
 			}
 		} catch (error) {
-			content += `*Error retrieving account information: ${error}*\n\n`;
+			content += `*Error retrieving account information: ${markdownText(getErrorMessage(error))}*\n\n`;
 		}
 
 		// Account Policy Gate (forces AI features off until an admin-approved
@@ -833,11 +920,15 @@ class PolicyDiagnosticsAction extends Action2 {
 		try {
 			const gateInfo = accountPolicyGateService.gateInfo;
 			const approvedOrgsRaw = policyService.getPolicyValue(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME);
-			content += PROPERTY_VALUE_TABLE_HEADER;
-			content += `| State | \`${gateInfo.state}\` |\n`;
-			content += `| Reason | ${gateInfo.reason ? `\`${gateInfo.reason}\`` : '*n/a*'} |\n`;
-			content += `| ${APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME} | ${approvedOrgsRaw !== undefined ? `\`${String(approvedOrgsRaw)}\`` : '*not set*'} |\n`;
-			content += '\n';
+			summary.accountPolicyGate = gateInfo.reason ? `${gateInfo.state} (${gateInfo.reason})` : gateInfo.state;
+			content += markdownTable(
+				['Property', 'Value'],
+				[
+					['State', gateInfo.state],
+					['Reason', gateInfo.reason ?? 'n/a'],
+					[APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, approvedOrgsRaw !== undefined ? String(approvedOrgsRaw) : 'not set']
+				]
+			);
 			content += '**Legend**\n\n';
 			content += '- `inactive`: gate disabled (no approved orgs configured) — policies behave as account data dictates.\n';
 			content += '- `satisfied`: gate active and approved — account policy values flow normally.\n';
@@ -847,19 +938,13 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '  - `orgNotApproved`: signed in but account is not a member of any approved organization.\n';
 			content += '  - `policyNotResolved`: signed in to an approved org but account-side policy data has not yet been fetched.\n\n';
 		} catch (error) {
-			content += `*Error retrieving account policy gate info: ${error}*\n\n`;
+			content += `*Error retrieving account policy gate info: ${markdownText(getErrorMessage(error))}*\n\n`;
 		}
 
 		content += '## Managed Settings\n\n';
-		// Captured from the Managed Settings section below so the Policy-Controlled Settings table
-		// can attribute each managed-settings-driven policy to the delivery channel that actually
-		// won its key (per-key precedence), instead of the generic AccountPolicyService that hosts
-		// the projection. Maps a winning managed-settings key -> the channel that supplied it.
-		const activeManagedSettingSources = new Map<string, ManagedSettingsChannel>();
 		try {
 			const policyData = defaultAccountService.policyData;
 			const serverManagedSettings = policyData?.managedSettings ?? {};
-
 			const nativeManagedSettings = nativeManagedSettingsService?.managedSettings ?? {};
 			const fileManagedSettings = fileManagedSettingsService?.managedSettings ?? {};
 			const fileRawManagedSettings = fileManagedSettingsService?.rawManagedSettings;
@@ -872,58 +957,124 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 			}
 
-			// Reuse the exact per-key resolution that policy evaluation applies so this report can
-			// never drift from what AccountPolicyService actually enforces.
 			const pick = pickManagedSettings(nativeManagedSettings, serverManagedSettings, fileManagedSettings);
-
-			content += `**Active sources** (in precedence order): ${pick.activeSources.length > 0 ? pick.activeSources.map(managedSettingsSourceLabel).join(', ') : managedSettingsSourceLabel('none')}\n\n`;
-			content += '*Precedence is resolved per key: native MDM wins over the server endpoint, which wins over the file on disk. A key left unset by a higher channel is still filled in by a lower one.*\n\n';
-
-			// Collect non-fatal issues from every managed-settings parsing/normalization callback
-			// (adapt, projection, JSON payload) so the report explains *why* a key was dropped.
-			// jsonc-style: accumulate every error instead of failing on the first.
 			const parseErrors: { stage: string; message: string }[] = [];
 			const projectChannel = (channel: ManagedSettingsChannel, values: ManagedSettingsData): ManagedSettingsData => projectManagedSettings(
 				values,
 				declaredDefinitions,
 				message => parseErrors.push({ stage: `${channel}: project`, message })
 			);
-
-			// Whether a channel supplied at least one *winning* key in the per-key resolution.
 			const channelContributes = (channel: ManagedSettingsChannel) => pick.activeSources.includes(channel);
 			const nativeProjected = projectChannel('nativeMdm', nativeManagedSettings);
 			const serverProjected = projectChannel('server', serverManagedSettings);
 			const fileProjected = projectChannel('file', fileManagedSettings);
 			const effective = projectManagedSettings(pick.values, declaredDefinitions, message => parseErrors.push({ stage: 'effective: project', message }));
 
-			content += '### VS Code Managed-Settings Schema\n\n';
-			content += '*Only keys declared here can reach VS Code policy callbacks. Runtime-owned keys may still be enforced by the Copilot runtime even when absent from the projections below.*\n\n';
-			content += jsonBlock(declaredDefinitions);
+			const rawResponse = defaultAccountService.managedSettingsRawResponse;
+			if (isObject(rawResponse)) {
+				adaptManagedSettings(rawResponse as IManagedSettingsResponse, message => parseErrors.push({ stage: 'adapt', message }));
+			}
+			if (fileRawManagedSettings) {
+				normalizeManagedSettings(fileRawManagedSettings, message => parseErrors.push({ stage: 'file: normalize', message }));
+			}
 
-			// Sections are listed in precedence order (highest first): native MDM wins over the
-			// server endpoint, which in turn wins over the file on disk.
-			content += '### Native MDM\n\n';
-			content += PROPERTY_VALUE_TABLE_HEADER;
-			content += `| Available | ${nativeManagedSettingsService ? 'yes' : 'no'} |\n`;
-			content += `| Contributes winning keys | ${channelContributes('nativeMdm') ? 'yes' : 'no'} |\n\n`;
+			for (const key of [COPILOT_ENABLED_PLUGINS_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_EXTRA_MARKETPLACES_KEY]) {
+				const value = effective[key];
+				if (typeof value !== 'string') {
+					continue;
+				}
+				const jsonErrors: json.ParseError[] = [];
+				json.parse(value, jsonErrors);
+				for (const error of jsonErrors) {
+					parseErrors.push({ stage: 'parse', message: `${key} @ offset ${error.offset}: ${getParseErrorMessage(error.error)}` });
+				}
+			}
+
+			const activeSources = pick.activeSources.length > 0
+				? pick.activeSources.map(managedSettingsSourceLabel).join(', ')
+				: managedSettingsSourceLabel('none');
+			const effectiveKeyCount = Object.keys(effective).length;
+			summary.managedSettingsSources = activeSources;
+			summary.effectiveManagedSettings = `${effectiveKeyCount} ${effectiveKeyCount === 1 ? 'key' : 'keys'}`;
+			summary.managedSettingsIssues = `${parseErrors.length} ${parseErrors.length === 1 ? 'issue' : 'issues'}`;
+
+			content += markdownTable(
+				['Property', 'Value'],
+				[
+					['Active sources (precedence order)', activeSources],
+					['Supplied keys', String(pick.resolutions.size)],
+					['Effective VS Code policy keys', String(effectiveKeyCount)]
+				]
+			);
+			content += '*Precedence is resolved per key: native MDM wins over the server endpoint, which wins over the file on disk. A key left unset by a higher channel is still filled in by a lower one.*\n\n';
+
+			content += '### Effective Resolution\n\n';
+			if (pick.resolutions.size > 0) {
+				const resolutions = [...pick.resolutions.entries()].sort(([first], [second]) => first.localeCompare(second));
+				content += markdownTable(
+					['Key', 'Effective Value', 'Winning Source'],
+					resolutions.map(([key, resolution]) => [
+						key,
+						formatDiagnosticValue(resolution.value),
+						managedSettingsSourceShortLabel(resolution.source)
+					])
+				);
+
+				const contributionRows = resolutions.flatMap(([key, resolution]) => resolution.contributions.map(contribution => [
+					key,
+					managedSettingsSourceShortLabel(contribution.channel),
+					formatDiagnosticValue(contribution.value),
+					contribution.channel === resolution.source ? 'Effective' : 'Overridden'
+				]));
+				content += markdownDetails(
+					'Per-channel contributions',
+					markdownTable(['Key', 'Source', 'Value', 'Status'], contributionRows)
+				);
+			} else {
+				content += '*No managed-settings keys are supplied by any channel.*\n\n';
+			}
+			content += markdownDetails('Merged normalized bag', markdownJsonBlock(pick.values));
+			content += markdownDetails('Effective VS Code policy bag', markdownJsonBlock(effective));
+
+			content += `### Normalization and Parse Issues (${parseErrors.length})\n\n`;
+			if (parseErrors.length > 0) {
+				content += markdownTable(
+					['Stage', 'Message'],
+					parseErrors.map(({ stage, message }) => [stage, message])
+				);
+			} else {
+				content += '*None.*\n\n';
+			}
+
+			content += '### Delivery Channel Details\n\n';
+			content += '#### Native MDM\n\n';
+			content += markdownTable(
+				['Property', 'Value'],
+				[
+					['Available', nativeManagedSettingsService ? 'yes' : 'no'],
+					['Contributes winning keys', channelContributes('nativeMdm') ? 'yes' : 'no']
+				]
+			);
 			if (nativeManagedSettingsService) {
 				content += '*The native policy watcher exposes only declared scalar keys, so its source values are already definition-scoped and canonical.*\n\n';
 				content += managedSettingsPipeline('Source values (definition-scoped)', nativeManagedSettings, nativeManagedSettings, nativeProjected);
 			}
 
-			content += '### GitHub Server API\n\n';
-			content += PROPERTY_VALUE_TABLE_HEADER;
-			content += '| Endpoint | `/copilot_internal/managed_settings` |\n';
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
-			content += `| Last fetch | ${fetchStatus === null ? '*never*' : `\`${fetchStatus}\``} |\n`;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
-			content += `| Last successful fetch | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
-			content += `| Contributes winning keys | ${channelContributes('server') ? 'yes' : 'no'} |\n\n`;
-
-			const rawResponse = defaultAccountService.managedSettingsRawResponse;
-			if (isObject(rawResponse)) {
-				adaptManagedSettings(rawResponse as IManagedSettingsResponse, message => parseErrors.push({ stage: 'adapt', message }));
-			}
+			const clientIdentity = appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', productService);
+			const compatibilityError = defaultAccountService.managedSettingsCompatibilityError;
+			content += '#### GitHub Server API\n\n';
+			content += markdownTable(
+				['Property', 'Value'],
+				[
+					['Endpoint', '/copilot_internal/managed_settings'],
+					['Last fetch', fetchStatus === null ? 'never' : `${fetchStatus}${fetchedAt ? ` at ${new Date(fetchedAt).toLocaleString()}` : ''}`],
+					['Client identity', new URL(clientIdentity).search.replace(/^\?/, '')],
+					['Compatibility', compatibilityError ? `update required (${compatibilityError.clientVersion ?? '?'} → ${compatibilityError.minimumClientVersion ?? '?'})` : 'compatible or not evaluated'],
+					['Contributes winning keys', channelContributes('server') ? 'yes' : 'no']
+				]
+			);
 			content += managedSettingsPipeline(
 				'Raw response (last successful fetch)',
 				isObject(rawResponse) ? rawResponse : undefined,
@@ -932,107 +1083,58 @@ class PolicyDiagnosticsAction extends Action2 {
 				'No successful managed-settings response has been captured.'
 			);
 
-			content += '### File (managed-settings.json)\n\n';
-			content += PROPERTY_VALUE_TABLE_HEADER;
-			content += `| Available | ${fileManagedSettingsService ? 'yes' : 'no'} |\n`;
-			content += `| Contributes winning keys | ${channelContributes('file') ? 'yes' : 'no'} |\n\n`;
+			content += '#### File (managed-settings.json)\n\n';
+			content += markdownTable(
+				['Property', 'Value'],
+				[
+					['Available', fileManagedSettingsService ? 'yes' : 'no'],
+					['Contributes winning keys', channelContributes('file') ? 'yes' : 'no']
+				]
+			);
 			if (fileManagedSettingsService) {
-				if (fileRawManagedSettings) {
-					normalizeManagedSettings(fileRawManagedSettings, message => parseErrors.push({ stage: 'file: normalize', message }));
-				}
 				content += managedSettingsPipeline('Raw parsed file', fileRawManagedSettings, fileManagedSettings, fileProjected);
 			}
 
-			// Per-key resolution: what each channel supplied, which won, and (struck through) which
-			// were overridden — the authoritative "what came from where, what's effective, and why".
-			content += '### Effective Resolution\n\n';
-			content += '**Merged normalized bag**\n\n';
-			content += jsonBlock(pick.values);
-			content += '**Effective VS Code policy bag**\n\n';
-			content += jsonBlock(effective);
-			content += '**Per-key precedence**\n\n';
-			if (pick.resolutions.size > 0) {
-				content += '| Key | Effective | Winning Source | Native MDM | Server | File |\n';
-				content += '|-----|-----------|----------------|------------|--------|------|\n';
-				const channelValue = (resolution: IManagedSettingResolution, channel: ManagedSettingsChannel): string => {
-					const contribution = resolution.contributions.find(c => c.channel === channel);
-					if (!contribution) {
-						return '—';
-					}
-					// Strike through overridden contributions so the report explains *why* they don't apply.
-					const cell = managedValueCell(contribution.value);
-					return channel === resolution.source ? cell : `~~${cell}~~`;
-				};
-				for (const key of [...pick.resolutions.keys()].sort()) {
-					const resolution = pick.resolutions.get(key)!;
-					content += `| ${key} | ${managedValueCell(resolution.value)} | ${managedSettingsSourceShortLabel(resolution.source)} | ${channelValue(resolution, 'nativeMdm')} | ${channelValue(resolution, 'server')} | ${channelValue(resolution, 'file')} |\n`;
-				}
-				content += '\n';
-				content += '*Struck-through values were supplied by a channel but overridden by a higher-precedence channel for that key.*\n\n';
-			} else {
-				content += '*No managed-settings keys are supplied by any channel.*\n\n';
-			}
+			content += markdownDetails(
+				'VS Code managed-settings schema',
+				'*Only keys declared here can reach VS Code policy callbacks. Runtime-owned keys may still be enforced by the Copilot runtime even when absent from the projections above.*\n\n' +
+				markdownJsonBlock(declaredDefinitions)
+			);
 
 			content += '### Agent Runtime Resolution\n\n';
 			content += '*Resolved independently by each provider through its own SDK/runtime. This may include runtime-owned keys that VS Code does not declare as configuration policies.*\n\n';
 			if (!agentHostEnablementService.enabled.get()) {
+				summary.agentRuntime = 'Agent Host disabled';
 				content += '*Agent Host is disabled; runtime managed-settings diagnostics were not queried.*\n\n';
 			} else {
 				try {
-					const runtimeDiagnostics = await agentHostService.getManagedSettingsDiagnostics();
-					if (runtimeDiagnostics.length === 0) {
+					const runtimeDiagnostics = await raceTimeout(agentHostService.getManagedSettingsDiagnostics(), AGENT_RUNTIME_DIAGNOSTICS_TIMEOUT);
+					if (!runtimeDiagnostics) {
+						summary.agentRuntime = 'Timed out';
+						content += '*The Agent Host did not return provider diagnostics within 6 seconds. The report continued without a runtime snapshot; check the Agent Host log for a stalled provider.*\n\n';
+					} else if (runtimeDiagnostics.length === 0) {
+						summary.agentRuntime = 'No provider diagnostics';
 						content += '*No agent provider exposes managed-settings diagnostics.*\n\n';
-					}
-					for (const diagnostic of runtimeDiagnostics) {
-						content += `#### ${diagnostic.provider}\n\n`;
-						if (diagnostic.error) {
-							content += `*Probe failed: ${diagnostic.error}*\n\n`;
-						} else {
-							content += jsonBlock(diagnostic.snapshot);
+					} else {
+						const failedProviderCount = runtimeDiagnostics.filter(diagnostic => diagnostic.error).length;
+						summary.agentRuntime = `${runtimeDiagnostics.length} ${runtimeDiagnostics.length === 1 ? 'provider' : 'providers'}, ${failedProviderCount} failed`;
+						for (const diagnostic of runtimeDiagnostics) {
+							content += `#### ${markdownText(diagnostic.provider)}\n\n`;
+							if (diagnostic.error) {
+								content += `*Probe failed: ${markdownText(diagnostic.error)}*\n\n`;
+							} else {
+								content += markdownDetails('Resolved settings snapshot', markdownJsonBlock(diagnostic.snapshot));
+							}
 						}
 					}
 				} catch (error) {
-					content += `*Agent runtime diagnostics unavailable: ${error}*\n\n`;
+					const message = getErrorMessage(error);
+					summary.agentRuntime = `Unavailable (${message})`;
+					content += `*Agent runtime diagnostics unavailable: ${markdownText(message)}*\n\n`;
 				}
-			}
-
-			// Remember which managed-settings keys actually reached policy evaluation, and from which
-			// channel won each, so the Policy-Controlled Settings table can attribute them accurately.
-			for (const key of Object.keys(effective)) {
-				const resolution = pick.resolutions.get(key);
-				if (resolution) {
-					activeManagedSettingSources.set(key, resolution.source);
-				}
-			}
-
-			// JSON payloads: the structured keys carry a JSON string that PolicyConfiguration parses
-			// back into the object/array-typed setting on read. Re-parse exactly those keys with the
-			// same jsonc parser so a malformed value surfaces here instead of being silently rejected.
-			for (const key of [COPILOT_ENABLED_PLUGINS_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_EXTRA_MARKETPLACES_KEY]) {
-				const value = effective[key];
-				if (typeof value !== 'string') {
-					continue;
-				}
-				const jsonErrors: json.ParseError[] = [];
-				json.parse(value, jsonErrors);
-				for (const e of jsonErrors) {
-					parseErrors.push({ stage: 'parse', message: `${key} @ offset ${e.offset}: ${getParseErrorMessage(e.error)}` });
-				}
-			}
-
-			content += `### Normalization and Parse Issues (${parseErrors.length})\n\n`;
-			if (parseErrors.length > 0) {
-				content += '| Stage | Message |\n';
-				content += '|-------|---------|\n';
-				for (const { stage, message } of parseErrors) {
-					content += `| ${stage} | ${message.replace(/\|/g, '\\|')} |\n`;
-				}
-				content += '\n';
-			} else {
-				content += '*None.*\n\n';
 			}
 		} catch (error) {
-			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;
+			content += `*Error rendering managed settings diagnostics: ${markdownText(getErrorMessage(error))}*\n\n`;
 		}
 
 		content += '## Policy-Controlled Settings\n\n';
@@ -1076,96 +1178,54 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 			}
 
-			// Try to detect where the policy came from
-			const policySourceMemo = new Map<string, string>();
-			const getPolicySource = (policyName: string): string => {
-				if (policySourceMemo.has(policyName)) {
-					return policySourceMemo.get(policyName)!;
-				}
-				try {
-					const policyServiceConstructorName = policyService.constructor.name;
-					if (policyServiceConstructorName === 'MultiplexPolicyService') {
-						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-						const multiplexService = policyService as any;
-						if (multiplexService.policyServices) {
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							const componentServices = multiplexService.policyServices as ReadonlyArray<any>;
-							for (const service of componentServices) {
-								if (service.getPolicyValue && service.getPolicyValue(policyName) !== undefined) {
-									policySourceMemo.set(policyName, service.constructor.name);
-									return service.constructor.name;
-								}
-							}
-						}
-					}
-					return '';
-				} catch {
-					return 'Unknown';
-				}
-			};
-
-			// A managed-settings-driven policy is hosted by AccountPolicyService but its value really
-			// originates from a delivery channel (server / native MDM / file). With per-key precedence
-			// a policy's declared keys can even resolve to different channels, so attribute it to the
-			// channel(s) that actually won its declared keys. When the Account Policy Gate is actively
-			// restricting, the value comes from the gate's restricted value (which overrides managed
-			// settings), so don't credit any channel in that case.
-			const gateInfo = accountPolicyGateService.gateInfo;
-			const gateRestricted = gateInfo.state === AccountPolicyGateState.Restricted
-				&& gateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const getRefinedPolicySource = (item: { name: string; property: any }): string => {
-				const declaredKeys = item.property.policy?.managedSettings ? Object.keys(item.property.policy.managedSettings) : [];
-				if (!gateRestricted) {
-					const winningSources = new Set<ManagedSettingsChannel>();
-					for (const key of declaredKeys) {
-						const source = activeManagedSettingSources.get(key);
-						if (source) {
-							winningSources.add(source);
-						}
-					}
-					if (winningSources.size > 0) {
-						const ordered = MANAGED_SETTINGS_CHANNELS.filter(channel => winningSources.has(channel));
-						return `Managed Settings: ${ordered.map(managedSettingsSourceShortLabel).join(', ')}`;
-					}
-				}
-				return getPolicySource(item.name);
-			};
+			const getPolicySource = (policyName: string): string => policyValueSourceLabel(policyService.getPolicyValueSource(policyName));
 
 			content += '### Applied Policy\n\n';
-			appliedPolicy.sort((a, b) => getRefinedPolicySource(a).localeCompare(getRefinedPolicySource(b)) || a.name.localeCompare(b.name));
+			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
+			notAppliedPolicy.sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
+			summary.policyControlledSettings = `${appliedPolicy.length} applied, ${notAppliedPolicy.length} not applied`;
 			if (appliedPolicy.length > 0) {
-				content += '| Setting Key | Policy Name | Policy Source | Managed Settings | Default Value | Current Value | Policy Value |\n';
-				content += '|-------------|-------------|---------------|------------------|---------------|---------------|-------------|\n';
+				content += markdownTable(
+					['Setting Key', 'Policy Name', 'Policy Source'],
+					appliedPolicy.map(setting => [
+						setting.key,
+						setting.name,
+						getPolicySource(setting.name)
+					])
+				);
 
+				let policyDetails = '';
 				for (const setting of appliedPolicy) {
-					const defaultValue = JSON.stringify(setting.property.default);
-					const currentValue = JSON.stringify(setting.inspection.value);
-					const policyValue = JSON.stringify(setting.inspection.policyValue);
-					const policySource = getRefinedPolicySource(setting);
 					const managedSettingsKeys = setting.property.policy?.managedSettings ? Object.keys(setting.property.policy.managedSettings).join(', ') : '';
-
-					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${managedSettingsKeys || '*n/a*'} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
+					policyDetails += `**${markdownText(setting.key)}**\n\n`;
+					policyDetails += markdownTable(
+						['Property', 'Value'],
+						[
+							['Policy name', setting.name],
+							['Policy source', getPolicySource(setting.name)],
+							['Managed settings', managedSettingsKeys || 'n/a'],
+							['Default value', formatDiagnosticValue(setting.property.default)],
+							['Current value', formatDiagnosticValue(setting.inspection.value)],
+							['Policy value', formatDiagnosticValue(setting.inspection.policyValue)]
+						]
+					);
 				}
-				content += '\n';
+				content += markdownDetails('Applied policy values and configuration details', policyDetails);
 			} else {
 				content += '*No settings are currently controlled by policies*\n\n';
 			}
 
-			content += '###  Non-applied Policy\n\n';
+			content += '### Non-applied Policy\n\n';
 			if (notAppliedPolicy.length > 0) {
-				content += '| Setting Key | Policy Name  \n';
-				content += '|-------------|-------------|\n';
-
-				for (const setting of notAppliedPolicy) {
-
-					content += `| ${setting.key} | ${setting.name}|\n`;
-				}
-				content += '\n';
+				content += markdownTable(
+					['Setting Key', 'Policy Name'],
+					notAppliedPolicy.map(setting => [setting.key, setting.name])
+				);
 			} else {
 				content += '*All policy-controllable settings are currently being enforced*\n\n';
 			}
 		} else {
+			summary.policyControlledSettings = 'No policy-controlled settings found';
 			content += '*No policy-controlled settings found*\n\n';
 		}
 
@@ -1176,38 +1236,20 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			if (providerIds.length > 0) {
 				content += '### Authentication Providers\n\n';
-				content += '| Provider ID | Sessions | Accounts |\n';
-				content += '|-------------|----------|----------|\n';
-
+				const providerRows: string[][] = [];
+				let sessionDetails = '';
 				for (const providerId of providerIds) {
 					try {
 						const sessions = await authenticationService.getSessions(providerId);
 						const accounts = sessions.map(session => session.account);
 						const uniqueAccounts = Array.from(new Set(accounts.map(account => account.label)));
-
-						content += `| ${providerId} | ${sessions.length} | ${uniqueAccounts.join(', ') || 'None'} |\n`;
-					} catch (error) {
-						content += `| ${providerId} | Error | ${error} |\n`;
-					}
-				}
-				content += '\n';
-
-				// Detailed session information
-				content += '### Detailed Session Information\n\n';
-				for (const providerId of providerIds) {
-					try {
-						const sessions = await authenticationService.getSessions(providerId);
-
+						providerRows.push([providerId, String(sessions.length), uniqueAccounts.join(', ') || 'None']);
 						if (sessions.length > 0) {
-							content += `#### ${providerId}\n\n`;
-							content += '| Account | Scopes | Extensions with Access |\n';
-							content += '|---------|--------|------------------------|\n';
-
+							sessionDetails += `**${markdownText(providerId)}**\n\n`;
+							const sessionRows: string[][] = [];
 							for (const session of sessions) {
 								const accountName = session.account.label;
 								const scopes = session.scopes.join(', ') || 'Default';
-
-								// Get extensions with access to this account
 								try {
 									const allowedExtensions = authenticationAccessService.readAllowedExtensions(providerId, accountName);
 									const extensionNames = allowedExtensions
@@ -1215,30 +1257,74 @@ class PolicyDiagnosticsAction extends Action2 {
 										.map(ext => `${ext.name}${ext.trusted ? ' (trusted)' : ''}`)
 										.join(', ') || 'None';
 
-									content += `| ${accountName} | ${scopes} | ${extensionNames} |\n`;
+									sessionRows.push([accountName, scopes, extensionNames]);
 								} catch (error) {
-									content += `| ${accountName} | ${scopes} | Error: ${error} |\n`;
+									sessionRows.push([accountName, scopes, `Error: ${getErrorMessage(error)}`]);
 								}
 							}
-							content += '\n';
+							sessionDetails += markdownTable(['Account', 'Scopes', 'Extensions with Access'], sessionRows);
 						}
 					} catch (error) {
-						content += `#### ${providerId}\n*Error retrieving sessions: ${error}*\n\n`;
+						const message = getErrorMessage(error);
+						providerRows.push([providerId, 'Error', message]);
+						sessionDetails += `**${markdownText(providerId)}**\n\n*Error retrieving sessions: ${markdownText(message)}*\n\n`;
 					}
+				}
+				content += markdownTable(['Provider ID', 'Sessions', 'Accounts'], providerRows);
+				if (sessionDetails) {
+					content += markdownDetails('Detailed session information', sessionDetails);
 				}
 			} else {
 				content += '*No authentication providers found*\n\n';
 			}
 		} catch (error) {
-			content += `*Error retrieving authentication information: ${error}*\n\n`;
+			content += `*Error retrieving authentication information: ${markdownText(getErrorMessage(error))}*\n\n`;
 		}
 
-		await editorService.openEditor({
-			resource: undefined,
-			contents: content,
-			languageId: 'markdown',
-			options: { pinned: true, }
+		const report = '# VS Code Policy Diagnostics\n\n' +
+			'*WARNING: This file may contain sensitive information.*\n\n' +
+			'## Summary\n\n' +
+			markdownTable(
+				['Diagnostic', 'Result'],
+				[
+					['Account policy gate', summary.accountPolicyGate],
+					['Managed-settings sources', summary.managedSettingsSources],
+					['Effective managed settings', summary.effectiveManagedSettings],
+					['Managed-settings issues', summary.managedSettingsIssues],
+					['Agent Runtime', summary.agentRuntime],
+					['Policy-controlled settings', summary.policyControlledSettings]
+				]
+			) +
+			content;
+
+		const resource = URI.from({
+			scheme: Schemas.untitled,
+			path: localize('policyDiagnostics.editorTitle', "Policy Diagnostics"),
+			query: generateUuid()
 		});
+		const editorPane = await editorService.openEditor({
+			resource,
+			contents: report,
+			languageId: 'markdown',
+			options: { pinned: true }
+		});
+		if (!editorPane) {
+			notificationService.warn(localize(
+				'policyDiagnostics.previewMissingResource',
+				"Policy diagnostics opened as Markdown source because the rendered preview could not be initialized."
+			));
+			return;
+		}
+
+		try {
+			await commandService.executeCommand('markdown.reopenAsPreview');
+		} catch (error) {
+			notificationService.warn(localize(
+				'policyDiagnostics.previewError',
+				"Policy diagnostics opened as Markdown source because the rendered preview could not be opened: {0}",
+				getErrorMessage(error)
+			));
+		}
 	}
 }
 

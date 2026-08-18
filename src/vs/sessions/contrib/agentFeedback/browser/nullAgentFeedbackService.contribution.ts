@@ -24,6 +24,7 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidChangeFeedback = this._register(new Emitter<IAgentFeedbackChangeEvent>()).event;
+	readonly onDidChangeFeedbackVisibility = this._register(new Emitter<URI>()).event;
 	readonly onDidChangeNavigation = this._register(new Emitter<URI>()).event;
 	readonly onDidRevealSessionComment = this._register(new Emitter<IAgentFeedbackCommentRevealEvent>()).event;
 	readonly onDidChangeFeedbackScope = this._register(new Emitter<void>()).event;
@@ -52,6 +53,9 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	setFeedbackResolved(_sessionResource: URI, _feedbackId: string, _resolved: boolean): void { }
 	addReply(_sessionResource: URI, _feedbackId: string, _replyText: string): void { }
 	getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return []; }
+	showFeedbackInEditor(_sessionResource: URI, _feedbackIds: readonly string[]): void { }
+	hideFeedbackInEditor(_sessionResource: URI, _feedbackId: string): void { }
+	getVisibleResolvedFeedbackIds(_sessionResource: URI): ReadonlySet<string> { return new Set(); }
 	hasLoadedFeedback(_sessionResource: URI): boolean { return true; }
 	getSessionForFile(_resourceUri: URI): undefined { return undefined; }
 	getFeedbackSessionResource(_resourceUri: URI): URI | undefined { return undefined; }

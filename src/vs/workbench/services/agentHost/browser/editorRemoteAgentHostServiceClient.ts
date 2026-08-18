@@ -11,14 +11,15 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
+import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
-import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
@@ -74,15 +75,9 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	) {
 		super();
 
-		const enabled = agentHostEnablementService.enabled.get();
 		const connection = this._remoteAgentService.getConnection();
-		this._logService.info(`${LOG_PREFIX} Initializing (enabled=${enabled}, remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
+		this._logService.info(`${LOG_PREFIX} Initializing (remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
 
-		if (!enabled) {
-			this._logService.info(`${LOG_PREFIX} Disabled via configuration, policy, or runtime availability. Not connecting.`);
-			this.setAuthenticationPending(false);
-			return;
-		}
 		if (!connection) {
 			this._logService.warn(`${LOG_PREFIX} No remote agent connection available. Not connecting.`);
 			this.setAuthenticationPending(false);
@@ -92,7 +87,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		// Create the protocol client eagerly so consumers can subscribe to
 		// rootState etc. before the AHP handshake completes. The transport's
 		// `connect()` will be awaited by `_connect()` below.
-		const createTransport = () => new AgentHostIpcChannelTransport(connection.getChannel(AgentHostIpcChannels.RemoteProxy));
+		const createTransport = () => new AgentHostIpcChannelTransport(connection.getChannel(AgentHostIpcChannels.RemoteProxy), undefined, AgentHostClientConnectionKind.RemoteExtensionHost);
 		const address = `vscode-remote://${connection.remoteAuthority}`;
 		const clientInfo = environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo;
 		this._protocolClient = this._register(instantiationService.createInstance(RemoteAgentHostProtocolClient, address, createTransport, undefined, undefined, clientInfo));
@@ -100,11 +95,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 			this._logService.info(`${LOG_PREFIX} Protocol client closed`);
 			this._onAgentHostExit.fire(0);
 		}));
+		this._register(this._protocolClient.onDidChangeConnectionState(state => {
+			if (state === AgentHostClientState.Connected) {
+				this._logService.info(`${LOG_PREFIX} Connected; clientId=${this._protocolClient?.clientId}`);
+				this._onAgentHostStart.fire();
+			}
+		}));
 
-		// Kick off the connect in the background. Failures are logged; callers
-		// that need a connected client (e.g. session creation) will see the
-		// failure surface as a rejected promise from the protocol client.
-		this._connect().catch(err => this._logService.warn(`${LOG_PREFIX} Connect failed`, err));
+		this._register(autorun(reader => {
+			if (agentHostEnablementService.enabled.read(reader)) {
+				this.startAgentHost();
+			}
+		}));
 	}
 
 	private async _connect(): Promise<void> {
@@ -115,8 +117,6 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		this._logService.info(`${LOG_PREFIX} Connecting to remote agent host...`);
 		await this._remoteAgentService.getRawEnvironment();
 		await this._protocolClient.connect();
-		this._logService.info(`${LOG_PREFIX} Connected; clientId=${this._protocolClient.clientId}`);
-		this._onAgentHostStart.fire();
 	}
 
 	private _requireClient(): RemoteAgentHostProtocolClient {

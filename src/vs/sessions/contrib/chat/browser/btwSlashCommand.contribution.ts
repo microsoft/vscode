@@ -17,6 +17,7 @@ import { IChatSlashCommandService } from '../../../../workbench/contrib/chat/com
 import { captureSideChatSelection } from '../../../../workbench/contrib/chat/browser/chatSideChat.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionSupportsSideChatContext } from '../../../common/contextkeys.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
@@ -31,6 +32,7 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsPartService sessionsPartService: ISessionsPartService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -57,7 +59,7 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 				SessionIsArchivedContext.negate(),
 				SessionSupportsSideChatContext,
 			),
-		}, async (prompt, _progress, _history, _location, sessionResource) => {
+		}, async (prompt, _progress, _history, _location, sessionResource, _token, options) => {
 			const remainder = prompt.trim();
 			if (!remainder) {
 				notificationService.warn(localize('btw.missingPrompt', "Enter a question after `/btw`."));
@@ -91,7 +93,7 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 				return;
 			}
 
-			await openAndSendSideChat(sessionsManagementService, sessionsService, session, sideChat, remainder);
+			await openAndSendSideChat(sessionsManagementService, sessionsService, sessionsPartService, session, sideChat, { query: remainder, attachedContext: options?.attachedContext });
 		}));
 	}
 }

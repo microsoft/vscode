@@ -26,7 +26,7 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, updateSaveButtonState } from './automationDialog.js';
+import { IFormState, IValidationState, isAutomationDialogEditCommand, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, updateSaveButtonState } from './automationDialog.js';
 
 const $ = DOM.$;
 
@@ -114,6 +114,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let getPermissionLevel: () => string | undefined = () => initial?.permissionLevel;
 		let getModelId: () => string | undefined = () => initial?.modelId;
 		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
+		let waitForAutomationSessionSync: () => Promise<void> = async () => { };
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
 
@@ -171,6 +172,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					getPermissionLevel = handle.getPermissionLevel;
 					getModelId = handle.getModelId;
 					getBranch = handle.getBranch;
+					waitForAutomationSessionSync = handle.waitForAutomationSessionSync;
 					getFocusableElements = handle.getFocusableElements;
 					const keyboardNavigation = disposables.add(registerAutomationDialogKeyboardNavigation(
 						DOM.getWindow(container),
@@ -185,7 +187,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 					revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch);
 					revalidate();
 				},
-			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands),
+			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands,
+				(commandId, event) => isAutomationDialogEditCommand(commandId, event.target)),
 		));
 
 		activeContainer.classList.add('automation-dialog-open');
@@ -206,6 +209,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId)) {
 				return undefined;
 			}
+			await waitForAutomationSessionSync();
 
 			const schedule: IAutomationSchedule = {
 				interval: state.interval,

@@ -12,7 +12,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { resolveAutomaticVoiceLanguage, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceConnectionIssue, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription, normalizeAgentsVoiceId } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
@@ -513,6 +513,45 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('prepares for narration audio before sending the request', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		const sentBeforeNarration = socket().sent.length;
+		let sentWhenPrepared = -1;
+
+		const narrationId = service.requestNarration('cs1', 'response', 'Done.', undefined, undefined, undefined, undefined, () => {
+			sentWhenPrepared = socket().sent.length;
+			return true;
+		});
+
+		assert.deepStrictEqual({
+			sentBeforeNarration,
+			sentWhenPrepared,
+			sentAfterNarration: socket().sent.length,
+			narrationId: typeof narrationId,
+		}, {
+			sentBeforeNarration: 1,
+			sentWhenPrepared: 1,
+			sentAfterNarration: 2,
+			narrationId: 'string',
+		});
+	});
+
+	test('links a tool result to its resolved coding session', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+
+		service.sendToolResult('call-1', 'ok', 'copilotcli:/session-1');
+
+		assert.deepStrictEqual(socket().sent.at(-1), {
+			type: 'tool_result',
+			call_id: 'call-1',
+			result: 'ok',
+			coding_session_id: 'copilotcli:/session-1',
+		});
+	});
+
 	test('drops a narration requested before the session starts', async () => {
 		const { service } = createService();
 
@@ -523,7 +562,7 @@ suite('VoiceClientService', () => {
 		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), []);
 	});
 
-	test('serializes configured language in start_session context', async () => {
+	test('normalizes a legacy voice identifier in start_session', async () => {
 		const { service } = createService({
 			'agents.voice.language': 'fr-fr',
 			'agents.voice.voice': 'kevin_neutral',
@@ -540,9 +579,37 @@ suite('VoiceClientService', () => {
 		})), [{
 			type: 'start_session',
 			session_context: { sessions: [], display_locale: 'fr-FR' },
-			voice: 'kevin_neutral',
+			voice: 'oak_neutral',
 			auto_narrate: false,
 		}]);
+	});
+
+	test('normalizes every canonical and legacy voice identifier, and falls back for invalid values', () => {
+		assert.deepStrictEqual(
+			[
+				'harper_neutral', 'birch_neutral', 'junho_neutral', 'oak_neutral',
+				'victoria_neutral', 'maya_neutral', 'daniel_neutral', 'kevin_neutral',
+				undefined, '  ', 42, 'unknown_voice',
+			].map(normalizeAgentsVoiceId),
+			[
+				'harper_neutral', 'birch_neutral', 'junho_neutral', 'oak_neutral',
+				'harper_neutral', 'birch_neutral', 'junho_neutral', 'oak_neutral',
+				'birch_neutral', 'birch_neutral', 'birch_neutral', 'birch_neutral',
+			]
+		);
+	});
+
+	test('uses Birch for missing and legacy Maya values in start_session', async () => {
+		const voices = [];
+		for (const configuration of [undefined, { 'agents.voice.voice': 'maya_neutral' }]) {
+			const { service } = createService(configuration);
+			await service.connect(createTestWindow());
+			service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+			voices.push(socket().sent[0].voice);
+			service.disconnect();
+		}
+
+		assert.deepStrictEqual(voices, ['birch_neutral', 'birch_neutral']);
 	});
 
 	test('sends voice instructions when starting a session', async () => {
@@ -660,7 +727,7 @@ suite('VoiceClientService', () => {
 			{
 				type: 'start_session',
 				session_context: { sessions: [], display_locale: 'en' },
-				voice: 'victoria_neutral',
+				voice: 'harper_neutral',
 			},
 			{ type: 'set_language', language: 'fr-FR' },
 		]);
@@ -716,7 +783,7 @@ suite('VoiceClientService', () => {
 				type: 'resume_session',
 				session_id: 'session-1',
 				session_context: { sessions: [], display_locale: 'de-DE' },
-				voice: 'daniel_neutral',
+				voice: 'junho_neutral',
 				voice_instructions: 'Keep replies concise.',
 				auto_narrate: false,
 			}],
@@ -789,4 +856,136 @@ suite('VoiceClientService', () => {
 		service.disconnect();
 		assert.strictEqual(service.willReconnect, false);
 	});
+
+	test('treats a registry fatal code as terminal and does not reconnect', async () => {
+		const { service } = createService();
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+
+		await service.connect(createTestWindow());
+		const webSocket = socket();
+		webSocket.onopen?.();
+		webSocket.onclose?.(new mainWindow.CloseEvent('close', {
+			code: 4003,
+			reason: 'Voice Mode needs a verified @microsoft.com email',
+		}));
+
+		assert.strictEqual(fatal.length, 1);
+		assert.strictEqual(fatal[0].code, 4003);
+		assert.strictEqual(fatal[0].kind, 'fatal');
+		assert.strictEqual(fatal[0].reason, 'Voice Mode needs a verified @microsoft.com email');
+	});
+
+	test('reports a clean close as terminal so the UI cannot strand on Reconnecting', async () => {
+		const { service } = createService();
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+
+		await service.connect(createTestWindow());
+		const webSocket = socket();
+		webSocket.onopen?.();
+		webSocket.onclose?.(new mainWindow.CloseEvent('close', { code: 1001, reason: 'Session idle timeout' }));
+
+		assert.strictEqual(fatal.length, 1);
+		assert.strictEqual(fatal[0].kind, 'expected');
+	});
+
+	test('keeps reconnecting for a transient registry code but says why', async () => {
+		const { service } = createService();
+		const fatal: IVoiceFatalDisconnect[] = [];
+		const issues: IVoiceConnectionIssue[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+		store.add(service.onConnectionIssue(event => issues.push(event)));
+
+		await service.connect(createTestWindow());
+		const webSocket = socket();
+		webSocket.onopen?.();
+		webSocket.onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'Cannot reach GitHub' }));
+
+		assert.strictEqual(fatal.length, 0, 'a transient code must not be terminal');
+		assert.deepStrictEqual(issues, [{ code: 4503, reason: 'Cannot reach GitHub' }]);
+	});
+
+	test('a rejected connection does not refill the reconnect budget', async () => {
+		const { service } = createService();
+		const reconnect = Reflect.get(service, '_connectWebSocket') as () => void;
+		await service.connect(createTestWindow());
+
+		socket().onopen?.();
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 1);
+
+		reconnect.call(service);
+		socket().onopen?.();
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 1, 'onopen must not reset the budget');
+
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 2);
+	});
+
+	test('a recoverable close reports its reason after the disconnect is visible', async () => {
+		const { service } = createService();
+		const order: string[] = [];
+		store.add(service.onDidChangeConnectionState(connected => order.push(`connected:${connected}`)));
+		store.add(service.onConnectionIssue(e => order.push(`issue:${e.reason}`)));
+
+		await service.connect(createTestWindow());
+		socket().onopen?.();
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'Cannot reach GitHub' }));
+
+		assert.deepStrictEqual(order, ['connected:true', 'connected:false', 'issue:Cannot reach GitHub']);
+	});
+
+	test('a confirmed session resets the reconnect budget', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		const webSocket = socket();
+		webSocket.onopen?.();
+		webSocket.onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 1);
+
+		(Reflect.get(service, '_connectWebSocket') as () => void).call(service);
+		socket().onopen?.();
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_init', session_id: 'session-1' }),
+		}));
+
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 0);
+	});
+
+	test('reports a missing backend URL instead of failing silently', async () => {
+		const productWithoutUrl: IProductService = { _serviceBrand: undefined, ...product, voiceWsUrl: '' };
+		const configurationService = new TestConfigurationService({});
+		const service = store.add(new VoiceClientService(configurationService, new NullLogService(), productWithoutUrl));
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+
+		await service.connect(createTestWindow());
+
+		assert.strictEqual(fatal.length, 1);
+		assert.strictEqual(fatal[0].clientSide, true);
+	});
+
+
+	test('gives up after the reconnect budget rather than retrying for minutes', async () => {
+		// The budget is deliberately short: a user watching a reconnect would rather
+		// be told it failed than wait. Pin it so it cannot silently grow again.
+		const { service } = createService();
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+		await service.connect(createTestWindow());
+
+		const reconnect = Reflect.get(service, '_connectWebSocket') as () => void;
+		const started = Date.now() - 61_000;
+		Reflect.set(service, '_reconnectStartedAt', started);
+
+		socket().onopen?.();
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+
+		assert.strictEqual(fatal.length, 1, 'an exhausted budget must report itself');
+		assert.strictEqual(fatal[0].kind, 'fatal');
+		assert.strictEqual(service.willReconnect, false, 'no retry may remain scheduled');
+		void reconnect;
+	});
+
 });

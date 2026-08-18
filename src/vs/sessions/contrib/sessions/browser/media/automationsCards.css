@@ -9,11 +9,10 @@
 	overflow: hidden;
 }
 
+.monaco-workbench .automations-cards-content:focus,
 .monaco-workbench .automations-cards-widget:focus {
 	outline: none;
 }
-
-
 
 .automations-cards-widget > .monaco-scrollable-element {
 	width: 100%;
@@ -262,13 +261,6 @@
 	flex: 1;
 }
 
-.automations-cards-empty-icon {
-	font-size: 28px;
-	color: var(--vscode-descriptionForeground);
-	margin-bottom: 4px;
-	opacity: 0.7;
-}
-
 .automations-cards-empty-title {
 	font-size: var(--vscode-agents-fontSize-heading3);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
@@ -328,160 +320,14 @@
 	margin-bottom: 8px;
 }
 
-/* Run cards grid — rectangular cards in a vertical list */
-.automations-run-cards-grid {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
+.automations-temporary-runs:empty {
+	display: none;
 }
 
-.automations-run-card {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 6px;
-	overflow: hidden;
-}
-
-.automations-run-card.clickable {
-	cursor: pointer;
-}
-
-.automations-run-card.clickable:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.automations-run-card-main {
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	align-items: stretch;
-	justify-content: center;
-	gap: var(--vscode-spacing-size40);
-	min-width: 0;
-	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size160);
-	border: none;
-	border-radius: 0;
-	outline: none;
-	background: transparent;
-	color: inherit;
-	text-align: left;
-}
-
-.automations-run-card.clickable .automations-run-card-main {
-	cursor: pointer;
-}
-
-.automations-run-card-main:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.automations-run-card-actions {
-	flex: 0 0 auto;
-	padding-right: var(--vscode-spacing-size80);
-	opacity: 0;
-}
-
-.automations-run-card:hover .automations-run-card-actions,
-.automations-run-card:focus-within .automations-run-card-actions {
-	opacity: 1;
-}
-
-.automations-run-card-actions .monaco-button.automations-run-card-delete-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
-	min-width: var(--vscode-spacing-size240);
-	padding: 0;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
-	background: transparent;
-	color: var(--vscode-icon-foreground);
-	font-size: var(--vscode-codiconFontSize);
-}
-
-.automations-run-card-actions .monaco-button.automations-run-card-delete-button:hover:not(.disabled) {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.automations-run-card-actions .monaco-button.automations-run-card-delete-button:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.automations-run-card-name {
-	font-size: 13px;
-	color: var(--vscode-foreground);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.automations-run-card-name-title {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-}
-
-.automations-run-card-name-workspace {
-	font-weight: 400;
-	color: var(--vscode-descriptionForeground);
-}
-
-.automations-run-card-unread-dot {
-	display: inline-block;
-	width: 7px;
-	height: 7px;
-	min-width: 7px;
-	border-radius: 50%;
-	background-color: var(--vscode-textLink-foreground);
-	margin-right: 6px;
-	vertical-align: middle;
-}
-
-.automations-run-card-status-row {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 6px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.automations-run-card-status-row .meta-sep {
-	opacity: 0.6;
-}
-
-.automations-run-card-icon {
-	font-size: var(--vscode-codiconFontSize);
-}
-
-.automations-run-card-icon.codicon-check {
-	color: var(--vscode-testing-iconPassed);
-}
-
-.automations-run-card-icon.codicon-error {
-	color: var(--vscode-errorForeground);
-}
-
-.automations-run-card-icon.codicon-sync {
-	color: var(--vscode-progressBar-background);
-}
-
-.automations-run-card-workspace {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.8;
-}
-
-.automations-run-card-error {
-	flex: 1;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.automations-temporary-run {
+	height: 54px;
+	margin: 0 var(--vscode-spacing-size100);
+	width: calc(100% - var(--vscode-spacing-size200));
 }
 
 .hc-black .automations-card,

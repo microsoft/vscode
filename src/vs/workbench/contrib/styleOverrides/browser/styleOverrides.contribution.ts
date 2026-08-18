@@ -37,6 +37,7 @@ import './media/shadows.css';
 import './media/statusBar.css';
 import './media/tabs.css';
 import './media/titlebar.css';
+import '../../../services/themes/browser/modernTabColorCustomizations.js';
 
 interface IStyleOverrideModule {
 	readonly id: string;
@@ -54,6 +55,8 @@ interface IStyleOverrideModule {
  * as a group.
  */
 const STYLE_OVERRIDE_CLASS = 'style-override';
+const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
+const MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS = 'modern-ui-uppercase-view-headers';
 
 /**
  * The fixed catalog of built-in style-override modules. The CSS for each module
@@ -107,7 +110,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		// A config change re-applies to every container (the global `update()`
 		// covers all windows, including auxiliary ones).
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS)) {
 				this.update();
 				// Some modules change layout metrics, so a relayout is required once
 				// their classes and corresponding layout values are updated.
@@ -122,7 +125,8 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		// Apply the current selection to windows opened after startup (e.g.
 		// auxiliary windows). Subsequent config changes are handled by `update()`.
 		this._register(this.layoutService.onDidAddContainer(({ container }) => {
-			this.applyTo(container, this.isEnabled());
+			const enabled = this.isEnabled();
+			this.applyTo(container, enabled, enabled && this.useUppercaseViewHeaders());
 		}));
 
 		this.update();
@@ -132,22 +136,29 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		return this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true;
 	}
 
+	private useUppercaseViewHeaders(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS) === true;
+	}
+
 	private hasActiveLayoutAffectingModule(): boolean {
 		return this.isEnabled() && this.hasLayoutAffectingModule;
 	}
 
 	private update(): void {
 		const enabled = this.isEnabled();
+		const useUppercaseViewHeaders = enabled && this.useUppercaseViewHeaders();
 		this.applyPaneHeaderSize(enabled);
 		for (const container of this.layoutService.containers) {
-			this.applyTo(container, enabled);
+			this.applyTo(container, enabled, useUppercaseViewHeaders);
 		}
 		this.applyScrollbarSize(enabled);
 		this.applyNotificationRowHeight(enabled);
 	}
 
-	private applyTo(container: HTMLElement, enabled: boolean): void {
+	private applyTo(container: HTMLElement, enabled: boolean, useUppercaseViewHeaders: boolean): void {
 		container.classList.toggle(STYLE_OVERRIDE_CLASS, enabled);
+		container.classList.toggle(MODERN_UI_TABS_CLASS, enabled);
+		container.classList.toggle(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS, useUppercaseViewHeaders);
 	}
 
 	private applyScrollbarSize(enabled: boolean): void {
@@ -166,6 +177,8 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		// Remove the class this contribution added so it leaves no DOM state behind.
 		for (const container of this.layoutService.containers) {
 			container.classList.remove(STYLE_OVERRIDE_CLASS);
+			container.classList.remove(MODERN_UI_TABS_CLASS);
+			container.classList.remove(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS);
 		}
 		setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
 		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);

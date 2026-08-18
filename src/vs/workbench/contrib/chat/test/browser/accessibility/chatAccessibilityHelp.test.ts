@@ -25,6 +25,20 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('describes long pasted text attachments', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text'),
+		}, {
+			agentView: true,
+			inlineChat: true,
+		});
+	});
+
 	test('describes the VS Code pet context menu', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
@@ -34,11 +48,21 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
 			navigation: helpText.includes('use the up and down arrow keys to choose'),
-			actions: helpText.includes('Go on the Run') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
+			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
+			petThrowing: helpText.includes('flick it in any direction') && helpText.includes('gravity pulls it down') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
+			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
+			petScale: helpText.includes('position and selected size are shared across chats and windows') && helpText.includes('remembered after you restart'),
 		}, {
 			keybinding: true,
 			navigation: true,
 			actions: true,
+			petMovement: true,
+			petHopping: true,
+			petThrowing: true,
+			petRevival: true,
+			petScale: true,
 		});
 	});
 
@@ -60,18 +84,31 @@ suite('Chat Accessibility Help', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
 		} as unknown as IKeybindingService;
-		const describesStickyHeader = (shown: boolean) =>
-			getAccessibilityHelpText('agentView', keybindingService, true, false, shown).includes('pinned to the top of the transcript');
+		const shownHelp = getAccessibilityHelpText('agentView', keybindingService, true, false, true);
+		const hiddenHelp = getAccessibilityHelpText('agentView', keybindingService, true, false, false);
 
 		assert.deepStrictEqual({
-			shown: describesStickyHeader(true),
-			notShown: describesStickyHeader(false),
+			shown: shownHelp.includes('pinned to the top of the transcript'),
+			notShown: hiddenHelp.includes('pinned to the top of the transcript'),
 			byDefault: getAccessibilityHelpText('agentView', keybindingService, true).includes('pinned to the top of the transcript'),
+			navigationButtons: shownHelp.includes('Go to Previous Prompt') || shownHelp.includes('Go to Next Prompt'),
 		}, {
 			shown: true,
 			notShown: false,
 			byDefault: false,
+			navigationButtons: false,
 		});
+	});
+
+	test('does not describe the Agents-only floating input window in panel chat', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.strictEqual(
+			getAccessibilityHelpText('panelChat', keybindingService, true).includes('floating chat input window'),
+			false,
+		);
 	});
 
 	test('only describes spoken agent progress in agent mode', () => {
@@ -85,6 +122,28 @@ suite('Chat Accessibility Help', () => {
 		}, {
 			agentView: true,
 			panelChat: false,
+		});
+	});
+
+	test('documents transcript Find everywhere it is enabled, but not in quick chat', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			chatInputWindow: getAccessibilityHelpText('chatInputWindow', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+		}, {
+			panelChat: true,
+			agentView: true,
+			editsView: true,
+			quickChat: false,
+			inlineChat: false,
+			chatInputWindow: false,
 		});
 	});
 });

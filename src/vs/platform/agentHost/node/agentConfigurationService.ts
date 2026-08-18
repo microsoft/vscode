@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { dirname } from '../../../base/common/path.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -14,20 +14,49 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
+import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
-import { ActionType } from '../common/state/sessionActions.js';
-import { parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { AgentSession } from '../common/agentService.js';
+import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
+import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { AgentSession } from '../common/agent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
 
+/**
+ * @deprecated Use {@link getEffectiveWorkingDirectories} instead, which preserves every root instead of collapsing to the primary.
+ */
+export function getEffectiveWorkingDirectory(stateManager: AgentHostStateManager, session: ProtocolURI): string | undefined {
+	const own = stateManager.getSessionState(session)?.workingDirectories?.[0];
+	if (own !== undefined) {
+		return own;
+	}
+	const parentInfo = parseSubagentSessionUri(session);
+	if (parentInfo) {
+		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
+	}
+	return undefined;
+}
+
+export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): string[] | undefined {
+	const own = stateManager.getSessionState(session)?.workingDirectories;
+	if (own !== undefined) {
+		return own;
+	}
+	const parentInfo = parseSubagentSessionUri(session);
+	if (parentInfo) {
+		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories;
+	}
+	return undefined;
+}
+
 export interface IAgentSessionConfigurationChangeEvent {
 	readonly session: ProtocolURI;
 	readonly config: Record<string, unknown>;
+	readonly origin: ActionOrigin | undefined;
 }
 
 /**
@@ -56,6 +85,7 @@ export interface IAgentConfigurationService {
 
 	/** Fires whenever a session configuration change is processed. */
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent>;
+	readonly onDidChangeWorkingDirectoryPending: Event<string>;
 
 	/**
 	 * Returns the effective value of `key` for `session`, walking the
@@ -71,24 +101,8 @@ export interface IAgentConfigurationService {
 		key: K,
 	): SchemaValue<D[K]> | undefined;
 
-	/**
-	 * Returns the effective working directory for a session, falling back
-	 * to the parent (subagent) session's working directory when the
-	 * session itself does not have one set. The host layer does not carry
-	 * a working directory.
-	 * @deprecated Use {@link getEffectiveWorkingDirectories} instead, which preserves every root instead of collapsing to the primary.
-	 */
-	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined;
-
-	/**
-	 * Returns the full ordered set of effective working directories for a
-	 * session (index 0 = primary), falling back to the parent (subagent)
-	 * session's set when the session itself does not have one set. Mirrors
-	 * {@link getEffectiveWorkingDirectory} but preserves every root instead
-	 * of collapsing to the primary. The host layer does not carry a working
-	 * directory.
-	 */
-	getEffectiveWorkingDirectories(session: ProtocolURI): string[] | undefined;
+	/** Returns all effective session roots, including inherited parent-session roots. */
+	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined;
 
 	/**
 	 * Whether a fresh worktree-isolation session's worktree has not yet been
@@ -159,18 +173,24 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
 	private readonly _onDidSessionConfigChange = this._register(new Emitter<IAgentSessionConfigurationChangeEvent>());
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
+	private readonly _onDidChangeWorkingDirectoryPending = this._register(new Emitter<string>());
+	readonly onDidChangeWorkingDirectoryPending: Event<string> = this._onDidChangeWorkingDirectoryPending.event;
 
 	/**
 	 * Host-owned worktree isolation controller. Injected after construction (via
-	 * {@link setWorktreeIsolation}) because it only becomes available once the
-	 * branch-name generator has been wired, which happens after this service is
-	 * built. Consulted by {@link isWorkingDirectoryPending}, which degrades to
-	 * folder behavior while it is unset (tests, early startup).
+	 * {@link setWorktreeIsolation}) after host startup finishes constructing its
+	 * Copilot API dependencies. Consulted by {@link isWorkingDirectoryPending},
+	 * which degrades to folder behavior while it is unset (tests, early startup).
 	 */
 	private _worktree: WorktreeIsolation | undefined;
+	private readonly _worktreePendingListener = this._register(new MutableDisposable());
 
 	setWorktreeIsolation(worktree: WorktreeIsolation): void {
 		this._worktree = worktree;
+		const onDidChangeWorkingDirectoryPending = worktree.onDidChangeWorkingDirectoryPending;
+		this._worktreePendingListener.value = onDidChangeWorkingDirectoryPending
+			? onDidChangeWorkingDirectoryPending(sessionId => this._onDidChangeWorkingDirectoryPending.fire(sessionId))
+			: undefined;
 	}
 
 	constructor(
@@ -187,10 +207,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const ownSchema = agentHostCustomizationConfigSchema.toProtocol();
 		const sandboxSchema = sandboxConfigSchema.toProtocol();
 		const copilotCliSchema = copilotCliConfigSchema.toProtocol();
+		const agentMergeSchema = agentMergeRootConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
@@ -205,6 +226,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				this._onDidSessionConfigChange.fire({
 					session: envelope.channel,
 					config: envelope.action.config,
+					origin: envelope.origin,
 				});
 			}
 		}));
@@ -231,28 +253,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		return undefined;
 	}
 
-	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined {
-		const own = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
-		if (own !== undefined) {
-			return own;
-		}
-		const parentInfo = parseSubagentSessionUri(session);
-		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
-		}
-		return undefined;
-	}
-
-	getEffectiveWorkingDirectories(session: ProtocolURI): string[] | undefined {
-		const own = this._stateManager.getSessionState(session)?.workingDirectories;
-		if (own !== undefined) {
-			return own;
-		}
-		const parentInfo = parseSubagentSessionUri(session);
-		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories;
-		}
-		return undefined;
+	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined {
+		return getEffectiveWorkingDirectories(this._stateManager, session);
 	}
 
 	isWorkingDirectoryPending(session: ProtocolURI): boolean {
@@ -271,6 +273,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {
+		if (isAhpChatChannel(session)) {
+			throw new Error(`Expected a session URI, received chat channel ${session}`);
+		}
 		return this._stateManager.getSessionState(session)?.config?.values;
 	}
 
@@ -405,6 +410,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				...agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults),
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
 				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
+				...agentMergeRootConfigSchema.validateOrDefault(parsed, {}),
 			};
 		} catch (err) {
 			const code = err && typeof err === 'object' && hasKey(err, { code: true }) ? String(err.code) : undefined;

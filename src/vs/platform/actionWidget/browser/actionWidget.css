@@ -224,6 +224,11 @@
 	white-space: nowrap;
 }
 
+.action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) .detail {
+	color: inherit;
+	opacity: 1;
+}
+
 .action-widget .monaco-list-row.action .action-item-badge {
 	padding: 0px 6px;
 	border-radius: 10px;
@@ -331,6 +336,19 @@
 	.title {
 		line-height: 14px;
 	}
+}
+
+/* Standalone toggles are peer settings, so the label and switch share one row. */
+.action-widget .monaco-list-row.action.has-standalone-toggle .title {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.action-widget .monaco-list-row.action.has-standalone-toggle .action-list-item-inline-toggle {
+	order: 100;
+	width: auto;
+	margin-left: auto;
+	padding: var(--vscode-spacing-sizeNone);
 }
 
 .action-widget .monaco-list-row.action .action-list-item-inline-toggle {

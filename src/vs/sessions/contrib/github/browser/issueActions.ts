@@ -31,7 +31,8 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { IGitHubIssueRef, ISession } from '../../../services/sessions/common/session.js';
 import { computeAggregateIssueIcon, computeIssueIcon, GitHubIssueState, IGitHubIssue } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
-import { createIssueHoverElement, createIssueListElement } from './issueHover.js';
+import { createIssueHoverElement } from './issueHover.js';
+import { createGitHubReferenceListElement } from './githubReferenceList.js';
 
 /** A session issue paired with its live details, once they have been fetched. */
 interface IResolvedSessionIssue {
@@ -101,6 +102,7 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 
 	private readonly _issueRefsObs: IObservable<readonly IGitHubIssueRef[]>;
 	private readonly _issuesObs: IObservable<readonly IResolvedSessionIssue[]>;
+	private _issuePickerVisible = false;
 
 	constructor(
 		action: MenuItemAction,
@@ -153,7 +155,16 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 		}));
 	}
 
+	protected override hasOpenDropdown(): boolean {
+		return this._issuePickerVisible;
+	}
+
 	protected override onDidClickButton(): void {
+		if (this.hasOpenDropdown()) {
+			this._hoverService.hideHover(true);
+			return;
+		}
+
 		const issues = this._issuesObs.get();
 		if (issues.length > 1) {
 			this._showIssuePicker(issues);
@@ -241,8 +252,9 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 			uri: ref.uri,
 		}));
 
-		this._hoverService.showInstantHover({
-			content: createIssueListElement(entries, entry => {
+		this._issuePickerVisible = true;
+		const hover = this._hoverService.showInstantHover({
+			content: createGitHubReferenceListElement(entries, entry => {
 				this._hoverService.hideHover();
 				this._openerService.open(entry.uri, { openExternal: true });
 			}),
@@ -251,7 +263,11 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 			persistence: { sticky: true, hideOnKeyDown: true },
 			appearance: { showPointer: false, skipFadeInAnimation: true },
 			trapFocus: true,
+			onDidHide: () => this._issuePickerVisible = false,
 		}, true);
+		if (!hover) {
+			this._issuePickerVisible = false;
+		}
 	}
 
 	private _getRepositoryUri(ref: IGitHubIssueRef): URI {

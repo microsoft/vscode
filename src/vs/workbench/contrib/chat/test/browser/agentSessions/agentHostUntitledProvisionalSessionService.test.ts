@@ -7,7 +7,8 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
+import { ExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -20,7 +21,7 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationType, type ClientPluginCustomization, type ConfigSchema, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { MessageKind, TurnState, type AgentInfo, type RootState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -28,7 +29,7 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
-import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -151,10 +152,23 @@ function untitledChatUri(id: string): URI {
 	return URI.from({ scheme: 'agent-host-copilot', path: `/untitled-${id}` });
 }
 
+function workspaceFolder(uri: URI, index: number): IWorkspaceFolder {
+	return { uri, index, name: uri.path, toResource: relativePath => URI.joinPath(uri, relativePath) };
+}
+
 // ---- Tests -----------------------------------------------------------------
 
 suite('AgentHostUntitledProvisionalSessionService', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps case-distinct roots separate on case-sensitive remote filesystems', () => {
+		const extUri = new ExtUri(() => false);
+		assert.strictEqual(areCustomizationScopeRootsEqual(
+			[URI.parse('vscode-remote://ssh-remote+linux/work/Repo')],
+			[URI.parse('vscode-remote://ssh-remote+linux/work/repo')],
+			extUri,
+		), false);
+	});
 
 	let agentHost: MockAgentHostService;
 	let importStore: AgentHostImportConversationStore;
@@ -169,6 +183,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let workbenchState: WorkbenchState;
 	let isSessionsWindow: boolean;
 	let customizations: ReturnType<typeof observableValue<readonly ClientPluginCustomization[]>>;
+	let onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
@@ -179,6 +194,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		workspaceName = undefined;
 		workbenchState = WorkbenchState.EMPTY;
 		isSessionsWindow = false;
+		onDidChangeWorkspaceFolders = ds.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(ILogService, new NullLogService());
@@ -186,6 +202,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IConfigurationService, new TestConfigurationService());
 		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
+			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders.event;
 			override getWorkspace(): IWorkspace {
 				return {
 					id: 'workspace',
@@ -206,8 +223,16 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IAgentHostImportConversationStore, importStore);
 		customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', []);
 		insta.stub(IAgentHostActiveClientService, {
-			getCustomizations: () => customizations,
-			getActiveClient: (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [...customizations.get()] }),
+			areScopeRootsEqual: (first, second) => areCustomizationScopeRootsEqual(first, second, new ExtUri(() => false)),
+			acquireScope: (_sessionType: string, _roots: readonly URI[]) => ({
+				customizations,
+				customAgents: constObservable([]),
+				tools: constObservable([]),
+				isResolved: constObservable(true),
+				whenResolved: () => Promise.resolve(),
+				activeClient: clientId => derived(reader => ({ clientId, tools: [], customizations: [...customizations.read(reader)] })),
+				dispose: () => { },
+			}),
 		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
 		cleanup = ds.add(new DisposableStore());
@@ -241,14 +266,12 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			id: 'plugin:first',
 			uri: 'file:///plugins/first',
 			name: 'First',
-			enabled: true,
 		};
 		const second: ClientPluginCustomization = {
 			type: CustomizationType.Plugin,
 			id: 'plugin:second',
 			uri: 'file:///plugins/second',
 			name: 'Second',
-			enabled: true,
 		};
 		customizations.set([first], undefined);
 
@@ -281,6 +304,125 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 				workspaceFile: workspaceConfiguration.toString(),
 			},
 		});
+	});
+
+	test('workspace folder changes recreate a multi-root provisional with the latest secondary set', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		const added = URI.file('/workspace/three');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('multi-root-folder-changes');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		workspaceFolders = [secondary, added];
+		onDidChangeWorkspaceFolders.fire({
+			added: [workspaceFolder(added, 1)],
+			removed: [workspaceFolder(primary, 0)],
+			changed: [],
+		});
+
+		await provisional.waitForPending(ui);
+		workspaceFolders = [added, secondary];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [],
+			changed: [workspaceFolder(added, 0), workspaceFolder(secondary, 1)],
+		});
+		await provisional.waitForPending(ui);
+		const afterReorderCount = agentHost.createCalls.length;
+		workspaceFolders = [added];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [workspaceFolder(secondary, 1)],
+			changed: [],
+		});
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual({
+			workingDirectories: agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			afterReorderCount,
+		}, {
+			workingDirectories: [
+				[primary.toString(), secondary.toString()],
+				[primary.toString(), secondary.toString(), added.toString()],
+				[primary.toString(), added.toString()],
+			],
+			afterReorderCount: 2,
+		});
+	});
+
+	test('a single-folder draft adopts secondary roots when the workspace becomes multi-root', async () => {
+		const primary = URI.file('/workspace/one');
+		const added = URI.file('/workspace/two');
+		workspaceFolders = [primary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('single-to-multi-root');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		workspaceFolders = [primary, added];
+		onDidChangeWorkspaceFolders.fire({
+			added: [workspaceFolder(added, 1)],
+			removed: [],
+			changed: [],
+		});
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString()],
+				[primary.toString(), added.toString()],
+			],
+		);
+	});
+
+	test('tryRebind recomputes the latest multi-root folder set without relying on a workspace event', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		const added = URI.file('/workspace/three');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('multi-root-rebind');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-multi-root-rebind' });
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		workspaceFolders = [secondary, added];
+		await provisional.tryRebind(ui, real, 'copilot', primary);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.at(-1)?.workingDirectories?.map(directory => directory.toString()),
+			[primary.toString(), secondary.toString(), added.toString()],
+		);
+	});
+
+	test('tryRebind promotes a single-folder draft when a second folder appears without a workspace event', async () => {
+		const primary = URI.file('/workspace/one');
+		const added = URI.file('/workspace/two');
+		workspaceFolders = [primary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('single-to-multi-root-rebind');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-single-to-multi-root-rebind' });
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		workspaceFolders = [primary, added];
+		await provisional.tryRebind(ui, real, 'copilot', primary);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString()],
+				[primary.toString(), added.toString()],
+			],
+		);
 	});
 
 	test('getOrCreate omits multi-root metadata without a workspace configuration', async () => {

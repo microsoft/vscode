@@ -8,9 +8,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
+import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
+import { URI } from '../../../../base/common/uri.js';
+import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
 function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
@@ -187,6 +190,25 @@ suite('Agent host _meta readers', () => {
 		});
 	});
 
+	suite('agent model source meta', () => {
+		function model(meta: Record<string, unknown> | undefined): SessionModelInfo {
+			return { id: 'm', provider: 'p', name: 'n', _meta: meta };
+		}
+
+		test('round-trips a source id through _meta', () => {
+			const meta = createAgentModelSourceMeta('chatgptSubscription');
+			assert.deepStrictEqual(meta, { modelSourceId: 'chatgptSubscription' });
+			assert.strictEqual(readAgentModelSourceId(model(meta)), 'chatgptSubscription');
+		});
+
+		test('omits unknown sources and ignores invalid values', () => {
+			assert.strictEqual(createAgentModelSourceMeta(undefined), undefined);
+			assert.strictEqual(readAgentModelSourceId(model(undefined)), undefined);
+			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: 42 })), undefined);
+			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: '' })), undefined);
+		});
+	});
+
 	suite('usage info turn token totals', () => {
 		/** Wraps a `_meta` bag in a minimal {@link UsageInfo}. */
 		function usage(meta: Record<string, unknown> | undefined): UsageInfo {
@@ -226,6 +248,28 @@ suite('Agent host _meta readers', () => {
 			// consumption on their own would make the restore path skip merging the
 			// richer persisted usage over a token-less stub.
 			assert.strictEqual(hasReportedUsage(usage({ turnTokenTotals: [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }] })), false);
+		});
+	});
+
+	suite('client plugin MCP default cwd meta', () => {
+		function plugin(meta: Record<string, unknown> | undefined): ClientPluginCustomization {
+			return { type: CustomizationType.Plugin, id: 'p', uri: 'file:///p', name: 'p', _meta: meta };
+		}
+
+		test('round-trips URI and primary-directory defaults', () => {
+			const primaryCwd = URI.file('/workspace');
+			const additionalCwd = URI.parse('vscode-remote://ssh-remote+host/workspace');
+			const meta = toClientPluginMcpDefaultCwdsMeta({ primary: null, additional: additionalCwd });
+			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(meta)), true);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'primary', primaryCwd), primaryCwd);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'additional', primaryCwd)?.toString(), additionalCwd.toString());
+		});
+
+		test('ignores absent and malformed metadata', () => {
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(undefined), 'server', URI.file('/workspace')), undefined);
+			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(undefined)), false);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 42 } }), 'server', URI.file('/workspace')), undefined);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 'relative/path' } }), 'server', URI.file('/workspace')), undefined);
 		});
 	});
 });

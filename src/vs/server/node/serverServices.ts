@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { hostname, release } from 'os';
 import { Emitter, Event } from '../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import * as path from '../../base/common/path.js';
 import { IURITransformer } from '../../base/common/uriIpc.js';
+import { generateUuid } from '../../base/common/uuid.js';
 import { getMachineId, getSqmMachineId, getDevDeviceId } from '../../base/node/id.js';
 import { Promises } from '../../base/node/pfs.js';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer, StaticRouter } from '../../base/parts/ipc/common/ipc.js';
 import { ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
+import { createRandomIPCHandle } from '../../base/parts/ipc/node/ipc.net.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../platform/configuration/common/configurationService.js';
 import { ExtensionHostDebugBroadcastChannel } from '../../platform/debug/common/extensionHostDebugIpc.js';
@@ -238,23 +241,27 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const serverLifetimeService = instantiationService.createInstance(ServerLifetimeService, {
 		enableAutoShutdown: !!args['enable-remote-auto-shutdown'],
 		shutdownWithoutDelay: !!args['remote-auto-shutdown-without-delay'],
-	});
+	}, process.exit);
 	services.set(IServerLifetimeService, serverLifetimeService);
 
 	// ---- Agent host wiring -------------------------------------------------
 	//
-	// Two independent concerns:
+	// Three independent configurations:
 	//
 	// 1. SPAWN: when `--agent-host-port` / `--agent-host-path` is set, this
-	//    server spawns and owns an agent host child process.
-	// 2. BRIDGE: register the `agentHostProxy` IPC channel so renderers can
+	//    server spawns and owns an agent host child process, then bridges
+	//    renderers to its configured endpoint.
+	// 2. BRIDGE: when `--agent-host-bridge-*` is set without spawn flags,
+	//    register the `agentHostProxy` IPC channel so renderers can
 	//    reach the agent host over the remote-agent connection. The upstream
-	//    is either the agent host we just spawned, or one specified via
-	//    `--agent-host-bridge-port` / `--agent-host-bridge-path` (e.g. when
-	//    a CLI sidecar manages the agent host lifecycle).
+	//    is one specified via `--agent-host-bridge-port` /
+	//    `--agent-host-bridge-path` (e.g. when a CLI sidecar manages the
+	//    agent host lifecycle).
+	// 3. DEFAULT: without either set of flags, lazily start a local agent host
+	//    on a fresh socket when the first renderer connects.
 	//
-	// The two concerns are deliberately separable so that scenarios with an
-	// externally-managed agent host don't accidentally fork a duplicate.
+	// The explicit configurations are deliberately separable so that scenarios
+	// with an externally-managed agent host don't accidentally fork a duplicate.
 
 	const spawnPort = args['agent-host-port'];
 	const spawnPath = args['agent-host-path'];
@@ -267,44 +274,97 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			host: args.host || 'localhost',
 			connectionToken: connectionToken.type === ServerConnectionTokenType.Mandatory ? connectionToken.value : undefined,
 		});
-		disposables.add(instantiationService.createInstance(ServerAgentHostManager, agentHostStarter));
-	}
+		disposables.add(instantiationService.createInstance(ServerAgentHostManager, agentHostStarter, {}));
 
-	// The bridge upstream defaults to the agent host this server just
-	// spawned, but ONLY when that endpoint is dialable at configuration
-	// time — i.e. an explicit non-zero port or a socket path. When
-	// `--agent-host-port=0` is used the OS picks a port at runtime that
-	// this server has no way of learning, so we refuse to register a
-	// bridge against a placeholder `0`; in that case the caller (the CLI
-	// `code tunnel` flow) is expected to capture the bound port from the
-	// AH's readiness line and pass it back as `--agent-host-bridge-port`
-	// on the renderer-serving servers. Explicit `--agent-host-bridge-*`
-	// always wins over the spawn fallback.
-	const spawnPortNumber = spawnPort ? parseInt(spawnPort, 10) : NaN;
-	const hasUsableSpawnPort = Number.isFinite(spawnPortNumber) && spawnPortNumber > 0;
-	const bridgePort = args['agent-host-bridge-port'] ?? (hasUsableSpawnPort ? spawnPort : undefined);
-	const bridgePath = args['agent-host-bridge-path'] ?? spawnPath;
-	const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
-	const bridgeToken = args['agent-host-bridge-connection-token']
-		?? ((bridgePort || bridgePath) && spawnAgentHost && connectionToken.type === ServerConnectionTokenType.Mandatory
-			? connectionToken.value
-			: undefined);
-	if (bridgePort || bridgePath) {
-		const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
-			socketServer,
-			{
-				host: bridgeHost,
-				port: bridgePort,
-				socketPath: bridgePath,
-				connectionToken: bridgeToken,
-			},
-			logService,
-		));
-		socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
-		logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${bridgePath ?? `${bridgeHost}:${bridgePort}`})`);
+		// The bridge upstream defaults to the agent host this server just
+		// spawned, but ONLY when that endpoint is dialable at configuration
+		// time — i.e. an explicit non-zero port or a socket path. When
+		// `--agent-host-port=0` is used the OS picks a port at runtime that
+		// this server has no way of learning, so we refuse to register a
+		// bridge against a placeholder `0`; in that case the caller (the CLI
+		// `code tunnel` flow) is expected to capture the bound port from the
+		// AH's readiness line and pass it back as `--agent-host-bridge-port`
+		// on the renderer-serving servers. Explicit `--agent-host-bridge-*`
+		// always wins over the spawn fallback.
+		const spawnPortNumber = spawnPort ? parseInt(spawnPort, 10) : NaN;
+		const hasUsableSpawnPort = Number.isFinite(spawnPortNumber) && spawnPortNumber > 0;
+		const bridgePort = args['agent-host-bridge-port'] ?? (hasUsableSpawnPort ? spawnPort : undefined);
+		const bridgePath = args['agent-host-bridge-path'] ?? spawnPath;
+		const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
+		const bridgeToken = args['agent-host-bridge-connection-token']
+			?? ((bridgePort || bridgePath) && connectionToken.type === ServerConnectionTokenType.Mandatory
+				? connectionToken.value
+				: undefined);
+		if (bridgePort || bridgePath) {
+			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
+				socketServer,
+				{
+					host: bridgeHost,
+					port: bridgePort,
+					socketPath: bridgePath,
+					connectionToken: bridgeToken,
+				},
+				logService,
+			));
+			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
+			logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${bridgePath ?? `${bridgeHost}:${bridgePort}`})`);
+		} else {
+			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
+			logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no --agent-host-bridge-port / --agent-host-bridge-path set.`);
+		}
+	} else if (args['agent-host-bridge-port'] || args['agent-host-bridge-path'] || args['agent-host-bridge-host'] || args['agent-host-bridge-connection-token']) {
+		const bridgePort = args['agent-host-bridge-port'];
+		const bridgePath = args['agent-host-bridge-path'];
+		const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
+		const bridgeToken = args['agent-host-bridge-connection-token'];
+		if (bridgePort || bridgePath) {
+			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
+				socketServer,
+				{
+					host: bridgeHost,
+					port: bridgePort,
+					socketPath: bridgePath,
+					connectionToken: bridgeToken,
+				},
+				logService,
+			));
+			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
+			logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${bridgePath ?? `${bridgeHost}:${bridgePort}`})`);
+		} else {
+			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
+			logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no --agent-host-bridge-port / --agent-host-bridge-path set.`);
+		}
 	} else {
-		socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
-		logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no --agent-host-bridge-port / --agent-host-bridge-path set.`);
+		try {
+			const socketPath = createRandomIPCHandle();
+			const connectionToken = generateUuid();
+			disposables.add(toDisposable(() => {
+				if (process.platform !== 'win32') {
+					void fs.promises.unlink(socketPath).catch(() => undefined);
+				}
+			}));
+
+			const agentHostStarter = instantiationService.createInstance(NodeAgentHostStarter);
+			agentHostStarter.setWebSocketConfig({ socketPath, connectionToken });
+			const agentHostManager = disposables.add(instantiationService.createInstance(
+				ServerAgentHostManager,
+				agentHostStarter,
+				{ startMode: 'lazy' },
+			));
+			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
+				socketServer,
+				async () => {
+					await agentHostManager.ensureStarted();
+					return { socketPath, connectionToken };
+				},
+				logService,
+			));
+			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
+			logService.info(`[AgentHostChannel] Registered lazy IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${socketPath})`);
+		} catch (error) {
+			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
+			logService.error(`[AgentHostChannel] Failed to register IPC channel '${AgentHostIpcChannels.RemoteProxy}'`, error);
+		}
 	}
 
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
