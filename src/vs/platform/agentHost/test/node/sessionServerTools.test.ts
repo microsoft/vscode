@@ -86,6 +86,7 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ListSessions), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetCurrentSession), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetSessionContext), false);
+		assert.strictEqual(sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.CreateSession)?.inputSchema?.properties?.parentSession, undefined);
 		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 5).map(def => ({ name: def.name, required: def.inputSchema?.required })), [
 			{ name: SessionServerToolName.RenameChat, required: ['title'] },
 		]);
@@ -374,20 +375,19 @@ suite('SessionServerTools', () => {
 
 	test('create_session records explicit orchestration options', async () => {
 		const orchestrations = new Map<string, ISessionOrchestration>();
-		const sessions = [sessionMeta('caller', SessionStatus.InProgress, workspace), sessionMeta('parent', SessionStatus.Idle, workspace)];
+		const sessions = [sessionMeta('caller', SessionStatus.InProgress, workspace)];
 		const accessor = createAccessor({ orchestrations, listSessions: async () => sessions });
 
 		await applyCreateSessionTool(accessor, {
 			workspace: workspace.toString(),
 			prompt: 'do it',
-			parentSession: 'copilot:/parent',
 			coordinateWithCreator: false,
 			notifyOnIdle: 'always',
 			label: 'research',
 		}, URI.parse('copilot:/caller'));
 
 		assert.deepStrictEqual(orchestrations.get('copilot:/new'), {
-			parentSession: 'copilot:/parent',
+			parentSession: 'copilot:/caller',
 			creatorSession: 'copilot:/caller',
 			coordinateWithCreator: false,
 			notifyOnIdle: 'always',
@@ -861,10 +861,6 @@ suite('SessionServerTools', () => {
 		);
 		await assert.rejects(
 			() => applyCreateChatTool(privateAccessor, { session: 'copilot:/s2', prompt: 'blocked' }, URI.parse(buildDefaultChatUri('copilot:/child'))),
-			/not allowed to coordinate with its creator/,
-		);
-		await assert.rejects(
-			() => applyCreateSessionTool(privateAccessor, { workspace: workspace.toString(), prompt: 'blocked', parentSession: 'copilot:/s2' }, URI.parse(buildDefaultChatUri('copilot:/child'))),
 			/not allowed to coordinate with its creator/,
 		);
 		// Unknown session and missing session/message are rejected.

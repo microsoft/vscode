@@ -69,7 +69,6 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model.' },
 		coordinateWithCreator: { type: 'boolean', description: 'Whether the child can discover and message its creator. Defaults to true.' },
 		notifyOnIdle: { type: 'string', enum: ['once', 'always'], description: 'Wake the creator when the child needs input, becomes idle, or errors, either once or after every work cycle.' },
-		parentSession: { type: 'string', description: 'Optional parent session URI or open-session link. Defaults to the invoking session.' },
 		label: { type: 'string', description: 'Optional label used to group and filter related child sessions.' },
 	},
 	required: ['workspace', 'prompt'],
@@ -207,7 +206,6 @@ interface ICreateSessionArgs {
 	readonly model?: unknown;
 	readonly coordinateWithCreator?: unknown;
 	readonly notifyOnIdle?: unknown;
-	readonly parentSession?: unknown;
 	readonly label?: unknown;
 }
 
@@ -217,7 +215,6 @@ export interface IResolvedCreateSessionArgs {
 	readonly model?: IAgentModelInfo;
 	readonly coordinateWithCreator: boolean;
 	readonly notifyOnIdle?: SessionIdleNotification;
-	readonly parentSession?: URI;
 	readonly label?: string;
 }
 
@@ -423,21 +420,12 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 		}
 		notifyOnIdle = args.notifyOnIdle;
 	}
-	let parentSession: URI | undefined;
-	const parentSessionInput = getOptionalString(args.parentSession, 'parentSession', SessionServerToolName.CreateSession);
-	if (parentSessionInput !== undefined) {
-		parentSession = resolveKnownSession(parentSessionInput, sessions);
-		if (!parentSession) {
-			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: parentSession must match a known session.`);
-		}
-	}
 	return {
 		workspace: resolveWorkspace(workspace, sessions),
 		prompt,
 		model: resolveModel(modelName, models),
 		coordinateWithCreator,
 		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
-		...(parentSession !== undefined ? { parentSession } : {}),
 		...(label !== undefined ? { label } : {}),
 	};
 }
@@ -744,10 +732,6 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	}
 	const sessions = await accessor.listSessions();
 	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels());
-	const parentSession = args.parentSession ?? currentSession;
-	if (currentSession && args.parentSession) {
-		assertCanCoordinateWithTarget(sessions, currentSession, args.parentSession, SessionServerToolName.CreateSession);
-	}
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const provider = args.model?.provider ?? defaults?.provider;
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
@@ -759,10 +743,10 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	};
 	const session = await accessor.createSession(config);
 	accessor.setSessionSpawnDepth(session, parentDepth + 1);
-	if (parentSession) {
+	if (currentSession) {
 		await accessor.setSessionOrchestration(session, {
-			parentSession: parentSession.toString(),
-			creatorSession: (currentSession ?? parentSession).toString(),
+			parentSession: currentSession.toString(),
+			creatorSession: currentSession.toString(),
 			coordinateWithCreator: args.coordinateWithCreator,
 			...(args.notifyOnIdle !== undefined ? { notifyOnIdle: args.notifyOnIdle } : {}),
 			...(args.label !== undefined ? { label: args.label } : {}),
