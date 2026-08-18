@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellation, raceCancellationError, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
@@ -65,31 +65,45 @@ const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototy
 const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
 
 function mergeSessionChangeEvents(events: readonly ISessionChangeEvent[]): ISessionChangeEvent {
-	const added = new Map<string, ISession>();
-	const removed = new Map<string, ISession>();
-	const changed = new Map<string, ISession>();
+	const changes = new Map<string, { added?: ISession; removed?: ISession; changed?: ISession }>();
 	for (const event of events) {
 		for (const session of event.added) {
-			added.set(session.sessionId, session);
+			changes.set(session.sessionId, { removed: changes.get(session.sessionId)?.removed, added: session });
 		}
 		for (const session of event.removed) {
-			removed.set(session.sessionId, session);
+			changes.set(session.sessionId, { removed: session });
 		}
 		for (const session of event.changed) {
-			changed.set(session.sessionId, session);
+			const change = changes.get(session.sessionId);
+			if (change?.removed && !change.added) {
+				continue;
+			}
+			if (change?.added) {
+				change.added = session;
+			} else {
+				changes.set(session.sessionId, { changed: session });
+			}
 		}
 	}
-	for (const sessionId of removed.keys()) {
-		added.delete(sessionId);
-		changed.delete(sessionId);
-	}
-	for (const sessionId of added.keys()) {
-		changed.delete(sessionId);
+
+	const added: ISession[] = [];
+	const removed: ISession[] = [];
+	const changed: ISession[] = [];
+	for (const change of changes.values()) {
+		if (change.added) {
+			added.push(change.added);
+		}
+		if (change.removed) {
+			removed.push(change.removed);
+		}
+		if (change.changed) {
+			changed.push(change.changed);
+		}
 	}
 	return {
-		added: [...added.values()],
-		removed: [...removed.values()],
-		changed: [...changed.values()],
+		added,
+		removed,
+		changed,
 	};
 }
 
@@ -2335,14 +2349,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
 	private readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
-	readonly onDidChangeSessions: Event<ISessionChangeEvent> = Event.any(
-		this._onDidChangeSessions.event,
-		Event.map(
-			Event.accumulate(this._onDidChangeSessionsFromNotifications.event, SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS, false),
-			mergeSessionChangeEvents,
-			this._store,
-		),
-	);
+	private _hasSessionChangeConsumers = false;
+	private readonly _onDidChangeSessionsForConsumers = this._register(new Emitter<ISessionChangeEvent>({
+		onWillAddFirstListener: () => this._hasSessionChangeConsumers = true,
+		onDidRemoveLastListener: () => {
+			this._hasSessionChangeConsumers = false;
+			this._pendingSessionChangeNotifications.length = 0;
+			this._sessionChangeNotificationScheduler.cancel();
+		},
+	}));
+	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessionsForConsumers.event;
+	private readonly _pendingSessionChangeNotifications: ISessionChangeEvent[] = [];
+	private readonly _sessionChangeNotificationScheduler = this._register(new RunOnceScheduler(() => this._publishSessionChanges(), SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS));
 
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
@@ -2561,6 +2579,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
+		this._register(this._onDidChangeSessions.event(event => {
+			if (this._hasSessionChangeConsumers) {
+				this._publishSessionChanges(event);
+			}
+		}));
+		this._register(this._onDidChangeSessionsFromNotifications.event(event => {
+			if (!this._hasSessionChangeConsumers) {
+				return;
+			}
+			this._pendingSessionChangeNotifications.push(event);
+			this._sessionChangeNotificationScheduler.schedule();
+		}));
 		this._downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
 		this._register(toDisposable(() => {
 			for (const cached of this._sessionCache.values()) {
@@ -2603,6 +2633,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._cacheDirty = false;
 			}
 		}));
+	}
+
+	private _publishSessionChanges(immediate?: ISessionChangeEvent): void {
+		this._sessionChangeNotificationScheduler.cancel();
+		if (this._pendingSessionChangeNotifications.length === 0) {
+			if (immediate) {
+				this._onDidChangeSessionsForConsumers.fire(immediate);
+			}
+			return;
+		}
+
+		const events = this._pendingSessionChangeNotifications.splice(0);
+		if (immediate) {
+			events.push(immediate);
+		}
+		this._onDidChangeSessionsForConsumers.fire(mergeSessionChangeEvents(events));
 	}
 
 	// -- Subclass hooks -------------------------------------------------------

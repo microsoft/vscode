@@ -686,6 +686,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		let addedSessions = 0;
 		disposables.add(provider.onDidChangeSessions(event => addedSessions += event.added.length));
+		await timeout(0);
 
 		agentHost.replaceRootStateOnStart([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
@@ -708,6 +709,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		let addedSessions = 0;
 		disposables.add(provider.onDidChangeSessions(event => addedSessions += event.added.length));
+		await timeout(0);
 
 		agentHost.fireAgentHostStart();
 		fireSessionAdded(agentHost, 'after-start');
@@ -905,6 +907,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 		fireSessionAdded(agentHost, 'remove-1');
 		fireSessionAdded(agentHost, 'remove-2');
+		fireSessionAdded(agentHost, 'replace');
+		const replacedSession = provider.getSessions().find(session => AgentSession.id(session.resource) === 'replace');
 
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
@@ -915,6 +919,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionRemoved(agentHost, 'remove-1');
 		fireSessionRemoved(agentHost, 'remove-2');
 		fireSessionRemoved(agentHost, 'transient');
+		fireSessionRemoved(agentHost, 'replace');
+		fireSessionAdded(agentHost, 'replace');
 
 		const eventCountBeforeDebounce = changes.length;
 		const cachedBeforeDebounce = provider.getSessions().map(session => AgentSession.id(session.resource)).sort();
@@ -923,19 +929,57 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			eventCountBeforeDebounce,
 			events: changes.map(change => ({
-				added: change.added.map(session => AgentSession.id(session.resource)),
-				removed: change.removed.map(session => AgentSession.id(session.resource)),
-				changed: change.changed.map(session => AgentSession.id(session.resource)),
+				added: change.added.map(session => AgentSession.id(session.resource)).sort(),
+				removed: change.removed.map(session => AgentSession.id(session.resource)).sort(),
+				changed: change.changed.map(session => AgentSession.id(session.resource)).sort(),
 			})),
+			replacement: {
+				addedIsOriginal: changes[0]?.added.find(session => AgentSession.id(session.resource) === 'replace') === replacedSession,
+				removedIsOriginal: changes[0]?.removed.find(session => AgentSession.id(session.resource) === 'replace') === replacedSession,
+			},
 			cachedBeforeDebounce,
 		}, {
 			eventCountBeforeDebounce: 0,
 			events: [{
-				added: ['add-1', 'add-2'],
-				removed: ['remove-1', 'remove-2', 'transient'],
+				added: ['add-1', 'add-2', 'replace'],
+				removed: ['remove-1', 'remove-2', 'replace', 'transient'],
 				changed: [],
 			}],
-			cachedBeforeDebounce: ['add-1', 'add-2'],
+			replacement: {
+				addedIsOriginal: false,
+				removedIsOriginal: true,
+			},
+			cachedBeforeDebounce: ['add-1', 'add-2', 'replace'],
+		});
+	}));
+
+	test('immediate session changes flush pending notification batches', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		fireSessionAdded(agentHost, 'deleted-before-debounce');
+		const session = provider.getSessions().find(session => AgentSession.id(session.resource) === 'deleted-before-debounce');
+		assert.ok(session);
+		await provider.deleteSession(session.sessionId);
+		const eventsAfterDelete = changes.length;
+		await timeout(100);
+
+		assert.deepStrictEqual({
+			eventsAfterDelete,
+			events: changes.map(change => ({
+				added: change.added.map(session => AgentSession.id(session.resource)),
+				removed: change.removed.map(session => AgentSession.id(session.resource)),
+				changed: change.changed.map(session => AgentSession.id(session.resource)),
+			})),
+		}, {
+			eventsAfterDelete: 1,
+			events: [{
+				added: [],
+				removed: ['deleted-before-debounce'],
+				changed: [],
+			}],
 		});
 	}));
 
