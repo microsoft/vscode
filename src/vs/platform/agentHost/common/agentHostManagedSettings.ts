@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
-import { buildManagedFamilyRule, ManagedRuleFamily } from './agentHostManagedRules.js';
+import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
+import { buildManagedFamilyRule, buildManagedRule, ManagedRuleFamily } from './agentHostManagedRules.js';
 import { getGlobalConfigurationValue, inspectValue } from './agentHostConfigurationSync.js';
 import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from './agentHostSchema.js';
 
@@ -40,6 +41,8 @@ type ManagedPermissionsSettingSources = 'policyOnly' | 'anyGlobal';
 
 interface IManagedPermissionsSettingMapping {
 	readonly settingId: string;
+	/** Further settings whose changes must also re-resolve this mapping. */
+	readonly additionalSettingIds?: readonly string[];
 	contribute(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions | undefined;
 }
 
@@ -64,6 +67,60 @@ function managedPermissionsSetting<T>(
 	};
 }
 
+/**
+ * A mapping whose restriction is decided by several settings together — for
+ * example a list that only takes effect while a separate switch is on. The
+ * additional setting ids are registered so a change to any of them re-resolves
+ * the contribution.
+ */
+function managedPermissionsCompositeSetting(
+	settingId: string,
+	additionalSettingIds: readonly string[],
+	contribute: (configurationService: IConfigurationService) => IAgentHostManagedSettingsPermissions | undefined,
+): IManagedPermissionsSettingMapping {
+	return { settingId, additionalSettingIds, contribute };
+}
+
+/**
+ * Translates VS Code's agent network filter into managed domain rules.
+ *
+ * Only the blocking half is expressible. VS Code denies any domain outside a
+ * populated allow list, but a managed `allow` entry does not block what it omits
+ * — unmatched requests fall through to a prompt the user can approve — so
+ * mapping the allow list would quietly downgrade a block into a prompt. The deny
+ * list and the "filter on with nothing configured" case both mean block, and
+ * both survive the translation intact.
+ */
+function contributeNetworkDomainRules(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions | undefined {
+	if (getGlobalConfigurationValue<boolean>(configurationService, AgentNetworkDomainSettingId.NetworkFilter) !== true) {
+		return undefined;
+	}
+	const allowed = getGlobalConfigurationValue<string[]>(configurationService, AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
+	const denied = getGlobalConfigurationValue<string[]>(configurationService, AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
+
+	// VS Code's restrictive default: with the filter on and neither list
+	// configured, every domain is blocked.
+	if (allowed.length === 0 && denied.length === 0) {
+		return { deny: [buildManagedFamilyRule(ManagedRuleFamily.Domain)] };
+	}
+
+	const deny: string[] = [];
+	for (const pattern of denied) {
+		if (typeof pattern !== 'string') {
+			continue;
+		}
+		// VS Code accepts a bare `*` as "every domain"; the SDK expresses that as
+		// the family rule rather than as an argument.
+		const rule = pattern.trim() === '*'
+			? buildManagedFamilyRule(ManagedRuleFamily.Domain)
+			: buildManagedRule(ManagedRuleFamily.Domain, pattern);
+		if (rule) {
+			deny.push(rule);
+		}
+	}
+	return deny.length > 0 ? { deny } : undefined;
+}
+
 /** Compatibility mappings for legacy settings only; new controls belong directly in the SDK. */
 const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] = [
 	// Disabling the SDK's bypass mode takes "Allow All" away from the user for
@@ -72,11 +129,18 @@ const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] =
 	// Matches VS Code, where a user or application value already suppresses
 	// terminal auto-approval outright.
 	managedPermissionsSetting<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, 'anyGlobal', value => value === false ? { ask: [buildManagedFamilyRule(ManagedRuleFamily.Shell)] } : undefined),
+	// The filter and its lists are evaluated together, and VS Code honors a user
+	// or application value for all three.
+	managedPermissionsCompositeSetting(
+		AgentNetworkDomainSettingId.NetworkFilter,
+		[AgentNetworkDomainSettingId.AllowedNetworkDomains, AgentNetworkDomainSettingId.DeniedNetworkDomains],
+		contributeNetworkDomainRules,
+	),
 ];
 
 export const managedPermissionsConfigurationIds = [
 	AgentHostMapLegacySettingsToManagedSettingsSettingId,
-	...managedPermissionsSettings.map(mapping => mapping.settingId),
+	...managedPermissionsSettings.flatMap(mapping => [mapping.settingId, ...mapping.additionalSettingIds ?? []]),
 ];
 
 export function isManagedSettingsPermissions(value: unknown): value is IAgentHostManagedSettingsPermissions {

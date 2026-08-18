@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId, resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
+import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
 import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../common/agentHostSchema.js';
 
 function createConfigurationService(values: Record<string, IConfigurationValue<unknown>>): IConfigurationService {
@@ -85,5 +86,63 @@ suite('AgentHostManagedSettings', () => {
 
 		const permissions = resolveManagedSettingsPermissions(configurationService);
 		assert.deepStrictEqual(permissions.ask, [...new Set(permissions.ask)]);
+	});
+
+	test('denies configured domains while the network filter is on', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [], policyValue: ['evil.com', '*.tracker.example'] },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [], policyValue: ['github.com'] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(evil.com)', 'Domain(*.tracker.example)'],
+		});
+	});
+
+	test('denies every domain when the filter is on and neither list is configured', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), { deny: ['Domain'] });
+	});
+
+	test('contributes nothing from domain lists while the network filter is off', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [], policyValue: ['evil.com'] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('skips denied domain patterns the SDK cannot express', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [], policyValue: ['$(evil)', 'ok.example'] },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(ok.example)'],
+		});
+	});
+
+	test('maps a bare wildcard denial onto the all-domains family rule', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [], policyValue: ['*'] },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), { deny: ['Domain'] });
 	});
 });
