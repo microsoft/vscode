@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId, resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
-import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from '../../common/agentHostSchema.js';
+import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../common/agentHostSchema.js';
 
 function createConfigurationService(values: Record<string, IConfigurationValue<unknown>>): IConfigurationService {
 	return {
@@ -74,5 +74,16 @@ suite('AgentHostManagedSettings', () => {
 		});
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('deduplicates rules contributed by more than one setting', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, userValue: false },
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, userValue: { npm: false } },
+		});
+
+		const permissions = resolveManagedSettingsPermissions(configurationService);
+		assert.deepStrictEqual(permissions.ask, [...new Set(permissions.ask)]);
 	});
 });
