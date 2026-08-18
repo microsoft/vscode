@@ -1989,8 +1989,12 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _reconcileExternalSessions(previousMode?: AgentHostExternalSessionsMode): Promise<void> {
 		const startedAt = Date.now();
 		const previouslyBroadcast = new Set(this._broadcastExternalSessions);
+		const previouslyExposed = new Set(previouslyBroadcast);
+		for (const session of this._stateManager.getExposedExternalSessionKeys()) {
+			previouslyExposed.add(session);
+		}
 		const listed = previousMode !== undefined
-			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.All), previousMode, previouslyBroadcast)
+			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.All), previousMode, previouslyExposed)
 			: await this.listSessions();
 		const visible = new Set<string>();
 		let published = 0;
@@ -2002,18 +2006,18 @@ export class AgentService extends Disposable implements IAgentService {
 			visible.add(key);
 			if (!previouslyBroadcast.has(key)) {
 				published++;
-				if (this._stateManager.getSessionState(key)) {
-					this._stateManager.setSessionSummaryPublished(key, true);
-				} else {
-					const provider = AgentSession.provider(metadata.session);
-					if (provider) {
-						await this._announceSurfacedSession(metadata, provider);
-					}
+			}
+			if (this._stateManager.getSessionState(key)) {
+				this._stateManager.setSessionSummaryPublished(key, true);
+			} else {
+				const provider = AgentSession.provider(metadata.session);
+				if (provider) {
+					await this._announceSurfacedSession(metadata, provider);
 				}
 			}
 		}
 		let retracted = 0;
-		for (const key of previouslyBroadcast) {
+		for (const key of previouslyExposed) {
 			if (!visible.has(key)) {
 				retracted++;
 				if (this._stateManager.getSessionState(key)) {
@@ -2042,12 +2046,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Derives both the previous and current mode's visible sets from one catalog
 	 * pass, since {@link AgentHostExternalSessionsMode.All} is a superset of every
 	 * mode and the mode is just a parameter to {@link _shouldIncludeSession}.
-	 * Adds what `previousMode` had published into `previouslyBroadcast`.
+	 * Adds what `previousMode` had exposed into `previouslyExposed`.
 	 */
 	private _resolveModeChangeVisibility(
 		superset: readonly IAgentSessionMetadata[],
 		previousMode: AgentHostExternalSessionsMode,
-		previouslyBroadcast: Set<string>,
+		previouslyExposed: Set<string>,
 	): IAgentSessionMetadata[] {
 		const now = this._now();
 		const recentKeysFor = (mode: AgentHostExternalSessionsMode) => mode === AgentHostExternalSessionsMode.Recent
@@ -2057,7 +2061,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const previousRecentKeys = recentKeysFor(previousMode);
 		for (const session of superset) {
 			if (readSessionExternal(session._meta) && this._shouldIncludeSession(session, previousMode, now, previousRecentKeys)) {
-				previouslyBroadcast.add(session.session.toString());
+				previouslyExposed.add(session.session.toString());
 			}
 		}
 

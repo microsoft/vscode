@@ -331,7 +331,7 @@ suite('AgentHostStateManager', () => {
 			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
-		manager.markSessionSummariesListed([manager.getSessionSummary(sessionUri)!]);
+		manager.prepareSessionSummariesForListing([manager.getSessionSummary(sessionUri)!]);
 		const notifications: INotification[] = [];
 		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
 
