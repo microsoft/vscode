@@ -54,7 +54,7 @@ import { Disposable, MutableDisposable } from '../../../../../../base/common/lif
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun } from '../../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -68,6 +68,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -243,6 +244,15 @@ interface IEntry {
 	 * root set computed for this primary changes.
 	 */
 	workingDirectory: URI | undefined;
+	/**
+	 * True when {@link workingDirectory} is `undefined` because it was
+	 * *explicitly cleared* (the draft's last workspace folder was removed), as
+	 * opposed to never having been initialized. {@link tryRebind} uses this to
+	 * decide whether an `undefined` primary may fall back to the caller's
+	 * send-time hint: when the folder was cleared it must not, so a just-removed
+	 * folder can't be resurrected as the started session's root.
+	 */
+	workingDirectoryCleared: boolean;
 	/** Whether this draft was created against the complete folder set of a multi-root workspace. */
 	usesWorkspaceRootSet: boolean;
 	/**
@@ -282,6 +292,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -480,6 +491,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			config,
 			configVersion,
 			workingDirectory,
+			workingDirectoryCleared: false,
 			usesWorkspaceRootSet: (this._computeWorkingDirectories(workingDirectory, provider)?.length ?? 0) > 1,
 			resolvedConfig,
 			disposed: false,
@@ -547,8 +559,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (!primary || e.removed.length === 0) {
 			return false;
 		}
-		const stillPresent = this._workspaceContextService.getWorkspace().folders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder.uri, primary));
-		return !stillPresent && e.removed.some(removed => extUriBiasedIgnorePathCase.isEqual(removed.uri, primary));
+		// Provider-aware comparator so a case-distinct sibling on a case-sensitive
+		// remote isn't mistaken for the removed primary (matches the folder service).
+		const extUri = this._uriIdentityService.extUri;
+		const stillPresent = this._workspaceContextService.getWorkspace().folders.some(folder => extUri.isEqual(folder.uri, primary));
+		return !stillPresent && e.removed.some(removed => extUri.isEqual(removed.uri, primary));
 	}
 
 	/** Provider-agnostic: only an agent advertising `immutablePrimary` pins index 0. */
@@ -691,7 +706,13 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				// The workbench cache is authoritative; backend state can lag synchronous chip edits.
 				const config = { ...oldEntry.config };
 				const configVersion = oldEntry.configVersion;
-				const targetWorkingDirectory = oldEntry.workingDirectory ?? workingDirectory;
+				// A draft whose last workspace folder was removed has its primary
+				// explicitly cleared to `undefined`; in that case don't fall back to
+				// the (stale) send-time hint, which is the just-removed folder — let
+				// the host choose, matching the recreated provisional. A draft that
+				// was merely never initialized still honors the caller's hint.
+				const fallbackWorkingDirectory = oldEntry.workingDirectoryCleared ? undefined : workingDirectory;
+				const targetWorkingDirectory = oldEntry.workingDirectory ?? fallbackWorkingDirectory;
 				if (!oldEntry.usesWorkspaceRootSet && (this._computeWorkingDirectories(targetWorkingDirectory, provider)?.length ?? 0) > 1) {
 					oldEntry.usesWorkspaceRootSet = true;
 				}
@@ -726,7 +747,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					return undefined;
 				}
 				if (oldEntry.configVersion !== configVersion
-					|| !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)
+					|| !this._sameUri(oldEntry.workingDirectory ?? fallbackWorkingDirectory, targetWorkingDirectory)
 					|| !this._sameWorkingDirectories(oldEntry.provider, this._computeEntryWorkingDirectories(oldEntry), targetWorkingDirectories)) {
 					const disposed = await this._disposeBackend(created, 'obsolete rebound candidate');
 					if (!disposed) {
@@ -788,6 +809,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return Promise.resolve();
 		}
 		entry.workingDirectory = newWorkingDirectory;
+		// Distinguish "explicitly cleared" (last folder removed) from "never
+		// initialized" so a queued tryRebind won't resurrect the removed folder.
+		entry.workingDirectoryCleared = newWorkingDirectory === undefined;
 		entry.usesWorkspaceRootSet = (this._computeWorkingDirectories(newWorkingDirectory, entry.provider)?.length ?? 0) > 1;
 		this._updateActiveClientScope(entry);
 		entry.configVersion++;

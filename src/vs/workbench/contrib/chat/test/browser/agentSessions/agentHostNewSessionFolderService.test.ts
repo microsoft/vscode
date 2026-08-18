@@ -5,10 +5,12 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { ExtUri, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import type { AgentInfo, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -36,7 +38,7 @@ suite('AgentHostNewSessionFolderService', () => {
 				return { folders: workspaceFolders.map(uri => ({ uri } as IWorkspaceFolder)) } as IWorkspace;
 			}
 		};
-		service = ds.add(new AgentHostNewSessionFolderService(chatService, workspaceContextService));
+		service = ds.add(new AgentHostNewSessionFolderService(chatService, workspaceContextService, { extUri: extUriBiasedIgnorePathCase } as Partial<IUriIdentityService> as IUriIdentityService));
 		cleanup = ds.add(new DisposableStore());
 	});
 
@@ -190,6 +192,31 @@ suite('AgentHostNewSessionFolderService', () => {
 			firstFolderFallback: folderA.toString(),
 			noFolders: undefined,
 		});
+	});
+
+	test('clears a removed selection on a case-sensitive remote even when a case-variant folder remains', () => {
+		const repoUpper = URI.parse('vscode-remote://ssh-remote+host/work/Repo');
+		const repoLower = URI.parse('vscode-remote://ssh-remote+host/work/repo');
+		let remoteFolders = [repoUpper, repoLower];
+		const changeEmitter = ds.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const chatSvc = new class extends mock<IChatService>() {
+			override readonly onDidDisposeSession = Event.None;
+		};
+		const wsSvc = new class extends mock<IWorkspaceContextService>() {
+			override readonly onDidChangeWorkspaceFolders = changeEmitter.event;
+			override getWorkspace(): IWorkspace {
+				return { folders: remoteFolders.map(uri => ({ uri } as IWorkspaceFolder)) } as IWorkspace;
+			}
+		};
+		// A provider-aware, case-sensitive comparator (as IUriIdentityService.extUri
+		// resolves for a case-sensitive remote filesystem).
+		const caseSensitive = ds.add(new AgentHostNewSessionFolderService(chatSvc, wsSvc, { extUri: new ExtUri(() => false) } as Partial<IUriIdentityService> as IUriIdentityService));
+
+		caseSensitive.setFolder(sessionA, repoUpper);
+		remoteFolders = [repoLower];
+		changeEmitter.fire({ added: [], removed: [wsFolder(repoUpper)], changed: [] });
+
+		assert.strictEqual(caseSensitive.getFolder(sessionA), undefined, 'the case-distinct sibling must not keep the removed selection alive');
 	});
 });
 

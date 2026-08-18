@@ -25,6 +25,7 @@ import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFolde
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { MessageKind, TurnState, type AgentInfo, type RootState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -184,6 +185,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let isSessionsWindow: boolean;
 	let customizations: ReturnType<typeof observableValue<readonly ClientPluginCustomization[]>>;
 	let onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
+	let acquiredScopeRoots: string[][];
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
@@ -194,6 +196,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		workspaceName = undefined;
 		workbenchState = WorkbenchState.EMPTY;
 		isSessionsWindow = false;
+		acquiredScopeRoots = [];
 		onDidChangeWorkspaceFolders = ds.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
@@ -217,6 +220,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			override isWorkspaceTrusted(): boolean { return workspaceTrusted; }
 			override async getUriTrustInfo(uri: URI) { return { uri, trusted: !untrustedFolders.has(uri.toString()) }; }
 		});
+		insta.stub(IUriIdentityService, { extUri: new ExtUri(() => false) } as Partial<IUriIdentityService> as IUriIdentityService);
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
 		importStore = new AgentHostImportConversationStore();
@@ -224,15 +228,18 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', []);
 		insta.stub(IAgentHostActiveClientService, {
 			areScopeRootsEqual: (first, second) => areCustomizationScopeRootsEqual(first, second, new ExtUri(() => false)),
-			acquireScope: (_sessionType: string, _roots: readonly URI[]) => ({
-				customizations,
-				customAgents: constObservable([]),
-				tools: constObservable([]),
-				isResolved: constObservable(true),
-				whenResolved: () => Promise.resolve(),
-				activeClient: clientId => derived(reader => ({ clientId, tools: [], customizations: [...customizations.read(reader)] })),
-				dispose: () => { },
-			}),
+			acquireScope: (_sessionType: string, roots: readonly URI[]) => {
+				acquiredScopeRoots.push(roots.map(root => root.toString()));
+				return {
+					customizations,
+					customAgents: constObservable([]),
+					tools: constObservable([]),
+					isResolved: constObservable(true),
+					whenResolved: () => Promise.resolve(),
+					activeClient: clientId => derived(reader => ({ clientId, tools: [], customizations: [...customizations.read(reader)] })),
+					dispose: () => { },
+				};
+			},
 		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
 		cleanup = ds.add(new DisposableStore());
@@ -554,6 +561,48 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 		const finalCreate = agentHost.createCalls.filter(call => call.session?.path === '/real-rebind-primary-removed').at(-1);
 		assert.deepStrictEqual(finalCreate?.workingDirectories?.map(directory => directory.toString()), [secondary.toString()]);
+	});
+
+	test('tryRebind does not root the started session at the removed folder when the last folder is removed during final creation', async () => {
+		const only = URI.file('/workspace/one');
+		workspaceFolders = [only];
+		workbenchState = WorkbenchState.FOLDER;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('rebind-last-folder-removed');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-rebind-last-folder-removed' });
+
+		await provisional.getOrCreate(ui, 'copilot', only);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+
+		// Send passes the (about-to-be-removed) folder as the hint.
+		const rebind = provisional.tryRebind(ui, real, 'copilot', only);
+		await timeout(0);
+		// The last workspace folder is removed while final creation is in flight.
+		// The primary is explicitly cleared, so the rebind must not resurrect it
+		// as the stale hint — neither the backend nor the active-client scope may
+		// reference the removed folder.
+		workspaceFolders = [];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [workspaceFolder(only, 0)],
+			changed: [],
+		});
+		gate.complete();
+		await rebind;
+		await provisional.waitForPending(real);
+
+		const finalCreate = agentHost.createCalls.filter(call => call.session?.path === '/real-rebind-last-folder-removed').at(-1);
+		assert.deepStrictEqual({
+			backendWorkingDirectories: finalCreate?.workingDirectories?.map(directory => directory.toString()) ?? null,
+			lastScopeRoots: acquiredScopeRoots.at(-1),
+			anyScopeKeepsRemovedFolder: acquiredScopeRoots.slice(1).some(roots => roots.includes(only.toString())),
+		}, {
+			backendWorkingDirectories: null,
+			lastScopeRoots: [],
+			anyScopeKeepsRemovedFolder: false,
+		});
 	});
 
 

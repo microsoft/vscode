@@ -10,6 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { autorun, constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
@@ -900,7 +901,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		take: () => undefined,
 		rename: () => { },
 	} as Partial<IAgentHostImportConversationStore> as IAgentHostImportConversationStore);
-	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService, instantiationService.get(IWorkspaceContextService)));
+	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService, instantiationService.get(IWorkspaceContextService), { extUri: extUriBiasedIgnorePathCase } as Partial<IUriIdentityService> as IUriIdentityService));
 	instantiationService.stub(IAgentHostNewSessionFolderService, newSessionFolderService);
 	const customizationsByScope = new Map<string, { readonly customizations: IObservable<readonly ClientPluginCustomization[]>; readonly customAgents: IObservable<readonly AgentCustomization[]>; readonly tools: IObservable<readonly ToolDefinition[]>; readonly isResolved: IObservable<boolean>; readonly whenResolved: Promise<void> }>();
 	const scopeKey = (sessionType: string, roots: readonly URI[]) => `${sessionType}\n${roots.map(root => root.toString()).sort().join('\n')}`;
