@@ -13,13 +13,10 @@ suite('completionAppliesToResponse', () => {
 
 	test('a turn ending closes the response it owns, and only that one', () => {
 		assert.deepStrictEqual({
-			// Sequential case: nothing has claimed the response, so the turn that
-			// ends completes it.
+			// Sequential case: nothing has claimed the response.
 			unclaimed: completionAppliesToResponse(undefined, 'turn-1'),
 			owner: completionAppliesToResponse('turn-2', 'turn-2'),
-			// A preempted turn ending after its successor started must not close
-			// the successor's response — every later progress batch would be
-			// dropped into a completed response and the turn would render empty.
+			// A preempted turn must not close its successor's response.
 			predecessor: completionAppliesToResponse('turn-2', 'turn-1'),
 		}, {
 			unclaimed: true,
@@ -29,9 +26,7 @@ suite('completionAppliesToResponse', () => {
 	});
 
 	test('a released claim lets the next turn complete its own response', () => {
-		// Completing releases the claim. A client-dispatched turn never claims
-		// one, so a claim held past its own response would suppress every
-		// later completion and leave the response open forever.
+		// Completing releases the claim; a client-dispatched turn never claims one.
 		const afterRelease = completionAppliesToResponse(undefined, 'turn-3');
 
 		assert.strictEqual(afterRelease, true);

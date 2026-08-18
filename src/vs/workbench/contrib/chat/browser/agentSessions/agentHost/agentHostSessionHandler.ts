@@ -604,9 +604,8 @@ function snapshotInvocationToAdopt(opts: IObserveTurnOptions, toolCallId: string
 
 /**
  * Whether a turn ending should complete the response, given the turn that owns
- * it. A response with no owner yet is completed by whichever turn ends, which
- * is the ordinary sequential case; once a turn has claimed the response, only
- * that turn may close it.
+ * it. An unclaimed response is completed by whichever turn ends; once claimed,
+ * only that turn may close it.
  */
 export function completionAppliesToResponse(responseTurnId: string | undefined, endingTurnId: string): boolean {
 	return responseTurnId === undefined || responseTurnId === endingTurnId;
@@ -721,20 +720,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	}
 
 	/**
-	 * Marks the response as complete on behalf of `turnId`, ignoring the signal
-	 * when a later turn already owns the response.
-	 *
-	 * `isCompleteObs` belongs to the session, not to a turn, so a turn that ends
-	 * after its successor has started would otherwise close the successor's
-	 * response and every subsequent {@link appendProgress} would be dropped into
-	 * it. Turns are ordinarily sequential; they overlap when one turn is
-	 * preempted by another, and a turn ending tool calls can trail the next
-	 * turn's start by a few milliseconds.
-	 *
-	 * Completing releases the claim, so the response a later turn renders into
-	 * is owned by whichever turn claims it next. Holding the claim past the
-	 * response it describes would suppress the completion of every subsequent
-	 * client-dispatched turn, which never claims one.
+	 * Marks the response complete on behalf of `turnId`, ignoring the signal when a
+	 * later turn already owns it. `isCompleteObs` is session-scoped, so a turn
+	 * ending after its successor started would otherwise close the wrong response.
 	 */
 	completeTurn(turnId: string): void {
 		if (!completionAppliesToResponse(this._responseTurnId, turnId)) {
@@ -4842,8 +4830,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			seedEmittedLengths,
 			initialResponsePartCount,
 			onTurnEnded: () => {
-				// The re-observed turn may have been superseded by a promoted one
-				// while this window was away; only the response's owner closes it.
+				// Only the response's owner closes it; this turn may have been superseded while away.
 				chatSession.completeTurn(turnId);
 				reconnectStore.dispose();
 			},
