@@ -421,6 +421,17 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		const pill = dom.append(container, dom.$('.monaco-segmented-icon-toggle.chat-voice-input-mode'));
 		this._reel = dom.append(pill, dom.$('.monaco-segmented-icon-toggle-reel.chat-voice-input-mode-reel'));
 
+		// In the frameless omni window native tooltips are the only ones that show,
+		// but they only appear when the pointer is directly over an element that has
+		// a `title`. The titled segment buttons don't cover the pill's 1px border and
+		// rounded corners, so resting there produced no tooltip at all. Give the whole
+		// pill a generic fallback tooltip (the specific per-segment titles still win via
+		// the native title's nearest-ancestor lookup) so there are no dead zones.
+		if (hoverDelegate.showNativeHover) {
+			this._register(this.hoverService.setupManagedHover(hoverDelegate, container,
+				this._getLabelWithKeybinding(localize('voiceInputMode.pill', "Voice Input Mode"), ChatVoiceInputModeAction.ID)));
+		}
+
 		// --- Dictation cell ---
 		this._dictationCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.dictation'));
 		this._dictationCell.setAttribute('type', 'button');
