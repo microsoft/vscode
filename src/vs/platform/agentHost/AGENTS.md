@@ -233,8 +233,8 @@ Sessions created by the `create_session` server tool record provider-neutral
 orchestration metadata in the session summary `_meta` bag. The metadata names
 the creating session separately from the hierarchy parent, plus an optional
 label, whether the child may coordinate with its creator, and an optional
-idle-notification policy. This mirrors GitHub App's separate creator identity
-and parent-link model while adapting it to provider-neutral session URIs.
+idle-notification policy. Keeping creator identity separate from hierarchy
+placement preserves notification routing if parent relationships evolve.
 `list_sessions` projects and filters hierarchy metadata without involving
 provider harnesses.
 
