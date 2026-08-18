@@ -659,7 +659,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			if (!hideDetails) {
 				const badgeLabel = isQuickChat
-					? localize('quickChatBadge', "Chat")
+					? localize('quickChatBadge', "No workspace")
 					: workspace && (
 						this.options.grouping() !== SessionsGrouping.Workspace ||
 						this.options.isPinned(element) ||
