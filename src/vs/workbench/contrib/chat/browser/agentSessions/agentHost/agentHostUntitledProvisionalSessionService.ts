@@ -158,7 +158,6 @@ export interface IAgentHostUntitledProvisionalSessionService {
 		oldSessionResource: URI,
 		newSessionResource: URI,
 		provider: string,
-		workingDirectory: URI | undefined,
 	): Promise<URI | undefined>;
 
 	/**
@@ -244,15 +243,6 @@ interface IEntry {
 	 * root set computed for this primary changes.
 	 */
 	workingDirectory: URI | undefined;
-	/**
-	 * True when {@link workingDirectory} is `undefined` because it was
-	 * *explicitly cleared* (the draft's last workspace folder was removed), as
-	 * opposed to never having been initialized. {@link tryRebind} uses this to
-	 * decide whether an `undefined` primary may fall back to the caller's
-	 * send-time hint: when the folder was cleared it must not, so a just-removed
-	 * folder can't be resurrected as the started session's root.
-	 */
-	workingDirectoryCleared: boolean;
 	/** Whether this draft was created against the complete folder set of a multi-root workspace. */
 	usesWorkspaceRootSet: boolean;
 	/**
@@ -479,7 +469,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			config,
 			configVersion,
 			workingDirectory,
-			workingDirectoryCleared: false,
 			usesWorkspaceRootSet: (this._computeWorkingDirectories(workingDirectory, provider)?.length ?? 0) > 1,
 			resolvedConfig,
 			disposed: false,
@@ -672,7 +661,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		oldSessionResource: URI,
 		newSessionResource: URI,
 		provider: string,
-		workingDirectory: URI | undefined,
 	): Promise<URI | undefined> {
 		// Graduation must run after any queued folder or config reconciliation.
 		return this._queue(oldSessionResource, async () => {
@@ -694,13 +682,12 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				// The workbench cache is authoritative; backend state can lag synchronous chip edits.
 				const config = { ...oldEntry.config };
 				const configVersion = oldEntry.configVersion;
-				// A draft whose last workspace folder was removed has its primary
-				// explicitly cleared to `undefined`; in that case don't fall back to
-				// the (stale) send-time hint, which is the just-removed folder — let
-				// the host choose, matching the recreated provisional. A draft that
-				// was merely never initialized still honors the caller's hint.
-				const fallbackWorkingDirectory = oldEntry.workingDirectoryCleared ? undefined : workingDirectory;
-				const targetWorkingDirectory = oldEntry.workingDirectory ?? fallbackWorkingDirectory;
+				// The draft's own primary is authoritative: it mirrors what
+				// `_computeEntryWorkingDirectories(oldEntry)` sends to the backend, so
+				// the scalar and the array can't diverge. A cleared primary
+				// (`undefined`, last folder removed) therefore lets the host choose
+				// rather than resurrecting a folder that no longer exists.
+				const targetWorkingDirectory = oldEntry.workingDirectory;
 				if (!oldEntry.usesWorkspaceRootSet && (this._computeWorkingDirectories(targetWorkingDirectory, provider)?.length ?? 0) > 1) {
 					oldEntry.usesWorkspaceRootSet = true;
 				}
@@ -735,7 +722,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					return undefined;
 				}
 				if (oldEntry.configVersion !== configVersion
-					|| !this._sameUri(oldEntry.workingDirectory ?? fallbackWorkingDirectory, targetWorkingDirectory)
+					|| !this._sameUri(oldEntry.workingDirectory, targetWorkingDirectory)
 					|| !this._sameWorkingDirectories(oldEntry.provider, this._computeEntryWorkingDirectories(oldEntry), targetWorkingDirectories)) {
 					const disposed = await this._disposeBackend(created, 'obsolete rebound candidate');
 					if (!disposed) {
@@ -797,9 +784,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return Promise.resolve();
 		}
 		entry.workingDirectory = newWorkingDirectory;
-		// Distinguish "explicitly cleared" (last folder removed) from "never
-		// initialized" so a queued tryRebind won't resurrect the removed folder.
-		entry.workingDirectoryCleared = newWorkingDirectory === undefined;
 		entry.usesWorkspaceRootSet = (this._computeWorkingDirectories(newWorkingDirectory, entry.provider)?.length ?? 0) > 1;
 		this._updateActiveClientScope(entry);
 		entry.configVersion++;

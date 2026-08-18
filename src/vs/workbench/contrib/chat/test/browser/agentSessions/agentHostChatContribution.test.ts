@@ -3482,7 +3482,7 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('newChatSessionItem rebinds untitled provisional to real resource so chip-selected config survives first send', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const { instantiationService, agentHostService, newSessionFolderService } = createTestServices(disposables);
 
 			const workspaceFolder = URI.from({ scheme: 'file', path: '/workspace/root' });
 			instantiationService.stub(IWorkspaceContextService, {
@@ -3492,14 +3492,14 @@ suite('AgentHostChatContribution', () => {
 				onDidChangeWorkspaceFolders: Event.None,
 			});
 
-			const rebindCalls: { oldResource: URI; newResource: URI; provider: string; workingDirectory: URI | undefined }[] = [];
+			const rebindCalls: { oldResource: URI; newResource: URI; provider: string }[] = [];
 			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 				onDidChange: Event.None,
 				get: () => undefined,
 				waitForPending: async () => undefined,
 				getOrCreate: async () => undefined,
-				tryRebind: async (oldResource: URI, newResource: URI, provider: string, workingDirectory: URI | undefined) => {
-					rebindCalls.push({ oldResource, newResource, provider, workingDirectory });
+				tryRebind: async (oldResource: URI, newResource: URI, provider: string) => {
+					rebindCalls.push({ oldResource, newResource, provider });
 					return newResource;
 				},
 				disposeSession: async () => { },
@@ -3511,12 +3511,16 @@ suite('AgentHostChatContribution', () => {
 			const item = await listController.newChatSessionItem({ prompt: 'Hello', untitledResource }, CancellationToken.None);
 
 			assert.ok(item);
-			assert.deepStrictEqual(rebindCalls, [{
-				oldResource: untitledResource,
-				newResource: item.resource,
-				provider: 'copilot',
-				workingDirectory: workspaceFolder,
-			}]);
+			// The rebind graduates the untitled provisional to the real resource, and
+			// the chosen working directory is carried onto the real resource (which the
+			// handler resolves via getFolder) rather than through a tryRebind argument.
+			assert.deepStrictEqual({
+				rebindCalls,
+				carriedFolder: newSessionFolderService.getFolder(item.resource)?.toString(),
+			}, {
+				rebindCalls: [{ oldResource: untitledResource, newResource: item.resource, provider: 'copilot' }],
+				carriedFolder: workspaceFolder.toString(),
+			});
 		}));
 
 		test('newChatSessionItem skips rebind when no untitled provisional resource is provided', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3556,14 +3560,14 @@ suite('AgentHostChatContribution', () => {
 				onDidChangeWorkspaceFolders: Event.None,
 			});
 
-			const rebindCalls: { workingDirectory: URI | undefined }[] = [];
+			const rebindCalls: { oldResource: URI; newResource: URI }[] = [];
 			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 				onDidChange: Event.None,
 				get: () => undefined,
 				waitForPending: async () => undefined,
 				getOrCreate: async () => undefined,
-				tryRebind: async (_old: URI, newResource: URI, _provider: string, workingDirectory: URI | undefined) => {
-					rebindCalls.push({ workingDirectory });
+				tryRebind: async (oldResource: URI, newResource: URI) => {
+					rebindCalls.push({ oldResource, newResource });
 					return newResource;
 				},
 				disposeSession: async () => { },
@@ -3577,7 +3581,16 @@ suite('AgentHostChatContribution', () => {
 
 			const item = await listController.newChatSessionItem({ prompt: 'Hello', untitledResource }, CancellationToken.None);
 			assert.ok(item);
-			assert.deepStrictEqual(rebindCalls, [{ workingDirectory: folderB }]);
+			// The store-selected folder is carried onto the real resource (the handler
+			// resolves the working directory from getFolder), and the rebind graduates
+			// the untitled provisional to that real resource.
+			assert.deepStrictEqual({
+				rebindCalls,
+				carriedFolder: newSessionFolderService.getFolder(item.resource)?.toString(),
+			}, {
+				rebindCalls: [{ oldResource: untitledResource, newResource: item.resource }],
+				carriedFolder: folderB.toString(),
+			});
 		}));
 
 		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {

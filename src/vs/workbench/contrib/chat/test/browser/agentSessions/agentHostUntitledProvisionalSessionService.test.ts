@@ -505,7 +505,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-started-primary-removed' });
 
 		await provisional.getOrCreate(ui, 'copilot', primary);
-		await provisional.tryRebind(ui, real, 'copilot', primary);
+		await provisional.tryRebind(ui, real, 'copilot');
 		const realBackend = provisional.get(real);
 		assert.ok(realBackend);
 		const createsAfterRebind = agentHost.createCalls.length;
@@ -546,7 +546,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		cleanup.add({ dispose: () => gate.cancel() });
 		agentHost.createGate = gate;
 
-		const rebind = provisional.tryRebind(ui, real, 'copilot', primary);
+		const rebind = provisional.tryRebind(ui, real, 'copilot');
 		await timeout(0);
 		// The primary is removed while the final session creation is in flight; the
 		// reselection updates the draft so the rebind retries at the remaining folder.
@@ -576,13 +576,12 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		cleanup.add({ dispose: () => gate.cancel() });
 		agentHost.createGate = gate;
 
-		// Send passes the (about-to-be-removed) folder as the hint.
-		const rebind = provisional.tryRebind(ui, real, 'copilot', only);
+		const rebind = provisional.tryRebind(ui, real, 'copilot');
 		await timeout(0);
 		// The last workspace folder is removed while final creation is in flight.
-		// The primary is explicitly cleared, so the rebind must not resurrect it
-		// as the stale hint — neither the backend nor the active-client scope may
-		// reference the removed folder.
+		// The draft's primary is cleared to `undefined`, and the rebind derives its
+		// working directory from the draft's own primary — so neither the backend
+		// nor the active-client scope may reference the removed folder.
 		workspaceFolders = [];
 		onDidChangeWorkspaceFolders.fire({
 			added: [],
@@ -646,7 +645,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 		await provisional.getOrCreate(ui, 'copilot', primary);
 		workspaceFolders = [secondary, added];
-		await provisional.tryRebind(ui, real, 'copilot', primary);
+		await provisional.tryRebind(ui, real, 'copilot');
 
 		assert.deepStrictEqual(
 			agentHost.createCalls.at(-1)?.workingDirectories?.map(directory => directory.toString()),
@@ -666,7 +665,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 		await provisional.getOrCreate(ui, 'copilot', primary);
 		workspaceFolders = [primary, added];
-		await provisional.tryRebind(ui, real, 'copilot', primary);
+		await provisional.tryRebind(ui, real, 'copilot');
 
 		assert.deepStrictEqual(
 			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
@@ -923,7 +922,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		// Rebind must wait behind the config operation rather than graduating
 		// with a partially reconciled draft.
 		const newUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-g' });
-		const rebind = provisional.tryRebind(ui, newUi, 'copilot', undefined);
+		const rebind = provisional.tryRebind(ui, newUi, 'copilot');
 		assert.strictEqual(agentHost.createCalls.some(c => c.session?.path === '/real-g'), false);
 		blocked.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
 		await rebind;
@@ -953,7 +952,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		cleanup.add({ dispose: () => gate.cancel() });
 		agentHost.createGate = gate;
 
-		const rebind = provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		const rebind = provisional.tryRebind(ui, realUi, 'copilot');
 		await timeout(0);
 		const configChange = provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'worktree' });
 		gate.complete();
@@ -987,7 +986,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		cleanup.add({ dispose: () => gate.cancel() });
 		agentHost.createGate = gate;
 
-		const rebind = provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		const rebind = provisional.tryRebind(ui, realUi, 'copilot');
 		await timeout(0);
 		const disposal = provisional.disposeSession(ui);
 		gate.complete();
@@ -1018,7 +1017,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		importStore.set(realUi, imported);
 		agentHost.failNextCreate = true;
 
-		const rebound = await provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		const rebound = await provisional.tryRebind(ui, realUi, 'copilot');
 
 		assert.deepStrictEqual({
 			rebound,
@@ -1038,7 +1037,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const gate = new DeferredPromise<void>();
 		cleanup.add({ dispose: () => gate.cancel() });
 		agentHost.createGate = gate;
-		const rebind = provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		const rebind = provisional.tryRebind(ui, realUi, 'copilot');
 		const pendingRead = provisional.waitForPending(ui);
 		await timeout(0);
 		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
