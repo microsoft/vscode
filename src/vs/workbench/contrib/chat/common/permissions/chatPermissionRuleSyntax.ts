@@ -28,6 +28,12 @@ export interface IParsedPermissionRuleText {
  * Rule families the runtime accepts, mapped to the domain that displays them. Anything absent is a
  * family the runtime would reject or that has no domain yet; such rules are surfaced as unknown
  * rather than dropped, so an unexpected policy is visible instead of silently missing.
+ *
+ * This is the *read* side of the grammar and so accepts the aliases the runtime tolerates but never
+ * emits — `Bash` and `PowerShell` for shell, `Edit` for write — because an administrator may author
+ * them by hand. The canonical families VS Code itself *sends* are enumerated by `ManagedRuleFamily`
+ * in `platform/agentHost/common/agentHostManagedRules.ts`; keep the two in sync when the runtime's
+ * `parse_managed_rule` grammar changes.
  */
 const RULE_FAMILY_DOMAINS = new Map<string, ChatPermissionDomainId>([
 	['shell', ChatPermissionDomainId.Terminal],
