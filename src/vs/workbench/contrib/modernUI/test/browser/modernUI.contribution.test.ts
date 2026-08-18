@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { getWindow } from '../../../../../base/browser/dom.js';
+import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { Pane } from '../../../../../base/browser/ui/splitview/paneview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -96,6 +97,7 @@ suite('ModernUIContribution', () => {
 			[LayoutSettings.MODERN_UI]: true,
 			[LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]: true,
 		});
+
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
@@ -168,6 +170,76 @@ suite('ModernUIContribution', () => {
 			paneHeaderLineHeightAfterToggle: '22px',
 			paneHeaderInlineLineHeightAfterToggle: '',
 			layoutCountAfterToggle: 1,
+		});
+	});
+
+	test('preserves horizontal panel section borders without drawing separators above column headers', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const verticalPaneView = appendElement(root, 'monaco-pane-view');
+		const firstVerticalPane = store.add(new ModernUITestPane());
+		firstVerticalPane.style({
+			dropBackground: undefined,
+			headerForeground: undefined,
+			headerBackground: undefined,
+			headerBorder: '#00FF00',
+			leftBorder: undefined,
+		});
+		appendElement(verticalPaneView, 'split-view-view').appendChild(firstVerticalPane.element);
+
+		const followingVerticalPane = store.add(new ModernUITestPane());
+		followingVerticalPane.style({
+			dropBackground: undefined,
+			headerForeground: undefined,
+			headerBackground: undefined,
+			headerBorder: '#00FF00',
+			leftBorder: undefined,
+		});
+		appendElement(verticalPaneView, 'split-view-view').appendChild(followingVerticalPane.element);
+
+		const horizontalPaneView = appendElement(root, 'monaco-pane-view');
+		const firstHorizontalPane = store.add(new ModernUITestPane());
+		firstHorizontalPane.orientation = Orientation.HORIZONTAL;
+		firstHorizontalPane.style({
+			dropBackground: undefined,
+			headerForeground: undefined,
+			headerBackground: undefined,
+			headerBorder: undefined,
+			leftBorder: '#FF0000',
+		});
+		appendElement(horizontalPaneView, 'split-view-view').appendChild(firstHorizontalPane.element);
+
+		const followingHorizontalPane = store.add(new ModernUITestPane());
+		followingHorizontalPane.orientation = Orientation.HORIZONTAL;
+		followingHorizontalPane.style({
+			dropBackground: undefined,
+			headerForeground: undefined,
+			headerBackground: undefined,
+			headerBorder: undefined,
+			leftBorder: '#FF0000',
+		});
+		appendElement(horizontalPaneView, 'split-view-view').appendChild(followingHorizontalPane.element);
+
+		const targetWindow = getWindow(root);
+		assert.deepStrictEqual({
+			firstVerticalHeaderSeparatorVisible: targetWindow.getComputedStyle(firstVerticalPane.draggableElement!, '::before').display !== 'none',
+			followingVerticalHeaderSeparatorVisible: targetWindow.getComputedStyle(followingVerticalPane.draggableElement!, '::before').display !== 'none',
+			followingVerticalHeaderBorderTopWidth: targetWindow.getComputedStyle(followingVerticalPane.draggableElement!).borderTopWidth,
+			firstHorizontalHeaderSeparatorVisible: targetWindow.getComputedStyle(firstHorizontalPane.draggableElement!, '::before').display !== 'none',
+			followingHorizontalHeaderSeparatorVisible: targetWindow.getComputedStyle(followingHorizontalPane.draggableElement!, '::before').display !== 'none',
+			followingHorizontalPaneBorderLeftWidth: targetWindow.getComputedStyle(followingHorizontalPane.element).borderLeftWidth,
+			followingHorizontalPaneBorderLeftColor: targetWindow.getComputedStyle(followingHorizontalPane.element).borderLeftColor,
+		}, {
+			firstVerticalHeaderSeparatorVisible: false,
+			followingVerticalHeaderSeparatorVisible: true,
+			followingVerticalHeaderBorderTopWidth: '0px',
+			firstHorizontalHeaderSeparatorVisible: false,
+			followingHorizontalHeaderSeparatorVisible: false,
+			followingHorizontalPaneBorderLeftWidth: '1px',
+			followingHorizontalPaneBorderLeftColor: 'rgb(255, 0, 0)',
 		});
 	});
 
