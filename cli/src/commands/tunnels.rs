@@ -61,7 +61,7 @@ use crate::{
 	},
 };
 use crate::{
-	singleton::{acquire_singleton, SingletonConnection},
+	singleton::{acquire_singleton, connect_as_client, SingletonConnection},
 	tunnels::{
 		dev_tunnels::ActiveTunnel,
 		singleton_client::{start_singleton_client, SingletonClientArgs},
@@ -630,7 +630,15 @@ async fn serve_with_csa(
 			return Ok(0);
 		}
 
-		match acquire_singleton(&paths.tunnel_lockfile()).await {
+		let connection = if gateway_args.attach_to_existing {
+			connect_as_client(&paths.tunnel_lockfile())
+				.await
+				.map(SingletonConnection::Client)
+		} else {
+			acquire_singleton(&paths.tunnel_lockfile()).await
+		};
+
+		match connection {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
 				if gateway_args.name.is_some()
@@ -657,7 +665,11 @@ async fn serve_with_csa(
 			}
 			Ok(SingletonConnection::Singleton(server)) => break server,
 			Err(e) => {
-				warning!(log, "error access singleton, retrying: {}", e);
+				if gateway_args.attach_to_existing {
+					debug!(log, "waiting for existing tunnel singleton: {}", e);
+				} else {
+					warning!(log, "error access singleton, retrying: {}", e);
+				}
 				tokio::time::sleep(Duration::from_secs(2)).await
 			}
 		}

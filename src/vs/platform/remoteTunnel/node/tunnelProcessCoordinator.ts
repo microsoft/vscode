@@ -283,8 +283,9 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		if (generation !== this._generation) {
 			return;
 		}
+		let serviceInstallFailed = false;
 		if (target.mode === 'service' && !isServiceInstalled) {
-			const serviceInstallFailed = await this._installService(target.logLevel, tunnelName!, generation) === false;
+			serviceInstallFailed = await this._installService(target.logLevel, tunnelName!, generation) === false;
 			if (generation !== this._generation) {
 				return;
 			}
@@ -314,6 +315,12 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		if (target.mode === 'agentHost') {
 			args.push('--agent-host-only', '--name', tunnelName!, '--user-data-dir', this.environmentService.userDataPath);
 			args.push('--delegate-to-editor', '--parent-process-id', String(process.pid));
+		} else if (target.mode === 'service' && !serviceInstallFailed) {
+			// This child only relays service logs and status. It must never take
+			// ownership if the service restarts, nor supply hosting options that
+			// an existing singleton cannot apply.
+			args.push('--accept-server-license-terms', '--log', LogLevelToString(target.logLevel));
+			args.push('--attach-to-existing', '--parent-process-id', String(process.pid));
 		} else {
 			args.push('--accept-server-license-terms', '--log', LogLevelToString(target.logLevel));
 			args.push('--user-data-dir', this.environmentService.userDataPath, '--delegate-to-editor', '--name', tunnelName!, '--parent-process-id', String(process.pid));
@@ -422,7 +429,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 			const status = parseTunnelMachineStatus(message);
 			if (status) {
 				if (status.type === 'connected' && this._status.mode === mode) {
-					this._setStatus({ ...this._status, tunnelId: status.tunnelId, connectionState: 'connected' });
+					this._setStatus({ ...this._status, tunnelName: status.tunnelName, tunnelId: status.tunnelId, connectionState: 'connected' });
 				}
 				this._onDidMachineStatus.fire({ mode, status, cancel });
 			}
