@@ -100,7 +100,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				this._serverDefinitions.set(id, serverDefiniton);
 				proxy.$startMcp(id, {
 					launch: resolveLaunch,
-					defaultCwd: serverDefiniton.variableReplacement?.folder?.uri,
+					defaultCwd: serverDefiniton.defaultCwd ?? serverDefiniton.variableReplacement?.folder?.uri,
 					errorOnUserInteraction: options?.errorOnUserInteraction,
 				});
 

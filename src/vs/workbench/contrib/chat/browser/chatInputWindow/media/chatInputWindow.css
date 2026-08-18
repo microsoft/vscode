@@ -25,12 +25,12 @@
 	outline: none;
 }
 
-.chat-input-window .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor {
-	background-color: transparent;
+.chat-input-window .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor {
+	background-color: var(--omni-input-editor-background, var(--vscode-input-background)) !important;
 }
 
-.chat-input-window .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-agentsChatInput-background);
+.chat-input-window .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: var(--omni-input-editor-background, var(--vscode-input-background)) !important;
 }
 
 .chat-input-window-body {
