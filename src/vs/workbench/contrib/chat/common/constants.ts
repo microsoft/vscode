@@ -14,8 +14,7 @@ import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/c
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
-import { LocalChatSessionUri } from './model/chatUri.js';
+import { getNewChatSessionResource } from './model/chatUri.js';
 import { clearUserSelectedSessionType, getRememberedSessionType, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 
@@ -335,9 +334,7 @@ export function getComputedDefaultSessionResource(
 	agentHostEnabled: boolean
 ): URI {
 	const defaultType = getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled);
-	return defaultType === localChatSessionType
-		? LocalChatSessionUri.getNewSessionUri()
-		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+	return getNewChatSessionResource(defaultType);
 }
 
 export function isNewChatSessionTypeUsable(
@@ -446,9 +443,7 @@ export function getDefaultNewChatSessionResource(
 	options?: IDefaultNewChatSessionTypeOptions
 ): URI {
 	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options);
-	return defaultType === localChatSessionType
-		? LocalChatSessionUri.getNewSessionUri()
-		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+	return getNewChatSessionResource(defaultType);
 }
 
 export function recordUserSelectedSessionType(

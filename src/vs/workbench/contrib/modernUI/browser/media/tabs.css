@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Style-override module: "Tabs".
+ * Modern UI module: "Tabs".
  *
  * Shared modern tab presentation used by the regular workbench and the Agents
  * window: transparent, rounded, borderless pills with a subtle active highlight.
  *
  * All rules are gated behind the tab-specific `.modern-ui-tabs` class.
- * StyleOverridesContribution toggles it on regular workbench containers when
+ * ModernUIContribution toggles it on regular workbench containers when
  * `workbench.experimental.modernUI` is enabled, while the Agents workbench
  * applies it independently of the broader Modern UI modules.
  */
@@ -630,7 +630,7 @@
 	background-color: transparent !important;
 }
 
-.style-override.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+.modern-ui.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
 	height: var(--vscode-spacing-size320);
 	min-height: var(--vscode-spacing-size320);
 	max-height: var(--vscode-spacing-size320);

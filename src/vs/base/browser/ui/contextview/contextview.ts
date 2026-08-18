@@ -68,7 +68,7 @@ export interface IContextViewCloseAnimation {
 export const CONTEXT_VIEW_MENU_MOTION_CLASS = 'context-view-menu-motion';
 export const CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS = 'context-view-menu-motion-closing';
 export const CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION = 150;
-export const CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES = ['style-override', 'monaco-enable-motion'] as const;
+export const CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'] as const;
 export const CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE = '--vscode-context-view-close-animation-duration';
 export const CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE = '--vscode-context-view-menu-motion-shadow';
 const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-close-start-opacity';
@@ -145,7 +145,7 @@ let contextViewMenuMotionStyleSheet: HTMLStyleElement | undefined;
 function ensureContextViewMenuMotionStyleSheet(): void {
 	if (!contextViewMenuMotionStyleSheet) {
 		contextViewMenuMotionStyleSheet = createStyleSheet(undefined, style => {
-			style.textContent = getContextViewMenuMotionCss('.style-override.monaco-enable-motion');
+			style.textContent = getContextViewMenuMotionCss('.modern-ui.monaco-enable-motion');
 		});
 	}
 }
@@ -509,5 +509,5 @@ const SHADOW_ROOT_CSS = /* css */ `
 	:host-context(.linux:lang(zh-Hant)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
 	:host-context(.linux:lang(ja)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
 	:host-context(.linux:lang(ko)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
-	${getContextViewMenuMotionCss(':host-context(.style-override.monaco-enable-motion)')}
+	${getContextViewMenuMotionCss(':host-context(.modern-ui.monaco-enable-motion)')}
 `;
