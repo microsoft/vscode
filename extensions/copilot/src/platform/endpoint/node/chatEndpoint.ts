@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
-import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride } from '../../networking/common/networking';
+import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride, PENDING_DEPRECATION_CODE } from '../../networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
 import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
@@ -152,23 +152,13 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 	return AsyncIterableObject.fromArray(completions);
 }
 
-/**
- * CAPI `info_messages` codes that carry enough user impact to warrant the
- * picker's warning presentation rather than a neutral info notice.
- */
-const INFO_CODES_SHOWN_AS_WARNINGS = new Set(['model_pending_deprecation']);
-
-/**
- * Splits CAPI `info_messages` into the two category-keyed dictionaries the model
- * picker renders, promoting {@link INFO_CODES_SHOWN_AS_WARNINGS} to warning
- * banners. Keys are the CAPI codes, so repeated codes collapse to the last message.
- */
+/** Splits CAPI `info_messages` into warning and info banners keyed by their code. */
 function splitInfoMessages(infoMessages: { code: string; message: string }[] | undefined): { warningText: Record<string, string>; infoText: Record<string, string> } {
 	const warningText: Record<string, string> = {};
 	const infoText: Record<string, string> = {};
 	for (const { code, message } of infoMessages ?? []) {
 		if (message) {
-			const target = INFO_CODES_SHOWN_AS_WARNINGS.has(code) ? warningText : infoText;
+			const target = code === PENDING_DEPRECATION_CODE ? warningText : infoText;
 			target[code || 'info'] = message;
 		}
 	}

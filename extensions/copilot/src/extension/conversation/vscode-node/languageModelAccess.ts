@@ -344,8 +344,8 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			const warnings = endpoint instanceof AutoChatEndpoint ? undefined : resolveModelWarnings(endpoint);
 
 			let modelTooltip: string | undefined;
-			if (warnings) {
-				modelTooltip = warnings.primary;
+			if (warnings?.rowWarning) {
+				modelTooltip = warnings.rowWarning;
 			} else if (endpoint instanceof AutoChatEndpoint) {
 				modelTooltip = getAutoModelDescription(endpoint.discountRange);
 			} else {
@@ -388,7 +388,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
 				category: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.modelPickerCategory,
 				detail: modelDetail,
-				statusIcon: warnings ? new vscode.ThemeIcon('warning') : undefined,
+				statusIcon: warnings?.rowWarning ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 				maxOutputTokens: endpoint.maxOutputTokens,

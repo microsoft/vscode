@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { IChatEndpoint, IChatEndpointTokenPricing } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, IChatEndpointTokenPricing, PENDING_DEPRECATION_CODE } from '../../../platform/networking/common/networking';
 import * as l10n from '@vscode/l10n';
 import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } from 'vscode';
 
@@ -130,25 +130,20 @@ export function buildAutoModeTierSchemaProperty(tiers: readonly string[], defaul
 }
 
 /**
- * Resolves the model picker's warning presentation for an endpoint. Every
- * warning contributes a hover banner — a live degradation, or a server-sent
- * notice such as a pending deprecation — and any of them flags the row with a
- * warning icon that `primary` explains. A degradation wins `primary` because it
- * describes the model's current health rather than a future event.
- *
- * Callers must skip the synthetic Auto model, which wraps another endpoint and
- * must not inherit the wrapped model's warnings.
+ * Resolves the model picker's warning presentation. All warnings show as hover banners,
+ * but only a degradation or a pending deprecation flags the row, and `rowWarning` is the
+ * message explaining it. Callers must skip the synthetic Auto model, which wraps another
+ * endpoint and must not inherit its warnings.
  */
-export function resolveModelWarnings(endpoint: Pick<IChatEndpoint, 'warningText' | 'degradationReason'>): { texts: Record<string, string>; primary: string } | undefined {
+export function resolveModelWarnings(endpoint: Pick<IChatEndpoint, 'warningText' | 'degradationReason'>): { texts: Record<string, string>; rowWarning: string | undefined } | undefined {
 	const texts: Record<string, string> = { ...endpoint.warningText };
 	if (endpoint.degradationReason) {
 		texts['degradation'] = endpoint.degradationReason;
 	}
-	const messages = Object.values(texts);
-	if (messages.length === 0) {
+	if (Object.keys(texts).length === 0) {
 		return undefined;
 	}
-	return { texts, primary: endpoint.degradationReason ?? messages[0] };
+	return { texts, rowWarning: endpoint.degradationReason ?? texts[PENDING_DEPRECATION_CODE] };
 }
 
 /**

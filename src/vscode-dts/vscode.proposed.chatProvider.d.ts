@@ -98,7 +98,7 @@ declare module 'vscode' {
 
 		/**
 		 * Optional informational text to display in the model picker hover as an info banner.
-		 * The keys are info categories (e.g. "model_pending_deprecation") and the values are markdown strings.
+		 * The keys are info categories (e.g. "model_relocated") and the values are markdown strings.
 		 * Unlike {@link warningText}, this renders with an info icon and never signals a problem with the model.
 		 */
 		readonly infoText?: Record<string, string>;
