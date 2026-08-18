@@ -9,7 +9,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, readSessionOrchestration, ResponsePartKind, ToolCallStatus, TurnState, type ISessionOrchestration, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, readSessionOrchestration, ResponsePartKind, ToolCallStatus, TurnState, type ISessionOrchestration, type Message, type ModelSelection, type ResponsePart, type SessionIdleNotification, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -69,6 +69,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model.' },
 		coordinateWithCreator: { type: 'boolean', description: 'Allow the child to identify and contact the session that created it. Set false for an independent child that must not send messages or create chats in its creator. Defaults to true.' },
+		notifyOnIdle: { type: 'string', enum: ['once', 'always'], description: 'Wake the creator when the child needs input, becomes idle, or errors, either once or after every work cycle.' },
 		label: { type: 'string', description: 'Optional label used to group and filter related child sessions.' },
 	},
 	required: ['workspace', 'prompt'],
@@ -205,6 +206,7 @@ interface ICreateSessionArgs {
 	readonly prompt?: unknown;
 	readonly model?: unknown;
 	readonly coordinateWithCreator?: unknown;
+	readonly notifyOnIdle?: unknown;
 	readonly label?: unknown;
 }
 
@@ -213,6 +215,7 @@ export interface IResolvedCreateSessionArgs {
 	readonly prompt: string;
 	readonly model?: IAgentModelInfo;
 	readonly coordinateWithCreator: boolean;
+	readonly notifyOnIdle?: SessionIdleNotification;
 	readonly label?: string;
 }
 
@@ -305,6 +308,7 @@ interface ISerializedSession {
 	readonly parentSession?: string;
 	readonly creator?: string;
 	readonly label?: string;
+	readonly notifyOnIdle?: SessionIdleNotification;
 }
 
 function getRequiredString(value: unknown, field: string, toolName: string): string {
@@ -429,11 +433,19 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
 	const coordinateWithCreator = getOptionalBoolean(args.coordinateWithCreator, 'coordinateWithCreator', SessionServerToolName.CreateSession) ?? true;
 	const label = getOptionalString(args.label, 'label', SessionServerToolName.CreateSession);
+	let notifyOnIdle: SessionIdleNotification | undefined;
+	if (args.notifyOnIdle !== undefined) {
+		if (args.notifyOnIdle !== 'once' && args.notifyOnIdle !== 'always') {
+			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: notifyOnIdle must be once or always.`);
+		}
+		notifyOnIdle = args.notifyOnIdle;
+	}
 	return {
 		workspace: resolveWorkspace(workspace, sessions),
 		prompt,
 		model: resolveModel(modelName, models),
 		coordinateWithCreator,
+		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
 		...(label !== undefined ? { label } : {}),
 	};
 }
@@ -708,6 +720,7 @@ function serializeSession(session: IAgentSessionMetadata, viewerSession?: string
 			...(canSeeParent ? { parentSession: orchestration.parentSession } : {}),
 			...(canSeeCreator ? { creator: orchestration.creatorSession } : {}),
 			...(orchestration.label !== undefined ? { label: orchestration.label } : {}),
+			...(orchestration.notifyOnIdle !== undefined ? { notifyOnIdle: orchestration.notifyOnIdle } : {}),
 		} : {}),
 	};
 }
@@ -754,6 +767,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 			parentSession: currentSession.toString(),
 			creatorSession: currentSession.toString(),
 			coordinateWithCreator: args.coordinateWithCreator,
+			...(args.notifyOnIdle !== undefined ? { notifyOnIdle: args.notifyOnIdle } : {}),
 			...(args.label !== undefined ? { label: args.label } : {}),
 		});
 	}

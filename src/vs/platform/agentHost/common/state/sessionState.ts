@@ -1711,11 +1711,17 @@ export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, dept
 	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
 }
 
+export type SessionIdleNotification = 'once' | 'always';
+export type SessionCreatorNotificationState = 'waitingForCompletion' | 'notified';
+
 export interface ISessionOrchestration {
 	readonly parentSession: string;
 	readonly creatorSession: string;
 	readonly label?: string;
 	readonly coordinateWithCreator: boolean;
+	readonly notifyOnIdle?: SessionIdleNotification;
+	/** Durable delivery state used to wait for a work outcome and deduplicate replayed statuses. */
+	readonly creatorNotificationState?: SessionCreatorNotificationState;
 }
 
 export const SESSION_META_ORCHESTRATION_KEY = 'agentHost/orchestration';
@@ -1732,11 +1738,17 @@ export function readSessionOrchestration(meta: SessionSummaryMeta | undefined): 
 	}
 	const creatorSession = typeof candidate.creatorSession === 'string' ? candidate.creatorSession : candidate.parentSession;
 	const label = typeof candidate.label === 'string' ? candidate.label : undefined;
+	const notifyOnIdle = candidate.notifyOnIdle === 'once' || candidate.notifyOnIdle === 'always' ? candidate.notifyOnIdle : undefined;
+	const creatorNotificationState = candidate.creatorNotificationState === 'waitingForCompletion' || candidate.creatorNotificationState === 'notified'
+		? candidate.creatorNotificationState
+		: undefined;
 	return {
 		parentSession: candidate.parentSession,
 		creatorSession,
 		coordinateWithCreator: candidate.coordinateWithCreator,
 		...(label !== undefined ? { label } : {}),
+		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
+		...(creatorNotificationState !== undefined ? { creatorNotificationState } : {}),
 	};
 }
 

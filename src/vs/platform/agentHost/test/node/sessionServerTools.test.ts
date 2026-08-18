@@ -230,6 +230,7 @@ suite('SessionServerTools', () => {
 					parentSession: 'copilot:/parent',
 					creatorSession: 'copilot:/creator',
 					coordinateWithCreator: true,
+					notifyOnIdle: 'once',
 					label: 'research',
 				}),
 			};
@@ -247,6 +248,7 @@ suite('SessionServerTools', () => {
 					parentSession: 'copilot:/parent',
 					creator: 'copilot:/creator',
 					label: 'research',
+					notifyOnIdle: 'once',
 				},
 				byParent: ['copilot:/child'],
 				byLabel: ['copilot:/child'],
@@ -421,7 +423,7 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
-	test('create_session records explicit coordination options', async () => {
+	test('create_session records explicit orchestration options', async () => {
 		const orchestrations = new Map<string, ISessionOrchestration>();
 		const sessions = [sessionMeta('caller', SessionStatus.InProgress, workspace)];
 		const accessor = createAccessor({ orchestrations, listSessions: async () => sessions });
@@ -430,6 +432,7 @@ suite('SessionServerTools', () => {
 			workspace: workspace.toString(),
 			prompt: 'do it',
 			coordinateWithCreator: false,
+			notifyOnIdle: 'always',
 			label: 'research',
 		}, URI.parse('copilot:/caller'));
 
@@ -437,6 +440,7 @@ suite('SessionServerTools', () => {
 			parentSession: 'copilot:/caller',
 			creatorSession: 'copilot:/caller',
 			coordinateWithCreator: false,
+			notifyOnIdle: 'always',
 			label: 'research',
 		});
 	});

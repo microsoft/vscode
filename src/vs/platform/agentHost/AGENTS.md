@@ -232,11 +232,21 @@ For every provider, migration and discovery partition the same native catalog: m
 Sessions created by the `create_session` server tool record provider-neutral
 orchestration metadata in the session summary `_meta` bag. The metadata names
 the creating session separately from the hierarchy parent, plus an optional
-label and whether the child may coordinate with its creator. Keeping creator
-identity separate from hierarchy placement preserves creator semantics if
-parent relationships evolve.
+label, whether the child may coordinate with its creator, and an optional
+idle-notification policy. Keeping creator identity separate from hierarchy
+placement preserves notification routing if parent relationships evolve.
 `list_sessions` projects and filters hierarchy metadata without involving
 provider harnesses.
+
+`SessionCoordinationService` owns idle-notification status observation,
+per-child sequencing, creator restoration, and delivery. Its durable
+`creatorNotificationState` is `waitingForCompletion` after work starts and
+`notified` after the next input-needed/idle/error transition wakes the creator.
+The `always` policy returns to `waitingForCompletion` on the next work cycle. A
+busy creator default chat receives a queued system notification rather than a
+new active turn, so concurrent child completion cannot overwrite creator work.
+The existing pending-message drain starts that queued notification when the
+creator chat becomes idle.
 
 `list_sessions` exposes a session's configured project URI separately from its
 primary and additional working directories. `create_session` accepts those URIs

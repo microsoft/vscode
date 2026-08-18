@@ -1303,6 +1303,14 @@ Create a session in a workspace and start it with an initial prompt. The UI show
       "type": "boolean",
       "description": "Allow the child to identify and contact the session that created it. Set false for an independent child that must not send messages or create chats in its creator. Defaults to true."
     },
+    "notifyOnIdle": {
+      "type": "string",
+      "enum": [
+        "once",
+        "always"
+      ],
+      "description": "Wake the creator when the child needs input, becomes idle, or errors, either once or after every work cycle."
+    },
     "label": {
       "type": "string",
       "description": "Optional label used to group and filter related child sessions."
