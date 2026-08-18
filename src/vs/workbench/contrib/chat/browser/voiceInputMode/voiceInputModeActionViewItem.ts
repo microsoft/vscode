@@ -556,7 +556,6 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const simHandsFree = this.voiceInputModeService.simulatedHandsFree.read(reader);
 			const handsFree = simHandsFree ?? this.voiceInputModeService.handsFree.read(reader);
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
-			const muted = sim === undefined && this.voiceSessionController.isMuted.read(reader);
 			const isActive = sim !== undefined || (this._options?.isActive?.read(reader) ?? true);
 			const isDictationActive = sim !== undefined || (this._options?.isDictationActive?.read(reader) ?? isActive);
 			const isVoiceActive = sim !== undefined || (this._options?.isVoiceActive?.read(reader) ?? isActive);
@@ -587,6 +586,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			// While muted the mic isn't heard, so the audio-reactive listening state
 			// would misleadingly react to the user's voice; render the calm idle-on
 			// wave instead until unmuted. Speaking (the assistant) is unaffected.
+			// Only read the mute observable while connected, mirroring how the state
+			// observables above are only read when voice is active.
+			const muted = sim === undefined && connected && this.voiceSessionController.isMuted.read(reader);
 			const micListening = listening && !muted;
 			const voiceLive = micListening || speaking;
 			const voiceOn = connected || connecting;
