@@ -260,19 +260,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 			}
 		}));
 
-		// When a workspace folder is removed, forget any explicit per-session
-		// selection that pointed at it so a not-yet-started chat reselects the
-		// folder a freshly created chat would use (via {@link resolveNewSessionPrimary})
-		// instead of keeping a folder that no longer exists. Only actual removals
-		// are considered, so a standalone folder outside the workspace is never
-		// treated as stale. The window-level sticky default ({@link _defaultFolder})
-		// is intentionally left untouched: {@link getDefaultFolder} already hides it
-		// while it is not a workspace folder and lets it resurface if re-added.
-		//
-		// Uses the provider-aware {@link IUriIdentityService.extUri} so a
-		// case-distinct sibling on a case-sensitive remote (e.g. `/work/repo`
-		// remaining after `/work/Repo` is removed) is not mistaken for the
-		// still-present folder.
+		// Clear selections for folders actually removed from the workspace while retaining the sticky default.
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(e => {
 			if (e.removed.length === 0) {
 				return;
