@@ -362,7 +362,10 @@ suite('ChatSpeechToTextService', () => {
 		};
 
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('Luna transcript', CancellationToken.None);
-		await createService('copilot-utility-small')._cleanupWithLanguageModel('utility transcript', CancellationToken.None);
+		const fallbackService = createService('gpt-5.6-luna');
+		let selectionCall = 0;
+		fallbackService._languageModelsService.selectLanguageModels = async () => selectionCall++ === 0 ? [] : ['test-model'];
+		await fallbackService._cleanupWithLanguageModel('utility fallback transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(requestConfigurations, [
 			{ reasoningEffort: 'none' },
