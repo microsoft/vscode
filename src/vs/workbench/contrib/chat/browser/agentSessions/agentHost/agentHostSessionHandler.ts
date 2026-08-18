@@ -2152,10 +2152,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			this._logService.info(`[AgentHost] Server-initiated turn detected: ${activeTurn.id}`);
 
-			// Determine which queued messages left the queue. The one that became
-			// this turn is consumed rather than withdrawn: `removePendingRequest`
-			// settles its `sendRequest` promise as cancelled, so the chat service
-			// settles that one as sent when it creates the request below.
+			// The message that became this turn was consumed, not withdrawn.
 			if (previousQueuedIds) {
 				for (const prevId of previousQueuedIds) {
 					if (!currentQueuedIds.has(prevId) && prevId !== activeTurn.id) {

@@ -983,11 +983,7 @@ export class ChatService extends Disposable implements IChatService {
 					// Ensure cancellation tracking is active
 					ensureCancellationTracking();
 
-					// A queued message the provider consumed arrives here under the
-					// id it was queued with, so the caller still awaiting
-					// `sendRequest` is told it was sent rather than left hanging.
-					// The queue-removal path reports cancellation, which is right
-					// for a message the user withdrew and wrong for this one.
+					// A consumed message arrives under the id it was queued with, so settle it as sent, not cancelled.
 					this.settleConsumedPendingRequest(id, lastRequest, agent, disposables);
 				}));
 			}
@@ -2210,11 +2206,8 @@ export class ChatService extends Disposable implements IChatService {
 
 	/**
 	 * Settle a queued message's `sendRequest` promise once the provider has
-	 * consumed it and the request exists. Distinct from
-	 * {@link removePendingRequest}, which retires a message the user withdrew
-	 * and therefore reports cancellation: a consumed message was delivered and
-	 * is being answered, so reporting it as cancelled tells every awaiting
-	 * caller the opposite of what happened.
+	 * consumed it. Unlike {@link removePendingRequest}, which reports the
+	 * cancellation of a withdrawn message, this one was delivered.
 	 */
 	private settleConsumedPendingRequest(requestId: string, request: ChatRequestModel, agent: IChatAgentData | undefined, store: DisposableStore): void {
 		const deferred = this._queuedRequestDeferreds.get(requestId);
@@ -2225,11 +2218,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const response = request.response;
 		if (!agent || !response) {
-			// Reconciliation deliberately leaves a consumed message alone, so this
-			// is the last place that can settle it. Reporting it as sent means
-			// handing back an agent and a response to await; with neither there is
-			// nothing to await, and saying so beats leaving the caller waiting for
-			// a turn nobody will report on.
+			// Nothing else settles a consumed message, so report the failure rather than leave the caller waiting.
 			deferred.complete({ kind: 'rejected', reason: 'The provider started the request but the session could not describe it' });
 			return;
 		}
@@ -2238,17 +2227,14 @@ export class ChatService extends Disposable implements IChatService {
 		if (response.isComplete) {
 			completed.complete();
 		} else {
-			// Owned by the session's store: a response that never completes (the
-			// session is closed mid-turn) must not leave a listener behind.
+			// Owned by the session store so a response that never completes leaves no listener behind.
 			const listener = store.add(response.onDidChange(() => {
 				if (response.isComplete) {
 					listener.dispose();
 					completed.complete();
 				}
 			}));
-			// The same close must not leave the promise pending either. The
-			// ordinary send path hands back a request promise that always settles,
-			// so a caller awaiting this one is entitled to the same guarantee.
+			// The ordinary send path always settles its promise, so this one must too.
 			store.add(toDisposable(() => {
 				if (!completed.isSettled) {
 					completed.complete();
@@ -2279,9 +2265,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		// A copy: `getPendingRequests` hands back the model's live array, and
-		// `replacePendingRequests` below empties it in place, so retaining the
-		// reference would leave the settlement loop with nothing to iterate.
+		// A copy: `replacePendingRequests` empties the live array before the loop below reads it.
 		const existing = [...model.getPendingRequests()];
 		const existingById = new Map(existing.map(request => [request.request.id, request]));
 		const reconciled: IChatPendingRequest[] = requests.map(remote => {
@@ -2314,10 +2298,7 @@ export class ChatService extends Disposable implements IChatService {
 				continue;
 			}
 			if (local.request.id === consumedRequestId) {
-				// Left the queue because the provider is running it. The request
-				// created for it settles the caller's promise as sent; rejecting
-				// here would report the opposite, and would race that settlement
-				// since both follow the same provider state change.
+				// The request created for it settles the caller as sent; rejecting here would race that.
 				continue;
 			}
 			const deferred = this._queuedRequestDeferreds.get(local.request.id);

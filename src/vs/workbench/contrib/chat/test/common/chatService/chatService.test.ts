@@ -2571,8 +2571,7 @@ suite('ChatService', () => {
 			assert.ok(ref);
 			testDisposables.add(ref);
 
-			// Queue a message, then have the provider consume it: it comes back as
-			// a server-initiated turn under the id it was queued with.
+			// The provider consumes it, returning a server-initiated turn under the queued id.
 			const queued = await testService.sendRequest(resource, 'queued message', { queue: ChatRequestQueueKind.Queued });
 			if (!queued || queued.kind !== 'queued') {
 				throw new Error(`expected the message to queue, got ${queued?.kind}`);
@@ -2581,8 +2580,7 @@ suite('ChatService', () => {
 			onDidStartServerRequest.fire({ id: queued.requestId, prompt: 'queued message' });
 			const settled = await queued.deferred;
 
-			// Reported as cancelled before the fix, though it was delivered and is
-			// being answered: the queue-removal path settles the same deferred.
+			// Reported as cancelled before the fix, though it was delivered and is being answered.
 			assert.strictEqual(
 				settled.kind,
 				'sent',
@@ -2612,9 +2610,7 @@ suite('ChatService', () => {
 				throw new Error(`expected the message to queue, got ${queued?.kind}`);
 			}
 
-			// Reporting a consumed message as sent means handing back an agent to
-			// await. Reconciliation no longer rejects this id, so without settling
-			// it here the caller waits forever.
+			// Without an agent there is nothing to hand back, and reconciliation no longer rejects this id.
 			agentRegistration.dispose();
 			onDidStartServerRequest.fire({ id: queued.requestId, prompt: 'queued message' });
 
@@ -2644,13 +2640,11 @@ suite('ChatService', () => {
 			const settled = await queued.deferred;
 			ChatSendResult.assertSent(settled);
 
-			// Precondition: a response that already completed would settle the
-			// promise on its own and the assertion below would prove nothing.
+			// Precondition: an already-complete response would settle the promise on its own.
 			const consumed = ref.object.getRequests().find(r => r.id === queued.requestId);
 			assert.strictEqual(consumed?.response?.isComplete, false, 'the turn must still be running');
 
-			// Closing the session disposes the store the completion listener lives
-			// on, so nothing further can complete the response.
+			// Closing the session disposes the listener, so nothing further can complete the response.
 			ref.dispose();
 
 			const outcome = await raceTimeout(settled.data.responseCompletePromise!.then(() => 'settled' as const), 200);
@@ -2676,16 +2670,14 @@ suite('ChatService', () => {
 			let settled: ChatSendResult | undefined;
 			queued.deferred.then(result => { settled = result; });
 
-			// Precondition: without this the reconciliation below has nothing to
-			// drop and the test would pass vacuously.
+			// Precondition: otherwise the reconciliation below has nothing to drop.
 			assert.deepStrictEqual(
 				ref.object.getPendingRequests().map(r => r.request.id),
 				[queued.requestId],
 				'the message must be queued on the model before reconciliation',
 			);
 
-			// The provider's queue no longer lists it because it is now the active
-			// turn. Reconciling must not treat that as a withdrawal.
+			// It left the provider queue by becoming the active turn, which is not a withdrawal.
 			testService.syncPendingRequestsFromRemote(resource, [], queued.requestId);
 			await timeout(0);
 
@@ -2713,8 +2705,7 @@ suite('ChatService', () => {
 			let settled: ChatSendResult | undefined;
 			queued.deferred.then(result => { settled = result; });
 
-			// Dropped by the provider, and named by no consumed id, so the caller
-			// must be told rather than left waiting forever.
+			// Dropped by the provider and named by no consumed id, so the caller must be told.
 			testService.syncPendingRequestsFromRemote(resource, []);
 			await timeout(0);
 
