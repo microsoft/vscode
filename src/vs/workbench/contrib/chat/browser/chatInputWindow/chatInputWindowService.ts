@@ -769,12 +769,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const previous = this._appendPendingNavigationButton(navigation, Codicon.chevronLeft, localize('chatInputWindow.pending.previous', "Previous Item"));
 		const next = this._appendPendingNavigationButton(navigation, Codicon.chevronRight, localize('chatInputWindow.pending.next', "Next Item"));
 		const sessionInfo = dom.append(panel, dom.$('.chat-input-window-pending-session.hidden'));
-		const sessionLabel = dom.append(sessionInfo, dom.$('span.chat-input-window-pending-session-label'));
 		let displayedSessionResource: URI | undefined;
 		const sessionShow = dom.append(sessionInfo, dom.$('a.chat-input-window-pending-session-show', {
 			role: 'button',
 			tabindex: '0',
-		}, localize('chatInputWindow.pending.showSession', "Show")));
+		}, localize('chatInputWindow.pending.showSession', "Show Session")));
 		const showSession = () => {
 			const resource = displayedSessionResource;
 			if (!resource) {
@@ -794,13 +793,17 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			displayedSessionResource = resource;
 			if (!resource) {
 				sessionInfo.classList.add('hidden');
-				sessionLabel.textContent = '';
+				sessionShow.removeAttribute('title');
 				return;
 			}
+			// Surface the specific session name as a tooltip so the link stays a
+			// compact "Show Session" while the name is still discoverable.
 			const session = this.agentSessionsService.getSession(resource);
-			sessionLabel.textContent = session?.label
-				? localize('chatInputWindow.pending.sessionName', "Session: {0}", session.label)
-				: localize('chatInputWindow.pending.session', "Session");
+			if (session?.label) {
+				sessionShow.setAttribute('title', localize('chatInputWindow.pending.sessionName', "Session: {0}", session.label));
+			} else {
+				sessionShow.removeAttribute('title');
+			}
 			sessionInfo.classList.remove('hidden');
 		};
 		const approvalFallback = dom.append(panel, dom.$('.chat-input-window-pending-approval-fallback'));

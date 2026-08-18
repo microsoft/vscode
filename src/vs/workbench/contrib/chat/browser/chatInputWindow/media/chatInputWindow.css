@@ -288,6 +288,7 @@
 .chat-input-window .chat-input-window-pending-session {
 	display: flex;
 	align-items: center;
+	justify-content: flex-end;
 	gap: var(--omni-row-gap);
 	padding: 6px var(--omni-rail) 0;
 	color: var(--vscode-descriptionForeground);
@@ -296,14 +297,6 @@
 
 .chat-input-window .chat-input-window-pending-session.hidden {
 	display: none;
-}
-
-.chat-input-window .chat-input-window-pending-session-label {
-	flex: 1 1 auto;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .chat-input-window .chat-input-window-pending-session-show {
