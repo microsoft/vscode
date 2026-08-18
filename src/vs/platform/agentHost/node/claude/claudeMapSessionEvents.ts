@@ -529,14 +529,7 @@ function getResultErrorText(message: Extract<SDKMessage, { type: 'result' }>): s
 		return message.is_error ? message.result : undefined;
 	}
 	if (message.subtype === 'error_during_execution') {
-		// The SDK always makes an internal diagnostic the FIRST entry of
-		// `errors` and appends the real errors, if any, after it. On its own it
-		// is not a failure: interrupting a turn produces an
-		// `error_during_execution` result whose `errors` holds nothing else, and
-		// steering interrupts on every steer. Dropping the diagnostic leaves a
-		// genuine error intact (minus a prefix that was never meant for users)
-		// and leaves an interrupted turn with no error text, so no ChatError is
-		// emitted and the turn does not render as failed.
+		// The SDK prepends a diagnostic to `errors`; on its own it is not a failure.
 		const errors = message.errors?.filter(error => !error.startsWith(INTERRUPT_DIAGNOSTIC_PREFIX));
 		return errors?.length ? errors.join('\n') : undefined;
 	}

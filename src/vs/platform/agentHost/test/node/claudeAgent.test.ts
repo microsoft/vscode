@@ -7747,11 +7747,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 	});
 
 	test('intermediate result during steering closes the preempted turn and opens the steering turn', async () => {
-		// CONTEXT.md M10: when the SDK preempts via `'now'`-priority, it
-		// emits one `result` message per turn it ran (the aborted
-		// original + the steering reply). The intermediate result ends the
-		// turn the steer interrupted and starts the steering turn, without
-		// settling the original sendMessage's deferred.
+		// The intermediate result ends the interrupted turn without settling its deferred.
 		const ctx = createTestContext(disposables);
 		await ctx.agent.authenticate('https://api.github.com', 'tok');
 		await tick();
