@@ -83,6 +83,9 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		if (!view) {
 			throw new Error(`Browser view ${viewId} not found`);
 		}
+		if (this.owner.agentNetworkFilterSourceId) {
+			view.setAgentNetworkFiltering(this.owner.agentNetworkFilterSourceId, true);
+		}
 		this.views.set(view.id, view);
 		this.knownContextIds.add(view.session.id);
 		this._onDidAddView.fire({ viewId: view.id });

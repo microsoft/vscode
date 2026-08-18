@@ -235,6 +235,8 @@ export interface IBrowserViewOwner {
 	readonly mainWindowId: number;
 	/** Optional session ID identifying the agent session that created this view. */
 	readonly sessionId?: string;
+	/** Optional source that keeps network filtering active while an agent tracks the view. */
+	readonly agentNetworkFilterSourceId?: string;
 }
 
 /**
@@ -600,6 +602,32 @@ export interface IBrowserViewService {
 	 * @returns The selected text, or empty string if no selection or page is loading
 	 */
 	getSelectedText(id: string): Promise<string>;
+
+	/**
+	 * Set whether agent network filtering is enabled for a browser view by a specific source.
+	 * Filtering remains enabled until every source for the view disables it.
+	 * @param id The browser view identifier
+	 * @param sourceId The identifier of the filtering source
+	 * @param enabled Whether the source requires filtering
+	 */
+	setAgentNetworkFiltering(id: string, sourceId: string, enabled: boolean): Promise<void>;
+
+	/**
+	 * Set whether an agent action is active for the browser view's session.
+	 * Main-frame requests are filtered while any action source in the session is active.
+	 * @param id The browser view identifier
+	 * @param sourceId The unique action identifier
+	 * @param enabled Whether the action is active
+	 */
+	setAgentNetworkAction(id: string, sourceId: string, enabled: boolean): Promise<void>;
+
+	/**
+	 * Get a retained network policy error for the browser view, revalidated against the current policy.
+	 * @param id The browser view identifier
+	 * @param navigationOnly Whether to return only errors from main-frame navigation
+	 * @returns The current view-scoped policy error, or undefined if no retained request remains denied
+	 */
+	getNetworkPolicyError(id: string, navigationOnly?: boolean): Promise<string | undefined>;
 
 	/**
 	 * Clear all storage data for the global browser session

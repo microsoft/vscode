@@ -10,6 +10,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions, IBrowserViewPermissionRequestEvent, isBrowserViewAssociatedResourceNavigation } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
+import { BrowserViewAgentNetworkFilterSources } from './browserViewAgentNetworkFilter.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -59,6 +60,9 @@ export class BrowserView extends Disposable {
 	private _ownerWindow: ICodeWindow;
 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isDisposed = false;
+	private readonly _webContentsId: number;
+	private readonly _agentNetworkFilterSources = new BrowserViewAgentNetworkFilterSources();
+	private readonly _agentNetworkActionSources = new Set<string>();
 
 	private _wantsVisibility = false;
 	private _hasBeenLaidOut = false;
@@ -150,6 +154,11 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		this._webContentsId = this._view.webContents.id;
+		this.session.registerAgentNetworkWebContents(this._webContentsId);
+		if (owner.sessionId) {
+			this.setAgentNetworkFiltering(owner.sessionId, true);
+		}
 
 		// Use a default size of 1024x768.
 		// Important: The bounds here must be on-screen, otherwise some OSes (like macOS) may not actually start rendering.
@@ -590,6 +599,23 @@ export class BrowserView extends Disposable {
 		return this._view.webContents;
 	}
 
+	setAgentNetworkFiltering(sourceId: string, enabled: boolean): void {
+		this.session.setAgentNetworkFiltering(this._webContentsId, this._agentNetworkFilterSources.set(sourceId, enabled));
+	}
+
+	setAgentNetworkAction(sourceId: string, enabled: boolean): void {
+		if (enabled) {
+			this._agentNetworkActionSources.add(sourceId);
+		} else {
+			this._agentNetworkActionSources.delete(sourceId);
+		}
+		this.session.setAgentNetworkAction(this._webContentsId, sourceId, enabled);
+	}
+
+	getAgentNetworkPolicyError(navigationOnly?: boolean): string | undefined {
+		return this.session.getAgentNetworkPolicyError(this._webContentsId, navigationOnly);
+	}
+
 	/**
 	 * Get the current state of this browser view
 	 */
@@ -1012,6 +1038,13 @@ export class BrowserView extends Disposable {
 			return;
 		}
 		this._isDisposed = true;
+		this._agentNetworkFilterSources.clear();
+		this.session.setAgentNetworkFiltering(this._webContentsId, false);
+		for (const sourceId of this._agentNetworkActionSources) {
+			this.session.setAgentNetworkAction(this._webContentsId, sourceId, false);
+		}
+		this._agentNetworkActionSources.clear();
+		this.session.unregisterAgentNetworkWebContents(this._webContentsId);
 
 		// Dispose debugger. This detaches debug sessions first.
 		this.debugger.dispose();

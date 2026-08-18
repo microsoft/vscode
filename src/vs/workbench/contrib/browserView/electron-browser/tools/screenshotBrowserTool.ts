@@ -178,6 +178,11 @@ export class ScreenshotBrowserTool implements IToolImpl {
 			return errorResult(`No browser page found with ID ${params.pageId}`);
 		}
 
+		let networkPolicyError = await this.getNetworkPolicyError(browserViewModel, sessionId, params.pageId);
+		if (networkPolicyError) {
+			return errorResult(networkPolicyError);
+		}
+
 		const bounds = selector && await playwrightInvokeRaw(this.playwrightService, sessionId, params.pageId, async (page, selector, scrollIntoViewIfNeeded) => {
 			const locator = page.locator(selector);
 			if (scrollIntoViewIfNeeded) {
@@ -185,7 +190,17 @@ export class ScreenshotBrowserTool implements IToolImpl {
 			}
 			return locator.boundingBox();
 		}, selector, params.scrollIntoViewIfNeeded) || undefined;
+
+		networkPolicyError = await this.getNetworkPolicyError(browserViewModel, sessionId, params.pageId);
+		if (networkPolicyError) {
+			return errorResult(networkPolicyError);
+		}
+
 		const screenshot = await browserViewModel.captureScreenshot({ pageRect: bounds });
+		networkPolicyError = await this.getNetworkPolicyError(browserViewModel, sessionId, params.pageId);
+		if (networkPolicyError) {
+			return errorResult(networkPolicyError);
+		}
 
 		const dimensions = readImageDimensions(screenshot);
 		const hostWindow = this.findBrowserViewHostWindow(browserViewModel);
@@ -225,6 +240,15 @@ export class ScreenshotBrowserTool implements IToolImpl {
 				},
 			],
 		};
+	}
+
+	private async getNetworkPolicyError(model: IBrowserViewModel, sessionId: string, pageId: string): Promise<string | undefined> {
+		try {
+			await playwrightInvokeRaw(this.playwrightService, sessionId, pageId, async () => undefined);
+			return model.getNetworkPolicyError();
+		} catch (error) {
+			return error instanceof Error ? error.message : String(error);
+		}
 	}
 
 	private findBrowserViewHostWindow(model: IBrowserViewModel): CodeWindow | undefined {
