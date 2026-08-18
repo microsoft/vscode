@@ -240,10 +240,6 @@ export class SessionView extends Disposable implements ISerializableView {
 		standaloneView ? standaloneView.focus() : this._groupsView.focus();
 	}
 
-	startTitleEditing(): void {
-		this._header.startTitleEditing();
-	}
-
 	selectWorkspace(folderUri: URI, providerId?: string): void {
 		const standaloneView = this._standaloneView.value;
 		standaloneView ? standaloneView.selectWorkspace(folderUri, providerId) : this._groupsView.selectWorkspace(folderUri, providerId);

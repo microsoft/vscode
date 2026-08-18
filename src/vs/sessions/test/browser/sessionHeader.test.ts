@@ -107,6 +107,23 @@ suite('Sessions - SessionHeader', () => {
 		assert.strictEqual(dragEvent.defaultPrevented, true);
 	});
 
+	test('renders metadata and actions in one row without a duplicate session title', () => {
+		const { header } = createHarness(disposables);
+		const row = header.element.querySelector('.chat-composite-bar-header');
+
+		assert.deepStrictEqual({
+			hasTitle: !!header.element.querySelector('.chat-composite-bar-session-title'),
+			children: Array.from(row?.children ?? []).map(child => child.className),
+		}, {
+			hasTitle: false,
+			children: [
+				'chat-composite-bar-session-icon',
+				'chat-composite-bar-meta-row',
+				'chat-composite-bar-title-actions',
+			],
+		});
+	});
+
 	test('a drag starting elsewhere in the header still initiates a session drag', () => {
 		const { header } = createHarness(disposables);
 
