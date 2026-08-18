@@ -36,10 +36,8 @@ export class SessionClientToolsModel {
 
 	/**
 	 * Contributors in recency order, most recent first. A reconnecting window
-	 * arrives with a new `clientId` and re-pushes its tool list, so the front of
-	 * this list is the contributor most recently known to be alive. Kept as an
-	 * order rather than a single id so that removing one falls back to the next
-	 * most recent rather than to insertion order.
+	 * arrives with a new `clientId`, so removing one falls back to the next most
+	 * recent rather than to insertion order.
 	 */
 	private readonly _recency: string[] = [];
 
@@ -76,13 +74,8 @@ export class SessionClientToolsModel {
 
 	/**
 	 * The `clientId` that owns the tool named `toolName`, or `undefined`.
-	 *
-	 * Without a caller-supplied preference the most recent contributor wins
-	 * rather than the first-inserted one. A window reload connects with a new
-	 * `clientId` and re-pushes the same tools, and the departed client's entry
-	 * can outlive it here — resolving to the older entry stamps tool calls with
-	 * a client that is gone, and those fail on arrival for the life of the
-	 * session.
+	 * The most recent contributor wins: a departed client can outlive its reload
+	 * here, and stamping calls with it fails them for the life of the session.
 	 */
 	ownerOf(toolName: string, preferredClientId?: string): string | undefined {
 		const candidates = preferredClientId ? [preferredClientId, ...this._recency] : this._recency;

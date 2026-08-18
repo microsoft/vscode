@@ -138,8 +138,7 @@ suite('SessionClientToolsDiff', () => {
 	test('a reconnected client owns the tools it re-pushed, even while the old entry lingers', () => {
 		const diff = disposables.add(new SessionClientToolsDiff());
 		diff.model.setTools('old-client', [tool({ name: 'openBrowserPage' })]);
-		// The window reloads and reconnects with a new id, re-pushing the same
-		// tools. The departed client's entry has not been cleaned up yet.
+		// The window reloads with a new id; the departed entry is not cleaned up yet.
 		diff.model.setTools('new-client', [tool({ name: 'openBrowserPage' })]);
 
 		assert.strictEqual(diff.model.ownerOf('openBrowserPage'), 'new-client');
@@ -162,8 +161,7 @@ suite('SessionClientToolsDiff', () => {
 
 		assert.strictEqual(diff.model.ownerOf('shared'), 'c3');
 
-		// Not c1: insertion order is what stamped tool calls with a client that
-		// had gone away in the first place.
+		// Not c1: insertion order is what stamped calls with a client that had gone.
 		diff.model.removeClient('c3');
 		assert.strictEqual(diff.model.ownerOf('shared'), 'c2');
 
@@ -175,8 +173,7 @@ suite('SessionClientToolsDiff', () => {
 		const diff = disposables.add(new SessionClientToolsDiff());
 		diff.model.setTools('c1', [tool({ name: 'shared' })]);
 		diff.model.setTools('c2', [tool({ name: 'shared' })]);
-		// A reconnect re-pushes an identical list, which the merged observable
-		// dedupes — recency must still update.
+		// The merged observable dedupes an identical re-push, so recency must still update.
 		diff.model.setTools('c1', [tool({ name: 'shared' })]);
 
 		assert.strictEqual(diff.model.ownerOf('shared'), 'c1');
