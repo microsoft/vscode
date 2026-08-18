@@ -33,6 +33,7 @@ import { ChatElicitationRequestPart } from '../../../chat/common/model/chatProgr
 import { ElicitationState, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { ILifecycleService, WillShutdownJoinerOrder } from '../../../../services/lifecycle/common/lifecycle.js';
+import { getTerminalOutputDirectory } from './terminalOutput.js';
 
 export { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxFileAccessCheckResult, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
@@ -86,6 +87,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			getUserHome: () => this._resolveUserHome(),
 			getSandboxTempDir: () => this._resolveSandboxTempDir(),
 			getWorkspaceStorageReadRoot: () => this._resolveWorkspaceStorageReadRoot(),
+			getReadRoots: () => [getTerminalOutputDirectory(this._environmentService.cacheHome)],
 			getWriteRoots: () => this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
 			onDidChangeRoots: this._onDidChangeRoots.event,
 			checkSandboxDependencies: () => this._resolveSandboxDependencyStatus(),
@@ -417,4 +419,3 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 }
-

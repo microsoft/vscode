@@ -78,6 +78,11 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		return [...this.sessions.values()];
 	}
 
+	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		this._throwReadFailure();
+		return this.sessions.get(session);
+	}
+
 	async isSessionRegistryEmpty(): Promise<boolean> {
 		this._throwReadFailure();
 		return this.sessions.size === 0;
@@ -163,6 +168,23 @@ suite('AgentSessionRegistry', () => {
 	const registerExplicit = (registry: AgentSessionRegistry, session: typeof a, provider: 'copilot' | 'claude', startTime: number) =>
 		registry.register(session, { provider, startTime, source: 'explicit' }, { checkTombstone: false });
 
+	test('listSessionKeys does not migrate legacy entries', async () => {
+		const testDatabase = new TestAgentHostDatabase();
+		database = testDatabase;
+		testDatabase.sessions.set(a.toString(), { session: a.toString(), provider: 'copilot', startTime: 1, external: undefined, source: 'explicit' });
+		const registry = createRegistry();
+
+		assert.deepStrictEqual({
+			keys: [...await registry.listSessionKeys()],
+			listCalls: testDatabase.listCalls,
+			updates: testDatabase.externalUpdates,
+		}, {
+			keys: [a.toString()],
+			listCalls: 1,
+			updates: [],
+		});
+	});
+
 	test('list migrates entries and returns the computed list without rereading', async () => {
 		const testDatabase = new TestAgentHostDatabase();
 		database = testDatabase;
@@ -195,6 +217,30 @@ suite('AgentSessionRegistry', () => {
 			],
 		});
 	});
+
+	test('get reads only the requested session', async () => {
+		const testDatabase = new TestAgentHostDatabase();
+		database = testDatabase;
+		testDatabase.sessions.set(a.toString(), { session: a.toString(), provider: 'copilot', startTime: 1, external: false, source: 'explicit' });
+		testDatabase.sessions.set(b.toString(), { session: b.toString(), provider: 'claude', startTime: 2, external: false, source: 'explicit' });
+		const registry = createRegistry();
+
+		const [entry, missing] = await Promise.all([
+			registry.get(b),
+			registry.get(AgentSession.uri('copilot', 'missing')),
+		]);
+
+		assert.deepStrictEqual({
+			listCalls: testDatabase.listCalls,
+			entry: entry && { session: entry.session.toString(), provider: entry.provider },
+			missing,
+		}, {
+			listCalls: 0,
+			entry: { session: b.toString(), provider: 'claude' },
+			missing: undefined,
+		});
+	});
+
 	const registerRestored = (registry: AgentSessionRegistry, session: typeof a, provider: 'copilot' | 'claude', startTime: number) =>
 		registry.register(session, { provider, startTime, source: 'restore' }, { checkTombstone: true });
 	const registerDiscovered = (registry: AgentSessionRegistry, session: typeof a, provider: 'copilot' | 'claude', startTime: number) =>
