@@ -1918,6 +1918,68 @@ suite('Sessions - Workbench', () => {
 
 	// --- DockedAuxiliaryBarController --------------------------------------
 
+	test('aligns docked details with the editor title boundary', () => {
+		const editorContainer = document.createElement('div');
+		const auxiliaryBarContainer = document.createElement('div');
+		const layouts: { height: number; top: number }[] = [];
+		let titleHeight = 33;
+
+		Object.defineProperties(editorContainer, {
+			clientHeight: { value: 600 },
+			clientTop: { value: 1 },
+		});
+		editorContainer.getBoundingClientRect = () => ({
+			width: 800,
+			height: 600,
+			top: 0,
+			right: 800,
+			bottom: 600,
+			left: 0,
+			x: 0,
+			y: 0,
+			toJSON: () => undefined,
+		});
+
+		const auxiliaryBarPart = {
+			getContainer: () => auxiliaryBarContainer,
+			layout: (_width: number, height: number, top: number) => layouts.push({ height, top }),
+		} as unknown as Part;
+		const host: IDockedAuxiliaryBarHost = {
+			getWidth: () => 260,
+			setWidth: () => { },
+			isEditorAreaVisible: () => true,
+			isEditorVisible: () => true,
+			isAuxiliaryBarVisible: () => true,
+			hideAuxiliaryBar: () => { },
+			setEditorContentRightInset: () => { },
+			getTitleHeight: () => titleHeight,
+		};
+		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
+
+		controller.layout();
+		titleHeight = 62;
+		controller.layout();
+
+		assert.deepStrictEqual({
+			layouts,
+			style: {
+				top: auxiliaryBarContainer.style.top,
+				height: auxiliaryBarContainer.style.height,
+			},
+		}, {
+			layouts: [
+				{ height: 566, top: 34 },
+				{ height: 537, top: 63 },
+			],
+			style: {
+				top: '63px',
+				height: '537px',
+			},
+		});
+
+		controller.dispose();
+	});
+
 	test('fills the narrowed docked detail node and disables its overlay sash when editor content is hidden', () => {
 
 		const editorContainer = document.createElement('div');
@@ -1930,6 +1992,7 @@ suite('Sessions - Workbench', () => {
 
 		Object.defineProperty(editorContainer, 'clientWidth', { get: () => editorWidth });
 		Object.defineProperty(editorContainer, 'clientHeight', { value: 600 });
+		Object.defineProperty(editorContainer, 'clientTop', { value: 1 });
 		editorContainer.getBoundingClientRect = () => ({
 			width: editorWidth,
 			height: 600,
@@ -1956,7 +2019,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: px => insets.push(px),
-			getHeaderHeight: () => 0,
+			getTitleHeight: () => 34,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
@@ -2034,7 +2097,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: px => insets.push(px),
-			getHeaderHeight: () => 0,
+			getTitleHeight: () => 35,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
@@ -2094,7 +2157,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => hideCount++,
 			setEditorContentRightInset: () => { },
-			getHeaderHeight: () => 0,
+			getTitleHeight: () => 35,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
