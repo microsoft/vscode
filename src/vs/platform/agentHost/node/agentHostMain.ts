@@ -172,6 +172,7 @@ async function startAgentHost(): Promise<void> {
 	// renderer's BYOK server channel are not wired, so the registry stays empty
 	// and the proxy never binds.
 	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], true);
+	logService.trace(`BYOK language-model bridge enabled: ${byokLmEnabled}`);
 	const hostLaunchKind = readAgentHostLaunchKind(process.env[AgentHostLaunchKindEnvVar]);
 	const connectionTelemetryTracker = disposables.add(new AgentHostClientConnectionTelemetryTracker());
 	try {
