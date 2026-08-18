@@ -187,7 +187,7 @@ function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence):
 	pendingToolResolutionVersion.set(pendingToolResolutionVersion.get() + 1, undefined);
 }
 
-function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, store?: DisposableStore): IActivePendingToolOccurrence | undefined {
+function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, store?: DisposableStore, restoreResolved = false): IActivePendingToolOccurrence | undefined {
 	const semanticKey = pendingToolSemanticKey(requestId, invocation);
 	const current = pendingToolOccurrenceByPart.get(invocation);
 	if (!semanticKey) {
@@ -207,6 +207,9 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 	}
 
 	let occurrence = activePendingToolOccurrences.get(semanticKey);
+	if (!occurrence && restoreResolved) {
+		occurrence = resolvedPendingToolOccurrences.get(semanticKey);
+	}
 	if (!occurrence) {
 		if (!mint) {
 			return undefined;
@@ -323,6 +326,16 @@ export function markPendingIdResolved(pendingId: string): boolean {
 export function isPendingIdResolved(pendingId: string, reader?: IReader): boolean {
 	pendingToolResolutionVersion.read(reader);
 	return pendingToolOccurrenceById.get(pendingId)?.resolved === true;
+}
+
+/** Restore the retired id for a late rehydrated copy of an already-handled tool approval. */
+export function restoreResolvedPendingId(requestId: string, part: object, store?: DisposableStore): string | undefined {
+	const invocation = part as Partial<IChatToolInvocation>;
+	if (invocation.kind !== 'toolInvocation' || !invocation.state) {
+		return undefined;
+	}
+	const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, false, store, true);
+	return occurrence?.resolved ? pendingToolOccurrenceId(occurrence) : undefined;
 }
 
 /**
