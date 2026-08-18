@@ -43,6 +43,11 @@ interface IInstalledJson {
 	readonly installed: readonly IInstalledJsonEntry[];
 }
 
+interface IInstalledJsonReadResult {
+	readonly entries: readonly IStoredInstalledPlugin[];
+	readonly didRebase: boolean;
+}
+
 /**
  * In-memory representation of an installed plugin entry.
  */
@@ -109,7 +114,10 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		try {
 			const read = await this._readFromFile();
 			if (read !== undefined) {
-				this._setValue(read, undefined, false);
+				this._setValue(read.entries, undefined, false);
+				if (read.didRebase) {
+					await this._writeToFile();
+				}
 			} else {
 				// No installed.json yet — attempt migration from legacy storage.
 				await this._migrateFromStorage();
@@ -124,7 +132,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 
 	// --- File I/O ----------------------------------------------------------------
 
-	private async _readFromFile(): Promise<readonly IStoredInstalledPlugin[] | undefined> {
+	private async _readFromFile(): Promise<IInstalledJsonReadResult | undefined> {
 		try {
 			const exists = await this._fileService.exists(this._fileUri);
 			if (!exists) {
@@ -138,14 +146,23 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 				return undefined;
 			}
 
-			// Each entry is { pluginUri, marketplace, name? }.
-			return json.installed
+			let didRebase = false;
+			const entries = json.installed
 				.filter((entry): entry is IInstalledJsonEntry => typeof entry.pluginUri === 'string' && typeof entry.marketplace === 'string')
-				.map(entry => ({
-					pluginUri: URI.parse(entry.pluginUri),
-					marketplace: entry.marketplace,
-					name: typeof entry.name === 'string' ? entry.name : undefined,
-				}));
+				.map(entry => {
+					const pluginUri = URI.parse(entry.pluginUri);
+					const rebasedPluginUri = this._rebasePluginUri(pluginUri);
+					if (rebasedPluginUri) {
+						didRebase = true;
+					}
+					return {
+						pluginUri: rebasedPluginUri ?? pluginUri,
+						marketplace: entry.marketplace,
+						name: typeof entry.name === 'string' ? entry.name : undefined,
+					};
+				});
+
+			return { entries, didRebase };
 		} catch {
 			return undefined;
 		}
@@ -207,9 +224,12 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			// Suppress file write for externally triggered updates.
 			this._suppressFileWatch = true;
 			try {
-				this._setValue(read, undefined, false);
+				this._setValue(read.entries, undefined, false);
 			} finally {
 				this._suppressFileWatch = false;
+			}
+			if (read.didRebase) {
+				await this._writeToFile();
 			}
 		}
 	}

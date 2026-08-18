@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IMarketplacePlugin } from './pluginMarketplaceService.js';
+import { IMarketplaceInstalledPlugin, IMarketplacePlugin } from './pluginMarketplaceService.js';
 
 export const IPluginInstallService = createDecorator<IPluginInstallService>('pluginInstallService');
 
@@ -91,9 +91,10 @@ export interface IPluginInstallService {
 	validatePluginSource(source: string): string | undefined;
 
 	/**
-	 * Pulls the latest changes for an already-cloned marketplace repository.
+	 * Updates an installed plugin from its current marketplace descriptor.
+	 * The installed entry is required when the update can change its source URI.
 	 */
-	updatePlugin(plugin: IMarketplacePlugin): Promise<boolean>;
+	updatePlugin(plugin: IMarketplacePlugin, installedPlugin?: IMarketplaceInstalledPlugin): Promise<boolean>;
 
 	/**
 	 * Updates all installed plugins. First pulls each unique marketplace

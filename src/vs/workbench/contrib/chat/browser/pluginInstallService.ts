@@ -9,6 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { untildify } from '../../../../base/common/labels.js';
 import { posix, win32 } from '../../../../base/common/path.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -23,7 +24,7 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { IPluginInstallService, IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, parseMarketplaceReferences, PluginSourceKind, readConfiguredMarketplaces } from '../common/plugins/pluginMarketplaceService.js';
+import { IMarketplaceInstalledPlugin, IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, parseMarketplaceReferences, PluginSourceKind, readConfiguredMarketplaces } from '../common/plugins/pluginMarketplaceService.js';
 
 export class PluginInstallService implements IPluginInstallService {
 	declare readonly _serviceBrand: undefined;
@@ -50,7 +51,8 @@ export class PluginInstallService implements IPluginInstallService {
 		const kind = plugin.sourceDescriptor.kind;
 
 		if (kind === PluginSourceKind.RelativePath) {
-			return this._installRelativePathPlugin(plugin);
+			await this._installRelativePathPlugin(plugin);
+			return;
 		}
 
 		if (kind === PluginSourceKind.Npm || kind === PluginSourceKind.Pip) {
@@ -59,7 +61,7 @@ export class PluginInstallService implements IPluginInstallService {
 		}
 
 		// GitHub / GitUrl
-		return this._installGitPlugin(plugin);
+		await this._installGitPlugin(plugin);
 	}
 
 	validatePluginSource(source: string): string | undefined {
@@ -354,7 +356,11 @@ export class PluginInstallService implements IPluginInstallService {
 		return { reference, configPath: trimmed };
 	}
 
-	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {
+	async updatePlugin(plugin: IMarketplacePlugin, installedPlugin?: IMarketplaceInstalledPlugin): Promise<boolean> {
+		return this._updatePlugin(plugin, installedPlugin);
+	}
+
+	private async _updatePlugin(plugin: IMarketplacePlugin, installedPlugin?: IMarketplaceInstalledPlugin, silent?: boolean): Promise<boolean> {
 		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive() && !this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
@@ -363,19 +369,66 @@ export class PluginInstallService implements IPluginInstallService {
 			return false;
 		}
 
+		if (installedPlugin && hasSourceChanged(installedPlugin.plugin.sourceDescriptor, plugin.sourceDescriptor)) {
+			const updatedUri = this._pluginRepositoryService.getPluginInstallUri(plugin);
+			if (!isEqual(installedPlugin.pluginUri, updatedUri)) {
+				return this._replaceInstalledPluginSource(installedPlugin, plugin, silent);
+			}
+		}
+
 		const kind = plugin.sourceDescriptor.kind;
 
 		if (kind === PluginSourceKind.Npm || kind === PluginSourceKind.Pip) {
 			// Package-manager "update" re-runs install via terminal
-			return this._installPackagePlugin(plugin, silent);
+			const changed = await this._installPackagePlugin(plugin, silent);
+			if (changed && installedPlugin) {
+				this._pluginMarketplaceService.addInstalledPlugin(installedPlugin.pluginUri, plugin);
+			}
+			return changed;
 		}
 
 		// For relative-path and git sources, delegate to repository service
-		return this._pluginRepositoryService.updatePluginSource(plugin, {
+		const changed = await this._pluginRepositoryService.updatePluginSource(plugin, {
 			pluginName: plugin.name,
 			failureLabel: plugin.name,
+			silent,
 			marketplaceType: plugin.marketplaceType,
 		});
+		if (changed && installedPlugin) {
+			this._pluginMarketplaceService.addInstalledPlugin(installedPlugin.pluginUri, plugin);
+		}
+		return changed;
+	}
+
+	private async _replaceInstalledPluginSource(installedPlugin: IMarketplaceInstalledPlugin, livePlugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {
+		let installedUri: URI | undefined;
+		switch (livePlugin.sourceDescriptor.kind) {
+			case PluginSourceKind.RelativePath:
+				installedUri = await this._installRelativePathPlugin(livePlugin);
+				break;
+			case PluginSourceKind.Npm:
+			case PluginSourceKind.Pip:
+				if (await this._installPackagePlugin(livePlugin, silent)) {
+					installedUri = this._pluginRepositoryService.getPluginSourceInstallUri(livePlugin.sourceDescriptor);
+				}
+				break;
+			case PluginSourceKind.GitHub:
+			case PluginSourceKind.GitUrl:
+				installedUri = await this._installGitPlugin(livePlugin);
+				break;
+		}
+
+		if (!installedUri) {
+			return false;
+		}
+
+		this._pluginMarketplaceService.removeInstalledPlugin(installedPlugin.pluginUri);
+		const remaining = this._pluginMarketplaceService.installedPlugins.get();
+		await this._pluginRepositoryService.cleanupPluginSource(
+			installedPlugin.plugin,
+			remaining.map(entry => entry.plugin.sourceDescriptor),
+		);
+		return true;
 	}
 
 	async updateAllPlugins(options: IUpdateAllPluginsOptions, token: CancellationToken): Promise<IUpdateAllPluginsResult> {
@@ -393,7 +446,7 @@ export class PluginInstallService implements IPluginInstallService {
 
 		const doUpdate = async () => {
 			const gitTasks: Promise<void>[] = [];
-			const packagePlugins: { installed: IMarketplacePlugin; marketplace: IMarketplacePlugin }[] = [];
+			const packagePlugins: { installed: IMarketplaceInstalledPlugin; marketplace: IMarketplacePlugin }[] = [];
 
 			// 1. Pull each unique marketplace repository first (handles all
 			//    relative-path plugins and ensures the marketplace index on
@@ -442,13 +495,9 @@ export class PluginInstallService implements IPluginInstallService {
 				marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);
 			}
 
-			// 3. Update non-relative-path plugins individually.
+			// 3. Apply source descriptor changes, including moves between source kinds.
 			const independentGitTasks: Promise<void>[] = [];
 			for (const entry of installed) {
-				if (entry.plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
-					continue;
-				}
-
 				const livePlugin = marketplaceByKey.get(`${entry.plugin.marketplaceReference.canonicalId}::${entry.plugin.name}`);
 				if (!livePlugin || !hasSourceChanged(entry.plugin.sourceDescriptor, livePlugin.sourceDescriptor)) {
 					continue;
@@ -459,7 +508,7 @@ export class PluginInstallService implements IPluginInstallService {
 					if (!options.force && !desc.version) {
 						continue;
 					}
-					packagePlugins.push({ installed: entry.plugin, marketplace: livePlugin });
+					packagePlugins.push({ installed: entry, marketplace: livePlugin });
 					continue;
 				}
 
@@ -469,15 +518,9 @@ export class PluginInstallService implements IPluginInstallService {
 					}
 
 					try {
-						const changed = await this._pluginRepositoryService.updatePluginSource(livePlugin, {
-							pluginName: livePlugin.name,
-							failureLabel: livePlugin.name,
-							marketplaceType: livePlugin.marketplaceType,
-							silent: options.silent,
-						});
+						const changed = await this._updatePlugin(livePlugin, entry, options.silent);
 						if (changed) {
 							updatedNames.push(livePlugin.name);
-							this._pluginMarketplaceService.addInstalledPlugin(entry.pluginUri, livePlugin);
 						}
 					} catch (err) {
 						this._logService.error(`[PluginInstallService] Failed to update plugin '${livePlugin.name}':`, err);
@@ -488,17 +531,15 @@ export class PluginInstallService implements IPluginInstallService {
 
 			await Promise.all(independentGitTasks);
 
-			for (const { installed: _installed, marketplace } of packagePlugins) {
+			for (const { installed: installedPlugin, marketplace } of packagePlugins) {
 				if (token.isCancellationRequested) {
 					return;
 				}
 
 				try {
-					const changed = await this.updatePlugin(marketplace, options?.silent);
+					const changed = await this._updatePlugin(marketplace, installedPlugin, options.silent);
 					if (changed) {
 						updatedNames.push(marketplace.name);
-						const pluginUri = this._pluginRepositoryService.getPluginSourceInstallUri(marketplace.sourceDescriptor);
-						this._pluginMarketplaceService.addInstalledPlugin(pluginUri, marketplace);
 					}
 				} catch (err) {
 					this._logService.error(`[PluginInstallService] Failed to update plugin '${marketplace.name}':`, err);
@@ -594,7 +635,7 @@ export class PluginInstallService implements IPluginInstallService {
 
 	// --- Relative-path source (existing git-based flow) -----------------------
 
-	private async _installRelativePathPlugin(plugin: IMarketplacePlugin): Promise<void> {
+	private async _installRelativePathPlugin(plugin: IMarketplacePlugin): Promise<URI | undefined> {
 		try {
 			await this._pluginRepositoryService.ensureRepository(plugin.marketplaceReference, {
 				progressTitle: localize('installingPlugin', "Installing plugin '{0}'...", plugin.name),
@@ -626,11 +667,12 @@ export class PluginInstallService implements IPluginInstallService {
 		}
 
 		this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
+		return pluginDir;
 	}
 
 	// --- GitHub / Git URL source (independent clone) --------------------------
 
-	private async _installGitPlugin(plugin: IMarketplacePlugin): Promise<void> {
+	private async _installGitPlugin(plugin: IMarketplacePlugin): Promise<URI | undefined> {
 		const repo = this._pluginRepositoryService.getPluginSource(plugin.sourceDescriptor.kind);
 		let pluginDir: URI;
 		try {
@@ -653,6 +695,7 @@ export class PluginInstallService implements IPluginInstallService {
 		}
 
 		this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
+		return pluginDir;
 	}
 
 	// --- Package-manager sources (npm / pip) ----------------------------------

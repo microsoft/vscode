@@ -91,15 +91,15 @@ class UpdatePluginAction extends Action {
 		private readonly plugin: IAgentPlugin,
 		private readonly liveMarketplacePlugin: IMarketplacePlugin,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
-		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 	) {
 		super(UpdatePluginAction.ID, localize('update', "Update"), 'extension-action label prominent install');
 	}
 
 	override async run(): Promise<void> {
-		if (await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin)) {
-			this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
-		}
+		await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin, {
+			pluginUri: this.plugin.uri,
+			plugin: this.plugin.fromMarketplace!,
+		});
 	}
 }
 

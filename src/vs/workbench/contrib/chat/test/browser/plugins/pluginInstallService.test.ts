@@ -55,6 +55,8 @@ suite('PluginInstallService', () => {
 	interface MockState {
 		notifications: { severity: number; message: string }[];
 		addedPlugins: { uri: string; plugin: IMarketplacePlugin }[];
+		removedPluginUris: string[];
+		cleanedUpPlugins: IMarketplacePlugin[];
 		dialogConfirmResult: boolean;
 		fileExistsResult: boolean | ((uri: URI) => Promise<boolean>);
 		ensureRepositoryResult: URI;
@@ -108,6 +110,8 @@ suite('PluginInstallService', () => {
 		return {
 			notifications: [],
 			addedPlugins: [],
+			removedPluginUris: [],
+			cleanedUpPlugins: [],
 			dialogConfirmResult: true,
 			fileExistsResult: true,
 			ensureRepositoryResult: URI.file('/cache/agentPlugins/github.com/microsoft/vscode'),
@@ -293,7 +297,9 @@ suite('PluginInstallService', () => {
 				state.updatePluginSourceCalls.push({ plugin, options });
 			},
 			getPluginSource: (kind: PluginSourceKind) => mockSourceRepos.get(kind)!,
-			cleanupPluginSource: async () => { },
+			cleanupPluginSource: async (plugin: IMarketplacePlugin) => {
+				state.cleanedUpPlugins.push(plugin);
+			},
 		} as unknown as IAgentPluginRepositoryService);
 
 		// IPluginMarketplaceService
@@ -301,6 +307,20 @@ suite('PluginInstallService', () => {
 			installedPlugins: observableValue('test.installedPlugins', state.installedPlugins),
 			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin) => {
 				state.addedPlugins.push({ uri: uri.toString(), plugin });
+				const existing = state.installedPlugins.findIndex(entry => entry.pluginUri.toString() === uri.toString());
+				const installed = { pluginUri: uri, plugin };
+				if (existing === -1) {
+					state.installedPlugins.push(installed);
+				} else {
+					state.installedPlugins[existing] = installed;
+				}
+			},
+			removeInstalledPlugin: (uri: URI) => {
+				state.removedPluginUris.push(uri.toString());
+				const index = state.installedPlugins.findIndex(entry => entry.pluginUri.toString() === uri.toString());
+				if (index !== -1) {
+					state.installedPlugins.splice(index, 1);
+				}
 			},
 			isMarketplaceTrusted: () => state.marketplaceTrusted,
 			isStrictMarketplacePolicyActive: () => state.strictMarketplacePolicyActive ?? false,
@@ -733,6 +753,42 @@ suite('PluginInstallService', () => {
 
 	suite('updatePlugin', () => {
 
+		test('replaces the installed URI when a marketplace plugin changes source', async () => {
+			const oldPlugin = createPlugin({
+				name: 'advanced-security',
+				source: 'plugins/advanced-security',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/advanced-security' },
+			});
+			const oldUri = URI.file('/cache/agentPlugins/github.com/github/copilot-plugins/plugins/advanced-security');
+			const newUri = URI.file('/cache/agentPlugins/github.com/github/copilot-advanced-security-plugin');
+			const livePlugin = createPlugin({
+				name: 'advanced-security',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'github/copilot-advanced-security-plugin' },
+			});
+			const installedPlugin = { pluginUri: oldUri, plugin: oldPlugin };
+			const { service, state } = createService({
+				installedPlugins: [installedPlugin],
+				ensurePluginSourceResult: newUri,
+				pluginSourceInstallUris: new Map([[PluginSourceKind.GitHub, newUri]]),
+			});
+
+			const updated = await service.updatePlugin(livePlugin, installedPlugin);
+
+			assert.deepStrictEqual({
+				updated,
+				addedUris: state.addedPlugins.map(entry => entry.uri),
+				removedPluginUris: state.removedPluginUris,
+				cleanedUpNames: state.cleanedUpPlugins.map(plugin => plugin.name),
+				installedUris: state.installedPlugins.map(entry => entry.pluginUri.toString()),
+			}, {
+				updated: true,
+				addedUris: [newUri.toString()],
+				removedPluginUris: [oldUri.toString()],
+				cleanedUpNames: ['advanced-security'],
+				installedUris: [newUri.toString()],
+			});
+		});
+
 		test('calls updatePluginSource for relative-path plugins', async () => {
 			const { service, state } = createService();
 			const plugin = createPlugin({
@@ -918,6 +974,39 @@ suite('PluginInstallService', () => {
 
 			assert.deepStrictEqual(result.failedNames, [installed.plugin.marketplaceReference.displayLabel]);
 			assert.deepStrictEqual(state.pullRepositoryCalls, []);
+		});
+		test('replaces a relative-path plugin when the marketplace moves it to a GitHub source', async () => {
+			const oldPlugin = createPlugin({
+				name: 'advanced-security',
+				source: 'plugins/advanced-security',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/advanced-security' },
+			});
+			const oldUri = URI.file('/cache/agentPlugins/github.com/github/copilot-plugins/plugins/advanced-security');
+			const newUri = URI.file('/cache/agentPlugins/github.com/github/copilot-advanced-security-plugin');
+			const livePlugin = createPlugin({
+				name: 'advanced-security',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'github/copilot-advanced-security-plugin' },
+			});
+			const { service, state } = createService({
+				installedPlugins: [{ pluginUri: oldUri, plugin: oldPlugin }],
+				fetchedMarketplacePlugins: [livePlugin],
+				ensurePluginSourceResult: newUri,
+				pluginSourceInstallUris: new Map([[PluginSourceKind.GitHub, newUri]]),
+			});
+
+			const result = await service.updateAllPlugins({ silent: true }, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				result,
+				addedUris: state.addedPlugins.map(entry => entry.uri),
+				removedPluginUris: state.removedPluginUris,
+				installedUris: state.installedPlugins.map(entry => entry.pluginUri.toString()),
+			}, {
+				result: { updatedNames: ['advanced-security'], failedNames: [] },
+				addedUris: [newUri.toString()],
+				removedPluginUris: [oldUri.toString()],
+				installedUris: [newUri.toString()],
+			});
 		});
 	});
 
