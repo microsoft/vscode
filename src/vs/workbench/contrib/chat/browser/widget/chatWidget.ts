@@ -2874,9 +2874,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!slashCommand) {
 			return true;
 		}
-		// Only a command backed by readable content contributes a prompt file to
-		// the context; a discovery-only one still runs, it just has no body to
-		// attach. Telemetry below is recorded either way.
+		// Only a command with readable content contributes a prompt file; telemetry is recorded either way.
 		const parseResult = slashCommand.parsedPromptFile;
 		if (parseResult) {
 			const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];

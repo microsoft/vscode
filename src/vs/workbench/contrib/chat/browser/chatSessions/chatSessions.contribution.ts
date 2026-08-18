@@ -1811,8 +1811,7 @@ async function resolvePromptSlashCommand(prompt: string, sessionResource: URI, c
 	if (slashMatch) {
 		// need to resolve the slash command to get the prompt file
 		const slashCommand = await customizationHarnessService.resolvePromptSlashCommand(slashMatch[1], sessionResource, CancellationToken.None);
-		// A discovery-only command (e.g. a built-in skill) resolves but has no
-		// prompt file to contribute, so there is no variable entry to return.
+		// A discovery-only command resolves but has no prompt file to contribute.
 		const parseResult = slashCommand?.parsedPromptFile;
 		if (parseResult) {
 			// add the prompt file to the context

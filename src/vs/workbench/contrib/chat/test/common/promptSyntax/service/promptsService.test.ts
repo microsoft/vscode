@@ -3924,11 +3924,7 @@ suite('PromptsService', () => {
 		});
 
 		test('resolves a command whose content cannot be read, with no parsed file', async () => {
-			// A built-in skill is published as a discovery-only identity: it
-			// carries a name and description and there is nothing to read behind
-			// its URI. Resolution must still succeed — rejecting here rejects the
-			// whole input-decoration update, and the user can no longer send any
-			// message containing that slash command.
+			// A built-in skill is discovery-only, and rejecting here would block sending the message.
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
 
 			const promptUri = URI.parse('file://extensions/my-extension/discovery-only.prompt.md');
@@ -3948,8 +3944,7 @@ suite('PromptsService', () => {
 		});
 
 		test('a parse failure is traced rather than vanishing', async () => {
-			// Swallowing the failure must not make a real parse regression
-			// indistinguishable from a command that has nothing to read.
+			// A real parse regression must stay distinguishable from a command with nothing to read.
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
 
 			const promptUri = URI.parse('file://extensions/my-extension/broken.prompt.md');
@@ -3973,8 +3968,7 @@ suite('PromptsService', () => {
 		});
 
 		test('cancellation still rejects rather than resolving without a prompt file', async () => {
-			// An aborted resolve must not look like a command with no content, or
-			// callers relying on cancellation to short-circuit would carry on.
+			// An aborted resolve must not look like a command with no content.
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
 
 			const promptUri = URI.parse('file://extensions/my-extension/cancelled-resolve.prompt.md');

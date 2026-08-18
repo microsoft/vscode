@@ -652,12 +652,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const commands = await this.getPromptSlashCommands(token);
 		const command = commands.find(cmd => cmd.name === name && matchesSessionType(cmd.sessionTypes, sessionType));
 		if (command) {
-			// Best-effort, for the same reason as the harness resolver: a command
-			// can be discovery-only or its file can have gone away, and neither
-			// should make resolving the command itself fail. Cancellation is not a
-			// content problem and still propagates, and any other failure is traced
-			// so a real parse regression stays distinguishable from a command that
-			// legitimately has nothing to read.
+			// Best-effort for the same reason as the harness resolver; cancellation still propagates.
 			const parsedPromptFile = await this.parseNew(command.uri, token).catch(e => {
 				if (isCancellationError(e)) {
 					throw e;

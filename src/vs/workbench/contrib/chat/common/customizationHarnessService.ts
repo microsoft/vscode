@@ -636,16 +636,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		const commands = await this.getSlashCommands(sessionResource, token);
 		const command = commands.find(cmd => cmd.name === name);
 		if (command) {
-			// A command's `uri` is not always readable. Built-in skills are
-			// published on the `agent-builtin` scheme as discovery-only entries
-			// that carry a name and description and have no content behind them,
-			// and a file-backed command can be deleted between discovery and use.
-			// Parsing is best-effort so the command still resolves either way:
-			// letting the read reject here rejects the whole resolution, and the
-			// input-decoration path that calls it silently stops accepting the
-			// message, leaving the user unable to send anything containing that
-			// slash command.
-			// Cancellation is not a content problem, so it still propagates.
+			// Best-effort: a discovery-only command has no content, and rejecting here blocks sending the message.
 			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token).catch(e => {
 				if (isCancellationError(e)) {
 					throw e;
