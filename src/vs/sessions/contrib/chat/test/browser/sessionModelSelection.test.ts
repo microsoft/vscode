@@ -1310,6 +1310,52 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
+	test('a peer visit does not cost a chat the model it is still waiting for', () => {
+		// Chat one runs on its own model, which its pool then stops offering, so it falls back to a
+		// stand-in that is written back as carried over. Visiting a peer and returning must not let
+		// that stand-in be adopted as chat one's own: it is still waiting for its real model, and
+		// forgetting that loses the model when it republishes and opens the chat to
+		// `chat.defaultModel`. Without a peer in between the stand-in was correctly ignored, so the
+		// two paths have to agree.
+		const missing = model('test/missing');
+		const testSession = createSession('provider', SessionStatus.Completed, missing.identifier);
+		const chatOne = testSession.activeChat.get();
+		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
+		provider.models = [first, second, missing];
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			createProvidersService([provider]),
+			disposables.add(new InMemoryStorageService()),
+			createConfigurationService(),
+			disposables.add(new NullLogService()),
+		));
+
+		const onOwnModel = selection.state.get().currentModel?.identifier;
+		// The chat's model stops being offered, so it falls back to a stand-in.
+		provider.models = [first, second];
+		provider.modelChanges.fire();
+		const standIn = selection.state.get().currentModel?.identifier;
+		// A peer chat on a different model, then back to chat one.
+		testSession.activeChat.set(createChat('chat:/provider/two', second.identifier, ChatModelSource.Chosen, SessionStatus.Completed), undefined);
+		const onPeer = selection.state.get().currentModel?.identifier;
+		testSession.activeChat.set(chatOne, undefined);
+		// The model chat one was waiting for comes back.
+		provider.models = [first, second, missing];
+		provider.modelChanges.fire();
+
+		assert.deepStrictEqual({
+			onOwnModel,
+			standIn,
+			onPeer,
+			reclaimed: selection.state.get().currentModel?.identifier,
+		}, {
+			onOwnModel: missing.identifier,
+			standIn: first.identifier,
+			onPeer: second.identifier,
+			reclaimed: missing.identifier,
+		});
+	});
+
 	test('writes a model for a session bound while its pool was still empty', () => {
 		// The incoming session selects nothing until its pool publishes. Until then nothing has
 		// been seeded, so the previously bound session's model must not be adopted by silence.

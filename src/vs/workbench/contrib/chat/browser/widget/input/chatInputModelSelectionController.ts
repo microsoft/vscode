@@ -364,12 +364,21 @@ export class ChatInputModelSelectionController extends Disposable {
 			}, 'info');
 			return;
 		}
-		if (!isRemoteEdit && this._isEchoOfStandIn(desiredModel.identifier, conversationKey)) {
-			this._diagnostics.report('conversation-restore-echo-ignored', {
+		// A carried-over model is not an answer for the conversation, so it must not replace one the
+		// conversation is still waiting for — that would forget the awaited model, never reclaim
+		// it, and leave the conversation open to `chat.defaultModel`.
+		const keepsAwaitedModel = this._keepsAwaitedModel(desiredModel, restoredAs, isRemoteEdit);
+		if (keepsAwaitedModel) {
+			this._diagnostics.report('conversation-restore-keeps-awaited-model', {
 				desiredModel: desiredModel.identifier,
 				awaitingModel: this._intendedModel?.modelId,
 			}, 'info');
-			return;
+		}
+		if (keepsAwaitedModel) {
+			this._diagnostics.report('conversation-restore-keeps-awaited-model', {
+				desiredModel: desiredModel.identifier,
+				awaitingModel: this._intendedModel?.modelId,
+			}, 'info');
 		}
 		const allModels = this._runtime.getAllModels();
 		const currentModel = this._currentModel.get();
@@ -381,12 +390,14 @@ export class ChatInputModelSelectionController extends Disposable {
 			action: syncResult.action,
 		}, syncResult.action === 'keep' ? 'debug' : 'info');
 		if (syncResult.action === 'apply' || syncResult.action === 'keep') {
-			this._applySessionRestore(desiredModel, syncResult.action === 'apply', modelConfiguration, restoredAs);
+			this._applySessionRestore(desiredModel, syncResult.action === 'apply', modelConfiguration, restoredAs, keepsAwaitedModel);
 			return;
 		}
 
 		// Not published yet. Remember it and show the nearest thing until it arrives.
-		this._rememberOnBoundConversation(desiredModel, modelConfiguration, conversationKey, restoredAs);
+		if (!keepsAwaitedModel) {
+			this._rememberOnBoundConversation(desiredModel, modelConfiguration, conversationKey, restoredAs);
+		}
 		this._clearPendingProgrammaticSelection();
 		const pool = this._pool(sessionType);
 		const match = findBestMatchingModel(desiredModel, pool) ?? findBestMatchingModel(currentModel, pool);
@@ -398,20 +409,34 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
-	 * Whether this sync is our own stand-in coming back. Without this the echo overwrites the model
-	 * being awaited and the stand-in sticks. A peer's genuine pick arrives as remote and still wins.
+	 * Whether an arriving carried-over model must leave alone the model the conversation is waiting
+	 * for. True while the conversation awaits a model the pool cannot offer, the arrival is not
+	 * that model, and one of:
+	 *
+	 * - the awaited model is one the conversation answered for, so a model merely carried onto it
+	 *   cannot speak for it — this is what a surface that records where a model came from can say;
+	 * - the arrival is the stand-in currently on screen, i.e. this controller put it there and the
+	 *   conversation is only echoing it back — what a surface whose draft state cannot say where a
+	 *   model came from has to fall back on.
+	 *
+	 * Anything else is a real statement about the conversation and supersedes the wait. A remote
+	 * edit is a peer answering for the conversation, so it always does.
 	 */
-	private _isEchoOfStandIn(desiredModelId: string, conversationKey: string): boolean {
-		return this._runtime.getBoundConversationKey() === conversationKey
-			&& desiredModelId === this._standInModelId
-			&& this.isAwaitingRememberedModel();
-	}
-
-	/** Whatever is displayed while it differs from the intent. Derived so it cannot fall out of step. */
-	private get _standInModelId(): string | undefined {
-		const intended = this._intendedModel;
-		const displayed = this._currentModel.get()?.identifier;
-		return intended && displayed !== intended.modelId ? displayed : undefined;
+	private _keepsAwaitedModel(
+		desiredModel: ILanguageModelChatMetadataAndIdentifier,
+		restoredAs: RestoredModelReason,
+		isRemoteEdit: boolean,
+	): boolean {
+		const awaited = this._intendedModel;
+		if (isRemoteEdit
+			|| restoredAs !== ModelSelectionReason.SessionRestore
+			|| !awaited
+			|| awaited.modelId === desiredModel.identifier
+			|| !this.isAwaitingRememberedModel()) {
+			return false;
+		}
+		return isInConversationModelChoice(awaited.reason)
+			|| desiredModel.identifier === this._currentModel.get()?.identifier;
 	}
 
 	/** Replaces the bound conversation's intended model. */
@@ -473,10 +498,13 @@ export class ChatInputModelSelectionController extends Disposable {
 		applyModel: boolean,
 		configuration: Record<string, unknown> | undefined,
 		restoredAs: RestoredModelReason,
+		keepsAwaitedModel = false,
 	): void {
 		this._clearPendingProgrammaticSelection();
 		this._selectionReason = restoredAs;
-		this._remember({ modelId: model.identifier, model, reason: restoredAs, configuration });
+		if (!keepsAwaitedModel) {
+			this._remember({ modelId: model.identifier, model, reason: restoredAs, configuration });
+		}
 		if (configuration) {
 			this._runtime.restoreModelConfiguration?.(model.identifier, configuration);
 		}

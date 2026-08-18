@@ -4141,8 +4141,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sourceBackendUri = this._resolveBackendSourceChatUri(cached.sessionId, sessionUri, sourceChat);
 
 		// Inherit the source chat's own model/agent selection (which may differ from the session's
-		// default), matching `createSideChat`: a fork continues the chat it was taken from.
-		const selectedModel = cached.getChatModelSelection(sourceChat) ?? cached.modelSelection;
+		// default), matching `createSideChat`: a fork continues the chat it was taken from. A peer
+		// whose model this client does not know states none rather than guessing with the session's,
+		// which after a reload would fork it onto a model it was never running.
+		const selectedModel = cached.getChatModelSelection(sourceChat);
 		const selectedModelId = cached.getChatModelId(sourceChat)
 			?? (selectedModel ? `${cached.resource.scheme}:${selectedModel.id}` : undefined);
 		const selectedAgentUri = cached.getChatMode(sourceChat)?.id;
