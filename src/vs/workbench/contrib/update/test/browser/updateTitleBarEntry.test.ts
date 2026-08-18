@@ -44,10 +44,10 @@ class TestHoverWidget implements IHoverWidget {
 }
 
 class TestHoverService extends mock<IHoverService>() {
-	readonly showRequests: { readonly focus: boolean; readonly trapFocus: boolean }[] = [];
+	readonly showRequests: { readonly focus: boolean; readonly trapFocus: boolean; readonly maxHeightRatio: number | undefined }[] = [];
 
 	override showInstantHover(options: IHoverOptions, focus?: boolean): IHoverWidget {
-		this.showRequests.push({ focus: !!focus, trapFocus: !!options.trapFocus });
+		this.showRequests.push({ focus: !!focus, trapFocus: !!options.trapFocus, maxHeightRatio: options.appearance?.maxHeightRatio });
 		return new TestHoverWidget();
 	}
 }
@@ -91,7 +91,7 @@ suite('UpdateTitleBarEntry', () => {
 			hoverShowRequests: hoverService.showRequests,
 		}, {
 			tabDefaultPrevented: false,
-			hoverShowRequests: [{ focus: true, trapFocus: true }],
+			hoverShowRequests: [{ focus: true, trapFocus: true, maxHeightRatio: 1 }],
 		});
 	});
 });

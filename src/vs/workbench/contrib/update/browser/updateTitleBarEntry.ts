@@ -17,7 +17,7 @@ import { Action2, IMenuItem, MenuId, MenuRegistry, registerAction2 } from '../..
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -31,6 +31,7 @@ import './media/updateTitleBarEntry.css';
 import { UpdateTooltip } from './updateTooltip.js';
 
 const UPDATE_TITLE_BAR_ACTION_ID = 'workbench.actions.updateIndicator';
+const UPDATE_TOOLTIP_MAX_HEIGHT_RATIO = 1;
 
 const DISABLED_REMINDER_LAST_SHOWN_KEY = 'update/disabledReminderLastShown';
 const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -76,6 +77,7 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 export class UpdateTitleBarContribution extends Disposable implements IWorkbenchContribution {
 	private readonly context!: IContextKey<boolean>;
 	private readonly tooltip!: UpdateTooltip;
+	private readonly tooltipHoverDelegate!: WorkbenchHoverDelegate;
 	private state!: State;
 	private entry: UpdateTitleBarEntry | undefined;
 	private tooltipVisible = false;
@@ -99,6 +101,9 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 		this.context = UpdateTitleBarContext.bindTo(contextKeyService);
 		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip));
+		this.tooltipHoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {
+			appearance: { maxHeightRatio: UPDATE_TOOLTIP_MAX_HEIGHT_RATIO },
+		}));
 
 		const chatInProgressContext = UpdateTitleBarChatInProgressContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
@@ -144,7 +149,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	}
 
 	private createEntry(instantiationService: IInstantiationService, action: IAction, options: IBaseActionViewItemOptions): UpdateTitleBarEntry {
-		this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, focus => {
+		this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, { ...options, hoverDelegate: this.tooltipHoverDelegate }, this.tooltip, focus => {
 			this.tooltipVisible = true;
 			this.tooltipFocused = focus;
 		}, () => {
@@ -286,7 +291,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 				}
 			},
 			persistence: { sticky: true },
-			appearance: { showPointer: true, compact: true },
+			appearance: { showPointer: true, compact: true, maxHeightRatio: UPDATE_TOOLTIP_MAX_HEIGHT_RATIO },
 			position: { anchorAlignment: AnchorAlignment.RIGHT },
 			trapFocus: focus,
 		}, focus);
