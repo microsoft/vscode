@@ -306,7 +306,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
-	test('workspace folder changes recreate a multi-root provisional with the latest secondary set', async () => {
+	test('reselects the primary and recreates the provisional when the primary folder is removed', async () => {
 		const primary = URI.file('/workspace/one');
 		const secondary = URI.file('/workspace/two');
 		const added = URI.file('/workspace/three');
@@ -314,26 +314,50 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
 		workbenchState = WorkbenchState.WORKSPACE;
 		agentHost.rootStateAgents = [agentInfo('copilot', true)];
-		const ui = untitledChatUri('multi-root-folder-changes');
+		const ui = untitledChatUri('multi-root-primary-removed');
 
 		await provisional.getOrCreate(ui, 'copilot', primary);
+		// Removing the primary of a not-yet-started draft reselects the first
+		// remaining folder (as a freshly created chat would) and recreates there.
 		workspaceFolders = [secondary, added];
 		onDidChangeWorkspaceFolders.fire({
 			added: [workspaceFolder(added, 1)],
 			removed: [workspaceFolder(primary, 0)],
 			changed: [],
 		});
-
 		await provisional.waitForPending(ui);
-		workspaceFolders = [added, secondary];
+		// Removing the freshly-selected primary reselects again.
+		workspaceFolders = [added];
 		onDidChangeWorkspaceFolders.fire({
 			added: [],
-			removed: [],
-			changed: [workspaceFolder(added, 0), workspaceFolder(secondary, 1)],
+			removed: [workspaceFolder(secondary, 0)],
+			changed: [],
 		});
 		await provisional.waitForPending(ui);
-		const afterReorderCount = agentHost.createCalls.length;
-		workspaceFolders = [added];
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString(), secondary.toString()],
+				[secondary.toString(), added.toString()],
+				[added.toString()],
+			],
+		);
+	});
+
+	test('removing a secondary folder keeps the primary and recreates with the remaining secondaries', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		const third = URI.file('/workspace/three');
+		workspaceFolders = [primary, secondary, third];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('secondary-removed');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		const createsBeforeRemoval = agentHost.createCalls.length;
+		workspaceFolders = [primary, third];
 		onDidChangeWorkspaceFolders.fire({
 			added: [],
 			removed: [workspaceFolder(secondary, 1)],
@@ -342,17 +366,196 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		await provisional.waitForPending(ui);
 
 		assert.deepStrictEqual({
+			createsBeforeRemoval,
 			workingDirectories: agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
-			afterReorderCount,
 		}, {
+			createsBeforeRemoval: 1,
 			workingDirectories: [
-				[primary.toString(), secondary.toString()],
-				[primary.toString(), secondary.toString(), added.toString()],
-				[primary.toString(), added.toString()],
+				[primary.toString(), secondary.toString(), third.toString()],
+				[primary.toString(), third.toString()],
 			],
-			afterReorderCount: 2,
 		});
 	});
+
+	test('reselects the primary for a single-working-directory provider draft when the primary is removed', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		// Provider does NOT advertise multipleWorkingDirectories, so the draft is
+		// not a workspace-root-set draft (usesWorkspaceRootSet === false).
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		const ui = untitledChatUri('single-wd-primary-removed');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		workspaceFolders = [secondary];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [workspaceFolder(primary, 0)],
+			changed: [],
+		});
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[[primary.toString()], [secondary.toString()]],
+		);
+	});
+
+	test('recreates without a working directory when the last workspace folder is removed', async () => {
+		const only = URI.file('/workspace/one');
+		workspaceFolders = [only];
+		workbenchState = WorkbenchState.FOLDER;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('last-folder-removed');
+
+		await provisional.getOrCreate(ui, 'copilot', only);
+		workspaceFolders = [];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [workspaceFolder(only, 0)],
+			changed: [],
+		});
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString()) ?? null),
+			[[only.toString()], null],
+		);
+	});
+
+	test('reselects only the draft whose primary was removed', async () => {
+		const a = URI.file('/workspace/a');
+		const b = URI.file('/workspace/b');
+		const c = URI.file('/workspace/c');
+		workspaceFolders = [a, b, c];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const uiA = untitledChatUri('draft-a');
+		const uiC = untitledChatUri('draft-c');
+
+		await provisional.getOrCreate(uiA, 'copilot', a);
+		await provisional.getOrCreate(uiC, 'copilot', c);
+		const createsBeforeRemoval = agentHost.createCalls.length;
+
+		// Remove folder a: draft A must reselect a new primary; draft C keeps c.
+		workspaceFolders = [b, c];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [workspaceFolder(a, 0)],
+			changed: [],
+		});
+		await provisional.waitForPending(uiA);
+		await provisional.waitForPending(uiC);
+
+		const afterRemoval = agentHost.createCalls.slice(createsBeforeRemoval).map(call => call.workingDirectories?.map(directory => directory.toString()) ?? []);
+		const draftAPrimary = afterRemoval.find(directories => directories[0] === b.toString())?.[0];
+		const draftCEntry = afterRemoval.find(directories => directories[0] === c.toString());
+
+		assert.deepStrictEqual({
+			draftAReselectedTo: draftAPrimary,
+			draftCPrimary: draftCEntry?.[0],
+			draftCDroppedRemovedFolder: !(draftCEntry?.includes(a.toString()) ?? false),
+		}, {
+			draftAReselectedTo: b.toString(),
+			draftCPrimary: c.toString(),
+			draftCDroppedRemovedFolder: true,
+		});
+	});
+
+	test('reordering workspace folders does not recreate the provisional', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('reorder-noop');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		const createsBeforeReorder = agentHost.createCalls.length;
+		workspaceFolders = [secondary, primary];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [],
+			changed: [workspaceFolder(secondary, 0), workspaceFolder(primary, 1)],
+		});
+		await provisional.waitForPending(ui);
+
+		assert.strictEqual(agentHost.createCalls.length, createsBeforeReorder);
+	});
+
+	test('does not reselect or dispose a started session when its primary folder is removed', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('started-primary-removed');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-started-primary-removed' });
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		await provisional.tryRebind(ui, real, 'copilot', primary);
+		const realBackend = provisional.get(real);
+		assert.ok(realBackend);
+		const createsAfterRebind = agentHost.createCalls.length;
+
+		// Removing the started session's primary must not touch it: its working
+		// directory is the agent's fixed process root once the session started.
+		workspaceFolders = [secondary];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [workspaceFolder(primary, 0)],
+			changed: [],
+		});
+		await provisional.waitForPending(real);
+
+		assert.deepStrictEqual({
+			createsAfterRemoval: agentHost.createCalls.length - createsAfterRebind,
+			liveBackendDisposed: agentHost.disposed.some(uri => uri.toString() === realBackend.toString()),
+			currentBackend: provisional.get(real)?.toString(),
+		}, {
+			createsAfterRemoval: 0,
+			liveBackendDisposed: false,
+			currentBackend: realBackend.toString(),
+		});
+	});
+
+	test('tryRebind reselects when the primary is removed during final creation', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('rebind-primary-removed');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-rebind-primary-removed' });
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.createGate = gate;
+
+		const rebind = provisional.tryRebind(ui, real, 'copilot', primary);
+		await timeout(0);
+		// The primary is removed while the final session creation is in flight; the
+		// reselection updates the draft so the rebind retries at the remaining folder.
+		workspaceFolders = [secondary];
+		onDidChangeWorkspaceFolders.fire({
+			added: [],
+			removed: [workspaceFolder(primary, 0)],
+			changed: [],
+		});
+		gate.complete();
+		await rebind;
+
+		const finalCreate = agentHost.createCalls.filter(call => call.session?.path === '/real-rebind-primary-removed').at(-1);
+		assert.deepStrictEqual(finalCreate?.workingDirectories?.map(directory => directory.toString()), [secondary.toString()]);
+	});
+
 
 	test('a single-folder draft adopts secondary roots when the workspace becomes multi-root', async () => {
 		const primary = URI.file('/workspace/one');

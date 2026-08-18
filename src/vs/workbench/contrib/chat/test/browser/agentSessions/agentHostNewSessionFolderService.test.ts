@@ -9,7 +9,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import type { AgentInfo, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -20,15 +20,18 @@ suite('AgentHostNewSessionFolderService', () => {
 	let service: AgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
 	let onDidDisposeSession: Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>;
+	let onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 	let workspaceFolders: URI[];
 
 	setup(() => {
 		onDidDisposeSession = ds.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>());
+		onDidChangeWorkspaceFolders = ds.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const chatService = new class extends mock<IChatService>() {
 			override readonly onDidDisposeSession = onDidDisposeSession.event;
 		};
 		workspaceFolders = [folderA, folderB];
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
+			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders.event;
 			override getWorkspace(): IWorkspace {
 				return { folders: workspaceFolders.map(uri => ({ uri } as IWorkspaceFolder)) } as IWorkspace;
 			}
@@ -42,6 +45,8 @@ suite('AgentHostNewSessionFolderService', () => {
 	const folderA = URI.file('/repoA');
 	const folderB = URI.file('/repoB');
 	const folderC = URI.file('/repoC');
+
+	const wsFolder = (uri: URI): IWorkspaceFolder => ({ uri, index: 0, name: uri.path, toResource: relativePath => URI.joinPath(uri, relativePath) });
 
 	test('set/get/clear round-trips and fires onDidChange on real changes only', () => {
 		const changes: string[] = [];
@@ -116,6 +121,74 @@ suite('AgentHostNewSessionFolderService', () => {
 		assert.deepStrictEqual({ whileWorkspaceLacksFolder, afterFolderAdded }, {
 			whileWorkspaceLacksFolder: undefined,
 			afterFolderAdded: folderC.toString(),
+		});
+	});
+
+	test('clears an explicit selection when its folder is removed from the workspace', () => {
+		const changes: string[] = [];
+		cleanup.add(service.onDidChangeFolder(uri => changes.push(uri.toString())));
+
+		service.setFolder(sessionA, folderB);
+		workspaceFolders = [folderA];
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [wsFolder(folderB)], changed: [] });
+
+		assert.deepStrictEqual({
+			afterRemoval: service.getFolder(sessionA),
+			changes,
+		}, {
+			afterRemoval: undefined,
+			changes: [sessionA.toString(), sessionA.toString()],
+		});
+	});
+
+	test('leaves the sticky default intact when the selected folder is removed so it resurfaces on re-add', () => {
+		service.setFolder(sessionA, folderB);
+		workspaceFolders = [folderA];
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [wsFolder(folderB)], changed: [] });
+		const whileRemoved = service.getDefaultFolder();
+
+		workspaceFolders = [folderA, folderB];
+		const afterReadd = service.getDefaultFolder()?.toString();
+
+		assert.deepStrictEqual({ whileRemoved, afterReadd }, {
+			whileRemoved: undefined,
+			afterReadd: folderB.toString(),
+		});
+	});
+
+	test('preserves a selection outside the workspace when a different folder is removed', () => {
+		const external = URI.file('/external/repo');
+		service.setFolder(sessionA, external);
+		workspaceFolders = [folderA];
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [wsFolder(folderB)], changed: [] });
+
+		assert.strictEqual(service.getFolder(sessionA)?.toString(), external.toString());
+	});
+
+	test('resolveNewSessionPrimary applies new-session precedence', () => {
+		workspaceFolders = [folderA, folderB, folderC];
+		// sessionA has a valid explicit choice; setting it also makes folderB the sticky default.
+		service.setFolder(sessionA, folderB);
+
+		const validExplicit = service.resolveNewSessionPrimary(sessionA)?.toString();
+		// sessionB has no explicit choice, so it falls back to the sticky default.
+		const stickyDefault = service.resolveNewSessionPrimary(sessionB)?.toString();
+
+		// Remove folderB: the explicit choice and the sticky default both become
+		// invalid, so it falls back to the first remaining workspace folder.
+		workspaceFolders = [folderA, folderC];
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [wsFolder(folderB)], changed: [] });
+		const firstFolderFallback = service.resolveNewSessionPrimary(sessionA)?.toString();
+
+		// With no folders at all there is nothing to select.
+		workspaceFolders = [];
+		const noFolders = service.resolveNewSessionPrimary(sessionA);
+
+		assert.deepStrictEqual({ validExplicit, stickyDefault, firstFolderFallback, noFolders }, {
+			validExplicit: folderB.toString(),
+			stickyDefault: folderB.toString(),
+			firstFolderFallback: folderA.toString(),
+			noFolders: undefined,
 		});
 	});
 });

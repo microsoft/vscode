@@ -211,6 +211,19 @@ export interface IAgentHostNewSessionFolderService {
 	 * folder the user last picked instead of resetting to the first folder.
 	 */
 	getDefaultFolder(): URI | undefined;
+
+	/**
+	 * The folder a *new* (not-yet-started) session should use, resolved with the
+	 * same precedence a freshly created chat would apply: a still-valid explicit
+	 * per-session choice, else the still-valid sticky {@link getDefaultFolder},
+	 * else the first current workspace folder, else `undefined` (no folders).
+	 *
+	 * Used to reselect a draft's primary when the folder it pointed at is removed
+	 * from the workspace. Every candidate is validated against the *current*
+	 * workspace folders, so the removed folder is never returned regardless of the
+	 * order in which workspace-change listeners run.
+	 */
+	resolveNewSessionPrimary(sessionResource: URI): URI | undefined;
 }
 
 export class AgentHostNewSessionFolderService extends Disposable implements IAgentHostNewSessionFolderService {
@@ -244,6 +257,32 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 				this.clear(sessionResource);
 			}
 		}));
+
+		// When a workspace folder is removed, forget any explicit per-session
+		// selection that pointed at it so a not-yet-started chat reselects the
+		// folder a freshly created chat would use (via {@link resolveNewSessionPrimary})
+		// instead of keeping a folder that no longer exists. Only actual removals
+		// are considered, so a standalone folder outside the workspace is never
+		// treated as stale. The window-level sticky default ({@link _defaultFolder})
+		// is intentionally left untouched: {@link getDefaultFolder} already hides it
+		// while it is not a workspace folder and lets it resurface if re-added.
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(e => {
+			if (e.removed.length === 0) {
+				return;
+			}
+			const currentFolders = this._workspaceContextService.getWorkspace().folders;
+			const staleSessions: URI[] = [];
+			for (const [sessionResource, folder] of this._folders) {
+				const wasRemoved = e.removed.some(removed => extUriBiasedIgnorePathCase.isEqual(removed.uri, folder));
+				const stillPresent = currentFolders.some(current => extUriBiasedIgnorePathCase.isEqual(current.uri, folder));
+				if (wasRemoved && !stillPresent) {
+					staleSessions.push(sessionResource);
+				}
+			}
+			for (const sessionResource of staleSessions) {
+				this.clear(sessionResource);
+			}
+		}));
 	}
 
 	getFolder(sessionResource: URI): URI | undefined {
@@ -272,6 +311,18 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 			return stored;
 		}
 		return undefined;
+	}
+
+	resolveNewSessionPrimary(sessionResource: URI): URI | undefined {
+		const folders = this._workspaceContextService.getWorkspace().folders;
+		// An explicit choice is honored only while it is still a workspace folder;
+		// the chip records only workspace folders, so a removed one is skipped here
+		// even before the workspace-change listener clears it (order-independent).
+		const explicit = this._folders.get(sessionResource);
+		if (explicit && folders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder.uri, explicit))) {
+			return explicit;
+		}
+		return this.getDefaultFolder() ?? folders[0]?.uri;
 	}
 }
 
