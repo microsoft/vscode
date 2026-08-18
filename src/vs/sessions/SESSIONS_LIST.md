@@ -189,7 +189,9 @@ The sessions list defines menu IDs that contributions can target to add actions.
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
 | `SessionItemToolbar` | `SessionItemToolbarMenuId` | Inline toolbar on each session row (hover on desktop, always on mobile) | Primary actions like pin and archive/mark as done. Group `navigation` for icons, other groups for overflow. |
-| `SessionItemContextMenu` | `SessionItemContextMenuId` | Right-click context menu on session rows | Secondary actions like rename, mark read/unread, and "Open Pull Request" (in the `navigation`/open group, gated on `sessionHasPullRequest`). Groups: `navigation`, `0_pin`, `0_read`, `1_edit`. |
+| `SessionItemContextMenu` | `SessionItemContextMenuId` | Right-click context menu on session rows | Secondary actions like rename, mark read/unread, and "Open Pull Request" (gated on `sessionHasPullRequest`). Groups: `navigation`, `0_pin`, `0_read`, `1_edit`, `2_pullRequest`. |
+
+The Open Pull Request action shared by the session context menu and header uses the GitHub Pull Requests extension URI handler when the extension is available and otherwise opens the pull request externally. The header's pull request picker follows the same behavior.
 
 ### Section Header Menu
 
