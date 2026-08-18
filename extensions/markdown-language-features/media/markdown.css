@@ -532,6 +532,16 @@ body.has-toc {
 	background-color: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
+/* Remove the focus outline on mouse click, but keep it for keyboard navigation */
+.markdown-toc-entry a:focus {
+	outline: none;
+}
+
+.markdown-toc-entry a:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: -1px;
+}
+
 .markdown-toc-entry.active a {
 	background-color: var(--vscode-list-activeSelectionBackground, #094771);
 	color: var(--vscode-list-activeSelectionForeground, #ffffff);
