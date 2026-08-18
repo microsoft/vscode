@@ -691,10 +691,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * shared proxy handle for this launcher (started lazily on first use).
 	 */
 	private _resolveByokSessionConfig(sessionId: string): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
-		if (!isAgentHostByokModelsEnabled(
-			process.env[AgentHostByokModelsEnabledEnvVar],
-			this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey),
-		)) {
+		const envValue = process.env[AgentHostByokModelsEnabledEnvVar];
+		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
+		const enabled = isAgentHostByokModelsEnabled(envValue, rootConfigValue);
+		this._logService.info(`[Copilot:${sessionId}] BYOK session configuration enabled: ${enabled} (environment: ${envValue ?? 'unset'}, root config: ${rootConfigValue ?? 'unset'})`);
+		if (!enabled) {
 			return Promise.resolve({});
 		}
 		return resolveByokSessionConfig(sessionId, this._byokLmBridgeRegistry, () => {
