@@ -925,7 +925,6 @@ suite('RunSubagentTool', () => {
 				uri: URI.parse(id),
 				name,
 				description: `Agent ${name}`,
-				tools: ['tool1'],
 				agents,
 				agentInstructions: { content: `${name} instructions`, toolReferences: [] },
 				source: { storage: PromptsStorage.local },

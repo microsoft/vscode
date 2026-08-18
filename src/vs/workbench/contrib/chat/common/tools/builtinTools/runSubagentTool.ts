@@ -205,7 +205,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					modeInstructions = instructions && {
 						name: subAgentName,
 						content: instructions.content,
-						toolReferences: this.languageModelToolsService.toToolReferences(instructions.toolReferences),
+						toolReferences: instructions.toolReferences.length ? this.languageModelToolsService.toToolReferences(instructions.toolReferences) : [],
 						allowedSubagents: subagent.agents,
 						metadata: instructions.metadata,
 						isBuiltin: isBuiltinAgent(subagent.source, subagent.uri, this.productService),
