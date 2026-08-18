@@ -51,7 +51,7 @@ function ensureRustup(): void {
 	} else {
 		console.log('[runtime-toolchain] rustup not found — installing OSS rustup.');
 	}
-	const cargoBin = path.join(os.homedir(), '.cargo', 'bin');
+	const cargoBin = path.join(process.env['CARGO_HOME'] ?? path.join(os.homedir(), '.cargo'), 'bin');
 	if (IS_WINDOWS) {
 		// Download and run rustup-init non-interactively.
 		tryRun('powershell', ['-NoProfile', '-Command',

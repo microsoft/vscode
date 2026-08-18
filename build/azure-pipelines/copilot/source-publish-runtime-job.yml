@@ -64,6 +64,12 @@ jobs:
           addToPath: true
         displayName: Install Rust with internal Cargo feed
 
+      - ${{ if startsWith(parameters.target, 'linux') }}:
+        - task: PipAuthenticate@1
+          inputs:
+            artifactFeeds: Monaco/vscode
+          displayName: Authenticate internal Python feed
+
       - task: AzureKeyVault@2
         displayName: Get Copilot runtime GitHub App key
         inputs:
