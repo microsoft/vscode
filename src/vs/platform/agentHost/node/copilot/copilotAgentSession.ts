@@ -2185,8 +2185,25 @@ export class CopilotAgentSession extends Disposable {
 			prompt = configAction.strippedPrompt;
 		} else if (slashCommand) {
 			const runtimeSlashCommand = await this._slashCommandProvider.resolveSlashCommand(slashCommand.command);
+			// TEMPORARY WORKAROUND (issue #8837): the runtime `/fleet` command starts an
+			// asynchronous agent loop but returns a synchronous `completed` result. The
+			// generic `commands.invoke` path below would then close the AHP turn before
+			// fleet runs, orphaning its plan review, clarifications, and output. Route
+			// canonical built-in `/fleet` through the dedicated `rpc.fleet.start` RPC and
+			// keep the turn open until `session.idle`. This intentionally bypasses
+			// `commands.invoke` invocation telemetry and `allowDuringAgentExecution`
+			// gating for `/fleet` only. Remove once the SDK returns an `agent-prompt`
+			// result for `/fleet` from `commands.invoke`.
+			if (runtimeSlashCommand && runtimeSlashCommand.kind === 'builtin' && runtimeSlashCommand.name === 'fleet') {
+				await this._startFleet(slashCommand.rest, attachments, mode);
+				return;
+			}
 			// Skills can be passed as is to the runtime.
 			if (runtimeSlashCommand && runtimeSlashCommand.kind !== 'skill') {
+				// Apply the effective mode before invoking the runtime command so it runs
+				// under the correct SDK mode (issue #8837). An `agent-prompt` result may
+				// override the mode; that override is applied again before `session.send`.
+				await this.applyMode(mode);
 				let result: CopilotCommandInvocationResult;
 				try {
 					result = await this._wrapper.session.rpc.commands.invoke({
@@ -2241,13 +2258,98 @@ export class CopilotAgentSession extends Disposable {
 
 		const sdkAttachments = await this._toSdkAttachments(attachments);
 
+		await this._prepareSdkTurn(mode);
+		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
+		await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined }));
+		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	/**
+	 * Applies the per-turn SDK configuration shared by every operation that starts
+	 * an agent loop (normal `session.send` and the `/fleet` start path): agent mode,
+	 * permission mode, sandbox, and MCP enablement. Mode and sandbox keep their
+	 * existing best-effort semantics.
+	 */
+	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
 		await this._reconcileMcpServerEnablement();
+	}
+
+	/**
+	 * Temporary `/fleet` compatibility path (issue #8837): starts the SDK's fleet
+	 * agent loop via the dedicated `rpc.fleet.start` RPC and keeps the AHP turn open
+	 * until the SDK's terminal `session.idle`, rather than completing it as `commands.invoke`
+	 * would. Remove once the runtime returns an `agent-prompt` result for `/fleet`.
+	 */
+	private async _startFleet(rest: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
+		if (attachments?.length) {
+			// `rpc.fleet.start` accepts only a prompt; fail loudly rather than silently dropping attachments.
+			throw new Error(localize('copilotAgent.fleet.attachmentsUnsupported', "Attachments are not supported with the /fleet command."));
+		}
+		const startingTurn = this._currentTurn;
+		// Capture the current abort token up front (mirroring `_guarded`): an aborted
+		// `session.idle` resets the live token, so only the captured reference reliably
+		// reflects an abort that races the in-flight RPC.
+		const abortToken = this._abortToken;
+		await this._prepareSdkTurn(mode);
+		// Preflight awaits several RPCs; if an abort or terminal idle raced it, do not
+		// start the fleet loop at all — starting it would orphan an autonomous run.
+		if (!startingTurn || this._currentTurn !== startingTurn) {
+			this._logService.warn(`[Copilot:${this.sessionId}] fleet turn ended during preflight; not starting fleet`);
+			return;
+		}
+		if (abortToken.isCancellationRequested) {
+			this._logService.warn(`[Copilot:${this.sessionId}] aborted during fleet preflight; not starting fleet`);
+			this.discardActiveTurn();
+			return;
+		}
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
-		await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined }));
-		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+		let result: { started: boolean };
+		try {
+			result = await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.fleet.start(rest ? { prompt: rest } : {}));
+		} catch (err) {
+			// A terminal `session.idle` already ended this turn while the RPC was in
+			// flight — idle is authoritative, so never emit a second terminal action.
+			if (!startingTurn || this._currentTurn !== startingTurn) {
+				this._logService.warn(`[Copilot:${this.sessionId}] rpc.fleet.start rejected after its turn already ended`, err);
+				return;
+			}
+			// An abort raced the RPC; the client already finalized the protocol turn via
+			// cancellation, so drop our handle rather than surfacing another error.
+			if (abortToken.isCancellationRequested) {
+				this._logService.warn(`[Copilot:${this.sessionId}] rpc.fleet.start rejected after abort; discarding turn`, err);
+				this.discardActiveTurn();
+				return;
+			}
+			throw err;
+		}
+		if (!startingTurn || this._currentTurn !== startingTurn) {
+			// A terminal `session.idle` already ended this turn while the RPC was in flight.
+			if (!result.started) {
+				this._logService.warn(`[Copilot:${this.sessionId}] rpc.fleet.start returned started=false after its turn already ended`);
+			}
+			return;
+		}
+		if (abortToken.isCancellationRequested) {
+			// An abort raced the RPC and left this turn `pending` (the idle handler keeps
+			// pending turns open), so it will never receive a completing idle. Drop the
+			// handle instead of promoting it to `running`, which would strand the chat.
+			this._logService.warn(`[Copilot:${this.sessionId}] rpc.fleet.start settled after abort; discarding turn`);
+			this.discardActiveTurn();
+			return;
+		}
+		if (result.started) {
+			// `fleet.start` only acknowledges activation; the SDK agent loop keeps
+			// running and the existing `session.idle` handler completes this turn.
+			// Promote the turn to `running` now so an abort before the first SDK event
+			// tears it down instead of stranding a `pending` turn.
+			startingTurn.markRunning();
+			this._logService.info(`[Copilot:${this.sessionId}] rpc.fleet.start succeeded; retaining turn until session idle`);
+			return;
+		}
+		throw new Error(localize('copilotAgent.fleet.notStarted', "Fleet could not be started."));
 	}
 
 	private async _toSdkAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<CopilotSdkAttachment[] | undefined> {
