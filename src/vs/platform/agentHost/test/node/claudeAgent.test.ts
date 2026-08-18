@@ -9439,9 +9439,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const strandedResult = await agent.chats.createChat(stranded, created.session, { ...resolvedChatOptions() });
 		await agent.chats.createChat(provisional, created.session, { ...resolvedChatOptions() });
 
-		// Only a chat that reached the SDK has a transcript to delete, so
-		// materialize the two that are expected to be deleted and leave the third
-		// provisional.
+		// Only a chat that reached the SDK has a transcript, so leave the third provisional.
 		for (const [chat, result] of [[kept, keptResult], [stranded, strandedResult]] as const) {
 			const sdkSessionId = AgentSession.id(result!.backingSession!);
 			sdk.nextQueryMessages = [makeSystemInitMessage(sdkSessionId), makeResultSuccess(sdkSessionId)];
@@ -9451,8 +9449,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.chats.disposeChat(kept, chatContext(kept));
 		await agent.chats.disposeChat(provisional, chatContext(provisional));
 
-		// The chat is out of the catalog by the time the SDK is asked, so a
-		// transcript that cannot be removed must not fail the dispose.
+		// A transcript that cannot be removed must not fail the dispose.
 		sdk.deleteSessionRejection = new Error('sdk unavailable');
 		await agent.chats.disposeChat(stranded, chatContext(stranded));
 

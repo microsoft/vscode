@@ -1629,8 +1629,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const initialContext = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
 			const target = this._findChatByUri(chatKey);
-			// Read before tearing the live session down, since that clears the
-			// pipeline this asks about.
+			// Read before the teardown below, which clears the pipeline this asks about.
 			const isProvisional = target !== undefined && !target.isPipelineReady;
 			if (target) {
 				await this._disposeLiveSession(target);
@@ -1644,8 +1643,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				try {
 					await this._sdkService.deleteSession(sdkSessionId);
 				} catch (err) {
-					// Best-effort: the chat is already gone from the catalog, so a
-					// stranded transcript must not fail the dispose.
+					// Best-effort: a stranded transcript must not fail the dispose.
 					this._logService.warn(`[Claude:${sdkSessionId}] Failed to delete the transcript on dispose`, err);
 				}
 			}
