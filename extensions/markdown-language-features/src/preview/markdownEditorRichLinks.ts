@@ -106,15 +106,26 @@ class ApiLinkPresentationEntry extends Disposable {
 			}
 
 			const watcher = this._register(vscode.window.createLinkPresentationWatcher(rule.id, resource));
-			publishPresentation(watcher.presentation);
-			this._register(watcher.onDidChangePresentation(() => publishPresentation(watcher.presentation)));
+			publishPresentation(toMarkdownEditorPresentation(watcher.presentation));
+			this._register(watcher.onDidChangePresentation(() => publishPresentation(toMarkdownEditorPresentation(watcher.presentation))));
 		} catch (error) {
 			logger.trace('Markdown rich link', `Failed to resolve ${href}`, error);
 			if (!this.isDisposed) {
 				publishPresentation(undefined);
 			}
 		}
+
 	}
+}
+
+function toMarkdownEditorPresentation(presentation: vscode.LinkPresentationData | undefined): LinkPresentation | undefined {
+	if (!presentation) {
+		return undefined;
+	}
+	return {
+		...presentation,
+		kind: presentation.kind === 'chat' ? 'session' : presentation.kind,
+	};
 }
 
 async function resolveLinkResource(href: string, documentUri: vscode.Uri, linkOpener: MdLinkOpener): Promise<vscode.Uri | undefined> {

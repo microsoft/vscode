@@ -8,6 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, createAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
@@ -62,8 +63,12 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		}
 		const chatId = parseOpenSessionLinkChatId(resource);
 		if (chatId) {
-			// Peer chats carry their chatId in the session resource's fragment.
-			await this._sessionsService.openChat(session, session.resource.with({ fragment: chatId }));
+			await this._sessionsService.openSession(session.resource);
+			const chat = session.chats.get().find(candidate => candidate.resource.fragment === chatId);
+			if (!chat) {
+				throw new Error(`Chat '${chatId}' not found in session ${session.resource.toString()}`);
+			}
+			await this._sessionsService.openChat(session, chat.resource);
 			return true;
 		}
 		await this._sessionsService.openSession(session.resource);
@@ -102,11 +107,13 @@ export function readSessionState(
 	reader: IReader,
 ): ILinkPresentation {
 	const chat = findChat(session, chatId, reader);
+	const sessionTitle = session.title.read(reader);
 	const description = session.description.read(reader)?.value;
 	return createAgentSessionLinkPresentation(
-		chat?.title.read(reader) ?? session.title.read(reader),
+		chat?.title.read(reader) ?? (chatId ? localize('agentChatLink.unresolvedTitle', "Chat · {0}", sessionTitle) : sessionTitle),
 		description,
 		sessionStatusName(chat?.status.read(reader) ?? session.status.read(reader)),
+		chatId ? 'chat' : 'session',
 	);
 }
 

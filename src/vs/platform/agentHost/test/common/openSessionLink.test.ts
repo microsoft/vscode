@@ -78,9 +78,11 @@ suite('openSessionLink', () => {
 	});
 
 	test('creates generic link presentations for agent sessions', () => {
-		assert.deepStrictEqual(
-			createAgentSessionLinkPresentation('Implement rich links', 'Updating core', 'needsInput'),
-			{
+		assert.deepStrictEqual({
+			session: createAgentSessionLinkPresentation('Implement rich links', 'Updating core', 'needsInput'),
+			chat: createAgentSessionLinkPresentation('Investigate tests', 'Updating core', 'completed', 'chat'),
+		}, {
+			session: {
 				kind: 'session',
 				title: 'Implement rich links',
 				detail: 'Updating core',
@@ -88,6 +90,14 @@ suite('openSessionLink', () => {
 				tooltip: 'Implement rich links · Needs input',
 				ariaLabel: 'Agent session Implement rich links, Needs input',
 			},
-		);
+			chat: {
+				kind: 'chat',
+				title: 'Investigate tests',
+				detail: 'Updating core',
+				status: { kind: 'success', label: 'Completed' },
+				tooltip: 'Investigate tests · Completed',
+				ariaLabel: 'Agent chat Investigate tests, Completed',
+			},
+		});
 	});
 });
