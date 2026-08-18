@@ -14,7 +14,7 @@ import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -147,7 +147,7 @@ export function createHostArtifactStream(
  */
 export async function collectAgentHostDebugLogs(
 	accessor: ServicesAccessor,
-	activeSession: IActiveAgentHostSessionForExport,
+	activeSession: IActiveAgentHostSessionForExport | undefined,
 	onDidCreateHostArtifact: (artifact: IAgentHostDebugLogsArtifact) => void,
 ): Promise<IAgentHostDebugLogsExport> {
 	const agentHostService = accessor.get(IAgentHostService);
@@ -160,11 +160,18 @@ export async function collectAgentHostDebugLogs(
 	const environmentService = accessor.get(IEnvironmentService);
 	const exportService = accessor.get(IAgentHostDebugLogsExportService);
 
-	const sessionResolution = agentHostConnectionsService.resolveSessionResource(activeSession.resource);
-	if (!sessionResolution) {
-		throw new Error(`No live Agent Host connection owns session ${activeSession.resource.toString()}`);
+	let connection: IAgentConnection;
+	let backendSession: URI | undefined;
+	if (activeSession) {
+		const sessionResolution = agentHostConnectionsService.resolveSessionResource(activeSession.resource);
+		if (!sessionResolution) {
+			throw new Error(`No live Agent Host connection owns session ${activeSession.resource.toString()}`);
+		}
+		connection = sessionResolution.connection;
+		backendSession = sessionResolution.backendSession;
+	} else {
+		connection = agentHostConnectionsService.ambientConnection;
 	}
-	const { connection, backendSession } = sessionResolution;
 	if (!connection.collectDebugLogs) {
 		throw new Error('Connected Agent Host does not support debug-log collection');
 	}
@@ -178,14 +185,20 @@ export async function collectAgentHostDebugLogs(
 	const channelIds = new Set<string>();
 
 	let ahpLogNameFilter: ((name: string) => boolean) | undefined;
-	if (activeSession.isLocal) {
-		const localClientId = sanitizeFilePart(agentHostService.clientId);
-		ahpLogNameFilter = name => name.includes(localClientId);
+	if (activeSession) {
+		if (activeSession.isLocal) {
+			const localClientId = sanitizeFilePart(agentHostService.clientId);
+			ahpLogNameFilter = name => name.includes(localClientId);
+		} else {
+			const remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
+			if (remoteConnection) {
+				const remoteConnectionId = sanitizeFilePart(remoteConnection.address);
+				ahpLogNameFilter = name => name.includes(remoteConnectionId);
+			}
+		}
 	} else {
-		const remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
-		if (remoteConnection) {
-			const remoteConnectionId = sanitizeFilePart(remoteConnection.address);
-			ahpLogNameFilter = name => name.includes(remoteConnectionId);
+		for (const remoteConnection of remoteAgentHostService.connections) {
+			channelIds.add(remoteAgentHostLogOutputChannelId(remoteConnection.address));
 		}
 	}
 
@@ -286,13 +299,6 @@ export async function exportAgentHostDebugLogs(
 	const chatEntitlementService = accessor.get(IChatEntitlementService);
 	const fileService = accessor.get(IFileService);
 	const logService = accessor.get(ILogService);
-	if (!activeSession) {
-		notificationService.notify({
-			severity: Severity.Error,
-			message: localize('exportDebugLogs.noActiveSession', "Open an Agent Host session before exporting its debug logs."),
-		});
-		return;
-	}
 	let hostArtifact: IAgentHostDebugLogsArtifact | undefined;
 	try {
 		const logs = await collectAgentHostDebugLogs(accessor, activeSession, artifact => hostArtifact = artifact);

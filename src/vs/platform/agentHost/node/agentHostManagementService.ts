@@ -88,7 +88,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.diagnosticsFetch(url);
 	}
 
-	collectDebugLogs(session: URI, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._agentService.collectDebugLogs) {
 			throw new Error('Agent Host debug log collection is unavailable');
 		}

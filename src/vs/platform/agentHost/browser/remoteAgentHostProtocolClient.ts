@@ -1121,9 +1121,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._sendExtensionRequest('getManagedSettingsDiagnostics');
 	}
 
-	async collectDebugLogs(session: URI, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
 		const result = await this._sendExtensionRequest(CollectAgentHostDebugLogsExtensionMethod, {
-			session: session.toString(),
+			session: session?.toString(),
 			kind,
 		});
 		if (result.kind !== kind) {

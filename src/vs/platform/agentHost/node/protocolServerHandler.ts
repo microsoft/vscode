@@ -1678,17 +1678,19 @@ export class ProtocolServerHandler extends Disposable {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
 				}
 				const sessionParam = params['session'];
-				if (typeof sessionParam !== 'string') {
+				if (sessionParam !== undefined && typeof sessionParam !== 'string') {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a URI string'));
 				}
-				let session: URI;
-				try {
-					session = URI.parse(sessionParam, true);
-				} catch {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
-				}
-				if (!AgentSession.provider(session)) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+				let session: URI | undefined;
+				if (sessionParam !== undefined) {
+					try {
+						session = URI.parse(sessionParam, true);
+					} catch {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+					}
+					if (!AgentSession.provider(session)) {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+					}
 				}
 				const kind = params['kind'];
 				if (kind !== 'archive' && kind !== 'directory') {

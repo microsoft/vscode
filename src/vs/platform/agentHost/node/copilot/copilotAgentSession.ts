@@ -744,13 +744,13 @@ export class CopilotAgentSession extends Disposable {
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn?.clientType ?? AgentHostClientType.Unknown; }
 	get currentTurnClientContext(): IAgentHostClientTelemetryContext | undefined { return this._currentTurn?.clientContext; }
 
-	async collectDebugLogs(outputDirectory: URI): Promise<void> {
+	async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<void> {
 		const result = await this._wrapper.session.rpc.debug.collectLogs({
 			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
 			include: {
-				events: true,
+				events: includeSessionLogs,
 				processLogs: true,
-				shellLogs: true,
+				shellLogs: includeSessionLogs,
 			},
 		});
 		if (result.kind !== 'directory' || result.path === outputDirectory.fsPath) {

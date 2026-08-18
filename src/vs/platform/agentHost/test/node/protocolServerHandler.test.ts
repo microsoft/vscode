@@ -145,7 +145,7 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
-	readonly collectDebugLogsCalls: { session: string; kind: 'archive' | 'directory' }[] = [];
+	readonly collectDebugLogsCalls: { session: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
 	subscribeBarrier: DeferredPromise<void> | undefined;
@@ -218,8 +218,8 @@ class MockAgentService implements IAgentService {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
-	async collectDebugLogs(session: URI, kind: 'archive' | 'directory') {
-		this.collectDebugLogsCalls.push({ session: session.toString(), kind });
+	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory') {
+		this.collectDebugLogsCalls.push({ session: session?.toString(), kind });
 		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048 };
 	}
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
@@ -658,17 +658,23 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('rejects a missing Agent Host debug log session', async () => {
-		const transport = connectClient('client-debug-logs-missing-session');
+	test('collects Agent Host debug logs without a session', async () => {
+		const transport = connectClient('client-debug-logs-no-session');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 16);
 
 		transport.simulateMessage(request(16, 'vscode/collectAgentHostDebugLogs', { kind: 'archive' }));
 
-		assert.deepStrictEqual(await responsePromise, {
-			jsonrpc: '2.0',
-			id: 16,
-			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a URI string' },
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.collectDebugLogsCalls.at(-1),
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 16,
+				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048 },
+			},
+			calls: { session: undefined, kind: 'archive' },
 		});
 	});
 
