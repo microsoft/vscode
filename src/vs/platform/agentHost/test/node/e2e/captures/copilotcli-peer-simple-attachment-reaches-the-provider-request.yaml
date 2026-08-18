@@ -11,7 +11,7 @@ exchanges:
               text: Reply exactly "attachment".
             - type: text
               text: |-
-                <attachment mimeType="text/plain" name="peer-note.txt">
+                <attachment mimeType="text/x-vscode-simple-attachment" name="peer-note.txt">
                 PEER_SIMPLE_ATTACHMENT
                 </attachment>
     response:

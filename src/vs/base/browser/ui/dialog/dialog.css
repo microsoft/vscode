@@ -139,9 +139,11 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
 	line-height: 20px;
 	flex: 1; /* let the message always grow */
+	white-space: pre-wrap;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus,
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail a:focus {
 	outline-width: 1px;
 	outline-style: solid;
 }

@@ -6,7 +6,9 @@ The sessions list is the primary navigation surface in the Agents Window. It occ
 
 ## Overview
 
-The sessions list (`SessionsView` + `SessionsList`) displays every session known to `ISessionsManagementService`. Sessions are aggregated from all registered providers and shown in collapsible **sections**. The user can group, sort, filter, pin, and archive sessions. Selecting a session navigates to it.
+The sessions list (`SessionsView` + `SessionsList`) displays user-facing sessions known to `ISessionsManagementService`. Sessions marked with `ISession.isAutomation` by their provider-owned run ledger are excluded before filtering and grouping. Other sessions are aggregated from all registered providers and shown in collapsible **sections**. The user can group, sort, filter, pin, and archive sessions. Selecting a session navigates to it.
+
+When `chat.omni.enabled` is enabled, the Sessions header includes a `Codicon.arrowCircleUpSparkle` action after **New Session** that toggles the Agents-only floating chat input window. The window routes through a provider-neutral Sessions adapter and is not registered in editor workbenches. Its New Session row uses the same recent-workspace/provider model as the welcome picker: Local/GitHub/Remote/custom tabs, workspace labels/descriptions/icons, provider `Select...` actions, search, restored selection, and exact provider identity are rendered in Omni's separate action-widget window.
 
 ### Key Files
 
@@ -19,6 +21,8 @@ The sessions list (`SessionsView` + `SessionsList`) displays every session known
 | `services/sessions/browser/sessionSectionOrderService.ts` | `ISessionSectionOrderService` — manual top-level order of groups + workspace sections and workspace promotion (UI-only) |
 | `contrib/sessions/browser/views/sessionsViewActions.ts` | All registered actions (sort, group, filter, pin, archive, rename, navigate) |
 
+Renderers that need row-level styling declare `ITreeRenderer.rowClassName`; they must not traverse to tree-owned `.monaco-list-row` markup with `closest()`.
+
 ---
 
 ## Features
@@ -27,19 +31,21 @@ The sessions list (`SessionsView` + `SessionsList`) displays every session known
 
 Each session row displays:
 
-- **Status icon** — animated indicator for InProgress / NeedsInput / Error / Completed / Unread; quick chats never show a PR glyph (they have no GitHub PR association) and no per-row chat icon is shown either (the Chats section header, Pinned section, or custom group already conveys their identity)
+- **Status icon** — animated indicator for InProgress / NeedsInput / Error / Completed / Unread; unread takes precedence over completed-state glyphs such as a pull request, while quick chats never show a PR glyph (they have no GitHub PR association) and no per-row chat icon is shown either (the Chats section header, Pinned section, or custom group already conveys their identity)
 - **Title** — the session's display title (observable)
-- **Type icon** (regular sessions only) — folder/worktree/cloud icon indicating the workspace kind; omitted for quick chats
-- **Workspace badge** — folder/worktree/cloud icon + label (hidden when redundant with section header)
+- **Type icon** — regular workspace sessions show a folder/worktree/cloud icon indicating the workspace kind. Compact quick-chat rows omit this icon; regular quick-chat rows show the Chats icon.
+- **Workspace or chat badge** — workspace sessions render their workspace label inline after the type icon. It is hidden only when a workspace section header already carries the same label; date, custom-group, Pinned, and Done rows show it unless live status temporarily hides row details. Regular quick-chat rows show `Chat` in the same position.
 - **Diff stats** (regular sessions only) — `+insertions −deletions` when the session has pending changes; omitted for quick chats
-- **Status description or timestamp** (regular sessions only) — InProgress/NeedsInput/Error show a status message, otherwise a relative timestamp; quick chats show none of this (their compact spinner status icon already conveys "in progress", and diff stats/timestamps are omitted for their more compact row)
+- **Status description or timestamp** — InProgress and NeedsInput show a status message instead of a timestamp; Error shows both, and other terminal states show a relative timestamp. Compact quick-chat rows in the primary Sessions list omit this second row; automation history presents quick-chat-backed runs as regular history rows with timestamps.
 - **Approval row** (optional) — pending agent approvals with an "Allow" button
 
-Quick-chat rows (`.session-item.quick-chat`, driven by the reactive `ISession.isQuickChat` observable) are single-line entries: the details (second) row is hidden entirely and its content is never built — smaller icon, one line of title only, tighter row height (see `SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT`). Regular sessions keep the standard two-line row (title + details row).
+Compact quick-chat rows use `.session-item.quick-chat` when `useCompactQuickChatRows` is enabled (the default). Driven by the reactive `ISession.isQuickChat` observable, they are single-line entries: the details row is hidden and its content is never built, with a smaller icon and tighter row height (see `SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT`). When compact rendering is disabled, quick chats use the regular two-line row with a Chats icon, `Chat` badge, and status/timestamp metadata while continuing to omit workspace and diff metadata.
 
-Continuous row animations preserve their existing appearance while limiting rendering work: the title shimmer follows the same three-second path with at most 60 visual updates per second, and both it and the shared pixel spinner pause outside the viewport and whenever their document is hidden. Status icons cross-fade only for state changes within the same session; when virtualization rebinds a row template to another session, the new icon renders immediately so stale status is never shown.
+Continuous row animations preserve their existing appearance while limiting rendering work: the title shimmer follows the same three-second path with at most 30 visual updates per second, then rests for three seconds before repeating. Both it and the shared pixel spinner pause outside the viewport and whenever their document is hidden, while their visibility tracking survives temporary row-template detachment. Status icons cross-fade only for state changes within the same session; when virtualization rebinds a row template to another session, the new icon renders immediately so stale status is never shown.
 
 `SessionsFlatList` reuses the same session row renderer for sectionless surfaces, including the approval row and dynamic row height updates. Consumers that size their own container listen for content-height changes and relayout the list. When embedded inside another hover, consumers disable row hovers so moving over the list does not replace the parent hover.
+
+Automation run history uses `SessionsFlatList` for runs backed by a live session. Quick-chat-backed runs use the regular two-line history-row presentation so all run entries have consistent height and status-icon sizing; their details row shows the Chats icon, a `Chat` badge in place of a workspace label, and the timestamp while continuing to omit diff metadata. Pending and running runs without a resolved session use a lightweight `Working...` row; date grouping and run actions remain owned by the Automations view.
 
 ### Grouping
 
@@ -53,20 +59,24 @@ Sessions are organized into sections with fixed priority:
 5. Done/Archived ← always last, not reorderable
 ```
 
-The **Chats** section holds workspace-less quick-chat sessions, detected via the `isQuickChatSession(session)` helper (which reads the session's own `ISession.isQuickChat` observable — **not** `workspace === undefined`, which can be transiently undefined for workspace-bound sessions too). It renders **inside the Sessions list directly below the Pinned section** (above the workspace/date groups) in **both** grouping modes — quick chats are neither a workspace nor a date bucket, so they are partitioned out of workspace/date grouping and rendered as their own entry right after Pinned. The section is **always visible** (even with no quick chats) whenever a provider advertises `supportsQuickChats` — subject to the `sessions.list.showEmptyDefaultGroups` setting (default `true`; when `false` the empty Chats section is hidden). Both the Pinned and Chats section headers carry a **leading icon** (`Codicon.pinned` for Pinned, `Codicon.commentDiscussion` for Chats) and share the standard section-header font/styling (the two headers look consistent — no prominent top-title variant). The Chats header shows the chat icon, the label "Chats", and a **"+" New Quick Chat** action in its section toolbar (also bound to **Cmd+K Cmd+N**) — the *only* create affordance for quick chats (Cmd+N always creates a new **session**, not a quick chat; there is no quick-chat action in the top Sessions header). The bulk archive/mark-done action is not offered on the Chats section. When the section has **no quick chats**, it shows a muted, centered **"No chats" placeholder row** (a synthetic non-session list item, like the "show more" rows) instead of an empty section. A pinned quick chat still appears in Pinned (pin wins), and an archived one still goes to Done (archive wins). Quick-chat rows never show a per-row chat/PR glyph as their **status icon** (their identity is already conveyed by the Chats section, the Pinned section, or a custom group), have no type icon in the details row, and carry no workspace badge/diff stats/timestamp (see Session Row above).
+The **Chats** section holds workspace-less quick-chat sessions, detected via the `isQuickChatSession(session)` helper (which reads the session's own `ISession.isQuickChat` observable — **not** `workspace === undefined`, which can be transiently undefined for workspace-bound sessions too). It renders **inside the Sessions list directly below the Pinned section** (above the workspace/date groups) in **both** grouping modes — quick chats are neither a workspace nor a date bucket, so they are partitioned out of workspace/date grouping and rendered as their own entry right after Pinned. The section is **always visible** (even with no quick chats) whenever a provider advertises `supportsQuickChats` — subject to the `sessions.list.showEmptyDefaultGroups` setting (default `true`; when `false` the empty Chats section is hidden). Both the Pinned and Chats section headers carry a **leading icon** (`Codicon.pinned` for Pinned, `Codicon.commentDiscussion` for Chats) and share the standard section-header font/styling (the two headers look consistent — no prominent top-title variant). The Chats header shows the chat icon, the label "Chats", and a **"+" New Quick Chat** action in its section toolbar (also bound to **Cmd+K Cmd+N**) — the *only* create affordance for quick chats (Cmd+N always creates a new **session**, not a quick chat; there is no quick-chat action in the top Sessions header). The bulk archive/mark-done action is not offered on the Chats section. When the section has **no quick chats**, it shows a muted, centered **"No chats" placeholder row** (a synthetic non-session list item, like the "show more" rows) instead of an empty section. A pinned quick chat still appears in Pinned (pin wins), and an archived one still goes to Done (archive wins). Compact quick-chat rows never show a per-row chat/PR glyph as their **status icon** (their identity is already conveyed by the Chats section, the Pinned section, or a custom group), have no type icon in the details row, and carry no workspace badge/diff stats/timestamp (see Session Row above). Automation history uses the regular-row exception described above.
 
 Each quick chat is its **own single-chat session** (New Quick Chat = a new session per create), so it occupies one list row like any other session — there are no chat-level (`IChat`) rows. A quick chat is pinned/grouped/archived as a whole session: a pinned quick chat appears in Pinned (pin wins), an archived one goes to Done (archive wins). The earlier "single quick-chat container session whose peer `IChat`s become their own rows" model was descoped.
 
 Two grouping modes (user-switchable):
 
-- **By Workspace** (default) — user groups and one section per workspace label share a single, freely-reorderable user-managed order below Pinned. By default groups come first and workspaces are alphabetical ("Unknown" workspace last) until the user drags them.
+- **By Workspace** (default) — user groups and one section per workspace label share a single, freely-reorderable user-managed order below Pinned. By default groups come first and workspaces are alphabetical ("Unknown" workspace last) until the user drags them. A workspace header includes a **Create Session from Pull Request** icon action unless the section is backed only by `github-remote-file` cloud workspaces. The Quick Pick opens immediately in a disabled busy state while repository identity resolves. Identity comes from hydrated session metadata when available; otherwise the action opens the checkout through `IGitService`, waits for its repository-state remotes to hydrate, and parses the GitHub remote. Closing the picker cancels that wait. The picker then runs fresh Waiting for My Review and Assigned to Me queries in parallel with the lightweight first-100 catalog query. Each group query returns complete rows, so Waiting can render without waiting for the full catalog; groups append in final display order so visible entries never move during enrichment. PRs that already have a local or remote-host checkout session are excluded; an existing `github-remote-file` cloud-agent session does not prevent creating a separate worktree session for the same PR. Typing a query that matches none of the loaded entries fetches subsequent pages until a match is found or the catalog is exhausted. After selection, the picker remains busy while it loads the PR details and all paged file patches, issue comments, and review comments and waits for the folder to advertise a worktree-capable session type; Escape cancels this wait. The provisional session then activates immediately and starts a worktree that tracks the PR head branch. The initial request and response are retained as hidden model context, while the PR JSON appears as a one-time context pill that moves into the first visible request.
 - **By Date** — user groups form a contiguous, user-ordered block directly below Pinned; the non-grouped sessions follow in the fixed date sections (Recent, Older), where Recent holds up to 10 sessions from the last 7 days and Older holds the rest. Groups never mix into the date sections.
 
 User groups are **fully user-managed**: their order is owned by `ISessionSectionOrderService`, defaults to newest-first, and is shared across both grouping modes (it no longer derives from the recency of a group's member sessions). Groups remain visible and persisted until explicitly deleted. A group with no currently-visible member rows renders a muted **"No session" placeholder row** like the empty Chats section; its hover briefly explains that sessions can be added through the session context menu or drag and drop. This includes genuinely empty groups and groups whose members currently render in Pinned or are hidden by a filter. Archiving a session removes its group membership, so a group whose last member is marked done becomes empty and can be deleted.
 
-Archived sessions always go to the "Done" section regardless of grouping mode. Archive wins over pin — an archived session is never shown in Pinned — and archiving removes the session from any user-created group. This cleanup also applies when an archived session is added by a provider and when persisted group state loads. Restoring the session does not restore its former group membership.
+`SessionsList.getRenderedSessionGroup` is the shared placement predicate for custom-group membership: the membership must resolve to an existing group, and Pinned/Done precedence excludes the row. `isRenderedInCustomGroup` derives from it and makes a custom-group row reuse the standard always-visible workspace badge because the group header names the group rather than the workspace. Do not add a separate hover- or focus-revealed workspace label; equivalent workspace identity uses the same badge presentation everywhere.
 
-The experimental `chat.experimental.sessionArchiveActionWording` setting keeps archive actions consistent across the regular workbench and Agents window. The `archive` variant uses **Archive**, **Archive All**, **Unarchive**, and **Unarchive All** with `Codicon.archive`/`Codicon.unarchive`; the `done` variant uses **Mark as Done**, **Mark All as Done**, **Restore**, and **Restore All** with `Codicon.check`/`Codicon.checkAll`/`Codicon.redo`. Confirmation copy follows the selected vocabulary, while the underlying archived state and the "Done" section remain unchanged.
+Archived sessions always go to the archived section (labelled "Archived" or "Done" depending on `chat.experimental.sessionArchiveActionWording`) regardless of grouping mode. Archive wins over pin — an archived session is never shown in Pinned — and archiving removes the session from any user-created group. This cleanup also applies when an archived session is added by a provider and when persisted group state loads. Restoring the session does not restore its former group membership.
+
+Group membership, pin state, and manual sort keys are **durable user intent**: they are discarded only when a session is *definitively deleted* (`ISessionsManagementService.onDidDeleteSession`) or archived — never when a session merely drops out of a provider's list. A provider can evict sessions transiently (an agent host aggregates one listing across several agents, and an agent whose auth token or SDK is still loading contributes an empty list), so treating `onDidChangeSessions.removed` as a deletion would permanently destroy grouping and pins for sessions that return on the next refresh. The trade-off is that a session deleted from another window leaves a stale membership/pin entry behind; those entries match no session and are inert.
+
+The experimental `chat.experimental.sessionArchiveActionWording` setting keeps archive actions consistent across the regular workbench and Agents window. The `archive` variant uses **Archive**, **Archive All**, **Unarchive**, and **Unarchive All** with `Codicon.archive`/`Codicon.unarchive`; the `done` variant uses **Mark as Done**, **Mark All as Done**, **Restore**, and **Restore All** with `Codicon.check`/`Codicon.checkAll`/`Codicon.redo`. Confirmation copy follows the selected vocabulary, and so do the archived section header and the archived filter toggle (**Archived** vs **Done**); the underlying archived state and the `archived` section id remain unchanged.
 
 ### Sorting
 
@@ -80,6 +90,7 @@ When grouping by workspace, the list shows only **primary** workspace sections b
 - A workspace qualifies as primary if it has recent activity (last 4 days), matches the open window's folder, or contains the most recently updated session
 - Remaining workspaces collapse behind a "+N more workspaces" toggle
 - Within each workspace or user-created group, sessions beyond 5 (configurable by the same assignment treatment) also show a "Show more" toggle and then a "Show less" toggle once expanded
+- "Show more" rows use the same horizontal inset and corner-radius tier as session rows, including the phone layout
 - The find widget bypasses all capping
 
 ### Filtering
@@ -138,20 +149,23 @@ The insertion line relies on the base list widget's `drop-target-before`/`drop-t
 
 Archived sessions do not show the session group context menu actions ("Create Group", "Add to Group", "Move to Group", or "Remove from Group").
 
-The **Create Group** context-menu action is also available from list blank space, section headers, group headers, "show more" rows, and placeholder rows. These non-session entry points create an empty group and immediately start inline renaming; the session-row action creates the group with the selected sessions as before.
+The **Create Group** context-menu action is also available from list blank space, section headers, group headers, "show more" rows, and placeholder rows. These non-session entry points create an empty group and immediately start inline renaming; the session-row action creates the group with the selected sessions as before. Transient context-menu actions are non-disposable values; the contributed session-row menu remains owned for the menu lifetime and is disposed when it closes.
 
 ### Read / Unread
 
 - Read/unread state is **owned by the sessions provider** and surfaced via `ISession.isRead`. Marking happens through `ISessionsManagementService.markRead` / `markUnread` / `markAllRead`, which route to the provider's `setSessionReadState`. The agent-host provider persists it via the protocol `IsRead` status bit; the Copilot Chat provider via its agent session model (`setRead`); the local chat provider via its persisted session metadata.
+- For agent-host sessions the `IsRead` status bit is the only representation — the host persists it, publishes it on `SessionSummary.status`, and fans changes out to every connected client. The **editor window** shares that state via the item controller (`IChatSessionsService.canSetChatSessionItemRead` / `setChatSessionItemRead`), mirroring the archive bridge, so marking a session read in either window shows up in the other.
 - Sessions start as **unread**
 - A session becomes **read** when the user opens it or explicitly marks it
-- A session becomes **unread** when it produces new output in the background — a turn completes, is cancelled, or errors while the session is not being viewed. Each provider detects this and marks its own session unread: the agent-host provider server-side in `agentSideEffects`, the local chat provider via its tracked session model, and the Copilot Chat provider on the `InProgress` → terminal transition. `SessionsService` only keeps the **active** session marked read.
-- Legacy view-level read state (previously persisted by `SessionsListModelService` under `sessionsListControl.readSessions`) is migrated once into provider ownership by `SessionsListModelService.migrateLegacyReadState`. The migration is additive — it only ever promotes a session to read (never back to unread) — and runs once per session.
+- Automation run history uses the linked session's `ISession.isRead` state directly. The Automations shortcut and run cards react to that observable, and **Mark All as Read** delegates to `ISessionsManagementService.markAllRead`; there is no separate automation-run read store.
+- A session becomes **unread** when it produces new output in the background — a turn completes, is cancelled, or errors while the session is not being viewed. Each provider detects this and marks its own session unread: the agent-host provider server-side in `agentSideEffects`, the local chat provider via its tracked session model, and the Copilot Chat provider on the `InProgress` → terminal transition. `SessionsService` keeps the **active** agent-window session marked read, while `AgentSessionsModel` writes unsolicited unread state back to an owning provider when the session remains open in an editor-window chat widget. A deliberate **Mark as Unread** is preserved.
+- Legacy view-level read state (previously persisted by `SessionsListModelService` under `sessionsListControl.readSessions`) is migrated once into provider ownership by `SessionsListModelService.migrateLegacyReadState`. The migration is additive — it only ever promotes a session to read (never back to unread) — and runs once per session. `AgentSessionsModel.migrateReadStateToProvider` does the same for the editor window's read timestamps.
 - Pin/sort state is cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
 
 ### Navigation
 
 - **Clicking a session** marks it read and calls `SessionsManagementService.openSession()`
+- **Double-clicking a rename-capable session title** opens the existing **Rename...** Quick Input after the first click opens the session. The title handler consumes the `dblclick` so it does not issue a second open. The gesture is gated live on `ISession.capabilities.supportsRename`, applies only to the main `SessionsList` (not `SessionsFlatList` consumers), and is limited to unmodified primary-button double-clicks on the rendered title text. Keyboard users can focus the row, open its context menu (for example with Shift+F10), and choose **Rename...**.
 - **Active session tracking** — the list auto-scrolls to and selects the active session via an `autorun` on `activeSession`
 - **Keyboard shortcuts** — `Ctrl/Cmd+1..9` opens sessions by index; `Ctrl/Cmd+PageUp` / `Ctrl/Cmd+PageDown` navigates the visible list (`Cmd+Alt+Left` / `Cmd+Alt+Right` and `Cmd+Shift+[` / `Cmd+Shift+]` on macOS); `Ctrl+Alt+-` / `Ctrl+Alt+Shift+-` for back/forward navigation
 - **Mobile** — opening a session also closes the sidebar drawer
@@ -175,13 +189,15 @@ The sessions list defines menu IDs that contributions can target to add actions.
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
 | `SessionItemToolbar` | `SessionItemToolbarMenuId` | Inline toolbar on each session row (hover on desktop, always on mobile) | Primary actions like pin and archive/mark as done. Group `navigation` for icons, other groups for overflow. |
-| `SessionItemContextMenu` | `SessionItemContextMenuId` | Right-click context menu on session rows | Secondary actions like rename, mark read/unread, and "Open Pull Request" (in the `navigation`/open group, gated on `sessionHasPullRequest`). Groups: `navigation`, `0_pin`, `0_read`, `1_edit`. |
+| `SessionItemContextMenu` | `SessionItemContextMenuId` | Right-click context menu on session rows | Secondary actions like rename, mark read/unread, and "Open Pull Request" (gated on `sessionHasPullRequest`). Groups: `navigation`, `0_pin`, `0_read`, `1_edit`, `2_pullRequest`. |
+
+The Open Pull Request action shared by the session context menu and header uses the GitHub Pull Requests extension URI handler when the extension is available and otherwise opens the pull request externally. The header's pull request picker follows the same behavior.
 
 ### Section Header Menu
 
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
-| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace" and the selected "Archive All"/"Mark All as Done" action. The Done section restores/unarchives sessions individually (or via multi-selection) rather than with a section-wide action. Section headers also show a collapsible chevron on hover/focus; the chevron uses the same ghost icon hover background token as toolbar icon buttons. |
+| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace", GitHub-backed "Create Session from Pull Request", and the selected "Archive All"/"Mark All as Done" action. The Done section restores/unarchives sessions individually (or via multi-selection) rather than with a section-wide action. Section headers also show a collapsible chevron on hover/focus; the chevron uses the same ghost icon hover background token as toolbar icon buttons. |
 
 ### Group Header Menu
 
@@ -194,7 +210,7 @@ The sessions list defines menu IDs that contributions can target to add actions.
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
 | `SessionsViewPaneFilterSubMenu` | `SessionsViewFilterSubMenu` | Filter/sort dropdown in the view title bar | Sort, group, and workspace capping toggles. |
-| `SessionsViewPaneFilterOptionsSubMenu` | `SessionsViewFilterOptionsSubMenu` | Nested under the filter sub-menu | Session type and status filter checkboxes. |
+| `SessionsViewPaneFilterOptionsSubMenu` | `SessionsViewFilterOptionsSubMenu` | Nested under the filter sub-menu | Session type and status filter checkboxes, plus the `External` submenu for the global external-session visibility setting. |
 
 ### Contributing an Action
 
@@ -242,8 +258,12 @@ Context keys available for `when` clauses when contributing to session list menu
 | Key | Type | Description |
 |-----|------|-------------|
 | `sessionSection.type` | string | `'pinned'`, `'quickchats'`, `'archived'`, `'workspace:<label>'`, `'recent'`, etc. |
+| `sessionSection.hasGitHubRepository` | boolean | Whether the workspace section contains a GitHub-backed repository. |
+| `sessionSection.hasNonCloudRepository` | boolean | Whether the workspace section contains a folder not backed by the `github-remote-file` cloud scheme. |
 | `sessionGroup.hasVisibleSessions` | boolean | Whether a user-created group has visible session rows |
 | `sessionGroup.isEmpty` | boolean | Whether a user-created group has no members |
+
+The repository context keys are driven by an element-scoped autorun over each session's `workspace` and folder `gitHubInfo` observables, so toolbar availability updates when provider metadata hydrates after the section template first renders. A mixed section can obtain GitHub identity from its cloud session and the usable checkout from a separate non-cloud session in that same section; when no session has identity metadata, the action resolves it from the checkout's Git remotes.
 
 ### View-Level
 

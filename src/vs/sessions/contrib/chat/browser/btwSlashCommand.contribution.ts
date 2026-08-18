@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -15,32 +14,15 @@ import { IWorkbenchEnvironmentService } from '../../../../workbench/services/env
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../../../workbench/contrib/chat/common/participants/chatSlashCommands.js';
+import { captureSideChatSelection } from '../../../../workbench/contrib/chat/browser/chatSideChat.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionSupportsSideChatContext } from '../../../common/contextkeys.js';
-import { ISideChatSelection, SessionStatus } from '../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { openAndSendSideChat } from './sideChatOrchestration.js';
 
-function captureSideChatSelection(widget: IChatWidgetService['lastFocusedWidget']): ISideChatSelection | undefined {
-	if (!widget) {
-		return undefined;
-	}
-	const nativeSelection = dom.getActiveWindow().getSelection();
-	const selectedText = nativeSelection?.toString();
-	if (!nativeSelection || !selectedText || !selectedText.trim()) {
-		return undefined;
-	}
-	const { anchorNode, focusNode } = nativeSelection;
-	if (!anchorNode || !focusNode || !dom.isAncestor(anchorNode, widget.domNode) || !dom.isAncestor(focusNode, widget.domNode)) {
-		return undefined;
-	}
-	const inputEditorDomNode = widget.inputEditor.getDomNode();
-	if (inputEditorDomNode && (dom.isAncestor(anchorNode, inputEditorDomNode) || dom.isAncestor(focusNode, inputEditorDomNode))) {
-		return undefined;
-	}
-	return { text: selectedText };
-}
 
 export class BtwSlashCommandContribution extends Disposable implements IWorkbenchContribution {
 
@@ -50,6 +32,7 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsPartService sessionsPartService: ISessionsPartService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -76,7 +59,7 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 				SessionIsArchivedContext.negate(),
 				SessionSupportsSideChatContext,
 			),
-		}, async (prompt, _progress, _history, _location, sessionResource) => {
+		}, async (prompt, _progress, _history, _location, sessionResource, _token, options) => {
 			const remainder = prompt.trim();
 			if (!remainder) {
 				notificationService.warn(localize('btw.missingPrompt', "Enter a question after `/btw`."));
@@ -110,7 +93,7 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 				return;
 			}
 
-			await openAndSendSideChat(sessionsManagementService, sessionsService, session, sideChat, remainder);
+			await openAndSendSideChat(sessionsManagementService, sessionsService, sessionsPartService, session, sideChat, { query: remainder, attachedContext: options?.attachedContext });
 		}));
 	}
 }

@@ -10,67 +10,61 @@ exchanges:
     response:
       content:
         - type: text
-          text: I'll delegate the directory listing to a subagent.
+          text: I'll delegate this to a subagent using the Explore agent, which is read-only.
         - type: tool_use
           id: toolcall_0
           name: Agent
           input:
             description: List files in working directory
-            prompt: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
-            subagent_type: general-purpose
+            prompt: List the files and directories in the current working directory (${workdir}). Call a single read-only tool exactly once — run `ls -la` in the shell (or use a view/list tool) to enumerate the directory. Then report back the list of entries you found. Do not call any other tools.
+            subagent_type: Explore
             run_in_background: false
       stopReason: tool_use
-      usage:
-        inputTokens: 6837
-        outputTokens: 342
   - request:
       model: claude-opus-4.8
       system: ${system}
       messages:
         - role: user
-          content: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
+          content: List the files and directories in the current working directory (${workdir}). Call a single read-only tool exactly once — run `ls -la` in the shell (or use a view/list tool) to enumerate the directory. Then report back the list of entries you found. Do not call any other tools.
     response:
       content:
         - type: text
-          text: I'll run the command.
+          text: I'll run `ls -la` to enumerate the directory.
         - type: tool_use
           id: toolcall_1
           name: Bash
           input:
-            command: ls -la
-            description: List files in current working directory
+            command: ls -la ${workdir}
+            description: List all entries in the working directory
       stopReason: tool_use
-      usage:
-        inputTokens: 2675
-        outputTokens: 85
   - request:
       model: claude-opus-4.8
       system: ${system}
       messages:
         - role: user
-          content: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
+          content: List the files and directories in the current working directory (${workdir}). Call a single read-only tool exactly once — run `ls -la` in the shell (or use a view/list tool) to enumerate the directory. Then report back the list of entries you found. Do not call any other tools.
         - role: assistant
           content:
             - type: text
-              text: I'll run the command.
+              text: I'll run `ls -la` to enumerate the directory.
             - type: tool_use
               name: Bash
               input:
-                command: ls -la
-                description: List files in current working directory
+                command: ls -la ${workdir}
+                description: List all entries in the working directory
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_1
               content: |-
                 total 16
-                drwx------     4 ${user}  staff    128 Jul  9 16:55 .
-                drwx------@ 1145 ${user}  staff  36640 Jul  9 16:55 ..
-                -rw-r--r--     1 ${user}  staff      5 Jul  9 16:55 file-a.txt
-                -rw-r--r--     1 ${user}  staff      4 Jul  9 16:55 file-b.txt
+                drwx------     4 ${user}  staff     128 ${timestamp} .
+                drwx------@ 3522 ${user}  staff  112704 ${timestamp} ..
+                -rw-r--r--     1 ${user}  staff       5 ${timestamp} file-a.txt
+                -rw-r--r--     1 ${user}  staff       4 ${timestamp} file-b.txt
     response:
       content: |-
-        The `ls -la` command returned the following contents of the current working directory:
+        Here are the entries in `${workdir}`:
 
         Directories:
         - `.` (current directory)
@@ -80,11 +74,8 @@ exchanges:
         - `file-a.txt` (5 bytes)
         - `file-b.txt` (4 bytes)
 
-        The working directory contains two regular files, `file-a.txt` and `file-b.txt`, and no subdirectories other than the standard `.` and `..` entries.
+        The directory contains two regular files (`file-a.txt` and `file-b.txt`) and no subdirectories.
       stopReason: end_turn
-      usage:
-        inputTokens: 4165
-        outputTokens: 139
   - request:
       model: claude-opus-4.8
       system: ${system}
@@ -95,47 +86,34 @@ exchanges:
           content:
             - type: thinking
             - type: text
-              text: I'll delegate the directory listing to a subagent.
+              text: I'll delegate this to a subagent using the Explore agent, which is read-only.
             - type: tool_use
               name: Agent
               input:
                 description: List files in working directory
-                prompt: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
-                subagent_type: general-purpose
+                prompt: List the files and directories in the current working directory (${workdir}). Call a single read-only tool exactly once — run `ls -la` in the shell (or use a view/list tool) to enumerate the directory. Then report back the list of entries you found. Do not call any other tools.
+                subagent_type: Explore
                 run_in_background: false
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content:
-                - type: text
-                  text: |-
-                    The `ls -la` command returned the following contents of the current working directory:
+              content: |-
+                Here are the entries in `${workdir}`:
 
-                    Directories:
-                    - `.` (current directory)
-                    - `..` (parent directory)
+                Directories:
+                - `.` (current directory)
+                - `..` (parent directory)
 
-                    Files:
-                    - `file-a.txt` (5 bytes)
-                    - `file-b.txt` (4 bytes)
+                Files:
+                - `file-a.txt` (5 bytes)
+                - `file-b.txt` (4 bytes)
 
-                    The working directory contains two regular files, `file-a.txt` and `file-b.txt`, and no subdirectories other than the standard `.` and `..` entries.
-                - type: text
-                  text: |-
-                    agentId: a80367f6909b49ab9 (use SendMessage with to: 'a80367f6909b49ab9', summary: '<5-10 word recap>' to continue this agent)
-                    <usage>subagent_tokens: 25794
-                    tool_uses: 1
-                    duration_ms: 5122</usage>
+                The directory contains two regular files (`file-a.txt` and `file-b.txt`) and no subdirectories.
     response:
       content: |-
-        The subagent enumerated the directory with a single `ls -la` call. The working directory contains two files:
+        The subagent enumerated the directory with a single `ls -la` call. The working directory contains two files and no subdirectories:
 
         - `file-a.txt` (5 bytes)
         - `file-b.txt` (4 bytes)
-
-        No subdirectories (other than `.` and `..`).
       stopReason: end_turn
-      usage:
-        inputTokens: 2
-        outputTokens: 85

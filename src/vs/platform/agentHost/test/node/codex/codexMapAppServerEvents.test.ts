@@ -5,10 +5,19 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
-import { ActionType } from '../../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
+import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
+import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
+import { ActionType, type ChatAction, type SessionAction } from '../../../common/state/sessionActions.js';
+import { chatReducer } from '../../../common/state/protocol/reducers.js';
+import { ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ChatState } from '../../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../../../node/activeClientState.js';
+
+/** Extracts the content of a Markdown response part emitted by a mapper action. */
+function markdownPartContent(action: SessionAction | ChatAction | undefined): string | undefined {
+	return action?.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown
+		? action.part.content
+		: undefined;
+}
 
 suite('codexMapAppServerEvents', () => {
 
@@ -59,6 +68,43 @@ suite('codexMapAppServerEvents', () => {
 			},
 		}, 'the prompt');
 		assert.strictEqual((actions[0] as { message: { text: string } }).message.text, 'the prompt');
+	});
+
+	test('turn/started exposes a delegated prompt without its private envelope', () => {
+		const actions = mapTurnStarted(createCodexSessionMapState(), {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_delegated',
+				items: [{
+					type: 'userMessage',
+					id: 'item_user',
+					clientId: null,
+					content: [{
+						type: 'text',
+						text: '<codex_delegation><source_thread_id>source-thread</source_thread_id><input>Review &lt;this&gt;</input></codex_delegation>',
+						text_elements: [],
+					}],
+				}],
+				itemsView: { type: 'full' } as never,
+				status: 'inProgress' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			},
+		}, '');
+		const action = actions[0];
+		assert.strictEqual(action.type, ActionType.ChatTurnStarted);
+		if (action.type !== ActionType.ChatTurnStarted) {
+			return;
+		}
+		assert.deepStrictEqual({
+			text: action.message.text,
+			delegation: readAgentMessageDelegationMeta(action.message),
+		}, {
+			text: 'Review <this>',
+			delegation: { sourceThreadId: 'source-thread' },
+		});
 	});
 
 	test('turn/started uses a current timestamp when Codex omits startedAt', () => {
@@ -182,21 +228,49 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1',
 			turnId: 'turn_a',
 			tokenUsage: {
-				last: { inputTokens: 10, cachedInputTokens: 4, outputTokens: 6, reasoningOutputTokens: 2, totalTokens: 16 },
-				total: { inputTokens: 100, cachedInputTokens: 40, outputTokens: 60, reasoningOutputTokens: 20, totalTokens: 160 },
+				last: { inputTokens: 10, cachedInputTokens: 4, cacheWriteInputTokens: 0, outputTokens: 6, reasoningOutputTokens: 2, totalTokens: 16 },
+				total: { inputTokens: 100, cachedInputTokens: 40, cacheWriteInputTokens: 0, outputTokens: 60, reasoningOutputTokens: 20, totalTokens: 160 },
 				modelContextWindow: 200000,
 			},
-		});
+		}, 'codex-model:openai:gpt-5.6-sol');
 		assert.deepStrictEqual(actions, [{
 			type: ActionType.ChatUsage,
 			turnId: 'turn_a',
 			usage: {
 				inputTokens: 10,
 				outputTokens: 6,
+				model: 'codex-model:openai:gpt-5.6-sol',
 				cacheReadTokens: 4,
 				_meta: { reasoningOutputTokens: 2, modelContextWindow: 200000 },
 			},
 		}]);
+	});
+
+	test('contextCompaction item maps to visible running and completed progress', () => {
+		const state = createCodexSessionMapState();
+		const started = mapItemStarted(state, {
+			item: { type: 'contextCompaction', id: 'compact_1' },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('compact_1')?.toolCallId;
+		const completed = mapItemCompleted(state, {
+			item: { type: 'contextCompaction', id: 'compact_1' },
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 1,
+		});
+
+		assert.deepStrictEqual({ started, completed, remaining: state.itemToToolCall.size }, {
+			started: [
+				{ type: ActionType.ChatToolCallStart, turnId: 'turn_a', toolCallId, toolName: 'compact', displayName: 'Compact conversation' },
+				{ type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'Compacting conversation', confirmed: ToolCallConfirmationReason.NotNeeded },
+			],
+			completed: [{
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn_a',
+				toolCallId,
+				result: { success: true, pastTenseMessage: 'Compacted conversation' },
+			}],
+			remaining: 0,
+		});
 	});
 
 	test('item/completed for agentMessage clears the mapping', () => {
@@ -211,6 +285,69 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
 		});
 		assert.strictEqual(state.itemToPartId.size, 0);
+	});
+
+	test('second agentMessage in a turn is seeded with a leading block separator', () => {
+		const state = createCodexSessionMapState();
+		const first = mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'm1', text: 'Consolidating the recommendation and tradeoffs.', phase: null, memoryCitation: null },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const second = mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'm2', text: '## Conclusion', phase: null, memoryCitation: null },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		assert.deepStrictEqual({
+			first: markdownPartContent(first[0]),
+			second: markdownPartContent(second[0]),
+		}, {
+			first: 'Consolidating the recommendation and tradeoffs.',
+			second: '\n\n## Conclusion',
+		});
+	});
+
+	test('agentMessage block separator counter resets per turn', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: 'a', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
+		mapItemStarted(state, { item: { type: 'agentMessage', id: 'm2', text: 'b', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
+		// A new turn resets the counter, so its first agentMessage is unseeded.
+		resetCodexTurnMapState(state);
+		const firstOfNextTurn = mapItemStarted(state, { item: { type: 'agentMessage', id: 'm3', text: 'c', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_b', startedAtMs: 0 });
+		assert.strictEqual(markdownPartContent(firstOfNextTurn[0]), 'c');
+	});
+
+	test('adjacent agentMessages keep a Markdown heading on its own line after coalescing', () => {
+		const state = createCodexSessionMapState();
+		let chat: ChatState = {
+			resource: 'ahp-chat://test',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+			origin: { kind: ChatOriginKind.User },
+			turns: [],
+			activeTurn: undefined,
+		};
+		const apply = (actions: readonly (SessionAction | ChatAction)[]) => {
+			for (const action of actions) {
+				chat = chatReducer(chat, action as ChatAction);
+			}
+		};
+		apply(mapTurnStarted(state, {
+			threadId: 'thr_1',
+			turn: { id: 'turn_a', items: [], itemsView: { type: 'full' } as never, status: 'inProgress' as never, error: null, startedAt: null, completedAt: null, durationMs: null },
+		}, 'prompt'));
+		// Preamble message, then the final-answer message; two distinct items.
+		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: '', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
+		apply(mapAgentMessageDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'm1', delta: 'Consolidating the recommendation and tradeoffs.' }));
+		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm2', text: '', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
+		apply(mapAgentMessageDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'm2', delta: '## Conclusion\n\nDone.' }));
+
+		// Adjacent markdown parts are coalesced by plain concatenation, so the
+		// joined text must keep `## Conclusion` at the start of a line.
+		const joined = (chat.activeTurn?.responseParts ?? [])
+			.map(part => part.kind === ResponsePartKind.Markdown ? part.content : '')
+			.join('');
+		assert.strictEqual(joined, 'Consolidating the recommendation and tradeoffs.\n\n## Conclusion\n\nDone.');
 	});
 
 	test('item/started for commandExecution emits ChatToolCallStart + Delta + Ready and registers tool-call entry', () => {
@@ -469,8 +606,52 @@ suite('codexMapAppServerEvents', () => {
 			startTypes: [ActionType.ChatToolCallStart, ActionType.ChatToolCallDelta, ActionType.ChatToolCallReady],
 			startMeta: { toolKind: 'search' },
 			delta: { type: ActionType.ChatToolCallDelta, turnId: 'turn_a', toolCallId, content: 'vscode tests' },
-			ready: { type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'vscode tests', toolInput: 'vscode tests', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: { toolKind: 'search' } },
-			complete: [{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Searched vscode tests' } }],
+			ready: { type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'Searching the web for vscode tests', toolInput: 'vscode tests', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: { toolKind: 'search' } },
+			complete: [{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Searched the web for vscode tests' } }],
+			remainingToolCalls: 0,
+		});
+	});
+
+	test('imageGeneration item maps to an image tool call lifecycle', () => {
+		const state = createCodexSessionMapState();
+		const startActions = mapItemStarted(state, {
+			item: { type: 'imageGeneration', id: 'image_1', status: 'in_progress', revisedPrompt: null, result: '' },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('image_1')!.toolCallId;
+		const completeActions = mapItemCompleted(state, {
+			item: { type: 'imageGeneration', id: 'image_1', status: 'completed', revisedPrompt: 'A watercolor fox', result: 'aW1hZ2U=' },
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.deepStrictEqual({
+			start: startActions,
+			complete: completeActions,
+			remainingToolCalls: state.itemToToolCall.size,
+		}, {
+			start: [{
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn_a',
+				toolCallId,
+				toolName: 'image_gen.imagegen',
+				displayName: 'Generate image',
+			}, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn_a',
+				toolCallId,
+				invocationMessage: 'Generating image',
+				toolInput: '{"prompt":"Generate image"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			}],
+			complete: [{
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn_a',
+				toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
+				},
+			}],
 			remainingToolCalls: 0,
 		});
 	});
@@ -502,7 +683,7 @@ suite('codexMapAppServerEvents', () => {
 			ready: { type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'update: src/a.ts', toolInput: 'update: src/a.ts', confirmed: ToolCallConfirmationReason.NotNeeded },
 			initialContent: { type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'update: src/a.ts\n@@ -1 +1 @@\n-old\n+new' }] },
 			patchActions: [{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'add: src/b.ts\n+hello' }] }],
-			completeActions: [{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Applied file changes', content: [{ type: ToolResultContentType.Text, text: 'update: src/a.ts\n@@ -1 +1 @@\n-old\n+new' }] } }],
+			completeActions: [{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'update: src/a.ts', content: [{ type: ToolResultContentType.Text, text: 'update: src/a.ts\n@@ -1 +1 @@\n-old\n+new' }] } }],
 			remainingToolCalls: 0,
 		});
 	});
@@ -644,7 +825,7 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(complete.result.error?.code, 'denied');
 	});
 
-	test('collabAgentToolCall spawnAgent start renders compactly (no prompt dump — the peer chat shows it)', () => {
+	test('collabAgentToolCall spawnAgent start renders compactly (no prompt dump — the child conversation shows it)', () => {
 		const state = createCodexSessionMapState();
 		const startActions = mapItemStarted(state, {
 			item: {
@@ -656,9 +837,9 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
 		});
 		const toolCallId = state.itemToToolCall.get('collab_1')!.toolCallId;
-		// spawnAgent opens a read-only peer chat (the host attaches the
-		// subagent-discovery block to this tool call), so the raw prompt is
-		// deliberately NOT dumped into the tool box.
+		// spawnAgent opens a read-only child conversation (the host attaches
+		// the subagent-discovery block to this tool call), so the raw prompt
+		// is deliberately NOT dumped into the tool box.
 		assert.deepStrictEqual({
 			actions: startActions,
 			entryToolName: state.itemToToolCall.get('collab_1')!.toolName,
@@ -872,6 +1053,216 @@ suite('codexMapAppServerEvents', () => {
 		});
 		assert.deepStrictEqual(actions, [{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 2500 }]);
 		assert.strictEqual(state.currentTurnId, undefined);
+	});
+
+	test('turn/completed does not infer dropped command success without an exit status', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_1', command: 'node -e writeFile()', cwd: '/tmp',
+				processId: null, source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('cmd_1')!.toolCallId;
+		const responseStarted = mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'msg_1', text: '' } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 1,
+		});
+		const responseDelta = mapAgentMessageDelta(state, {
+			threadId: 'thr_1', turnId: 'turn_a', itemId: 'msg_1', delta: 'done',
+		});
+		assert.deepStrictEqual({ responseStarted, responseDelta }, { responseStarted: [], responseDelta: [] });
+
+		const partId = state.itemToPartId.get('msg_1')!;
+		const notification = {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_a',
+				items: [{
+					type: 'commandExecution', id: 'cmd_1', command: 'node -e writeFile()', cwd: '/tmp',
+					processId: null, source: 'agent', status: 'completed', commandActions: [],
+					aggregatedOutput: '', exitCode: null, durationMs: 2,
+				} as never],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: 3,
+			},
+		};
+		const actions = mapTurnCompleted(state, notification);
+
+		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId,
+				result: { success: false, pastTenseMessage: 'Stopped shell', content: undefined, error: { message: 'Turn completed before the tool reported completion' } },
+			},
+			{ type: ActionType.ChatResponsePart, turnId: 'turn_a', part: { kind: ResponsePartKind.Markdown, id: partId, content: '' } },
+			{ type: ActionType.ChatDelta, turnId: 'turn_a', partId, content: 'done' },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 3 },
+		]);
+	});
+
+	test('turn/completed recovers a command result with an observed exit status', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_1', command: 'node -e writeFile()', cwd: '/tmp',
+				processId: null, source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('cmd_1')!.toolCallId;
+		const actions = mapTurnCompleted(state, {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_a',
+				items: [{
+					type: 'commandExecution', id: 'cmd_1', command: 'node -e writeFile()', cwd: '/tmp',
+					processId: null, source: 'agent', status: 'completed', commandActions: [],
+					aggregatedOutput: 'done', exitCode: 0, durationMs: 2,
+				} as never],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: 3,
+			},
+		});
+
+		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran `node -e writeFile()`',
+					content: [{ type: ToolResultContentType.Text, text: 'done' }],
+					error: undefined,
+				},
+			},
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 3 },
+		]);
+	});
+
+	test('turn/completed does not recover a non-command tool through the pure mapper', () => {
+		const state = createCodexSessionMapState();
+		state.itemToToolCall.set('tool_1', { toolCallId: 'tc_1', turnId: 'turn_a', toolName: 'web_search', output: '' });
+		const responseStarted = mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'msg_1', text: '' } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 1,
+		});
+		const partId = state.itemToPartId.get('msg_1')!;
+		assert.deepStrictEqual(responseStarted, [
+			{ type: ActionType.ChatResponsePart, turnId: 'turn_a', part: { kind: ResponsePartKind.Markdown, id: partId, content: '' } },
+		]);
+
+		const actions = mapTurnCompleted(state, {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_a',
+				items: [{ type: 'webSearch', id: 'tool_1', query: 'query', action: { type: 'search', query: 'query' } } as never],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: 3,
+			},
+		});
+
+		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId: 'tc_1',
+				result: { success: false, pastTenseMessage: 'Stopped web_search', content: undefined, error: { message: 'Turn completed before the tool reported completion' } },
+			},
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 3 },
+		]);
+	});
+
+	test('superseding a pending pre-flight releases its deferred response before the next response', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_1', command: 'node -e writeFile()', cwd: '/tmp',
+				processId: null, source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+
+		const toolCallId = state.itemToToolCall.get('cmd_1')!.toolCallId;
+		const firstResponse = mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'msg_1', text: '' } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 1,
+		});
+		assert.deepStrictEqual(firstResponse, []);
+		const firstPartId = state.itemToPartId.get('msg_1')!;
+		const completed = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_1', command: 'node -e writeFile()', cwd: '/tmp',
+				processId: null, source: 'agent' as never, status: 'completed' as never,
+				commandActions: [], aggregatedOutput: '', exitCode: 0, durationMs: 2,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 2,
+		});
+		assert.deepStrictEqual(completed, []);
+		const nextResponse = mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'msg_2', text: '' } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 3,
+		});
+		const secondPartId = state.itemToPartId.get('msg_2')!;
+
+		assert.deepStrictEqual(nextResponse, [
+			{
+				type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran `node -e writeFile()`',
+					content: undefined,
+					error: undefined,
+				},
+			},
+			{ type: ActionType.ChatResponsePart, turnId: 'turn_a', part: { kind: ResponsePartKind.Markdown, id: firstPartId, content: '' } },
+			{ type: ActionType.ChatResponsePart, turnId: 'turn_a', part: { kind: ResponsePartKind.Markdown, id: secondPartId, content: '\n\n' } },
+		]);
+	});
+
+	test('steering finalization completes open commands before deferred response actions', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_1', command: 'node -e writeFile()', cwd: '/tmp',
+				processId: null, source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('cmd_1')!.toolCallId;
+		assert.deepStrictEqual(mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'msg_1', text: 'done' } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 1,
+		}), []);
+		const partId = state.itemToPartId.get('msg_1')!;
+
+		const actions = finalizeCodexTurnMapState(state, 'Turn was superseded by a steering message before the tool reported completion');
+
+		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId,
+				result: {
+					success: false,
+					pastTenseMessage: 'Stopped shell',
+					content: undefined,
+					error: { message: 'Turn was superseded by a steering message before the tool reported completion' },
+				},
+			},
+			{ type: ActionType.ChatResponsePart, turnId: 'turn_a', part: { kind: ResponsePartKind.Markdown, id: partId, content: 'done' } },
+		]);
+		assert.deepStrictEqual({
+			toolCalls: state.itemToToolCall.size,
+			deferredResponses: state.deferredResponseActions.length,
+			pendingPreflight: state.pendingPreflight,
+		}, {
+			toolCalls: 0,
+			deferredResponses: 0,
+			pendingPreflight: undefined,
+		});
 	});
 
 	test('turn/completed completes orphaned tool calls before completing the turn', () => {

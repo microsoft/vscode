@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewOpenOptions, IBrowserViewOwner, IBrowserViewService, IBrowserViewState, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewInfo, IBrowserViewOpenOptions, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserEditorViewState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -25,12 +25,14 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
-import { buttonForeground, buttonBackground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { contrastBorder, descriptionForeground, focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
+import { buttonForeground, buttonBackground, inputPlaceholderForeground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, toolbarHoverBackground, widgetShadow } from '../../../../platform/theme/common/colors/editorColors.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
 import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -122,6 +124,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
@@ -134,6 +137,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateWindowConfiguration()));
 		this._register(this.themeService.onDidColorThemeChange(() => this._updateWindowConfiguration()));
+		this._register(this.accessibilityService.onDidChangeReducedMotion(() => this._updateWindowConfiguration()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this._updateWindowConfiguration()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this._updateWindowConfiguration()));
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateWindowConfiguration()));
@@ -173,7 +177,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 
 			// Eagerly create the model from the state we already have
-			this._createModel(e.info.id, e.info.owner, e.info.state);
+			this._createModel(e.info);
 
 			const editor = this._known.get(e.info.id);
 			if (editor && e.openOptions) {
@@ -320,13 +324,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		});
 	}
 
-	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
+	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, associatedResource?: URI, model?: IBrowserViewModel): BrowserEditorInput {
 		if (!this._known.has(id)) {
-			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
-				const state = await this._browserViewService.getOrCreateBrowserView(
+			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState, associatedResource }, async () => {
+				const info = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
 						owner: this._getDefaultOwner(),
+						associatedResource,
 						sessionOptions: {
 							scope: await this._resolveStorageScope()
 						},
@@ -337,7 +342,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 						}
 					}
 				);
-				return this._createModel(id, this._getDefaultOwner(), state);
+				return this._createModel(info);
 			});
 			input.onWillDispose(() => {
 				this._known.delete(id);
@@ -397,21 +402,22 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private async _initializeExistingViews(): Promise<void> {
 		const views = await this._browserViewService.getBrowserViews(this._mainWindowId);
 		for (const info of views) {
-			this._createModel(info.id, info.owner, info.state);
+			this._createModel(info);
 		}
 	}
 
-	private _createModel(id: string, owner: IBrowserViewOwner, state: IBrowserViewState): IBrowserViewModel {
+	private _createModel(info: IBrowserViewInfo): IBrowserViewModel {
+		const associatedResource = URI.revive(info.associatedResource);
 		// Don't double-create
-		const existing = this._known.get(id)?.model;
+		const existing = this._known.get(info.id)?.model;
 		if (existing) {
 			return existing;
 		}
 
-		const model = this.instantiationService.createInstance(BrowserViewModel, id, owner, state, this._browserViewService);
+		const model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.owner, associatedResource, info.state, this._browserViewService);
 
 		// Sanity: both pass and assign the model to be sure. It will no-op if already set.
-		this.getOrCreateLazy(id, {}, model).model = model;
+		this.getOrCreateLazy(info.id, {}, associatedResource, model).model = model;
 
 		this._onDidChangeBrowserViews.fire();
 
@@ -518,7 +524,16 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			focusBorder: theme.getColor(focusBorder)?.toString(),
 			buttonBackground: theme.getColor(buttonBackground)?.toString(),
 			buttonForeground: theme.getColor(buttonForeground)?.toString(),
+			widgetBackground: theme.getColor(editorWidgetBackground)?.toString(),
+			widgetForeground: theme.getColor(editorWidgetForeground)?.toString(),
+			widgetBorder: theme.getColor(editorWidgetBorder)?.toString(),
+			widgetShadow: theme.getColor(widgetShadow)?.toString(),
+			contrastBorder: theme.getColor(contrastBorder)?.toString(),
+			descriptionForeground: theme.getColor(descriptionForeground)?.toString(),
+			inputPlaceholderForeground: theme.getColor(inputPlaceholderForeground)?.toString(),
+			toolbarHoverBackground: theme.getColor(toolbarHoverBackground)?.toString(),
 			font: DEFAULT_FONT_FAMILY,
+			reducedMotion: this.accessibilityService.isMotionReduced(),
 		};
 	}
 

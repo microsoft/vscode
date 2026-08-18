@@ -41,7 +41,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { WindowTitle } from '../../../../../browser/parts/titlebar/windowTitle.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatAIDisabledSettingId, ChatConfiguration } from '../../../common/constants.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -88,7 +88,7 @@ function shouldForceHiddenAgentStatus(configurationService: IConfigurationServic
 		return true;
 	}
 
-	const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatConfiguration.AIDisabled) === true;
+	const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true;
 	const aiCustomizationsDisabled = configurationService.getValue<boolean>('disableAICustomizations') === true
 		|| configurationService.getValue<boolean>('workbench.disableAICustomizations') === true;
 
@@ -239,7 +239,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)
 				|| e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)
-				|| e.affectsConfiguration(ChatConfiguration.AIDisabled)
+				|| e.affectsConfiguration(ChatAIDisabledSettingId)
 				|| e.affectsConfiguration('disableAICustomizations')
 				|| e.affectsConfiguration('workbench.disableAICustomizations')
 			) {
@@ -1444,7 +1444,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			if (
 				e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)
 				|| e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)
-				|| e.affectsConfiguration(ChatConfiguration.AIDisabled)
+				|| e.affectsConfiguration(ChatAIDisabledSettingId)
 				|| e.affectsConfiguration('disableAICustomizations')
 				|| e.affectsConfiguration('workbench.disableAICustomizations')
 			) {

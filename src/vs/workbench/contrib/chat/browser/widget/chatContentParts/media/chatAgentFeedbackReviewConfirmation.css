@@ -91,9 +91,6 @@
 
 .chat-agent-feedback-review-expand-toggle {
 	display: none;
-	position: absolute;
-	bottom: 0;
-	right: 0;
 	align-items: center;
 	justify-content: center;
 	width: 18px;
@@ -104,10 +101,10 @@
 	background: transparent;
 	color: var(--vscode-icon-foreground);
 	cursor: pointer;
-	z-index: 1;
+	margin-top: auto;
 }
 
-.chat-agent-feedback-review-text-container.overflowing .chat-agent-feedback-review-expand-toggle {
+.chat-agent-feedback-review-expand-toggle.visible {
 	display: flex;
 }
 
@@ -121,6 +118,10 @@
 }
 
 .chat-agent-feedback-review-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	align-self: stretch;
 	flex: 0 0 auto;
 }
 

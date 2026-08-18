@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -12,23 +13,20 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 import { AgentSessionProviders, AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 export interface INewEditSessionActionContext {
 
@@ -331,18 +329,16 @@ async function runNewChatAction(
 	sessionType?: AgentSessionProviders
 ) {
 	const accessibilityService = accessor.get(IAccessibilityService);
-	const viewsService = accessor.get(IViewsService);
-	const configurationService = accessor.get(IConfigurationService);
-	const chatSessionsService = accessor.get(IChatSessionsService);
-	const storageService = accessor.get(IStorageService);
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	const { editingSession, chatWidget: widget } = context ?? {};
 	if (!widget) {
 		return;
 	}
 
+	const voiceSessionController = accessor.get(IVoiceSessionController);
+	const voiceTarget = voiceSessionController.targetSession.get();
+	const currentSession = widget.viewModel?.sessionResource;
 	const dialogService = accessor.get(IDialogService);
 
 	const model = widget.viewModel?.model;
@@ -353,7 +349,14 @@ async function runNewChatAction(
 	await editingSession?.stop();
 
 	// Create a new session, preserving the session type (or using the specified one)
-	await clearChatSessionPreservingType(widget, viewsService, sessionType, configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled);
+	await instantiationService.invokeFunction(clearChatSessionPreservingType, widget, sessionType);
+
+	const newSession = widget.viewModel?.sessionResource;
+	if ((voiceSessionController.isConnected.get() || voiceSessionController.isConnecting.get())
+		&& (!voiceTarget || (!!currentSession && isEqual(voiceTarget, currentSession)))
+		&& newSession) {
+		voiceSessionController.setTargetSession(newSession);
+	}
 
 	widget.attachmentModel.clear(true);
 	widget.focusInput();

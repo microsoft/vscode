@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { observableValue, derived, autorun, type ISettableObservable, type IReader } from '../../../../base/common/observable.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { getWindow } from '../../../../base/browser/dom.js';
@@ -19,7 +20,8 @@ import { createOnboarding } from './components/onboardingComponent.js';
 import { createVoiceBar } from './components/voiceBarComponent.js';
 import { FONT_SIZE, addKeyboardActivation, isSecondaryPointerGesture } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle } from '../../chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceMicGlowBoxShadow, IVoiceGlowColors, voiceGlowStateColor } from '../../chat/browser/voiceClient/voiceGlow.js';
+import { createVoiceGlowController, GlowThemeKind, IVoiceGlowController } from '../../chat/browser/voiceClient/voiceGlowController.js';
 
 export interface VoiceWidgetCallbacks {
 	readonly copilotIconSrc: string;
@@ -58,6 +60,14 @@ export interface VoiceWidgetCallbacks {
 	 * sessions quickpick with a "set as voice target" action.
 	 */
 	showSessionsPicker?(): void;
+	/** Active theme kind, for the ambient voice glow. */
+	getGlowTheme(): GlowThemeKind;
+	/** Theme-derived per-state accents for the ambient voice glow. */
+	getGlowColors(): IVoiceGlowColors;
+	/** Whether the user has asked for reduced motion. */
+	isMotionReduced(): boolean;
+	/** Fires when the color theme changes, so the glow can re-derive its accents. */
+	readonly onDidChangeGlowTheme: Event<void>;
 }
 
 /**
@@ -154,6 +164,7 @@ export class AgentsVoiceWidget extends Disposable {
 	private readonly _pttKeyLabel: ISettableObservable<string | undefined> = observableValue(this, undefined);
 	private readonly _statusText: ISettableObservable<string> = observableValue(this, '');
 	private readonly _popoutAvailable: ISettableObservable<boolean> = observableValue(this, true);
+	private readonly _voiceControlsSuppressed: ISettableObservable<boolean> = observableValue(this, false);
 	private readonly _feedbackDialogState: ISettableObservable<FeedbackDialogState | null> = observableValue(this, null);
 	private readonly _showOnboarding: ISettableObservable<boolean> = observableValue(this, false);
 	private readonly _onboardingPendingConnect: ISettableObservable<boolean> = observableValue(this, false);
@@ -188,6 +199,8 @@ export class AgentsVoiceWidget extends Disposable {
 	private readonly _inputBoxToolbar: HTMLElement | undefined;
 	private readonly _inputBoxMicBtn: HTMLElement | undefined;
 	private readonly _inputBoxConnIndicator: HTMLElement | undefined;
+	/** Ambient voice glow on the input box (input-box layout only). */
+	private readonly _glowController: IVoiceGlowController | undefined;
 	private readonly _inputBoxFeedbackBtn: HTMLElement | undefined;
 	private readonly _inputBoxSessionsBtn: HTMLElement | undefined;
 	private readonly _inputBoxCloseBtn: HTMLElement | undefined;
@@ -315,6 +328,13 @@ export class AgentsVoiceWidget extends Disposable {
 			this._inputBoxTranscriptComponent.element.style.width = '100%';
 			this._inputBoxTranscriptComponent.element.style.display = 'none';
 			this._inputBoxContainer.append(this._inputBoxPlaceholder, this._inputBoxTranscriptComponent.element);
+
+			this._glowController = this._register(createVoiceGlowController(
+				this._inputBoxContainer,
+				() => this.callbacks.getGlowTheme(),
+				() => this.callbacks.getGlowColors(),
+			));
+			this._register(this.callbacks.onDidChangeGlowTheme(() => this._glowController?.refreshTheme()));
 
 			// Toolbar row below the input box
 			this._inputBoxToolbar = dom.$('div');
@@ -597,11 +617,15 @@ export class AgentsVoiceWidget extends Disposable {
 	}
 
 	private _updateDOMInputBoxLayout(reader: IReader): void {
-		const onboarding = this._showOnboarding.read(reader);
 		const voiceState = this._voiceState.read(reader);
+		const voiceControlsSuppressed = this._voiceControlsSuppressed.read(reader);
 		const isConnected = this._isConnected.read(reader);
 		const isConnecting = this._isConnecting.read(reader);
 		const isReconnecting = this._isReconnecting.read(reader);
+		// The onboarding branch returns early, so showing it during a reconnect
+		// hides every progress affordance below and leaves a static "Get Started"
+		// button while the socket is actively retrying.
+		const onboarding = this._showOnboarding.read(reader) && !isReconnecting;
 		const showConnected = isConnected || isReconnecting;
 		const opts = this._options;
 		const showExpanded = this._shouldShowExpanded.read(reader) && opts.showExpandChevron;
@@ -624,7 +648,7 @@ export class AgentsVoiceWidget extends Disposable {
 
 			this._onboardingComponent.update({
 				pttKeyLabel: this._pttKeyLabel.read(reader),
-				isConnecting: this._onboardingPendingConnect.read(reader) || isConnecting,
+				isConnecting: this._onboardingPendingConnect.read(reader) || isConnecting || isReconnecting,
 				onGetStarted: (e) => { e.preventDefault(); e.stopPropagation(); this._dismissOnboarding(true); },
 				onOpenPttKeySettings: (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
 				onOpenPopout: this.callbacks.openPopout ? (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); } : undefined,
@@ -652,19 +676,19 @@ export class AgentsVoiceWidget extends Disposable {
 		this._feedbackDialogComponent.element.style.display = 'none';
 
 		// Input box container — show transcript inside or placeholder
-		this._inputBoxContainer!.style.display = 'flex';
+		this._inputBoxContainer!.style.display = voiceControlsSuppressed ? 'none' : 'flex';
 		const transcriptTurns = this._transcriptTurns.read(reader);
 		const hasTranscript = transcriptTurns.some(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
-		// Toggle voice-active glow on the input container (base state; wave animation overrides dynamically)
-		const shouldShowInputGlow = (isConnected && voiceState === 'idle') || (showConnected && (voiceState === 'listening' || voiceState === 'speaking'));
+		// The ambient glow is owned by the glow controller; clear it whenever the
+		// input box shouldn't be lit so no stale frame is left behind.
+		const shouldShowInputGlow = !voiceControlsSuppressed && showConnected && (voiceState === 'listening' || voiceState === 'speaking');
 		if (!shouldShowInputGlow) {
-			this._inputBoxContainer!.style.borderColor = 'var(--vscode-input-border, transparent)';
-			this._inputBoxContainer!.style.boxShadow = 'none';
+			this._glowController?.clear();
 		}
 
 		// Toggle processing comet animation when agent is thinking
-		this._inputBoxContainer!.classList.toggle('processing', voiceState === 'processing');
+		this._inputBoxContainer!.classList.toggle('processing', !voiceControlsSuppressed && voiceState === 'processing');
 
 		if (hasTranscript) {
 			if (showExpanded) {
@@ -690,14 +714,17 @@ export class AgentsVoiceWidget extends Disposable {
 			this._transcriptComponent.element.style.display = 'none';
 			const keyLabel = this._pttKeyLabel.read(reader);
 			if (isReconnecting) {
-				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.reconnecting', "Reconnecting...");
+				// Prefer the status text: it carries the close reason for a retryable
+				// failure, which is the whole point of showing anything here.
+				this._inputBoxPlaceholder!.textContent = this._statusText.read(reader)
+					|| localize('agentsVoice.reconnecting', "Reconnecting...");
 			} else if (isConnecting) {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.connecting', "Connecting...");
 			} else if (isConnected && voiceState === 'listening') {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.listening', "Listening");
 			} else if (isConnected && voiceState === 'speaking') {
 				this._inputBoxPlaceholder!.textContent = keyLabel
-					? localize('agentsVoice.pressToBargeIn', "Press {0} to barge in", keyLabel)
+					? localize('agentsVoice.pressToBargeIn', "Speak or use {0}", keyLabel)
 					: localize('agentsVoice.speakToBargeIn', "Speak to barge in");
 			} else if (isConnected) {
 				this._inputBoxPlaceholder!.textContent = keyLabel
@@ -708,6 +735,15 @@ export class AgentsVoiceWidget extends Disposable {
 			} else {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.clickMicToTalk', "Click voice mode to talk");
 			}
+		}
+
+		// A transcript otherwise hides the placeholder, so a mid-session drop shows
+		// no progress at all. Keep the line visible while a connect is in flight.
+		if (isReconnecting || isConnecting) {
+			this._inputBoxPlaceholder!.style.display = '';
+			this._inputBoxPlaceholder!.textContent = isReconnecting
+				? (this._statusText.read(reader) || localize('agentsVoice.reconnecting', "Reconnecting..."))
+				: localize('agentsVoice.connecting', "Connecting...");
 		}
 
 		// Status rows — hide in inputBoxLayout (no "No active sessions" text needed)
@@ -737,7 +773,7 @@ export class AgentsVoiceWidget extends Disposable {
 		this._inputBoxToolbar!.style.display = 'flex';
 
 		// Mic button — always visible (primary action)
-		this._inputBoxMicBtn!.style.display = '';
+		this._inputBoxMicBtn!.style.display = voiceControlsSuppressed ? 'none' : '';
 		const keyLabel = this._pttKeyLabel.read(reader);
 		const micTooltip = keyLabel
 			? localize('agentsVoice.pushToTalkKey', "Push to talk ({0})", keyLabel)
@@ -760,10 +796,11 @@ export class AgentsVoiceWidget extends Disposable {
 		this._inputBoxMicBtn!.onmouseup = (e: MouseEvent) => { if (isSecondaryPointerGesture(e)) { return; } this.callbacks.pttUp(); };
 
 		// Connection indicator — visible when connected
-		this._inputBoxConnIndicator!.style.display = showConnected ? '' : 'none';
+		this._inputBoxConnIndicator!.style.display = !voiceControlsSuppressed && showConnected ? '' : 'none';
 		this._inputBoxConnIndicator!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); };
 
 		// Feedback button — always visible
+		this._inputBoxFeedbackBtn!.style.display = voiceControlsSuppressed ? 'none' : '';
 		this._inputBoxFeedbackBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); };
 
 		// Sessions button — always visible, icon toggles with expanded state
@@ -788,7 +825,7 @@ export class AgentsVoiceWidget extends Disposable {
 		this._titleRow.style.display = (onboarding || !opts.title) ? 'none' : 'flex';
 
 		// Onboarding vs main UI
-		if (onboarding) {
+		if (onboarding && !this._isReconnecting.read(reader)) {
 			this._onboardingComponent.element.style.display = '';
 			this._headerComponent.element.style.display = 'none';
 			this._voiceBarComponent.element.style.display = 'none';
@@ -980,6 +1017,10 @@ export class AgentsVoiceWidget extends Disposable {
 		this._statusText.set(text, undefined);
 	}
 
+	setVoiceControlsSuppressed(suppressed: boolean): void {
+		this._voiceControlsSuppressed.set(suppressed, undefined);
+	}
+
 	setPopoutAvailable(available: boolean): void {
 		this._popoutAvailable.set(available, undefined);
 	}
@@ -1076,29 +1117,24 @@ export class AgentsVoiceWidget extends Disposable {
 			}
 
 			// Animate input box container border/shadow (inputBoxLayout)
-			if (this._inputBoxContainer && (voiceState === 'listening' || voiceState === 'speaking')) {
-				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, false);
-				this._inputBoxContainer.style.borderColor = borderColor;
-				this._inputBoxContainer.style.boxShadow = boxShadow;
+			if (this._glowController && (voiceState === 'listening' || voiceState === 'speaking')) {
+				this._glowController.render(voiceState, intensity, this.callbacks.isMotionReduced());
 			}
 
+			const colors = this.callbacks.getGlowColors();
 			if (this._inputBoxMicBtn) {
 				const iconGlowActive = voiceState === 'listening' || voiceState === 'speaking';
-				if (iconGlowActive) {
-					const shadowSpread = 3 + intensity * 8;
-					const shadowAlpha = 0.2 + intensity * 0.45;
-					const glowColor = `rgba(${voiceState === 'speaking' ? '163,113,247' : '88,166,255'},${shadowAlpha})`;
-					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px ${glowColor}`;
-				} else {
-					this._inputBoxMicBtn.style.boxShadow = 'none';
-				}
+				this._inputBoxMicBtn.style.boxShadow = iconGlowActive
+					? computeVoiceMicGlowBoxShadow(voiceState, intensity, colors)
+					: 'none';
 			}
 
 			// Classic layout glow div
 			this._glowDiv.style.display = '';
 			const baseOpacity = 0.15 + intensity * 0.4;
-			const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
-			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
+			const { r, g, b } = voiceGlowStateColor(onboarding ? 'speaking' : voiceState, colors).rgba;
+			const rgb = `${r},${g},${b}`;
+			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${rgb},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${rgb},${baseOpacity * 0.4}) 0%, transparent 100%)`;
 		};
 		this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 	}
@@ -1111,10 +1147,7 @@ export class AgentsVoiceWidget extends Disposable {
 		// Clear any glow left by the last rendered frame so idle/disconnected
 		// shows no residual glow now that the loop no longer runs while idle.
 		this._glowDiv.style.display = 'none';
-		if (this._inputBoxContainer) {
-			this._inputBoxContainer.style.borderColor = 'var(--vscode-input-border, transparent)';
-			this._inputBoxContainer.style.boxShadow = 'none';
-		}
+		this._glowController?.clear();
 		if (this._inputBoxMicBtn) {
 			this._inputBoxMicBtn.style.boxShadow = 'none';
 		}

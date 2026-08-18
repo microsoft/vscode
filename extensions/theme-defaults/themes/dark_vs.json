@@ -31,9 +31,14 @@
 		"widget.border": "#303031",
 		"actionBar.toggledBackground": "#383a49",
 		"agentsPanel.border": "#303031",
+		"agentsCard.border": "#00000000",
 		"agentsChatInput.border": "#303031",
 		"agentsChatInput.focusBorder": "#007ACC",
-		"agentsNewSessionButton.border": "#303031"
+		"agentsNewSessionButton.border": "#303031",
+		// modern ui
+		"surface.border": "#252526",
+		"modernActivityBar.activeBackground": "#1E1E1E",
+		"modernActivityBar.hoverBackground": "#1E1E1E66",
 	},
 	"tokenColors": [
 		{

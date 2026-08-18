@@ -87,6 +87,11 @@
 	height: 16px;
 }
 
+.agent-feedback-input-widget .agent-feedback-input-actions .monaco-action-bar .action-item .action-label.codicon-arrow-up-compact {
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .agent-feedback-input-widget textarea:disabled {
 	opacity: 0.6;
 	cursor: default;

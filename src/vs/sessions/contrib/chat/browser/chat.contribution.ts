@@ -15,7 +15,6 @@ import { ISessionsManagementService, inheritableSessionTarget } from '../../../s
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
-import './nullChatTipService.js';
 import './modelPicker.js';
 import './agentHostDelegation.js';
 import './newSessionFolderQuickPickAction.js';
@@ -38,7 +37,6 @@ import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.j
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
-import { LastTurnChangesMultiDiffSourceResolverContribution } from './lastTurnChangesMultiDiffSourceResolver.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -46,6 +44,9 @@ import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workb
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
+import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
+import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
+import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -119,7 +120,6 @@ registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, Session
 registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RegisterDefaultSessionTaskRunnersContribution.ID, RegisterDefaultSessionTaskRunnersContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(WorktreeCreatedTaskDispatcher.ID, WorktreeCreatedTaskDispatcher, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(LastTurnChangesMultiDiffSourceResolverContribution.ID, LastTurnChangesMultiDiffSourceResolverContribution, WorkbenchPhase.BlockRestore);
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
@@ -128,6 +128,8 @@ registerSingleton(ISessionsTasksService, SessionsTasksService, InstantiationType
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
 registerSingleton(IChatViewFactory, ChatViewFactory, InstantiationType.Delayed);
+registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, InstantiationType.Delayed);
+registerSingleton(IChatResponseFileChangesService, SessionsChatResponseFileChangesService, InstantiationType.Delayed);
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());

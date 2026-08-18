@@ -6,40 +6,42 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER.
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
     response:
       content:
         - type: text
-          text: I'll replace the file contents.
+          text: I'll replace the contents of that file.
         - type: tool_use
           id: toolcall_0
-          name: Bash
+          name: Write
           input:
-            command: test -f ${workdir}/peer-edit.txt && echo EXISTS || echo MISSING
-            description: Check if target file exists
+            file_path: ${workdir}/peer-edit.txt
+            content: AFTER_PEER
       stopReason: tool_use
   - request:
       model: claude-opus-4.8
       system: ${system}
       messages:
         - role: user
-          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER.
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
         - role: assistant
           content:
             - type: text
-              text: I'll replace the file contents.
+              text: I'll replace the contents of that file.
             - type: tool_use
-              name: Bash
+              name: Write
               input:
-                command: test -f ${workdir}/peer-edit.txt && echo EXISTS || echo MISSING
-                description: Check if target file exists
+                file_path: ${workdir}/peer-edit.txt
+                content: AFTER_PEER
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: EXISTS
+              content: <tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
     response:
       content:
+        - type: text
+          text: I need to read the file first.
         - type: tool_use
           id: toolcall_1
           name: Read
@@ -51,23 +53,25 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER.
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
         - role: assistant
           content:
             - type: text
-              text: I'll replace the file contents.
+              text: I'll replace the contents of that file.
             - type: tool_use
-              name: Bash
+              name: Write
               input:
-                command: test -f ${workdir}/peer-edit.txt && echo EXISTS || echo MISSING
-                description: Check if target file exists
+                file_path: ${workdir}/peer-edit.txt
+                content: AFTER_PEER
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: EXISTS
+              content: <tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
         - role: assistant
           content:
+            - type: text
+              text: I need to read the file first.
             - type: tool_use
               name: Read
               input:
@@ -83,31 +87,33 @@ exchanges:
           id: toolcall_2
           name: Write
           input:
-            file_path: ${workdir}/peer-edit.txt
             content: AFTER_PEER
+            file_path: ${workdir}/peer-edit.txt
       stopReason: tool_use
   - request:
       model: claude-opus-4.8
       system: ${system}
       messages:
         - role: user
-          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER.
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
         - role: assistant
           content:
             - type: text
-              text: I'll replace the file contents.
+              text: I'll replace the contents of that file.
             - type: tool_use
-              name: Bash
+              name: Write
               input:
-                command: test -f ${workdir}/peer-edit.txt && echo EXISTS || echo MISSING
-                description: Check if target file exists
+                file_path: ${workdir}/peer-edit.txt
+                content: AFTER_PEER
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: EXISTS
+              content: <tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
         - role: assistant
           content:
+            - type: text
+              text: I need to read the file first.
             - type: tool_use
               name: Read
               input:
@@ -130,5 +136,5 @@ exchanges:
               tool_use_id: toolcall_2
               content: The file ${workdir}/peer-edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
     response:
-      content: Done. Replaced the contents of `peer-edit.txt` (was `BEFORE_PEER`) with `AFTER_PEER`.
+      content: Done. The file now contains `AFTER_PEER`.
       stopReason: end_turn
