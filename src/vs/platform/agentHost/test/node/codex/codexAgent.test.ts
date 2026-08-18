@@ -36,6 +36,7 @@ interface ICodexConversationResolverHarness {
 interface ICodexMcpControllerSession {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
+	readonly configurationResource: URI;
 	chatChannel: URI | undefined;
 	readonly clientCustomizations: CodexClientCustomizationStore;
 	mcpController: McpCustomizationController | undefined;
@@ -49,13 +50,17 @@ interface ICodexMcpControllerHarness {
 	readonly _customizationEnablementService: {
 		resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
 	};
-	readonly _fire: (...args: readonly unknown[]) => void;
+	readonly _emitMcpCustomizationAction: (...args: readonly unknown[]) => void;
+	readonly _preferredMcpPublisher: (configurationResource: URI) => ICodexMcpControllerSession | undefined;
+	readonly _switchMcpPublisher: (session: ICodexMcpControllerSession) => void;
 }
 
 interface ICodexMcpRequestHarness {
 	readonly _sessionIdByChatUri: Map<string, string>;
-	readonly _sessions: Map<string, { readonly chatChannel: URI | undefined }>;
-	readonly _mcpInventory: Map<string, ICodexMcpServerEntry>;
+	readonly _sessions: Map<string, { readonly chatChannel: URI | undefined; readonly threadId?: string }>;
+	readonly _mcpInventory: {
+		forThread(threadId: string | undefined): ReadonlyMap<string, ICodexMcpServerEntry>;
+	};
 }
 
 function resolveConversationSession(harness: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined {
@@ -139,6 +144,7 @@ suite('CodexAgent', () => {
 		const session: ICodexMcpControllerSession = {
 			sessionId: 'session-1',
 			sessionUri: AgentSession.uri('codex', 'session-1'),
+			configurationResource: AgentSession.uri('codex', 'session-1'),
 			chatChannel: undefined,
 			clientCustomizations: customizations,
 			mcpController: undefined,
@@ -159,7 +165,9 @@ suite('CodexAgent', () => {
 					workingDirectory: { kind: 'workspaceless' },
 				}),
 			},
-			_fire: () => { },
+			_emitMcpCustomizationAction: () => { },
+			_preferredMcpPublisher: () => session,
+			_switchMcpPublisher: () => { },
 		};
 		const beforeChatBinding = getOrCreateMcpController(harness, session);
 		session.chatChannel = URI.parse(buildDefaultChatUri(session.sessionUri));
@@ -216,12 +224,14 @@ suite('CodexAgent', () => {
 				[staleChat.toString(), 'session-1'],
 			]),
 			_sessions: new Map([['session-1', { chatChannel: boundChat }]]),
-			_mcpInventory: new Map([['server', {
-				state: { kind: McpServerStatus.Ready },
-				tools: [],
-				resources: [],
-				resourceTemplates: [],
-			}]]),
+			_mcpInventory: {
+				forThread: () => new Map([['server', {
+					state: { kind: McpServerStatus.Ready },
+					tools: [],
+					resources: [],
+					resourceTemplates: [],
+				}]]),
+			},
 		};
 
 		assert.deepStrictEqual({
