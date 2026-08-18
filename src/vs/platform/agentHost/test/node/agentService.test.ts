@@ -39,7 +39,7 @@ import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agent
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -281,6 +281,11 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		return [...this._sessions.values()].map(session => this._sessionsWithoutExternal.has(session.session)
 			? { ...session, external: undefined }
 			: session);
+	}
+
+	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		const value = this._sessions.get(session);
+		return value && this._sessionsWithoutExternal.has(session) ? { ...value, external: undefined } : value;
 	}
 
 	async isSessionRegistryEmpty(): Promise<boolean> {
@@ -859,6 +864,58 @@ suite('AgentService (node dispatcher)', () => {
 			inherited: multiRoot,
 			overridden: override,
 		});
+	});
+
+	test('createSession fails open (shows the picker) when the folder-picker decision rejects', async () => {
+		class RejectingFolderPickerAgent extends MockAgent {
+			override getDescriptor() {
+				const base = super.getDescriptor();
+				return { ...base, capabilities: { ...base.capabilities, multipleWorkingDirectories: { immutablePrimary: true } } };
+			}
+			computeFolderPickerDecision(): Promise<ISessionFolderPickerDecision | undefined> {
+				return Promise.reject(new Error('scan failed'));
+			}
+		}
+		const agent = new RejectingFolderPickerAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		localService.registerProvider(agent);
+
+		const session = await localService.createSession({
+			provider: agent.id,
+			workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
+		});
+
+		assert.deepStrictEqual(
+			readSessionFolderPickerDecision(localService.stateManager.getSessionState(session.toString())?._meta),
+			{ hidden: false },
+		);
+	});
+
+	test('createSession seeds the harness-pinned folder-picker decision into session metadata', async () => {
+		class PinningFolderPickerAgent extends MockAgent {
+			override getDescriptor() {
+				const base = super.getDescriptor();
+				return { ...base, capabilities: { ...base.capabilities, multipleWorkingDirectories: { immutablePrimary: true } } };
+			}
+			computeFolderPickerDecision(workingDirectories: readonly URI[]): Promise<ISessionFolderPickerDecision | undefined> {
+				return Promise.resolve({ hidden: true, primary: workingDirectories[1].toString() });
+			}
+		}
+		const agent = new PinningFolderPickerAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		localService.registerProvider(agent);
+
+		const session = await localService.createSession({
+			provider: agent.id,
+			workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
+		});
+
+		assert.deepStrictEqual(
+			readSessionFolderPickerDecision(localService.stateManager.getSessionState(session.toString())?._meta),
+			{ hidden: true, primary: URI.file('/workspace/two').toString() },
+		);
 	});
 
 	test('provisional materialization preserves and persists multi-root metadata', async () => {
@@ -3067,6 +3124,142 @@ suite('AgentService (node dispatcher)', () => {
 				external: false,
 				adoptable: true,
 			});
+		});
+
+		test('rediscovering a registered chat with different provenance performs no per-session database I/O', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const session = AgentSession.uri('copilot', 'known-discovered');
+			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
+			await register(agent, [discoveredChat(session)]);
+
+			const opened: string[] = [];
+			const service = perSession.service as { tryOpenDatabase(session: URI): Promise<unknown> };
+			const originalTryOpen = service.tryOpenDatabase;
+			service.tryOpenDatabase = async (s: URI) => {
+				opened.push(s.toString());
+				return originalTryOpen.call(perSession.service, s);
+			};
+			try {
+				const changed = await register(agent, [discoveredChat(session, false)]);
+
+				assert.deepStrictEqual({ changed, opened }, { changed: false, opened: [] });
+			} finally {
+				service.tryOpenDatabase = originalTryOpen;
+			}
+		});
+
+		test('the known-sessions filter reports registered sessions only, leaving tombstones to registration', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const registered = AgentSession.uri('copilot', 'filter-registered');
+			const deleted = AgentSession.uri('copilot', 'filter-deleted');
+			const unknown = AgentSession.uri('copilot', 'filter-unknown');
+			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
+			await register(agent, [discoveredChat(registered), discoveredChat(deleted)]);
+			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(deleted);
+
+			const known = await (svc as unknown as { _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> })._filterKnownSessions([registered, deleted, unknown]);
+			const reRegistered = await register(agent, [discoveredChat(deleted)]);
+
+			assert.deepStrictEqual({
+				known: [...known],
+				reRegistered,
+				sessions: (await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list()).map(entry => entry.session.toString()),
+			}, {
+				known: [registered.toString()],
+				reRegistered: false,
+				sessions: [registered.toString()],
+			});
+		});
+
+		test('concurrent listSessions calls share one computation and never share their result array', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			await svc.createSession({ provider: 'copilot' });
+			let computations = 0;
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
+			const original = inner._computeSessions;
+			inner._computeSessions = async mode => {
+				computations++;
+				return original.call(svc, mode);
+			};
+
+			const [first, second] = await Promise.all([svc.listSessions(), svc.listSessions()]);
+			const sharedComputations = computations;
+			first.length = 0;
+			const third = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				sharedComputations,
+
+				computations,
+				secondIntact: second.length,
+				thirdIntact: third.length,
+				distinctArrays: first !== second,
+			}, {
+				sharedComputations: 1,
+				computations: 2,
+				secondIntact: 1,
+				thirdIntact: 1,
+				distinctArrays: true,
+			});
+		});
+
+		test('a registry mutation during an in-flight list is not served from the shared computation', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const gate = new DeferredPromise<void>();
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
+			const original = inner._computeSessions;
+			let computations = 0;
+			inner._computeSessions = async mode => {
+				computations++;
+				await gate.p;
+				return original.call(svc, mode);
+			};
+
+			const preInvalidation = svc.listSessions();
+			await svc.createSession({ provider: 'copilot' });
+			const postInvalidation = svc.listSessions();
+			gate.complete();
+
+			assert.deepStrictEqual({
+				computations,
+				preInvalidation: (await preInvalidation).length,
+				postInvalidation: (await postInvalidation).length,
+			}, {
+				computations: 2,
+				preInvalidation: 1,
+				postInvalidation: 1,
+			});
+		});
+
+		test('provider registration invalidates an in-flight list computation', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const gate = new DeferredPromise<void>();
+			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
+			const original = inner._computeSessions;
+			let computations = 0;
+			inner._computeSessions = async mode => {
+				computations++;
+				await gate.p;
+				return original.call(svc, mode);
+			};
+
+			const beforeRegistration = svc.listSessions();
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const afterRegistration = svc.listSessions();
+			gate.complete();
+			await Promise.all([beforeRegistration, afterRegistration]);
+
+			assert.strictEqual(computations, 2);
 		});
 
 		test('explicitly created sessions are registered as non-external', async () => {
@@ -9652,6 +9845,17 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('rename server tools', () => {
 		test('rename_chat replaces live and persisted default and peer chat titles', async () => {
+			class RecordingTitleDatabase extends TestSessionDatabase {
+				readonly finalRenamePersisted = new DeferredPromise<void>();
+				finalRenameKey: string | undefined;
+
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					await super.setMetadataValues(values);
+					if (this.finalRenameKey && values[this.finalRenameKey] === 'Complete replacement peer chat title') {
+						await this.finalRenamePersisted.complete();
+					}
+				}
+			}
 			class ServerToolAgent extends MockAgent {
 				serverToolHost: IAgentServerToolHost | undefined;
 
@@ -9660,7 +9864,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 
-			const db = new TestSessionDatabase();
+			const db = new RecordingTitleDatabase();
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
 			const agent = disposables.add(new ServerToolAgent('copilot'));
@@ -9669,6 +9873,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionUri = session.toString();
 			const defaultChat = buildDefaultChatUri(session);
 			const peerChat = buildChatUri(sessionUri, 'peer-rename');
+			db.finalRenameKey = `customChatTitle:${peerChat}`;
 			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Previous user title' });
 			await db.setMetadata('customTitle', 'Previous user title');
 			await db.setMetadata('customTitleSource', 'user');
@@ -9691,6 +9896,8 @@ suite('AgentService (node dispatcher)', () => {
 				chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-rename`,
 				title: 'Complete replacement peer chat title',
 			});
+			await db.finalRenamePersisted.p;
+			await timeout(0);
 
 			assert.deepStrictEqual({
 				singleChatResult,
@@ -9723,8 +9930,14 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('rename failures preserve live state and both persisted metadata values', async () => {
 			class FailingTitleDatabase extends TestSessionDatabase {
+				readonly allFailuresObserved = new DeferredPromise<void>();
+				private failureCount = 0;
+
 				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
 					if (Object.keys(values).some(key => key.startsWith('customTitle') || key.startsWith('customChatTitle'))) {
+						if (++this.failureCount === 3) {
+							await this.allFailuresObserved.complete();
+						}
 						throw new Error('title persistence failed');
 					}
 					return super.setMetadataValues(values);
@@ -9753,7 +9966,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			await assert.rejects(
 				async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Session-backed title will fail' }),
-				/title persistence failed/,
+				/title persistence failed/
 			);
 
 			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Original chat' });
@@ -9764,15 +9977,16 @@ suite('AgentService (node dispatcher)', () => {
 
 			await assert.rejects(
 				async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, { title: 'Chat-backed title will fail' }),
-				/title persistence failed/,
+				/title persistence failed/
 			);
 			await assert.rejects(
 				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, {
 					chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-failure`,
 					title: 'Chat will fail',
 				}),
-				/title persistence failed/,
+				/title persistence failed/
 			);
+			await db.allFailuresObserved.p;
 			assert.deepStrictEqual({
 				liveSession: localService.stateManager.getSessionState(sessionUri)?.title,
 				sessionTitle: await db.getMetadata('customTitle'),

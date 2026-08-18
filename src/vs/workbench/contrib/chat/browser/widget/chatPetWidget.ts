@@ -443,8 +443,12 @@ export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boole
 	return 'idle';
 }
 
+export function shouldReserveChatPetSpace(enabled: boolean, isLatestFocusedWidget: boolean): boolean {
+	return enabled && isLatestFocusedWidget;
+}
+
 export function isChatPetVisible(enabled: boolean, isLatestFocusedWidget: boolean, windowFocused = true): boolean {
-	return enabled && isLatestFocusedWidget && windowFocused;
+	return shouldReserveChatPetSpace(enabled, isLatestFocusedWidget) && windowFocused;
 }
 
 export function isChatPetWindowActive(applicationFocused: boolean, activeWindowId: number, targetWindowId: number): boolean {

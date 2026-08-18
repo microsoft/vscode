@@ -118,8 +118,9 @@ import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../vo
 import { ChatSpeechToTextConnectingAction, ChatSpeechToTextPreparingAction, ToggleChatSpeechToTextAction } from '../../actions/chatSpeechToTextActions.js';
 import { DictationActionViewItem } from '../../speechToText/dictationActionViewItem.js';
 import { DictationDownloadActionViewItem } from '../../speechToText/dictationDownloadActionViewItem.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../speechToText/chatSpeechToTextService.js';
 import { IDictationOnboardingService } from '../../speechToText/dictationOnboarding.js';
-import { notifyDictationSubmitted } from '../../speechToText/dictationSession.js';
+import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
@@ -812,6 +813,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatContextService private readonly chatContextService: IChatContextService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IChatSpeechToTextService private readonly speechToTextService: IChatSpeechToTextService,
 		@IDictationOnboardingService private readonly dictationOnboardingService: IDictationOnboardingService,
 		@IChatInputNoticeHubService private readonly chatInputNoticeHubService: IChatInputNoticeHubService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -2353,8 +2355,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * change clears this automatically.
 	 */
 	setSubmitPending(pending: boolean, routing = pending): void {
+		const changed = this.inputSubmitPending.get() !== pending || this.inputRouting.get() !== routing;
 		this.inputSubmitPending.set(pending);
 		this.inputRouting.set(routing);
+		if (changed) {
+			this.executeToolbar?.refresh();
+		}
 	}
 
 	private _updateInputContentContextKeys(): void {
@@ -3238,6 +3244,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 
+		const dictationRecording = ChatContextKeys.speechToTextRecording.bindTo(this.contextKeyService);
+		const dictationPreparing = ChatContextKeys.speechToTextPreparing.bindTo(this.contextKeyService);
+		const isDictationInputActive = observableFromEvent(
+			this,
+			Event.any(this.speechToTextService.onDidChangeState, this.speechToTextService.onDidChangePreparingModel, onDidChangeDictationEditor),
+			() => isDictationActiveForEditor(this._inputEditor),
+		);
+		const updateDictationContextKeys = () => {
+			const active = isDictationActiveForEditor(this._inputEditor);
+			dictationRecording.set(active && this.speechToTextService.state === ChatSpeechToTextState.Recording);
+			dictationPreparing.set(active && this.speechToTextService.isPreparingModel);
+		};
+		this._register(Event.any(this.speechToTextService.onDidChangeState, this.speechToTextService.onDidChangePreparingModel, onDidChangeDictationEditor)(updateDictationContextKeys));
+		updateDictationContextKeys();
+
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
 		this._inputEditorElement.classList.add('hideSuggestTextIcons');
@@ -3274,8 +3295,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// A submitted request was pending (e.g. omni-chat routing) but the draft
 			// changed: the user is editing again, so re-enable sending.
-			this.inputSubmitPending.set(false);
-			this.inputRouting.set(false);
+			this.setSubmitPending(false);
 
 			// Update monospace state as the command prefix is typed/removed.
 			this.updateInputEditorFontFamily();
@@ -3476,6 +3496,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (action.id === ChatVoiceInputModeAction.ID) {
 					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action, {
 						isActive: isVoiceInputActive,
+						isDictationActive: isDictationInputActive,
 						isVoiceActive: isVoiceSessionActive,
 						activateVoiceMode: isOmniInput ? () => {
 							this.voiceSessionController.takeOmniInputOwnership(dom.getWindow(toolbarsContainer));
@@ -3498,7 +3519,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return this.instantiationService.createInstance(DictationDownloadActionViewItem, action, options);
 				}
 				if (action.id === ToggleChatSpeechToTextAction.ID && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(DictationActionViewItem, action, options);
+					return this.instantiationService.createInstance(DictationActionViewItem, action, options, isDictationInputActive);
 				}
 				// Voice Mode mic button: add a right-click context menu (Select
 				// Microphone / Disable Voice Mode) mirroring dictation. While

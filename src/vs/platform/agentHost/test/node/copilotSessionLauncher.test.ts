@@ -14,13 +14,14 @@ import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -353,13 +354,26 @@ suite('CopilotSessionLauncher shared session config', () => {
 		};
 		const launcher = createTestLauncher(managedSettingsPermissions);
 		const pluginDir = URI.file('/tmp/synced-customizations');
+		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
 		const instructionUri = URI.joinPath(pluginDir, 'rules', 'user.instructions.md');
 		const plugin: ICopilotPluginInfo = {
 			format: PluginFormat.Copilot,
 			hooks: [],
-			mcpServers: [],
-			disabledMcpServers: ['azure', 'azure'],
+			mcpServers: [{
+				name: 'native-plugin-server',
+				uri: URI.joinPath(pluginDir, '.mcp.json'),
+				defaultCwd: pluginDir,
+				configuration: { type: McpServerType.LOCAL, command: 'native-plugin-server' },
+				customization: {
+					type: CustomizationType.McpServer,
+					id: 'native-plugin-server',
+					uri: URI.joinPath(pluginDir, '.mcp.json').toString(),
+					name: 'native-plugin-server',
+					state: { kind: McpServerStatus.Stopped },
+				},
+			}],
+			disabledMcpServers: ['azure', 'azure', 'disabled-workspace-server'],
 			agents: [],
 			skills: [{
 				uri: skillUri,
@@ -373,12 +387,33 @@ suite('CopilotSessionLauncher shared session config', () => {
 			}],
 			pluginDir,
 		};
+		const syntheticPlugin: ICopilotPluginInfo = {
+			format: PluginFormat.Copilot,
+			hooks: [],
+			mcpServers: [{
+				name: 'synced-server',
+				uri: URI.joinPath(syntheticPluginDir, '.mcp.json'),
+				defaultCwd: testWorkingDirectory,
+				configuration: { type: McpServerType.LOCAL, command: 'synced-server' },
+				customization: {
+					type: CustomizationType.McpServer,
+					id: 'synced-server',
+					uri: URI.joinPath(syntheticPluginDir, '.mcp.json').toString(),
+					name: 'synced-server',
+					state: { kind: McpServerStatus.Stopped },
+				},
+			}],
+			agents: [],
+			skills: [],
+			instructions: [],
+			pluginDir: syntheticPluginDir,
+		};
 		const basePlan = {
 			client,
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [plugin], mcpServers: {} },
+			snapshot: { tools: [], plugins: [plugin, syntheticPlugin], mcpServers: {} },
 			disabledRootMcpServers: ['github', 'azure'],
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
@@ -404,6 +439,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createClientName: createConfigs[0].clientName,
 				createGitHubMcpToolConfig: createConfigs[0].githubMcpToolConfig,
 				createPluginDirectories: createConfigs[0].pluginDirectories,
+				createMcpServers: createConfigs[0].mcpServers,
 				createSkillDirectories: createConfigs[0].skillDirectories,
 				createInstructionDirectories: createConfigs[0].instructionDirectories,
 				createDisabledMcpServers: createConfigs[0].disabledMcpServers,
@@ -413,6 +449,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeClientName: resumeConfigs[0].clientName,
 				resumeGitHubMcpToolConfig: resumeConfigs[0].githubMcpToolConfig,
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
+				resumeMcpServers: resumeConfigs[0].mcpServers,
 				resumeSkillDirectories: resumeConfigs[0].skillDirectories,
 				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
 				resumeDisabledMcpServers: resumeConfigs[0].disabledMcpServers,
@@ -422,19 +459,37 @@ suite('CopilotSessionLauncher shared session config', () => {
 			}, {
 				createClientName: 'vscode-agent-host',
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
-				createPluginDirectories: [pluginDir.fsPath],
+				createPluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
+				createMcpServers: {
+					'synced-server': {
+						type: 'local',
+						command: 'synced-server',
+						args: [],
+						tools: ['*'],
+						cwd: testWorkingDirectory.fsPath,
+					},
+				},
 				createSkillDirectories: [],
 				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
-				createDisabledMcpServers: ['azure', 'github'],
+				createDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				createHasExitPlanHandler: true,
 				createLargeOutput: { maxSizeBytes: 8192 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
 				resumeClientName: 'vscode-agent-host',
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
-				resumePluginDirectories: [pluginDir.fsPath],
+				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
+				resumeMcpServers: {
+					'synced-server': {
+						type: 'local',
+						command: 'synced-server',
+						args: [],
+						tools: ['*'],
+						cwd: testWorkingDirectory.fsPath,
+					},
+				},
 				resumeSkillDirectories: [],
 				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
-				resumeDisabledMcpServers: ['azure', 'github'],
+				resumeDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
