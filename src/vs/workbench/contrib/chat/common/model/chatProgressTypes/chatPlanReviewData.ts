@@ -33,6 +33,7 @@ export class ChatPlanReviewData implements IChatPlanReview {
 		public data?: IChatPlanReviewResult,
 		public isUsed?: boolean,
 		public source?: ToolDataSource,
+		public isOutdated?: boolean,
 	) { }
 
 	/** Dismiss without a user choice (e.g. the response was cancelled). */
@@ -58,6 +59,7 @@ export class ChatPlanReviewData implements IChatPlanReview {
 			resolveId: this.resolveId,
 			data: this.data,
 			isUsed: this.isUsed,
+			isOutdated: this.isOutdated,
 			source: this.source,
 		};
 	}

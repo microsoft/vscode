@@ -9,7 +9,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IChatWidget } from '../../../browser/chat.js';
 import { isStickyPromptHeaderShown } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { PROMPT_TIMELINE_STICKY_HEADER_SETTING } from '../../../common/promptTimeline.js';
+import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
 
 suite('PromptTimeline visibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -19,8 +19,8 @@ suite('PromptTimeline visibility', () => {
 	}
 
 	test('is shown only for enabled transcript hosts that render their input below the transcript', () => {
-		const enabled = new TestConfigurationService({ [PROMPT_TIMELINE_STICKY_HEADER_SETTING]: true });
-		const disabled = new TestConfigurationService({ [PROMPT_TIMELINE_STICKY_HEADER_SETTING]: false });
+		const enabled = new TestConfigurationService({ [PROMPT_TIMELINE_STICKY_SCROLL_SETTING]: true });
+		const disabled = new TestConfigurationService({ [PROMPT_TIMELINE_STICKY_SCROLL_SETTING]: false });
 
 		assert.deepStrictEqual({
 			chatTranscript: isStickyPromptHeaderShown(widget(ChatAgentLocation.Chat, false), enabled),

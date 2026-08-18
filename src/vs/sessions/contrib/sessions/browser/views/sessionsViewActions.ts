@@ -22,7 +22,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -36,10 +36,10 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHos
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { registerExternalSessionsFilterMenu } from '../../../../../workbench/contrib/chat/browser/agentSessions/externalSessionsFilterMenu.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsView.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -260,6 +260,8 @@ MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
 	group: '0_filter',
 	order: 0,
 });
+
+registerExternalSessionsFilterMenu(SessionsViewFilterOptionsSubMenu, Menus.SessionsViewExternalFilter, '2_external');
 
 //  Sort / Group Actions
 
@@ -847,7 +849,7 @@ abstract class BaseArchiveSessionAction extends Action2 {
 	constructor(wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).archive;
 		super({
-			id: ARCHIVE_SESSION_COMMAND_ID,
+			id: 'sessionsViewPane.archiveSession',
 			title: action.title,
 			icon: action.icon,
 			menu: [{
@@ -1283,7 +1285,7 @@ registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
 		const sessions = new Map<string, ISession>();
 		for (const run of runs) {
 			if ((run.status === 'completed' || run.status === 'failed') && run.sessionResource) {
-				const session = sessionsManagementService.getSession(URI.parse(run.sessionResource));
+				const session = sessionsManagementService.getSession(run.sessionResource);
 				if (session && !session.isRead.get()) {
 					sessions.set(session.resource.toString(), session);
 				}

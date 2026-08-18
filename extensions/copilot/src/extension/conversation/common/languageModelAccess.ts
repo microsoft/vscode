@@ -85,6 +85,51 @@ export function buildReasoningEffortSchemaProperty(effortLevels: readonly string
 }
 
 /**
+ * Returns the localized, title-cased picker label for an Auto routing tier.
+ * Falls back to capitalizing an unknown value.
+ */
+export function getAutoModeTierLabel(tier: string): string {
+	switch (tier) {
+		case 'eco': return l10n.t('Eco');
+		case 'balanced': return l10n.t('Balanced');
+		case 'max': return l10n.t('Max');
+		case 'fast': return l10n.t('Fast');
+		default: return tier.charAt(0).toUpperCase() + tier.slice(1);
+	}
+}
+
+/**
+ * Returns the localized description shown in the picker hover for an Auto
+ * routing tier. Falls back to the raw tier for unknown values.
+ */
+export function getAutoModeTierDescription(tier: string): string {
+	switch (tier) {
+		case 'eco': return l10n.t('Cheaper models for everyday tasks');
+		case 'balanced': return l10n.t('Balances capability and cost');
+		case 'max': return l10n.t('Most capable models, higher cost');
+		case 'fast': return l10n.t('Lowest latency models');
+		default: return tier;
+	}
+}
+
+/**
+ * Builds the `tier` property descriptor for the Auto model's
+ * {@link LanguageModelConfigurationSchema}. Rendered by the model picker the
+ * same way thinking effort is, but labelled "Tier".
+ */
+export function buildAutoModeTierSchemaProperty(tiers: readonly string[], defaultTier: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
+	return {
+		type: 'string',
+		title: l10n.t('Tier'),
+		enum: [...tiers],
+		enumItemLabels: tiers.map(getAutoModeTierLabel),
+		enumDescriptions: tiers.map(getAutoModeTierDescription),
+		default: defaultTier,
+		group: 'navigation',
+	};
+}
+
+/**
  * Returns a description of the model's capabilities and intended use cases.
  * This is shown in the rich hover when selecting models.
  */
@@ -245,6 +290,21 @@ const TOKENS_PER_MILLION = 1_000_000;
 const NANO_AIU_DIVISOR = 1_000_000_000;
 
 /**
+ * A single pricing tier as returned by CAPI. `cache_read_price` and
+ * `max_prompt_tokens` are the current field names; `cache_price` and
+ * `context_max` are the earlier spellings and are still accepted.
+ */
+interface IRawTokenPriceTier {
+	input_price?: number;
+	cache_read_price?: number;
+	cache_price?: number;
+	cache_write_price?: number;
+	output_price?: number;
+	max_prompt_tokens?: number;
+	context_max?: number;
+}
+
+/**
  * Raw token prices from the CAPI billing response. Supports both the tiered
  * format (API 2026-06-01+, prices in AIUs) and the legacy flat format
  * (pre-2026-06-01, prices in nano-AIUs) which is still used by some endpoints
@@ -255,8 +315,8 @@ export interface IRawTokenPrices {
 	input_price?: number;
 	cache_price?: number;
 	output_price?: number;
-	default?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
-	long_context?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
+	default?: IRawTokenPriceTier;
+	long_context?: IRawTokenPriceTier;
 }
 
 export interface INormalizedPriceTier {
@@ -289,12 +349,16 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 
 	if (defaultTier && defaultTier.input_price !== undefined && defaultTier.output_price !== undefined) {
 		// Tiered format (API 2026-06-01+): values are in AIUs
+		const cacheReadPrice = (tier: IRawTokenPriceTier): number | undefined => {
+			const raw = tier.cache_read_price ?? tier.cache_price;
+			return raw !== undefined ? raw * scale : undefined;
+		};
 		const normalized: INormalizedPriceTier = {
 			inputPrice: defaultTier.input_price * scale,
 			outputPrice: defaultTier.output_price * scale,
-			cachePrice: defaultTier.cache_price !== undefined ? defaultTier.cache_price * scale : undefined,
+			cachePrice: cacheReadPrice(defaultTier),
 			cacheWritePrice: defaultTier.cache_write_price !== undefined ? defaultTier.cache_write_price * scale : undefined,
-			contextMax: defaultTier.context_max,
+			contextMax: defaultTier.max_prompt_tokens ?? defaultTier.context_max,
 		};
 		let longContext: INormalizedPriceTier | undefined;
 		const lc = tokenPrices.long_context;
@@ -302,9 +366,9 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			const lcNormalized: INormalizedPriceTier = {
 				inputPrice: lc.input_price * scale,
 				outputPrice: lc.output_price * scale,
-				cachePrice: lc.cache_price !== undefined ? lc.cache_price * scale : undefined,
+				cachePrice: cacheReadPrice(lc),
 				cacheWritePrice: lc.cache_write_price !== undefined ? lc.cache_write_price * scale : undefined,
-				contextMax: lc.context_max,
+				contextMax: lc.max_prompt_tokens ?? lc.context_max,
 			};
 			// Only include long-context tier when prices differ from default
 			if (lcNormalized.inputPrice !== normalized.inputPrice

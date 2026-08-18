@@ -14,7 +14,6 @@ import {
 	materializeWorkspaceRecordingSample,
 	selectWorkspaceRecordingSamples,
 	type IWorkspaceRecordingSampleDescriptor,
-	WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT,
 } from './workspaceRecording';
 
 const header: HeaderLogEntry = {
@@ -40,6 +39,17 @@ function userEdit(id: number, time: number, start: number, text: string, version
 }
 
 function generatedEdit(id: number, time: number, start: number, text: string, version: number): LogEntry {
+	return {
+		kind: 'changed',
+		id,
+		time,
+		edit: [[start, start, text]],
+		v: version,
+		metadata: { source: 'applyEdits' },
+	};
+}
+
+function acceptedEdit(id: number, time: number, start: number, text: string, version: number): LogEntry {
 	return {
 		kind: 'changed',
 		id,
@@ -119,6 +129,7 @@ describe('workspace recording pivot policy', () => {
 			userEdit(0, 1000, content.length, 'a', 2),
 			{ kind: 'selectionChanged', id: 0, time: 1000 + delta, selection: [[5, 5]] } satisfies LogEntry,
 			userEdit(0, 2000, content.length + 1, 'b', 3),
+			generatedEdit(0, 2100, 0, 'generated', 4),
 		];
 		await withRecording(entries, async recordingPath => {
 			const recording = await loadWorkspaceRecording(recordingPath);
@@ -132,10 +143,35 @@ describe('workspace recording pivot policy', () => {
 			{ kind: 'selectionChanged', id: 0, time: 900, selection: [[5, 5]] } satisfies LogEntry,
 			userEdit(0, 1000, content.length, 'a', 2),
 			userEdit(0, 1100, content.length + 1, 'b', 3),
+			generatedEdit(0, 1200, 0, 'generated', 4),
 		];
 		await withRecording(entries, async recordingPath => {
 			const recording = await loadWorkspaceRecording(recordingPath);
 			expect(selectWorkspaceRecordingSamples(recording, 100).map(sample => sample.pivotKind)).toContain('cursor-move');
+		});
+	});
+
+	it('continues a nearby oracle after a cursor move', async () => {
+		const entries = [
+			...documentPrefix(),
+			userEdit(0, 1000, content.length, 'a', 2),
+			userEdit(0, 1100, content.length + 1, 's', 3),
+			{ kind: 'selectionChanged', id: 0, time: 1500, selection: [[content.indexOf('two'), content.indexOf('two')]] } satisfies LogEntry,
+			acceptedEdit(0, 2000, content.length + 2, 'et', 4),
+			generatedEdit(0, 2100, 0, 'generated', 5),
+		];
+		await withRecording(entries, async recordingPath => {
+			const recording = await loadWorkspaceRecording(recordingPath);
+			const sample = selectWorkspaceRecordingSamples(recording, 100).find(sample => sample.pivotOperationIndex === 2);
+			expect({
+				oracleOperationCount: sample?.oracleOperationIndices.length,
+				oracleEdits: sample?.oracleEdits,
+				stopReason: sample?.oracleStopReason,
+			}).toEqual({
+				oracleOperationCount: 2,
+				oracleEdits: [[content.length + 1, content.length + 1, 'set']],
+				stopReason: 'generated-edit',
+			});
 		});
 	});
 
@@ -144,7 +180,7 @@ describe('workspace recording pivot policy', () => {
 			...documentPrefix(),
 			userEdit(0, 1000, content.length, 'a', 2),
 			userEdit(0, 1100, content.length + 1, 'b', 3),
-			generatedEdit(0, 1200, content.length + 2, 'generated', 4),
+			generatedEdit(0, 1200, 0, 'generated', 4),
 		];
 		await withRecording(entries, async recordingPath => {
 			const recording = await loadWorkspaceRecording(recordingPath);
@@ -159,31 +195,189 @@ describe('workspace recording pivot policy', () => {
 		});
 	});
 
-	it('caps an oracle at ten change operations', async () => {
-		const entries = [...documentPrefix()];
-		let currentLength = content.length;
-		for (let i = 0; i < WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT + 2; i++) {
-			entries.push(userEdit(0, 1000 + i * 100, currentLength, String(i % 10), i + 2));
-			currentLength++;
-		}
+	it('composes consecutive accepted completions with the user edit', async () => {
+		const entries = [
+			...documentPrefix(),
+			userEdit(0, 1000, content.length, 'p', 2),
+			userEdit(0, 1100, content.length + 1, 'inter', 3),
+			acceptedEdit(0, 9000, content.length + 6, 'face Device', 4),
+			acceptedEdit(0, 18_000, content.length + 17, 'Option {', 5),
+			generatedEdit(0, 18_100, 0, 'generated', 6),
+		];
 		await withRecording(entries, async recordingPath => {
 			const recording = await loadWorkspaceRecording(recordingPath);
 			const first = selectWorkspaceRecordingSamples(recording, 100)[0];
 			expect({
 				oracleOperationCount: first.oracleOperationIndices.length,
+				oracleEdits: first.oracleEdits,
 				stopReason: first.oracleStopReason,
 			}).toEqual({
-				oracleOperationCount: WORKSPACE_RECORDING_ORACLE_EDIT_LIMIT,
-				stopReason: 'edit-limit',
+				oracleOperationCount: 3,
+				oracleEdits: [[content.length + 1, content.length + 1, 'interface DeviceOption {']],
+				stopReason: 'generated-edit',
 			});
+		});
+	});
+
+	it('ignores no-op generated edits while collecting the oracle', async () => {
+		const entries: LogEntry[] = [
+			...documentPrefix(),
+			userEdit(0, 1000, content.length, 'p', 2),
+			userEdit(0, 1100, content.length + 1, 'inter', 3),
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1200,
+				edit: [[0, 1, 'z']],
+				v: 4,
+				metadata: { source: 'suggest' },
+			},
+			userEdit(0, 1300, content.length + 6, 'face', 5),
+			generatedEdit(0, 1400, 0, 'generated', 6),
+		];
+		await withRecording(entries, async recordingPath => {
+			const recording = await loadWorkspaceRecording(recordingPath);
+			const first = selectWorkspaceRecordingSamples(recording, 100)[0];
+			expect({
+				oracleOperationCount: first.oracleOperationIndices.length,
+				oracleEdits: first.oracleEdits,
+				stopReason: first.oracleStopReason,
+			}).toEqual({
+				oracleOperationCount: 2,
+				oracleEdits: [[content.length + 1, content.length + 1, 'interface']],
+				stopReason: 'generated-edit',
+			});
+		});
+	});
+
+	it('omits an oracle continued by a touching generated edit', async () => {
+		const entries = [
+			...documentPrefix(),
+			userEdit(0, 1000, content.length, 'a', 2),
+			userEdit(0, 1100, content.length + 1, 'b', 3),
+			generatedEdit(0, 1200, content.length + 2, 'generated', 4),
+		];
+		await withRecording(entries, async recordingPath => {
+			const recording = await loadWorkspaceRecording(recordingPath);
+			expect(selectWorkspaceRecordingSamples(recording, 100)).toEqual([]);
+		});
+	});
+
+	it('omits an oracle continued by a touching edit after an idle gap', async () => {
+		const entries = [
+			...documentPrefix(),
+			userEdit(0, 1000, content.length, 'a', 2),
+			userEdit(0, 1100, content.length + 1, 'b', 3),
+			userEdit(0, 6200, content.length + 2, 'c', 4),
+			generatedEdit(0, 6300, 0, 'generated', 5),
+		];
+		await withRecording(entries, async recordingPath => {
+			const recording = await loadWorkspaceRecording(recordingPath);
+			expect(selectWorkspaceRecordingSamples(recording, 100)).toEqual([]);
+		});
+	});
+
+	it('composes touching change operations before limiting oracle edits', async () => {
+		const entries = [...documentPrefix()];
+		let currentLength = content.length;
+		entries.push(userEdit(0, 1000, currentLength, 'p', 2));
+		currentLength++;
+		for (let i = 0; i < 12; i++) {
+			entries.push(userEdit(0, 1100 + i * 100, currentLength, String(i % 10), i + 3));
+			currentLength++;
+		}
+		entries.push(generatedEdit(0, 2400, 0, 'generated', 15));
+		await withRecording(entries, async recordingPath => {
+			const recording = await loadWorkspaceRecording(recordingPath);
+			const first = selectWorkspaceRecordingSamples(recording, 100, 1)[0];
+			const processed = processWorkspaceRecordingSample(recording, first, 0);
+			try {
+				expect({
+					oracleOperationCount: first.oracleOperationIndices.length,
+					oracleEdits: first.oracleEdits,
+					processedOracleEdits: processed.isOk() ? processed.val.nextUserEdit.edit : undefined,
+					stopReason: first.oracleStopReason,
+				}).toEqual({
+					oracleOperationCount: 12,
+					oracleEdits: [[content.length + 1, content.length + 1, '012345678901']],
+					processedOracleEdits: [[content.length + 1, content.length + 1, '012345678901']],
+					stopReason: 'generated-edit',
+				});
+			} finally {
+				if (processed.isOk()) {
+					processed.val.replayer.dispose();
+				}
+			}
+		});
+	});
+
+	it('limits composed non-touching oracle edits', async () => {
+		const entries: LogEntry[] = [
+			...documentPrefix(),
+			userEdit(0, 1000, content.length, 'p', 2),
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1100,
+				edit: [[0, 0, 'a'], [5, 5, 'b'], [10, 10, 'c']],
+				v: 3,
+				metadata: { source: 'cursor', kind: 'type', detailedSource: 'keyboard' },
+			},
+			generatedEdit(0, 1200, content.length + 1, 'generated', 4),
+		];
+		await withRecording(entries, async recordingPath => {
+			const recording = await loadWorkspaceRecording(recordingPath);
+			expect(selectWorkspaceRecordingSamples(recording, 100, 2)[0].oracleEdits).toEqual([
+				[0, 0, 'a'],
+				[5, 5, 'b'],
+			]);
+		});
+	});
+
+	it('omits samples whose oracle reaches the end of the recording', async () => {
+		const entries = [
+			...documentPrefix(),
+			userEdit(0, 1000, content.length, 'a', 2),
+			userEdit(0, 1100, content.length + 1, 'b', 3),
+		];
+		await withRecording(entries, async recordingPath => {
+			const recording = await loadWorkspaceRecording(recordingPath);
+			expect(selectWorkspaceRecordingSamples(recording, 100)).toEqual([]);
+		});
+	});
+
+	it('omits an oracle that composes to no edit', async () => {
+		const entries: LogEntry[] = [
+			...documentPrefix(),
+			userEdit(0, 1000, content.length, 'p', 2),
+			userEdit(0, 1100, content.length + 1, 'x', 3),
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1200,
+				edit: [[content.length + 1, content.length + 2, '']],
+				v: 4,
+				metadata: { source: 'cursor', kind: 'type', detailedSource: 'keyboard' },
+			},
+			generatedEdit(0, 1300, 0, 'generated', 5),
+		];
+		await withRecording(entries, async recordingPath => {
+			const recording = await loadWorkspaceRecording(recordingPath);
+			expect(selectWorkspaceRecordingSamples(recording, 100).some(sample => sample.pivotOperationIndex === 2)).toBe(false);
 		});
 	});
 
 	it('evenly caps selected pivots deterministically', async () => {
 		const entries = [...documentPrefix()];
 		let currentLength = content.length;
+		let version = 2;
 		for (let i = 0; i < 103; i++) {
-			entries.push(userEdit(0, 1000 + i * 100, currentLength, 'x', i + 2));
+			const time = 1000 + i * 300;
+			entries.push(userEdit(0, time, currentLength, 'x', version++));
+			currentLength++;
+			entries.push(userEdit(0, time + 100, currentLength, 'y', version++));
+			currentLength++;
+			entries.push(generatedEdit(0, time + 200, 0, 'g', version++));
 			currentLength++;
 		}
 		await withRecording(entries, async recordingPath => {
@@ -198,7 +392,7 @@ describe('workspace recording pivot policy', () => {
 				one: selectWorkspaceRecordingSamples(recording, 1).map(sample => sample.pivotOperationIndex),
 				none: selectWorkspaceRecordingSamples(recording, 0),
 			}).toEqual({
-				all: 102,
+				all: 103,
 				capped: 100,
 				first: all[0].pivotOperationIndex,
 				last: all.at(-1)?.pivotOperationIndex,
@@ -240,6 +434,7 @@ describe('workspace recording materialization', () => {
 			{ kind: 'selectionChanged', id: 0, time: 400_050, selection: [[0, 0]] },
 			userEdit(0, 400_100, content.length, 'a', 3),
 			userEdit(0, 400_200, content.length + 1, 'b', 4),
+			generatedEdit(0, 400_300, 0, 'generated', 5),
 		];
 		await withRecording(entries, async recordingPath => {
 			const recording = await loadWorkspaceRecording(recordingPath);
@@ -281,6 +476,7 @@ describe('workspace recording materialization', () => {
 			},
 			userEdit(0, 1000, content.length, 'a', 2),
 			userEdit(0, 1100, content.length + 1, 'b', 3),
+			generatedEdit(0, 1200, 0, 'generated', 4),
 		];
 		await withRecording(entries, async recordingPath => {
 			const recording = await loadWorkspaceRecording(recordingPath);

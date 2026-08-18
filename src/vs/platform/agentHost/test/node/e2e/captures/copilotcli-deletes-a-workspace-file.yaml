@@ -1,0 +1,39 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node -e "require('fs').unlinkSync('delete-me.txt')"
+            description: Delete file delete-me.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "require('fs').unlinkSync('delete-me.txt')"
+                description: Delete file delete-me.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 0>'
+    response:
+      content: deleted
+      stopReason: end_turn

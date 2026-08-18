@@ -95,7 +95,7 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 			readMeta: readAction.action._meta,
 		}, {
 			taskMeta: { toolKind: 'subagent' },
-			readMeta: undefined,
+			readMeta: { toolKind: 'read' },
 		});
 	});
 
@@ -249,7 +249,7 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 			toolUseEdge: PARENT,
 			fromToolResultHasComplete: true,
 			everyActionTaggedWithParent: true,
-			completePastTense: { markdown: 'Found files matching `**/*.ts`' },
+			completePastTense: { markdown: 'Find files matching `**/*.ts`' },
 		});
 	});
 
