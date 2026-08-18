@@ -113,4 +113,36 @@ suite('ThemeMainService', () => {
 			sessions: sessionsSplash,
 		});
 	});
+
+	test('keeps workbench and sessions background colors separate', () => {
+		const service = store.add(new ThemeMainService(new TestNativeTheme(), new TestStateService(), new TestConfigurationService(), new NullLogService()));
+		const workbenchSplash = createSplash(true);
+		const sessionsSplash = createSplash(false);
+
+		service.saveWindowSplash(undefined, undefined, workbenchSplash, false);
+		service.saveWindowSplash(undefined, undefined, sessionsSplash, true);
+
+		assert.deepStrictEqual({
+			workbench: service.getBackgroundColor(false),
+			sessions: service.getBackgroundColor(true),
+		}, {
+			workbench: workbenchSplash.colorInfo.background,
+			sessions: sessionsSplash.colorInfo.background,
+		});
+	});
+
+	test('falls back to the base theme default background when a window type has no stored splash', () => {
+		const service = store.add(new ThemeMainService(new TestNativeTheme(), new TestStateService(), new TestConfigurationService(), new NullLogService()));
+		const workbenchSplash = createSplash(true);
+
+		service.saveWindowSplash(undefined, undefined, workbenchSplash, false);
+
+		assert.deepStrictEqual({
+			workbench: service.getBackgroundColor(false),
+			sessions: service.getBackgroundColor(true),
+		}, {
+			workbench: workbenchSplash.colorInfo.background,
+			sessions: '#1F1F1F', // DEFAULT_BG_DARK, since the splash is stored with a `vs-dark` base theme
+		});
+	});
 });

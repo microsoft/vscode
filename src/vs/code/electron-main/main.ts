@@ -5,7 +5,7 @@
 
 import '../../platform/update/common/update.config.contribution.js';
 
-import { app, dialog } from 'electron';
+import { app, dialog, nativeTheme } from 'electron';
 import { unlinkSync, promises } from 'fs';
 import { URI } from '../../base/common/uri.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';
@@ -282,7 +282,7 @@ class CodeMain {
 		services.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
 
 		// Themes
-		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
+		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService, [nativeTheme]));
 
 		// Signing
 		services.set(ISignService, new SyncDescriptor(SignService, undefined, false /* proxied to other processes */));

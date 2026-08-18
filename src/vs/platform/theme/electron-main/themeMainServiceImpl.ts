@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron from 'electron';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
@@ -25,11 +24,16 @@ const DEFAULT_BG_DARK = '#1F1F1F';
 const DEFAULT_BG_HC_BLACK = '#000000';
 const DEFAULT_BG_HC_LIGHT = '#FFFFFF';
 
+// The base theme is shared by all windows because it drives the
+// application wide `nativeTheme.themeSource`. Everything else is
+// stored per window type so that the workbench and sessions windows
+// can restore their own splash without overwriting each other.
 const THEME_STORAGE_KEY = 'theme';
-const THEME_BG_STORAGE_KEY = 'themeBackground';
 
+const THEME_BG_STORAGE_KEY = 'themeBackground';
 const THEME_WINDOW_SPLASH_KEY = 'windowSplash';
 const THEME_WINDOW_SPLASH_OVERRIDE_KEY = 'windowSplashWorkspaceOverride';
+const THEME_SESSIONS_BG_STORAGE_KEY = 'sessionsThemeBackground';
 const THEME_SESSIONS_WINDOW_SPLASH_KEY = 'sessionsWindowSplash';
 const THEME_SESSIONS_WINDOW_SPLASH_OVERRIDE_KEY = 'sessionsWindowSplashWorkspaceOverride';
 
@@ -41,10 +45,10 @@ interface INativeTheme extends Event.NodeEventEmitter {
 	readonly shouldUseDarkColorsForSystemIntegratedUI: boolean;
 }
 
-function getWindowSplashStorageKeys(isSessionsWindow: boolean): { splash: string; override: string } {
+function getWindowStorageKeys(isSessionsWindow: boolean): { splash: string; override: string; background: string } {
 	return isSessionsWindow
-		? { splash: THEME_SESSIONS_WINDOW_SPLASH_KEY, override: THEME_SESSIONS_WINDOW_SPLASH_OVERRIDE_KEY }
-		: { splash: THEME_WINDOW_SPLASH_KEY, override: THEME_WINDOW_SPLASH_OVERRIDE_KEY };
+		? { splash: THEME_SESSIONS_WINDOW_SPLASH_KEY, override: THEME_SESSIONS_WINDOW_SPLASH_OVERRIDE_KEY, background: THEME_SESSIONS_BG_STORAGE_KEY }
+		: { splash: THEME_WINDOW_SPLASH_KEY, override: THEME_WINDOW_SPLASH_OVERRIDE_KEY, background: THEME_BG_STORAGE_KEY };
 }
 
 class Setting<T> {
@@ -92,7 +96,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
 
 	constructor(
-		private readonly nativeTheme: INativeTheme = electron.nativeTheme,
+		private readonly nativeTheme: INativeTheme,
 		@IStateService private stateService: IStateService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ILogService private logService: ILogService
@@ -205,13 +209,13 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		return false;
 	}
 
-	getBackgroundColor(): string {
+	getBackgroundColor(isSessionsWindow: boolean): string {
 		const preferred = this.getPreferredBaseTheme();
 		const stored = this.getStoredBaseTheme();
 
 		// If the stored theme has the same base as the preferred, we can return the stored background
 		if (preferred === undefined || preferred === stored) {
-			const storedBackground = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
+			const storedBackground = this.stateService.getItem<string | null>(getWindowStorageKeys(isSessionsWindow).background, null);
 			if (storedBackground) {
 				return storedBackground;
 			}
@@ -240,12 +244,12 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 		// Update override as needed
 		const splashOverride = this.updateWindowSplashOverride(workspace, splash, isSessionsWindow);
-		const storageKeys = getWindowSplashStorageKeys(isSessionsWindow);
+		const storageKeys = getWindowStorageKeys(isSessionsWindow);
 
 		// Update in storage
 		this.stateService.setItems(coalesce([
 			{ key: THEME_STORAGE_KEY, data: splash.baseTheme },
-			{ key: THEME_BG_STORAGE_KEY, data: splash.colorInfo.background },
+			{ key: storageKeys.background, data: splash.colorInfo.background },
 			{ key: storageKeys.splash, data: splash },
 			splashOverride ? { key: storageKeys.override, data: splashOverride } : undefined
 		]));
@@ -364,7 +368,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private doGetWindowSplash(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined, isSessionsWindow: boolean): IPartsSplash | undefined {
-		const partSplash = this.stateService.getItem<IPartsSplash>(getWindowSplashStorageKeys(isSessionsWindow).splash);
+		const partSplash = this.stateService.getItem<IPartsSplash>(getWindowStorageKeys(isSessionsWindow).splash);
 		if (!partSplash?.layoutInfo) {
 			return partSplash; // return early: overrides currently only apply to layout info
 		}
@@ -422,7 +426,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private getWindowSplashOverride(isSessionsWindow: boolean): IPartsSplashOverride {
-		let override = this.stateService.getItem<IPartsSplashOverride>(getWindowSplashStorageKeys(isSessionsWindow).override);
+		let override = this.stateService.getItem<IPartsSplashOverride>(getWindowStorageKeys(isSessionsWindow).override);
 
 		if (!override?.layoutInfo) {
 			override = {

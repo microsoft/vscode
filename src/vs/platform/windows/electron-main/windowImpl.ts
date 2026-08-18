@@ -712,7 +712,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				webPreferences.backgroundThrottling = false; // keep agents window responsive when in background
 			}
 
-			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
+			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, { isSessionsWindow: config.isSessionsWindow === true }, webPreferences);
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
