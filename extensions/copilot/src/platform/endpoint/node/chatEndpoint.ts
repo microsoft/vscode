@@ -152,6 +152,33 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 	return AsyncIterableObject.fromArray(completions);
 }
 
+/**
+ * CAPI `info_messages` codes that carry enough user impact to warrant the
+ * picker's warning presentation rather than a neutral info notice.
+ */
+const INFO_CODES_SHOWN_AS_WARNINGS = new Set(['model_pending_deprecation']);
+
+/**
+ * Splits CAPI `info_messages` into the two category-keyed dictionaries the model
+ * picker renders, promoting {@link INFO_CODES_SHOWN_AS_WARNINGS} to warning
+ * banners. Keys are the CAPI codes, so repeated codes collapse to the last message.
+ */
+function splitInfoMessages(infoMessages: { code: string; message: string }[] | undefined): { warningText: Record<string, string>; infoText: Record<string, string> } {
+	const warningText: Record<string, string> = {};
+	const infoText: Record<string, string> = {};
+	for (const { code, message } of infoMessages ?? []) {
+		if (message) {
+			const target = INFO_CODES_SHOWN_AS_WARNINGS.has(code) ? warningText : infoText;
+			target[code || 'info'] = message;
+		}
+	}
+	return { warningText, infoText };
+}
+
+function undefinedIfEmpty(record: Record<string, string>): Record<string, string> | undefined {
+	return Object.keys(record).length > 0 ? record : undefined;
+}
+
 export class ChatEndpoint implements IChatEndpoint {
 	private readonly _maxTokens: number;
 	private readonly _maxOutputTokens: number;
@@ -182,6 +209,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
 	public readonly warningText?: Record<string, string> | undefined;
+	public readonly infoText?: Record<string, string> | undefined;
 	public readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string } | undefined;
 
 	private readonly _supportsStreaming: boolean;
@@ -233,7 +261,9 @@ export class ChatEndpoint implements IChatEndpoint {
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
-		this.warningText = modelMetadata.warning_text;
+		const infoMessages = splitInfoMessages(modelMetadata.info_messages);
+		this.warningText = undefinedIfEmpty({ ...modelMetadata.warning_text, ...infoMessages.warningText });
+		this.infoText = undefinedIfEmpty(infoMessages.infoText);
 		this.promo = modelMetadata.billing?.promo ? {
 			id: modelMetadata.billing.promo.id,
 			discountPercent: modelMetadata.billing.promo.discount_percent,

@@ -341,7 +341,18 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly showInModelPicker: boolean;
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
+	/**
+	 * Category-keyed warning notices for the model picker. Sourced from CAPI `warning_text`
+	 * plus the `info_messages` codes that warrant a warning presentation (e.g.
+	 * `model_pending_deprecation`).
+	 */
 	readonly warningText?: Record<string, string>;
+	/**
+	 * Neutral, category-keyed notices for the model picker, from the CAPI `info_messages`
+	 * that are not promoted into {@link warningText}. Unlike {@link degradationReason}
+	 * these do not indicate a problem with the model.
+	 */
+	readonly infoText?: Record<string, string>;
 	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
