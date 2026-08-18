@@ -965,7 +965,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		// Session is live; drop the connecting spinner so the mic reads as
 		// recording when start() transitions to the Recording state.
 		this._setPreparingModel(false);
-		this._voiceClientService.sendPttStart(this._maiTurnId);
+		this._voiceClientService.sendPttStart(this._maiTurnId, { hasActiveSession: false });
 	}
 
 	/**

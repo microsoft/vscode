@@ -2944,6 +2944,46 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a mode change reconciles with a single catalog pass', async () => {
+			const day = 24 * 60 * 60 * 1000;
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			agent.addSession('recent', now);
+			agent.addSession('yesterday', now - day);
+			agent.addSession('last-week', now - 6 * day);
+			svc.registerProvider(agent);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 1);
+			await waitForSessionListReconciliation(svc);
+
+			// Each `listSessions` is one walk over every registered session's
+			// database, so the modes it is asked for are the catalog passes.
+			const listedModes: (AgentHostExternalSessionsMode | undefined)[] = [];
+			const listSessions = svc.listSessions;
+			svc.listSessions = mode => {
+				listedModes.push(mode);
+				return Reflect.apply(listSessions, svc, [mode]);
+			};
+
+			// `Recent` is the mode whose visibility depends on the whole catalog,
+			// so it is the one most likely to regress into a second pass.
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 2);
+			// Await the transition's own reconciliation: publishing into `Recent`
+			// moves summaries, which queues a further pass of its own.
+			await (svc as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
+			const transitionModes = [...listedModes];
+			await waitForSessionListReconciliation(svc);
+			svc.listSessions = listSessions;
+
+			assert.deepStrictEqual({
+				transitionModes,
+				visible: (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort(),
+			}, {
+				transitionModes: [AgentHostExternalSessionsMode.All],
+				visible: ['recent', 'yesterday'],
+			});
+		});
+
 		test('recent replaces the oldest visible external session when a newer session is discovered', async () => {
 			const now = Date.now();
 			const svc = createExternalSessionService(() => now);
@@ -3925,14 +3965,16 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.listExternalChatsCalls, 1);
 		});
 
-		test('a discovery signal does not bypass completed legacy migration semantics', async () => {
+		test('listSessions rejects an unavailable migration catalog and retries it on the next call', async () => {
 			class NotYetMigratableAgent extends MockAgent {
 				migrationCalls = 0;
 				enumerable = false;
 			}
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = disposables.add(new NotYetMigratableAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'legacy-migration-not-ready');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listChatsToMigrate = async () => {
 				agent.migrationCalls++;
 				return agent.enumerable
@@ -3940,18 +3982,20 @@ suite('AgentService (node dispatcher)', () => {
 					: undefined;
 			};
 			svc.registerProvider(agent);
-			await svc.listSessions();
+			await assert.rejects(svc.listSessions(), /cannot enumerate its native session catalog yet/);
+			const callsAfterFailure = agent.migrationCalls;
 
 			agent.enumerable = true;
-			agent.fireDiscoveredChats([]);
 			await timeout(0);
-
+			const listed = await svc.listSessions();
 			assert.deepStrictEqual({
-				migrationCalls: agent.migrationCalls,
-				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+				retriedBeforeFailure: callsAfterFailure > 1,
+				retriedAfterFailure: agent.migrationCalls > callsAfterFailure,
+				listed: listed.map(session => session.session.toString()),
 			}, {
-				migrationCalls: 1,
-				registered: [],
+				retriedBeforeFailure: true,
+				retriedAfterFailure: true,
+				listed: [legacy.toString()],
 			});
 		});
 
