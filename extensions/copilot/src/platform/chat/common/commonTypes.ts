@@ -113,6 +113,8 @@ export enum ChatFetchResponseType {
 	Success = 'success'
 }
 
+export const VISION_ATTACHMENT_NOT_ACCESSIBLE = 'vision_attachment_not_accessible';
+
 export const RESPONSE_CONTAINED_NO_CHOICES = 'Response contained no choices.';
 
 export type ChatFetchError =
@@ -161,7 +163,7 @@ export type ChatFetchError =
 	/**
 	 * We requested conversation, but didn't come up with any results because of a bad request
 	 */
-	| { type: ChatFetchResponseType.BadRequest; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
+	| { type: ChatFetchResponseType.BadRequest; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined; capiError?: { code?: string; message?: string }; unavailableHistoryImageSourceHashes?: readonly string[] }
 	| { type: ChatFetchResponseType.NotFound; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
 	/**
 	 * We requested conversation, but didn't come up with any results because something
@@ -190,7 +192,7 @@ export type ChatFetchRetriableError<T> =
 	{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined };
 
 export type FetchSuccess<T> =
-	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string };
+	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string; unavailableHistoryImageSourceHashes?: readonly string[] };
 
 export type FetchResponse<T> = FetchSuccess<T> | ChatFetchError;
 

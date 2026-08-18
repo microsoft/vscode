@@ -45,5 +45,6 @@ export enum ChatFailKind {
 	ValidationFailed = 'validationFailed',
 	InvalidPreviousResponseId = 'invalidPreviousResponseId',
 	NotFound = 'notFound',
+	BadRequest = 'badRequest',
 	Unknown = 'unknown',
 }

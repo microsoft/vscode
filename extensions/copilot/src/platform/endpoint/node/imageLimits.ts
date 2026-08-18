@@ -4,12 +4,65 @@
  *--------------------------------------------------------------------------------------------*/
 import * as l10n from '@vscode/l10n';
 import { Raw } from '@vscode/prompt-tsx';
+import { createHash } from 'crypto';
 
 /**
  * Model-facing placeholder substituted for dropped history images.
  * Intentionally not localized — this text is sent to the model, not the user.
  */
 const IMAGE_PLACEHOLDER_TEXT = '[Image omitted from conversation history due to model limit.]';
+const UNAVAILABLE_IMAGE_PLACEHOLDER_TEXT = '[Image omitted from conversation history because it is no longer available.]';
+
+function getCurrentTurnStart(messages: Raw.ChatMessage[]): number {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (messages[i].role === Raw.ChatRole.User) {
+			return i;
+		}
+	}
+	return Math.max(messages.length - 1, 0);
+}
+
+function getImageSourceHash(source: string): string {
+	return createHash('sha256').update(source).digest('hex');
+}
+
+export function getHistoryImageSourceHashes(messages: Raw.ChatMessage[]): string[] {
+	const currentTurnStart = getCurrentTurnStart(messages);
+	const hashes = new Set<string>();
+	for (let messageIndex = 0; messageIndex < currentTurnStart; messageIndex++) {
+		const content = messages[messageIndex].content;
+		if (!Array.isArray(content)) {
+			continue;
+		}
+		for (const part of content) {
+			if (part.type === Raw.ChatCompletionContentPartKind.Image) {
+				hashes.add(getImageSourceHash(part.imageUrl.url));
+			}
+		}
+	}
+	return [...hashes];
+}
+
+export function omitHistoryImages(messages: Raw.ChatMessage[], unavailableSourceHashes?: ReadonlySet<string>): Raw.ChatMessage[] {
+	const currentTurnStart = getCurrentTurnStart(messages);
+	let changed = false;
+	const result = messages.map((message, messageIndex) => {
+		if (messageIndex >= currentTurnStart || !Array.isArray(message.content)) {
+			return message;
+		}
+		if (!message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.Image && (!unavailableSourceHashes || unavailableSourceHashes.has(getImageSourceHash(part.imageUrl.url))))) {
+			return message;
+		}
+		changed = true;
+		return {
+			...message,
+			content: message.content.map(part => part.type === Raw.ChatCompletionContentPartKind.Image && (!unavailableSourceHashes || unavailableSourceHashes.has(getImageSourceHash(part.imageUrl.url)))
+				? { type: Raw.ChatCompletionContentPartKind.Text as const, text: UNAVAILABLE_IMAGE_PLACEHOLDER_TEXT }
+				: part),
+		};
+	});
+	return changed ? result : messages;
+}
 
 /**
  * Silently drops the oldest images from history when the total number of images
@@ -25,19 +78,7 @@ const IMAGE_PLACEHOLDER_TEXT = '[Image omitted from conversation history due to 
 export function filterHistoryImages(messages: Raw.ChatMessage[], maxImages: number): Raw.ChatMessage[] {
 	// Anchor the current turn at the last user message; anything at or after this
 	// index is treated as "current turn" and its images are never filtered.
-	let lastUserIdx = -1;
-	for (let i = messages.length - 1; i >= 0; i--) {
-		if (messages[i].role === Raw.ChatRole.User) {
-			lastUserIdx = i;
-			break;
-		}
-	}
-
-	// Corner case: no user message at all (e.g. system-only history). Treat the
-	// last message as the current turn so we still filter earlier images.
-	if (lastUserIdx === -1 && messages.length > 0) {
-		lastUserIdx = messages.length - 1;
-	}
+	const lastUserIdx = getCurrentTurnStart(messages);
 
 	// Count images in the current turn (the last user message and anything after it).
 	let currentTurnImages = 0;
