@@ -119,6 +119,8 @@ import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
+/** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
+const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
 
 type AgentHostLegacyMigrationEvent = {
 	provider: string;
@@ -601,6 +603,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (nextMode !== externalSessionsMode) {
 				const previousMode = externalSessionsMode;
 				externalSessionsMode = nextMode;
+				this._logService.info(`[AgentService] ${AgentHostShowExternalSessionsConfigKey} changed '${previousMode}' -> '${nextMode}'; queueing session list reconciliation`);
 				this._queueSessionListReconciliation(previousMode);
 			}
 			// Agent Merge tools are only advertised while the feature is on, so a
@@ -1623,6 +1626,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions computation started');
+		const startedAt = Date.now();
 		// The first list waits for registration-time legacy migration if it is still in flight.
 		await this._awaitInitialProviderMigration();
 		// The registry is the source of truth for top-level sessions. Internal
@@ -1833,7 +1837,14 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._logHiddenSessions(hiddenByExternalMode, combined.length, mode);
 
-		this._logService.trace(`[AgentService] listSessions returned ${visible.length} sessions (${additions.length} state-manager fallback)`);
+		// A catalog pass opens every registered session's database, so it can be slow.
+		const duration = Date.now() - startedAt;
+		const message = `[AgentService] listSessions computed ${visible.length} of ${combined.length} session(s) for mode '${mode}' in ${duration}ms (${additions.length} state-manager fallback)`;
+		if (duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {
+			this._logService.info(message);
+		} else {
+			this._logService.trace(message);
+		}
 		return visible;
 	}
 
@@ -1976,16 +1987,13 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _reconcileExternalSessions(previousMode?: AgentHostExternalSessionsMode): Promise<void> {
+		const startedAt = Date.now();
 		const previouslyBroadcast = new Set(this._broadcastExternalSessions);
-		if (previousMode !== undefined) {
-			for (const session of await this.listSessions(previousMode)) {
-				if (readSessionExternal(session._meta)) {
-					previouslyBroadcast.add(session.session.toString());
-				}
-			}
-		}
-		const listed = await this.listSessions();
+		const listed = previousMode !== undefined
+			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.All), previousMode, previouslyBroadcast)
+			: await this.listSessions();
 		const visible = new Set<string>();
+		let published = 0;
 		for (const metadata of listed) {
 			if (!readSessionExternal(metadata._meta)) {
 				continue;
@@ -1993,6 +2001,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const key = metadata.session.toString();
 			visible.add(key);
 			if (!previouslyBroadcast.has(key)) {
+				published++;
 				if (this._stateManager.getSessionState(key)) {
 					this._stateManager.setSessionSummaryPublished(key, true);
 				} else {
@@ -2003,8 +2012,10 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 		}
+		let retracted = 0;
 		for (const key of previouslyBroadcast) {
 			if (!visible.has(key)) {
+				retracted++;
 				if (this._stateManager.getSessionState(key)) {
 					this._stateManager.setSessionSummaryPublished(key, false);
 				} else {
@@ -2017,6 +2028,45 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const key of visible) {
 			this._broadcastExternalSessions.add(key);
 		}
+		const duration = Date.now() - startedAt;
+		const message = `[AgentService] External session reconciliation done in ${duration}ms (mode: '${this._getExternalSessionsMode()}'${previousMode !== undefined ? `, previous: '${previousMode}'` : ''}): ${published} published, ${retracted} retracted, ${visible.size} visible`;
+		// A prompt no-op pass is steady-state noise.
+		if (published > 0 || retracted > 0 || duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {
+			this._logService.info(message);
+		} else {
+			this._logService.trace(message);
+		}
+	}
+
+	/**
+	 * Derives both the previous and current mode's visible sets from one catalog
+	 * pass, since {@link AgentHostExternalSessionsMode.All} is a superset of every
+	 * mode and the mode is just a parameter to {@link _shouldIncludeSession}.
+	 * Adds what `previousMode` had published into `previouslyBroadcast`.
+	 */
+	private _resolveModeChangeVisibility(
+		superset: readonly IAgentSessionMetadata[],
+		previousMode: AgentHostExternalSessionsMode,
+		previouslyBroadcast: Set<string>,
+	): IAgentSessionMetadata[] {
+		const now = this._now();
+		const recentKeysFor = (mode: AgentHostExternalSessionsMode) => mode === AgentHostExternalSessionsMode.Recent
+			? this._getRecentSessionKeys(superset, now)
+			: undefined;
+
+		const previousRecentKeys = recentKeysFor(previousMode);
+		for (const session of superset) {
+			if (readSessionExternal(session._meta) && this._shouldIncludeSession(session, previousMode, now, previousRecentKeys)) {
+				previouslyBroadcast.add(session.session.toString());
+			}
+		}
+
+		const mode = this._getExternalSessionsMode();
+		const recentKeys = recentKeysFor(mode);
+		const visible = superset.filter(session => this._shouldIncludeSession(session, mode, now, recentKeys));
+		// The pass ran as `All`, so report the mode actually in effect instead.
+		this._logHiddenSessions(superset.length - visible.length, superset.length, mode);
+		return visible;
 	}
 
 	private async _announceSurfacedSession(meta: IAgentSessionMetadata, provider: string): Promise<void> {
