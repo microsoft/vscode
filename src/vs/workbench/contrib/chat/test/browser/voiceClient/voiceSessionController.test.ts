@@ -39,7 +39,7 @@ import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToo
 import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID } from '../../../common/chatInputWindow.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoicePttStartOptions, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -87,6 +87,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override disconnect(): void { this.connected = false; }
 	override async connect(): Promise<void> { }
 	readonly wireEvents: ({ type: 'session_context'; context: IVoiceSessionContext } | { type: 'request_narration'; kind: VoiceNarrationKind; text: string; confirmationType?: VoiceConfirmationType })[] = [];
+	readonly pttStarts: { turnId: string; hasActiveSession: boolean; passive: boolean }[] = [];
 	pttEndCalls = 0;
 	private pendingContext: IVoiceSessionContext | undefined;
 	override sendSessionContext(context: IVoiceSessionContext): void {
@@ -128,6 +129,9 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	}
 	override sendPttEnd(): void {
 		this.pttEndCalls++;
+	}
+	override sendPttStart(turnId: string, options: IVoicePttStartOptions): void {
+		this.pttStarts.push({ turnId, hasActiveSession: options.hasActiveSession, passive: options.passive ?? false });
 	}
 
 	fireAudioResponse(event: IVoiceAudioResponse): void {
@@ -324,7 +328,8 @@ class DeferredFirstTtsPlaybackService extends TestTtsPlaybackService {
 }
 
 class TestMicCaptureService extends mock<IMicCaptureService>() {
-	override readonly onPttStart = Event.None;
+	private readonly pttStartEmitter = new Emitter<boolean>();
+	override readonly onPttStart = this.pttStartEmitter.event;
 	override readonly onPttAudioChunk = Event.None;
 	override readonly onPttEnd = Event.None;
 	override readonly onPttDiagnostic = Event.None;
@@ -341,6 +346,13 @@ class TestMicCaptureService extends mock<IMicCaptureService>() {
 	}
 	override pttUp(): void { }
 	override abortPtt(): void { }
+	dispose(): void {
+		this.pttStartEmitter.dispose();
+	}
+
+	firePttStart(passive: boolean): void {
+		this.pttStartEmitter.fire(passive);
+	}
 }
 
 class TestAgentSessionsService extends mock<IAgentSessionsService>() {
@@ -707,6 +719,9 @@ suite('VoiceSessionController', () => {
 	): VoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
+		if (micCaptureService instanceof TestMicCaptureService) {
+			store.add(micCaptureService);
+		}
 		return store.add(new VoiceSessionController(
 			voiceClientService,
 			micCaptureService,
@@ -771,6 +786,43 @@ suite('VoiceSessionController', () => {
 		};
 		return { changeEmitter, parts, response: state as unknown as IChatResponseModel, state };
 	}
+
+	test('reports whether a coding session is in progress when each voice request starts', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const micCaptureService = new TestMicCaptureService();
+		const focusedSession = agentSessionEntry('vscode-chat://focused', 'Focused session', AgentSessionStatus.Completed);
+		const backgroundSession = agentSessionEntry('vscode-chat://background', 'Background session', AgentSessionStatus.InProgress);
+		const loadedModel = new class extends mock<IChatModel>() { };
+		const chatService = new class extends TestChatService {
+			override getSession(): IChatModel | undefined {
+				return focusedSession.status === AgentSessionStatus.InProgress ? loadedModel : undefined;
+			}
+		};
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			undefined,
+			chatService,
+			undefined,
+			new TestAgentSessionsService([focusedSession, backgroundSession]),
+		);
+		await connectWithOmniOpen(controller, voiceClientService);
+		controller.setActiveSessionShown(focusedSession.resource);
+
+		controller['_pttCurrentTurnId'] = 'turn-idle';
+		micCaptureService.firePttStart(false);
+		focusedSession.status = AgentSessionStatus.InProgress;
+		controller['_pttCurrentTurnId'] = 'turn-active';
+		micCaptureService.firePttStart(true);
+
+		assert.deepStrictEqual(voiceClientService.pttStarts, [
+			{ turnId: 'turn-idle', hasActiveSession: false, passive: false },
+			{ turnId: 'turn-active', hasActiveSession: true, passive: true },
+		]);
+	});
 
 	test('does not connect without a paid Copilot entitlement', async () => {
 		const voiceClientService = new TestVoiceClientService();
@@ -1050,6 +1102,50 @@ suite('VoiceSessionController', () => {
 			prepareCalls: 1,
 			startCaptureCalls: 0,
 			sessionCommands: ['start'],
+		});
+	});
+
+	test('setMuted gates outgoing audio while keeping the session connected', async () => {
+		const sentChunks: string[] = [];
+		const voiceClientService = new class extends TestVoiceClientService {
+			override sendPttAudioChunk(chunk: string): void { sentChunks.push(chunk); }
+		}();
+		const audioChunkEmitter = store.add(new Emitter<string>());
+		const micCaptureService = new class extends TestMicCaptureService {
+			override readonly onPttAudioChunk = audioChunkEmitter.event;
+		}();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }),
+		);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+
+		// Unmuted: chunks flow to the backend.
+		audioChunkEmitter.fire('chunk-1');
+		// Muted: chunks are dropped, session stays connected.
+		controller.setMuted(true);
+		audioChunkEmitter.fire('chunk-2');
+		// Unmuted again: chunks flow once more.
+		controller.setMuted(false);
+		audioChunkEmitter.fire('chunk-3');
+
+		assert.deepStrictEqual({
+			sentChunks,
+			micMuted: micCaptureService.isMuted,
+			isMuted: controller.isMuted.get(),
+			connected: controller.isConnected.get(),
+		}, {
+			sentChunks: ['chunk-1', 'chunk-3'],
+			micMuted: false,
+			isMuted: false,
+			connected: true,
 		});
 	});
 

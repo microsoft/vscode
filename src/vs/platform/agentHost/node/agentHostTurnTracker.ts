@@ -87,6 +87,10 @@ interface ITurnTiming {
 	quietWindows: number;
 }
 
+interface ITurnUsage {
+	billedNanoAiu?: number;
+}
+
 /**
  * Tracks per-turn timing for agent host sessions and reports a completion
  * event via the provided {@link AgentHostTelemetryReporter} when a turn ends.
@@ -111,6 +115,7 @@ interface ITurnTiming {
 export class AgentHostTurnTracker extends Disposable {
 
 	private readonly _turnTimings = new Map<string, ITurnTiming>();
+	private readonly _turnUsages = new Map<string, ITurnUsage>();
 	private readonly _hangWatchdogs = this._register(new DisposableMap<string>());
 	/** Maps `session:requestId` to the turn key blocked on that request. */
 	private readonly _blockerTurnKeys = new Map<string, string>();
@@ -132,11 +137,12 @@ export class AgentHostTurnTracker extends Disposable {
 		super();
 		this._register(toDisposable(() => {
 			this._turnTimings.clear();
+			this._turnUsages.clear();
 			this._blockerTurnKeys.clear();
 		}));
 	}
 
-	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown)): void {
+	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown)): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
@@ -145,7 +151,7 @@ export class AgentHostTurnTracker extends Disposable {
 			turnId,
 			model,
 			modelTelemetryKind,
-			modelSelectionKind: model === undefined ? 'default' : model === 'auto' ? 'auto' : 'explicit',
+			modelSelectionKind,
 			permissionLevel,
 			interactionMode,
 			clientContext,
@@ -161,6 +167,7 @@ export class AgentHostTurnTracker extends Disposable {
 			lastHangStopWatch: undefined,
 			quietWindows: 0,
 		});
+		this._turnUsages.set(key, {});
 		this._armHangWatchdog(key);
 		this._onDidStartTurn.fire(provider);
 	}
@@ -299,6 +306,13 @@ export class AgentHostTurnTracker extends Disposable {
 		}
 	}
 
+	updateBilledNanoAiu(session: string, turnId: string, billedNanoAiu: number | undefined): void {
+		const usage = this._turnUsages.get(this._key(session, turnId));
+		if (usage && typeof billedNanoAiu === 'number' && Number.isFinite(billedNanoAiu) && billedNanoAiu >= 0) {
+			usage.billedNanoAiu = billedNanoAiu;
+		}
+	}
+
 	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		return timing ? { model: timing.model, modelTelemetryKind: timing.modelTelemetryKind } : undefined;
@@ -314,6 +328,7 @@ export class AgentHostTurnTracker extends Disposable {
 		if (!timing) {
 			return;
 		}
+		const usage = this._turnUsages.get(key);
 		this._disposeTurn(key, timing);
 
 		this._reporter.turnCompleted({
@@ -332,6 +347,7 @@ export class AgentHostTurnTracker extends Disposable {
 			failure,
 			isMultiRoot: workspace?.isMultiRoot ?? false,
 			folderCount: workspace?.folderCount ?? 0,
+			billedNanoAiu: usage?.billedNanoAiu,
 		});
 
 		// Paired recovery event: the turn was reported as hung but did finish,
@@ -353,8 +369,8 @@ export class AgentHostTurnTracker extends Disposable {
 
 	/**
 	 * Drops any in-flight (never-completed) turns for a session without
-	 * reporting them. Called on session teardown so neither the timing map nor
-	 * the watchdog timers can outlive the session they describe.
+	 * reporting them. Called on session teardown so neither tracked turn state
+	 * nor watchdog timers can outlive the session they describe.
 	 */
 	clearSession(session: string): void {
 		const prefix = `${session}\0`;
@@ -387,6 +403,7 @@ export class AgentHostTurnTracker extends Disposable {
 
 	private _disposeTurn(key: string, timing: ITurnTiming): void {
 		this._turnTimings.delete(key);
+		this._turnUsages.delete(key);
 		this._hangWatchdogs.deleteAndDispose(key);
 		for (const requestId of timing.blockers.keys()) {
 			this._blockerTurnKeys.delete(this._key(timing.session, requestId));

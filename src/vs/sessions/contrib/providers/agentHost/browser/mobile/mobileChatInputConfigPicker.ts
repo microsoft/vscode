@@ -31,7 +31,7 @@ import { ISessionContext } from '../../../../../services/sessions/browser/sessio
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
-import { ISessionModelSelectionModel } from '../../../../chat/browser/sessionModelSelectionModel.js';
+import { ISessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
 import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from './mobileChatPhoneInputTarget.js';
 
@@ -79,7 +79,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
-		@ISessionModelSelectionModel private readonly _selectionModel: ISessionModelSelectionModel,
+		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();

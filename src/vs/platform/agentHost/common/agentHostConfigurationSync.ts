@@ -129,6 +129,23 @@ export function resolveAgentHostConfigurationSyncValue(configurationService: ICo
 }
 
 /**
+ * Renders a mirrored value for logging, redacting anything that could carry
+ * user content. Mirrored settings are registry-driven and may hold paths or
+ * arbitrary strings, so only closed-set values (booleans, numbers, and declared
+ * enum members) are printed verbatim.
+ */
+export function formatAgentHostConfigurationSyncValueForLog(settingId: string, value: unknown): string {
+	if (typeof value === 'boolean' || typeof value === 'number') {
+		return String(value);
+	}
+	const property = getPropertySchema(settingId);
+	if (typeof value === 'string' && property?.enum?.includes(value)) {
+		return value;
+	}
+	return `<${Array.isArray(value) ? 'array' : typeof value}>`;
+}
+
+/**
  * Builds the full root-config patch mirroring every applicable setting. Used on
  * connect and reconnect, where the host may be a freshly restarted process that
  * has none of these values.

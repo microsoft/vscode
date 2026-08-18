@@ -108,7 +108,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const agentHostEnabled = observableValue('agentHostEnabled', false);
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
-			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled }],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) }],
 			[ILogService, new NullLogService()],
 			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
 		)));
