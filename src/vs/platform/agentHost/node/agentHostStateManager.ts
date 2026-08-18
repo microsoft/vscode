@@ -269,8 +269,6 @@ export class AgentHostStateManager extends Disposable {
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
 	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
 	readonly onDidChangeSessionActiveTurn: Event<{ session: string; active: boolean }> = this._onDidChangeSessionActiveTurn.event;
-	private readonly _onDidChangeSessionStatus = this._register(new Emitter<{ session: string; status: SessionStatus }>());
-	readonly onDidChangeSessionStatus: Event<{ session: string; status: SessionStatus }> = this._onDidChangeSessionStatus.event;
 	private readonly _onDidRemoveSession = this._register(new Emitter<string>());
 	readonly onDidRemoveSession: Event<string> = this._onDidRemoveSession.event;
 
@@ -1708,9 +1706,6 @@ export class AgentHostStateManager extends Disposable {
 			...(statusChanged ? { status: newStatus } : undefined),
 			...(activityChanged ? { activity: aggregate.activity } : undefined),
 		};
-		if (statusChanged) {
-			this._onDidChangeSessionStatus.fire({ session: sessionKey, status: newStatus });
-		}
 
 		// Roll the aggregated `modifiedAt` into the catalog-only timestamp.
 		const newModifiedAt = aggregate.modifiedAt !== undefined ? new Date(aggregate.modifiedAt).toISOString() : undefined;

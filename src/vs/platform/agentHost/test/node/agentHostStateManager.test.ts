@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -1430,7 +1430,6 @@ suite('AgentHostStateManager', () => {
 				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
-
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
@@ -1467,45 +1466,6 @@ suite('AgentHostStateManager', () => {
 					activeAfterBothComplete: 0,
 				},
 			);
-		});
-
-		test('session-status event captures every lifecycle transition without debouncing', () => {
-			manager.createSession(makeSessionSummary());
-			const defaultChat = buildDefaultChatUri(sessionUri);
-			const statuses: SessionStatus[] = [];
-			disposables.add(manager.onDidChangeSessionStatus(e => statuses.push(e.status & ~(SessionStatus.IsRead | SessionStatus.IsArchived))));
-
-			manager.dispatchServerAction(defaultChat, {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-default',
-				startedAt: '2025-01-01T00:00:00.000Z',
-				message: { text: 'a', origin: { kind: MessageKind.User } },
-			});
-			manager.dispatchServerAction(defaultChat, {
-				type: ActionType.ChatInputRequested,
-				request: {
-					id: 'request',
-					purpose: ChatInputRequestPurpose.AskUser,
-					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question', message: 'Continue?' }],
-				},
-			});
-			manager.dispatchServerAction(defaultChat, {
-				type: ActionType.ChatInputCompleted,
-				requestId: 'request',
-				response: ChatInputResponseKind.Accept,
-			});
-			manager.dispatchServerAction(defaultChat, {
-				type: ActionType.ChatTurnComplete,
-				turnId: 'turn-default',
-				duration: 1000,
-			});
-
-			assert.deepStrictEqual(statuses, [
-				SessionStatus.InProgress,
-				SessionStatus.InputNeeded,
-				SessionStatus.InProgress,
-				SessionStatus.Idle,
-			]);
 		});
 
 		test('removeChat clears a peer chat that is removed mid-turn', () => {
