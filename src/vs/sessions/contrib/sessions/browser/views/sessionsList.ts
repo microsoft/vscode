@@ -964,6 +964,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
 		const actionViewItemDisposables = disposables.add(new DisposableStore());
+		const dropdownAction = disposables.add(new Action(
+			'sessionsView.sectionNewSession.moreActions',
+			localize('newSessionForWorkspaceMoreActions', "More Actions"),
+		));
 
 		container.classList.add('session-section');
 		const icon = DOM.append(container, $('span.session-section-icon'));
@@ -999,8 +1003,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				const item = scopedInstantiationService.createInstance(
 					DropdownWithPrimaryActionViewItem,
 					action,
-					new Action('sessionsView.sectionNewSession.moreActions',
-						localize('newSessionForWorkspaceMoreActions', "More Actions")),
+					dropdownAction,
 					dropdownActions,
 					'',
 					{
