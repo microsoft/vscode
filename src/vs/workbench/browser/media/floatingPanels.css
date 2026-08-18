@@ -204,8 +204,8 @@
 .monaco-workbench.floating-panels .part.statusbar {
 	padding-left: var(--vscode-spacing-size60);
 	padding-right: var(--vscode-spacing-size60);
-	padding-top: var(--vscode-spacing-size40);
-	padding-bottom: var(--vscode-spacing-size40);
+	padding-top: var(--vscode-spacing-size20);
+	padding-bottom: var(--vscode-spacing-size20);
 }
 
 .monaco-workbench.floating-panels .part.statusbar:not(:focus).status-border-top::after {

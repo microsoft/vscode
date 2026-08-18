@@ -42,7 +42,6 @@ import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { Action2, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -454,14 +453,14 @@ class AutomationCardsSection extends Disposable {
 		if (!await this.ensureEnabled()) {
 			return;
 		}
-		const result = await this.automationDialogService.showAutomationDialog({ existing: automation });
-		if (!result || result.kind !== 'update') {
-			return;
-		}
-		if (!await this.ensureEnabled()) {
-			return;
-		}
 		try {
+			const result = await this.automationDialogService.showAutomationDialog({ existing: automation });
+			if (!result || result.kind !== 'update') {
+				return;
+			}
+			if (!await this.ensureEnabled()) {
+				return;
+			}
 			const updateResult = await this.automationService.updateAutomationIfUnchanged(result.id, result.value, automation, () => this.throwIfDisabled());
 			if (updateResult.kind === 'conflict') {
 				throw new Error(updateResult.current
@@ -728,6 +727,7 @@ class AutomationHistorySection extends Disposable {
 		const list = disposables.add(this.instantiationService.createInstance(SessionsFlatList, entry.listContainer, {
 			showSessionHover: false,
 			alwaysConsumeMouseWheel: false,
+			useCompactQuickChatRows: false,
 			toolbarMenuId: Menus.AutomationsHistoryItem,
 			markSessionReadOnOpen: false,
 			approvalModel: this.approvalModel,
@@ -1193,8 +1193,6 @@ function registerAutomationHistoryItemActions(): IDisposable {
 		}),
 	);
 }
-
-registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
 
 class PrimaryButtonActionViewItem extends BaseActionViewItem {
 

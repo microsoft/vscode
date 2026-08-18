@@ -1,0 +1,69 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Round the status bar item backgrounds to a control-sized pill. The interactive
+ * hover/active background lives on the label (`a.statusbar-item-label`); custom
+ * and kind (warning/error) backgrounds live on the item container. Round both so
+ * whichever surface paints a background reads as rounded.
+ *
+ * Compact combo controls — a left/right pair that visually merges into a single
+ * control — are flagged with `.compact-left` / `.compact-right` (an item can be
+ * both, when it sits in the middle of a 3+ combo). Only the combo's outer corners
+ * are rounded so the pair reads as one pill: `.compact-left` joins its neighbor on
+ * the left (square left, round right), `.compact-right` joins on the right (square
+ * right, round left), and a middle item stays square on both sides.
+ */
+.modern-ui .part.statusbar > .items-container > .statusbar-item,
+.modern-ui .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.modern-ui .part.statusbar > .items-container > .statusbar-item.compact-left,
+.modern-ui .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.modern-ui .part.statusbar > .items-container > .statusbar-item.compact-right,
+.modern-ui .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.modern-ui .part.statusbar > .left-items > .statusbar-item.visible-background-color-neighbor {
+	margin-left: var(--vscode-spacing-size40);
+}
+
+.modern-ui .part.statusbar > .right-items > .statusbar-item.visible-background-color-neighbor {
+	margin-right: var(--vscode-spacing-size40);
+}
+
+/*
+ * Compact combo controls — a left/right pair that merges into one pill — give
+ * the whole combo a single hover tint (painted inline on every sub-item's label
+ * by the part), which makes the directly hovered sub-item indistinguishable from
+ * its neighbors. The part also sets `statusBarItem.compactHoverBackground` inline
+ * on the hovered sub-item, but the base `a:hover` rule forces the label
+ * `background-color` with `!important`, so that brighter tint never shows.
+ *
+ * Stack the brighter tint via `background-image` instead: it paints on top of the
+ * `!important` `background-color`, so the hovered sub-item reads as a brighter,
+ * stacked surface over the combo's shared hover background. The default
+ * `compactHoverBackground` is translucent, so layering it over the existing hover
+ * tint doubles the alpha for a subtle lift; themes that customize the color get
+ * their own stacked tint.
+ */
+.modern-ui .part.statusbar > .items-container > .statusbar-item:is(.compact-left, .compact-right) > a.statusbar-item-label:hover:not(.disabled) {
+	background-image: linear-gradient(var(--vscode-statusBarItem-compactHoverBackground), var(--vscode-statusBarItem-compactHoverBackground));
+}
+
+.modern-ui .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+	padding: 0 var(--vscode-spacing-size60);
+}
+
+.modern-ui .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+	padding-right: var(--vscode-spacing-size40);
+}
