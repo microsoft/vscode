@@ -15,7 +15,8 @@ import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type M
 import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
-import { CodexAgent } from '../../../node/codex/codexAgent.js';
+import { CodexAgent, initializeCodexAppServerClient } from '../../../node/codex/codexAgent.js';
+import type { ICodexAppServerClient } from '../../../node/codex/codexAppServerClient.js';
 import { CodexClientCustomizationStore, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 import type { ICodexMcpServerEntry } from '../../../node/codex/codexMcpServers.js';
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
@@ -91,6 +92,39 @@ function emptyHarness(): ICodexConversationResolverHarness {
 suite('CodexAgent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('installs ignored notification handlers before initialize snapshots can arrive', async () => {
+		const store = new DisposableStore();
+		const handlers = new Map<string, (params: unknown) => void>();
+		const events: string[] = [];
+		let optedOutMethods: readonly string[] | null | undefined;
+		let snapshotReachedHandler = false;
+		const client = {
+			onNotification: (method: string, handler: (params: unknown) => void) => {
+				events.push(`handler:${method}`);
+				handlers.set(method, handler);
+				return { dispose: () => handlers.delete(method) };
+			},
+			request: async (method: string, params: { capabilities?: { optOutNotificationMethods?: readonly string[] | null } }) => {
+				events.push(`request:${method}`);
+				optedOutMethods = params.capabilities?.optOutNotificationMethods;
+				const handler = handlers.get('remoteControl/status/changed');
+				assert.ok(handler, 'the required initialization snapshot must have a handler before initialize');
+				handler({ status: 'disabled', serverName: 'test', installationId: 'test', environmentId: null });
+				snapshotReachedHandler = true;
+				return {};
+			},
+			notify: (method: string) => events.push(`notify:${method}`),
+		} as unknown as ICodexAppServerClient;
+
+		await initializeCodexAppServerClient(client, disposable => store.add(disposable));
+
+		assert.ok(snapshotReachedHandler);
+		assert.ok(optedOutMethods?.includes('remoteControl/status/changed'));
+		assert.ok(events.indexOf('handler:remoteControl/status/changed') < events.indexOf('request:initialize'));
+		assert.strictEqual(events.at(-1), 'notify:initialized');
+		store.dispose();
+	});
 
 	test('prefers transient host context over conversation URI shape', () => {
 		const session = AgentSession.uri('codex', 'session-1');
