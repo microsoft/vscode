@@ -13,7 +13,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type AuthRequiredParams, type ProgressParams, type SessionSummaryChangedParams } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
+import { aggregateSessionChatSummaries, createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -1696,8 +1696,8 @@ export class AgentHostStateManager extends Disposable {
 			});
 		}
 
-		const aggregate = this._aggregateChatSummaries(chats, sessionState.defaultChat);
-		const newStatus = aggregate.status !== undefined ? this._mergeSessionStatus(sessionState.status, aggregate.status) : sessionState.status;
+		const aggregate = aggregateSessionChatSummaries(sessionState.status, chats, sessionState.defaultChat);
+		const newStatus = aggregate.status ?? sessionState.status;
 		const statusChanged = newStatus !== sessionState.status;
 		const activityChanged = aggregate.activity !== sessionState.activity;
 		entry.state = {
@@ -1717,55 +1717,6 @@ export class AgentHostStateManager extends Disposable {
 		if (statusChanged || activityChanged || modifiedAtChanged) {
 			this._summaryNotifier.markDirty(sessionKey);
 		}
-	}
-
-	/**
-	 * Aggregates a session's chat catalog into the derived session-summary
-	 * fields per the protocol rules: activity bits come from the default chat
-	 * (else the most recently modified chat) with `InputNeeded`/`Error`/
-	 * `InProgress` promoted whenever any chat raises them; the `activity` string
-	 * follows the chat driving the resulting status; `modifiedAt` is the max
-	 * across chats. Promotion precedence is `InputNeeded` > `Error` >
-	 * `InProgress`, so a running peer (sub) chat surfaces as `InProgress` on the
-	 * session even when the default chat is idle.
-	 */
-	private _aggregateChatSummaries(chats: readonly ChatSummary[], defaultChat: URI | undefined): { status?: SessionStatus; activity?: string; modifiedAt?: number } {
-		if (chats.length === 0) {
-			return {};
-		}
-		const activityMask = ~(SessionStatus.IsRead | SessionStatus.IsArchived);
-		const base = (defaultChat !== undefined ? chats.find(c => c.resource === defaultChat) : undefined)
-			?? chats.reduce((a, b) => Date.parse(b.modifiedAt) > Date.parse(a.modifiedAt) ? b : a);
-		let status = base.status & activityMask;
-		let driver = base;
-		const errorChat = chats.find(c => (c.status & SessionStatus.Error) === SessionStatus.Error);
-		const inputChat = chats.find(c => (c.status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded);
-		// `InputNeeded` is a superset of the `InProgress` bit, so exclude
-		// input-needed chats here to find one that is purely streaming.
-		const inProgressChat = chats.find(c => (c.status & SessionStatus.InputNeeded) === SessionStatus.InProgress);
-		if (inputChat) {
-			status = SessionStatus.InputNeeded;
-			driver = inputChat;
-		} else if (errorChat) {
-			status = SessionStatus.Error;
-			driver = errorChat;
-		} else if (inProgressChat) {
-			status = SessionStatus.InProgress;
-			driver = inProgressChat;
-		}
-		const modifiedAt = chats.reduce((max, c) => Math.max(max, Date.parse(c.modifiedAt)), 0);
-		return { status, activity: driver.activity, modifiedAt };
-	}
-
-	/**
-	 * Combines the chat's activity status bits with the session summary's
-	 * own metadata flags (IsRead / IsArchived) which live in the high bits
-	 * of {@link SessionStatus} and are owned by the session, not the chat.
-	 */
-	private _mergeSessionStatus(sessionStatus: SessionStatus, chatStatus: SessionStatus): SessionStatus {
-		const metaFlags = sessionStatus & (SessionStatus.IsRead | SessionStatus.IsArchived);
-		const activityBits = chatStatus & ~(SessionStatus.IsRead | SessionStatus.IsArchived);
-		return activityBits | metaFlags;
 	}
 
 	/**

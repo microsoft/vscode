@@ -3986,6 +3986,47 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('session status follows chat catalog when the session summary status is stale', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-status');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-status').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			agentHost.setSessionState('multi-status', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.InProgress), activity: 'Working' },
+			], { defaultChat }));
+			const whileRunning = {
+				status: session.status.get(),
+				description: session.description.get() ? renderAsPlaintext(session.description.get()!) : undefined,
+			};
+
+			agentHost.setSessionState('multi-status', 'copilotcli', {
+				...makeState([
+					makeChatSummary(defaultChat, ''),
+					makeChatSummary(peerChat, 'Peer'),
+				], { defaultChat }),
+				status: ProtocolSessionStatus.InProgress,
+				activity: 'Stale activity',
+			});
+			const afterCompletion = {
+				status: session.status.get(),
+				description: session.description.get() ? renderAsPlaintext(session.description.get()!) : undefined,
+			};
+
+			assert.deepStrictEqual({ whileRunning, afterCompletion }, {
+				whileRunning: {
+					status: SessionStatus.InProgress,
+					description: 'Working',
+				},
+				afterCompletion: {
+					status: SessionStatus.Completed,
+					description: undefined,
+				},
+			});
+		});
+
 		test('equivalent chat catalogs do not notify chat observers', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-stable');
