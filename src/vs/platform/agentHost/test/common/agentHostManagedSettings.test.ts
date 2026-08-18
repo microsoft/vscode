@@ -177,4 +177,18 @@ suite('AgentHostManagedSettings', () => {
 			ask: ['Shell(wget)'],
 		});
 	});
+
+	test('treats a long-form sub-command denial like a bare false', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
+				defaultValue: {},
+				policyValue: { rm: { approve: false }, ls: { approve: true } },
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell(rm)'],
+		});
+	});
 });

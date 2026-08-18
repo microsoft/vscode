@@ -36,7 +36,7 @@ import type { IConfigurationService } from '../../configuration/common/configura
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { buildManagedFamilyRule, buildManagedRule, ManagedRuleFamily } from './agentHostManagedRules.js';
 import { getGlobalConfigurationValue, inspectValue } from './agentHostConfigurationSync.js';
-import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, type AgentHostTerminalAutoApproveRules } from './agentHostSchema.js';
+import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, type AgentHostTerminalAutoApproveRules, type AgentHostTerminalAutoApproveRuleValue } from './agentHostSchema.js';
 
 /**
  * The restrictions this bridge contributes to the Copilot SDK.
@@ -160,10 +160,11 @@ function contributeNetworkDomainRules(configurationService: IConfigurationServic
  * keeps the user's approval path, rather than `deny`, which is terminal and has
  * no ask stage.
  *
- * Only literal command prefixes survive. A key wrapped in `/` is a regular
- * expression and an object-valued entry matches the whole command line; neither
- * has an equivalent in the SDK's shell rule grammar, so both are skipped rather
- * than approximated.
+ * Only literal sub-command denials survive. A key wrapped in `/` is a regular
+ * expression, and an entry that opts into `matchCommandLine` is matched against
+ * the whole command line instead of its sub-commands; neither has an equivalent
+ * in the SDK's shell rule grammar, so both are skipped rather than approximated
+ * by a rule that would match something else.
  */
 function contributeTerminalDenialRules(rules: AgentHostTerminalAutoApproveRules): IAgentHostManagedSettingsPermissions | undefined {
 	if (!rules || typeof rules !== 'object') {
@@ -171,7 +172,7 @@ function contributeTerminalDenialRules(rules: AgentHostTerminalAutoApproveRules)
 	}
 	const ask: string[] = [];
 	for (const [command, value] of Object.entries(rules)) {
-		if (value !== false || isRegexAutoApproveKey(command)) {
+		if (!isSubCommandDenial(value) || isRegexAutoApproveKey(command)) {
 			continue;
 		}
 		// `Shell(cmd)` already matches both the bare command and the command with
@@ -182,6 +183,19 @@ function contributeTerminalDenialRules(rules: AgentHostTerminalAutoApproveRules)
 		}
 	}
 	return ask.length > 0 ? { ask } : undefined;
+}
+
+/**
+ * Whether a rule value denies approval for a sub-command. The long form
+ * `{ approve: false }` is equivalent to a bare `false` unless it also opts into
+ * whole-command-line matching, which changes what the rule matches and cannot be
+ * expressed here.
+ */
+function isSubCommandDenial(value: AgentHostTerminalAutoApproveRuleValue): boolean {
+	if (value === false) {
+		return true;
+	}
+	return typeof value === 'object' && value !== null && value.approve === false && value.matchCommandLine !== true;
 }
 
 /** VS Code treats a key wrapped in `/` as a regular expression. */
