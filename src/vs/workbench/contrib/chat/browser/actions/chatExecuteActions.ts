@@ -256,19 +256,18 @@ class ChatSubmitPendingAction extends Action2 {
 	constructor() {
 		super({
 			id: ChatSubmitPendingAction.ID,
-			title: localize2('interactive.submitPending.label', "Routing Request…"),
+			title: localize2('interactive.submitPending.label', "Sending Request…"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: ThemeIcon.modify(Codicon.loading, 'spin'),
-			precondition: ChatContextKeys.inputRouting,
+			precondition: ChatContextKeys.inputSubmitPending,
 			menu: {
 				id: MenuId.ChatExecute,
 				order: 4,
 				when: ContextKeyExpr.and(
 					whenNoActiveRequest,
-					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 					ChatContextKeys.withinEditSessionDiff.negate(),
-					ChatContextKeys.inputRouting,
+					ChatContextKeys.inputSubmitPending,
 				),
 				group: 'navigation',
 			},
@@ -764,7 +763,8 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasSendableContent,
 			notInProgressOrEditing,
-			ChatContextKeys.chatSessionOptionsValid
+			ChatContextKeys.chatSessionOptionsValid,
+			ChatContextKeys.inputSubmitPending.negate(),
 		);
 
 		super({
@@ -780,7 +780,8 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						notInProgressOrEditing,
-						menuCondition),
+						menuCondition,
+						ChatContextKeys.inputSubmitPending.negate()),
 					group: 'navigation',
 					alt: {
 						id: 'workbench.action.chat.sendToNewChat',
@@ -1036,7 +1037,7 @@ export class CancelEdit extends Action2 {
 		if (!widget) {
 			return;
 		}
-		widget.finishedEditing();
+		return widget.cancelEditing();
 	}
 }
 

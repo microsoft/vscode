@@ -53,6 +53,7 @@ const stubChat = {
 	changes: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
+	modelSource: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
@@ -204,7 +205,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override getModelsSnapshot(): ISessionModelsSnapshot { return { models: [], desiredModelResolution: { kind: 'notRequested' }, modelTarget: undefined }; }
 	override getModelPickerOptions(): ISessionModelPickerOptions { return { useGroupedModelPicker: true, showFeatured: true, showUnavailableFeatured: false, showManageModelsAction: false }; }
 	override readonly onDidChangeModels = Event.None;
-	override setModel(_sessionId: string, _modelId: string): void { }
+	override setModel(_sessionId: string, _chatResource: URI, _modelId: string): void { }
 	override async archiveSession(): Promise<void> { }
 	override async unarchiveSession(): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
@@ -1520,7 +1521,7 @@ suite('SessionsManagementService', () => {
 				calls.push(`createQuickChat:${sessionTypeId}`);
 				return quickChat;
 			}
-			override setModel(_sessionId: string, modelId: string): void { calls.push(`setModel:${modelId}`); }
+			override setModel(_sessionId: string, _chatResource: URI, modelId: string): void { calls.push(`setModel:${modelId}`); }
 			override setIsolationMode(): never { throw new Error('isolation should not be configured'); }
 			override setBranch(): never { throw new Error('branch should not be configured'); }
 			override async sendRequest(): Promise<ISession> {
@@ -1619,7 +1620,7 @@ suite('SessionsManagementService', () => {
 		let sentOptions: ISendRequestOptions | undefined;
 		const provider = new class extends TestSessionsProvider {
 			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
-			override setModel(_sessionId: string, _modelId: string): void { calls.push(`setModel:${_modelId}`); }
+			override setModel(_sessionId: string, _chatResource: URI, _modelId: string): void { calls.push(`setModel:${_modelId}`); }
 			override setMode(_sessionId: string, _modeId: string): void { calls.push(`setMode:${_modeId}`); }
 			override setPermissionLevel(_sessionId: string, _level: string): void { calls.push(`setPermissionLevel:${_level}`); }
 			override async setIsolationMode(_sessionId: string, _mode: string): Promise<void> { calls.push(`setIsolationMode:${_mode}`); }
@@ -1754,7 +1755,7 @@ suite('SessionsManagementService', () => {
 			override getModelsSnapshot(): ISessionModelsSnapshot {
 				return { models: [resolvedModel], desiredModelResolution: { kind: 'available', model: resolvedModel }, modelTarget: 'target' };
 			}
-			override setModel(_sessionId: string, modelId: string): void { calls.push(`setModel:${modelId}`); }
+			override setModel(_sessionId: string, _chatResource: URI, modelId: string): void { calls.push(`setModel:${modelId}`); }
 			override async sendRequest(): Promise<ISession> {
 				calls.push('send');
 				return session;
@@ -1790,7 +1791,7 @@ suite('SessionsManagementService', () => {
 			override readonly onDidChangeModels = onDidChangeModels.event;
 			override resolveWorkspace(folderUri: URI): ISessionWorkspace { return { folderUri } as unknown as ISessionWorkspace; }
 			override getModelsSnapshot(): ISessionModelsSnapshot { return { models: [], desiredModelResolution: resolution, modelTarget: undefined }; }
-			override setModel(_sessionId: string, modelId: string): void { calls.push(`setModel:${modelId}`); }
+			override setModel(_sessionId: string, _chatResource: URI, modelId: string): void { calls.push(`setModel:${modelId}`); }
 			override async sendRequest(): Promise<ISession> {
 				calls.push('send');
 				return session;
