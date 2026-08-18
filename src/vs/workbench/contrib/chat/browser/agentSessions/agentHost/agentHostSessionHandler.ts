@@ -4842,7 +4842,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			seedEmittedLengths,
 			initialResponsePartCount,
 			onTurnEnded: () => {
-				chatSession.complete();
+				// The re-observed turn may have been superseded by a promoted one
+				// while this window was away; only the response's owner closes it.
+				chatSession.completeTurn(turnId);
 				reconnectStore.dispose();
 			},
 		}));
