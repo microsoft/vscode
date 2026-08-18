@@ -329,6 +329,9 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	private _onAction(envelope: ActionEnvelope): void {
+		if (envelope.rejectionReason !== undefined) {
+			return;
+		}
 		const action = envelope.action;
 		const title = action.type === ActionType.SessionTitleChanged
 			? action.title

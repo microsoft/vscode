@@ -2987,6 +2987,17 @@ suite('AgentHostChatContribution', () => {
 				serverSeq: 2,
 				origin: undefined,
 			});
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.SessionChatUpdated,
+					chat: buildDefaultChatUri(backendSession.toString()),
+					changes: { title: 'Rejected title' },
+				},
+				serverSeq: 3,
+				origin: { clientId: agentHostService.clientId, clientSeq: 1 },
+				rejectionReason: 'Rename rejected',
+			});
 
 			assert.deepStrictEqual({
 				label: listController.items[0].label,
