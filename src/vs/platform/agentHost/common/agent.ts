@@ -27,6 +27,21 @@ export class AgentHostStartError extends Error {
 	}
 }
 
+export function isInvalidUtilityProcessConfigurationMessage(message: string): boolean {
+	return /^Invalid value for (?:args|env|execArgv)$/.test(message);
+}
+
+export function isFatalAgentHostStartError(error: unknown): error is TypeError {
+	return error instanceof TypeError && isInvalidUtilityProcessConfigurationMessage(error.message);
+}
+
+export function toFatalAgentHostStartError(error: Error): AgentHostStartError {
+	const startError = new AgentHostStartError(error.message, true);
+	startError.name = error.name;
+	startError.stack = error.stack;
+	return startError;
+}
+
 export interface IAgentHostConnection {
 	readonly client: IChannelClient;
 	readonly store: DisposableStore;

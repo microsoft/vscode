@@ -149,16 +149,9 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
 /**
- * Configuration key controlling whether the agent host *wires up* the BYOK
- * ("bring your own key") language-model bridge: the renderer LM handler, the
- * reverse-RPC channel, and the per-connection link to the node-side OpenAI
- * proxy + bridge registry. When `true` (the default), the renderer's BYOK
- * server channel and the per-connection bridge are wired so extension-provided
- * BYOK models are reachable from agent-host sessions. When `false`, the proxy
- * and registry are still constructed but stay inert — the BYOK server channel
- * and the per-connection bridge are not wired, so the registry stays empty and
- * extension-provided BYOK models are never reachable from agent-host sessions.
- * The agent host process must be restarted for changes to take effect.
+ * Configuration key controlling whether extension-provided BYOK ("bring your
+ * own key") models are published and included in new agent-host sessions.
+ * Changes are synchronized to the running agent host.
  */
 export const AgentHostByokModelsEnabledSettingId = 'chat.agentHost.byokModels.enabled';
 
@@ -186,13 +179,6 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
  * `'false'`; absent means "default" (`false`).
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
-
-/**
- * Explicit environment override for {@link AgentHostByokModelsEnabledSettingId}.
- * Accepts `'true'` / `'false'`; when absent or invalid, the synchronized agent
- * host root configuration determines whether BYOK models are enabled.
- */
-export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
 
 /**
  * Overrides the grace period (in milliseconds) before an idle, fully
@@ -224,10 +210,6 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 		return true;
 	}
 	return defaultEnabled;
-}
-
-export function isAgentHostByokModelsEnabled(envValue: string | undefined, rootConfigValue: boolean | undefined): boolean {
-	return isAgentEnabled(envValue, rootConfigValue ?? false);
 }
 
 /**

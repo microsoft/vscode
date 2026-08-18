@@ -228,6 +228,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
+	private readonly _onDidFatalClose = this._register(new Emitter<ProtocolError>());
+	readonly onDidFatalClose = this._onDidFatalClose.event;
+
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<AgentHostClientState>());
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
 
@@ -496,6 +499,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				throw error;
 			}
 			if (error instanceof NonReconnectableTransportError) {
+				this._onDidFatalClose.fire(protocolError);
 				this._handleClose(protocolError);
 				throw error;
 			}
@@ -693,7 +697,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				return;
 			}
 			if (err instanceof NonReconnectableTransportError) {
-				this._handleClose(new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message));
+				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
+				this._onDidFatalClose.fire(protocolError);
+				this._handleClose(protocolError);
 				return;
 			}
 			// Replace the gate so awaiting callers see the failure but new
