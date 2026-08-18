@@ -69,7 +69,7 @@ import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
-import { RestoreCheckpointActionId } from '../chatEditing/chatEditingActions.js';
+import { RestoreCheckpointActionId, StartOverActionId } from '../chatEditing/chatEditingActions.js';
 import { ChatForkActionViewItem } from './chatForkActionViewItem.js';
 import { ChatRestoreCheckpointActionViewItem } from './chatRestoreCheckpointActionViewItem.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
@@ -334,45 +334,59 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
 }
 
 /**
- * Token consumption summary shown when hovering the response footer's model and
- * credits stat. Provider call-level reports are aggregated by model for the
- * whole turn.
+ * Response details shown when hovering the response footer's model and credits
+ * stat. Provider call-level token reports are aggregated by model for the whole
+ * turn.
  *
  * Returns `undefined` when the provider reported no totals, in which case no
  * hover should be shown at all. The result doubles as managed-hover content and
- * carries an `ariaLabel` with exact, unabbreviated counts.
+ * carries a footer label with exact counts but no completion time, since the
+ * verbose footer already includes it in its accessible name.
  */
-export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly ariaLabel: string } | undefined {
+export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined, completedAt?: number): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly footerAriaLabel: string } | undefined {
 	if (!modelTotals?.length) {
 		return undefined;
 	}
 
-	const title = localize('chat.responseTokenStats.title', "Tokens used this turn");
+	const title = localize('chat.responseTokenStats.title', "Response details");
 	const markdown = new MarkdownString();
 	markdown.appendMarkdown(`**${escapeMarkdownSyntaxTokens(title)}**\n\n`);
 
-	const ariaParts: string[] = [title];
-	for (const total of modelTotals) {
-		// Cached tokens are the portion of the input a provider served from cache; a
-		// zero is noise rather than information, so it gets its own shorter phrasing.
-		const line = total.cachedTokens > 0
-			? localize('chat.responseTokenStats.modelLineCached', "{0} — {1} in, {2} out, {3} cached",
-				total.model, formatTokenCount(total.inputTokens), formatTokenCount(total.outputTokens), formatTokenCount(total.cachedTokens))
-			: localize('chat.responseTokenStats.modelLine', "{0} — {1} in, {2} out",
-				total.model, formatTokenCount(total.inputTokens), formatTokenCount(total.outputTokens));
-		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(line)}\n\n`);
-
-		// Screen readers get exact counts and spelled-out units; the visible line
-		// abbreviates (e.g. "12K") to stay compact.
-		ariaParts.push(total.cachedTokens > 0
-			? localize('chat.responseTokenStats.modelAriaCached', "{0}: {1} input tokens, {2} output tokens, {3} cached tokens",
-				total.model, total.inputTokens, total.outputTokens, total.cachedTokens)
-			: localize('chat.responseTokenStats.modelAria', "{0}: {1} input tokens, {2} output tokens",
-				total.model, total.inputTokens, total.outputTokens));
+	const formatInputTokens = (count: number | string) => localize('chat.responseTokenStats.input', "Input tokens: {0}", count);
+	const formatOutputTokens = (count: number | string) => localize('chat.responseTokenStats.output', "Output tokens: {0}", count);
+	const formatCachedInputTokens = (count: number | string) => localize('chat.responseTokenStats.cachedInput', "Cached input tokens: {0}", count);
+	const tokenDetailsAriaParts: string[] = [];
+	const completion = formatChatRequestTimestamp(completedAt);
+	let completed: string | undefined;
+	if (completion) {
+		completed = localize('chat.responseTokenStats.completed', "Completed: {0}", completion.fullText);
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(completed)}\n\n`);
 	}
 
-	const ariaLabel = ariaParts.join('. ');
-	return { markdown, markdownNotSupportedFallback: ariaLabel, ariaLabel };
+	for (const total of modelTotals) {
+		const model = localize('chat.responseTokenStats.model', "Model: {0}", total.model);
+		const input = formatInputTokens(formatTokenCount(total.inputTokens));
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(model)}\n\n`);
+		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(input)}\n`);
+
+		const exactInput = formatInputTokens(total.inputTokens);
+		tokenDetailsAriaParts.push(model, exactInput);
+		if (total.cachedTokens > 0) {
+			const cachedInput = formatCachedInputTokens(formatTokenCount(total.cachedTokens));
+			const exactCachedInput = formatCachedInputTokens(total.cachedTokens);
+			markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(cachedInput)}\n`);
+			tokenDetailsAriaParts.push(exactCachedInput);
+		}
+		const output = formatOutputTokens(formatTokenCount(total.outputTokens));
+		const exactOutput = formatOutputTokens(total.outputTokens);
+		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(output)}\n`);
+		tokenDetailsAriaParts.push(exactOutput);
+		markdown.appendMarkdown('\n');
+	}
+
+	const footerAriaLabel = [title, ...tokenDetailsAriaParts].join('. ');
+	const markdownNotSupportedFallback = [title, completed, ...tokenDetailsAriaParts].filter(value => value !== undefined).join('. ');
+	return { markdown, markdownNotSupportedFallback, footerAriaLabel };
 }
 
 export function shouldCollapseCompletedResponsePart(part: IChatRendererContent): boolean {
@@ -680,7 +694,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		super();
 
 		this.chatContentMarkdownRenderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
-		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
+		this.markdownDecorationsRenderer = this._register(this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));
 		this._toolEditorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));
 		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));
@@ -959,8 +973,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const checkpointToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointContainer, MenuId.ChatMessageCheckpoint, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
-					if (action.item.id === RestoreCheckpointActionId) {
-						return this.instantiationService.createInstance(ChatRestoreCheckpointActionViewItem, action, { hoverDelegate: options.hoverDelegate }, (context: unknown) => this.checkpointRestoreNeedsConfirmation(context));
+					if (action.item.id === RestoreCheckpointActionId || action.item.id === StartOverActionId) {
+						const isStartOver = action.item.id === StartOverActionId;
+						const cancelLabel = isStartOver
+							? localize('chat.startOver.cancelTooltip', "Cancel starting over")
+							: localize('chat.restoreCheckpoint.cancelTooltip', "Cancel restoring this checkpoint");
+						const confirmTooltip = isStartOver
+							? localize('chat.startOver.confirmTooltip', "Confirm starting over and discarding all edits")
+							: localize('chat.restoreCheckpoint.confirmTooltip', "Confirm restoring this checkpoint and discarding later edits");
+						return this.instantiationService.createInstance(ChatRestoreCheckpointActionViewItem, action, { hoverDelegate: options.hoverDelegate }, (context: unknown) => this.discardEditsActionNeedsConfirmation(context), cancelLabel, confirmTooltip);
 					}
 					if (action.item.id === ForkConversationActionId) {
 						return this.instantiationService.createInstance(ChatForkActionViewItem, action, { hoverDelegate: options.hoverDelegate });
@@ -1111,13 +1132,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/**
-	 * Determines whether restoring to the checkpoint at the given chat item
-	 * would discard file edits that the user should confirm in-place. Used by
-	 * the "Restore Checkpoint" button to present an inline confirm/cancel
-	 * affordance for agent host sessions, which do not surface the modal
-	 * removal-confirmation dialog used by the standard editing session.
+	 * Determines whether an action at the given chat item would discard file
+	 * edits that the user should confirm in-place.
 	 */
-	private checkpointRestoreNeedsConfirmation(context: unknown): boolean {
+	private discardEditsActionNeedsConfirmation(context: unknown): boolean {
 		if (!isRequestVM(context) && !isResponseVM(context)) {
 			return false;
 		}
@@ -1239,7 +1257,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// rendered, so the breakdown is recomputed on every render pass. Sessions
 			// whose provider reports no totals get no hover rather than an empty one.
 			const tokenStats = isResponseVM(element)
-				? formatResponseTokenStats(element.model.usage?.modelTotals)
+				? formatResponseTokenStats(element.model.usage?.modelTotals, element.model.completionTimestamp)
 				: undefined;
 			const completedAtElement = renderChatResponseDetails(
 				templateData.footerDetailsContainer,
@@ -1247,7 +1265,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				isResponseVM(element) ? element.model.completionTimestamp : undefined,
 				isResponseVM(element) ? element.model.elapsedMs : undefined,
 				isResponseVM(element) && this.configService.getValue<boolean>(ChatConfiguration.Verbose),
-				tokenStats?.ariaLabel,
+				tokenStats?.footerAriaLabel,
 			);
 			// The container (rather than the stat span) is the hover target because it
 			// is the focusable element, which keeps the breakdown reachable by keyboard
@@ -3803,6 +3821,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus: false,
+				fitContent: this.rendererOptions.questionCarouselFitContent,
 				onSubmit: async (answers) => handleSubmit(answers, part)
 			});
 			return part;
@@ -3812,6 +3831,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isEditing = !!this.viewModel?.editing;
 		const part = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
 			shouldAutoFocus,
+			fitContent: this.rendererOptions.questionCarouselFitContent,
 			onSubmit: async (answers) => handleSubmit(answers, part!)
 		});
 
@@ -3819,6 +3839,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!part) {
 			const fallbackPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus,
+				fitContent: this.rendererOptions.questionCarouselFitContent,
 				onSubmit: async (answers) => handleSubmit(answers, fallbackPart)
 			});
 			return fallbackPart;

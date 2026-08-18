@@ -242,6 +242,7 @@ export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | ICha
 
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
+	readonly questionCarouselFitContent?: boolean;
 	readonly noHeader?: boolean;
 	readonly noFooter?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
@@ -363,6 +364,7 @@ export function isIChatViewViewContext(context: IChatWidgetViewContext): context
 export interface IChatResourceViewContext {
 	isQuickChat?: boolean;
 	isInlineChat?: boolean;
+	isChatInputWindow?: boolean;
 }
 
 export function isIChatResourceViewContext(context: IChatWidgetViewContext): context is IChatResourceViewContext {
@@ -466,6 +468,7 @@ export interface IChatWidget {
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
 	startEditing(requestId: string): void;
+	cancelEditing(): Promise<void>;
 	finishedEditing(completedEdit?: boolean): void;
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;

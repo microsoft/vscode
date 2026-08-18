@@ -1759,6 +1759,7 @@ export function mapChatFetcherErrorToNoNextEditReason(fetchError: ChatFetchError
 		case ChatFetchResponseType.OffTopic:
 		case ChatFetchResponseType.Filtered:
 		case ChatFetchResponseType.PromptFiltered:
+		case ChatFetchResponseType.Refusal:
 		case ChatFetchResponseType.Length:
 		case ChatFetchResponseType.RateLimited:
 		case ChatFetchResponseType.QuotaExceeded:

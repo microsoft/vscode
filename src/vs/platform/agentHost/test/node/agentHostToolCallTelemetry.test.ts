@@ -17,6 +17,8 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, IAgent } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
@@ -111,7 +113,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}
 
-	function startTurn(turnId: string, text = 'hello', modelId?: string): void {
+	function startTurn(turnId: string, text = 'hello', modelId?: string, clientContext?: IAgentHostClientTelemetryContext): void {
 		const action: ChatAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
@@ -119,7 +121,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			message: { text, origin: { kind: MessageKind.User }, model: modelId ? { id: modelId } : undefined },
 		};
 		stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
-		sideEffects.handleAction(defaultChatUri, action);
+		sideEffects.handleAction(defaultChatUri, action, 'test', clientContext);
 	}
 
 	function fire(action: ChatAction): void {
@@ -261,6 +263,39 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				model: undefined,
 			},
 		}]);
+	});
+
+	test('attributes tool telemetry to the initiating turn client', () => {
+		setupSession();
+		const clientContext: IAgentHostClientTelemetryContext = {
+			clientType: AgentHostClientType.EditorWindow,
+			connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+			transportKind: AgentHostTransportKind.MessagePort,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		};
+		startTurn('turn-client', 'hello', 'model-a', clientContext);
+		toolStart('turn-client', 'tool-client', 'grep');
+		toolComplete('turn-client', 'tool-client', { success: true, pastTenseMessage: 'searched' });
+		completeTurn('turn-client');
+
+		const event = toolEvents()[0];
+		assert.deepStrictEqual({
+			initiatorClientType: event.data.initiatorClientType,
+			initiatorConnectionKind: event.data.initiatorConnectionKind,
+			initiatorTransportKind: event.data.initiatorTransportKind,
+			hostLaunchKind: event.data.hostLaunchKind,
+			initiatorMachineId: event.data.initiatorMachineId,
+			initiatorDevDeviceId: event.data.initiatorDevDeviceId,
+		}, {
+			initiatorClientType: 'editor_window',
+			initiatorConnectionKind: 'remote_extension_host',
+			initiatorTransportKind: 'message_port',
+			hostLaunchKind: 'vscode_main_process',
+			initiatorMachineId: 'client-machine-id',
+			initiatorDevDeviceId: 'client-dev-device-id',
+		});
 	});
 
 	test('emits userCancelled with mcp source kind for a denied mcp tool', () => {

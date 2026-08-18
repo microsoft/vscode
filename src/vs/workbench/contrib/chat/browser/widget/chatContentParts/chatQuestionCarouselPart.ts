@@ -244,7 +244,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._closeButtonContainer = dom.$('.chat-question-close-container');
 			const skipAllTitle = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
 			const skipAllButton = interactiveStore.add(new Button(this._closeButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			skipAllButton.label = `$(${Codicon.close.id})`;
+			skipAllButton.label = `$(${Codicon.closeSmall.id})`;
 			skipAllButton.element.classList.add('chat-question-close');
 			skipAllButton.element.setAttribute('aria-label', skipAllTitle);
 			interactiveStore.add(this._hoverService.setupDelayedHover(skipAllButton.element, { content: skipAllTitle }));

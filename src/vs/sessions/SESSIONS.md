@@ -180,12 +180,11 @@ provider supports it.
 
 Turn-level file changes open through `IChatResponseFileChangesService`. The
 Editor workbench opens a standalone multi-diff, while the Agents Window selects
-the canonical Changes editor. The active-turn pill uses a transient selection
-backed by the viewed chat's live `lastTurnChanges` observable so streamed edits
-appear before turn completion. The completed latest-response pill selects the
-provider's moving last-turn changeset, which follows the most recently modified
-chat; historical turns and other completed chats use a transient selection
-backed by their exact per-turn changes.
+the canonical Changes editor. The active-turn pill selects the provider's moving
+Last Turn Changes changeset, which follows the active turn and then remains on
+that turn after completion. Historical turns and completed chats that are no
+longer the session's most recent use transient selections backed by their exact
+per-turn changes.
 
 Presentation and layout of changes are documented in [LAYOUT.md](LAYOUT.md).
 Provider translation and transport details belong in the relevant provider
@@ -334,6 +333,54 @@ user opens an existing peer chat
 User-created peer chats participate in normal chat navigation. Hidden
 tool-origin chats remain provider-neutral domain objects but are excluded from
 ordinary presentation by their interactivity/origin contracts.
+
+### Model selection
+
+The Agents Window does not have its own model-selection policy. It reuses
+Workbench chat's `ChatInputModelSelectionController`, so the two windows cannot
+disagree about which model a chat opens on.
+
+```text
+active session + provider
+    -> SessionModelSelection builds an IChatInputModelSelectionRuntime
+    -> ChatInputModelSelectionController decides the model
+    -> SessionModelSelection writes it back via ISessionsProvider.setModel
+```
+
+`SessionModelSelection` (`contrib/chat/browser/sessionModelSelection.ts`) is the
+adapter: it turns `IActiveSession` and `ISessionsProvider` into the runtime the
+controller expects, and turns the controller's answer into a provider write plus
+picker state. Presentation lives in `sessionModelPickerState.ts`.
+
+Precedence — configured default vs. remembered preference vs. the chat's own
+model — belongs to the controller. The adapter only decides two things the
+controller cannot know: when a chat has been seeded, and when to wait for a model
+the provider has not published yet instead of writing a stand-in to a backend.
+
+Three rules follow:
+
+- **A chat's model is its own or it was carried over.** `IChat.modelSource` says
+  which, so nothing has to guess. `chat.defaultModel` may seed a chat that only
+  carried a model over (a new peer chat, an automatic pick) but never one that
+  chose its own. `setModel` makes callers state this; `undefined` is read as the
+  chat's own, since the alternative is overwriting a model the user picked.
+- **State is per chat, keyed by chat resource** — the intended model, whether it
+  has been seeded, and where its model came from. One chat's choice is therefore
+  unreachable from another by construction.
+- **A chat that has already run is never given a model.** Its own model may not
+  have arrived yet (an agent-host session hydrates it from the persisted draft),
+  and writing a profile-wide preference would change what it runs on. It may show
+  one so the picker is not blank. A pick the user makes still applies.
+
+Both surfaces run the conformance matrix in
+`vs/workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.ts`,
+which fences settled-catalog precedence. It is not a parity proof: publication
+lifecycle is excluded, since Workbench shows a stand-in while a model is pending
+and Sessions waits instead.
+
+Remembered selections use the shared `chat.currentLanguageModel.*` keys, scoped
+by model target. The legacy `sessions.modelPicker.*` key is read once and
+migrated forward.
 
 ## State propagation
 
