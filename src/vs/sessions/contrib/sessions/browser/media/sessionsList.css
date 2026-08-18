@@ -533,7 +533,8 @@
 }
 
 .monaco-list-row:hover .session-section .session-section-toolbar,
-.monaco-list-row.focused .session-section .session-section-toolbar {
+.monaco-list-row.focused .session-section .session-section-toolbar,
+.monaco-list-row .session-section.dropdown-active .session-section-toolbar {
 	display: block;
 }
 
@@ -556,7 +557,8 @@
 }
 
 .monaco-list-row:hover .session-section .session-section-chevron.collapsible,
-.monaco-list-row.focused .session-section .session-section-chevron.collapsible {
+.monaco-list-row.focused .session-section .session-section-chevron.collapsible,
+.monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible {
 	display: flex;
 	align-items: center;
 }

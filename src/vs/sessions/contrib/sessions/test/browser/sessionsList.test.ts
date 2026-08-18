@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -104,6 +105,7 @@ suite('Sessions - SessionsList', () => {
 					override readonly extUri = new ExtUri(() => true);
 				},
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -157,6 +159,7 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<ICustomViewService>() {
 					override readonly activeCustomView = constObservable(undefined);
 				},
+				new class extends mock<IMenuService>() { },
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -215,6 +218,7 @@ suite('Sessions - SessionsList', () => {
 				automationSessions,
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			const runResource = URI.parse('test-session:/workspace/automation');
 			const statuses: (SessionStatus | undefined)[] = [];
@@ -271,6 +275,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable([runningSession, needsInputSession]),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			runs.set([
 				{
