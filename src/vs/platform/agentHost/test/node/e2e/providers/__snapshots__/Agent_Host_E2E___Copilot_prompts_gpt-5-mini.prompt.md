@@ -1250,6 +1250,14 @@ Create a session in a workspace and start it with an initial prompt. The UI show
       "type": "boolean",
       "description": "Whether the child receives its creator relationship and may use prompt-producing session tools targeting the creator. Defaults to true."
     },
+    "notifyOnIdle": {
+      "type": "string",
+      "enum": [
+        "once",
+        "always"
+      ],
+      "description": "Wake the creator when the child needs input, becomes idle, or errors, either once or after every work cycle."
+    },
     "label": {
       "type": "string",
       "description": "Optional label used to group and filter related child sessions."
