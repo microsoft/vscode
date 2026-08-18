@@ -319,6 +319,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-byok', duration: 1000 });
 		startTurn('turn-unknown', 'hello', 'unadvertised/private-model');
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-unknown', duration: 1000 });
+		agent.chatModel = { id: 'openrouter/private-model' };
+		startTurn('turn-default');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-default', duration: 1000 });
 
 		assert.deepStrictEqual(completedEvents().map(event => {
 			const data = event.data as Record<string, unknown>;
@@ -326,6 +329,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		}), [
 			{ model: 'byokModel', modelSelectionKind: 'explicit', isBYOK: true },
 			{ model: 'unknown', modelSelectionKind: 'explicit', isBYOK: false },
+			{ model: 'byokModel', modelSelectionKind: 'default', isBYOK: true },
 		]);
 	});
 
@@ -347,6 +351,53 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		}, {
 			model: { trusted: true, value: 'gpt-5.5' },
 			modelSelectionKind: 'auto',
+		});
+	});
+
+	test('uses the concrete provider default across turn outcomes while preserving Default selection', () => {
+		setupSession();
+		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
+		agent.chatModel = { id: 'gpt-5.5' };
+
+		startTurn('turn-success');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-success', duration: 1000 });
+		startTurn('turn-error');
+		fire({ type: ActionType.ChatError, turnId: 'turn-error', duration: 1000, error: { errorType: 'oops', message: 'fail' } });
+		startTurn('turn-cancelled');
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-cancelled', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				model: capturedModel(data),
+				modelSelectionKind: data.modelSelectionKind,
+				result: data.result,
+			};
+		}), [
+			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'default', result: 'success' },
+			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'default', result: 'error' },
+			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'default', result: 'cancelled' },
+		]);
+	});
+
+	test('does not treat an Auto provider default as the effective model', () => {
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: 'auto', name: 'Auto', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
+		]);
+		agent.chatModel = { id: 'auto' };
+		startTurn('turn-default');
+
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-default', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			model: data.model,
+			modelSelectionKind: data.modelSelectionKind,
+		}, {
+			model: undefined,
+			modelSelectionKind: 'default',
 		});
 	});
 
