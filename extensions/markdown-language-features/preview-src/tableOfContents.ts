@@ -1,0 +1,147 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/**
+ * A floating table of contents panel generated from the `h1`-`h6` headings
+ * of the rendered markdown document. The current section is highlighted as
+ * the user scrolls, and clicking an entry scrolls to the corresponding heading.
+ */
+
+interface TocEntry {
+	readonly element: HTMLElement;
+	readonly level: number;
+	readonly text: string;
+	readonly id: string;
+}
+
+const TOC_CLASS = 'markdown-toc';
+const TOC_ENTRY_CLASS = 'markdown-toc-entry';
+const TOC_ACTIVE_CLASS = 'active';
+const TOC_BODY_CLASS = 'has-toc';
+
+let tocEntries: TocEntry[] = [];
+let tocPanel: HTMLElement | undefined;
+let tocList: HTMLElement | undefined;
+let activeEntry: HTMLElement | undefined;
+
+/**
+ * Build the floating table of contents from the headings in the document.
+ * Safe to call multiple times (e.g. after the document is re-rendered).
+ */
+export function buildTableOfContents(): void {
+	// Remove any previously built panel so we don't duplicate it on re-render.
+	removeTableOfContents();
+
+	const headings = Array.from(document.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'))
+		.filter(heading => heading.classList.contains('code-line'));
+
+	if (headings.length === 0) {
+		return;
+	}
+
+	// Activate the two-column layout (TOC on the left, content on the right).
+	document.body.classList.add(TOC_BODY_CLASS);
+
+	tocEntries = headings.map(heading => {
+		const id = heading.id || '';
+		return {
+			element: heading,
+			level: Number(heading.tagName[1]),
+			text: heading.textContent?.trim() || '',
+			id
+		};
+	});
+
+	tocPanel = document.createElement('nav');
+	tocPanel.className = TOC_CLASS;
+	tocPanel.setAttribute('aria-label', 'Table of contents');
+
+	tocList = document.createElement('ul');
+	tocPanel.appendChild(tocList);
+
+	for (const entry of tocEntries) {
+		const item = document.createElement('li');
+		item.className = TOC_ENTRY_CLASS;
+		item.style.setProperty('--toc-level', String(entry.level));
+
+		const link = document.createElement('a');
+		link.href = entry.id ? `#${entry.id}` : '#';
+		link.textContent = entry.text;
+		link.addEventListener('click', (e) => {
+			e.preventDefault();
+			entry.element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		});
+		item.appendChild(link);
+		tocList.appendChild(item);
+	}
+
+	document.body.appendChild(tocPanel);
+	updateActiveTocEntry();
+}
+
+/**
+ * Remove the floating table of contents panel, if present.
+ */
+export function removeTableOfContents(): void {
+	tocPanel?.remove();
+	tocPanel = undefined;
+	tocList = undefined;
+	tocEntries = [];
+	activeEntry = undefined;
+	document.body.classList.remove(TOC_BODY_CLASS);
+}
+
+/**
+ * Update which TOC entry is highlighted based on the current scroll position.
+ * Called on scroll and on resize.
+ */
+export function updateActiveTocEntry(): void {
+	if (!tocList || tocEntries.length === 0) {
+		return;
+	}
+
+	// Find the last heading whose top is above (or at) the top of the viewport.
+	let current: TocEntry | undefined;
+	for (const entry of tocEntries) {
+		if (entry.element.getBoundingClientRect().top <= 1) {
+			current = entry;
+		} else {
+			break;
+		}
+	}
+
+	// When scrolled to the very top of the document, if the document starts
+	// with a heading, that heading should be considered active.
+	if (!current && isFirstElementOfDocument(tocEntries[0].element)) {
+		const firstHeadingTop = tocEntries[0].element.getBoundingClientRect().top;
+		if (firstHeadingTop > 0 && firstHeadingTop < 100) {
+			current = tocEntries[0];
+		}
+	}
+
+	const nextActive = current
+		? tocList.children[Math.max(0, tocEntries.indexOf(current))]
+		: undefined;
+
+	if (nextActive === activeEntry) {
+		return;
+	}
+
+	activeEntry?.classList.remove(TOC_ACTIVE_CLASS);
+	activeEntry = nextActive as HTMLElement | undefined;
+	activeEntry?.classList.add(TOC_ACTIVE_CLASS);
+}
+
+/**
+ * Check whether the given element is the first meaningful element of the
+ * document body (i.e. the document starts with this element).
+ */
+function isFirstElementOfDocument(element: HTMLElement): boolean {
+	// The first `code-line` element inside the markdown body is the first
+	// rendered element of the document. If it is the given heading, then the
+	// document starts with that heading.
+	const firstCodeLine = document.querySelector('.markdown-body .code-line');
+	return firstCodeLine === element;
+}

@@ -7,6 +7,7 @@ import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
 import { getEditorLineNumberForPageOffset, getElementsForSourceLine, getElementsForSourceLineRange, getLineElementForFragment, scrollToRevealSourceLine } from './scroll-sync';
+import { buildTableOfContents, updateActiveTocEntry } from './tableOfContents';
 import { SettingsManager, getData, getRawData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
@@ -105,6 +106,8 @@ onceDocumentLoaded(() => {
 	const scrollProgress = state.scrollProgress;
 	addImageContexts();
 	addCodeBlockCopyButtons();
+	addCodeBlockLanguageLabels();
+	buildTableOfContents();
 	applyLineChanges(lineChanges);
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
@@ -181,6 +184,10 @@ window.addEventListener('resize', () => {
 	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 	updateScrollProgress();
 }, true);
+
+window.addEventListener('scroll', () => {
+	updateActiveTocEntry();
+}, { passive: true });
 
 function addImageContexts() {
 	const images = document.getElementsByTagName('img');
@@ -269,6 +276,35 @@ function addCodeBlockCopyButtons() {
 			pre.appendChild(button);
 		}
 	}
+}
+
+function addCodeBlockLanguageLabels() {
+	const codeBlocks = document.querySelectorAll('pre > code');
+	for (const code of codeBlocks) {
+		const pre = code.parentElement!;
+
+		// Inject language label if not already present
+		if (!pre.querySelector('.code-block-language')) {
+			const language = getCodeBlockLanguage(code);
+			if (language) {
+				const label = document.createElement('span');
+				label.className = 'code-block-language';
+				label.textContent = language;
+				pre.appendChild(label);
+				pre.classList.add('has-language-label');
+			}
+		}
+	}
+}
+
+function getCodeBlockLanguage(code: Element): string | undefined {
+	// The language is stored in the class name, e.g. `language-php`.
+	for (const className of code.classList) {
+		if (className.startsWith('language-')) {
+			return className.slice('language-'.length);
+		}
+	}
+	return undefined;
 }
 
 async function copyImage(image: HTMLImageElement, retries = 5) {
@@ -413,6 +449,8 @@ window.addEventListener('message', async event => {
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			addImageContexts();
 			addCodeBlockCopyButtons();
+			addCodeBlockLanguageLabels();
+			buildTableOfContents();
 			applyLineChanges(lineChanges);
 			break;
 		}
