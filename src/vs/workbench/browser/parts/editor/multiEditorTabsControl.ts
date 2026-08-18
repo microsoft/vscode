@@ -1624,6 +1624,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Alt swaps a visible Close action to Close Others; Unpin is unaffected.
 		const wantsCloseOthersAction = hasCloseAction && this.wantsCloseOthersAction;
+		this.closeOtherEditorTabsInGroupAction.enabled = this.groupView.count > 1;
 
 		let tabAction;
 		if (hasAction) {
