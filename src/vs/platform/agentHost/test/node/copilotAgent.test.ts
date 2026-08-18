@@ -6859,6 +6859,36 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('getModel reports the creation model while the backing is still deferred', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'prov-default-model'),
+					model: { id: 'gpt-x' },
+					workingDirectories: [URI.file('/workspace')],
+				});
+				const chat = defaultChatUri(result.session);
+				const context = exactChatContext(result.session, chat, result.session);
+
+				// The first turn's telemetry reads the bound model before the
+				// send materializes the session, so the reserved backing must
+				// already carry it.
+				const beforeSend = agent.chats.getModel?.(chat, context);
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, context);
+
+				assert.deepStrictEqual({ beforeSend, afterMaterialize: agent.chats.getModel?.(chat, context) }, {
+					beforeSend: { id: 'gpt-x' },
+					afterMaterialize: { id: 'gpt-x' },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('disposeSession on provisional session does not touch SDK or worktree', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);

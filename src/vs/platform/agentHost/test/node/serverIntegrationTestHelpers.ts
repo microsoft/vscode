@@ -62,6 +62,7 @@ import {
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
 import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isCI, isWindows } from '../../../../base/common/platform.js';
+import { killTree } from '../../../../base/node/processes.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
 
 const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
@@ -649,10 +650,11 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
 		try {
 			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
-				const killed = serverProcess.kill('SIGKILL');
-				if (!killed && serverProcess.exitCode === null && serverProcess.signalCode === null) {
-					throw new Error('Failed to terminate Agent Host test server');
+				const pid = serverProcess.pid;
+				if (pid === undefined) {
+					throw new Error('Agent Host test server has no process id');
 				}
+				await killTree(pid, true);
 			}
 		} catch (error) {
 			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {

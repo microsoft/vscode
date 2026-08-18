@@ -321,6 +321,9 @@ export interface IChatEndpointTokenPricing {
 	readonly longContext?: ITokenPriceTier;
 }
 
+/** CAPI notice code that shows as a warning banner and also flags the model picker row. */
+export const PENDING_DEPRECATION_CODE = 'model_pending_deprecation';
+
 export interface IChatEndpoint extends IEndpoint {
 	readonly maxOutputTokens: number;
 	/** The model ID- this may change and will be `copilot-utility` for the utility (fallback) model. Use `family` to switch behavior based on model type. */
@@ -341,7 +344,10 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly showInModelPicker: boolean;
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
+	/** Category-keyed warning banners for the model picker. */
 	readonly warningText?: Record<string, string>;
+	/** Category-keyed info banners for the model picker. Unlike {@link warningText} these never signal a problem. */
+	readonly infoText?: Record<string, string>;
 	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];

@@ -518,18 +518,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	/**
-	 * The single chat input voice mode is currently bound to. Mirrors the routing
-	 * used by `_chat.voice.acceptInput`: an explicit target session (set by the
-	 * floating aux window) wins, otherwise the last-focused chat widget's session,
-	 * falling back to this pane's own session. The glow / transcript render only on
+	 * The single chat input voice mode is currently bound to. An explicit target
+	 * session wins, otherwise the last-focused chat widget's session falls back to
+	 * this pane's own session. The glow / transcript render only on
 	 * the pane whose session matches this, so with several chat inputs open (e.g.
 	 * this pane plus a chat editor) exactly one lights up.
 	 */
 	private _currentVoiceInputResource(reader?: IReader): URI | undefined {
-		const omniInputOpen = reader ? this.voiceSessionController.omniInputOpen.read(reader) : this.voiceSessionController.omniInputOpen.get();
-		if (omniInputOpen) {
-			return undefined;
-		}
 		const target = reader ? this.voiceSessionController.targetSession.read(reader) : this.voiceSessionController.targetSession.get();
 		if (target) {
 			return target;
@@ -585,9 +580,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (sim === 'off' || sim === 'connecting' || sim === 'dictating') {
 				return { connected: false, voiceState: 'idle', simulating: true };
 			}
+			const voiceState = this.voiceSessionController.voiceState.get() as VoiceGlowState;
 			return {
 				connected: this.voiceSessionController.isConnected.get(),
-				voiceState: this.voiceSessionController.voiceState.get() as VoiceGlowState,
+				// While muted the mic isn't heard; treat muted-listening as idle (no
+				// glow). Only check mute in the listening state so other states don't
+				// depend on it.
+				voiceState: voiceState === 'listening' && this.voiceSessionController.isMuted.get() ? 'idle' : voiceState,
 				simulating: false,
 			};
 		};
@@ -640,14 +639,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
-			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			// Only run the per-frame glow loop for states that actually render a
 			// glow. Idle renders none, so keeping the loop alive then would burn a
 			// requestAnimationFrame callback every frame for nothing. React to
 			// simulated states too, so the walkthrough commands light up the glow.
+			// A muted mic isn't heard, so the listening rim would misleadingly react
+			// to the user's voice; treat muted-listening as idle (no glow). The mute
+			// observable is only read in the listening state.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
-			if (!omniInputOpen && (simGlow || (connected && isGlowingVoiceState(voiceState)))) {
+			const liveGlow = connected && isGlowingVoiceState(voiceState) && !(voiceState === 'listening' && this.voiceSessionController.isMuted.read(reader));
+			if (simGlow || liveGlow) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -706,7 +708,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
-			const omniInputOpen = this.voiceSessionController.omniInputOpen.read(reader);
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._currentSessionResource.read(reader);
 			const showTranscript = showTranscriptSetting.read(reader);
@@ -715,7 +716,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
 
-			if (!connected || omniInputOpen) {
+			if (!connected) {
 				listeningSession = undefined;
 				ownerSession = undefined;
 				transcriptOverlayNode.style.display = 'none';
@@ -782,7 +783,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
 					const listening = $('span.listening');
-					listening.textContent = localize('voiceMode.listening', "Listening...");
+					listening.textContent = this.voiceSessionController.isMuted.read(reader)
+						? localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...")
+						: localize('voiceMode.listening', "Listening...");
 					transcriptOverlay.append(listening);
 					transcriptScrollable.scanDomNode();
 				} else if (!showTranscript && voiceState === 'speaking') {
@@ -1297,11 +1300,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
 		if (defaultType === localChatSessionType) {
 			return undefined;
 		}
-		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
+		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
 		try {
 			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
 		} catch (error) {
@@ -1337,7 +1340,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
 		return defaultType !== localChatSessionType
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;
