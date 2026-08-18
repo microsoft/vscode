@@ -13,7 +13,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatEntitlementService, getQuotaUsage, parseQuotas, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlementService, getQuotaReset, getQuotaUsage, parseQuotas, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
@@ -530,6 +530,30 @@ suite('getQuotaUsage', () => {
 	});
 });
 
+suite('getQuotaReset', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const account = { resetDate: '2026-09-01T00:00:00Z', resetDateHasTime: true };
+	const snapshotResetAt = Math.floor(Date.UTC(2026, 7, 20, 14, 0, 0) / 1000);
+
+	test('prefers the snapshot reset over the account reset', () => {
+		assert.deepStrictEqual({
+			snapshotWins: getQuotaReset({ percentRemaining: 50, unlimited: false, resetAt: snapshotResetAt }, account),
+			fallsBackToAccount: getQuotaReset({ percentRemaining: 50, unlimited: false }, account),
+			accountWithoutTime: getQuotaReset(undefined, { resetDate: '2026-09-01T00:00:00Z' }),
+			malformedAccountDate: getQuotaReset(undefined, { resetDate: 'not-a-date' }),
+			noSnapshotNoAccount: getQuotaReset(undefined, {}),
+		}, {
+			snapshotWins: { date: new Date(snapshotResetAt * 1000), hasTime: true },
+			fallsBackToAccount: { date: new Date('2026-09-01T00:00:00Z'), hasTime: true },
+			accountWithoutTime: { date: new Date('2026-09-01T00:00:00Z'), hasTime: false },
+			malformedAccountDate: undefined,
+			noSnapshotNoAccount: undefined,
+		});
+	});
+});
+
 suite('ChatEntitlementService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -545,6 +569,23 @@ suite('ChatEntitlementService', () => {
 			store.add(new TestStorageService()),
 		));
 	}
+
+	test('signals changed usage when only consumed credits move on an unlimited plan', () => {
+		const service = createService();
+		const fired: string[] = [];
+		service.acceptQuotas({ premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 100 } });
+		store.add(service.onDidChangeQuotaRemaining(() => fired.push('remaining')));
+
+		service.acceptQuotas({ premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 250 } });
+		const afterCreditsChange = [...fired];
+
+		service.acceptQuotas({ premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 250 } });
+
+		assert.deepStrictEqual({ afterCreditsChange, afterNoChange: fired }, {
+			afterCreditsChange: ['remaining'],
+			afterNoChange: ['remaining'],
+		});
+	});
 
 	test('merges defined snapshot fields until the snapshot is removed', () => {
 		const service = createService();

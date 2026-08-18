@@ -653,6 +653,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				exceeded: (oldQuota?.percentRemaining === 0) !== (newQuota?.percentRemaining === 0),
 				remaining: oldQuota?.percentRemaining !== newQuota?.percentRemaining
 					|| oldQuota?.usageBasedBilling !== newQuota?.usageBasedBilling
+					// Unlimited plans report a constant percentage, so consumed credits are the only signal that usage moved.
+					|| oldQuota?.creditsUsed !== newQuota?.creditsUsed
 			}
 		};
 	}
@@ -869,6 +871,34 @@ export function getQuotaUsage(quota: IQuotaSnapshot | undefined): IQuotaUsage | 
 		used,
 		total
 	};
+}
+
+export interface IQuotaReset {
+	readonly date: Date;
+	/** Whether the underlying source carries a time of day worth surfacing. */
+	readonly hasTime: boolean;
+}
+
+/**
+ * Resolves which reset applies to a quota. A snapshot's own `resetAt` is authoritative for
+ * that category and wins over the coarser account-level reset, so that a quota is never
+ * paired with a clock that does not govern it.
+ */
+export function getQuotaReset(quota: IQuotaSnapshot | undefined, accountReset: { readonly resetDate?: string; readonly resetDateHasTime?: boolean }): IQuotaReset | undefined {
+	if (quota?.resetAt) {
+		return { date: new Date(quota.resetAt * 1000), hasTime: true };
+	}
+
+	if (!accountReset.resetDate) {
+		return undefined;
+	}
+
+	const parsed = Date.parse(accountReset.resetDate);
+	if (isNaN(parsed)) {
+		return undefined;
+	}
+
+	return { date: new Date(parsed), hasTime: !!accountReset.resetDateHasTime };
 }
 
 export interface IRateLimitSnapshot {
