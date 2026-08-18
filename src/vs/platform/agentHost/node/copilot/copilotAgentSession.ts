@@ -2185,15 +2185,7 @@ export class CopilotAgentSession extends Disposable {
 			prompt = configAction.strippedPrompt;
 		} else if (slashCommand) {
 			const runtimeSlashCommand = await this._slashCommandProvider.resolveSlashCommand(slashCommand.command);
-			// TEMPORARY WORKAROUND (issue #8837): the runtime `/fleet` command starts an
-			// asynchronous agent loop but returns a synchronous `completed` result. The
-			// generic `commands.invoke` path below would then close the AHP turn before
-			// fleet runs, orphaning its plan review, clarifications, and output. Route
-			// canonical built-in `/fleet` through the dedicated `rpc.fleet.start` RPC and
-			// keep the turn open until `session.idle`. This intentionally bypasses
-			// `commands.invoke` invocation telemetry and `allowDuringAgentExecution`
-			// gating for `/fleet` only. Remove once the SDK returns an `agent-prompt`
-			// result for `/fleet` from `commands.invoke`.
+			// TEMPORARY WORKAROUND (#8837): route built-in /fleet via fleet.start to keep the AHP turn open; this bypasses commands.invoke telemetry/gating and should be removed once invoke returns agent-prompt.
 			if (runtimeSlashCommand && runtimeSlashCommand.kind === 'builtin' && runtimeSlashCommand.name === 'fleet') {
 				await this._startFleet(slashCommand.rest, attachments, mode);
 				return;
