@@ -1464,6 +1464,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			this._sessionCleanupModel = selectedCleanupModel;
 			phase = 'startRequest';
 			this._logService.trace(`[chat-stt] language model cleanup sending request (elapsedMs=${Date.now() - cleanupStartMs})`);
+			const requestOptions = selectedCleanupModel === LLM_CLEANUP_LUNA_MODEL_ID
+				? { configuration: { reasoningEffort: 'low' } }
+				: {};
 			const response = await raceCancellation(
 				this._languageModelsService.sendChatRequest(
 					models[0],
@@ -1472,7 +1475,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 						{ role: ChatMessageRole.System, content: [{ type: 'text', value: systemPrompt }] },
 						{ role: ChatMessageRole.User, content: [{ type: 'text', value: transcriptPayload }] },
 					],
-					{},
+					requestOptions,
 					cts.token,
 				),
 				cts.token,
