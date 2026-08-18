@@ -102,6 +102,8 @@ class MockCopilotSession {
 	onFleetStart: (() => void) | undefined = undefined;
 	/** Invoked inside `rpc.mode.set`, so a test can race an abort against turn preflight. */
 	onModeSet: (() => void) | undefined = undefined;
+	/** Invoked inside `rpc.commands.list`, so a test can race an abort against slash-command resolution (before the fleet turn captures its token). */
+	onCommandList: (() => void) | undefined = undefined;
 	/** Ordered log of the SDK RPCs/sends relevant to turn preflight, so tests can assert cross-RPC ordering. */
 	readonly operationLog: string[] = [];
 	readonly mcpEnableCalls: Array<{ serverName: string }> = [];
@@ -293,6 +295,7 @@ class MockCopilotSession {
 		commands: {
 			list: async (params?: unknown) => {
 				this.commandListCalls.push(params ?? null);
+				this.onCommandList?.();
 				return this.commandListResult;
 			},
 			invoke: async (params: { name: string; input?: string }) => {
@@ -2494,6 +2497,36 @@ suite('CopilotAgentSession', () => {
 			// Abort while the shared preflight (mode/permission/sandbox/MCP) is running,
 			// before `fleet.start` would be invoked.
 			mockSession.onModeSet = () => {
+				void session.abort();
+				mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			};
+
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+
+			assert.deepStrictEqual({
+				fleetStartCalls: mockSession.fleetStartCalls,
+				sentThroughNormalSend: mockSession.operationLog.includes('send'),
+				turnCompleteCount: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				chatErrorCount: getActions(signals).filter(a => a.type === ActionType.ChatError).length,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				fleetStartCalls: [],
+				sentThroughNormalSend: false,
+				turnCompleteCount: 0,
+				chatErrorCount: 0,
+				hasActiveTurn: false,
+			});
+		});
+
+		test('an abort during slash-command resolution does not start the fleet loop', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+			// Abort while `rpc.commands.list` (slash-command resolution) is in flight —
+			// before `_startFleet` runs. The aborted `session.idle` resets the live token
+			// and leaves the pending turn open, so only a token captured before this await
+			// reflects the cancellation. Reading a fresh token would start the fleet loop
+			// after the user cancelled.
+			mockSession.onCommandList = () => {
 				void session.abort();
 				mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
 			};

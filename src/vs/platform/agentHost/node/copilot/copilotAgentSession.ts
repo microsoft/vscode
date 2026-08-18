@@ -2120,6 +2120,14 @@ export class CopilotAgentSession extends Disposable {
 	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
+		// Capture the turn's abort token before any dispatch await. Resolving a slash
+		// command awaits `rpc.commands.list`; an abort during that await drives a terminal
+		// `session.idle` that resets the live token (and leaves a `pending` turn open).
+		// Reading `this._abortToken` afterwards — e.g. inside `_startFleet` — would then
+		// observe a fresh, uncancelled token and miss the abort, starting an autonomous
+		// fleet loop after cancellation. The captured reference reliably reflects it.
+		const abortToken = this._abortToken;
+
 		const slashCommand = parseLeadingSlashCommand(prompt);
 		if (slashCommand?.command === 'compact') {
 			try {
@@ -2187,7 +2195,7 @@ export class CopilotAgentSession extends Disposable {
 			const runtimeSlashCommand = await this._slashCommandProvider.resolveSlashCommand(slashCommand.command);
 			// TEMPORARY WORKAROUND (#8837): route built-in /fleet via fleet.start to keep the AHP turn open; this bypasses commands.invoke telemetry/gating and should be removed once invoke returns agent-prompt.
 			if (runtimeSlashCommand && runtimeSlashCommand.kind === 'builtin' && runtimeSlashCommand.name === 'fleet') {
-				await this._startFleet(slashCommand.rest, attachments, mode);
+				await this._startFleet(slashCommand.rest, attachments, mode, abortToken);
 				return;
 			}
 			// Skills can be passed as is to the runtime.
@@ -2275,16 +2283,16 @@ export class CopilotAgentSession extends Disposable {
 	 * until the SDK's terminal `session.idle`, rather than completing it as `commands.invoke`
 	 * would. Remove once the runtime returns an `agent-prompt` result for `/fleet`.
 	 */
-	private async _startFleet(rest: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
+	private async _startFleet(rest: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined, abortToken: CancellationToken): Promise<void> {
 		if (attachments?.length) {
 			// `rpc.fleet.start` accepts only a prompt; fail loudly rather than silently dropping attachments.
 			throw new Error(localize('copilotAgent.fleet.attachmentsUnsupported', "Attachments are not supported with the /fleet command."));
 		}
 		const startingTurn = this._currentTurn;
-		// Capture the current abort token up front (mirroring `_guarded`): an aborted
-		// `session.idle` resets the live token, so only the captured reference reliably
-		// reflects an abort that races the in-flight RPC.
-		const abortToken = this._abortToken;
+		// `abortToken` is captured by the caller before the dispatch await (slash-command
+		// resolution), so it reliably reflects an abort that raced that await: an aborted
+		// `session.idle` resets the live token, so reading `this._abortToken` here could
+		// observe a fresh post-abort token and miss the cancellation.
 		await this._prepareSdkTurn(mode);
 		// Preflight awaits several RPCs; if an abort or terminal idle raced it, do not
 		// start the fleet loop at all — starting it would orphan an autonomous run.
