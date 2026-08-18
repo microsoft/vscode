@@ -291,17 +291,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		}
 
-		// Nothing session-scoped is available. The `changeKind: 'branch'`
-		// changeset is not a substitute: it measures the branch against its
-		// upstream, which includes every commit made before the session existed
-		// and by anyone else. Deriving the chip from it labels that divergence
-		// as the session's own work — a session that has never run a turn, and
-		// owns no file edits at all, still gets a count — and persisting it
-		// makes the wrong number durable.
-		//
-		// A row with no chip is the honest rendering of "no session-scoped
-		// evidence yet". The next completed turn writes `META_CHANGES_SUMMARY`
-		// and the chip appears with the session's real counts.
+		// The branch changeset measures divergence from upstream, not this session's work.
 		return undefined;
 	}
 
@@ -1276,12 +1266,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._persistSessionFlag(session, persistKeyFor(kind), JSON.stringify(diffs));
 
 			if (kind === ChangesetKind.Branch) {
-				// MULTI-folder: the primary-only `diffs` under-count the session,
-				// so recompute the ALL-FOLDER aggregate independently from every
-				// repository so a subsequent branch recompute keeps the all-folder
-				// count instead of clobbering it back to the primary folder's. The
-				// branch CHANGESET state is still published from the primary
-				// `diffs` above (data unchanged); only the summary ownership moves.
+				// Recompute the all-folder aggregate so a later branch recompute cannot clobber it to primary-only.
 				const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
 				if (isMultiRootSession(workingDirectories)) {
 					// Reuse the primary branch `diffs` just computed above so the
@@ -1291,26 +1276,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 			}
 
-			// SINGLE-folder: the chip counts the session's own work, so it comes
-			// from the session changeset. The branch changeset answers a
-			// different question — how far the branch has diverged from its
-			// upstream — which includes commits made before the session existed
-			// and by other people; sourcing the chip from it labels all of that
-			// as this session's changes.
+			// The chip counts the session's own work, so it comes from the session changeset.
 			if (kind === ChangesetKind.Session) {
-				// Migration: mirror the session payload into the legacy `'diffs'`
-				// key so older readers stay correct during the rollout window.
-				// It belongs here and not on the branch path:
-				// `parsePersistedStaticChangesets` reads this key as the SESSION
-				// changeset and seeds it into session state, so branch diffs written
-				// here come back on restore as the session's own work, which is the
-				// very mislabelling this change removes from the chip.
+				// Older readers parse this key as the session changeset, so only the session payload belongs here.
 				this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
 
 				const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
-				// `summariseDiffs` separates "computed, and empty" (a zero chip,
-				// which is a real answer) from "could not compute" (`undefined`),
-				// which must leave the chip unset rather than claim zero.
+				// `undefined` means "could not compute", which must leave the chip unset rather than claim zero.
 				const changesSummary = summariseDiffs(diffs);
 				if (!isMultiRootSession(workingDirectories) && changesSummary) {
 					this.persistChangesSummary(session, changesSummary);
