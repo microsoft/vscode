@@ -146,16 +146,9 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
 /**
- * Configuration key controlling whether the agent host *wires up* the BYOK
- * ("bring your own key") language-model bridge: the renderer LM handler, the
- * reverse-RPC channel, and the per-connection link to the node-side OpenAI
- * proxy + bridge registry. When `true` (the default), the renderer's BYOK
- * server channel and the per-connection bridge are wired so extension-provided
- * BYOK models are reachable from agent-host sessions. When `false`, the proxy
- * and registry are still constructed but stay inert — the BYOK server channel
- * and the per-connection bridge are not wired, so the registry stays empty and
- * extension-provided BYOK models are never reachable from agent-host sessions.
- * The agent host process must be restarted for changes to take effect.
+ * Configuration key controlling whether extension-provided BYOK ("bring your
+ * own key") models are published and included in new agent-host sessions.
+ * Changes are synchronized to the running agent host.
  */
 export const AgentHostByokModelsEnabledSettingId = 'chat.agentHost.byokModels.enabled';
 
