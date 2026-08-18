@@ -50,6 +50,7 @@ import {
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
+	readUsageInfoMeta,
 	ROOT_STATE_URI,
 	SessionLifecycle,
 	SessionStatus,
@@ -980,10 +981,13 @@ export class AgentSideEffects extends Disposable {
 				this._toolCallTracker.toolCallExecutionStarted(sessionKey, action.toolCallId);
 			}
 		}
-		if (action.type === ActionType.ChatUsage && action.usage.model && agent) {
-			const modelContext = this._getModelTelemetryContext(agent, action.usage.model);
-			this._turnTracker.updateModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
-			this._toolCallTracker.updateTurnModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
+		if (action.type === ActionType.ChatUsage) {
+			this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, readUsageInfoMeta(action.usage).copilotUsage?.totalNanoAiu);
+			if (action.usage.model && agent) {
+				const modelContext = this._getModelTelemetryContext(agent, action.usage.model);
+				this._turnTracker.updateModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
+				this._toolCallTracker.updateTurnModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
+			}
 		}
 
 		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
