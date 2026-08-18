@@ -1983,6 +1983,12 @@ export class SCMViewPane extends ViewPane {
 				async () => {
 					const focusedInput = this.inputRenderer.getFocusedInput();
 
+					const treeHasDomFocus = isActiveElement(this.tree.getHTMLElement());
+					const focus = this.tree.getFocus().at(0);
+					const nextFocus = treeHasDomFocus && focus && isSCMResource(focus)
+						? this.tree.navigate(focus).next() ?? this.tree.navigate(focus).previous() ?? focus.resourceGroup
+						: undefined;
+
 					if (element && this.tree.hasNode(element)) {
 						// Refresh specific repository
 						await this.tree.updateChildren(element);
@@ -1993,6 +1999,13 @@ export class SCMViewPane extends ViewPane {
 
 					if (focusedInput) {
 						this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
+					}
+
+					if (focus && nextFocus && !this.tree.hasNode(focus) && this.tree.hasNode(nextFocus)) {
+						this.tree.setFocus([nextFocus]);
+						if (treeHasDomFocus) {
+							this.tree.domFocus();
+						}
 					}
 
 					this.updateScmProviderContextKeys();
