@@ -12,7 +12,7 @@ import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { bindContextKey, observableConfigValue } from '../../observable/common/platformObservableUtils.js';
 import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
-import { INativeManagedSettingsService, isManagedSandboxEnabled } from '../../policy/common/copilotManagedSettings.js';
+import { IFileManagedSettingsService, INativeManagedSettingsService, isManagedSandboxEnabled } from '../../policy/common/copilotManagedSettings.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
 
 export class AgentHostEnablementService extends Disposable implements IAgentHostEnablementService {
@@ -28,23 +28,27 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 		contextKeyService: IContextKeyService,
 		nativeManagedSettingsService: INativeManagedSettingsService,
 		defaultAccountService: IDefaultAccountService,
+		fileManagedSettingsService: IFileManagedSettingsService | undefined,
 	) {
 		super();
 		const aiFeaturesDisabled = observableConfigValue(ChatAIDisabledSettingId, false, configurationService);
 		this.enabled = derived(this, reader => this._isAgentHostRuntimeAvailable && !aiFeaturesDisabled.read(reader));
 		this._register(bindContextKey(AGENT_HOST_ENABLED_CONTEXT_KEY, contextKeyService, reader => this.enabled.read(reader)));
 
-		// `sandbox.enabled` is runtime-owned and has no VS Code configuration policy, so it is read
-		// straight from the managed-settings channels rather than through `IConfigurationService`.
+		// Runtime-owned settings bypass IConfigurationService and resolve from their managed channels.
 		const nativeManagedSettings = observableFromEvent(this,
 			nativeManagedSettingsService.onDidChangeManagedSettings,
 			() => nativeManagedSettingsService.managedSettings);
 		const serverManagedSettings = observableFromEvent(this,
 			defaultAccountService.onDidChangePolicyData,
 			() => defaultAccountService.policyData?.managedSettings);
+		const fileManagedSettings = fileManagedSettingsService ? observableFromEvent(this,
+			fileManagedSettingsService.onDidChangeManagedSettings,
+			() => fileManagedSettingsService.managedSettings) : undefined;
 		this.managedSandboxEnforced = derived(this, reader => isManagedSandboxEnabled(
 			nativeManagedSettings.read(reader),
-			serverManagedSettings.read(reader)));
+			serverManagedSettings.read(reader),
+			fileManagedSettings?.read(reader)));
 	}
 }
 
@@ -54,8 +58,9 @@ class BrowserAgentHostEnablementService extends AgentHostEnablementService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@INativeManagedSettingsService nativeManagedSettingsService: INativeManagedSettingsService,
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
+		@IFileManagedSettingsService fileManagedSettingsService: IFileManagedSettingsService,
 	) {
-		super(!isWeb, configurationService, contextKeyService, nativeManagedSettingsService, defaultAccountService);
+		super(!isWeb, configurationService, contextKeyService, nativeManagedSettingsService, defaultAccountService, fileManagedSettingsService);
 	}
 }
 

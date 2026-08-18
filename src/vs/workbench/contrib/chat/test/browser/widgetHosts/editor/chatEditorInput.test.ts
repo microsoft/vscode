@@ -68,7 +68,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false) , managedSandboxEnforced: constObservable(false)},
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
 		);
 
 		try {
@@ -123,7 +123,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false) , managedSandboxEnforced: constObservable(false)},
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
 		);
 
 		try {
@@ -156,7 +156,7 @@ suite('ChatEditorInput', () => {
 		}]);
 		const storageService = store.add(new TestStorageService());
 		const workspaceContextService = new TestContextService();
-		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true) , managedSandboxEnforced: constObservable(false)} satisfies IAgentHostEnablementService;
+		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) } satisfies IAgentHostEnablementService;
 
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(IDialogService, {});
@@ -205,7 +205,7 @@ suite('ChatEditorInput', () => {
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
-		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled) });
+		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
 		return store.add(instantiationService.createInstance(ChatEditorInput, resource, {}));
 	}
 

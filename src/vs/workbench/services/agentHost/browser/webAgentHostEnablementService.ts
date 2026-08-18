@@ -20,7 +20,7 @@ export class WebAgentHostEnablementService extends AgentHostEnablementService {
 		@INativeManagedSettingsService nativeManagedSettingsService: INativeManagedSettingsService,
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 	) {
-		super(!!environmentService.remoteAuthority, configurationService, contextKeyService, nativeManagedSettingsService, defaultAccountService);
+		super(!!environmentService.remoteAuthority, configurationService, contextKeyService, nativeManagedSettingsService, defaultAccountService, undefined);
 	}
 }
 

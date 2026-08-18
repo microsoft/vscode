@@ -1239,9 +1239,7 @@ class PolicyDiagnosticsAction extends Action2 {
 
 		content += '## Chat Harness Enforcement\n\n';
 		try {
-			// `sandbox.enabled` is runtime-owned and has no VS Code configuration policy, so it is
-			// reported from the managed-settings channels rather than the policy-controlled table above.
-			// The file channel is not consulted for this key.
+			// `sandbox.enabled` is runtime-owned, so report its managed channels directly.
 			const sandboxEnforced = agentHostEnablementService.managedSandboxEnforced.get();
 			const virtualWorkspace = isVirtualWorkspace(workspaceContextService.getWorkspace());
 			const agentHostEnabled = agentHostEnablementService.enabled.get();
@@ -1266,6 +1264,7 @@ class PolicyDiagnosticsAction extends Action2 {
 				[
 					[`${COPILOT_SANDBOX_ENABLED_KEY} (native MDM)`, sandboxChannelValue(nativeManagedSettingsService?.managedSettings)],
 					[`${COPILOT_SANDBOX_ENABLED_KEY} (server)`, sandboxChannelValue(defaultAccountService.policyData?.managedSettings)],
+					[`${COPILOT_SANDBOX_ENABLED_KEY} (file)`, sandboxChannelValue(fileManagedSettingsService?.managedSettings)],
 					['Mandated', sandboxEnforced ? 'yes' : 'no'],
 					['Virtual workspace', virtualWorkspace ? 'yes' : 'no'],
 					['Agent Host enabled', agentHostEnabled ? 'yes' : 'no'],
