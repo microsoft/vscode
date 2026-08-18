@@ -1,0 +1,204 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-permissions-section {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size100);
+}
+
+/* Header */
+
+.chat-permissions-section .chat-permissions-header {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+}
+
+.chat-permissions-section .chat-permissions-title {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.chat-permissions-section .chat-permissions-title-label {
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-heading3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-permissions-section .chat-permissions-filter {
+	flex: 1;
+	min-width: 0;
+}
+
+/* Rule list */
+
+.chat-permissions-section .chat-permissions-list {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.chat-permissions-section .chat-permissions-scope-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	margin-top: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size40) 0;
+	font-size: var(--vscode-agents-fontSize-label3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-permissions-section .chat-permissions-scope-header:first-child {
+	margin-top: 0;
+}
+
+.chat-permissions-section .chat-permissions-scope-count {
+	margin-left: auto;
+	font-variant-numeric: tabular-nums;
+}
+
+.chat-permissions-section .chat-permissions-rule {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-permissions-section .chat-permissions-rule:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-permissions-section .chat-permissions-rule-pattern {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-permissions-section .chat-permissions-rule-lock {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-permissions-section .chat-permissions-rule-kind {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-permissions-section .chat-permissions-rule-argument {
+	font-family: var(--monaco-monospace-font);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* A rule a higher-authority layer overrides: struck through, with the winner named. */
+.chat-permissions-section .chat-permissions-rule.shadowed .chat-permissions-rule-kind,
+.chat-permissions-section .chat-permissions-rule.shadowed .chat-permissions-rule-argument {
+	text-decoration: line-through;
+	opacity: 0.7;
+}
+
+.chat-permissions-section .chat-permissions-rule-override {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: var(--vscode-agents-fontSize-label3);
+}
+
+.chat-permissions-section .chat-permissions-rule-effect {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-agents-fontSize-label3);
+}
+
+.chat-permissions-section .chat-permissions-effect-deny {
+	color: var(--vscode-list-errorForeground, var(--vscode-editorError-foreground));
+}
+
+.chat-permissions-section .chat-permissions-effect-ask {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+.chat-permissions-section .chat-permissions-effect-allow {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Banners and status */
+
+.chat-permissions-section .chat-permissions-banner {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size120);
+	background-color: var(--vscode-textBlockQuote-background, transparent);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	box-sizing: border-box;
+}
+
+.chat-permissions-section .chat-permissions-banner-icon {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-permissions-section .chat-permissions-banner-text {
+	line-height: 1.45;
+}
+
+.chat-permissions-section .chat-permissions-status,
+.chat-permissions-section .chat-permissions-empty-group {
+	padding: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.45;
+}
+
+/* Footer */
+
+.chat-permissions-section .chat-permissions-footer {
+	flex-shrink: 0;
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size60);
+	padding-top: var(--vscode-spacing-size80);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.45;
+}
+
+.chat-permissions-section.narrow .chat-permissions-header {
+	flex-direction: column;
+	align-items: stretch;
+}

@@ -47,9 +47,23 @@ export const AICustomizationManagementSection = {
 	Models: 'models',
 	Tools: 'tools',
 	HarnessSettings: 'harnessSettings',
+	PermissionsTerminal: 'permissions.terminal',
+	PermissionsFiles: 'permissions.files',
+	PermissionsNetwork: 'permissions.network',
 } as const;
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
+
+/**
+ * Sections that belong to the Permissions group of the sidebar rather than the Customizations
+ * group. Permissions show what governs the agent, which is a different question from what
+ * customizes it, so they are grouped apart.
+ */
+export const AI_CUSTOMIZATION_PERMISSION_SECTIONS: readonly AICustomizationManagementSection[] = [
+	AICustomizationManagementSection.PermissionsTerminal,
+	AICustomizationManagementSection.PermissionsFiles,
+	AICustomizationManagementSection.PermissionsNetwork,
+];
 
 /**
  * Per-type filter policy controlling which storage sources are visible

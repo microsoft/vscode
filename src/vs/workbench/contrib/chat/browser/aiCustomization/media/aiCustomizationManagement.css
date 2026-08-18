@@ -167,6 +167,26 @@
 	transition: background-color 0.1s ease, opacity 0.1s ease;
 }
 
+/* Group header separating the Customizations and Permissions sidebar groups. */
+.ai-customization-management-editor .sidebar-group-header {
+	display: flex;
+	align-items: flex-end;
+	padding: 8px 8px 2px 8px;
+	cursor: default;
+}
+
+.ai-customization-management-editor .monaco-list .monaco-list-row.sidebar-group-header:hover {
+	background-color: transparent;
+}
+
+.ai-customization-management-editor .sidebar-group-header-label {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--vscode-descriptionForeground);
+}
+
 .ai-customization-management-editor .section-list-item:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }

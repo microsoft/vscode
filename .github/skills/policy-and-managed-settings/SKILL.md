@@ -43,6 +43,26 @@ General rules:
 - Run `npm run export-policy-data` for every VS Code or extension policy change. Never
   edit `build/lib/policies/policyData.jsonc` manually.
 
+## Displaying Permissions in a Client
+
+A client may *render* enterprise permission state, but never re-derive it. The runtime owns the rule
+DSL, the matcher, and the precedence between managed policy, configured rules, location grants and
+session grants; a client that reconstructs any of that becomes a second authority that silently
+diverges.
+
+Rules for a permission-rendering surface:
+
+- Display the provenance the runtime reports. Do not compute precedence or shadowing client-side.
+- Parsing is limited to splitting a rule into its displayable parts. It must not drive a decision.
+- Distinguish "no rules" from "not known". When a layer could not be read, say so; an empty list
+  asserts that nothing governs the agent, which is the opposite of the truth under `failClosed`.
+- When managed allowlists are intersected (`permissionsAllowIntersected`), the runtime omits the
+  resolved allow list. Explain that rather than showing an empty allow group.
+
+VS Code's implementation lives in `chat/common/permissions/` and
+`chat/browser/aiCustomization/permissions/`; see the AI Customization instructions for its
+structure.
+
 ## Deprecated and Historical Channels
 
 Some policy channels remain supported for existing controls but are closed to new
