@@ -10,7 +10,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { isWeb } from '../../../../../base/common/platform.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -850,7 +849,7 @@ async function promptToConnectViaTunnel(
 	const instantiationService = accessor.get(IInstantiationService);
 	const productService = accessor.get(IProductService);
 	const dialogService = accessor.get(IDialogService);
-	const tunnelHostService = isWeb ? undefined : accessor.get(ITunnelHostService);
+	const tunnelHostService = accessor.get(ITunnelHostService);
 
 	// Step 1: Determine auth provider — try cached sessions first, then prompt
 	// This used to call tunnelService.getAuthProvider, but for now we're Github-
@@ -898,7 +897,7 @@ async function promptToConnectViaTunnel(
 		iconClass: ThemeIcon.asClassName(Codicon.trash),
 		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
 	};
-	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(tunnelHostService?.sharingInfo, tunnel);
+	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(tunnelHostService.sharingInfo, tunnel);
 	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => tunnelInfos
 		.filter(tunnel => !isHostedTunnel(tunnel))
 		.map(tunnel => ({
@@ -920,9 +919,7 @@ async function promptToConnectViaTunnel(
 	}
 
 	updateTunnelPickerItems();
-	if (tunnelHostService) {
-		store.add(tunnelHostService.onDidChangeStatus(updateTunnelPickerItems));
-	}
+	store.add(tunnelHostService.onDidChangeStatus(updateTunnelPickerItems));
 	tunnelPicker.busy = false;
 
 	// Step 3: Wait for user selection

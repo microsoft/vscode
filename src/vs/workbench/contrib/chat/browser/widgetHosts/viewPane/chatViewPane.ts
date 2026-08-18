@@ -61,6 +61,7 @@ import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelcome/chatViewWelcomeController.js';
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
+import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../../../../services/history/common/history.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
@@ -363,6 +364,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Controls wrapper — sessions + chat live inside here
 		const controlsWrapper = append(parent, $('.voice-agent-controls-wrapper'));
 		this.createControls(controlsWrapper);
+		const workbenchContainer = this.layoutService.getContainer(getWindow(parent));
+		this._register(addDisposableListener(workbenchContainer, EventType.MOUSE_DOWN, event => this.handleMouseBackNavigation(event), true));
 
 		// Voice bar — hidden by default, voice is activated via mic button in toolbar.
 		// The widget is still created for PTT keybinding support and session binding.
@@ -385,6 +388,40 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.setupContextMenu(parent);
 
 		this.applyModel();
+	}
+
+	private async handleMouseBackNavigation(event: MouseEvent): Promise<void> {
+		if (
+			event.button !== 3 ||
+			this.sessionsViewerOrientation !== AgentSessionsViewerOrientation.Stacked ||
+			this.sessionsViewerVisible ||
+			this._sessionsListSuppressionCount > 0 ||
+			this.welcomeController?.isShowingWelcome.get()
+		) {
+			return;
+		}
+
+		const viewModel = this._widget.viewModel;
+		if (!viewModel || (this._widget.isEmpty() && !viewModel.model.title)) {
+			return;
+		}
+
+		if (
+			!this.configurationService.getValue<boolean>(MOUSE_BACK_FORWARD_NAVIGATION_SETTING) ||
+			!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled)
+		) {
+			return;
+		}
+
+		const activeElement = getWindow(this._widget.domNode).document.activeElement;
+		if (!activeElement || !this._widget.domNode.contains(activeElement)) {
+			return;
+		}
+
+		EventHelper.stop(event, true);
+		event.stopImmediatePropagation();
+		await this.clear();
+		this.focusSessions();
 	}
 
 	private createControls(parent: HTMLElement): void {
@@ -548,9 +585,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (sim === 'off' || sim === 'connecting' || sim === 'dictating') {
 				return { connected: false, voiceState: 'idle', simulating: true };
 			}
+			const voiceState = this.voiceSessionController.voiceState.get() as VoiceGlowState;
 			return {
 				connected: this.voiceSessionController.isConnected.get(),
-				voiceState: this.voiceSessionController.voiceState.get() as VoiceGlowState,
+				// While muted the mic isn't heard; treat muted-listening as idle (no
+				// glow). Only check mute in the listening state so other states don't
+				// depend on it.
+				voiceState: voiceState === 'listening' && this.voiceSessionController.isMuted.get() ? 'idle' : voiceState,
 				simulating: false,
 			};
 		};
@@ -608,9 +649,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// glow. Idle renders none, so keeping the loop alive then would burn a
 			// requestAnimationFrame callback every frame for nothing. React to
 			// simulated states too, so the walkthrough commands light up the glow.
+			// A muted mic isn't heard, so the listening rim would misleadingly react
+			// to the user's voice; treat muted-listening as idle (no glow). The mute
+			// observable is only read in the listening state.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
-			if (!omniInputOpen && (simGlow || (connected && isGlowingVoiceState(voiceState)))) {
+			const liveGlow = connected && isGlowingVoiceState(voiceState) && !(voiceState === 'listening' && this.voiceSessionController.isMuted.read(reader));
+			if (!omniInputOpen && (simGlow || liveGlow)) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -745,7 +790,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
 					const listening = $('span.listening');
-					listening.textContent = localize('voiceMode.listening', "Listening...");
+					listening.textContent = this.voiceSessionController.isMuted.read(reader)
+						? localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...")
+						: localize('voiceMode.listening', "Listening...");
 					transcriptOverlay.append(listening);
 					transcriptScrollable.scanDomNode();
 				} else if (!showTranscript && voiceState === 'speaking') {
@@ -1260,11 +1307,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
 		if (defaultType === localChatSessionType) {
 			return undefined;
 		}
-		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
+		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
 		try {
 			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
 		} catch (error) {
@@ -1300,7 +1347,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get());
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
 		return defaultType !== localChatSessionType
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;

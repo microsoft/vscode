@@ -35,7 +35,7 @@ import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/com
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -244,7 +244,7 @@ function createProviderWithConfig(
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
@@ -377,7 +377,7 @@ function createProviderForSendTests(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true) });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IGitHubService, new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, new TestPullRequestIconCache());
@@ -1080,13 +1080,24 @@ suite('CopilotChatSessionsProvider', () => {
 
 		const provider = createProvider(disposables, model);
 		const session = provider.getSessions()[0];
-		provider.setModel(session.sessionId, 'copilot/gpt-4o');
+		provider.setModel(session.sessionId, session.resource, 'copilot/gpt-4o', ChatModelSource.Chosen);
 
 		assert.strictEqual(session.modelId.get(), 'copilot/gpt-4o');
 
 		const chat = await provider.createNewChat(session.sessionId);
 		try {
-			assert.strictEqual(chat.modelId.get(), 'copilot/gpt-4o');
+			// The model carries where it came from: chosen by the user on the original chat, and
+			// only inherited by the new one. Model selection needs that difference to know whether
+			// `chat.defaultModel` may still seed the new chat.
+			assert.deepStrictEqual({
+				model: chat.modelId.get(),
+				sourceOnOriginalChat: provider.getSessions()[0].mainChat.get().modelSource?.get(),
+				sourceOnNewChat: chat.modelSource?.get(),
+			}, {
+				model: 'copilot/gpt-4o',
+				sourceOnOriginalChat: ChatModelSource.Chosen,
+				sourceOnNewChat: ChatModelSource.CarriedOver,
+			});
 		} finally {
 			await provider.deleteChat(session.sessionId, chat.resource);
 		}
