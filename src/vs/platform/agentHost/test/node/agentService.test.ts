@@ -3990,6 +3990,22 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a registry read failure during migration still fails the listing instead of publishing an empty catalog', async () => {
+			// The provider must be flagged incomplete before any awaited work:
+			// a rejected marker read is swallowed by `Promise.allSettled`, so an
+			// unflagged provider would let an unbackfilled registry be published.
+			class FailingMarkerDatabase extends TransientRegistryWriteDatabase {
+				override async isProviderBackfilled(): Promise<boolean> {
+					throw new Error('registry read failed');
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, new FailingMarkerDatabase()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+
+			assert.strictEqual(await svc.listSessions().then(() => 'resolved', () => 'rejected'), 'rejected');
+		});
+
 		test('a provider that never becomes enumerable fails the listing instead of publishing an unbackfilled registry', async () => {
 			// Publishing "no sessions" for a provider whose backfill never ran
 			// states as fact something that is merely unknown; clients treat

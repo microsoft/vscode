@@ -1314,20 +1314,12 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Awaits legacy migration started at provider registration, then re-attempts
-	 * any provider whose backfill has not yet completed a real enumeration, and
-	 * finally fails when the catalog is still incomplete.
+	 * Awaits provider backfills and fails when any catalog is still incomplete,
+	 * re-attempting them in-process first.
 	 *
-	 * The registry is the source of truth for {@link listSessions}, so answering
-	 * while a provider has not been backfilled would publish "no sessions" for
-	 * that provider as an authoritative fact. Clients legitimately treat that as
-	 * a deletion and drop the sessions from their own caches, hiding data that is
-	 * intact on disk. Failing instead is the safe signal: it is transient, and
-	 * clients keep showing what they already have and retry.
-	 *
-	 * The re-attempt is what re-arms migration in-process. Without it the initial
-	 * migration promise is already settled, so a provider that was not ready
-	 * during startup would stay unavailable until the next process start.
+	 * Publishing an unbackfilled registry would state "no sessions" as fact for
+	 * that provider, which clients act on by dropping sessions that are intact on
+	 * disk. Failing is transient, so they keep their cache and retry.
 	 */
 	private async _ensureProviderCatalogsComplete(): Promise<void> {
 		await this._awaitInitialProviderMigration();
@@ -1506,6 +1498,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _migrateLegacyProviderChats(provider: IAgent, force = false): Promise<void> {
+		// Marked before any awaited work: until a completed marker path or a real
+		// enumeration clears this, the provider's catalog is unknown rather than
+		// empty, so a rejection anywhere below cannot be published as a listing.
+		this._incompleteProviderCatalogs.add(provider.id);
 		if (!force) {
 			if (await this._sessionRegistry.isProviderBackfilled(provider.id)) {
 				this._incompleteProviderCatalogs.delete(provider.id);
@@ -1517,16 +1513,9 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 		}
-		// Until a real enumeration succeeds this provider's catalog is *unknown*,
-		// not empty. Mark it so a failed or exhausted pass — including one that
-		// throws below — cannot be published as an authoritative listing.
-		this._incompleteProviderCatalogs.add(provider.id);
 		const sessions = await this._enumerateLegacyProviderChatsWithRetry(provider);
 		if (sessions === undefined) {
-			// Still unable to enumerate after every attempt. Return *without*
-			// marking the provider backfilled, and leave it flagged incomplete so
-			// `listSessions` reports the catalog as unavailable rather than
-			// publishing a registry that has not been backfilled yet.
+			// Left flagged incomplete so `listSessions` reports the catalog as unavailable rather than empty.
 			this._logService.warn(`[AgentService] registry migration: provider ${provider.id} could not enumerate its catalog; its sessions are reported as unavailable until it can`);
 			return;
 		}
@@ -1574,25 +1563,12 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Enumerates `provider`'s legacy chats, retrying while the provider reports
-	 * that it cannot enumerate yet.
+	 * Enumerates `provider`'s legacy chats, retrying while it reports that it
+	 * cannot enumerate yet; `undefined` once the bounded budget is spent.
 	 *
-	 * `undefined` from {@link _enumerateLegacyProviderSessions} means "not ready
-	 * yet" (e.g. the agent's client is still starting), *not* "there is nothing
-	 * to migrate". Treating it as terminal loses a race that is easy to lose:
-	 * migration starts the moment a provider registers, while its client can
-	 * take seconds to come up. Because this backfill is what populates a newly
-	 * created registry, giving up hides every session that exists on disk until
-	 * the registry is repopulated some other way.
-	 *
-	 * The retries are awaited (rather than scheduled in the background) so the
-	 * promise `registerProvider` stores in `_initialProviderMigrations` — which
-	 * {@link listSessions} awaits via {@link _awaitInitialProviderMigration} —
-	 * does not resolve until a real enumeration happened. That keeps the first
-	 * authoritative session list from being published while the registry is
-	 * still incomplete, which clients would otherwise treat as a deletion.
-	 *
-	 * Bounded so a provider that never becomes ready cannot stall enumeration.
+	 * That answer means "not ready" (e.g. the client is still starting), not
+	 * "nothing to migrate". Retries are awaited so the promise `listSessions`
+	 * waits on cannot resolve before a real enumeration happened.
 	 */
 	private async _enumerateLegacyProviderChatsWithRetry(provider: IAgent): Promise<readonly IAgentSessionMetadata[] | undefined> {
 		for (let attempt = 1; ; attempt++) {
