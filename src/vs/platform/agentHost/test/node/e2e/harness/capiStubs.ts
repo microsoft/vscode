@@ -184,6 +184,12 @@ export function getAncillaryStub(method: string, path: string, body?: string): I
 	if ((path === '/mcp' || path === '/mcp/readonly') && method === 'POST') {
 		return { status: 404, headers: { 'content-type': 'text/plain', 'x-should-retry': 'false' }, body: 'GitHub MCP is not available in replay' };
 	}
+	// Codex follows an unavailable MCP response with standard OAuth protected
+	// resource and authorization-server discovery. Keep those probes ancillary
+	// and unavailable as well; they do not participate in model replay.
+	if (method === 'GET' && (path === '/mcp' || path.startsWith('/.well-known/') || path.includes('/.well-known/'))) {
+		return { status: 404, headers: { 'content-type': 'text/plain' }, body: 'OAuth metadata is not available in replay' };
+	}
 	if (path.startsWith('/copilot_internal/')) {
 		if (path.includes('/token') || path.includes('/nltoken')) {
 			return { status: 200, headers: JSON_HEADERS, body: tokenStubBody() };
