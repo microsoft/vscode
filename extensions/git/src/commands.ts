@@ -1511,8 +1511,8 @@ export class CommandCenter {
 					changedLines = lines.map(line => `+${line}`);
 				} else {
 					const rawDiff = staged
-						? await repository.diffIndexWithHEAD(resource.resourceUri.fsPath)
-						: await repository.diffWithHEAD(resource.resourceUri.fsPath);
+						? await repository.diffIndexWithHEAD(relativePath)
+						: await repository.diffWithHEAD(relativePath);
 
 					changedLines = rawDiff
 						.split('\n')
