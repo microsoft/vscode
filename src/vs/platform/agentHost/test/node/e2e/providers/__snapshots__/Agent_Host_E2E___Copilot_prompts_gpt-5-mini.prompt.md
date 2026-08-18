@@ -1229,14 +1229,14 @@ Get metadata and the open link for the session this conversation is running in. 
 ```
 
 #### create_session
-Create a session in a workspace and start it with an initial prompt. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.
+Create an independently scoped session and start it with an initial prompt. Use this when work needs a separate workspace, worktree or branch, provider, or lifecycle. For parallel subtasks that should share one workspace and aggregate diff, prefer `create_chat`. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.
 ```json
 {
   "type": "object",
   "properties": {
     "workspace": {
       "type": "string",
-      "description": "Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session."
+      "description": "Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Use `create_chat` instead when the work should share the current session's workspace and changes."
     },
     "prompt": {
       "type": "string",
@@ -1271,7 +1271,7 @@ Create a session in a workspace and start it with an initial prompt. The UI show
 ```
 
 #### create_chat
-Add a new chat to an existing session and start it with an initial prompt. Omit `session` to add the chat to the current session; otherwise pass a session URI from `list_sessions`. Optionally pass a `model` to use for the chat (defaults to the current chat's model). The UI shows a "Chat Created" confirmation with a button to open the session, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.
+Add a new chat to an existing session and start it with an initial prompt. Prefer this for parallel subtasks that should remain part of one user-visible unit of work, sharing the session's workspace, lifecycle, and aggregate diff. Omit `session` to add the chat to the current session; otherwise pass a session URI from `list_sessions`. Optionally pass a `model` to use for the chat (defaults to the current chat's model). The UI shows a "Chat Created" confirmation with a button to open the session, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.
 ```json
 {
   "type": "object",

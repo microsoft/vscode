@@ -65,7 +65,7 @@ const listSessionsInputSchema: ToolDefinition['inputSchema'] = {
 const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
-		workspace: { type: 'string', description: 'Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session.' },
+		workspace: { type: 'string', description: 'Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Use `create_chat` instead when the work should share the current session\'s workspace and changes.' },
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model.' },
 		coordinateWithCreator: { type: 'boolean', description: 'Allow the child to identify and contact the session that created it. Set false for an independent child that must not send messages or create chats in its creator. Defaults to true.' },
@@ -154,14 +154,14 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create a session in a workspace and start it with an initial prompt. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.',
+		description: 'Create an independently scoped session and start it with an initial prompt. Use this when work needs a separate workspace, worktree or branch, provider, or lifecycle. For parallel subtasks that should share one workspace and aggregate diff, prefer `create_chat`. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
 	{
 		name: SessionServerToolName.CreateChat,
 		title: 'Create Chat',
-		description: 'Add a new chat to an existing session and start it with an initial prompt. Omit `session` to add the chat to the current session; otherwise pass a session URI from `list_sessions`. Optionally pass a `model` to use for the chat (defaults to the current chat\'s model). The UI shows a "Chat Created" confirmation with a button to open the session, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.',
+		description: 'Add a new chat to an existing session and start it with an initial prompt. Prefer this for parallel subtasks that should remain part of one user-visible unit of work, sharing the session\'s workspace, lifecycle, and aggregate diff. Omit `session` to add the chat to the current session; otherwise pass a session URI from `list_sessions`. Optionally pass a `model` to use for the chat (defaults to the current chat\'s model). The UI shows a "Chat Created" confirmation with a button to open the session, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.',
 		inputSchema: createChatInputSchema,
 		annotations: { readOnlyHint: false },
 	},

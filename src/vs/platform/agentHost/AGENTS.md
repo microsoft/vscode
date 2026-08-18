@@ -229,6 +229,11 @@ For every provider, migration and discovery partition the same native catalog: m
 
 ### Server-tool orchestration relationships
 
+Treat a session as the user-visible unit of work. The `create_chat` tool is the
+default for parallel subtasks that should share one workspace, lifecycle, and
+aggregate diff. Use `create_session` only when a delegated task needs an
+independent workspace, worktree or branch, provider, or lifecycle.
+
 Sessions created by the `create_session` server tool record provider-neutral
 orchestration metadata in the session summary `_meta` bag. The metadata names
 the creating session separately from the hierarchy parent, plus an optional
