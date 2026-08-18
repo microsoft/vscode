@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { autorun, derived, observableValue } from '@vscode/observables';
 import 'mocha';
 import * as vscode from 'vscode';
+import { MarkdownEditorRichLinkController } from '../preview/markdownEditorRichLinks';
 import {
 	getGitHubIssueStatus,
 	getGitHubLookupFailurePresentation,
@@ -18,6 +19,7 @@ import {
 import { getGitCommitPresentation, GitLinkPresentationResolver, normalizeGitRemoteUrl } from '../preview/linkPresentation/gitLinkPresentationResolver';
 import { createAsyncLinkPresentation, ImmutableLinkPresentationCache, LinkPresentationCache } from '../preview/linkPresentation/linkPresentationResolver';
 import { LinkPresentationService } from '../preview/linkPresentation/linkPresentationService';
+import { MdLinkOpener } from '../util/openDocumentLink';
 
 class TestMemento implements vscode.Memento {
 	readonly #values = new Map<string, unknown>();
@@ -43,6 +45,44 @@ class TestMemento implements vscode.Memento {
 }
 
 suite('Markdown editor rich links', () => {
+	test('resolves file targets without absolute path fallback probes', async () => {
+		const workspaceRoot = vscode.workspace.workspaceFolders![0].uri;
+		const document = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(workspaceRoot, 'a.md'));
+		const resolvedTarget = vscode.Uri.parse('test:/absolute/target.md');
+		const statCalls: vscode.Uri[] = [];
+		const opener = new MdLinkOpener(
+			{ resolveLinkTarget: async () => ({ kind: 'file', uri: resolvedTarget }) },
+			{
+				fileSystem: {
+					stat: async resource => {
+						statCalls.push(resource);
+						return { type: vscode.FileType.File, ctime: 0, mtime: 0, size: 0 };
+					},
+				},
+			},
+		);
+		const posted = new vscode.EventEmitter<object>();
+		const didPost = new Promise<void>(resolve => posted.event(() => resolve()));
+		const controller = new MarkdownEditorRichLinkController(
+			document,
+			opener,
+			{ trace: () => { } },
+			async message => {
+				posted.fire(message);
+				return true;
+			},
+		);
+
+		try {
+			controller.updateTargets(['/absolute/target.md']);
+			await didPost;
+			assert.deepStrictEqual(statCalls, []);
+		} finally {
+			controller.dispose();
+			posted.dispose();
+		}
+	});
+
 	test('separates GitHub branch names from folder paths', () => {
 		const refs = [
 			{ ref: 'refs/heads/main' },

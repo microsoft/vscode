@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MdLanguageClient } from '../client/client';
+import type { MdLanguageClient } from '../client/client';
 import * as proto from '../client/protocol';
 
 enum OpenMarkdownLinks {
@@ -12,9 +12,17 @@ enum OpenMarkdownLinks {
 	currentGroup = 'currentGroup',
 }
 
-interface MdLinkOpenerOptions {
-	readonly allowAbsoluteFilePathFallback?: boolean;
+interface MdLinkOpenerServices {
 	readonly fileSystem?: Pick<typeof vscode.workspace.fs, 'stat'>;
+	readonly openFile?: (resource: vscode.Uri, options: vscode.TextDocumentShowOptions) => Thenable<void>;
+}
+
+interface ResolveDocumentLinkOptions {
+	readonly allowAbsoluteFilePathFallback?: boolean;
+}
+
+interface OpenDocumentLinkOptions extends ResolveDocumentLinkOptions {
+	readonly viewColumn?: vscode.ViewColumn;
 }
 
 type ResourceStat =
@@ -25,46 +33,44 @@ type ResourceStat =
 export class MdLinkOpener {
 
 	readonly #client: Pick<MdLanguageClient, 'resolveLinkTarget'>;
-	readonly #allowAbsoluteFilePathFallback: boolean;
 	readonly #fileSystem: Pick<typeof vscode.workspace.fs, 'stat'>;
+	readonly #openFile: (resource: vscode.Uri, options: vscode.TextDocumentShowOptions) => Thenable<void>;
 
 	constructor(
 		client: Pick<MdLanguageClient, 'resolveLinkTarget'>,
-		options: MdLinkOpenerOptions = {},
+		services: MdLinkOpenerServices = {},
 	) {
 		this.#client = client;
-		this.#allowAbsoluteFilePathFallback = options.allowAbsoluteFilePathFallback ?? false;
-		this.#fileSystem = options.fileSystem ?? vscode.workspace.fs;
+		this.#fileSystem = services.fileSystem ?? vscode.workspace.fs;
+		this.#openFile = services.openFile ?? (async (resource, options) => {
+			await vscode.commands.executeCommand('vscode.open', resource, options);
+		});
 	}
 
 	public async resolveDocumentLink(
 		linkText: string,
 		fromResource: vscode.Uri,
+		options: ResolveDocumentLinkOptions = {},
 	): Promise<proto.ResolvedDocumentLinkTarget | undefined> {
 		const resolved = await this.#client.resolveLinkTarget(linkText, fromResource);
-		if (!this.#allowAbsoluteFilePathFallback) {
+		if (!options.allowAbsoluteFilePathFallback || !resolved || resolved.kind === 'external') {
 			return resolved;
 		}
 
-		const absoluteFileUri = getAbsoluteFileUri(linkText, fromResource);
-		if (!absoluteFileUri || resolved?.kind === 'external') {
+		const absoluteFileResource = getAbsoluteFilePathUri(linkText, fromResource);
+		if (!absoluteFileResource) {
 			return resolved;
 		}
 
-		const absoluteFileResource = absoluteFileUri.with({ query: '', fragment: '' });
-		const resolvedResource = resolved
-			? vscode.Uri.from(resolved.uri).with({ query: '', fragment: '' })
-			: undefined;
-		// Preserve normal Markdown resolution whenever it points at an existing
-		// resource. Only then reinterpret the link as a filesystem-absolute path.
-		if (resolvedResource?.toString() === absoluteFileResource.toString()) {
+		const resolvedResource = vscode.Uri.from(resolved.uri).with({ query: '', fragment: '' });
+		if (resolvedResource.toString() === absoluteFileResource.toString()) {
 			return resolved;
 		}
-		if (resolvedResource) {
-			const resolvedStat = await this.#stat(resolvedResource);
-			if (resolvedStat.kind !== 'notFound') {
-				return resolved;
-			}
+		// Only reinterpret the link when normal Markdown resolution definitely
+		// points at a missing resource.
+		const resolvedStat = await this.#stat(resolvedResource);
+		if (resolvedStat.kind !== 'notFound') {
+			return resolved;
 		}
 
 		const absoluteFileStat = await this.#stat(absoluteFileResource);
@@ -77,7 +83,7 @@ export class MdLinkOpener {
 	public async openDocumentLink(
 		linkText: string,
 		fromResource: vscode.Uri,
-		viewColumn?: vscode.ViewColumn,
+		options: OpenDocumentLinkOptions = {},
 	): Promise<void> {
 		const absoluteUri = getAbsoluteUri(linkText);
 		if (absoluteUri && absoluteUri.scheme !== 'file') {
@@ -85,7 +91,7 @@ export class MdLinkOpener {
 			return;
 		}
 
-		const resolved = await this.resolveDocumentLink(linkText, fromResource);
+		const resolved = await this.resolveDocumentLink(linkText, fromResource, options);
 		if (!resolved) {
 			return;
 		}
@@ -113,6 +119,7 @@ export class MdLinkOpener {
 				return vscode.commands.executeCommand('revealInExplorer', uri);
 
 			case 'file': {
+				let viewColumn = options.viewColumn;
 				// If no explicit viewColumn is given, check if the editor is already open in a tab
 				if (typeof viewColumn === 'undefined') {
 					for (const tab of vscode.window.tabGroups.all.flatMap(x => x.tabs)) {
@@ -125,12 +132,13 @@ export class MdLinkOpener {
 					}
 				}
 
-				return vscode.commands.executeCommand('vscode.open', uri, {
+				await this.#openFile(uri, {
 					selection: resolved.position
 						? new vscode.Range(resolved.position.line, resolved.position.character, resolved.position.line, resolved.position.character)
 						: rangeSelection,
 					viewColumn: viewColumn ?? getViewColumn(fromResource),
-				} satisfies vscode.TextDocumentShowOptions);
+				});
+				return;
 			}
 		}
 	}
@@ -163,13 +171,9 @@ export function getAbsoluteUri(linkText: string): vscode.Uri | undefined {
 		: undefined;
 }
 
-function getAbsoluteFileUri(linkText: string, fromResource: vscode.Uri): vscode.Uri | undefined {
-	const absoluteUri = getAbsoluteUri(linkText);
-	if (absoluteUri) {
-		return absoluteUri.scheme === 'file' ? absoluteUri : undefined;
-	}
-
+function getAbsoluteFilePathUri(linkText: string, fromResource: vscode.Uri): vscode.Uri | undefined {
 	if ((fromResource.scheme !== 'file' && fromResource.scheme !== 'vscode-remote')
+		|| getAbsoluteUri(linkText)
 		|| linkText.startsWith('//')
 		|| linkText.startsWith('\\\\')) {
 		return undefined;
@@ -184,7 +188,9 @@ function getAbsoluteFileUri(linkText: string, fromResource: vscode.Uri): vscode.
 	if (parsed.authority) {
 		return undefined;
 	}
-	if (!parsed.path.startsWith('/') && !/^[a-z]:[\\/]/i.test(parsed.path)) {
+	const isWindowsAbsolutePath = /^[a-z]:[\\/]/i.test(parsed.path);
+	if ((!parsed.path.startsWith('/') && !isWindowsAbsolutePath)
+		|| (isWindowsAbsolutePath && process.platform !== 'win32')) {
 		return undefined;
 	}
 	if (parsed.path.replace(/\\/g, '/').startsWith('//')) {
@@ -198,8 +204,8 @@ function getAbsoluteFileUri(linkText: string, fromResource: vscode.Uri): vscode.
 	return fileUri.with({
 		scheme: fromResource.scheme,
 		authority: fromResource.authority,
-		query: parsed.query,
-		fragment: parsed.fragment,
+		query: '',
+		fragment: '',
 	});
 }
 

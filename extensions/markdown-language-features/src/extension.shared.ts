@@ -39,7 +39,6 @@ export function activateShared(
 	const commandManager = new CommandManager();
 
 	const opener = new MdLinkOpener(client);
-	const markdownEditorOpener = new MdLinkOpener(client, { allowAbsoluteFilePathFallback: true });
 
 	const contentProvider = new MdDocumentRenderer(engine, context, cspArbiter, contributions, logger);
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, opener, context.workspaceState);
@@ -62,7 +61,7 @@ export function activateShared(
 	const markdownEditorProvider = new MarkdownEditorProvider(
 		context.extensionUri,
 		context.globalState,
-		markdownEditorOpener,
+		opener,
 		contributions,
 		logger,
 		href => linkPresentationService.openLink(href),

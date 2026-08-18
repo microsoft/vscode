@@ -10,6 +10,7 @@ import type * as proto from '../client/protocol';
 import { getAbsoluteUri, MdLinkOpener } from '../util/openDocumentLink';
 
 const sourceResource = vscode.Uri.file('/workspace/source.md');
+const absoluteFilePathFallback = { allowAbsoluteFilePathFallback: true };
 
 suite('Open Markdown document link', () => {
 	test('recognizes absolute links without treating relative links as URIs', () => {
@@ -38,7 +39,7 @@ suite('Open Markdown document link', () => {
 			[resolvedTarget, absoluteTarget],
 		);
 
-		const result = await opener.resolveDocumentLink('/absolute/target.md', sourceResource);
+		const result = await opener.resolveDocumentLink('/absolute/target.md', sourceResource, absoluteFilePathFallback);
 
 		assert.ok(result);
 		assert.strictEqual(vscode.Uri.from(result.uri).toString(), resolvedTarget.toString());
@@ -52,29 +53,38 @@ suite('Open Markdown document link', () => {
 			[absoluteTarget],
 		);
 
-		const result = await opener.resolveDocumentLink('/absolute/target.md#L3', sourceResource);
+		const result = await opener.resolveDocumentLink('/absolute/target.md#L3', sourceResource, absoluteFilePathFallback);
 
 		assert.ok(result);
 		assert.strictEqual(result.kind, 'file');
 		assert.strictEqual(vscode.Uri.from(result.uri).toString(), absoluteTarget.toString());
 	});
 
-	test('falls back to Windows absolute file paths with either slash style', async () => {
+	test('falls back to Windows absolute file paths with either slash style on Windows', async () => {
 		const forwardSlashTarget = vscode.Uri.file('C:/absolute/forward.md');
 		const backslashTarget = vscode.Uri.file('C:\\absolute\\backward.md');
 		const resolvedTarget = vscode.Uri.file('/workspace/missing.md');
+		const statCalls: vscode.Uri[] = [];
 		const opener = createLinkOpener(
 			{ kind: 'file', uri: resolvedTarget },
 			[forwardSlashTarget, backslashTarget],
+			{ onStat: resource => statCalls.push(resource) },
 		);
 
-		const forwardSlashResult = await opener.resolveDocumentLink('C:/absolute/forward.md', sourceResource);
-		const backslashResult = await opener.resolveDocumentLink('C:\\absolute\\backward.md', sourceResource);
+		const forwardSlashResult = await opener.resolveDocumentLink('C:/absolute/forward.md', sourceResource, absoluteFilePathFallback);
+		const backslashResult = await opener.resolveDocumentLink('C:\\absolute\\backward.md', sourceResource, absoluteFilePathFallback);
 
 		assert.ok(forwardSlashResult);
 		assert.ok(backslashResult);
-		assert.strictEqual(vscode.Uri.from(forwardSlashResult.uri).toString(), forwardSlashTarget.toString());
-		assert.strictEqual(vscode.Uri.from(backslashResult.uri).toString(), backslashTarget.toString());
+		if (process.platform === 'win32') {
+			assert.strictEqual(vscode.Uri.from(forwardSlashResult.uri).toString(), forwardSlashTarget.toString());
+			assert.strictEqual(vscode.Uri.from(backslashResult.uri).toString(), backslashTarget.toString());
+			assert.strictEqual(statCalls.length, 4);
+		} else {
+			assert.strictEqual(vscode.Uri.from(forwardSlashResult.uri).toString(), resolvedTarget.toString());
+			assert.strictEqual(vscode.Uri.from(backslashResult.uri).toString(), resolvedTarget.toString());
+			assert.deepStrictEqual(statCalls, []);
+		}
 	});
 
 	test('preserves the source scheme and authority for remote absolute paths', async () => {
@@ -86,7 +96,7 @@ suite('Open Markdown document link', () => {
 			[absoluteTarget],
 		);
 
-		const result = await opener.resolveDocumentLink('/absolute/target.md', source);
+		const result = await opener.resolveDocumentLink('/absolute/target.md', source, absoluteFilePathFallback);
 
 		assert.ok(result);
 		assert.strictEqual(vscode.Uri.from(result.uri).toString(), absoluteTarget.toString());
@@ -101,7 +111,7 @@ suite('Open Markdown document link', () => {
 			{ fileType: vscode.FileType.Directory },
 		);
 
-		const result = await opener.resolveDocumentLink('/absolute/folder', sourceResource);
+		const result = await opener.resolveDocumentLink('/absolute/folder', sourceResource, absoluteFilePathFallback);
 
 		assert.ok(result);
 		assert.strictEqual(vscode.Uri.from(result.uri).toString(), resolvedTarget.toString());
@@ -114,7 +124,7 @@ suite('Open Markdown document link', () => {
 			[],
 		);
 
-		const result = await opener.resolveDocumentLink('/absolute/missing.md', sourceResource);
+		const result = await opener.resolveDocumentLink('/absolute/missing.md', sourceResource, absoluteFilePathFallback);
 
 		assert.ok(result);
 		assert.strictEqual(vscode.Uri.from(result.uri).toString(), resolvedTarget.toString());
@@ -126,7 +136,6 @@ suite('Open Markdown document link', () => {
 		const opener = createLinkOpener(
 			{ kind: 'file', uri: resolvedTarget },
 			[absoluteTarget],
-			{ allowAbsoluteFilePathFallback: false },
 		);
 
 		const result = await opener.resolveDocumentLink('/absolute/target.md', sourceResource);
@@ -135,15 +144,27 @@ suite('Open Markdown document link', () => {
 		assert.strictEqual(vscode.Uri.from(result.uri).toString(), resolvedTarget.toString());
 	});
 
-	test('resolves an existing file URI when normal resolution has no target', async () => {
+	test('does not fall back when normal resolution has no target', async () => {
 		const absoluteTarget = vscode.Uri.file('/absolute/target.md');
-		const opener = createLinkOpener(undefined, [absoluteTarget]);
+		const statCalls: vscode.Uri[] = [];
+		const openedFiles: OpenedFile[] = [];
+		const opener = createLinkOpener(undefined, [absoluteTarget], {
+			onStat: resource => statCalls.push(resource),
+			onOpenFile: (resource, options) => openedFiles.push({ resource, options }),
+		});
 
-		const result = await opener.resolveDocumentLink(absoluteTarget.toString(), sourceResource);
+		for (const [link, source] of [
+			['/absolute/target.md', sourceResource],
+			[absoluteTarget.toString(), sourceResource],
+			['file://example.com/share/target.md', sourceResource],
+			[absoluteTarget.toString(), vscode.Uri.parse('vscode-vfs://github/repository/source.md')],
+			[absoluteTarget.toString(), vscode.Uri.parse('untitled:source.md')],
+		] as const) {
+			await opener.openDocumentLink(link, source, absoluteFilePathFallback);
+		}
 
-		assert.ok(result);
-		assert.strictEqual(result.kind, 'file');
-		assert.strictEqual(vscode.Uri.from(result.uri).toString(), absoluteTarget.toString());
+		assert.deepStrictEqual(statCalls, []);
+		assert.deepStrictEqual(openedFiles, []);
 	});
 
 	test('preserves normal resolution when stat is unavailable', async () => {
@@ -160,8 +181,8 @@ suite('Open Markdown document link', () => {
 			{ unavailableResources: [absoluteTarget] },
 		);
 
-		const normalTargetResult = await normalTargetUnavailable.resolveDocumentLink('/absolute/target.md', sourceResource);
-		const absoluteTargetResult = await absoluteTargetUnavailable.resolveDocumentLink('/absolute/target.md', sourceResource);
+		const normalTargetResult = await normalTargetUnavailable.resolveDocumentLink('/absolute/target.md', sourceResource, absoluteFilePathFallback);
+		const absoluteTargetResult = await absoluteTargetUnavailable.resolveDocumentLink('/absolute/target.md', sourceResource, absoluteFilePathFallback);
 
 		assert.ok(normalTargetResult);
 		assert.ok(absoluteTargetResult);
@@ -182,27 +203,81 @@ suite('Open Markdown document link', () => {
 			'./target.md',
 			'#heading',
 			'https://example.com/target.md',
+			'file:///absolute/target.md',
+			'file://example.com/share/target.md',
 			'//example.com/target.md',
 			'////target.md',
 			'/\\example.com/share/target.md',
 			'/%5Cexample.com/share/target.md',
 		]) {
-			const result = await opener.resolveDocumentLink(link, sourceResource);
+			const result = await opener.resolveDocumentLink(link, sourceResource, absoluteFilePathFallback);
 			assert.ok(result);
 			assert.strictEqual(vscode.Uri.from(result.uri).toString(), resolvedTarget.toString());
 		}
-		await opener.resolveDocumentLink('/target.md', vscode.Uri.parse('vscode-vfs://github/repository/source.md'));
-		await opener.resolveDocumentLink('/target.md', vscode.Uri.parse('untitled:source.md'));
+		for (const source of [
+			vscode.Uri.parse('vscode-vfs://github/repository/source.md'),
+			vscode.Uri.parse('untitled:source.md'),
+		]) {
+			const result = await opener.resolveDocumentLink('/target.md', source, absoluteFilePathFallback);
+			assert.ok(result);
+			assert.strictEqual(vscode.Uri.from(result.uri).toString(), resolvedTarget.toString());
+		}
 
 		assert.deepStrictEqual(statCalls, []);
+	});
+
+	test('opens an absolute file fallback at a numeric line fragment', async () => {
+		const absoluteTarget = vscode.Uri.file('/absolute/target.md');
+		const resolvedTarget = vscode.Uri.file('/workspace/absolute/target.md');
+		let openedFile: OpenedFile | undefined;
+		const opener = createLinkOpener(
+			{ kind: 'file', uri: resolvedTarget },
+			[absoluteTarget],
+			{ onOpenFile: (resource, options) => openedFile = { resource, options } },
+		);
+
+		await opener.openDocumentLink('/absolute/target.md#L3', sourceResource, absoluteFilePathFallback);
+
+		assert.ok(openedFile);
+		assert.strictEqual(openedFile.resource.toString(), absoluteTarget.with({ fragment: 'L3' }).toString());
+		assert.strictEqual(openedFile.options.selection?.start.line, 2);
+		assert.strictEqual(openedFile.options.selection?.start.character, 0);
+		assert.strictEqual(openedFile.options.selection?.end.line, 2);
+		assert.strictEqual(openedFile.options.selection?.end.character, 0);
+	});
+
+	test('checks the exact authored absolute path without inferring a Markdown extension', async () => {
+		const absoluteTarget = vscode.Uri.file('/absolute/target');
+		const absoluteMarkdownTarget = vscode.Uri.file('/absolute/target.md');
+		const resolvedTarget = vscode.Uri.file('/workspace/absolute/target');
+		const statCalls: vscode.Uri[] = [];
+		const opener = createLinkOpener(
+			{ kind: 'file', uri: resolvedTarget },
+			[absoluteMarkdownTarget],
+			{ onStat: resource => statCalls.push(resource) },
+		);
+
+		const result = await opener.resolveDocumentLink('/absolute/target', sourceResource, absoluteFilePathFallback);
+
+		assert.ok(result);
+		assert.strictEqual(vscode.Uri.from(result.uri).toString(), resolvedTarget.toString());
+		assert.deepStrictEqual(statCalls.map(resourceKey), [
+			resourceKey(resolvedTarget),
+			resourceKey(absoluteTarget),
+		]);
 	});
 });
 
 interface TestLinkOpenerOptions {
-	readonly allowAbsoluteFilePathFallback?: boolean;
 	readonly fileType?: vscode.FileType;
 	readonly unavailableResources?: readonly vscode.Uri[];
 	readonly onStat?: (resource: vscode.Uri) => void;
+	readonly onOpenFile?: (resource: vscode.Uri, options: vscode.TextDocumentShowOptions) => void;
+}
+
+interface OpenedFile {
+	readonly resource: vscode.Uri;
+	readonly options: vscode.TextDocumentShowOptions;
 }
 
 function createLinkOpener(
@@ -215,7 +290,6 @@ function createLinkOpener(
 	return new MdLinkOpener(
 		{ resolveLinkTarget: async () => resolved },
 		{
-			allowAbsoluteFilePathFallback: options.allowAbsoluteFilePathFallback ?? true,
 			fileSystem: {
 				stat: async resource => {
 					options.onStat?.(resource);
@@ -227,6 +301,9 @@ function createLinkOpener(
 					}
 					return { type: options.fileType ?? vscode.FileType.File, ctime: 0, mtime: 0, size: 0 };
 				},
+			},
+			openFile: async (resource, openOptions) => {
+				options.onOpenFile?.(resource, openOptions);
 			},
 		},
 	);
