@@ -73,6 +73,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 */
 	inlineToggle?: IActionListItemInlineToggle;
 	/**
+	 * Optional toggle switch rendered on the same row as the label.
+	 */
+	standaloneToggle?: IActionListItemInlineToggle;
+	/**
 	 * Optional keybinding to display next to the action. When provided, this overrides the
 	 * keybinding that would otherwise be looked up via {@link IKeybindingService.lookupKeybinding}.
 	 * Useful when the active keybinding depends on a scoped context (e.g. focus state) that the
@@ -201,6 +205,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					toolbarActions: action.toolbarActions,
 					className: action.className,
 					inlineToggle: action.inlineToggle,
+					standaloneToggle: action.standaloneToggle,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(isCheckable && action.checked ? Codicon.check.id : Codicon.blank.id) },

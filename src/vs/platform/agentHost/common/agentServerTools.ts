@@ -17,7 +17,8 @@ import type { ToolDefinition, URI } from './state/sessionState.js';
  * never hard-code any specific tool — they read {@link definitions} /
  * {@link toolNames} and route through {@link executeTool}.
  *
- * `sessionUri` is the session's protocol URI.
+ * Tool invocation methods take the exact Agent Host chat channel URI. The host
+ * resolves its owning session for session-scoped state and tools.
  */
 export interface IAgentServerToolHost {
 	/** Every server tool definition across the contributed groups. */
@@ -39,20 +40,20 @@ export interface IAgentServerToolHost {
 	canRequireConfirmation(toolName: string): boolean;
 	/**
 	 * Whether {@link toolName} needs to prompt for *this* invocation, given the
-	 * current state of {@link sessionUri}. Lets a tool that normally confirms
+	 * current state of {@link chatUri}. Lets a tool that normally confirms
 	 * run silently when it has nothing to confirm. Defaults to
 	 * {@link canRequireConfirmation} when the owning group has no
 	 * session-specific condition.
 	 *
 	 * Providers must consult this before prompting or executing the tool.
 	 */
-	requiresConfirmation(sessionUri: URI, toolName: string): boolean;
+	requiresConfirmation(chatUri: URI, toolName: string): boolean;
 	/**
-	 * Executes a server tool against the session's state, dispatching any
+	 * Executes a server tool for the exact chat that invoked it, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.
 	 *
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
 }

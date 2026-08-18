@@ -50,7 +50,7 @@ import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
-import { isQuickChat } from '../widget/chatWidget.js';
+import { isChatInputWindow, isQuickChat } from '../widget/chatWidget.js';
 import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -596,7 +596,7 @@ export class AttachContextAction extends Action2 {
 				} else {
 					instantiationService.invokeFunction(this._handleQPPick.bind(this), widget, isBackgroundAccept, item);
 				}
-				if (isQuickChat(widget)) {
+				if (isQuickChat(widget) && !isChatInputWindow(widget)) {
 					quickChatService.open();
 				}
 			}

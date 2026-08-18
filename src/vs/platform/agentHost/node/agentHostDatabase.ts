@@ -51,6 +51,7 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Atomically tombstones and removes a session so concurrent backfill cannot re-register it. */
 	tombstoneAndUnregisterSession(session: string): Promise<void>;
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
+	getSession(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
 	isSessionRegistryEmpty(): Promise<boolean>;
 	/**
@@ -256,6 +257,20 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			external: row.external === null ? undefined : row.external === 1,
 			source: row.registration_source as AgentSessionRegistrationSource,
 		}));
+	}
+
+	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		const row = await get(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, external, registration_source FROM sessions WHERE session_uri = ?', [session]);
+		if (!row) {
+			return undefined;
+		}
+		return {
+			session: row.session_uri as string,
+			provider: row.provider as AgentProvider,
+			startTime: row.start_time as number,
+			external: row.external === null || row.external === undefined ? undefined : row.external === 1,
+			source: row.registration_source as AgentSessionRegistrationSource,
+		};
 	}
 
 	async isSessionRegistryEmpty(): Promise<boolean> {

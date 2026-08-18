@@ -106,7 +106,8 @@ import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { ChatInputStateOrigin, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isNewConversation, mergeModelsWithCache, shouldResetOnModelListChange } from './chatInputModelUtils.js';
+import { isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, RestoredModelReason } from '../../../common/modelSelection.js';
+import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, mergeModelsWithCache, shouldDropAgnosticDraftModel, shouldResetOnModelListChange, shouldRestorePerTypeModelOnSessionSwitch } from './chatInputModelUtils.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -117,8 +118,9 @@ import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../vo
 import { ChatSpeechToTextConnectingAction, ChatSpeechToTextPreparingAction, ToggleChatSpeechToTextAction } from '../../actions/chatSpeechToTextActions.js';
 import { DictationActionViewItem } from '../../speechToText/dictationActionViewItem.js';
 import { DictationDownloadActionViewItem } from '../../speechToText/dictationDownloadActionViewItem.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../speechToText/chatSpeechToTextService.js';
 import { IDictationOnboardingService } from '../../speechToText/dictationOnboarding.js';
-import { notifyDictationSubmitted } from '../../speechToText/dictationSession.js';
+import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
@@ -533,9 +535,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private readonly _unboundIntent = new IntendedModelSlot();
 
+	/**
+	 * Whether the session being switched to should restore the model remembered for its type.
+	 * Latched while the switch is in flight because the decision is made before the view model
+	 * arrives and acted on after. Held here rather than in the shared selection controller: it
+	 * describes this widget's handshake, not what a conversation runs on.
+	 */
+	private _restorePerTypeModel = false;
+
 	/** Whoever speaks for the intended model right now: the bound conversation, else this input part. */
 	private get _intentHolder(): IIntendedModelHolder {
 		return this._inputModel ?? this._unboundIntent;
+	}
+
+	/**
+	 * Whether a model arriving from the conversation's draft state is that conversation's own
+	 * choice.
+	 *
+	 * The draft state records which model, never who chose it — it is shared content, synced to
+	 * peers and the agent host. The conversation's intended model does record the authority, and it
+	 * is local to this client and outlives `clearState`, so a draft model matching an intent this
+	 * conversation established by choice is a restored choice rather than carried over. Anything else
+	 * stays provisional, which is what lets `chat.defaultModel` seed a new session that merely
+	 * inherited the previous one's model.
+	 */
+	private _restoreReasonFor(model: ILanguageModelChatMetadataAndIdentifier): RestoredModelReason {
+		const intended = this._intentHolder.intendedModel;
+		return intended?.modelId === model.identifier && isInConversationModelChoice(intended.reason)
+			? ModelSelectionReason.RestoredChoice
+			: ModelSelectionReason.SessionRestore;
 	}
 
 	// Disposables for model observation
@@ -785,6 +813,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatContextService private readonly chatContextService: IChatContextService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IChatSpeechToTextService private readonly speechToTextService: IChatSpeechToTextService,
 		@IDictationOnboardingService private readonly dictationOnboardingService: IDictationOnboardingService,
 		@IChatInputNoticeHubService private readonly chatInputNoticeHubService: IChatInputNoticeHubService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -811,14 +840,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			metadata: { widgetViewKind: this.options.widgetViewKindTag },
 		}));
 		this._modelSelectionRuntime = {
-			location: this.location,
-			getCurrentModeKind: () => this.currentModeKind,
 			getCurrentSessionType: () => this._currentSessionType ?? this.getCurrentSessionType(),
 			isEmpty: () => !this._inputModel || this._chatSessionIsEmpty,
 			getModels: sessionType => this.getModelsForSessionType(sessionType),
 			getAllModels: () => this.getAllMergedModels(),
-			requiresCustomModels: sessionType => this.chatSessionsService.requiresCustomModelsForSessionType(sessionType),
+			// A session type with its own models must not be defaulted over while they are still
+			// loading, or the pick lands on the general catalog instead.
+			isAwaitingSessionModels: sessionType => this.chatSessionsService.requiresCustomModelsForSessionType(sessionType)
+				&& !hasModelsTargetingSession(this.getAllMergedModels(), sessionType),
 			getConfiguredModelValue: () => this.getConfiguredModelValue(),
+			// Workbench chat runs a mode, and can be shown inline, so both bear on what it can run.
+			isModelSupportedHere: model => isModelSupportedForMode(model, this.currentModeKind) && isModelSupportedForInlineChat(model, this.location),
+			getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[this.location]),
 			subscribeToModelChanges: listener => this.languageModelsService.onDidChangeLanguageModels(listener),
 			getBoundConversationKey: () => this._inputModelSessionResource?.toString(),
 			getIntentHolder: () => this._intentHolder,
@@ -1504,7 +1537,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// input and view model finish wiring together, then cleared in the view-model-change finally.
 		const ownsPool = !!this._currentSessionType && this.sessionTypeHasOwnModelPool(this._currentSessionType);
 		const hadIncomingModel = !!model.state.get()?.selectedModel;
-		this._modelSelectionController.beginSessionSwitch(this._chatSessionIsEmpty, ownsPool, hadIncomingModel);
+		this._modelSelectionController.beginConversationSwitch();
+		this._restorePerTypeModel = shouldRestorePerTypeModelOnSessionSwitch(this._chatSessionIsEmpty, ownsPool, hadIncomingModel);
 
 		if (this._chatSessionIsEmpty) {
 			const persistedState = model.state.get() ? undefined : this._getPersistedEmptyInputState();
@@ -1544,7 +1578,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				state = this._getPersistedEmptyInputState();
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
 				if (state) {
-					const resolved = this._modelSelectionController.resolveDraftModel(state.selectedModel, this._currentSessionType, false);
+					const resolved = this.resolveDraftModel(state.selectedModel, this._currentSessionType, false);
 					if (resolved.changed) {
 						state = { ...state, selectedModel: resolved.model, modelConfiguration: undefined };
 					}
@@ -1587,7 +1621,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			attachments: persistedAttachments.length > 0 ? persistedAttachments : state.attachments,
 		};
 
-		const resolved = this._modelSelectionController.resolveDraftModel(state.selectedModel, this._currentSessionType, true);
+		const resolved = this.resolveDraftModel(state.selectedModel, this._currentSessionType, true);
 		if (resolved.changed) {
 			state = { ...state, selectedModel: resolved.model, modelConfiguration: undefined };
 		}
@@ -1651,7 +1685,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
 				const sessionType = getChatSessionType(forSessionResource);
-				this._modelSelectionController.syncFromConversationState(state.selectedModel, state.modelConfiguration, sessionType, forSessionResource.toString(), state.origin === ChatInputStateOrigin.Remote);
+				this._modelSelectionController.syncFromConversationState(state.selectedModel, state.modelConfiguration, sessionType, forSessionResource.toString(), state.origin === ChatInputStateOrigin.Remote, this._restoreReasonFor(state.selectedModel));
 			} else if (state) {
 				// state exists but state.selectedModel is undefined - sync is a NO-OP,
 				// but record it so we can see when a session's persisted state lost its model.
@@ -1936,10 +1970,43 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return model ? model : undefined;
 	}
 
-	/** Resets the language model to the location default and cancels any pending model-selection intent. */
+	/**
+	 * The model a draft should open on: the draft's own, unless it belongs to another session's
+	 * pool, and always superseded by a configured default.
+	 */
+	private resolveDraftModel(
+		draftModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		sessionTypeForValidation: string | undefined,
+		validatePool: boolean,
+	): { readonly model: ILanguageModelChatMetadataAndIdentifier | undefined; readonly changed: boolean } {
+		let model = draftModel;
+		if (validatePool && shouldDropAgnosticDraftModel(model, this.getAllMergedModels(), sessionTypeForValidation)) {
+			model = undefined;
+		}
+		const configuredValue = this.getConfiguredModelValue();
+		if (configuredValue) {
+			model = resolveConfiguredModel(configuredValue, this.getModelsForSessionType(this._currentSessionType ?? this.getCurrentSessionType()));
+		}
+		return { model, changed: model?.identifier !== draftModel?.identifier };
+	}
+
+	/**
+	 * Re-seeds from storage when the current model is absent from the destination session's pool,
+	 * restoring the preference remembered for that pool.
+	 */
+	private reinitializeIfOutsidePool(initialize: () => void): void {
+		const currentModel = this._modelSelectionController.currentModel.get();
+		const pool = this.getModelsForSessionType(this._currentSessionType ?? this.getCurrentSessionType());
+		if (!currentModel || pool.some(model => model.identifier === currentModel.identifier)) {
+			return;
+		}
+		initialize();
+		this._modelSelectionController.ensureCurrentModelSupported();
+	}
+
+	/** Resets the language model to the location default, forgetting what was preferred before. */
 	public resetLanguageModelToDefault(): void {
-		this._modelSelectionController.clearIntent();
-		this.setCurrentLanguageModelToDefault();
+		this._modelSelectionController.resetToDefault(this.getCurrentSessionType());
 	}
 
 	/**
@@ -2288,8 +2355,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * change clears this automatically.
 	 */
 	setSubmitPending(pending: boolean, routing = pending): void {
+		const changed = this.inputSubmitPending.get() !== pending || this.inputRouting.get() !== routing;
 		this.inputSubmitPending.set(pending);
 		this.inputRouting.set(routing);
+		if (changed) {
+			this.executeToolbar?.refresh();
+		}
 	}
 
 	private _updateInputContentContextKeys(): void {
@@ -2836,7 +2907,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} finally {
 				// Always finish the session switch, even on an exception before this point, so an
 				// explicit user model pick after the switch persists normally.
-				this._modelSelectionController.endSessionSwitch();
+				this._restorePerTypeModel = false;
 			}
 		});
 
@@ -2931,7 +3002,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.restorePerTypeModelAfterViewModelAssignment();
 			// Re-initialize from storage first so the user's previous selection for
 			// this pool is restored
-			this._modelSelectionController.reinitializeIfOutsidePool(() => this.initSelectedModel());
+			this.reinitializeIfOutsidePool(() => this.initSelectedModel());
 		}
 	}
 
@@ -2943,9 +3014,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// the remembered preference is written exclusively by explicit user picks.
 		// If the remembered model has not loaded yet, skip pool validation so the picker does not
 		// move away from the model that will be applied when it appears.
-		if (this._modelSelectionController.restorePerTypeModel) {
+		if (this._restorePerTypeModel) {
 			this.initSelectedModel();
-			if (!this._modelSelectionController.hasPendingIntent() && !this._modelSelectionController.isAwaitingRememberedModel()) {
+			if (!this._modelSelectionController.hasPendingProgrammaticSelection() && !this._modelSelectionController.isAwaitingRememberedModel()) {
 				this._modelSelectionController.ensureCurrentModelSupported();
 			}
 		}
@@ -3173,6 +3244,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 
+		const dictationRecording = ChatContextKeys.speechToTextRecording.bindTo(this.contextKeyService);
+		const dictationPreparing = ChatContextKeys.speechToTextPreparing.bindTo(this.contextKeyService);
+		const isDictationInputActive = observableFromEvent(
+			this,
+			Event.any(this.speechToTextService.onDidChangeState, this.speechToTextService.onDidChangePreparingModel, onDidChangeDictationEditor),
+			() => isDictationActiveForEditor(this._inputEditor),
+		);
+		const updateDictationContextKeys = () => {
+			const active = isDictationActiveForEditor(this._inputEditor);
+			dictationRecording.set(active && this.speechToTextService.state === ChatSpeechToTextState.Recording);
+			dictationPreparing.set(active && this.speechToTextService.isPreparingModel);
+		};
+		this._register(Event.any(this.speechToTextService.onDidChangeState, this.speechToTextService.onDidChangePreparingModel, onDidChangeDictationEditor)(updateDictationContextKeys));
+		updateDictationContextKeys();
+
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
 		this._inputEditorElement.classList.add('hideSuggestTextIcons');
@@ -3209,8 +3295,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// A submitted request was pending (e.g. omni-chat routing) but the draft
 			// changed: the user is editing again, so re-enable sending.
-			this.inputSubmitPending.set(false);
-			this.inputRouting.set(false);
+			this.setSubmitPending(false);
 
 			// Update monospace state as the command prefix is typed/removed.
 			this.updateInputEditorFontFamily();
@@ -3411,6 +3496,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (action.id === ChatVoiceInputModeAction.ID) {
 					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action, {
 						isActive: isVoiceInputActive,
+						isDictationActive: isDictationInputActive,
 						isVoiceActive: isVoiceSessionActive,
 						activateVoiceMode: isOmniInput ? () => {
 							this.voiceSessionController.takeOmniInputOwnership(dom.getWindow(toolbarsContainer));
@@ -3433,7 +3519,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return this.instantiationService.createInstance(DictationDownloadActionViewItem, action, options);
 				}
 				if (action.id === ToggleChatSpeechToTextAction.ID && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(DictationActionViewItem, action, options);
+					return this.instantiationService.createInstance(DictationActionViewItem, action, options, isDictationInputActive);
 				}
 				// Voice Mode mic button: add a right-click context menu (Select
 				// Microphone / Disable Voice Mode) mirroring dictation. While

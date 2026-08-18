@@ -1918,6 +1918,13 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					requestId: requestId,
 					serverRequestId: result.requestId.headerRequestId,
 				};
+			case FinishedCompletionReason.Refusal:
+				return {
+					type: ChatFetchResponseType.Refusal,
+					reason: 'Model declined to respond.',
+					requestId: requestId,
+					serverRequestId: result.requestId.headerRequestId,
+				};
 			case FinishedCompletionReason.Length:
 				return {
 					type: ChatFetchResponseType.Length,

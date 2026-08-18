@@ -664,6 +664,35 @@ suite('StyleOverridesContribution', () => {
 		});
 	});
 
+	test('persists tab actions when action space is reserved', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui-tabs';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const createTab = (groupClassName: string, titleClassName: string): HTMLElement => {
+			const title = appendElement(appendElement(content, groupClassName), titleClassName);
+			const tab = appendElement(appendElement(title, 'tabs-container'), 'tab');
+			return appendElement(appendElement(tab, 'tab-actions'), 'action-label');
+		};
+
+		const reservedActive = createTab('editor-group-container active', 'title tab-actions-reserve-space');
+		const reservedInactiveGroup = createTab('editor-group-container', 'title tab-actions-reserve-space');
+		const transientActive = createTab('editor-group-container active', 'title');
+
+		const targetWindow = getWindow(root);
+		assert.deepStrictEqual({
+			reservedActive: { opacity: targetWindow.getComputedStyle(reservedActive).opacity, pointerEvents: targetWindow.getComputedStyle(reservedActive.parentElement!).pointerEvents },
+			reservedInactiveGroup: { opacity: targetWindow.getComputedStyle(reservedInactiveGroup).opacity, pointerEvents: targetWindow.getComputedStyle(reservedInactiveGroup.parentElement!).pointerEvents },
+			transientActive: { opacity: targetWindow.getComputedStyle(transientActive).opacity, pointerEvents: targetWindow.getComputedStyle(transientActive.parentElement!).pointerEvents },
+		}, {
+			reservedActive: { opacity: '1', pointerEvents: 'auto' },
+			reservedInactiveGroup: { opacity: '0.5', pointerEvents: 'auto' },
+			transientActive: { opacity: '0', pointerEvents: 'none' },
+		});
+	});
+
 	test('uses legacy color customizations for Modern UI editor tabs only', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark', {
 			[editorBackground]: '#000000',

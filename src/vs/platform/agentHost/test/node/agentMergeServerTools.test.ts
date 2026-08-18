@@ -5,7 +5,11 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { buildChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createAgentMergeServerToolGroup, readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName, type IAgentMergeToolAccessor } from '../../node/shared/agentMergeServerTools.js';
+import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 
 suite('Agent Merge server tools', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,5 +34,36 @@ suite('Agent Merge server tools', () => {
 			whileEnabled: toolNames,
 			withoutAccessor: false,
 		});
+	});
+
+	test('resolves the owning session for a tool invoked from a peer chat', async () => {
+		const sessionUri = 'copilot:/merge-session';
+		const chatUri = buildChatUri(sessionUri, 'peer');
+		let receivedSession: string | undefined;
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		stateManager.createSession({
+			resource: sessionUri,
+			provider: 'copilot',
+			title: 'Agent Merge',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		const host = new AgentServerToolHost(stateManager, [
+			createAgentMergeServerToolGroup({
+				isEnabled: () => true,
+				readFailedCI: async session => {
+					receivedSession = session;
+					return 'result';
+				},
+				replyToReviewThread: async () => '',
+				rerunFailedWorkflow: async () => '',
+			}),
+		]);
+
+		const result = await host.executeTool(chatUri, readAgentMergeCIToolName, {});
+
+		assert.deepStrictEqual({ result, receivedSession }, { result: 'result', receivedSession: sessionUri });
+		stateManager.dispose();
 	});
 });

@@ -338,6 +338,19 @@
 	}
 }
 
+/* Standalone toggles are peer settings, so the label and switch share one row. */
+.action-widget .monaco-list-row.action.has-standalone-toggle .title {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.action-widget .monaco-list-row.action.has-standalone-toggle .action-list-item-inline-toggle {
+	order: 100;
+	width: auto;
+	margin-left: auto;
+	padding: var(--vscode-spacing-sizeNone);
+}
+
 .action-widget .monaco-list-row.action .action-list-item-inline-toggle {
 	order: 100;
 	width: 100%;

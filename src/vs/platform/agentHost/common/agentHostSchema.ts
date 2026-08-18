@@ -405,6 +405,9 @@ export const DISABLE_REPO_INFO_TELEMETRY_SETTING_ID = 'chat.advanced.debug.disab
  */
 export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
 
+/** Whether extension-provided BYOK models are enabled. */
+export const AgentHostByokModelsEnabledConfigKey = 'byokModelsEnabled';
+
 /**
  * Root config key forwarded from the renderer carrying the experiment-aware
  * value of `chat.agentHost.codexAgent.enabled`. The host registers the Codex
@@ -699,6 +702,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
 		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
+		default: false,
+	}),
+	[AgentHostByokModelsEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.byokModelsEnabled.title', "BYOK Models"),
+		description: localize('agentHost.config.byokModelsEnabled.description', "Whether extension-provided BYOK models are enabled."),
 		default: false,
 	}),
 	[AgentHostCodexEnabledConfigKey]: schemaProperty<boolean>({

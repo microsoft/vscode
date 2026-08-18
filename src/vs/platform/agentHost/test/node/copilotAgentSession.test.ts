@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotSession, CurrentToolMetadata, JsonValue, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
@@ -21,6 +21,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
@@ -38,7 +39,7 @@ import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputR
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
-import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -571,7 +572,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 } | {
 	readonly kind: 'custom-tool';
 	readonly toolName?: string;
-	readonly args?: JsonValue;
+	readonly args?: Extract<PermissionRequest, { kind: 'custom-tool' }>['args'];
 });
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
@@ -3249,15 +3250,16 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['off']);
 		});
 
-		test('per-request sandbox: disabled under session bypass approvals', async () => {
+		test('per-request sandbox: applies the configured policy under session bypass approvals', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['on']);
 		});
 
@@ -3631,7 +3633,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto', 'off']);
 		});
 
-		test('syncs sandbox when the session approval level changes', async () => {
+		test('keeps sandbox enabled when the session approval level changes', async () => {
 			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
@@ -3654,7 +3656,7 @@ suite('CopilotAgentSession', () => {
 				permissionModes: ['off', 'on', 'off'],
 				sandboxConfigs: [
 					buildSandboxConfigForSdk('linux', sandbox),
-					{ enabled: false },
+					buildSandboxConfigForSdk('linux', sandbox),
 					buildSandboxConfigForSdk('linux', sandbox),
 				],
 			});
@@ -3737,17 +3739,18 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('per-request sandbox: disabled under global auto-approve', async () => {
+		test('per-request sandbox: applies the configured policy under global auto-approve', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: {
-					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostSandboxConfigKey.Sandbox]: sandbox,
 					[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
 				},
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
 		});
 
 		test('per-request sandbox: applies the configured policy on Windows', async () => {
@@ -3768,6 +3771,32 @@ suite('CopilotAgentSession', () => {
 			await session.send('hello', undefined, 'turn-1');
 
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('server-managed sandbox enablement skips host updates and removal restores the local setting', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			session.setManagedSandboxEnabled(true);
+			await timeout(0);
+			const managedEnabled = mockSession.sandboxConfigUpdates.at(-1);
+
+			session.setManagedSandboxEnabled(false);
+			await timeout(0);
+			const managedDisabled = mockSession.sandboxConfigUpdates.at(-1);
+
+			session.setManagedSandboxEnabled(undefined);
+			await timeout(0);
+			const localRestored = mockSession.sandboxConfigUpdates.at(-1);
+
+			assert.deepStrictEqual({
+				managedEnabled,
+				managedDisabled,
+				localRestored,
+			}, {
+				managedEnabled: buildSandboxConfigForSdk('linux', undefined, true),
+				managedDisabled: undefined,
+				localRestored: { enabled: false },
+			});
 		});
 
 		test('per-request sandbox: left untouched when the custom terminal tool is enabled', async () => {
@@ -8987,6 +9016,74 @@ suite('CopilotAgentSession', () => {
 			await session.send('enable Azure');
 
 			assert.deepStrictEqual(mockSession.mcpEnableCalls, [{ serverName }]);
+		});
+
+		test('re-enabling a plugin server with an explicit cwd defers to a session refresh', async () => {
+			const serverName = 'vscode_probe';
+			const pluginUri = 'https://bundle';
+			const pluginDir = URI.file('/bundle');
+			const child: McpServerCustomization = {
+				type: CustomizationType.McpServer,
+				id: 'vscode-probe',
+				uri: URI.joinPath(pluginDir, '.mcp.json').toString(),
+				name: serverName,
+				state: { kind: McpServerStatus.Stopped },
+			};
+			let enabled = false;
+			const customizations = (): readonly Customization[] => [{
+				type: CustomizationType.Plugin,
+				id: 'bundle',
+				uri: pluginUri,
+				name: 'Bundle',
+				children: [child],
+			}];
+			const { session, mockSession, dispatchSessionAction } = await createAgentSession(disposables, {
+				clientSnapshot: {
+					tools: [],
+					plugins: [{
+						format: PluginFormat.Copilot,
+						hooks: [],
+						mcpServers: [{
+							name: serverName,
+							configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
+							defaultCwd: URI.file('/workspace'),
+							uri: URI.joinPath(pluginDir, '.mcp.json'),
+							customization: child,
+						}],
+						disabledMcpServers: [serverName],
+						agents: [],
+						skills: [],
+						instructions: [],
+						pluginDir,
+						sourceUri: URI.parse(pluginUri),
+					}],
+					mcpServers: {},
+				},
+				sessionCustomizations: customizations,
+				resolveCustomizationEnablement: target => ({
+					kind: 'resolved',
+					enablement: target.id === child.id && !enabled
+						? [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }]
+						: [],
+					enabled: target.id === child.id ? enabled : true,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+				},
+			});
+
+			enabled = true;
+			dispatchSessionAction({ type: ActionType.SessionCustomizationsChanged, customizations: [...customizations()] });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				requiresRefresh: session.requiresMcpLaunchConfigurationRefresh,
+				enableCalls: mockSession.mcpEnableCalls,
+			}, {
+				requiresRefresh: true,
+				enableCalls: [],
+			});
 		});
 
 		test('session MCP desired enablement reconciles runtime drift', async () => {

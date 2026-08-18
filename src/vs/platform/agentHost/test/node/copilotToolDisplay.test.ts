@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { JsonValue, PermissionRequest } from '@github/copilot-sdk';
+import type { PermissionRequest } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
@@ -26,7 +26,7 @@ function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: 
 	};
 }
 
-function customToolPermissionRequest(toolName: string, args: JsonValue): CopilotCustomToolPermissionRequest {
+function customToolPermissionRequest(toolName: string, args: CopilotCustomToolPermissionRequest['args']): CopilotCustomToolPermissionRequest {
 	return {
 		kind: 'custom-tool',
 		toolName,

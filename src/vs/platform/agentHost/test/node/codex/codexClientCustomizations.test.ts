@@ -16,6 +16,7 @@ import { NullLogService } from '../../../../log/common/log.js';
 import { PluginFormat, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostFileSystemService.js';
+import { toClientPluginMcpDefaultCwdsMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
@@ -107,6 +108,18 @@ suite('codexClientCustomizations', () => {
 		assert.deepStrictEqual(codexMcpServersFromPlugins(plugins), {
 			local: { command: 'npx', args: ['-y', 'pkg'], env: { KEY: 'v', N: '3' }, cwd: '/w' },
 			remote: { url: 'https://x/mcp', http_headers: { Authorization: 'Bearer t' } },
+		});
+	});
+
+	test('codexMcpServersFromPlugins resolves session-relative defaults at launch time', () => {
+		const sessionCwd = URI.file('/worktree');
+		const clientPlugin = plugin('p', '/cache/p', parsed({
+			mcpServers: [mcpDef('local', { type: McpServerType.LOCAL, command: 'run' })],
+		}));
+		clientPlugin.synced.customization._meta = toClientPluginMcpDefaultCwdsMeta({ local: null });
+
+		assert.deepStrictEqual(codexMcpServersFromPlugins([clientPlugin], sessionCwd), {
+			local: { command: 'run', cwd: sessionCwd.fsPath },
 		});
 	});
 

@@ -356,6 +356,7 @@ class TestSession implements ISession {
 			changes: this.changes,
 			checkpoints,
 			modelId: this.modelId,
+			modelSource: constObservable(undefined),
 			mode: this.mode,
 			isArchived: this.isArchived,
 			isRead: this.isRead,

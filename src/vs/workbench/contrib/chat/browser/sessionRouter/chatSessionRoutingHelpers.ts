@@ -106,6 +106,9 @@ export function selectRouterShortlist(
 	const selectedIds = new Set<string>();
 	const shortlist: IRoutableSession[] = [];
 	for (const result of preliminaryResults) {
+		if (result.confidence <= 0) {
+			continue;
+		}
 		const candidate = candidatesById.get(result.sessionId);
 		if (candidate && !selectedIds.has(candidate.sessionId)) {
 			selectedIds.add(candidate.sessionId);

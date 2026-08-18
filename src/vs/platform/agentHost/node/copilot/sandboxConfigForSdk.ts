@@ -26,6 +26,27 @@ export type CopilotSandboxConfig = SdkSandboxConfig & {
 	readonly allowBypass?: boolean;
 };
 
+export interface IManagedSandboxSettingsSnapshot {
+	readonly serverManaged?: boolean;
+	readonly settings?: unknown;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+export function getServerManagedSandboxEnabled(snapshot: IManagedSandboxSettingsSnapshot): boolean | undefined {
+	if (snapshot.serverManaged !== true || !isRecord(snapshot.settings)) {
+		return undefined;
+	}
+	const sandbox = snapshot.settings['sandbox'];
+	if (!isRecord(sandbox)) {
+		return undefined;
+	}
+	const enabled = sandbox['enabled'];
+	return typeof enabled === 'boolean' ? enabled : undefined;
+}
+
 /**
  * Translate the AgentHost's host-side sandbox configuration into the
  * opaque `sandboxConfig` shape the Copilot SDK forwards to the runtime
@@ -36,6 +57,9 @@ export type CopilotSandboxConfig = SdkSandboxConfig & {
  * sandbox policy down into the SDK itself. When the custom terminal tool is
  * ON, the AgentHost's own {@link TerminalSandboxEngine} wraps commands and
  * this function is not consulted.
+ *
+ * When managed sandbox enablement is defined, the runtime owns the effective
+ * sandbox configuration and the host must not apply local sandbox settings.
  *
  * Mirrors `buildSandboxConfigForCLI` in
  * `extensions/copilot/src/extension/chatSessions/copilotcli/node/copilotcliSessionService.ts`
@@ -54,23 +78,24 @@ export type CopilotSandboxConfig = SdkSandboxConfig & {
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
 	sandbox: ISandboxConfigValue | undefined,
+	managedEnabled?: boolean,
 ): CopilotSandboxConfig | undefined {
-	if (!sandbox) {
+	if (managedEnabled !== undefined) {
 		return undefined;
 	}
 
 	const enabledRaw = platform === 'win32'
-		? sandbox[AgentHostSandboxKey.WindowsEnabled]
-		: sandbox[AgentHostSandboxKey.Enabled];
+		? sandbox?.[AgentHostSandboxKey.WindowsEnabled]
+		: sandbox?.[AgentHostSandboxKey.Enabled];
 	if (enabledRaw !== AgentSandboxEnabledValue.On) {
 		return undefined;
 	}
 
 	const fsRaw = platform === 'win32'
-		? sandbox[AgentHostSandboxKey.WindowsFileSystem]
+		? sandbox?.[AgentHostSandboxKey.WindowsFileSystem]
 		: platform === 'darwin'
-			? sandbox[AgentHostSandboxKey.MacFileSystem]
-			: sandbox[AgentHostSandboxKey.LinuxFileSystem];
+			? sandbox?.[AgentHostSandboxKey.MacFileSystem]
+			: sandbox?.[AgentHostSandboxKey.LinuxFileSystem];
 	const hasFileSystemPolicy = fsRaw !== undefined && typeof fsRaw === 'object';
 	const fs = hasFileSystemPolicy ? fsRaw as IAgentSandboxFileSystemSetting : {};
 
@@ -93,8 +118,8 @@ export function buildSandboxConfigForSdk(
 		}
 	}
 
-	const allowNetwork = sandbox[AgentHostSandboxKey.AllowNetwork];
-	const allowBypass = sandbox[AgentHostSandboxKey.AllowUnsandboxedCommands];
+	const allowNetwork = sandbox?.[AgentHostSandboxKey.AllowNetwork];
+	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands];
 	const filesystem = hasFileSystemPolicy
 		? {
 			...(denied.size ? { deniedPaths: [...denied] } : {}),

@@ -362,6 +362,28 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.timeToFirstProgress, undefined);
 	});
 
+	test('reports the latest per-turn billed nano-AIU from usage updates when available', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } });
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } } });
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 20, outputTokens: 10 } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).billedNanoAiu, 2_000_000_000);
+	});
+
+	test('does not report billed nano-AIU when the provider does not supply it', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 10, outputTokens: 5 } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).billedNanoAiu, undefined);
+	});
+
 	test('emits result=cancelled on ChatTurnCancelled', () => {
 		setupSession();
 		startTurn('turn-1', 'hello', 'auto');

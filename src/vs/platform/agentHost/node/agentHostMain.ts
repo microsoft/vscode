@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
@@ -165,13 +165,6 @@ async function startAgentHost(): Promise<void> {
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	let byokLmBridgeRegistry: ByokLmBridgeRegistry;
 	let proxyResolver: IAgentHostProxyResolver | undefined;
-	// Gate BYOK *use* behind the opt-in `chat.agentHost.byokModels.enabled`
-	// setting, forwarded from the renderer as an env var. The proxy and bridge
-	// registry are always constructed below (so the session launcher can inject
-	// them), but when off they stay inert: the per-connection bridge and the
-	// renderer's BYOK server channel are not wired, so the registry stays empty
-	// and the proxy never binds.
-	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], true);
 	const hostLaunchKind = readAgentHostLaunchKind(process.env[AgentHostLaunchKindEnvVar]);
 	const connectionTelemetryTracker = disposables.add(new AgentHostClientConnectionTelemetryTracker());
 	try {
@@ -294,7 +287,7 @@ async function startAgentHost(): Promise<void> {
 				}
 			};
 			registerCodexIfEnabled();
-			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
+			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
@@ -380,10 +373,7 @@ async function startAgentHost(): Promise<void> {
 				const getChannel = (channelName: string) => server.getChannel(channelName, c => c.ctx === clientId);
 				const proxyConnection = createAgentHostClientProxyConnection(getChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL));
 				connectionStore.add(proxyResolver.register(clientId, proxyConnection));
-				// BYOK bridge is gated: only wire it when the feature is enabled, so
-				// the registry stays empty (and the launcher synthesizes no BYOK
-				// providers/models) when `chat.agentHost.byokModels.enabled` is off.
-				if (byokLmEnabled && byokLmBridgeRegistry) {
+				if (byokLmBridgeRegistry) {
 					const byokLmConnection = createAgentHostClientByokLmConnection(getChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL));
 					connectionStore.add(byokLmBridgeRegistry.register(clientId, byokLmConnection));
 				}

@@ -12,7 +12,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { hasVisibleByokModelsTargetingSessionType } from '../sessionTypeAvailability.js';
 import { ChatSetupDialogVisibleContext } from '../../chatSetup/chatSetup.js';
@@ -45,6 +45,7 @@ export const enum SignedOutModelsNotificationState {
 export function getSignedOutModelsNotificationState(options: {
 	readonly allowSignedOutWhenUsable: boolean;
 	readonly accountResolved: boolean;
+	readonly entitlementResolved: boolean;
 	readonly signedIn: boolean;
 	readonly hasCopilotHarness: boolean;
 	readonly hasModels: boolean;
@@ -52,7 +53,7 @@ export function getSignedOutModelsNotificationState(options: {
 	readonly gracePeriodElapsed: boolean;
 	readonly setupDialogVisible: boolean;
 }): SignedOutModelsNotificationState {
-	if (options.setupDialogVisible || !options.allowSignedOutWhenUsable || !options.accountResolved || options.signedIn || !options.hasCopilotHarness || options.hasModels) {
+	if (options.setupDialogVisible || !options.allowSignedOutWhenUsable || !options.accountResolved || !options.entitlementResolved || options.signedIn || !options.hasCopilotHarness || options.hasModels) {
 		return SignedOutModelsNotificationState.Hidden;
 	}
 	// Readiness is the fast path; the grace period bounds it because a vendor named
@@ -107,6 +108,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			}
 		});
 		this._register(Event.any(
+			this._chatEntitlementService.onDidChangeEntitlement,
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
 			this._languageModelsConfigurationService.onDidChangeLanguageModelGroups,
@@ -145,7 +147,10 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 	private _update(): void {
 		// Local BYOK readiness is shared by both harnesses; the Agent Host's own bridged catalog is covered by the grace period.
 		const allowSignedOutWhenUsable = this._configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
-		const signedIn = this._defaultAccountService.currentDefaultAccount !== null;
+		const entitlement = this._chatEntitlementService.entitlement;
+		const entitlementResolved = entitlement !== ChatEntitlement.Unresolved;
+		const signedIn = this._defaultAccountService.currentDefaultAccount !== null
+			|| (entitlementResolved && entitlement !== ChatEntitlement.Unknown);
 		const configuredByokVendors = new Set(this._languageModelsConfigurationService.getLanguageModelsProviderGroups()
 			.map(group => group.vendor)
 			.filter(vendor => vendor !== COPILOT_VENDOR_ID));
@@ -164,6 +169,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		const state = getSignedOutModelsNotificationState({
 			allowSignedOutWhenUsable,
 			accountResolved: this._accountResolved,
+			entitlementResolved,
 			signedIn,
 			hasCopilotHarness,
 			hasModels,
