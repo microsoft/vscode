@@ -2944,6 +2944,46 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a mode change reconciles with a single catalog pass', async () => {
+			const day = 24 * 60 * 60 * 1000;
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			agent.addSession('recent', now);
+			agent.addSession('yesterday', now - day);
+			agent.addSession('last-week', now - 6 * day);
+			svc.registerProvider(agent);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 1);
+			await waitForSessionListReconciliation(svc);
+
+			// Each `listSessions` is one walk over every registered session's
+			// database, so the modes it is asked for are the catalog passes.
+			const listedModes: (AgentHostExternalSessionsMode | undefined)[] = [];
+			const listSessions = svc.listSessions;
+			svc.listSessions = mode => {
+				listedModes.push(mode);
+				return Reflect.apply(listSessions, svc, [mode]);
+			};
+
+			// `Recent` is the mode whose visibility depends on the whole catalog,
+			// so it is the one most likely to regress into a second pass.
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 2);
+			// Await the transition's own reconciliation: publishing into `Recent`
+			// moves summaries, which queues a further pass of its own.
+			await (svc as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
+			const transitionModes = [...listedModes];
+			await waitForSessionListReconciliation(svc);
+			svc.listSessions = listSessions;
+
+			assert.deepStrictEqual({
+				transitionModes,
+				visible: (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort(),
+			}, {
+				transitionModes: [AgentHostExternalSessionsMode.All],
+				visible: ['recent', 'yesterday'],
+			});
+		});
+
 		test('recent replaces the oldest visible external session when a newer session is discovered', async () => {
 			const now = Date.now();
 			const svc = createExternalSessionService(() => now);
