@@ -784,7 +784,8 @@ suite('VoiceSessionController', () => {
 	test('reports whether a coding session is in progress when each voice request starts', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const micCaptureService = new TestMicCaptureService();
-		const session = agentSessionEntry('vscode-chat://session', 'Test session', AgentSessionStatus.Completed);
+		const focusedSession = agentSessionEntry('vscode-chat://focused', 'Focused session', AgentSessionStatus.Completed);
+		const backgroundSession = agentSessionEntry('vscode-chat://background', 'Background session', AgentSessionStatus.InProgress);
 		const controller = createController(
 			voiceClientService,
 			undefined,
@@ -794,13 +795,14 @@ suite('VoiceSessionController', () => {
 			undefined,
 			undefined,
 			undefined,
-			new TestAgentSessionsService([session]),
+			new TestAgentSessionsService([focusedSession, backgroundSession]),
 		);
 		await connectWithOmniOpen(controller, voiceClientService);
+		controller.setActiveSessionShown(focusedSession.resource);
 
 		controller['_pttCurrentTurnId'] = 'turn-idle';
 		micCaptureService.firePttStart(false);
-		session.status = AgentSessionStatus.InProgress;
+		focusedSession.status = AgentSessionStatus.InProgress;
 		controller['_pttCurrentTurnId'] = 'turn-active';
 		micCaptureService.firePttStart(true);
 

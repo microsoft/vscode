@@ -7368,21 +7368,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _hasSessionInProgress(): boolean {
-		const agentResources = new Set<string>();
-		for (const session of this.agentSessionsService.model.sessions) {
-			if (session.isArchived()) {
-				continue;
-			}
-			agentResources.add(session.resource.toString());
-			const model = this.chatService.getSession(session.resource);
-			if (model ? this._getAgentStateInfo(model).state === 'thinking' : session.status === AgentSessionStatus.InProgress) {
-				return true;
-			}
+		const activeSessionId = this._getActiveSessionId();
+		if (!activeSessionId) {
+			return false;
 		}
 
+		const session = this.agentSessionsService.model.sessions.find(session =>
+			!session.isArchived() && session.resource.toString() === activeSessionId
+		);
+		if (session) {
+			const model = this.chatService.getSession(session.resource);
+			return model ? this._getAgentStateInfo(model).state === 'thinking' : session.status === AgentSessionStatus.InProgress;
+		}
 		for (const model of this.chatService.chatModels.get()) {
-			if (!agentResources.has(model.sessionResource.toString()) && this._getAgentStateInfo(model).state === 'thinking') {
-				return true;
+			if (model.sessionResource.toString() === activeSessionId) {
+				return this._getAgentStateInfo(model).state === 'thinking';
 			}
 		}
 		return false;
