@@ -14,6 +14,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import {
 	IVoiceClientService,
 	IVoicePriorTimelineEntry,
+	IVoicePttStartOptions,
 	IVoiceSessionContext,
 	IVoiceTranscription,
 	IVoiceAudioResponse,
@@ -628,9 +629,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	sendPttStart(turnId: string, passive: boolean = false): void {
+	sendPttStart(turnId: string, options: IVoicePttStartOptions): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId, ...(passive ? { passive: true } : {}) }));
+			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId, has_active_session: options.hasActiveSession, ...(options.passive ? { passive: true } : {}) }));
 		}
 	}
 

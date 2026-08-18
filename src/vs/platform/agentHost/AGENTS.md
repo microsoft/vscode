@@ -227,6 +227,12 @@ Provider-private discovery helpers name their concrete source: Claude uses `_lis
 
 For every provider, migration and discovery partition the same native catalog: migration returns known entries as plain metadata, while discovery emits unknown entries with provider-classified provenance (external for Claude and Codex, and for Copilot everything except an unknown legacy extension-host chat, which is emitted as internal and adoptable). The partition is not quite exhaustive for Copilot: a chat whose session database exists but holds none of the metadata keys `listChatsToMigrate` requires is rejected by both halves. That is deliberate — an empty database is how Agent Host records a chat it already touched — and is asserted by `copilotAgent.test.ts`'s "does not discover an extension-host chat with an empty Agent Host database". Central `agent-host.db` remains the durable provenance authority.
 
+`list_sessions` exposes a session's configured project URI separately from its
+primary and additional working directories. `create_session` accepts those URIs
+directly and can resolve a unique project display name, preferring the
+configured project root over a transient worktree. Ambiguous names require an
+explicit project URI.
+
 ---
 
 ## 4. Capabilities Gating

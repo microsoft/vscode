@@ -1972,6 +1972,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		test('does not retry a non-reconnectable initial transport failure', async () => {
 			const { client, transports } = createFactoryClient();
+			const fatalErrors: string[] = [];
+			disposables.add(client.onDidFatalClose(error => fatalErrors.push(error.message)));
 			const connectPromise = client.connect();
 			transports[0].connectDeferred.error(new NonReconnectableTransportError('terminal failure'));
 
@@ -1980,9 +1982,33 @@ suite('RemoteAgentHostProtocolClient', () => {
 			assert.deepStrictEqual({
 				state: client.connectionState,
 				transportCount: transports.length,
+				fatalErrors,
 			}, {
 				state: AgentHostClientState.Closed,
 				transportCount: 1,
+				fatalErrors: ['terminal failure'],
+			});
+		});
+
+		test('surfaces a non-reconnectable failure reached during initial reconnect', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const fatalError = Event.toPromise(client.onDidFatalClose);
+			const connectPromise = client.connect();
+			transports[0].connectDeferred.error(new Error('transient failure'));
+			await assert.rejects(connectPromise, /transient failure/);
+
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.error(new NonReconnectableTransportError('terminal failure'));
+
+			assert.deepStrictEqual({
+				fatalError: (await fatalError).message,
+				state: client.connectionState,
+				transportCount: transports.length,
+			}, {
+				fatalError: 'terminal failure',
+				state: AgentHostClientState.Closed,
+				transportCount: 2,
 			});
 		});
 

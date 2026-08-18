@@ -76,4 +76,25 @@ suite('ModelPickerHover', () => {
 			'Limited time offer',
 		]);
 	});
+
+	test('info text renders as its own banner alongside warnings', () => {
+		const model = createModel('gpt-4.1', 'GPT-4.1');
+		model.metadata = {
+			...model.metadata,
+			warningText: { degradation: 'Currently degraded' },
+			infoText: { model_relocated: 'GPT-4.1 now serves from a new region.' },
+		} as ILanguageModelChatMetadata;
+
+		const hover = getModelHoverContent(model, false, undefined, NullOpenerService);
+		assert.ok(hover);
+		disposables.add(hover.disposable);
+
+		assert.deepStrictEqual({
+			warnings: Array.from(hover.element.querySelectorAll('.chat-model-hover-warning-text'), element => element.textContent?.trim()),
+			infos: Array.from(hover.element.querySelectorAll('.chat-model-hover-info-text'), element => element.textContent?.trim()),
+		}, {
+			warnings: ['Currently degraded'],
+			infos: ['GPT-4.1 now serves from a new region.'],
+		});
+	});
 });
