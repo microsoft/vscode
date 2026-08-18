@@ -77,15 +77,37 @@ suite('AgentHostManagedSettings', () => {
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
 	});
 
-	test('deduplicates rules contributed by more than one setting', () => {
+	test('deduplicates a rule that more than one entry produces', () => {
 		const configurationService = createConfigurationService({
 			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
-			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, userValue: false },
-			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, userValue: { npm: false } },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			// Three spellings of the same host, which all normalize to one rule.
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+				defaultValue: [],
+				policyValue: ['evil.example', 'https://evil.example/path', 'evil.example:8443'],
+			},
 		});
 
-		const permissions = resolveManagedSettingsPermissions(configurationService);
-		assert.deepStrictEqual(permissions.ask, [...new Set(permissions.ask)]);
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(evil.example)'],
+		});
+	});
+
+	test('reduces denied domains to the host the network filter matches on', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+				defaultValue: [],
+				policyValue: ['https://blocked.example/some/path', 'ported.example:8443', '*.wild.example'],
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(blocked.example)', 'Domain(ported.example)', 'Domain(*.wild.example)'],
+		});
 	});
 
 	test('denies configured domains while the network filter is on', () => {
@@ -175,6 +197,32 @@ suite('AgentHostManagedSettings', () => {
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
 			ask: ['Shell(wget)'],
+		});
+	});
+
+	test('keeps an absolute command path that VS Code treats as a literal', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			// Starts and ends with `/` but the trailing segment is not a flag list,
+			// so the auto-approver reads it as a path rather than a regular expression.
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, policyValue: { '/usr/bin/rm': false } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell(/usr/bin/rm)'],
+		});
+	});
+
+	test('skips a wildcard command key rather than broadening it', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			// `*` is a literal in VS Code but a command-boundary wildcard in the SDK,
+			// so bridging this would require approval for every git command.
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, policyValue: { 'git *': false, 'rm': false } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell(rm)'],
 		});
 	});
 
