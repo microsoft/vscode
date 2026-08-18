@@ -264,6 +264,12 @@ async function runInstall(artifacts, options) {
 		for (const artifact of artifacts) {
 			await installPackage(artifact, tempDir, binDir, skipIfPresent);
 		}
+		if (!options?.binDir) {
+			const missingFiles = REQUIRED_FILES.filter(file => !fs.existsSync(path.join(binDir, file)));
+			if (missingFiles.length > 0) {
+				throw new Error(`[foundry-local] Missing required native libraries for ${RID}: ${missingFiles.join(', ')}`);
+			}
+		}
 		console.log('[foundry-local] Installation complete.');
 	} finally {
 		try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
