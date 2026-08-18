@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
+import { buildManagedFamilyRule, ManagedRuleFamily } from './agentHostManagedRules.js';
 import { getGlobalConfigurationValue, inspectValue } from './agentHostConfigurationSync.js';
 import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from './agentHostSchema.js';
 
@@ -26,25 +27,51 @@ export interface IAgentHostManagedSettingsPermissions {
 
 export const AgentHostMapLegacySettingsToManagedSettingsSettingId = 'chat.agentHost.copilot.mapLegacySettingsToManagedSettings';
 
+/**
+ * Which configuration layers may drive a mapping.
+ *
+ * `policyOnly` is the default for anything that removes a capability the user
+ * would otherwise have, so a personal preference is never promoted into an
+ * enterprise-grade restriction the user cannot lift. `anyGlobal` exists for
+ * mappings whose VS Code behavior already honors user and application values,
+ * where narrowing to policy would be a regression.
+ */
+type ManagedPermissionsSettingSources = 'policyOnly' | 'anyGlobal';
+
 interface IManagedPermissionsSettingMapping {
 	readonly settingId: string;
 	contribute(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions | undefined;
 }
 
-function managedPermissionsSetting<T>(settingId: string, transform: (value: T, source: 'policyValue' | 'userValue' | 'applicationValue') => IAgentHostManagedSettingsPermissions | undefined): IManagedPermissionsSettingMapping {
+function managedPermissionsSetting<T>(
+	settingId: string,
+	sources: ManagedPermissionsSettingSources,
+	transform: (value: T) => IAgentHostManagedSettingsPermissions | undefined,
+): IManagedPermissionsSettingMapping {
 	return {
 		settingId,
 		contribute: configurationService => {
 			const configuration = inspectValue<T>(configurationService, settingId);
-			return configuration === undefined ? undefined : transform(...configuration);
+			if (configuration === undefined) {
+				return undefined;
+			}
+			const [value, source] = configuration;
+			if (sources === 'policyOnly' && source !== 'policyValue') {
+				return undefined;
+			}
+			return transform(value);
 		},
 	};
 }
 
 /** Compatibility mappings for legacy settings only; new controls belong directly in the SDK. */
 const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] = [
-	managedPermissionsSetting<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID, (value, source) => source === 'policyValue' && value === false ? { disableBypassPermissionsMode: 'disable' } : undefined),
-	managedPermissionsSetting<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, value => value === false ? { ask: ['Shell'] } : undefined),
+	// Disabling the SDK's bypass mode takes "Allow All" away from the user for
+	// good, so only an administrator may drive it.
+	managedPermissionsSetting<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID, 'policyOnly', value => value === false ? { disableBypassPermissionsMode: 'disable' } : undefined),
+	// Matches VS Code, where a user or application value already suppresses
+	// terminal auto-approval outright.
+	managedPermissionsSetting<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, 'anyGlobal', value => value === false ? { ask: [buildManagedFamilyRule(ManagedRuleFamily.Shell)] } : undefined),
 ];
 
 export const managedPermissionsConfigurationIds = [
