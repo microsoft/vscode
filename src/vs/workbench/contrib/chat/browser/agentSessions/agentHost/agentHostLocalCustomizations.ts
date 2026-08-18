@@ -9,7 +9,6 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { parseRemoteAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -39,11 +38,10 @@ export function agentHostProviderHasBuiltInGitHubMcpServer(provider: string): bo
 }
 
 function hasBuiltInGitHubMcpServer(sessionType: string): boolean {
-	const remoteProvider = parseRemoteAgentHostHarness(sessionType);
 	const localProvider = sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX)
 		? sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length)
 		: undefined;
-	return agentHostProviderHasBuiltInGitHubMcpServer(remoteProvider ?? localProvider ?? '');
+	return agentHostProviderHasBuiltInGitHubMcpServer(localProvider ?? '');
 }
 
 /**

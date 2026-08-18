@@ -580,7 +580,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		]]);
 	});
 
-	test('excludes the Copilot Chat GitHub MCP provider from remote Copilot agent hosts', async () => {
+	test('retains the Copilot Chat GitHub MCP provider for remote hosts without an advertised capability', async () => {
 		const bundler = new FakeBundler();
 
 		await resolveCustomizationRefs(
@@ -595,7 +595,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			undefined,
 		);
 
-		assert.deepStrictEqual(bundler.receivedMcp, []);
+		assert.deepStrictEqual(bundler.receivedMcp, [[
+			{ name: 'GitHub', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(true) },
+		]]);
 	});
 
 	test('excludes the Copilot Chat GitHub MCP provider for all built-in agent-host providers', async () => {

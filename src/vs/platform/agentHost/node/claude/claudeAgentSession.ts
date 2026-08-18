@@ -57,7 +57,7 @@ import { ClaudePermissionKind } from './claudeToolDisplay.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { AgentHostGitHubMcpServerEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
-import { createGitHubMcpServerConfiguration, GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
+import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -871,8 +871,8 @@ export class ClaudeAgentSession extends Disposable {
 		try {
 			return await resolveGitHubMcpServerConfiguration(this._copilotApiService, token);
 		} catch (error) {
-			this._logService.warn(`[Claude:${this.sessionId}] Failed to resolve the GitHub MCP server endpoint; using the default endpoint: ${error instanceof Error ? error.message : String(error)}`);
-			return createGitHubMcpServerConfiguration(undefined, token);
+			this._logService.warn(`[Claude:${this.sessionId}] Failed to resolve the GitHub MCP server endpoint: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
 		}
 	}
 

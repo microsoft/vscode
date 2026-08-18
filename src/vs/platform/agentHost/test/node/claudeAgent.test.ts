@@ -418,7 +418,7 @@ class FakeCopilotApiService implements ICopilotApiService {
 	responses(): Promise<Response> { throw new Error('not used in ClaudeAgent tests'); }
 	utilityChatCompletion(): Promise<never> { throw new Error('not used in ClaudeAgent tests'); }
 	resolveRestrictedTelemetryContext() { return Promise.resolve({ restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }); }
-	resolveApiEndpoint() { return Promise.resolve(undefined); }
+	resolveApiEndpoint() { return Promise.resolve('https://api.githubcopilot.com'); }
 }
 
 const FakeProductService: IProductService = {
@@ -8263,7 +8263,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				type: 'http',
 				url: 'https://api.githubcopilot.com/mcp',
 				features: 'remote_mcp_ui_apps,mcp_apps_disable_form_deferral',
-				authorization: 'Bearer tok',
+				authorization: undefined,
 				webSearchEnabled: true,
 			},
 			disabled: undefined,

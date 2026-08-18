@@ -50,6 +50,7 @@ import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, 
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
+import type { IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { codexDirectoryHasHooks } from './codexFolderPickerCriteria.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -68,7 +69,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
-import { createGitHubMcpServerConfiguration, GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
+import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 import { planForkedTurnIdMap, resolveForkBoundary } from './codexForkPlan.js';
@@ -1042,7 +1043,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private readonly _mcpAuthServerUrlsByResource = new Map<string, Set<string>>();
 	private _githubToken: string | undefined;
-	private _gitHubMcpServerConfiguration = createGitHubMcpServerConfiguration(undefined, undefined);
+	private _gitHubMcpServerConfiguration: IMcpServerConfiguration | undefined;
 	private _githubMcpServerEnabled = true;
 	private _connection: ConnectionState = { kind: 'idle' };
 	private _connectionGeneration = 0;
@@ -1098,6 +1099,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._otelService.emitSessionTitleChanged(conversationId, session.toString(), title);
 			}
 		}));
+		this._register(this._gitHubEndpointService.onDidChange(() => this._handleGitHubEndpointChange()));
 		this._register(this._customizationEnablementService.onDidChange(event => {
 			const affectedConfigurations = new Map<string, URI>();
 			for (const session of this._sessions.values()) {
@@ -1274,11 +1276,23 @@ export class CodexAgent extends Disposable implements IAgent {
 		try {
 			this._gitHubMcpServerConfiguration = await resolveGitHubMcpServerConfiguration(this._copilotApiService, token);
 		} catch (error) {
-			this._logService.warn(`[Codex] Failed to resolve the GitHub MCP server endpoint; using the default endpoint: ${error instanceof Error ? error.message : String(error)}`);
-			this._gitHubMcpServerConfiguration = createGitHubMcpServerConfiguration(undefined, token);
+			this._logService.warn(`[Codex] Failed to resolve the GitHub MCP server endpoint: ${error instanceof Error ? error.message : String(error)}`);
+			this._gitHubMcpServerConfiguration = undefined;
 		}
 		for (const session of this._sessions.values()) {
 			await this._reconcileMaterializedCustomizations(session);
+		}
+	}
+
+	private _handleGitHubEndpointChange(): void {
+		this._githubToken = undefined;
+		this._gitHubMcpServerConfiguration = undefined;
+		if (this._connection.kind === 'ready' && this._connection.proxyHandle) {
+			this._connection.proxyHandle.setToken('');
+		}
+		this._queueModelRefresh();
+		for (const session of this._sessions.values()) {
+			void this._reconcileMaterializedCustomizations(session);
 		}
 	}
 
@@ -2081,6 +2095,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _builtInGitHubMcpServer(session: ICodexSession, configuredServers: Record<string, ICodexMcpServerConfigJson>): Record<string, ICodexMcpServerConfigJson> {
 		if (!this._githubMcpServerEnabled
 			|| !this._githubToken
+			|| !this._gitHubMcpServerConfiguration
 			|| !this._isMcpServerEnabledForSdk(session, GITHUB_MCP_SERVER_NAME)
 			|| Object.hasOwn(configuredServers, GITHUB_MCP_SERVER_NAME)) {
 			return {};

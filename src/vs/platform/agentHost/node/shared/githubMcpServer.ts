@@ -67,15 +67,14 @@ export function getGitHubMcpTools(hasGhCli: boolean): readonly string[] {
 		];
 }
 
-export function createGitHubMcpServerConfiguration(copilotApiBaseUri: string | undefined, token: string | undefined, hasGhCli = false): IMcpServerConfiguration {
-	const url = gitHubMcpServerUrl(copilotApiBaseUri) ?? gitHubMcpServerUrl(undefined);
+export function createGitHubMcpServerConfiguration(copilotApiBaseUri: string, hasGhCli = false): IMcpServerConfiguration {
+	const url = gitHubMcpServerUrl(copilotApiBaseUri);
 	if (!url) {
 		throw new Error('Unable to resolve the GitHub MCP server URL');
 	}
 	const headers = {
 		[GITHUB_MCP_FEATURES_HEADER]: GITHUB_MCP_FEATURES,
 		[GITHUB_MCP_TOOLS_HEADER]: getGitHubMcpTools(hasGhCli).join(','),
-		...(token ? { Authorization: `Bearer ${token}` } : {}),
 	};
 	return {
 		type: McpServerType.REMOTE,
@@ -84,10 +83,16 @@ export function createGitHubMcpServerConfiguration(copilotApiBaseUri: string | u
 	};
 }
 
-export async function resolveGitHubMcpServerConfiguration(copilotApiService: ICopilotApiService, token: string | undefined): Promise<IMcpServerConfiguration> {
+export async function resolveGitHubMcpServerConfiguration(copilotApiService: ICopilotApiService, token: string | undefined): Promise<IMcpServerConfiguration | undefined> {
+	if (!token) {
+		return undefined;
+	}
 	const [copilotApiBaseUri, hasGhCli] = await Promise.all([
-		token ? copilotApiService.resolveApiEndpoint(token) : undefined,
+		copilotApiService.resolveApiEndpoint(token),
 		isGhCliAvailable(),
 	]);
-	return createGitHubMcpServerConfiguration(copilotApiBaseUri, token, hasGhCli);
+	if (!copilotApiBaseUri) {
+		return undefined;
+	}
+	return createGitHubMcpServerConfiguration(copilotApiBaseUri, hasGhCli);
 }
