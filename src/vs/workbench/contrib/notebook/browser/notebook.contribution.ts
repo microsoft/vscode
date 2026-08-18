@@ -1144,6 +1144,14 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['notebookOutputLayout']
 		},
+		[NotebookSetting.outputDisplayLimit]: {
+			markdownDescription: nls.localize('notebook.output.maxItems', "Controls the maximum number of output items to render per notebook cell. When a cell produces more outputs than this limit, a \"show more\" message is displayed. Increase this value if your cell outputs are being truncated."),
+			type: 'integer',
+			default: 500,
+			minimum: 1,
+			maximum: 10000,
+			tags: ['notebookOutputLayout'],
+		},
 		[NotebookSetting.markupFontSize]: {
 			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
 			type: 'number',

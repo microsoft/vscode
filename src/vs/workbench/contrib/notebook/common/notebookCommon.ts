@@ -1038,6 +1038,7 @@ export const NotebookSetting = {
 	outputLineHeight: 'notebook.output.lineHeight',
 	outputFontSize: 'notebook.output.fontSize',
 	outputFontFamily: 'notebook.output.fontFamily',
+	outputDisplayLimit: 'notebook.output.maxItems',
 	findFilters: 'notebook.find.filters',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
