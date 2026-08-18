@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ListView } from '../../../../browser/ui/list/listView.js';
 import { range } from '../../../../common/arrays.js';
+import { IRange } from '../../../../common/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListView', function () {
@@ -318,7 +319,87 @@ suite('ListView', function () {
 				renderedRows
 			}, {
 				length: elements.length - 1,
-				renderedRows: renderedRows.map(row => ({ ...row, rendered: row.element }))
+				renderedRows: [
+					{ element: '1', rendered: '1' },
+					{ element: '2', rendered: '2' }
+				]
+			});
+		} finally {
+			listView.dispose();
+			element.remove();
+		}
+	});
+
+	test('preserves delegated height measurements after a reentrant replacement', function () {
+		const element = document.createElement('div');
+		element.style.height = '100px';
+		element.style.width = '200px';
+		document.body.appendChild(element);
+
+		type TestElement = { id: string; height: number; delegated?: boolean };
+		const delegate: IListVirtualDelegate<TestElement> = {
+			getHeight() { return 100; },
+			getTemplateId() { return 'template'; },
+			hasDynamicHeight() { return true; },
+			getDynamicHeight(element) { return element.delegated ? element.height : undefined; }
+		};
+
+		const listViewRef: { value?: ListView<TestElement> } = {};
+		let replaceOnRender: TestElement | undefined;
+		const replacement: TestElement = { id: 'replacement', height: 100 };
+		const renderer: IListRenderer<TestElement, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) {
+				Object.defineProperty(container, 'offsetHeight', {
+					configurable: true,
+					get: () => Number(container.dataset.testHeight)
+				});
+				return container;
+			},
+			renderElement(element, index, templateData) {
+				templateData.textContent = element.id;
+				templateData.dataset.testHeight = String(element.height);
+				if (replaceOnRender === element) {
+					replaceOnRender = undefined;
+					listViewRef.value!.splice(index, 1, [replacement]);
+				}
+			},
+			disposeTemplate() { }
+		};
+
+		const elements: TestElement[] = [
+			{ id: 'delegated', height: 100, delegated: true },
+			{ id: 'dom', height: 100 },
+			{ id: 'last', height: 100 }
+		];
+		const listView = listViewRef.value = new class extends ListView<TestElement> {
+			includeSecond = false;
+
+			protected override getRenderRange(renderTop: number, renderHeight: number): IRange {
+				const renderRange = super.getRenderRange(renderTop, renderHeight);
+				if (this.includeSecond) {
+					renderRange.end = Math.min(this.length, Math.max(renderRange.end, 2));
+				}
+				return renderRange;
+			}
+		}(element, delegate, [renderer], { supportDynamicHeights: true });
+		try {
+			listView.layout(100, 200);
+			listView.splice(0, 0, elements);
+			elements[0].height = 20;
+			listView.includeSecond = true;
+			replaceOnRender = elements[1];
+
+			listView.layout(100, 201);
+
+			assert.deepStrictEqual({
+				contentHeight: listView.contentHeight,
+				elementHeights: range(listView.length).map(index => listView.elementHeight(index)),
+				elements: range(listView.length).map(index => listView.element(index).id)
+			}, {
+				contentHeight: 220,
+				elementHeights: [20, 100, 100],
+				elements: ['delegated', 'replacement', 'last']
 			});
 		} finally {
 			listView.dispose();

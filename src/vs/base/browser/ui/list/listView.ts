@@ -1607,6 +1607,15 @@ export class ListView<T> implements IListView<T> {
 				const modelDidChange = this.items.length < renderRange.end
 					|| probedItems.some((item, index) => item !== this.items[renderRange.start + index]);
 				if (modelDidChange) {
+					for (let index = 0; index < probedItems.length; index++) {
+						const diff = dynamicHeightDiffs[index];
+						const currentIndex = this.items.indexOf(probedItems[index]);
+						if (diff !== 0 && currentIndex !== -1) {
+							this.rangeMap.splice(currentIndex, 1, [probedItems[index]]);
+							heightDiff += diff;
+						}
+					}
+
 					this.disposeDynamicHeightMeasurements(retainedMeasurements);
 					previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 					updateAnchorElement();
