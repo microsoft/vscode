@@ -321,7 +321,7 @@ export function getComputedDefaultSessionType(
 		return SessionType.AgentHostCopilot;
 	}
 
-	if (isEditorLocalAgentEnabled(configurationService, workspace, managedSandboxEnforced)) {
+	if (isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced)) {
 		return localChatSessionType;
 	}
 
@@ -347,7 +347,7 @@ export function isNewChatSessionTypeUsable(
 	managedSandboxEnforced = false,
 ): boolean {
 	if (sessionType === localChatSessionType) {
-		return isEditorLocalAgentEnabled(configurationService, workspace, managedSandboxEnforced);
+		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced);
 	}
 	if (isAgentHostTarget(sessionType)) {
 		return agentHostEnabled;
@@ -509,10 +509,11 @@ export function isVisibleEditorChatSessionType(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
 	workspace: IWorkspace,
-	managedSandboxEnforced = false
+	managedSandboxEnforced = false,
+	agentHostEnabled = true
 ): boolean {
 	if (sessionType === localChatSessionType) {
-		return isEditorLocalAgentEnabled(configurationService, workspace, managedSandboxEnforced) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace).length === 0;
+		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace).length === 0;
 	}
 
 	if (sessionType === SessionType.CopilotCLI) {

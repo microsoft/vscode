@@ -613,19 +613,19 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('managed sandbox floor never leaves a window without a usable harness', () => {
+	test('managed sandbox floor keeps local when Agent Host is disabled', () => {
 		const configurationService = new TestConfigurationService();
-		const noContributions = createChatSessionsService();
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostClaude);
 		const storageService = disposables.add(new TestStorageService());
 
-		// The Agent Host is disabled in this window (e.g. on web), so the Copilot SDK is not
-		// reachable. The local harness stays visible whenever nothing else is contributed.
 		assert.deepStrictEqual({
-			visible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, noContributions, localWorkspace, true),
-			computed: getComputedDefaultSessionType(configurationService, noContributions, localWorkspace, false, true),
-			resolved: getDefaultNewChatSessionType(configurationService, noContributions, storageService, localWorkspace, false, { currentSessionType: localChatSessionType }, true),
+			visible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace, true, false),
+			usable: isNewChatSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, localWorkspace, false, true),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, false, true),
+			resolved: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false, { currentSessionType: localChatSessionType }, true),
 		}, {
 			visible: true,
+			usable: true,
 			computed: localChatSessionType,
 			resolved: localChatSessionType,
 		});
