@@ -231,16 +231,19 @@ For every provider, migration and discovery partition the same native catalog: m
 
 Sessions created by the `create_session` server tool record provider-neutral
 orchestration metadata in the session summary `_meta` bag. The metadata names
-the parent session, an optional label, whether the child may discover its
-creator, and an optional idle-notification policy. `list_sessions` projects and
-filters this metadata without involving provider harnesses.
+the creating session separately from the hierarchy parent, plus an optional
+label, whether the child may coordinate with its creator, and an optional
+idle-notification policy. This mirrors GitHub App's separate creator identity
+and parent-link model while adapting it to provider-neutral session URIs.
+`list_sessions` projects and filters hierarchy metadata without involving
+provider harnesses.
 
 Idle notifications use a durable arm/notify transition. Starting work arms the
-child; the next input-needed/idle/error transition wakes the parent once or, for `always`,
-re-arms on the next work cycle. A busy parent default chat receives a queued
+child; the next input-needed/idle/error transition wakes the creator once or, for `always`,
+re-arms on the next work cycle. A busy creator default chat receives a queued
 system notification rather than a new active turn, so concurrent child
-completion cannot overwrite parent work. The existing pending-message drain
-starts that queued notification when the parent chat becomes idle.
+completion cannot overwrite creator work. The existing pending-message drain
+starts that queued notification when the creator chat becomes idle.
 
 
 ---

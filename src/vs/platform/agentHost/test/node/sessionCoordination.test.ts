@@ -14,6 +14,7 @@ suite('SessionCoordination', () => {
 
 	const base: ISessionOrchestration = {
 		parentSession: 'copilot:/parent',
+		creatorSession: 'copilot:/creator',
 		coordinateWithCreator: true,
 		notifyOnIdle: 'once',
 	};

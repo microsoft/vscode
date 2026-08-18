@@ -226,6 +226,7 @@ suite('SessionServerTools', () => {
 				...sessionMeta('child', SessionStatus.Idle, workspace),
 				_meta: withSessionOrchestration(undefined, {
 					parentSession: 'copilot:/parent',
+					creatorSession: 'copilot:/creator',
 					coordinateWithCreator: true,
 					notifyOnIdle: 'once',
 					label: 'research',
@@ -243,7 +244,7 @@ suite('SessionServerTools', () => {
 					status: 'idle',
 					workingDirectory: workspace.toString(),
 					parentSession: 'copilot:/parent',
-					creator: 'copilot:/parent',
+					creator: 'copilot:/creator',
 					label: 'research',
 					notifyOnIdle: 'once',
 				},
@@ -257,6 +258,7 @@ suite('SessionServerTools', () => {
 				...sessionMeta('child', SessionStatus.Idle, workspace),
 				_meta: withSessionOrchestration(undefined, {
 					parentSession: 'copilot:/parent',
+					creatorSession: 'copilot:/parent',
 					coordinateWithCreator: false,
 					label: 'private-child',
 				}),
@@ -364,6 +366,7 @@ suite('SessionServerTools', () => {
 		assert.ok(!text.includes('copilot:/new'), 'result does not echo the raw backend session URI');
 		assert.deepStrictEqual(orchestrations.get('copilot:/new'), {
 			parentSession: 'copilot:/caller',
+			creatorSession: 'copilot:/caller',
 			coordinateWithCreator: true,
 		});
 		store.dispose();
@@ -385,6 +388,7 @@ suite('SessionServerTools', () => {
 
 		assert.deepStrictEqual(orchestrations.get('copilot:/new'), {
 			parentSession: 'copilot:/parent',
+			creatorSession: 'copilot:/caller',
 			coordinateWithCreator: false,
 			notifyOnIdle: 'always',
 			label: 'research',
@@ -844,6 +848,7 @@ suite('SessionServerTools', () => {
 			...sessionMeta('child', SessionStatus.Idle, workspace),
 			_meta: withSessionOrchestration(undefined, {
 				parentSession: 'copilot:/s2',
+				creatorSession: 'copilot:/s2',
 				coordinateWithCreator: false,
 			}),
 		};

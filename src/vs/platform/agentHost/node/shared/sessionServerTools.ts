@@ -685,6 +685,9 @@ function serializeSession(session: IAgentSessionMetadata, viewerSession?: string
 	const canSeeParent = orchestration !== undefined && (viewerSession === undefined
 		|| viewerSession === orchestration.parentSession
 		|| (viewerSession === session.session.toString() && orchestration.coordinateWithCreator));
+	const canSeeCreator = orchestration !== undefined && orchestration.coordinateWithCreator && (viewerSession === undefined
+		|| viewerSession === orchestration.creatorSession
+		|| viewerSession === session.session.toString());
 	return {
 		session: session.session.toString(),
 		...(session.summary !== undefined ? { title: session.summary } : {}),
@@ -708,7 +711,7 @@ function serializeSession(session: IAgentSessionMetadata, viewerSession?: string
 		...(github !== undefined ? { github } : {}),
 		...(orchestration !== undefined ? {
 			...(canSeeParent ? { parentSession: orchestration.parentSession } : {}),
-			...(canSeeParent && orchestration.coordinateWithCreator ? { creator: orchestration.parentSession } : {}),
+			...(canSeeCreator ? { creator: orchestration.creatorSession } : {}),
 			...(orchestration.label !== undefined ? { label: orchestration.label } : {}),
 			...(orchestration.notifyOnIdle !== undefined ? { notifyOnIdle: orchestration.notifyOnIdle } : {}),
 		} : {}),
@@ -759,6 +762,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	if (parentSession) {
 		await accessor.setSessionOrchestration(session, {
 			parentSession: parentSession.toString(),
+			creatorSession: (currentSession ?? parentSession).toString(),
 			coordinateWithCreator: args.coordinateWithCreator,
 			...(args.notifyOnIdle !== undefined ? { notifyOnIdle: args.notifyOnIdle } : {}),
 			...(args.label !== undefined ? { label: args.label } : {}),
@@ -838,7 +842,7 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 function assertCanCoordinateWithTarget(sessions: readonly IAgentSessionMetadata[], source: URI, target: URI, toolName: SessionServerToolName): void {
 	const sourceMetadata = sessions.find(candidate => candidate.session.toString() === source.toString());
 	const orchestration = readSessionOrchestration(sourceMetadata?._meta);
-	if (orchestration && !orchestration.coordinateWithCreator && orchestration.parentSession === target.toString()) {
+	if (orchestration && !orchestration.coordinateWithCreator && orchestration.creatorSession === target.toString()) {
 		throw new Error(`Invalid ${toolName} input: this session is not allowed to coordinate with its creator.`);
 	}
 }

@@ -1137,9 +1137,9 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 
-		const parent = URI.parse(orchestration.parentSession);
-		const parentMetadata = await this._getSessionMetadata(parent);
-		if (!parentMetadata || (parentMetadata.status !== undefined && (parentMetadata.status & SessionStatus.IsArchived) === SessionStatus.IsArchived)) {
+		const creator = URI.parse(orchestration.creatorSession);
+		const creatorMetadata = await this._getSessionMetadata(creator);
+		if (!creatorMetadata || (creatorMetadata.status !== undefined && (creatorMetadata.status & SessionStatus.IsArchived) === SessionStatus.IsArchived)) {
 			return;
 		}
 
@@ -1147,7 +1147,7 @@ export class AgentService extends Disposable implements IAgentService {
 			? 'needs input'
 			: (status & SessionStatus.Error) === SessionStatus.Error ? 'encountered an error' : 'became idle';
 		const childName = orchestration.label ? `${orchestration.label} (${session})` : session;
-		this._startCoordinationPrompt(parent, `Child session ${childName} ${outcome}. Use get_session_context with session "${session}" to inspect its result.`);
+		this._startCoordinationPrompt(creator, `Child session ${childName} ${outcome}. Use get_session_context with session "${session}" to inspect its result.`);
 	}
 
 	private _startCoordinationPrompt(parent: URI, prompt: string): void {
@@ -4626,6 +4626,7 @@ export class AgentService extends Disposable implements IAgentService {
 							[AH_META_IS_DONE_DB_KEY]: true,
 							configValues: true,
 							[AH_META_WORKSPACELESS_DB_KEY]: true,
+							[AH_META_ORCHESTRATION_DB_KEY]: true,
 							[SESSION_META_MULTI_ROOT_KEY]: true,
 							[SESSION_META_FOLDER_PICKER_KEY]: true,
 							...GIT_DB_METADATA_KEYS,
@@ -4684,6 +4685,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 						if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
 							sessionMetadata = withSessionWorkspaceless(sessionMetadata, m[AH_META_WORKSPACELESS_DB_KEY] === 'true');
+						}
+						const orchestration = parseSessionOrchestration(m[AH_META_ORCHESTRATION_DB_KEY]);
+						if (orchestration) {
+							sessionMetadata = withSessionOrchestration(sessionMetadata, orchestration);
 						}
 						sessionMetadata = withSessionMultiRootMetadata(sessionMetadata, parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]));
 						sessionMetadata = withSessionFolderPickerDecision(sessionMetadata, parseSessionFolderPickerDecision(m[SESSION_META_FOLDER_PICKER_KEY]));

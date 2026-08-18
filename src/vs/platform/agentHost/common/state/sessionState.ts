@@ -1715,6 +1715,7 @@ export type SessionIdleNotification = 'once' | 'always';
 
 export interface ISessionOrchestration {
 	readonly parentSession: string;
+	readonly creatorSession: string;
 	readonly label?: string;
 	readonly coordinateWithCreator: boolean;
 	readonly notifyOnIdle?: SessionIdleNotification;
@@ -1734,12 +1735,14 @@ export function readSessionOrchestration(meta: SessionSummaryMeta | undefined): 
 	if (typeof candidate.parentSession !== 'string' || typeof candidate.coordinateWithCreator !== 'boolean') {
 		return undefined;
 	}
+	const creatorSession = typeof candidate.creatorSession === 'string' ? candidate.creatorSession : candidate.parentSession;
 	const label = typeof candidate.label === 'string' ? candidate.label : undefined;
 	const notifyOnIdle = candidate.notifyOnIdle === 'once' || candidate.notifyOnIdle === 'always' ? candidate.notifyOnIdle : undefined;
 	const notificationArmed = typeof candidate.notificationArmed === 'boolean' ? candidate.notificationArmed : undefined;
 	const notificationSent = typeof candidate.notificationSent === 'boolean' ? candidate.notificationSent : undefined;
 	return {
 		parentSession: candidate.parentSession,
+		creatorSession,
 		coordinateWithCreator: candidate.coordinateWithCreator,
 		...(label !== undefined ? { label } : {}),
 		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
