@@ -1233,12 +1233,18 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _awaitInitialProviderMigration(): Promise<void> {
 		const providers = [...this._providers.values()];
 		const results = await Promise.allSettled(providers.map(provider => this._initialProviderMigrations.get(provider.id) ?? Promise.resolve()));
+		const retries: Promise<void>[] = [];
 		for (let index = 0; index < results.length; index++) {
 			const result = results[index];
 			if (result.status === 'rejected') {
-				this._logService.warn(`[AgentService] initial provider catalogs: provider ${providers[index].id} failed and will be retried on the next signal`, result.reason);
+				const provider = providers[index];
+				this._logService.warn(`[AgentService] initial provider catalog for ${provider.id} was unavailable; retrying before listing sessions`, result.reason);
+				const retry = this._ensureLegacyChatsMigrated(provider, true);
+				this._initialProviderMigrations.set(provider.id, retry);
+				retries.push(retry);
 			}
 		}
+		await Promise.all(retries);
 	}
 
 	/**
@@ -1401,7 +1407,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const sessions = await this._enumerateLegacyProviderSessions(provider);
 		if (sessions === undefined) {
-			return;
+			throw new Error(`Provider ${provider.id} cannot enumerate its native session catalog yet`);
 		}
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
 		const migrationLimiter = new Limiter<IRegisteredSession | undefined>(4);
