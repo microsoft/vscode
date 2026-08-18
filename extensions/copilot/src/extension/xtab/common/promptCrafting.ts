@@ -378,8 +378,6 @@ function getPostScript(options: PromptOptions, currentFilePath: string, aggressi
 		case PromptingStrategy.Codexv21NesUnified:
 			break;
 		case PromptingStrategy.PatchBased02:
-			postScript = patchBased02PostScript;
-			break;
 		case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 			postScript = eagernessPrompt === 'aggressionHighLow'
