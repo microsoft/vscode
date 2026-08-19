@@ -58,7 +58,7 @@ export async function openAgentHostStateFile(
 /**
  * Workbench-side action. Uses the last-focused chat widget's view model to
  * find the active Agent Host chat session. Suitable for vscode where the
- * agents-window-specific `ISessionsManagementService` is not present.
+ * agents-window-specific `ISessionsService` is not present.
  */
 export class OpenAgentHostStateFileAction extends Action2 {
 
