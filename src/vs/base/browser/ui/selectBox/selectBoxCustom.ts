@@ -16,6 +16,7 @@ import * as domStylesheetsJs from '../../domStylesheets.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { IRenderedMarkdown, MarkdownActionHandler, renderMarkdown } from '../../markdownRenderer.js';
+import { HoverPosition } from '../hover/hoverWidget.js';
 import { AnchorPosition, IContextViewProvider } from '../contextview/contextview.js';
 import type { IManagedHover } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
@@ -29,15 +30,23 @@ import './selectBoxCustom.css';
 const $ = dom.$;
 
 const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
+const SELECT_OPTION_HEIGHT = 22;
 
 interface ISelectListTemplateData {
 	root: HTMLElement;
 	text: HTMLElement;
 	detail: HTMLElement;
 	decoratorRight: HTMLElement;
+	description?: string;
+	descriptionHover?: IDisposable;
 }
 
 class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectListTemplateData> {
+
+	constructor(
+		private readonly showOptionDescriptionHovers: boolean,
+		private readonly hideDisabledOptions: boolean,
+	) { }
 
 	get templateId(): string { return SELECT_OPTION_ENTRY_TEMPLATE_ID; }
 
@@ -47,6 +56,12 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		data.text = dom.append(container, $('.option-text'));
 		data.detail = dom.append(container, $('.option-detail'));
 		data.decoratorRight = dom.append(container, $('.option-decorator-right'));
+		if (this.showOptionDescriptionHovers) {
+			data.descriptionHover = getBaseLayerHoverDelegate().setupDelayedHover(data.root, () => ({
+				content: data.description ?? '',
+				position: { hoverPosition: HoverPosition.RIGHT },
+			}), { groupId: 'select-box-option-description' });
+		}
 
 		return data;
 	}
@@ -63,6 +78,8 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		data.text.textContent = text;
 		data.detail.textContent = !!detail ? detail : '';
 		data.decoratorRight.textContent = !!decoratorRight ? decoratorRight : '';
+		data.description = element.description;
+		data.root.hidden = this.hideDisabledOptions && !!isDisabled;
 
 		// pseudo-select disabled option
 		if (isDisabled) {
@@ -81,8 +98,8 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		}
 	}
 
-	disposeTemplate(_templateData: ISelectListTemplateData): void {
-		// noop
+	disposeTemplate(templateData: ISelectListTemplateData): void {
+		templateData.descriptionHover?.dispose();
 	}
 }
 
@@ -169,8 +186,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	// IDelegate - List renderer
 
-	getHeight(): number {
-		return 22;
+	getHeight(element: ISelectOptionItem): number {
+		return this.selectBoxOptions.hideDisabledOptions && element.isDisabled ? 0 : SELECT_OPTION_HEIGHT;
 	}
 
 	getTemplateId(): string {
@@ -292,7 +309,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 			this.options.forEach((option, index) => {
 				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
-				if (typeof option.description === 'string') {
+				if (typeof option.description === 'string' && !this.selectBoxOptions.showOptionDescriptionHovers) {
 					this._hasDetails = true;
 				}
 			});
@@ -586,8 +603,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			const maxDetailsPaneHeight = this._hasDetails ? this._cachedMaxDetailsHeight! : 0;
 
 			const minRequiredDropDownHeight = listHeight + maxDetailsPaneHeight;
-			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - maxDetailsPaneHeight) / this.getHeight())));
-			const maxVisibleOptionsAbove = ((Math.floor((maxSelectDropDownHeightAbove - maxDetailsPaneHeight) / this.getHeight())));
+			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - maxDetailsPaneHeight) / SELECT_OPTION_HEIGHT)));
+			const maxVisibleOptionsAbove = ((Math.floor((maxSelectDropDownHeightAbove - maxDetailsPaneHeight) / SELECT_OPTION_HEIGHT)));
 
 			// If we are only doing pre-layout check/adjust position only
 			// Calculate vertical space available, flip up if insufficient
@@ -657,11 +674,11 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 				// Adjust list height to max from select bottom to margin (default/minBottomMargin)
 				if (minRequiredDropDownHeight > maxSelectDropDownHeightBelow) {
-					listHeight = (maxVisibleOptionsBelow * this.getHeight());
+					listHeight = (maxVisibleOptionsBelow * SELECT_OPTION_HEIGHT);
 				}
 			} else {
 				if (minRequiredDropDownHeight > maxSelectDropDownHeightAbove) {
-					listHeight = (maxVisibleOptionsAbove * this.getHeight());
+					listHeight = (maxVisibleOptionsAbove * SELECT_OPTION_HEIGHT);
 				}
 			}
 
@@ -730,7 +747,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		// SetUp container for list
 		this.selectDropDownListContainer = dom.append(parent, $('.select-box-dropdown-list-container'));
 
-		this.listRenderer = new SelectListRenderer();
+		this.listRenderer = new SelectListRenderer(
+			!!this.selectBoxOptions.showOptionDescriptionHovers,
+			!!this.selectBoxOptions.hideDisabledOptions
+		);
 
 		this.selectList = this._register(new List('SelectBoxCustom', this.selectDropDownListContainer, this, [this.listRenderer], {
 			useShadows: false,
