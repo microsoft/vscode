@@ -412,7 +412,8 @@
 
 /* Empty state - engaging design */
 .ai-customization-list-widget .list-empty-state,
-.ai-customization-management-editor .tools-list-widget .list-empty-state {
+.ai-customization-management-editor .tools-list-widget .list-empty-state,
+.chat-permissions-section .list-empty-state {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -424,14 +425,16 @@
 }
 
 .ai-customization-list-widget .list-empty-state .empty-state-text,
-.ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-text {
+.ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-text,
+.chat-permissions-section .list-empty-state .empty-state-text {
 	font-size: 16px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
 .ai-customization-list-widget .list-empty-state .empty-state-subtext,
-.ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-subtext {
+.ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-subtext,
+.chat-permissions-section .list-empty-state .empty-state-subtext {
 	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 250px;
@@ -901,7 +904,8 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .models-content-container,
 .ai-customization-management-editor .tools-content-container,
-.ai-customization-management-editor .contributed-section-container > .chat-permissions-section {
+/* Unlike the containers above, this class belongs to the permissions widget itself and is listed without an ancestor, so the widget carries its own panel chrome and can render standalone (e.g. in a component fixture). */
+.chat-permissions-section {
 	height: 100%;
 	display: flex;
 	flex-direction: column;

@@ -211,13 +211,19 @@ export class ChatPermissionsSectionWidget extends Disposable {
 
 		switch (snapshot.state) {
 			case 'loading':
-				this.renderStatus(localize('chatPermissions.loading', "Resolving effective permissions\u2026"));
+				this.renderEmptyState(
+					localize('chatPermissions.loading', "Resolving effective permissions\u2026"),
+					localize('chatPermissions.loadingDetail', "Reading the rules the agent enforces."),
+				);
 				return;
 			case 'unavailable':
-				this.renderStatus(unavailableMessage(snapshot.reason));
+				this.renderEmptyState(unavailableTitle(snapshot.reason), unavailableDetail(snapshot.reason));
 				return;
 			case 'error':
-				this.renderStatus(localize('chatPermissions.error', "Effective permissions could not be resolved: {0}", snapshot.message));
+				this.renderEmptyState(
+					localize('chatPermissions.errorTitle', "Permissions could not be read"),
+					snapshot.message,
+				);
 				return;
 		}
 
@@ -309,7 +315,6 @@ export class ChatPermissionsSectionWidget extends Disposable {
 		header.setAttribute('aria-label', localize('chatPermissions.groupAriaLabel', "{0}, {1} rules", presentation.label, rules.length));
 
 		DOM.append(header, $('.group-chevron')).classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
-		DOM.append(header, $('.group-icon')).classList.add(...ThemeIcon.asClassNameArray(presentation.icon));
 		const labelGroup = DOM.append(header, $('.group-label-group'));
 		DOM.append(labelGroup, $('.group-label')).textContent = presentation.label;
 		DOM.append(header, $('.group-count')).textContent = String(rules.length);
@@ -364,12 +369,15 @@ export class ChatPermissionsSectionWidget extends Disposable {
 		DOM.append(pattern, $('span.chat-permissions-rule-argument')).textContent = rule.argument ?? '';
 
 		if (rule.shadowedBy) {
+			// Name the layer that wins, with its icon, so the row explains why it has no effect.
+			const winner = scopePresentation(rule.shadowedBy.scope);
 			const override = DOM.append(pattern, $('span.chat-permissions-rule-override'));
 			DOM.append(override, $('span')).classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowRight));
+			DOM.append(override, $('span')).classList.add(...ThemeIcon.asClassNameArray(winner.icon));
 			DOM.append(override, $('span')).textContent = localize(
 				'chatPermissions.shadowedBy',
 				"{0} {1}",
-				scopePresentation(rule.shadowedBy.scope).label,
+				winner.label,
 				effectLabel(rule.shadowedBy.effect),
 			);
 		}
@@ -408,18 +416,36 @@ export class ChatPermissionsSectionWidget extends Disposable {
 		);
 	}
 
+	/** Centered title + detail, matching the customization sections' empty state. */
+	private renderEmptyState(title: string, detail: string): void {
+		const empty = DOM.append(this.listContainer, $('.list-empty-state'));
+		DOM.append(empty, $('.empty-state-text')).textContent = title;
+		DOM.append(empty, $('.empty-state-subtext')).textContent = detail;
+	}
+
 	private renderStatus(message: string): void {
 		DOM.append(this.listContainer, $('.chat-permissions-status')).textContent = message;
 	}
 }
 
-function unavailableMessage(reason: ChatPermissionUnavailableReason): string {
+function unavailableTitle(reason: ChatPermissionUnavailableReason): string {
 	switch (reason) {
 		case ChatPermissionUnavailableReason.NoAgentHost:
-			return localize('chatPermissions.unavailable.noAgentHost', "Effective permissions are not available in this window.");
+			return localize('chatPermissions.unavailable.noAgentHostTitle', "Permissions are not available here");
 		case ChatPermissionUnavailableReason.AgentHostDisabled:
-			return localize('chatPermissions.unavailable.agentHostDisabled', "The agent host is disabled, so effective permissions cannot be read.");
+			return localize('chatPermissions.unavailable.agentHostDisabledTitle', "The agent host is disabled");
 		case ChatPermissionUnavailableReason.NotSupported:
-			return localize('chatPermissions.unavailable.notSupported', "The connected agent does not report effective permissions yet.");
+			return localize('chatPermissions.unavailable.notSupportedTitle', "Permissions cannot be read yet");
+	}
+}
+
+function unavailableDetail(reason: ChatPermissionUnavailableReason): string {
+	switch (reason) {
+		case ChatPermissionUnavailableReason.NoAgentHost:
+			return localize('chatPermissions.unavailable.noAgentHost', "This window cannot reach an agent, so the rules that govern it cannot be shown.");
+		case ChatPermissionUnavailableReason.AgentHostDisabled:
+			return localize('chatPermissions.unavailable.agentHostDisabled', "Enable the agent host to see the rules that govern the agent.");
+		case ChatPermissionUnavailableReason.NotSupported:
+			return localize('chatPermissions.unavailable.notSupported', "The connected agent does not report its effective permissions yet. Rules may still be enforced.");
 	}
 }
