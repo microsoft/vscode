@@ -157,8 +157,8 @@ suite('stateToProgressAdapter', () => {
 		test('a declared content type still wins', () => {
 			const restored = messageAttachmentsToVariableData([{ ...pastedImage, contentType: 'image/gif' }], 'local')?.variables[0];
 
-			assert.strictEqual(restored?.kind, 'image');
-			assert.strictEqual((restored as { mimeType?: string }).mimeType, 'image/gif');
+			assert.ok(restored?.kind === 'image');
+			assert.strictEqual(restored.mimeType, 'image/gif');
 		});
 
 		test('a non-image attachment with no content type restores as generic, not as an image', () => {
