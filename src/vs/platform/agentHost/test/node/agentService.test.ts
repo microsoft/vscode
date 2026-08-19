@@ -6439,6 +6439,180 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(svc.stateManager.getSessionState(session.toString()), undefined, 'a rejected restore must not have populated any state');
 		});
 
+		suite('initial provider migration race (#331648)', () => {
+			/**
+			 * Reproduces the startup ordering of #331648: the provider's
+			 * registration-time catalog migration (`listChatsToMigrate`) is still
+			 * in flight, during which per-session `getChatMetadata` cannot yet
+			 * answer and returns `undefined`. When `catalogAvailable` is false the
+			 * migration and its forced retry both fail, modelling a persistently
+			 * unavailable catalog.
+			 */
+			class StartupRaceAgent extends MockAgent {
+				override readonly onDidDiscoverChats = Event.None;
+				readonly migrationGate = new DeferredPromise<void>();
+				sdkReady = false;
+				catalogAvailable = true;
+				listChatsToMigrateCalls = 0;
+				getChatMetadataCalls = 0;
+
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+					this.listChatsToMigrateCalls++;
+					await this.migrationGate.p;
+					if (!this.catalogAvailable) {
+						return undefined;
+					}
+					this.sdkReady = true;
+					return [];
+				}
+
+				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+					this.getChatMetadataCalls++;
+					return this.sdkReady ? super.getChatMetadata(chat, context) : undefined;
+				}
+			}
+
+			function makeService(): AgentService {
+				return disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			}
+
+			function seedSession(agent: MockAgent, session: URI): void {
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			}
+
+			async function advanceUntil(predicate: () => boolean): Promise<void> {
+				for (let i = 0; i < 50 && !predicate(); i++) {
+					await timeout(0);
+				}
+			}
+
+			test('waits for initial provider migration instead of a false SESSION_NOT_FOUND', async () => {
+				const svc = makeService();
+				const agent = disposables.add(new StartupRaceAgent('copilot'));
+				const session = AgentSession.uri('copilot', 'race-session');
+				seedSession(agent, session);
+				svc.registerProvider(agent);
+
+				let rejected: unknown;
+				const restore = svc.restoreSession(session).catch(err => { rejected = err; });
+				await advanceUntil(() => agent.listChatsToMigrateCalls > 0);
+				const beforeGate = {
+					metadataRead: agent.getChatMetadataCalls,
+					hydrated: !!svc.stateManager.getSessionState(session.toString()),
+				};
+
+				agent.migrationGate.complete();
+				await restore;
+
+				assert.deepStrictEqual({
+					beforeGate,
+					rejected,
+					hydratedAfter: !!svc.stateManager.getSessionState(session.toString()),
+				}, {
+					beforeGate: { metadataRead: 0, hydrated: false },
+					rejected: undefined,
+					hydratedAfter: true,
+				});
+			});
+
+			test('re-checks the tombstone after the wait and does not resurrect a deleted session', async () => {
+				const svc = makeService();
+				const agent = disposables.add(new StartupRaceAgent('copilot'));
+				const session = AgentSession.uri('copilot', 'deleted-during-wait');
+				seedSession(agent, session);
+				svc.registerProvider(agent);
+
+				let rejected: unknown;
+				const restore = svc.restoreSession(session).catch(err => { rejected = err; });
+				await advanceUntil(() => agent.listChatsToMigrateCalls > 0);
+				await svc.disposeSession(session);
+				agent.migrationGate.complete();
+				await restore;
+
+				assert.deepStrictEqual({
+					isProtocolError: rejected instanceof ProtocolError,
+					code: (rejected as ProtocolError)?.code,
+					metadataRead: agent.getChatMetadataCalls,
+					hydrated: !!svc.stateManager.getSessionState(session.toString()),
+				}, {
+					isProtocolError: true,
+					code: AHP_SESSION_NOT_FOUND,
+					metadataRead: 0,
+					hydrated: false,
+				});
+			});
+
+			test('reports a genuinely missing session as not found once migration completes', async () => {
+				const svc = makeService();
+				const agent = disposables.add(new StartupRaceAgent('copilot'));
+				const session = AgentSession.uri('copilot', 'never-existed');
+				svc.registerProvider(agent);
+				agent.migrationGate.complete();
+
+				let rejected: unknown;
+				await svc.restoreSession(session).catch(err => { rejected = err; });
+
+				assert.deepStrictEqual({
+					isProtocolError: rejected instanceof ProtocolError,
+					code: (rejected as ProtocolError)?.code,
+					hydrated: !!svc.stateManager.getSessionState(session.toString()),
+				}, {
+					isProtocolError: true,
+					code: AHP_SESSION_NOT_FOUND,
+					hydrated: false,
+				});
+			});
+
+			test('reports an unavailable catalog as an internal error, never a false not found', async () => {
+				const svc = makeService();
+				const agent = disposables.add(new StartupRaceAgent('copilot'));
+				const session = AgentSession.uri('copilot', 'catalog-unavailable');
+				seedSession(agent, session);
+				agent.catalogAvailable = false;
+				svc.registerProvider(agent);
+				agent.migrationGate.complete();
+
+				let rejected: unknown;
+				await svc.restoreSession(session).catch(err => { rejected = err; });
+
+				assert.deepStrictEqual({
+					isProtocolError: rejected instanceof ProtocolError,
+					code: (rejected as ProtocolError)?.code,
+					hydrated: !!svc.stateManager.getSessionState(session.toString()),
+				}, {
+					isProtocolError: true,
+					code: JSON_RPC_INTERNAL_ERROR,
+					hydrated: false,
+				});
+			});
+
+			test('a stalled provider migration does not block restoring a ready provider', async () => {
+				const svc = makeService();
+				const stalled = disposables.add(new StartupRaceAgent('copilot'));
+				const ready = disposables.add(new MockAgent('claude'));
+				const session = AgentSession.uri('claude', 'ready-session');
+				seedSession(ready, session);
+				svc.registerProvider(stalled);
+				svc.registerProvider(ready);
+				await advanceUntil(() => stalled.listChatsToMigrateCalls > 0);
+
+				await svc.restoreSession(session);
+
+				assert.deepStrictEqual({
+					stalledStarted: stalled.listChatsToMigrateCalls > 0,
+					stalledCompleted: stalled.sdkReady,
+					hydrated: !!svc.stateManager.getSessionState(session.toString()),
+				}, {
+					stalledStarted: true,
+					stalledCompleted: false,
+					hydrated: true,
+				});
+
+				stalled.migrationGate.complete();
+				await svc.listSessions();
+			});
+		});
+
 		test('restores the AH-owned workspaceless marker onto the summary _meta for any agent', async () => {
 			// The workspace-less marker is owned by the AH service and overlaid on
 			// restore from the central session DB — the agent (MockAgent) re-emits
@@ -7065,6 +7239,11 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('coalesces concurrent restores for the same session', async () => {
 			class BlockingRestoreAgent extends MockAgent {
+				// Isolate this test to restore-path coalescing: without this, the
+				// provider's discovery fires a session-list reconciliation whose
+				// own `getChatMetadata` read is incidental to restore and races the
+				// assertions (it previously stayed outside the window only by timing).
+				override readonly onDidDiscoverChats = Event.None;
 				readonly metadataReached = new DeferredPromise<void>();
 				readonly metadataGate = new DeferredPromise<void>();
 				getChatMetadataCalls = 0;
