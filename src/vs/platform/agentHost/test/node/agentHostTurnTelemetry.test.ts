@@ -159,6 +159,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		agent.fireProgress({ kind: 'action', resource: URI.parse(chatUri), action });
 	}
 
+	function fireModelCallCompleted(turnId: string, modelCallId: string, chatUri = defaultChatUri): void {
+		agent.fireProgress({ kind: 'model_call_completed', resource: URI.parse(chatUri), turnId, modelCallId });
+	}
+
 	function completedEvents(): { eventName: string; data: unknown }[] {
 		return telemetry.events.filter(e => e.eventName === 'agentHost.turnCompleted');
 	}
@@ -290,6 +294,77 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			initiatorMachineId: 'client-machine-id',
 			initiatorDevDeviceId: 'client-dev-device-id',
 		}]);
+	});
+
+	test('counts unique completed model responses on the turn', () => {
+		setupSession();
+		startTurn('turn-model-calls');
+
+		fireModelCallCompleted('turn-model-calls', 'call-1');
+		fireModelCallCompleted('turn-model-calls', 'call-1');
+		fireModelCallCompleted('turn-model-calls', 'call-2');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-model-calls', duration: 1000 });
+
+		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).modelCallCount, 2);
+	});
+
+	test('does not attribute a stale model response to the active turn', () => {
+		setupSession();
+		startTurn('turn-old');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-old', duration: 1000 });
+		startTurn('turn-active');
+
+		fireModelCallCompleted('turn-old', 'late-call');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-active', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { turnId: data.turnId, modelCallCount: data.modelCallCount };
+		}), [
+			{ turnId: 'turn-old', modelCallCount: 0 },
+			{ turnId: 'turn-active', modelCallCount: 0 },
+		]);
+	});
+
+	test('attributes subagent model responses only to the subagent turn', () => {
+		setupSession();
+		startTurn('turn-parent');
+		const subagentChatUri = buildSubagentChatUri(sessionUri, 'call-subagent');
+		stateManager.addChat(sessionKey, subagentChatUri);
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-parent',
+			toolCallId: 'call-subagent',
+			toolName: 'task',
+			displayName: 'Task',
+		});
+		agent.fireProgress({
+			kind: 'subagent_started',
+			chat: URI.parse(defaultChatUri),
+			toolCallId: 'call-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+		});
+
+		const subagentTurnId = stateManager.getActiveTurnId(subagentChatUri);
+		assert.ok(subagentTurnId);
+		agent.fireProgress({
+			kind: 'model_call_completed',
+			resource: URI.parse(defaultChatUri),
+			turnId: 'turn-parent',
+			modelCallId: 'subagent-model-call',
+			parentToolCallId: 'call-subagent',
+		});
+		fire({ type: ActionType.ChatTurnComplete, turnId: subagentTurnId, duration: 1000 }, subagentChatUri);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { isSubagentSession: data.isSubagentSession, modelCallCount: data.modelCallCount };
+		}), [
+			{ isSubagentSession: true, modelCallCount: 1 },
+			{ isSubagentSession: false, modelCallCount: 0 },
+		]);
 	});
 
 	test('emits turnCompleted with the multi-root working-directory shape', () => {
