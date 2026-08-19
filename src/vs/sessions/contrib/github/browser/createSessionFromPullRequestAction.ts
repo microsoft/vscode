@@ -24,7 +24,8 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../browser/workbench.js';
-import { ISessionSection, SessionSectionHasNonCloudRepositoryContext, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../../sessions/browser/views/sessionsList.js';
+import { Menus } from '../../../browser/menus.js';
+import { ISessionSection, SessionSectionHasNonCloudRepositoryContext, SessionSectionTypeContext } from '../../sessions/browser/views/sessionsList.js';
 import { IGitHubService } from './githubService.js';
 import { IGitHubPullRequestSummary } from '../common/types.js';
 import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getGitHubRepositoryFromRemotes, hasExistingPullRequest, IPullRequestQuickPickItem, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from './pullRequestPicker.js';
@@ -40,7 +41,7 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 			icon: Codicon.gitPullRequestCreate,
 			precondition: ChatContextKeys.enabled,
 			menu: {
-				id: SessionSectionToolbarMenuId,
+				id: Menus.SessionSectionNewSession,
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.and(

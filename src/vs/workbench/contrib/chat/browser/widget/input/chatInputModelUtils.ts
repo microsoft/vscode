@@ -163,6 +163,17 @@ export function isNewConversation(sessionResource: URI, hasNoRequests: boolean):
 }
 
 /**
+ * Whether a chat input counts as bound to a conversation that is already underway.
+ *
+ * An unbound input counts as started: a session switch clears the bound model for the duration of
+ * an async load while the outgoing session type is still published, and a notice must not surface
+ * in that window. Only a model seen to be request-free is unstarted.
+ */
+export function isSessionStarted(hasBoundModel: boolean, hasRequests: boolean): boolean {
+	return !hasBoundModel || hasRequests;
+}
+
+/**
  * Whether the persisted per-session-type model should be restored (into the picker) when the
  * input switches to a session.
  *
