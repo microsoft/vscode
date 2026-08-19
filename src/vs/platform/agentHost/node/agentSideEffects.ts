@@ -913,6 +913,17 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 
+		// Same legacy path for a replayed client-tool invocation: the SDK supplies
+		// no parent for it, but the call is still registered under its subagent chat.
+		if (signal.kind === 'client_tool_invoked') {
+			const subagentChatUri = this._findSubagentChatForToolCall(sessionKey, signal.toolCallId);
+			const subTurnId = subagentChatUri ? this._stateManager.getActiveTurnId(subagentChatUri) : undefined;
+			if (subagentChatUri && subTurnId) {
+				this._handleClientToolInvoked(signal, subagentChatUri, subTurnId);
+				return;
+			}
+		}
+
 		const turnId = this._stateManager.getActiveTurnId(sessionKey);
 		if (turnId) {
 			if (signal.kind === 'model_call_completed') {
@@ -955,12 +966,13 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * The runtime invoked a client tool whose call never streamed, so no client
-	 * execution was ever requested. Synthesizes the start/ready pair the stream
-	 * would have produced; a call that did stream is left alone.
+	 * Requests client execution for an invoked tool call, synthesizing the
+	 * start/ready pair when the call never streamed.
 	 */
 	private _handleClientToolInvoked(signal: IAgentClientToolInvokedSignal, sessionKey: ProtocolURI, turnId: string): void {
 		if (this._findToolCall(sessionKey, turnId, signal.toolCallId)) {
+			// Cancelling a turn drops the execution request but leaves the call running.
+			this._syncToolInputNeeded(sessionKey, turnId, signal.toolCallId);
 			return;
 		}
 		const sessionUri = parseRequiredSessionUriFromChatUri(sessionKey);

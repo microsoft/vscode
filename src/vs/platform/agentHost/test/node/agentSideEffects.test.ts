@@ -1446,6 +1446,49 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('a replayed client tool invocation routes to the subagent chat that owns the call', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			stateManager.dispatchClientAction(sessionUri.toString(), {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'client-A', tools: [{ name: 'openBrowserPage', inputSchema: { type: 'object' } }] },
+			}, { clientId: 'test', clientSeq: 1 });
+			startTurn('turn-1');
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'Task', displayName: 'Task' },
+			});
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper' });
+
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-parent');
+			const subTurnId = stateManager.getSessionState(subagentUri)!.activeTurn!.id;
+
+			// The inner client tool streams inside the subagent chat.
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				action: { type: ActionType.ChatToolCallStart, turnId: subTurnId, toolCallId: 'tu_inner', toolName: 'openBrowserPage', displayName: 'openBrowserPage', contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-A' } },
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				action: { type: ActionType.ChatToolCallReady, turnId: subTurnId, toolCallId: 'tu_inner', invocationMessage: 'openBrowserPage', toolInput: '{}', confirmed: ToolCallConfirmationReason.NotNeeded },
+			});
+
+			// The SDK replays the invocation, which carries no parent.
+			agent.fireProgress({ kind: 'client_tool_invoked', chat: URI.parse(defaultChatUri), toolCallId: 'tu_inner', toolName: 'openBrowserPage', toolInput: '{}' });
+
+			const parentCalls = (stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts ?? [])
+				.filter(part => part.kind === ResponsePartKind.ToolCall).map(part => part.toolCall.toolCallId);
+			const execution = (stateManager.getSessionState(sessionUri.toString())?.inputNeeded ?? [])
+				.filter(request => request.kind === SessionInputRequestKind.ToolClientExecution)
+				.map(request => ({ chat: request.chat, toolCallId: request.toolCall.toolCallId }));
+
+			assert.deepStrictEqual({ parentCalls, execution }, {
+				parentCalls: ['tc-parent'],
+				execution: [{ chat: subagentUri, toolCallId: 'tu_inner' }],
+			});
+		});
+
 		test('does not duplicate a Codex provider-owned failure when sendMessage resolves', async () => {
 			setupSession();
 			disposables.add(sideEffects.registerProgressListener(agent));
