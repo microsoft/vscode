@@ -177,7 +177,7 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IProductService, productService);
-		const networkServices = await registerAgentHostNetworkServices(diServices, fileService, environmentService, logService, disposables);
+		const networkServices = registerAgentHostNetworkServices(diServices, logService, disposables);
 		proxyResolver = networkServices.proxyResolver;
 		const fetchFn = proxyResolver.fetch.bind(proxyResolver);
 		const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables, fetchFn, requestService: networkServices.requestService });
@@ -206,16 +206,21 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IByokLmProxyService, byokLmProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], hostLaunchKind, storageResource);
-		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
-		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
-		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], hostLaunchKind, storageResource, undefined, undefined, {
+			logsHome: environmentService.logsHome,
+			tmpDir: environmentService.tmpDir,
+		});
 		diServices.set(IAgentService, agentService);
 		diServices.set(IAgentHostAuthenticationService, agentService.authenticationService);
 		diServices.set(IAgentHostStateManager, agentService.stateManager);
 		// Narrow host seams providers consume instead of the whole state manager.
 		diServices.set(IAgentHostPromptCache, agentService.promptCache);
 		diServices.set(IAgentHostSessionTitleSignal, agentService.sessionTitleSignal);
+		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		proxyResolver.bindConfigurationService(agentService.configurationService, true);
+		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
+		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
+		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
@@ -226,7 +231,6 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
-		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		diServices.set(IAgentHostStorageService, agentService.storageService);
 		diServices.set(IAgentHostCustomizationEnablementService, agentService.customizationEnablementService);
 		diServices.set(IAgentHostManagedSettingsService, agentService.managedSettingsService);

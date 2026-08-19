@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken } from '../../../base/common/cancellation.js';
+import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
@@ -19,7 +20,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
+import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
 import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentHostAuthTokenRequest, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
 
@@ -68,6 +69,53 @@ export const enum AgentHostIpcChannels {
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
+
+export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';
+export const AGENT_HOST_DEBUG_LOGS_MAX_BYTES = 16 * 1024 * 1024;
+/** Maximum number of files in one Agent Host debug-log artifact. */
+export const AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES = 1000;
+/**
+ * Maximum payload of a single {@link IAgentHostDebugLogsChunk}. Debug-log
+ * artifacts are streamed in chunks of at most this size so a remote agent host
+ * never has to encode a whole archive into one JSON-RPC message.
+ */
+export const AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES = 1024 * 1024;
+/**
+ * Upper bound on the *uncompressed* logs staged for an archive artifact. Log
+ * text compresses heavily, so this is deliberately far larger than
+ * {@link AGENT_HOST_DEBUG_LOGS_MAX_BYTES} — which still bounds the archive that
+ * is actually transferred. It only exists to keep zipping work finite.
+ */
+export const AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES = 256 * 1024 * 1024;
+/**
+ * Upper bound on any single file inside an artifact. Oversized files are
+ * reduced to their trailing bytes rather than dropped, so a very large process
+ * log still contributes the portion that explains a recent failure.
+ */
+export const AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+export interface IAgentHostDebugLogsArtifactEntry {
+	readonly path: string;
+	readonly size: number;
+}
+
+export interface IAgentHostDebugLogsArtifact {
+	readonly kind: AgentHostDebugLogsArtifactKind;
+	readonly resource: URI;
+	readonly providerLogsIncluded: boolean;
+	readonly size: number;
+	readonly uncompressedSize: number;
+	/** Exact regular files staged in the artifact. Paths are relative, normalized, and unique. */
+	readonly entries: readonly IAgentHostDebugLogsArtifactEntry[];
+}
+
+/** One bounded slice of a debug-log artifact, read via `readDebugLogsChunk`. */
+export interface IAgentHostDebugLogsChunk {
+	/** Raw bytes for this slice. Empty once `position` is at or past the end. */
+	readonly data: VSBuffer;
+	/** `true` when this slice reaches the end of the artifact. */
+	readonly eof: boolean;
+}
 
 /** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
 export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
@@ -741,6 +789,8 @@ export interface IAgentHostManagementService {
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
 }
@@ -873,6 +923,10 @@ export interface IAgentService {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
+	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
+
+	readDebugLogsChunk?(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
+
 	// ---- Protocol methods (sessions process protocol) ----------------------
 
 	/**
@@ -937,7 +991,7 @@ export interface IAgentService {
 	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
 	 * or reading files from the remote filesystem).
 	 */
-	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 
 	/**
 	 * Write content to a file on the agent host's filesystem.
@@ -1100,6 +1154,14 @@ export interface IAgentConnection {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
+
+	/**
+	 * Read one bounded slice of an artifact previously returned by
+	 * {@link collectDebugLogs}. Only artifacts this host produced are readable.
+	 */
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
+
 	/**
 	 * Create an additional peer chat inside an existing session. `chat` is a
 	 * client-chosen chat URI (see {@link buildChatUri}). The host adds the
@@ -1118,7 +1180,7 @@ export interface IAgentConnection {
 
 	// ---- Filesystem operations ----------------------------------------------
 	resourceList(uri: URI): Promise<ResourceListResult>;
-	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
 	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
