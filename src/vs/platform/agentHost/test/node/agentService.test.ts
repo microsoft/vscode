@@ -2838,24 +2838,22 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		function createExternalSessionService(now: () => number, sessionDataService = createSessionDataService()): AgentService {
+		function createExternalSessionService(sessionDataService = createSessionDataService()): AgentService {
 			return disposables.add(createTestAgentService(
 				new NullLogService(),
 				fileService,
 				sessionDataService,
 				{ _serviceBrand: undefined } as IProductService,
 				createNoopGitService(),
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				[],
-				undefined,
-				undefined,
-				undefined,
-				now,
 			));
+		}
+
+		function testWithExternalSessionClock(name: string, fn: () => Promise<void>): void {
+			test(name, () => runWithFakedTimers({
+				useFakeTimers: true,
+				startTime: Date.UTC(2026, 0, 1),
+				maxTaskCount: 10_000,
+			}, fn));
 		}
 
 		function setExternalSessionsMode(service: AgentService, mode: AgentHostExternalSessionsMode, clientSeq: number): void {
@@ -2919,10 +2917,10 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(await db.getMetadata(AH_META_IS_READ_DB_KEY), '');
 		});
 
-		test('filters external sessions in every mode with inclusive time boundaries', async () => {
+		testWithExternalSessionClock('filters external sessions in every mode with inclusive time boundaries', async () => {
 			const day = 24 * 60 * 60 * 1000;
 			const now = Date.now();
-			const svc = createExternalSessionService(() => now);
+			const svc = createExternalSessionService();
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			agent.addSession('recent', now);
 			agent.addSession('at-24-hours', now - day);
@@ -2958,10 +2956,10 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a mode change reconciles with a single catalog pass', async () => {
+		testWithExternalSessionClock('a mode change reconciles with a single catalog pass', async () => {
 			const day = 24 * 60 * 60 * 1000;
 			const now = Date.now();
-			const svc = createExternalSessionService(() => now);
+			const svc = createExternalSessionService();
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			agent.addSession('recent', now);
 			agent.addSession('yesterday', now - day);
@@ -2998,9 +2996,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('recent replaces the oldest visible external session when a newer session is discovered', async () => {
+		testWithExternalSessionClock('recent replaces the oldest visible external session when a newer session is discovered', async () => {
 			const now = Date.now();
-			const svc = createExternalSessionService(() => now);
+			const svc = createExternalSessionService();
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
 			await waitForSessionListReconciliation(svc);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
@@ -3037,9 +3035,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('external discovery reconciles against a mode change that completes while registration is in flight', async () => {
+		testWithExternalSessionClock('external discovery reconciles against a mode change that completes while registration is in flight', async () => {
 			const now = Date.now();
-			const svc = createExternalSessionService(() => now);
+			const svc = createExternalSessionService();
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 1);
 			await waitForSessionListReconciliation(svc);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
@@ -3089,9 +3087,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('recent reconciles clients when a hidden external session becomes more recent', async () => {
+		testWithExternalSessionClock('recent reconciles clients when a hidden external session becomes more recent', async () => {
 			const now = Date.now();
-			const svc = createExternalSessionService(() => now);
+			const svc = createExternalSessionService();
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
 			await waitForSessionListReconciliation(svc);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
@@ -3130,9 +3128,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('configuration changes add and remove non-live external sessions immediately', async () => {
+		testWithExternalSessionClock('configuration changes add and remove non-live external sessions immediately', async () => {
 			const now = Date.now();
-			const svc = createExternalSessionService(() => now);
+			const svc = createExternalSessionService();
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			const session = agent.addSession('config-visible', now);
 			const notifications: string[] = [];
@@ -3160,9 +3158,9 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(notifications, [`add:${session.toString()}`, `remove:${session.toString()}`]);
 		});
 
-		test('unpublishes and republishes a restored external session as the configured mode changes', async () => {
+		testWithExternalSessionClock('unpublishes and republishes a restored external session as the configured mode changes', async () => {
 			const now = Date.now();
-			const svc = createExternalSessionService(() => now);
+			const svc = createExternalSessionService();
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 1);
 			await waitForSessionListReconciliation(svc);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
@@ -3197,7 +3195,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('publishes an external session restored while hidden when the configured mode includes it', async () => {
+		testWithExternalSessionClock('publishes an external session restored while hidden when the configured mode includes it', async () => {
 			class ExternalOnlyAgent extends TimedExternalAgent {
 				override async listSessions(): Promise<IAgentSessionMetadata[]> {
 					return [];
@@ -3205,7 +3203,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			const now = Date.now();
-			const svc = createExternalSessionService(() => now);
+			const svc = createExternalSessionService();
 			const agent = disposables.add(new ExternalOnlyAgent('copilot'));
 			const session = agent.addSession('hidden-then-restored', now);
 			const notifications: string[] = [];

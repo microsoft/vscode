@@ -35,6 +35,7 @@ import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProx
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { createAgentHostTelemetryService, IAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
+import { createAgentService } from './agentServiceComposition.js';
 import { INetworkDiagnosticsService, NetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
@@ -140,6 +141,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 	});
 	services.set(ITelemetryService, telemetryService);
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
+	let agentService: AgentService | undefined;
 	try {
 		const fileMonitorService = disposables.add(instantiationService.createInstance(AgentHostFileMonitorService));
 		services.set(IAgentHostFileMonitorService, fileMonitorService);
@@ -156,7 +158,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 				tmpDir: environmentService.tmpDir,
 			},
 		};
-		const agentService = instantiationService.createInstance(AgentService, agentServiceOptions, services);
+		agentService = createAgentService(agentServiceOptions, services, instantiationService, fetchFn, logService, productService);
 		proxyResolver.bindConfigurationService(agentService.configurationService, options.transientProxyConfiguration);
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		services.set(INetworkDiagnosticsService, networkDiagnosticsService);
@@ -185,6 +187,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			sdkDownloadProgress: providerInfrastructure?.sdkDownloadProgress,
 		};
 	} catch (error) {
+		agentService?.dispose();
 		instantiationService.dispose();
 		throw error;
 	}

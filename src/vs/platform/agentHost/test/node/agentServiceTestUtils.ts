@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
@@ -21,13 +21,8 @@ import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
+import { createAgentService } from '../../node/agentServiceComposition.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
-
-class TestAgentService extends AgentService {
-	registerTestDependency(disposable: IDisposable): void {
-		this._register(disposable);
-	}
-}
 
 export function createTestAgentService(
 	logService: ILogService,
@@ -44,7 +39,6 @@ export function createTestAgentService(
 	hostLaunchKind = AgentHostLaunchKind.Unknown,
 	storageResource?: URI,
 	orchestratorDatabase?: IAgentHostDatabase,
-	now: () => number = Date.now,
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const proxyResolver: IAgentHostProxyResolver = {
@@ -75,12 +69,15 @@ export function createTestAgentService(
 		hostLaunchKind,
 		storageResource,
 		orchestratorDatabase,
-		now,
 	};
-	const service = instantiationService.createInstance(TestAgentService, options, services);
-	if (!fileMonitorService) {
-		service.registerTestDependency(effectiveFileMonitorService);
-	}
-	service.registerTestDependency(instantiationService);
+	const service = createAgentService(
+		options,
+		services,
+		instantiationService,
+		fetchFn,
+		logService,
+		productService,
+		fileMonitorService ? [instantiationService] : [effectiveFileMonitorService, instantiationService],
+	);
 	return service;
 }
