@@ -21,13 +21,15 @@
 			</div>
 			<div class="header-actions">
 				<nav class="page-nav" aria-label="Mock policy server">
-					<a id="setup-nav" href="#setup">Setup</a>
+					<div class="setup-status-group">
+						<a id="setup-nav" href="#setup">Setup</a>
+						<div id="global-connection-status" class="global-status" data-state="checking" role="status" aria-live="polite">
+							<span class="status-indicator" aria-hidden="true"></span>
+							<span id="global-connection-label">Checking connection…</span>
+						</div>
+					</div>
 					<a id="policies-nav" href="#policies">Policies</a>
 				</nav>
-				<div id="global-connection-status" class="global-status" data-state="checking" role="status" aria-live="polite">
-					<span class="status-indicator" aria-hidden="true"></span>
-					<span id="global-connection-label">Checking connection…</span>
-				</div>
 				<button id="clear-cache" type="button" class="btn-header">Clear Policy Cache</button>
 			</div>
 		</div>
