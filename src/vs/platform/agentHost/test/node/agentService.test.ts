@@ -37,13 +37,14 @@ import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
-import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -218,6 +219,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	private _backfilled = false;
 	private readonly _providerBackfilled = new Set<string>();
 	private readonly _tombstones = new Set<string>();
+	private readonly _agentMergeEnabled = new Set<string>();
 	registryWriteAttempts = 0;
 	private _remainingRegistryWriteFailures = 0;
 	private readonly _sessionsWithoutExternal = new Set<string>();
@@ -256,12 +258,14 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	async unregisterSession(session: string): Promise<void> {
 		this._beforeWrite();
 		this._sessions.delete(session);
+		this._agentMergeEnabled.delete(session);
 	}
 
 	async tombstoneAndUnregisterSession(session: string): Promise<void> {
 		this._beforeWrite();
 		this._tombstones.add(session);
 		this._sessions.delete(session);
+		this._agentMergeEnabled.delete(session);
 	}
 
 	async updateSessionExternal(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
@@ -326,6 +330,18 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._tombstones.delete(session);
 	}
 
+	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
+		if (enabled) {
+			this._agentMergeEnabled.add(session);
+		} else {
+			this._agentMergeEnabled.delete(session);
+		}
+	}
+
+	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
+		return [...this._agentMergeEnabled];
+	}
+
 	async close(): Promise<void> { }
 	dispose(): void { }
 
@@ -336,6 +352,96 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 			throw new Error('transient registry write failure');
 		}
 	}
+}
+
+/** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
+class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
+	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
+	private readonly _providerBackfilled = new Set<string>();
+	private readonly _tombstones = new Set<string>();
+	private readonly _agentMergeEnabled = new Set<string>();
+	private _backfilled = false;
+
+	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+			return false;
+		}
+		const { provider, startTime, source } = sessionOptions;
+		const existing = this._sessions.get(session);
+		this._sessions.set(session, existing ?? { session, provider, startTime, external: source === 'discovery', source });
+		if (!registerOptions.checkTombstone) {
+			this._tombstones.delete(session);
+		}
+		return true;
+	}
+
+	async unregisterSession(session: string): Promise<void> {
+		this._sessions.delete(session);
+		this._agentMergeEnabled.delete(session);
+	}
+
+	async tombstoneAndUnregisterSession(session: string): Promise<void> {
+		this._tombstones.add(session);
+		this._sessions.delete(session);
+		this._agentMergeEnabled.delete(session);
+	}
+
+	async updateSessionExternal(): Promise<void> { }
+
+	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
+		return [...this._sessions.values()];
+	}
+
+	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		return this._sessions.get(session);
+	}
+
+	async isSessionRegistryEmpty(): Promise<boolean> {
+		return this._sessions.size === 0;
+	}
+
+	async isSessionRegistryBackfilled(): Promise<boolean> {
+		return this._backfilled;
+	}
+
+	async markSessionRegistryBackfilled(): Promise<void> {
+		this._backfilled = true;
+	}
+
+	async isProviderBackfilled(provider: string): Promise<boolean> {
+		return this._providerBackfilled.has(provider);
+	}
+
+	async markProviderBackfilled(provider: string): Promise<void> {
+		this._providerBackfilled.add(provider);
+	}
+
+	async isSessionTombstoned(session: string): Promise<boolean> {
+		return this._tombstones.has(session);
+	}
+
+	async markSessionTombstoned(session: string): Promise<void> {
+		this._tombstones.add(session);
+	}
+
+	async clearSessionTombstone(session: string): Promise<void> {
+		this._tombstones.delete(session);
+	}
+
+	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
+		if (enabled) {
+			this._agentMergeEnabled.add(session);
+		} else {
+			this._agentMergeEnabled.delete(session);
+		}
+	}
+
+	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
+		return [...this._agentMergeEnabled];
+	}
+
+	async close(): Promise<void> { }
+	dispose(): void { }
 }
 
 suite('AgentService (node dispatcher)', () => {
@@ -12008,6 +12114,160 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(state);
 			assert.deepStrictEqual(state!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(localService.stateManager, sessionStr);
+		});
+	});
+
+	suite('Agent Merge durable session monitoring', () => {
+
+		function createAgentMergeService(sessionDb: TestSessionDatabase, orchestratorDb: IAgentHostDatabase): AgentService {
+			const localService = disposables.add(new AgentService(
+				new NullLogService(), fileService, createSessionDataService(sessionDb),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+			));
+			localService.configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+			return localService;
+		}
+
+		async function createEnabledSession(sessionDb: TestSessionDatabase, orchestratorDb: IAgentHostDatabase): Promise<{ readonly localService: AgentService; readonly localAgent: MockAgent; readonly sessionResource: URI }> {
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			// Restore resolves a config only when the session has persisted
+			// values; without one a `SessionConfigChanged` would be a no-op.
+			await sessionDb.setMetadata('configValues', '{}');
+			const localService = createAgentMergeService(sessionDb, orchestratorDb);
+			localService.registerProvider(localAgent);
+			const { session } = await createAgentSession(localAgent);
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+			const sessionResource = (await localAgent.listSessions())[0].session;
+			await localService.restoreSession(sessionResource);
+			localService.configurationService.updateSessionConfig(sessionResource.toString(), { [SessionConfigKey.AgentMerge]: { enabled: true } });
+			await localService.whenAgentMergeSessionsRestored();
+			return { localService, localAgent, sessionResource };
+		}
+
+		test('an Agent-Merge-enabled session stays resident after its last subscriber drops, and is released once disabled', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+				const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), orchestratorDb);
+				const sessionStr = sessionResource.toString();
+				localService.addSubscriber(sessionResource, 'client-1');
+
+				localService.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 60_000));
+				const residentWhileEnabled = localService.stateManager.getSessionState(sessionStr) !== undefined;
+
+				localService.configurationService.updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+				await new Promise(resolve => setTimeout(resolve, 60_000));
+
+				assert.deepStrictEqual({
+					residentWhileEnabled,
+					residentAfterDisable: localService.stateManager.getSessionState(sessionStr) !== undefined,
+					indexedAfterDisable: await orchestratorDb.listAgentMergeEnabledSessions(),
+				}, {
+					residentWhileEnabled: true,
+					residentAfterDisable: false,
+					indexedAfterDisable: [],
+				});
+			});
+		});
+
+		test('enabling records the session in the host index rather than in each session database', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const { sessionResource } = await createEnabledSession(new TestSessionDatabase(), orchestratorDb);
+
+			assert.deepStrictEqual(await orchestratorDb.listAgentMergeEnabledSessions(), [sessionResource.toString()]);
+		});
+
+		test('a persisted Agent-Merge-enabled session begins monitoring on a fresh host, and is released once disabled', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+				const sessionDb = new TestSessionDatabase();
+				const { localAgent, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
+				const sessionStr = sessionResource.toString();
+
+				// A fresh host over the same durable state must resume monitoring
+				// from the index alone.
+				const restarted = createAgentMergeService(sessionDb, orchestratorDb);
+				restarted.registerProvider(localAgent);
+				await restarted.whenAgentMergeSessionsRestored();
+				const resumed = {
+					materialized: restarted.stateManager.getSessionState(sessionStr) !== undefined,
+					// Distinguishes a genuine resume from a session that was
+					// materialized and immediately disabled.
+					enabled: readAgentMergeSessionState(restarted.stateManager.getSessionState(sessionStr)?.config?.values)?.enabled,
+					indexed: await orchestratorDb.listAgentMergeEnabledSessions(),
+				};
+
+				// Nothing ever subscribed, so only the monitoring pin is holding
+				// this session resident; disabling must let it go.
+				restarted.configurationService.updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+				await new Promise(resolve => setTimeout(resolve, 60_000));
+
+				assert.deepStrictEqual({
+					resumed,
+					residentAfterDisable: restarted.stateManager.getSessionState(sessionStr) !== undefined,
+				}, {
+					resumed: { materialized: true, enabled: true, indexed: [sessionStr] },
+					residentAfterDisable: false,
+				});
+			});
+		});
+
+		test('an archived session is dropped from the index instead of being restored', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sessionDb = new TestSessionDatabase();
+			const { localAgent, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
+			await sessionDb.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+
+			const restarted = createAgentMergeService(sessionDb, orchestratorDb);
+			restarted.registerProvider(localAgent);
+			await restarted.whenAgentMergeSessionsRestored();
+
+			assert.deepStrictEqual({
+				materialized: restarted.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+				indexed: await orchestratorDb.listAgentMergeEnabledSessions(),
+			}, {
+				materialized: false,
+				indexed: [],
+			});
+		});
+
+		test('archiving a session drops it from the index', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), orchestratorDb);
+
+			localService.stateManager.dispatchServerAction(sessionResource.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			await localService.whenAgentMergeSessionsRestored();
+
+			assert.deepStrictEqual(await orchestratorDb.listAgentMergeEnabledSessions(), []);
+		});
+
+		test('deleting a session drops it from the index', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), orchestratorDb);
+
+			await localService.disposeSession(sessionResource);
+
+			assert.deepStrictEqual(await orchestratorDb.listAgentMergeEnabledSessions(), []);
+		});
+
+		test('an archived Agent-Merge session is released like any other idle session', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), new TestAgentHostOrchestratorDatabase());
+				const sessionStr = sessionResource.toString();
+				localService.addSubscriber(sessionResource, 'client-1');
+				// Archiving is the terminal state that must not keep the session pinned.
+				localService.stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+
+				localService.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 60_000));
+
+				assert.strictEqual(localService.stateManager.getSessionState(sessionStr), undefined, 'an archived session must not stay pinned');
+			});
 		});
 	});
 });
