@@ -120,6 +120,8 @@ import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
  */
 const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
+const EXTERNAL_SESSION_PRUNE_DELAY_MS = 60_000;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
@@ -807,6 +809,7 @@ export class AgentService extends Disposable implements IAgentService {
 			session => this._agentMergeController.getTurnContext(session),
 		);
 		this._serverToolHost = new AgentServerToolHost(this._stateManager, buildServerToolGroups(this._createSessionServerToolAccessor(), agentMergeTools));
+		this._scheduleExternalSessionPrune();
 	}
 
 	/**
@@ -825,6 +828,54 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	get onDidStartTurn(): Event<string> {
 		return this._sideEffects.onDidStartTurn;
+	}
+
+	private _scheduleExternalSessionPrune(): void {
+		this._register(disposableTimeout(() => {
+			void this._pruneStaleExternalSessions().catch(error => {
+				this._logService.warn('[AgentService] Failed to prune stale external sessions', error);
+			});
+		}, EXTERNAL_SESSION_PRUNE_DELAY_MS));
+	}
+
+	private async _pruneStaleExternalSessions(): Promise<void> {
+		const now = this._now();
+		const registered = await this._listRegisteredSessions();
+		const staleExternalSessions: URI[] = [];
+		for (const entry of registered) {
+			if (!entry.external) {
+				continue;
+			}
+			const provider = this._providers.get(entry.provider);
+			if (!provider) {
+				continue;
+			}
+			let metadata: IAgentSessionMetadata | undefined;
+			try {
+				metadata = await this._registeredSessionMetadata(provider, entry.session, true);
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to load metadata while pruning stale external session ${entry.session.toString()}`, error);
+				continue;
+			}
+			if (!metadata) {
+				continue;
+			}
+			if (readSessionEhcliAdoptable(metadata._meta)) {
+				continue;
+			}
+			if (this._isExternalSessionOlderThanMaxAge(metadata.modifiedTime, now)) {
+				staleExternalSessions.push(entry.session);
+			}
+		}
+
+		for (const session of staleExternalSessions) {
+			await this._sessionRegistry.unregister(session);
+		}
+		if (staleExternalSessions.length > 0) {
+			this._invalidateSessionList();
+			this._queueSessionListReconciliation();
+		}
+		this._logService.info(`[AgentService] pruned ${staleExternalSessions.length} stale external session row(s) older than ${EXTERNAL_SESSION_MAX_AGE_MS / DAY_MS} days`);
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -1431,6 +1482,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
 		const discoveryLimiter = new Limiter<boolean>(4);
 		let suppressed = 0;
+		let skippedAsStale = 0;
 		let registeredExternal = false;
 		let alreadyRegistered = 0;
 		let registryChanged = false;
@@ -1446,6 +1498,10 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
 					suppressed++;
+					return false;
+				}
+				if (external && !readSessionEhcliAdoptable(sessionMetadata._meta) && this._isExternalSessionOlderThanMaxAge(sessionMetadata.modifiedTime, this._now())) {
+					skippedAsStale++;
 					return false;
 				}
 				const identity: IRegisteredSession = { session, provider: provider.id, startTime: metadata.startTime, external, source: external ? 'discovery' : 'restore' };
@@ -1480,7 +1536,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
 		}
-		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${alreadyRegistered} already registered, ${suppressed} suppressed as subagent/chat backing`);
+		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${alreadyRegistered} already registered, ${suppressed} suppressed as subagent/chat backing, ${skippedAsStale} skipped as older than ${EXTERNAL_SESSION_MAX_AGE_MS / DAY_MS} days`);
 		return registered > 0;
 	}
 
@@ -1513,10 +1569,13 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!identity) {
 				continue;
 			}
+			const metadata = sessions[index];
+			if (identity.external && !readSessionEhcliAdoptable(metadata._meta) && this._isExternalSessionOlderThanMaxAge(metadata.modifiedTime, this._now())) {
+				continue;
+			}
 			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
 			if (registered) {
 				this._invalidateSessionList();
-				const metadata = sessions[index];
 				if (identity.external && existing.get(identity.session.toString()) !== true) {
 					await this._initializeExternalSessionReadState(identity.session);
 				}
@@ -1896,7 +1955,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _getExternalSessionsMode(): AgentHostExternalSessionsMode {
+		const rootValue = this._configurationService.getRootConfigValues()?.[AgentHostShowExternalSessionsConfigKey];
+		if (rootValue === 'all') {
+			return AgentHostExternalSessionsMode.Last30Days;
+		}
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey) ?? AgentHostExternalSessionsMode.None;
+	}
+
+	private _isExternalSessionOlderThanMaxAge(modifiedTime: number, now: number): boolean {
+		return modifiedTime < now - EXTERNAL_SESSION_MAX_AGE_MS;
 	}
 
 	private _getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number): ReadonlySet<string> {
@@ -1934,12 +2001,12 @@ export class AgentService extends Disposable implements IAgentService {
 			case AgentHostExternalSessionsMode.Recent:
 				return session.modifiedTime >= now - 7 * DAY_MS
 					&& (recentSessionKeys === undefined || recentSessionKeys.has(session.session.toString()));
-			case AgentHostExternalSessionsMode.All:
-				return true;
 			case AgentHostExternalSessionsMode.Last24Hours:
 				return session.modifiedTime >= now - DAY_MS;
 			case AgentHostExternalSessionsMode.Last7Days:
 				return session.modifiedTime >= now - 7 * DAY_MS;
+			case AgentHostExternalSessionsMode.Last30Days:
+				return !this._isExternalSessionOlderThanMaxAge(session.modifiedTime, now);
 			case AgentHostExternalSessionsMode.None:
 				return false;
 		}
@@ -2016,7 +2083,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const startedAt = Date.now();
 		const previouslyBroadcast = new Set(this._broadcastExternalSessions);
 		const listed = previousMode !== undefined
-			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.All), previousMode, previouslyBroadcast)
+			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.Last30Days), previousMode, previouslyBroadcast)
 			: await this.listSessions();
 		const visible = new Set<string>();
 		let published = 0;
@@ -2066,7 +2133,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Derives both the previous and current mode's visible sets from one catalog
-	 * pass, since {@link AgentHostExternalSessionsMode.All} is a superset of every
+	 * pass, since {@link AgentHostExternalSessionsMode.Last30Days} is a superset of every
 	 * mode and the mode is just a parameter to {@link _shouldIncludeSession}.
 	 * Adds what `previousMode` had published into `previouslyBroadcast`.
 	 */
@@ -2090,7 +2157,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const mode = this._getExternalSessionsMode();
 		const recentKeys = recentKeysFor(mode);
 		const visible = superset.filter(session => this._shouldIncludeSession(session, mode, now, recentKeys));
-		// The pass ran as `All`, so report the mode actually in effect instead.
+		// The pass ran as `Last30Days`, so report the mode actually in effect instead.
 		this._logHiddenSessions(superset.length - visible.length, superset.length, mode);
 		return visible;
 	}
