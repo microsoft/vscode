@@ -18,7 +18,6 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { createAgentHostApplication } from '../../node/agentHostApplication.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
@@ -55,7 +54,7 @@ export function createTestAgentService(
 		resolveProxy: async () => undefined,
 		fetch: fetchFn,
 	};
-	const bootstrapInstantiationService = new InstantiationService(new ServiceCollection(
+	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
@@ -64,7 +63,8 @@ export function createTestAgentService(
 		[ITelemetryService, telemetryService],
 		[IAgentHostFileMonitorService, effectiveFileMonitorService],
 		[IAgentHostProxyResolver, proxyResolver],
-	), /*strict*/ true);
+	);
+	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const options = {
 		rootConfigResource,
 		copilotApiService,
@@ -74,13 +74,10 @@ export function createTestAgentService(
 		orchestratorDatabase,
 		now,
 	};
-	const application = createAgentHostApplication(bootstrapInstantiationService, options, (applicationInstantiationService, applicationServices) => {
-		return applicationInstantiationService.createInstance(TestAgentService, options, applicationServices);
-	});
-	const service = application.agentService;
+	const service = instantiationService.createInstance(TestAgentService, options, services);
 	if (!fileMonitorService) {
 		service.registerTestDependency(effectiveFileMonitorService);
 	}
-	service.registerTestDependency(bootstrapInstantiationService);
+	service.registerTestDependency(instantiationService);
 	return service;
 }
