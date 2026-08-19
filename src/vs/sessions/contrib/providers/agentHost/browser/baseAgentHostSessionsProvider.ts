@@ -40,6 +40,8 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { adoptLegacyCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -5075,6 +5077,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private readonly _sessionsDiscovered = new DeferredPromise<void>();
+
+	/** Legacy ids this host has already declined, so a retry costs no round-trip. */
+	private readonly _unmigratableLegacyIds = new Set<string>();
+
+	/**
+	 * Redirects a legacy extension-host Copilot CLI resource to its agent-host
+	 * twin, adopting it on the way.
+	 *
+	 * Subscribing to the twin is what performs adoption: the host restores the
+	 * session, which runs its own provenance and working-directory checks. A
+	 * session that is not ours to adopt fails that subscribe, and the caller
+	 * falls back to the legacy resource — the same outcome as before, so an
+	 * external session is never worse off than it is today.
+	 */
+	async resolveSessionResource(resource: URI): Promise<URI | undefined> {
+		const rawId = getCopilotCliSessionRawId(migratedCopilotCliResource(resource));
+		if (rawId && this._sessionCache.has(rawId)) {
+			return migratedCopilotCliResource(resource); // already adopted; no round-trip
+		}
+		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._unmigratableLegacyIds);
+	}
 
 	whenSessionsDiscovered(): Promise<void> {
 		this._ensureSessionCache();

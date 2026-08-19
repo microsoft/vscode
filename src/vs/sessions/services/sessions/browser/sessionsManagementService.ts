@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -90,6 +90,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	/** Providers whose initial discovery pass has settled, successfully or not. */
 	private readonly _discoveredProviders = new Set<string>();
+	/** When the agent-host readiness gate started, so it cannot withhold rows forever. */
+	private readonly _migrationGateStartedAt = Date.now();
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
 
@@ -122,6 +124,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._updateSessionTypes();
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
+		// Nothing else fires when the gate expires, so refresh the list once it does.
+		this._register(disposableTimeout(() => {
+			if (!this._discoveredProviders.has(LOCAL_AGENT_HOST_PROVIDER_ID)) {
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+			}
+		}, INITIAL_DISCOVERY_TIMEOUT_MS));
 		this._sessionTypes = this._collectSessionTypes();
 
 		// Mirror follow-up chat requests (sent from within an existing chat
@@ -225,10 +233,33 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidChangeSessions.fire(e);
 	}
 
-	getSessions(): ISession[] {
-		// Dedup only affects the displayed list; lookups (`getSession`,
-		// `getSessionForChatResource`) use the raw merged set so an EH row that is
-		// hidden here can still be resolved and migrated when clicked.
+	/**
+	 * Resolves a session resource to the one that should actually be opened,
+	 * giving providers a chance to supersede another provider's resource (legacy
+	 * Copilot CLI adoption). Falls back to `resource` when no provider claims it,
+	 * so an unresolvable session still opens the way it does today.
+	 */
+	async resolveSessionResource(resource: URI): Promise<URI> {
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (!provider.resolveSessionResource) {
+				continue;
+			}
+			try {
+				const resolved = await provider.resolveSessionResource(resource);
+				if (resolved) {
+					return resolved;
+				}
+			} catch (error) {
+				this.logService.warn(`[SessionsManagement] provider '${provider.id}' failed to resolve ${resource.toString()}`, error);
+			}
+		}
+		return resource;
+	}
+
+	getSessions(): ISession[] {		// Dedup only affects the displayed list; lookups (`getSession`,
+		// `getSessionForChatResource`) use the raw merged set so a hidden EH row can
+		// still be resolved by resource, and {@link resolveSessionResource} redirects
+		// it to its agent-host twin when it is opened.
 		return this._dedupeMigratedCopilotCliSessions(this._getMergedSessions());
 	}
 
@@ -249,16 +280,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * exactly one row shows per session.
 	 *
 	 * While migration is enabled, a legacy row is also withheld until the local
-	 * agent-host provider has finished its first discovery pass: before that we
-	 * cannot know whether a twin is coming, and showing the legacy row makes it
-	 * clickable into the extension host, which never migrates. That provider
-	 * registers behind an enablement check, so its absence must keep rows hidden
-	 * too. Discovery failure still marks it settled, so rows are released rather
-	 * than lost.
+	 * agent-host provider has finished its first discovery pass, so the list does
+	 * not briefly show both a legacy row and its twin. This is presentation only:
+	 * opening a legacy resource redirects through
+	 * {@link resolveSessionResource} regardless. It is bounded by
+	 * {@link INITIAL_DISCOVERY_TIMEOUT_MS} so an agent host that is disabled,
+	 * blocked by policy, or broken cannot hide legacy sessions permanently.
 	 */
 	private _dedupeMigratedCopilotCliSessions(sessions: ISession[]): ISession[] {
 		if (this.configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true
-			&& !this._discoveredProviders.has(LOCAL_AGENT_HOST_PROVIDER_ID)) {
+			&& !this._discoveredProviders.has(LOCAL_AGENT_HOST_PROVIDER_ID)
+			&& Date.now() - this._migrationGateStartedAt < INITIAL_DISCOVERY_TIMEOUT_MS) {
 			return sessions.filter(session => session.resource.scheme !== COPILOT_CLI_EH_SCHEME);
 		}
 		let migratedRawIds: Set<string> | undefined;

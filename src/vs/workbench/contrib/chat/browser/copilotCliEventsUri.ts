@@ -114,6 +114,20 @@ export function getCopilotCliSessionRawId(sessionResource: URI | undefined): str
 	return getRawSessionId(sessionResource);
 }
 
+/**
+ * The local agent-host resource a legacy extension-host Copilot CLI session
+ * would migrate to, or `undefined` when `resource` is not such a session.
+ * Synchronous by design: open paths must not pay a round-trip for the
+ * overwhelmingly common case of a session that is not legacy.
+ */
+export function migratedCopilotCliResource(resource: URI | undefined): URI | undefined {
+	if (resource?.scheme !== COPILOT_CLI_EH_SCHEME) {
+		return undefined;
+	}
+	const rawId = getCopilotCliSessionRawId(resource);
+	return rawId ? URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${rawId}` }) : undefined;
+}
+
 export type ResolveEventsUriResult =
 	| { readonly kind: 'ok'; readonly resource: URI }
 	| { readonly kind: 'no-session' }

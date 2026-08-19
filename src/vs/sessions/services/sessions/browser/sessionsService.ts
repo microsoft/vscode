@@ -745,9 +745,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		// Redirect a superseded resource (legacy Copilot CLI) before lookup, so an
+		// open by URI migrates rather than reaching the old provider.
+		const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource);
 		this._cancelRestore();
 		const token = this._startOpenSession();
-		const sessionData = this._showSession(sessionResource, options);
+		const sessionData = this._showSession(resolved, options);
 		await this._waitForOpenSessionToLoad(sessionData, token);
 	}
 
@@ -1191,12 +1194,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			readonly order: number;
 		}
 
-		const targets: IRestoreTarget[] = this._getVisibleSessionStates().map(state => ({
-			resource: URI.parse(state.sessionResource),
+		const targets: IRestoreTarget[] = await Promise.all(this._getVisibleSessionStates().map(async state => ({
+			// Persisted state names a session by URI, so a legacy Copilot CLI slot
+			// restores through the old provider unless it is redirected here.
+			resource: await this.sessionsManagementService.resolveSessionResource(URI.parse(state.sessionResource)),
 			isSticky: !!state.isSticky,
 			isActive: !!state.isActive,
 			order: state.visibleOrder!,
-		}));
+		})));
 
 		if (targets.length === 0) {
 			targets.push({ resource: undefined, isSticky: false, isActive: true, order: 1 });

@@ -20,6 +20,11 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { adoptLegacyCopilotCliResource } from './agentHost/agentHostLegacyMigration.js';
+
+/** Legacy ids the host has declined, shared by every open path in this window. */
+const declinedLegacyCopilotCliIds = new Set<string>();
 
 //#region Session Opener Registry
 
@@ -59,6 +64,15 @@ export const sessionOpenerRegistry = new SessionOpenerRegistry();
 export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+
+	// A superseded legacy resource is redirected (and adopted) before anything
+	// looks it up, so opening by URI migrates instead of reaching the old provider.
+	resource = await adoptLegacyCopilotCliResource(
+		accessor.get(IAgentHostConnectionsService).ambientConnection,
+		resource,
+		logService,
+		declinedLegacyCopilotCliIds,
+	) ?? resource;
 
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
 		if (!participant.handleOpenSessionResource) {
