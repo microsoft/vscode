@@ -30,6 +30,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		wired: boolean;
 		baseUrl?: string;
 		upstream?: string;
+		overridesPath?: string;
 	}
 
 	interface LogEntry {
@@ -92,7 +93,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const endpointMeta = $('endpoint-meta');
 	const editorStatus = $('editor-status');
 	const saveStateEl = $('save-state');
-	const wiredStatusEl = $('wired-status');
 	const vscodeProxySettings = '{\n\t"http.proxy": "http://localhost:9090"\n}';
 
 	let endpoints: Endpoint[] = [];
@@ -100,8 +100,10 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const drafts: Record<string, string> = {};
 	let schema: JsonSchema | null = null;
 	let overridesWired = false;
+	let proxyVerified = false;
 	let proxyBaseUrl = '';
 	let proxyUpstream = '';
+	let proxyCheckInFlight = false;
 	let stateUpdateQueue: Promise<void> = Promise.resolve();
 	const pendingSaves = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -441,17 +443,88 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 	function renderWired(state: ServerState): void {
 		overridesWired = state.wired;
-		wiredStatusEl.textContent = state.wired ? 'Applied \u2713' : 'Not applied';
-		wiredStatusEl.dataset.kind = state.wired ? 'ok' : '';
+		const status = $('override-status');
+		status.textContent = state.wired ? 'Applied \u2713' : 'Not applied';
+		status.dataset.state = state.wired ? 'ready' : 'pending';
 		const action = $('overrides-action');
 		action.textContent = state.wired ? 'Restore Original' : 'Apply Overrides';
-		action.className = `${state.wired ? 'btn-secondary' : 'btn-primary'} btn-full`;
+		action.className = state.wired ? 'btn-secondary' : 'btn-primary';
+		updateReadiness();
 	}
 
 	function renderProxy(): void {
-		const endpoint = activeEndpoint();
+		const endpoint = endpoints.find(candidate => candidate.id === 'managedSettings') ?? endpoints[0];
 		$('map-from').textContent = endpoint && proxyUpstream ? `${proxyUpstream}${endpoint.path}` : '';
 		$('map-to').textContent = endpoint && proxyBaseUrl ? `${proxyBaseUrl}${endpoint.path}` : '';
+	}
+
+	function updateReadiness(): void {
+		const connectionReady = proxyVerified || overridesWired;
+		const globalStatus = $('global-connection-status');
+		globalStatus.dataset.state = connectionReady ? 'ready' : proxyCheckInFlight ? 'checking' : 'error';
+		$('global-connection-label').textContent = proxyVerified
+			? 'System proxy connected'
+			: overridesWired ? 'Code OSS overrides active' : proxyCheckInFlight ? 'Checking connection\u2026' : 'No connection detected';
+	}
+
+	function renderProxyStatus(state: 'checking' | 'ready' | 'pending', message: string, detail: string): void {
+		const status = $('proxy-status');
+		status.dataset.state = state;
+		status.textContent = message;
+		$('proxy-check-detail').textContent = detail;
+	}
+
+	async function checkProxy(): Promise<void> {
+		if (proxyCheckInFlight) {
+			return;
+		}
+		const endpoint = endpoints.find(candidate => candidate.id === 'managedSettings') ?? endpoints[0];
+		if (!endpoint || !proxyUpstream) {
+			proxyVerified = false;
+			renderProxyStatus('pending', 'Not detected', 'Could not determine the managed settings URL. Reload the page and try again.');
+			updateReadiness();
+			return;
+		}
+
+		const wasVerified = proxyVerified;
+		proxyCheckInFlight = true;
+		updateReadiness();
+		if (!wasVerified) {
+			renderProxyStatus('checking', 'Checking\u2026', 'Testing the managed settings URL without sending credentials.');
+		}
+		try {
+			const probe = new URL(endpoint.path, proxyUpstream);
+			probe.searchParams.set('mockPolicySetupProbe', crypto.randomUUID());
+			const response = await fetch(probe, { cache: 'no-store', credentials: 'omit' });
+			proxyVerified = response.headers.get('X-Mock-Policy-Server') === 'true';
+			renderProxyStatus(
+				proxyVerified ? 'ready' : 'pending',
+				proxyVerified ? 'Connected' : 'Not detected',
+				proxyVerified
+					? 'Requests to the managed settings URL are reaching this server.'
+					: 'The test request did not reach this server. Check that your system proxy and redirect rule are enabled.'
+			);
+		} catch {
+			proxyVerified = false;
+			renderProxyStatus('pending', 'Not detected', 'The test request did not reach this server. Check your system proxy, redirect rule, and HTTPS certificate trust.');
+		} finally {
+			proxyCheckInFlight = false;
+			updateReadiness();
+		}
+	}
+
+	function showPage(): void {
+		const page = location.hash === '#policies' ? 'policies' : 'setup';
+		$('setup-page').hidden = page !== 'setup';
+		$('policies-page').hidden = page !== 'policies';
+		for (const name of ['setup', 'policies']) {
+			const link = $(`${name}-nav`);
+			if (name === page) {
+				link.setAttribute('aria-current', 'page');
+			} else {
+				link.removeAttribute('aria-current');
+			}
+		}
 	}
 
 	function applyState(state: ServerState): void {
@@ -750,6 +823,18 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}
 	}
 
+	async function clearPolicyCache(): Promise<void> {
+		try {
+			const result = await api<CacheResult>('/api/cache', { method: 'DELETE' });
+			const count = result.cleared.reduce((total, item) => total + item.files, 0);
+			toast(result.cleared.length === 0
+				? 'No managed-settings cache found \u2014 nothing to clear'
+				: `Cleared ${count} cached ${count === 1 ? 'entry' : 'entries'} \u2014 restart Local Agent Host to refetch`);
+		} catch (e) {
+			toast(`Could not clear cache: ${e instanceof Error ? e.message : String(e)}`, true);
+		}
+	}
+
 	async function copy(text: string, button: HTMLElement): Promise<void> {
 		try {
 			await navigator.clipboard.writeText(text);
@@ -793,6 +878,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		$('copy-proxy-settings').addEventListener('click', e => {
 			copy(vscodeProxySettings, e.currentTarget as HTMLElement);
 		});
+		window.addEventListener('hashchange', showPage);
 		$('schema-toggle').addEventListener('click', toggleSchemaSection);
 		$('hydrate-schema').addEventListener('click', () => {
 			if (!schema) {
@@ -811,17 +897,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			void save();
 			setStatus('Generated an example from the schema.', 'ok');
 		});
-		$('clear-cache').addEventListener('click', async () => {
-			try {
-				const result = await api<CacheResult>('/api/cache', { method: 'DELETE' });
-				const count = result.cleared.reduce((total, item) => total + item.files, 0);
-				toast(result.cleared.length === 0
-					? 'No managed-settings cache found — nothing to clear'
-					: `Cleared ${count} cached ${count === 1 ? 'entry' : 'entries'} — restart Local Agent Host to refetch`);
-			} catch (e) {
-				toast(`Could not clear cache: ${e instanceof Error ? e.message : String(e)}`, true);
-			}
-		});
+		$('clear-cache').addEventListener('click', () => { void clearPolicyCache(); });
 		$('clear-log').addEventListener('click', async () => {
 			try {
 				await api('/api/log', { method: 'DELETE' });
@@ -842,6 +918,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			if (endpoints.length) {
 				selectEndpoint(endpoints[0].id);
 			}
+			showPage();
 		} catch (e) {
 			// Fall back to the shared endpoint definitions so the GUI still shows
 			// what exists (read-only) rather than rendering a blank page.
@@ -852,11 +929,14 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			}
 			setStatus(`Failed to load state: ${e instanceof Error ? e.message : String(e)}`, 'error');
 			toast('Cannot reach the server. Is it still running?', true);
+			showPage();
 		}
 
 		await loadSchema();
 		await refreshLog();
+		await checkProxy();
 		setInterval(refreshLog, 2000);
+		setInterval(() => { void checkProxy(); }, 5000);
 	}
 
 	void init();
