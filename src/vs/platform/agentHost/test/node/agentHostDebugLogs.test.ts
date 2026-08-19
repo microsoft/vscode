@@ -8,7 +8,6 @@ import { randomBytes } from 'crypto';
 import { mkdtemp, mkdir, readdir, rm, truncate, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { URI } from '../../../../base/common/uri.js';
-import { timeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { buffer } from '../../../../base/node/zip.js';
@@ -19,6 +18,16 @@ import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGE
 
 suite('AgentHostDebugLogsCollector', () => {
 	const emptyProvider = { id: 'test', collectDebugLogs: async () => false };
+
+	async function waitForEmptyDirectory(path: string): Promise<void> {
+		for (let i = 0; i < 100; i++) {
+			if ((await readdir(path)).length === 0) {
+				return;
+			}
+			await new Promise(resolve => setTimeout(resolve, 5));
+		}
+		assert.deepStrictEqual(await readdir(path), []);
+	}
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let testRoot: string;
@@ -327,9 +336,7 @@ suite('AgentHostDebugLogsCollector', () => {
 		}, new NullLogService(), 5));
 
 		await collector.collect([emptyProvider], URI.parse('test:/session-1'), 'directory');
-		await timeout(20);
-
-		assert.deepStrictEqual(await readdir(outputRoot), []);
+		await waitForEmptyDirectory(outputRoot);
 	});
 
 	test('removes retained artifacts when disposed', async () => {
@@ -344,8 +351,6 @@ suite('AgentHostDebugLogsCollector', () => {
 
 		await collector.collect([emptyProvider], URI.parse('test:/session-1'), 'directory');
 		collector.dispose();
-		await timeout(20);
-
-		assert.deepStrictEqual(await readdir(outputRoot), []);
+		await waitForEmptyDirectory(outputRoot);
 	});
 });
