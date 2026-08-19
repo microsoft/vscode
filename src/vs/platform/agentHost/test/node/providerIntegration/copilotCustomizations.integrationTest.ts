@@ -15,7 +15,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AgentHostConfigKey, type SessionCustomizationDiscoveryMode } from '../../../common/agentHostCustomizationConfig.js';
-import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
+import { ActionType, type IRootConfigChangedAction, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
 import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
@@ -305,6 +305,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	}
 
 	async function setupSession(sessionUri: string, clientId: string, discoveryMode: SessionCustomizationDiscoveryMode, turnId = 'turn-customizations-empty-mock', configuredCustomizations?: readonly { uri: string; displayName: string; description?: string }[]): Promise<ISessionWithDefaultChat> {
+		await client.call('subscribe', { channel: ROOT_STATE_URI });
+		client.clearReceived();
 		client.dispatch({
 			channel: ROOT_STATE_URI,
 			clientSeq: 0,
@@ -315,6 +317,12 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				},
 			},
 		});
+		await client.waitForNotification(
+			n => isActionNotification(n, ActionType.RootConfigChanged)
+				&& getActionEnvelope(n).channel === ROOT_STATE_URI
+				&& (getActionEnvelope(n).action as IRootConfigChangedAction).config[AgentHostConfigKey.SessionCustomizationDiscoveryMode] === discoveryMode,
+			NOTIFICATION_TIMEOUT_MS,
+		);
 		const activeClientCustomizations = configuredCustomizations?.map((customization): ClientPluginCustomization => ({
 			type: CustomizationType.Plugin,
 			id: customizationId(customization.uri),
@@ -501,8 +509,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				type: CustomizationType.Directory,
 				contents: CustomizationType.Rule,
 				uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(),
-				// CLI 1.0.81-1 discovers user instructions on Linux, but not macOS, in SDK discovery mode.
-				children: discoveryMode === 'scan' || process.platform === 'linux' ? [URI.file(userInstructionFile).toString()] : [],
+				children: discoveryMode === 'scan' ? [URI.file(userInstructionFile).toString()] : [],
 			},
 		].sort((a, b) => a.uri.localeCompare(b.uri));
 		assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
