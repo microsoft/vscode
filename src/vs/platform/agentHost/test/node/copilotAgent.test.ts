@@ -36,7 +36,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
@@ -757,8 +757,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
+		@IFileService fileService: IFileService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -796,8 +797,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
+		@IFileService fileService: IFileService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService);
 		this._now = now;
 	}
 
@@ -858,9 +860,10 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
-	if (options?.rootConfig) {
-		configService.updateRootConfig(options.rootConfig);
-	}
+	configService.updateRootConfig({
+		[AgentHostByokModelsEnabledConfigKey]: true,
+		...options?.rootConfig,
+	});
 	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 	services.set(ILogService, logService);
 	services.set(IFileService, fileService);
@@ -1354,6 +1357,41 @@ suite('CopilotAgent', () => {
 				disabledByDefault: undefined,
 				whenEnabled: { immutablePrimary: true },
 				afterDisabling: undefined,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('computeFolderPickerDecision hides the picker unless multiple folders carry .github/hooks', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const folder = (name: string) => URI.from({ scheme: Schemas.inMemory, path: `/${name}` });
+		const seedHook = (name: string, file = 'hook.json') => fileService.writeFile(URI.joinPath(folder(name), '.github', 'hooks', file), VSBuffer.fromString('{}'));
+		const [a, b, c] = [folder('wsA'), folder('wsB'), folder('wsC')];
+
+		const { agent, stateManager } = createTestAgentContext(disposables, { fileService });
+		try {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostCopilotMultiRootEnabledConfigKey]: true } });
+
+			await seedHook('wsB');
+			const soleHookFolder = await agent.computeFolderPickerDecision([a, b, c]);
+
+			await seedHook('wsA', 'nested/other.json');
+			const multipleHookFolders = await agent.computeFolderPickerDecision([a, b, c]);
+
+			const noHookFolders = await agent.computeFolderPickerDecision([folder('wsX'), folder('wsY')]);
+			const singleWorkingDirectory = await agent.computeFolderPickerDecision([b]);
+
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostCopilotMultiRootEnabledConfigKey]: false } });
+			const multiRootDisabled = await agent.computeFolderPickerDecision([a, b, c]);
+
+			assert.deepStrictEqual({ soleHookFolder, multipleHookFolders, noHookFolders, singleWorkingDirectory, multiRootDisabled }, {
+				soleHookFolder: { hidden: true, primary: b.toString() },
+				multipleHookFolders: { hidden: false },
+				noHookFolders: { hidden: true },
+				singleWorkingDirectory: undefined,
+				multiRootDisabled: undefined,
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -4163,6 +4201,40 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('BYOK models follow synchronized root configuration', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const { agent, configurationService } = createTestAgentContext(disposables, {
+			byokBridgeRegistry,
+			rootConfig: { [AgentHostByokModelsEnabledConfigKey]: false },
+		});
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		disposables.add(byokBridgeRegistry.register('renderer', {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		}));
+
+		try {
+			modelSnapshots.fire([{ vendor: 'acme', id: 'model', name: 'Model' }]);
+			const disabledModels = agent.models.get();
+			configurationService.updateRootConfig({ [AgentHostByokModelsEnabledConfigKey]: true });
+			const enabledModels = await waitForState(agent.models, models => models.length === 1);
+			configurationService.updateRootConfig({ [AgentHostByokModelsEnabledConfigKey]: false });
+			const disabledAgainModels = await waitForState(agent.models, models => models.length === 0);
+
+			assert.deepStrictEqual({
+				disabled: disabledModels.map(model => model.id),
+				enabled: enabledModels.map(model => model.id),
+				disabledAgain: disabledAgainModels.map(model => model.id),
+			}, {
+				disabled: [],
+				enabled: ['acme/model'],
+				disabledAgain: [],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('BYOK models make Copilot authentication optional only while signed-out operation is enabled', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const { agent, configurationService } = createTestAgentContext(disposables, { byokBridgeRegistry });
@@ -4870,7 +4942,12 @@ suite('CopilotAgent', () => {
 				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
 					await timeout(0);
 				}
-				assert.deepStrictEqual(discoveredChats.map(chats => chats.map(chat => sessionIdOfChat(chat.chat))), [[sessionId]]);
+				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+				for (let i = 0; i < 50 && discoveredChats.length < 2; i++) {
+					await timeout(0);
+				}
+				assert.deepStrictEqual(discoveredChats.map(chats => chats.map(chat => sessionIdOfChat(chat.chat))), [[sessionId], [sessionId]]);
 			} finally {
 				listener.dispose();
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -6777,6 +6854,36 @@ suite('CopilotAgent', () => {
 				// for its session-backed chat at create time, which is
 				// independent of the host-minted AH session id.
 				assert.strictEqual(capturedConfig?.sessionId, JSON.parse(result.providerData!).sdkSessionId);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('getModel reports the creation model while the backing is still deferred', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'prov-default-model'),
+					model: { id: 'gpt-x' },
+					workingDirectories: [URI.file('/workspace')],
+				});
+				const chat = defaultChatUri(result.session);
+				const context = exactChatContext(result.session, chat, result.session);
+
+				// The first turn's telemetry reads the bound model before the
+				// send materializes the session, so the reserved backing must
+				// already carry it.
+				const beforeSend = agent.chats.getModel?.(chat, context);
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, context);
+
+				assert.deepStrictEqual({ beforeSend, afterMaterialize: agent.chats.getModel?.(chat, context) }, {
+					beforeSend: { id: 'gpt-x' },
+					afterMaterialize: { id: 'gpt-x' },
+				});
 			} finally {
 				await disposeAgent(agent);
 			}

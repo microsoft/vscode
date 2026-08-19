@@ -226,7 +226,6 @@ export interface ICommonNativeHostService {
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
 	getActiveWindowPosition(): Promise<IRectangle | undefined>;
-	getWindowPosition(options?: INativeHostOptions): Promise<IRectangle | undefined>;
 	getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;

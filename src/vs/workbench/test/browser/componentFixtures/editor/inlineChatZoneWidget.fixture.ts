@@ -60,6 +60,7 @@ import { RootState } from '../../../../../platform/agentHost/common/state/sessio
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IWorkspaceContextService, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -303,6 +304,10 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			reg.defineInstance(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() {
 				override readonly onDidChangeFolder = Event.None;
 				override getFolder() { return undefined; }
+			}());
+			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getFolderPickerDecision() { return undefined; }
 			}());
 			reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 			reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
