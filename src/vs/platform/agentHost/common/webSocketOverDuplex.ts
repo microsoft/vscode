@@ -4,19 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { TimeoutTimer } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { encodeWebSocketFrame, type IWebSocketFrame, WebSocketFrameParser, WebSocketOpcode } from '../../../base/parts/ipc/common/webSocketFraming.js';
+import { encodeWebSocketFrame, type IWebSocketFrame, WebSocketFrameParser, WebSocketFrameTooLargeError, WebSocketOpcode } from '../../../base/parts/ipc/common/webSocketFraming.js';
 import type { ITunnelDuplexStream, ITunnelMessageSocket, ITunnelSocketCloseEvent } from './tunnelMessageSocket.js';
 
 const websocketAcceptGuid = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const headerTerminator = VSBuffer.fromString('\r\n\r\n').buffer;
+const defaultMaxFramePayloadLength = 0x100000;
+const defaultMaxMessagePayloadLength = 0x800000;
+const defaultCloseTimeoutMs = 5000;
 /** Options used to establish a WebSocket connection over an existing tunnel stream. */
 export interface IWebSocketOverDuplexOptions {
 	/** Request path, e.g. '/agent-host/select' or '/?tkn=abc'. */
 	readonly path: string;
 	/** Host header value; the tunnel stream is already pointed at the right port. */
 	readonly host?: string;
+	/** Maximum accepted frame payload length. */
+	readonly maxFramePayloadLength?: number;
+	/** Maximum accepted assembled message payload length. */
+	readonly maxMessagePayloadLength?: number;
+	/** Time to wait for the peer to complete a close handshake. */
+	readonly closeTimeoutMs?: number;
 }
 
 /** Opens a framed WebSocket connection over an already-connected tunnel stream. */
@@ -50,7 +60,12 @@ export async function connectWebSocketOverDuplex(
 		}
 
 		responseReader.detach();
-		const socket = new TunnelMessageSocket(stream);
+		const socket = new TunnelMessageSocket(
+			stream,
+			options.maxFramePayloadLength ?? defaultMaxFramePayloadLength,
+			options.maxMessagePayloadLength ?? defaultMaxMessagePayloadLength,
+			options.closeTimeoutMs ?? defaultCloseTimeoutMs,
+		);
 		for (const chunk of responseReader.remainingChunks(headerEnd)) {
 			socket.acceptChunk(chunk);
 		}
@@ -224,15 +239,23 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 	private readonly _onDidClose = this._register(new Emitter<ITunnelSocketCloseEvent>());
 	readonly onDidClose: Event<ITunnelSocketCloseEvent> = this._onDidClose.event;
 	private readonly _pendingMessages: string[] = [];
-	private readonly _frameParser = new WebSocketFrameParser();
+	private readonly _frameParser: WebSocketFrameParser;
 	private _fragmentedMessage: VSBuffer[] | undefined;
+	private _fragmentedMessageLength = 0;
 	private _closed = false;
 	private _closeSent = false;
 	private _streamEnded = false;
 	private _streamDestroyed = false;
+	private readonly _closeTimer = this._register(new TimeoutTimer());
 
-	constructor(private readonly _stream: ITunnelDuplexStream) {
+	constructor(
+		private readonly _stream: ITunnelDuplexStream,
+		maxFramePayloadLength: number,
+		private readonly _maxMessagePayloadLength: number,
+		private readonly _closeTimeoutMs: number,
+	) {
 		super();
+		this._frameParser = new WebSocketFrameParser({ maxPayloadLength: maxFramePayloadLength });
 		const onData = (data: Uint8Array) => this.acceptChunk(data);
 		const onError = (error: Error) => this.fail(error, 1002);
 		const onEnd = () => this.finishClose({});
@@ -260,6 +283,12 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 	close(): void {
 		if (!this._closed) {
 			this.sendClose(1000, '');
+			this._closeTimer.setIfNotSet(() => {
+				const error = new Error(`WebSocket close handshake timed out after ${this._closeTimeoutMs}ms.`);
+				this.finishClose({ error });
+				this.endStream();
+				this.destroyStream();
+			}, this._closeTimeoutMs);
 		}
 	}
 
@@ -274,8 +303,12 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 			for (const frame of this._frameParser.acceptChunk(VSBuffer.wrap(data))) {
 				this.acceptFrame(frame);
 			}
-		} catch {
-			this.fail(new Error('Received an invalid WebSocket frame.'), 1002);
+		} catch (error) {
+			if (error instanceof WebSocketFrameTooLargeError) {
+				this.fail(error, 1009);
+			} else {
+				this.fail(new Error('Received an invalid WebSocket frame.'), 1002);
+			}
 		}
 	}
 
@@ -300,6 +333,8 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 					this.acceptText(frame.payload);
 				} else {
 					this._fragmentedMessage = [frame.payload];
+					this._fragmentedMessageLength = frame.payload.byteLength;
+					this.ensureMessageWithinLimit();
 				}
 				break;
 			case WebSocketOpcode.Continuation:
@@ -307,9 +342,14 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 					this.fail(new Error('Received a WebSocket continuation frame without a preceding text frame.'), 1002);
 				} else {
 					this._fragmentedMessage.push(frame.payload);
+					this._fragmentedMessageLength += frame.payload.byteLength;
+					if (!this.ensureMessageWithinLimit()) {
+						return;
+					}
 					if (frame.final) {
 						const payload = VSBuffer.concat(this._fragmentedMessage);
 						this._fragmentedMessage = undefined;
+						this._fragmentedMessageLength = 0;
 						this.acceptText(payload);
 					}
 				}
@@ -323,10 +363,16 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 			case WebSocketOpcode.Close:
 				this.acceptClose(frame.payload);
 				break;
+			case WebSocketOpcode.Pong:
+				break;
 		}
 	}
 
 	private acceptText(payload: VSBuffer): void {
+		if (payload.byteLength > this._maxMessagePayloadLength) {
+			this.fail(new Error(`WebSocket message payload length ${payload.byteLength} exceeds the configured limit of ${this._maxMessagePayloadLength}.`), 1009);
+			return;
+		}
 		let data: string;
 		try {
 			data = new TextDecoder('utf-8', { fatal: true }).decode(payload.buffer);
@@ -380,6 +426,7 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 	}
 
 	private finishClose(event: ITunnelSocketCloseEvent): void {
+		this._closeTimer.cancel();
 		if (!this._closed) {
 			this._closed = true;
 			this._onDidClose.fire(event);
@@ -406,6 +453,14 @@ class TunnelMessageSocket extends Disposable implements ITunnelMessageSocket {
 		payload.set(reasonPayload, 2);
 		this.writeFrame(payload, WebSocketOpcode.Close);
 		this._closeSent = true;
+	}
+
+	private ensureMessageWithinLimit(): boolean {
+		if (this._fragmentedMessageLength > this._maxMessagePayloadLength) {
+			this.fail(new Error(`WebSocket message payload length ${this._fragmentedMessageLength} exceeds the configured limit of ${this._maxMessagePayloadLength}.`), 1009);
+			return false;
+		}
+		return true;
 	}
 
 	private writeFrame(payload: VSBuffer, opcode: WebSocketOpcode): void {

@@ -10,7 +10,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { encodeWebSocketFrame, type IWebSocketFrame, WebSocketFrameParser, WebSocketOpcode } from '../../../../base/parts/ipc/common/webSocketFraming.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { connectWebSocketOverDuplex, createWebSocketAccept } from '../../common/webSocketOverDuplex.js';
+import { connectWebSocketOverDuplex, createWebSocketAccept, type IWebSocketOverDuplexOptions } from '../../common/webSocketOverDuplex.js';
 import type { ITunnelDuplexStream } from '../../common/tunnelMessageSocket.js';
 
 const websocketAcceptGuid = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
@@ -167,6 +167,70 @@ suite('connectWebSocketOverDuplex', () => {
 		});
 	});
 
+	test('forces the stream closed when the close handshake times out', async () => {
+		const stream = new FakeDuplexStream();
+		const socketPromise = connect(stream, '/', undefined, { closeTimeoutMs: 1 });
+		stream.push(await createUpgradeResponse(stream.request));
+		const socket = store.add(await socketPromise);
+		const close = Event.toPromise(socket.onDidClose);
+		socket.close();
+
+		const closed = await close;
+		const [frame] = clientFrames(stream);
+		assert.deepStrictEqual({
+			error: closed.error?.message.includes('close handshake timed out'),
+			endCalls: stream.endCalls,
+			destroyCalls: stream.destroyCalls,
+			closeCode: frame.payload.readUInt8(0) * 2 ** 8 + frame.payload.readUInt8(1),
+		}, {
+			error: true,
+			endCalls: 1,
+			destroyCalls: 1,
+			closeCode: 1000,
+		});
+	});
+
+	test('closes when a frame exceeds the configured payload limit', async () => {
+		const stream = new FakeDuplexStream();
+		const socketPromise = connect(stream, '/', undefined, { maxFramePayloadLength: 4 });
+		stream.push(await createUpgradeResponse(stream.request));
+		const socket = store.add(await socketPromise);
+		const close = Event.toPromise(socket.onDidClose);
+		stream.push(createFrame('12345'));
+
+		const closed = await close;
+		const [frame] = clientFrames(stream);
+		assert.deepStrictEqual({
+			error: closed.error?.message.includes('configured limit of 4'),
+			closeCode: frame.payload.readUInt8(0) * 2 ** 8 + frame.payload.readUInt8(1),
+		}, {
+			error: true,
+			closeCode: 1009,
+		});
+	});
+
+	test('closes when a fragmented message exceeds the configured payload limit', async () => {
+		const stream = new FakeDuplexStream();
+		const socketPromise = connect(stream, '/', undefined, { maxFramePayloadLength: 4, maxMessagePayloadLength: 5 });
+		stream.push(await createUpgradeResponse(stream.request));
+		const socket = store.add(await socketPromise);
+		const close = Event.toPromise(socket.onDidClose);
+		stream.push(concat(
+			createFrame('abc', { final: false }),
+			createFrame('def', { opcode: WebSocketOpcode.Continuation }),
+		));
+
+		const closed = await close;
+		const [frame] = clientFrames(stream);
+		assert.deepStrictEqual({
+			error: closed.error?.message.includes('configured limit of 5'),
+			closeCode: frame.payload.readUInt8(0) * 2 ** 8 + frame.payload.readUInt8(1),
+		}, {
+			error: true,
+			closeCode: 1009,
+		});
+	});
+
 	test('closes with an error for invalid UTF-8 text', async () => {
 		const stream = new FakeDuplexStream();
 		const socketPromise = connect(stream);
@@ -298,8 +362,8 @@ suite('connectWebSocketOverDuplex', () => {
 	});
 });
 
-function connect(stream: FakeDuplexStream, path = '/', host?: string) {
-	return connectWebSocketOverDuplex(stream, { path, host });
+function connect(stream: FakeDuplexStream, path = '/', host?: string, options: Omit<IWebSocketOverDuplexOptions, 'path' | 'host'> = {}) {
+	return connectWebSocketOverDuplex(stream, { path, host, ...options });
 }
 
 async function createUpgradeResponse(request: string): Promise<Uint8Array> {

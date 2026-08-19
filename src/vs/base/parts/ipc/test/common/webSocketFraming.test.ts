@@ -53,6 +53,19 @@ suite('WebSocket framing', () => {
 		});
 	});
 
+	test('can unmask owned payload buffers in place', () => {
+		const encoded = encodeWebSocketFrame(VSBuffer.fromString('owned'), { opcode: WebSocketOpcode.Text, mask: 0x12345678 });
+		const frame = new WebSocketFrameParser({ unmaskInPlace: true }).acceptChunk(encoded)[0];
+
+		assert.deepStrictEqual({
+			payload: frame.payload.toString(),
+			wirePayloadAfterParsing: encoded.slice(6).toString(),
+		}, {
+			payload: 'owned',
+			wirePayloadAfterParsing: 'owned',
+		});
+	});
+
 	test('preserves a present zero-valued mask', () => {
 		const encoded = encodeWebSocketFrame(VSBuffer.fromString('zero'), { opcode: WebSocketOpcode.Text, mask: 0 });
 		const frame = new WebSocketFrameParser().acceptChunk(encoded)[0];
@@ -120,5 +133,13 @@ suite('WebSocket framing', () => {
 		assert.throws(() => new WebSocketFrameParser().acceptChunk(VSBuffer.fromByteArray([0x83, 0x00])));
 		assert.throws(() => new WebSocketFrameParser().acceptChunk(VSBuffer.fromByteArray([0x89, 0x7e, 0x00, 0x7e, ...new Array<number>(126).fill(0)])));
 		assert.throws(() => new WebSocketFrameParser().acceptChunk(VSBuffer.fromByteArray([0x82, 0x7f, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00])));
+	});
+
+	test('rejects frames over the configured payload limit after reading the header', () => {
+		const encoded = encodeWebSocketFrame(VSBuffer.fromString('too large'), { opcode: WebSocketOpcode.Text });
+		assert.throws(
+			() => new WebSocketFrameParser({ maxPayloadLength: 4 }).acceptChunk(encoded.slice(0, 2)),
+			/configured limit of 4/,
+		);
 	});
 });

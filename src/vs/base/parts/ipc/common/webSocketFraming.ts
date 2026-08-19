@@ -44,10 +44,35 @@ export interface IWebSocketFrameOptions {
 	readonly mask?: number;
 }
 
+/** Options for parsing RFC 6455 frames. */
+export interface IWebSocketFrameParserOptions {
+	/** Maximum accepted frame payload length. */
+	readonly maxPayloadLength?: number;
+	/** Unmask owned payload buffers in place instead of allocating a copy. */
+	readonly unmaskInPlace?: boolean;
+}
+
+/** Indicates that a WebSocket frame exceeded the configured payload limit. */
+export class WebSocketFrameTooLargeError extends Error {
+	constructor(readonly payloadLength: number, readonly maxPayloadLength: number) {
+		super(`WebSocket frame payload length ${payloadLength} exceeds the configured limit of ${maxPayloadLength}.`);
+	}
+}
+
 /** Incrementally parses RFC 6455 frames from arbitrarily chunked input. */
 export class WebSocketFrameParser {
 
 	private readonly _incomingData = new ChunkStream();
+	private readonly _maxPayloadLength: number;
+	private readonly _unmaskInPlace: boolean;
+
+	constructor(options: IWebSocketFrameParserOptions = {}) {
+		this._maxPayloadLength = options.maxPayloadLength ?? maximum32BitPayloadLength;
+		this._unmaskInPlace = options.unmaskInPlace ?? false;
+		if (!Number.isInteger(this._maxPayloadLength) || this._maxPayloadLength < 0 || this._maxPayloadLength > maximum32BitPayloadLength) {
+			throw new Error('WebSocket frame payload limits must be unsigned 32-bit integers.');
+		}
+	}
 
 	/**
 	 * Accepts a network chunk and returns every complete frame it contains.
@@ -73,6 +98,9 @@ export class WebSocketFrameParser {
 
 			const header = this._incomingData.peek(headerLength);
 			const payloadLength = getPayloadLength(header, payloadLengthMarker);
+			if (payloadLength > this._maxPayloadLength) {
+				throw new WebSocketFrameTooLargeError(payloadLength, this._maxPayloadLength);
+			}
 			validateFrame(firstByte, payloadLength);
 			const opcode = firstByte & 0b00001111;
 			validateOpcode(opcode);
@@ -83,7 +111,14 @@ export class WebSocketFrameParser {
 			this._incomingData.read(headerLength);
 			const payload = this._incomingData.read(payloadLength);
 			const mask = masked ? header.readUInt32BE(headerLength - 4) : undefined;
-			const unmaskedPayload = mask === undefined ? payload : copyAndApplyWebSocketMask(payload, mask);
+			let unmaskedPayload = payload;
+			if (mask !== undefined) {
+				if (this._unmaskInPlace) {
+					applyWebSocketMask(unmaskedPayload, mask);
+				} else {
+					unmaskedPayload = copyAndApplyWebSocketMask(payload, mask);
+				}
+			}
 			frames.push({
 				final: (firstByte & firstByteFinalMask) !== 0,
 				compressed: (firstByte & firstByteCompressedMask) !== 0,

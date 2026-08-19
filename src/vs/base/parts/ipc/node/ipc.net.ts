@@ -293,7 +293,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 
 	public readonly socket: NodeSocket;
 	private readonly _flowManager: WebSocketFlowManager;
-	private readonly _frameParser = new WebSocketFrameParser();
+	private readonly _frameParser = new WebSocketFrameParser({ unmaskInPlace: true });
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
 	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
 	private readonly _maxSocketMessageLength: number;
