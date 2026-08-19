@@ -19,6 +19,7 @@ import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
+import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 
 const globAsync = promisify(glob);
@@ -57,10 +58,6 @@ const options = {
 
 // Build targets
 type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web';
-const buildTargets: readonly BuildTarget[] = ['desktop', 'server', 'server-web', 'web'];
-
-// The Dev Tunnels bundle is emitted only by the standalone web build tasks.
-const devTunnelsWebBundleTargets: ReadonlySet<BuildTarget> = new Set(['web']);
 
 const SRC_DIR = 'src';
 const OUT_DIR = 'out';
@@ -192,18 +189,6 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 			throw new Error(`Unknown target: ${target}`);
 	}
 }
-
-/** Ensures every Sessions web target emits the Dev Tunnels bundle. */
-function assertDevTunnelsWebBundleTargetInvariant(): void {
-	for (const target of buildTargets) {
-		const hasSessionsWebEntryPoint = getEntryPointsForTarget(target).includes(sessionsWebEntryPoint);
-		if (hasSessionsWebEntryPoint !== devTunnelsWebBundleTargets.has(target)) {
-			throw new Error(`The Dev Tunnels web bundle and '${sessionsWebEntryPoint}' must target the same builds (mismatch for '${target}').`);
-		}
-	}
-}
-
-assertDevTunnelsWebBundleTargetInvariant();
 
 /**
  * Get bootstrap entry points for a build target.
@@ -1032,6 +1017,13 @@ ${tslib}`,
 
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
 	await compileStandaloneFiles(outDir, doMinify, target);
+
+	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
+		await bundleDevTunnelsWeb({
+			minify: doMinify,
+			outDir: path.join(outDir, 'vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser'),
+		});
+	}
 
 	console.log(`[bundle] Done in ${Date.now() - t1}ms (${bundled} bundles)`);
 }

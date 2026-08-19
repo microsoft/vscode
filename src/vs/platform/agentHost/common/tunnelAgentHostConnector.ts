@@ -18,6 +18,7 @@ import {
 	TUNNEL_MIN_PROTOCOL_VERSION,
 	TunnelTags,
 	type ITunnelConnectResult,
+	type ITunnelGatewayInventory,
 	type ITunnelGatewaySelection,
 	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
@@ -251,7 +252,7 @@ export class TunnelAgentHostConnector extends Disposable {
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
 
-	private readonly _connections = new Map<string, TunnelConnection>();
+	private readonly _connections = this._register(new DisposableMap<string, TunnelConnection>());
 	private readonly _pendingSelections = this._register(new DisposableMap<string, PendingGatewaySelection>());
 
 	constructor(
@@ -345,11 +346,22 @@ export class TunnelAgentHostConnector extends Disposable {
 			throw err;
 		}
 
+		let inventory: ITunnelGatewayInventory;
+		let connectionToken: string;
+		try {
+			inventory = parseTunnelGatewayInventory(inventoryText);
+			connectionToken = await deriveConnectionToken(tunnelId);
+		} catch (err) {
+			this._disposeSocket(socket);
+			this._disposeRelayClient(relayClient);
+			throw err;
+		}
+
 		const selectionId = generateUuid();
 		this._pendingSelections.set(selectionId, new PendingGatewaySelection(
 			`${TUNNEL_ADDRESS_PREFIX}${tunnelId}`,
 			tags.name || tunnel.name || tunnelId,
-			await deriveConnectionToken(tunnelId),
+			connectionToken,
 			socket,
 			relayClient,
 			() => {
@@ -357,7 +369,7 @@ export class TunnelAgentHostConnector extends Disposable {
 				this._pendingSelections.deleteAndDispose(selectionId);
 			},
 		));
-		return { selectionId, inventory: parseTunnelGatewayInventory(inventoryText) };
+		return { selectionId, inventory };
 	}
 
 	async completeSelection(selectionId: string, selection: ITunnelGatewaySelection): Promise<ITunnelConnectResult> {
@@ -367,17 +379,17 @@ export class TunnelAgentHostConnector extends Disposable {
 		}
 		pending.detach();
 
-		let responseText: string;
+		let response: ReturnType<typeof parseTunnelGatewaySelectionResponse>;
 		try {
 			pending.socket.send(JSON.stringify(selection));
-			responseText = await withTimeout(() => this._readNextGatewayMessage(pending.socket), TUNNEL_STEP_TIMEOUT_MS, 'gateway selection acknowledgement');
+			const responseText = await withTimeout(() => this._readNextGatewayMessage(pending.socket), TUNNEL_STEP_TIMEOUT_MS, 'gateway selection acknowledgement');
+			response = parseTunnelGatewaySelectionResponse(responseText);
 		} catch (err) {
 			this._disposeSocket(pending.socket);
 			this._disposeRelayClient(pending.relayClient);
 			throw err;
 		}
 
-		const response = parseTunnelGatewaySelectionResponse(responseText);
 		if (!response.ok) {
 			this._disposeSocket(pending.socket);
 			this._disposeRelayClient(pending.relayClient);
@@ -399,7 +411,7 @@ export class TunnelAgentHostConnector extends Disposable {
 	}
 
 	async disconnect(connectionId: string): Promise<void> {
-		this._connections.get(connectionId)?.dispose();
+		this._connections.deleteAndDispose(connectionId);
 	}
 
 	closeTunnelConnections(tunnelId: string, operation: 'deleting' | 'reconnecting'): void {
@@ -407,8 +419,7 @@ export class TunnelAgentHostConnector extends Disposable {
 		for (const [connectionId, connection] of this._connections) {
 			if (connection.address === address) {
 				this._logService.info(`${LOG_PREFIX} Closing existing relay for tunnel ${tunnelId} before ${operation}`);
-				this._connections.delete(connectionId);
-				connection.dispose();
+				this._connections.deleteAndDispose(connectionId);
 			}
 		}
 	}
@@ -436,7 +447,7 @@ export class TunnelAgentHostConnector extends Disposable {
 		);
 		const onConnectionClose = connection.onDidClose(() => {
 			onConnectionClose.dispose();
-			this._connections.delete(connectionId);
+			this._connections.deleteAndLeak(connectionId);
 			this._onDidRelayClose.fire(connectionId);
 		});
 		this._connections.set(connectionId, connection);
@@ -444,15 +455,31 @@ export class TunnelAgentHostConnector extends Disposable {
 
 	private _readNextGatewayMessage(socket: ITunnelMessageSocket): Promise<string> {
 		return new Promise((resolve, reject) => {
+			const subscriptions: IDisposable[] = [];
+			let settled = false;
 			const cleanup = () => {
-				onMessage?.dispose();
-				onClose?.dispose();
+				for (const subscription of subscriptions.splice(0)) {
+					subscription.dispose();
+				}
 			};
 			const onMessage = socket.onDidReceiveMessage(message => {
+				if (settled) {
+					return;
+				}
+				settled = true;
 				cleanup();
 				resolve(message);
 			});
+			if (settled) {
+				onMessage.dispose();
+				return;
+			}
+			subscriptions.push(onMessage);
 			const onClose = socket.onDidClose(event => {
+				if (settled) {
+					return;
+				}
+				settled = true;
 				cleanup();
 				if (event.error) {
 					reject(event.error);
@@ -460,6 +487,11 @@ export class TunnelAgentHostConnector extends Disposable {
 					reject(new Error(`${LOG_PREFIX} Gateway WebSocket closed before expected message; code=${event.code}, reason=${event.reason || '(empty)'}`));
 				}
 			});
+			if (settled) {
+				onClose.dispose();
+			} else {
+				subscriptions.push(onClose);
+			}
 		});
 	}
 

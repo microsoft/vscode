@@ -90,14 +90,19 @@ class FakeSocket implements ITunnelMessageSocket {
 		const disposable = this._onDidReceiveMessage.event(listener, thisArgs, disposables);
 		const message = this._queuedMessages.shift();
 		if (message !== undefined) {
-			queueMicrotask(() => this._onDidReceiveMessage.fire(message));
+			if (this._replaySynchronously) {
+				listener.call(thisArgs, message);
+			} else {
+				queueMicrotask(() => this._onDidReceiveMessage.fire(message));
+			}
 		}
 		return disposable;
 	};
 	readonly onDidClose = this._onDidClose.event;
 	closeCalls = 0;
+	disposeCalls = 0;
 
-	constructor(messages: string[] = []) {
+	constructor(messages: string[] = [], private readonly _replaySynchronously = false) {
 		this._queuedMessages = messages;
 	}
 
@@ -109,6 +114,7 @@ class FakeSocket implements ITunnelMessageSocket {
 	}
 
 	dispose(): void {
+		this.disposeCalls++;
 		this._onDidReceiveMessage.dispose();
 		this._onDidClose.dispose();
 	}
@@ -265,6 +271,106 @@ suite('TunnelAgentHostConnector', () => {
 				/socket open failed/,
 			);
 			assert.strictEqual(relayClient.disposeCalls, 1);
+		} finally {
+			connector.dispose();
+		}
+	});
+
+	test('disposes active tunnel connections when the connector is disposed', async () => {
+		const relayClient = new FakeRelayClient();
+		const socket = new FakeSocket();
+		const { connector } = createConnector(
+			{ tunnelId: 'active', clusterId: 'cluster', labels: ['protocolv5'] },
+			relayClient,
+			new FakeSocketFactory(socket),
+		);
+
+		await connector.connect('token', 'github', 'active', 'cluster');
+		connector.dispose();
+
+		assert.deepStrictEqual({
+			socketCloseCalls: socket.closeCalls,
+			socketDisposeCalls: socket.disposeCalls,
+			relayDisposeCalls: relayClient.disposeCalls,
+		}, {
+			socketCloseCalls: 1,
+			socketDisposeCalls: 1,
+			relayDisposeCalls: 1,
+		});
+	});
+
+	test('cleans up when the gateway inventory is malformed', async () => {
+		const relayClient = new FakeRelayClient();
+		const socket = new FakeSocket(['{}']);
+		const { connector } = createConnector(
+			{ tunnelId: 'bad-inventory', clusterId: 'cluster', labels: ['protocolv6'] },
+			relayClient,
+			new FakeSocketFactory(socket),
+		);
+		try {
+			await assert.rejects(
+				() => connector.prepareSelection('token', 'github', 'bad-inventory', 'cluster'),
+				/invalid "userDataPath"/,
+			);
+			assert.deepStrictEqual({
+				socketCloseCalls: socket.closeCalls,
+				socketDisposeCalls: socket.disposeCalls,
+				relayDisposeCalls: relayClient.disposeCalls,
+			}, {
+				socketCloseCalls: 1,
+				socketDisposeCalls: 1,
+				relayDisposeCalls: 1,
+			});
+		} finally {
+			connector.dispose();
+		}
+	});
+
+	test('cleans up when the gateway selection acknowledgement is malformed', async () => {
+		const relayClient = new FakeRelayClient();
+		const socket = new FakeSocket([
+			JSON.stringify({ userDataPath: '/data', endpoints: [] }),
+			'{}',
+		]);
+		const { connector } = createConnector(
+			{ tunnelId: 'bad-ack', clusterId: 'cluster', labels: ['protocolv6'] },
+			relayClient,
+			new FakeSocketFactory(socket),
+		);
+		try {
+			const selection = await connector.prepareSelection('token', 'github', 'bad-ack', 'cluster');
+			await assert.rejects(
+				() => connector.completeSelection(selection!.selectionId, { newDedicated: true }),
+				/not a valid response/,
+			);
+			assert.deepStrictEqual({
+				socketCloseCalls: socket.closeCalls,
+				socketDisposeCalls: socket.disposeCalls,
+				relayDisposeCalls: relayClient.disposeCalls,
+			}, {
+				socketCloseCalls: 1,
+				socketDisposeCalls: 1,
+				relayDisposeCalls: 1,
+			});
+		} finally {
+			connector.dispose();
+		}
+	});
+
+	test('accepts a gateway inventory replayed synchronously by the socket', async () => {
+		const relayClient = new FakeRelayClient();
+		const socket = new FakeSocket([
+			JSON.stringify({ userDataPath: '/data', endpoints: [] }),
+		], true);
+		const { connector } = createConnector(
+			{ tunnelId: 'sync-inventory', clusterId: 'cluster', labels: ['protocolv6'] },
+			relayClient,
+			new FakeSocketFactory(socket),
+		);
+		try {
+			const selection = await connector.prepareSelection('token', 'github', 'sync-inventory', 'cluster');
+			assert.deepStrictEqual(selection?.inventory, { userDataPath: '/data', endpoints: [] });
+			await connector.cancelSelection(selection!.selectionId);
 		} finally {
 			connector.dispose();
 		}
