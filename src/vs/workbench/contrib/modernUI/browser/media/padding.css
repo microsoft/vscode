@@ -259,6 +259,17 @@
 	overflow: visible;
 }
 
+/*
+ * Classic UI draws a 1px top border on the bottom-panel title (panelpart.css).
+ * Floating panels already make that border transparent, but the width still
+ * consumes a layout pixel and shifts the 32px tab pills off-center (5px top /
+ * 3px bottom instead of a uniform 4px gutter matching editor tabs).
+ * See https://github.com/microsoft/vscode/issues/331013
+ */
+.modern-ui.monaco-workbench .part.panel.bottom .composite.title {
+	border-top-width: 0;
+}
+
 .modern-ui.monaco-workbench .part.basepanel > .composite.title > .title-actions {
 	min-width: 0;
 }
