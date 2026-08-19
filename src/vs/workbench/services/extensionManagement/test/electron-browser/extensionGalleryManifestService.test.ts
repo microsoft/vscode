@@ -768,7 +768,71 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
 	});
 
-	// --- Cache invalidation ---
+	// --- Already-available marketplace ---
+
+	test('Microsoft — switching to a different eligible account publishes that account catalog', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('token-a', 'ms-account-1', 'ms-session-1')];
+		requestHandler = () => mockResponse(200, { version: '1.0', resources: [{ id: 'tenantA', type: 'ExtensionQueryService' }] });
+
+		const service = createService();
+		const first = await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(first?.resources[0].id, 'tenantA');
+
+		// A private marketplace is account-scoped, so a different eligible account can be served a
+		// different catalog. The already-available status must not suppress the new one.
+		microsoftSessions = [createMicrosoftSession('token-b', 'ms-account-2', 'ms-session-2')];
+		requestHandler = () => mockResponse(200, { version: '1.0', resources: [{ id: 'tenantB', type: 'ExtensionQueryService' }] });
+		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		const second = await service.getExtensionGalleryManifest();
+		assert.strictEqual(second?.resources[0].id, 'tenantB');
+	});
+
+	test('Microsoft — a transient fetch failure does not downgrade an available marketplace', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession()];
+		requestHandler = () => mockResponse(200, createGalleryManifest());
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+
+		requestHandler = () => { throw new Error('network down'); };
+		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+	});
+
+	test('Microsoft — a transient auth failure does not downgrade an available marketplace', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		let authFails = false;
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override async getSessions(): Promise<readonly AuthenticationSession[]> {
+				if (authFails) {
+					throw new Error('Auth service unavailable');
+				}
+				return [createMicrosoftSession()];
+			}
+		}());
+		requestHandler = () => mockResponse(200, createGalleryManifest());
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+
+		// The account can no longer be resolved. That is not a sign-out, and it must not retract a
+		// marketplace the user already has.
+		authFails = true;
+		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+	});
 
 	// --- No configuredServiceUrl ---
 

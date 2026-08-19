@@ -149,9 +149,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			if (token.isCancellationRequested) {
 				return;
 			}
-			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
-				this.setAvailable(manifest);
-			}
+			this.setAvailable(manifest);
 		} catch (error) {
 			if (!token.isCancellationRequested) {
 				this.applyFetchError(error);
@@ -193,7 +191,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	}
 
 	private setAvailable(manifest: IExtensionGalleryManifest): void {
+		// Published unconditionally: the catalog is account-scoped, so switching to a different
+		// eligible account has to replace it rather than keep the previous account's.
+		const wasAvailable = this.currentStatus === ExtensionGalleryManifestStatus.Available;
 		this.update(manifest);
+		if (wasAvailable) {
+			return;
+		}
 		this.telemetryService.publicLog2<
 			{},
 			{

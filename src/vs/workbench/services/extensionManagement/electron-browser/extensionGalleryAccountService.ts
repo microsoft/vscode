@@ -62,7 +62,6 @@ interface IPreferredAccount {
 
 /** `accessToken` is only carried on the Microsoft path; the GitHub path has no bearer. */
 export interface IExtensionGalleryAccount {
-	readonly id: string;
 	readonly accessToken?: string;
 }
 
@@ -186,8 +185,9 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		const eligible = this.checkGitHubAccess(account);
 		this.reportEligibility(eligible);
 		this.setAccountStatus(eligible ? ExtensionGalleryAccountStatus.Eligible : ExtensionGalleryAccountStatus.Ineligible);
-		// Returned even when ineligible; `accountStatus` says whether it may be used.
-		return { id: account.accountName };
+		// A result is returned even when ineligible, so the caller can tell "signed in but denied"
+		// apart from "no account" — the two map to different statuses.
+		return {};
 	}
 
 	private checkGitHubAccess(account: IDefaultAccount): boolean {
@@ -212,7 +212,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		this.reportEligibility(eligible);
 		this.setAccountStatus(eligible ? ExtensionGalleryAccountStatus.Eligible : ExtensionGalleryAccountStatus.Ineligible);
 		// The bearer is withheld when ineligible: that identity must never reach the marketplace.
-		return { id: session.account.id, accessToken: eligible ? session.accessToken : undefined };
+		return { accessToken: eligible ? session.accessToken : undefined };
 	}
 
 	private reportEligibility(eligible: boolean): void {
