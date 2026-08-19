@@ -5,17 +5,13 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getSessionListNavigationIndex } from '../../browser/components/sessionListComponent.js';
+import { linkPresentationProviderInitialKinds } from '../../browser/dataChannelService.js';
 
-suite('Session list component', () => {
+suite('DataChannelService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('navigates and wraps through session rows', () => {
-		assert.deepStrictEqual([
-			getSessionListNavigationIndex(0, 'up', 3),
-			getSessionListNavigationIndex(2, 'down', 3),
-			getSessionListNavigationIndex(0, 'down', 0),
-		], [2, 0, undefined]);
+	test('link presentation contribution supports chat initial kind', () => {
+		assert.ok(linkPresentationProviderInitialKinds.includes('chat'));
 	});
 });

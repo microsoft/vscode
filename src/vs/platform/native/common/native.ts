@@ -38,7 +38,8 @@ export interface IToastResult {
  */
 export type INativeZipFile =
 	| { readonly path: string; readonly contents: string }
-	| { readonly path: string; readonly source: URI; readonly size: number };
+	| { readonly path: string; readonly source: URI; readonly size: number }
+	| { readonly sourceArchive: URI };
 
 export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
@@ -226,7 +227,6 @@ export interface ICommonNativeHostService {
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
 	getActiveWindowPosition(): Promise<IRectangle | undefined>;
-	getWindowPosition(options?: INativeHostOptions): Promise<IRectangle | undefined>;
 	getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;

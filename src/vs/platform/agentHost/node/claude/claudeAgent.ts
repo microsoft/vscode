@@ -1111,6 +1111,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		abort: (chatUri, context) => {
 			return this._abortSession(chatUri, context);
 		},
+		getModel: chatUri => this._chatBackings.get(chatUri.toString())?.model,
 		changeModel: (chatUri, model, context) => {
 			return this._changeModel(chatUri, model, context);
 		},

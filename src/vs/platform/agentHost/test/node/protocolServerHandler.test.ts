@@ -145,6 +145,7 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
+	readonly collectDebugLogsCalls: { session: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
 	subscribeBarrier: DeferredPromise<void> | undefined;
@@ -217,6 +218,10 @@ class MockAgentService implements IAgentService {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
+	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory') {
+		this.collectDebugLogsCalls.push({ session: session?.toString(), kind });
+		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
+	}
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	getAuthToken(): string | undefined { return undefined; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
@@ -613,6 +618,105 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			response: { jsonrpc: '2.0', id: 11, result: null },
 			shutdownCalls: 1,
+		});
+	});
+
+	test('collects Agent Host debug logs through the extension request', async () => {
+		const transport = connectClient('client-debug-logs');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 12);
+
+		transport.simulateMessage(request(12, 'vscode/collectAgentHostDebugLogs', {
+			session: 'copilotcli:/session-1',
+			kind: 'archive',
+		}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.collectDebugLogsCalls,
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 12,
+				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
+			},
+			calls: [{ session: 'copilotcli:/session-1', kind: 'archive' }],
+		});
+	});
+
+	test('rejects an invalid Agent Host debug log artifact kind', async () => {
+		const transport = connectClient('client-debug-logs-invalid');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 13);
+
+		transport.simulateMessage(request(13, 'vscode/collectAgentHostDebugLogs', { session: 'copilotcli:/session-1', kind: 'tgz' }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 13,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'kind must be archive or directory' },
+		});
+	});
+
+	test('collects Agent Host debug logs without a session', async () => {
+		const transport = connectClient('client-debug-logs-no-session');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 16);
+
+		transport.simulateMessage(request(16, 'vscode/collectAgentHostDebugLogs', { kind: 'archive' }));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.collectDebugLogsCalls.at(-1),
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 16,
+				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
+			},
+			calls: { session: undefined, kind: 'archive' },
+		});
+	});
+
+	test('rejects a non-string Agent Host debug log session', async () => {
+		const transport = connectClient('client-debug-logs-invalid-session');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 14);
+
+		transport.simulateMessage(request(14, 'vscode/collectAgentHostDebugLogs', { session: 123, kind: 'archive' }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 14,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a URI string' },
+		});
+	});
+
+	test('rejects non-object Agent Host debug log params', async () => {
+		const transport = connectClient('client-debug-logs-invalid-params');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 15);
+
+		transport.simulateMessage(request(15, 'vscode/collectAgentHostDebugLogs', []));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 15,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'params must be an object' },
+		});
+	});
+
+	test('rejects a scheme-less Agent Host debug log session', async () => {
+		const transport = connectClient('client-debug-logs-invalid-session-uri');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 16);
+
+		transport.simulateMessage(request(16, 'vscode/collectAgentHostDebugLogs', { session: 'session-1', kind: 'archive' }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 16,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a valid URI string' },
 		});
 	});
 

@@ -44,10 +44,10 @@ suite('FileIconThemeData', () => {
 		assert.deepStrictEqual({
 			backgroundColor: content?.includes('background-color: currentColor'),
 			mask: content?.includes('mask: url('),
-			maskPlacement: content?.includes('no-repeat left center'),
-			maskSize: content?.includes('mask-size: 16px'),
+			maskPlacement: content?.includes('no-repeat var(--file-icon-mask-position, left center)'),
+			maskSize: content?.includes('mask-size: var(--file-icon-mask-size, 16px)'),
 			webkitMask: content?.includes('-webkit-mask: url('),
-			webkitMaskSize: content?.includes('-webkit-mask-size: 16px'),
+			webkitMaskSize: content?.includes('-webkit-mask-size: var(--file-icon-mask-size, 16px)'),
 			noBackgroundImage: content?.includes('background-image: none')
 		}, {
 			backgroundColor: true,
