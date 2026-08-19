@@ -5,92 +5,70 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { MessageKind, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, type Message, type ModelSelection } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ModelSelectionReason, isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { DraftSyncState } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 
-function draft(text: string, modelId?: string, config?: Record<string, unknown>): Message {
+function draft(text: string, modelId?: string): Message {
 	return {
 		text,
 		origin: { kind: MessageKind.User },
-		...(modelId ? { model: { id: modelId, ...(config ? { config } : {}) } } : {}),
+		...(modelId ? { model: { id: modelId } } : {}),
 	} as Message;
 }
 
-const solConfig = { thinkingLevel: 'medium', contextSize: 272000 };
+/** Mirrors how `_installDraftSync` builds and sends a draft. */
+function publish(state: DraftSyncState, outgoing: Message, reason: ModelSelectionReason): { published: boolean; model: string | undefined } {
+	let next: Message = outgoing;
+	if (state.remoteModel && !isInConversationModelChoice(reason)) {
+		next = { ...next, model: state.remoteModel as ModelSelection };
+	}
+	return { published: state.shouldPublish(next), model: next.model?.id };
+}
 
-/** A pool that resolves everything except the model the other client selected. */
-const poolWithoutSol = (d: Message) => d.model?.id !== 'gpt-5.6-sol';
-const poolWithEverything = () => true;
+const CHOSE = ModelSelectionReason.UserSelection;
+const FELL_BACK = ModelSelectionReason.FirstAvailable;
 
 suite('DraftSyncState', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('withholds the fallback shown for a model this client cannot resolve', () => {
-		// The draft the authoring client put on the channel, and which this
-		// input's chat model was hydrated from. Its model is not in this pool.
-		const remote = draft('', 'gpt-5.6-sol', solConfig);
-		const state = new DraftSyncState(remote, poolWithoutSol);
+	test('a window that cannot show the session model never overwrites it', () => {
+		// This window can't show the other client's model, so its picker shows Auto.
+		const state = new DraftSyncState(draft('', 'gpt-5.6-sol'));
 
 		const actual = {
-			// An echo of the hydrated draft never goes back out.
-			echo: state.next(remote),
-			// Unable to resolve the model, this window's picker falls back to its
-			// default under the same (empty) user content. Publishing that would
-			// overwrite the authoring client's selection.
-			substitution: state.next(draft('', 'auto', solConfig)),
-			// Typing is a real edit and must reach the channel.
-			userTyped: state.next(draft('can you', 'auto')),
-			// Having published, this input owns the draft outright.
-			modelChangeAfterPublish: state.next(draft('can you', 'claude-sonnet-5')),
+			// The fallback appearing must not reach the channel at all.
+			fallbackAppears: publish(state, draft('', 'auto'), FELL_BACK),
+			// Typing must sync the text while leaving the model alone.
+			userTypes: publish(state, draft('hello', 'auto'), FELL_BACK),
+			// A deliberate pick in this window is a real choice and must stick.
+			userPicksModel: publish(state, draft('hello', 'claude-sonnet-5'), CHOSE),
 		};
 
 		assert.deepStrictEqual(actual, {
-			echo: 'skip',
-			substitution: 'adopt',
-			userTyped: 'publish',
-			modelChangeAfterPublish: 'publish',
+			fallbackAppears: { published: false, model: 'gpt-5.6-sol' },
+			userTypes: { published: true, model: 'gpt-5.6-sol' },
+			userPicksModel: { published: true, model: 'claude-sonnet-5' },
 		});
 	});
 
-	test('publishes a deliberate model change when the hydrated model resolved', () => {
-		// Sessions with history hydrate from a synthesized empty-text draft
-		// carrying the last turn's model, so the guard is armed on essentially
-		// every resumed session. It must not swallow real picks: when the model
-		// resolved locally there was no substitution to hide.
-		const remote = draft('', 'gpt-5.6-sol', solConfig);
-		const state = new DraftSyncState(remote, poolWithEverything);
+	test('tracks the channel draft across remote updates', () => {
+		const state = new DraftSyncState(undefined);
 
 		const actual = {
-			switchedModel: state.next(draft('', 'claude-sonnet-5')),
-			switchedAgain: state.next(draft('', 'gpt-5.4')),
+			// Nothing on the channel yet, so a local draft is published as-is.
+			firstLocal: publish(state, draft('typed', 'auto'), FELL_BACK),
+			// A remote draft arrives and becomes the model to preserve.
+			afterApplyRemote: (state.applyRemote(draft('shared', 'gpt-5.6-sol')), state.remoteModel?.id),
+			// Re-publishing an identical draft is skipped.
+			echo: publish(state, draft('shared', 'gpt-5.6-sol'), FELL_BACK),
 		};
 
 		assert.deepStrictEqual(actual, {
-			switchedModel: 'publish',
-			switchedAgain: 'publish',
-		});
-	});
-
-	test('applyRemote re-arms the guard for later remote drafts', () => {
-		const state = new DraftSyncState(undefined, poolWithoutSol);
-		const remote = draft('shared text', 'gpt-5.6-sol', solConfig);
-
-		const actual = {
-			// With nothing hydrated, the first local draft is a real edit.
-			firstLocal: state.next(draft('typed', 'auto')),
-			synced: state.synced?.text,
-			// A remote draft arrives and is applied to the input.
-			afterApplyRemote: (state.applyRemote(remote), state.synced?.text),
-			// Resolving it against a pool without that model must not publish.
-			substitution: state.next(draft('shared text', 'auto', solConfig)),
-		};
-
-		assert.deepStrictEqual(actual, {
-			firstLocal: 'publish',
-			synced: 'typed',
-			afterApplyRemote: 'shared text',
-			substitution: 'adopt',
+			firstLocal: { published: true, model: 'auto' },
+			afterApplyRemote: 'gpt-5.6-sol',
+			echo: { published: false, model: 'gpt-5.6-sol' },
 		});
 	});
 });
