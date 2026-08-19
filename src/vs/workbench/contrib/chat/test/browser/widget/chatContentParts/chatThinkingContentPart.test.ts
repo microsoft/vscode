@@ -2062,23 +2062,36 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			const invocationMessage = new MarkdownString('Edit [](claudeAgent.ts)');
-			invocationMessage.baseUri = URI.file('/workspace/');
-			const editTool = createMockExecutingToolInvocation('edit', invocationMessage, 'call-markdown');
+			const title = 'Edit [](claudeAgent.ts)';
+			const editTool = createMockExecutingToolInvocation('edit', title, 'call-markdown');
 			part.appendItem(() => ({ domNode: $('div.test-item') }), editTool.toolId, editTool);
 
 			const button = part.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
-			const initialPill = button?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+			const header = part.domNode.querySelector<HTMLElement>('.chat-used-context-label');
+			const initialPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+			const state = editTool.state.get();
+			if (state.type !== IChatToolInvocation.StateKind.Executing) {
+				assert.fail('Expected an executing tool invocation');
+			}
+			const invocationMessage = new MarkdownString(title);
+			invocationMessage.baseUri = URI.file('/workspace/');
+			state.progress.set({ message: invocationMessage, progress: undefined }, undefined);
+
+			const updatedPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
 			button?.click();
 			button?.click();
-			const restoredPill = button?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+			const restoredPill = header?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
 
 			assert.deepStrictEqual({
 				initialPill: initialPill?.textContent,
+				updatedPill: updatedPill?.textContent,
+				pillInsideCollapseButton: !!updatedPill?.closest('.monaco-button'),
 				restoredPill: restoredPill?.textContent,
 				ariaLabel: button?.ariaLabel,
 			}, {
-				initialPill: 'claudeAgent.ts',
+				initialPill: undefined,
+				updatedPill: 'claudeAgent.ts',
+				pillInsideCollapseButton: false,
 				restoredPill: 'claudeAgent.ts',
 				ariaLabel: 'Working: Edit claudeAgent.ts',
 			});

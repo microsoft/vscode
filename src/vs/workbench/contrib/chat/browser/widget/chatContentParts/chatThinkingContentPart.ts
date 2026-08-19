@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
-import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../../base/common/htmlContent.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { extractCodeblockUrisFromText } from '../../../common/widget/annotations.js';
@@ -178,6 +178,13 @@ type ChatThinkingTitle = string | IMarkdownString;
 
 function getThinkingTitleValue(title: ChatThinkingTitle): string {
 	return typeof title === 'string' ? title : title.value;
+}
+
+function thinkingTitleEqual(first: ChatThinkingTitle, second: ChatThinkingTitle): boolean {
+	if (typeof first === 'string' || typeof second === 'string') {
+		return first === second;
+	}
+	return markdownStringEqual(first, second);
 }
 
 /**
@@ -466,6 +473,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		const node = this.domNode;
 		node.classList.add('chat-thinking-box');
+		if (this._hoverChevron) {
+			this._register(addDisposableListener(this._hoverChevron, EventType.CLICK, event => {
+				EventHelper.stop(event, true);
+				this.toggleExpanded();
+			}));
+		}
 
 		this._externalResourceWidget = this._register(this.instantiationService.createInstance(ChatThinkingExternalResourceWidget));
 		this._register(this._externalResourceWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -913,8 +926,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		const displayTitle = this.getFinalizedDisplayTitle(title);
+		this.clearTitleDetail();
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
+		this.titleShimmerSpan = undefined;
 
 		const firstSpaceIndex = displayTitle.indexOf(' ');
 		if (firstSpaceIndex === -1) {
@@ -981,10 +996,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			if (this._hoverChevron) {
 				container.appendChild(this._hoverChevron);
-				this.diffButtonStore.add(addDisposableListener(this._hoverChevron, EventType.CLICK, event => {
-					EventHelper.stop(event, true);
-					this.toggleExpanded();
-				}));
 			}
 		}
 
@@ -1003,9 +1014,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private clearDiffButton(): void {
 		this.diffButtonStore.clear();
 		this.diffButton = undefined;
-		this._collapseButton?.element.classList.remove('chat-thinking-title-with-diff');
-		if (this._collapseButton && this._hoverChevron) {
-			this._collapseButton.element.appendChild(this._hoverChevron);
+		const collapseButton = this._collapseButton;
+		collapseButton?.element.classList.remove('chat-thinking-title-with-diff');
+		const container = collapseButton?.element.parentElement;
+		if (collapseButton && container && this._hoverChevron) {
+			if (this.titleDetailContainer?.parentElement === container) {
+				container.appendChild(this._hoverChevron);
+			} else {
+				collapseButton.element.appendChild(this._hoverChevron);
+			}
 		}
 	}
 
@@ -2051,21 +2068,23 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 				const updateTitle = (updatedTitle: ChatThinkingTitle) => {
 					const updatedMessage = getThinkingTitleValue(updatedTitle);
-					if (updatedMessage && updatedMessage !== currentToolLabel) {
+					if (updatedMessage && !thinkingTitleEqual(updatedTitle, toolCallTitle)) {
 						// replace old title if exists, otherwise add new
-						const oldIndex = this.extractedTitles.indexOf(currentToolLabel);
-						const updatedIndex = this.extractedTitles.indexOf(updatedMessage);
+						if (updatedMessage !== currentToolLabel) {
+							const oldIndex = this.extractedTitles.indexOf(currentToolLabel);
+							const updatedIndex = this.extractedTitles.indexOf(updatedMessage);
 
-						if (oldIndex !== -1) {
-							if (updatedIndex !== -1 && updatedIndex !== oldIndex) {
-								this.extractedTitles.splice(oldIndex, 1);
-							} else {
-								this.extractedTitles[oldIndex] = updatedMessage;
+							if (oldIndex !== -1) {
+								if (updatedIndex !== -1 && updatedIndex !== oldIndex) {
+									this.extractedTitles.splice(oldIndex, 1);
+								} else {
+									this.extractedTitles[oldIndex] = updatedMessage;
+								}
+							} else if (updatedIndex === -1) {
+								this.extractedTitles.push(updatedMessage);
 							}
-						} else if (updatedIndex === -1) {
-							this.extractedTitles.push(updatedMessage);
+							currentToolLabel = updatedMessage;
 						}
-						currentToolLabel = updatedMessage;
 						toolCallLabel = updatedMessage;
 						toolCallTitle = updatedTitle;
 						this.toolLabelsByCallId.set(toolCallId, updatedMessage);
@@ -2442,6 +2461,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		if (omitPrefix) {
+			this.clearTitleDetail();
 			if (this._collapseButton) {
 				const labelElement = this._collapseButton.labelElement;
 				labelElement.textContent = '';
@@ -2451,9 +2471,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				this._collapseButton.element.ariaLabel = titleValue;
 			}
 			this.titleShimmerSpan = undefined;
-			this.titleDetailContainer = undefined;
-			this._titleDetailRendered.clear();
-			this._titleFileWidgetStore.clear();
 			this.currentTitle = titleValue;
 			return;
 		}
@@ -2484,20 +2501,46 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const result = this.chatContentMarkdownRenderer.render(markdownTitle);
 		result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._titleFileWidgetStore);
+		this._titleFileWidgetStore.add(addDisposableListener(result.element, EventType.CLICK, event => {
+			if (isHTMLElement(event.target) && event.target.closest('a, input')) {
+				return;
+			}
+			EventHelper.stop(event, true);
+			this.toggleExpanded();
+		}));
 		this._titleDetailRendered.value = result;
 
-		if (this.titleDetailContainer) {
-			// Replace old detail in-place
-			this.titleDetailContainer.replaceWith(result.element);
+		const previousTitleDetail = this.titleDetailContainer;
+		// eslint-disable-next-line no-restricted-syntax
+		const hasTitleLinks = result.element.querySelector('a') !== null;
+		if (hasTitleLinks) {
+			const container = this._collapseButton.element.parentElement;
+			if (container) {
+				if (this._hoverChevron) {
+					container.appendChild(this._hoverChevron);
+				}
+				container.insertBefore(result.element, this.diffButton?.element ?? this._hoverChevron ?? null);
+			}
 		} else {
 			labelElement.appendChild(result.element);
+			if (!this.diffButton && this._hoverChevron) {
+				this._collapseButton.element.appendChild(this._hoverChevron);
+			}
 		}
+		previousTitleDetail?.remove();
 		this.titleDetailContainer = result.element;
 
 		const renderedTitle = result.element.textContent?.trim() || titleValue;
 		const thinkingLabel = localize('chat.thinking.label', "{0}: {1}", this.defaultTitle, renderedTitle);
 		this._collapseButton.element.ariaLabel = thinkingLabel;
 		this._collapseButton.element.ariaExpanded = String(this.isExpanded());
+	}
+
+	private clearTitleDetail(): void {
+		this.titleDetailContainer?.remove();
+		this.titleDetailContainer = undefined;
+		this._titleDetailRendered.clear();
+		this._titleFileWidgetStore.clear();
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
