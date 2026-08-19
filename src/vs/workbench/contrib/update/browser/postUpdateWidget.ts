@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -29,6 +29,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import './media/postUpdateWidget.css';
+
+export const SHOW_UPDATE_INFO_COMMAND_ID = '_update.showUpdateInfo';
 
 const LAST_KNOWN_VERSION_KEY = 'postUpdateWidget/lastKnownVersion';
 
@@ -60,11 +62,12 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 	) {
 		super();
 
+		this._register(CommandsRegistry.registerCommand(SHOW_UPDATE_INFO_COMMAND_ID, (_accessor, markdown?: string) => this.showUpdateInfo(markdown)));
+
 		if (isWeb) {
-			return; // Electron only
+			return; // Auto-show after an install is Electron only
 		}
 
-		this._register(CommandsRegistry.registerCommand('_update.showUpdateInfo', (_accessor, markdown?: string) => this.showUpdateInfo(markdown)));
 		void this.tryShowOnStartup();
 	}
 
@@ -96,8 +99,9 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 		const maxWidth = 420;
 		const x = Math.max(clientWidth - maxWidth - 80, 16);
 
+		const runDismiss = this.createDismissHandler(info, contentDisposables);
 		this.hoverService.showInstantHover({
-			content: this.buildContent(info, contentDisposables),
+			content: this.buildContent(info, contentDisposables, runDismiss),
 			target: {
 				targetElements: [target],
 				x,
@@ -109,6 +113,19 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 			appearance: { showPointer: false, compact: true, maxHeightRatio: 1 },
 			trapFocus: true,
 		}, true);
+	}
+
+	private createDismissHandler(info: IParsedUpdateInfoInput, disposables: DisposableStore): () => void {
+		let dismissed = false;
+		const runDismiss = () => {
+			if (dismissed || !info.dismissCommandId) {
+				return;
+			}
+			dismissed = true;
+			void this.commandService.executeCommand(info.dismissCommandId, ...(info.dismissArgs ?? []));
+		};
+		disposables.add(toDisposable(runDismiss));
+		return runDismiss;
 	}
 
 	private async getUpdateInfo(input?: string | null): Promise<IParsedUpdateInfoInput | undefined> {
@@ -139,7 +156,7 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 		return info;
 	}
 
-	private buildContent(info: IParsedUpdateInfoInput, disposables: DisposableStore): HTMLElement {
+	private buildContent(info: IParsedUpdateInfoInput, disposables: DisposableStore, onDismiss?: () => void): HTMLElement {
 		const { markdown, buttons, bannerImageUrl, badge, title, features } = info;
 		const container = dom.$('.post-update-widget');
 		const titleId = `post-update-widget-title-${PostUpdateWidgetContribution.idCounter++}`;
@@ -163,6 +180,7 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 		const closeIcon = dom.append(closeButton, dom.$(ThemeIcon.asCSSSelector(Codicon.close)));
 		closeIcon.setAttribute('aria-hidden', 'true');
 		disposables.add(dom.addDisposableListener(closeButton, 'click', () => {
+			onDismiss?.();
 			this.hoverService.hideHover(true);
 		}));
 
@@ -187,10 +205,9 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 			for (const feature of features) {
 				const row = dom.append(list, dom.$('.feature'));
 				row.setAttribute('role', 'listitem');
-				const iconEl = dom.append(row, dom.$('.feature-icon'));
-				const iconId = feature.icon ?? Codicon.sparkle.id;
-				const themeIcon = ThemeIcon.fromId(iconId);
-				iconEl.classList.add(...ThemeIcon.asClassNameArray(themeIcon));
+				const themeIcon = ThemeIcon.fromString(feature.icon ?? '') ?? ThemeIcon.fromId(feature.icon || Codicon.sparkle.id);
+				const iconEl = dom.append(row, dom.$(ThemeIcon.asCSSSelector(themeIcon)));
+				iconEl.classList.add('feature-icon');
 				iconEl.setAttribute('aria-hidden', 'true');
 				const text = dom.append(row, dom.$('.feature-text'));
 				const featureTitle = dom.append(text, dom.$('.feature-title'));
