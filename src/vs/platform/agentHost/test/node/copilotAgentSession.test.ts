@@ -416,6 +416,7 @@ class MockCopilotSession {
 		eventLog: {
 			registerInterest: async (params: { eventType: string }) => {
 				this.eventInterestRegistrations.push(params.eventType);
+				await this.registerInterestGate;
 				if (this.registerInterestError !== undefined) {
 					throw this.registerInterestError;
 				}
@@ -439,6 +440,7 @@ class MockCopilotSession {
 
 	readonly eventInterestRegistrations: string[] = [];
 	readonly eventInterestReleases: string[] = [];
+	registerInterestGate: Promise<void> = Promise.resolve();
 	registerInterestError: unknown = undefined;
 	readonly pendingSamplingHandled: string[] = [];
 	handlePendingSamplingError: unknown = undefined;
@@ -1012,6 +1014,24 @@ suite('CopilotAgentSession', () => {
 			},
 			beforeLaunch: () => assert.strictEqual(initialized, true),
 		});
+	});
+
+	test('waits for sampling interest registration before initialization completes', async () => {
+		const registerInterestGate = new DeferredPromise<void>();
+		let initialized = false;
+		const sessionPromise = createAgentSession(disposables, {
+			configureMockSession: session => session.registerInterestGate = registerInterestGate.p,
+		}).then(result => {
+			initialized = true;
+			return result;
+		});
+
+		await timeout(0);
+		assert.strictEqual(initialized, false);
+
+		registerInterestGate.complete();
+		const { mockSession } = await sessionPromise;
+		assert.deepStrictEqual(mockSession.eventInterestRegistrations, ['sampling.requested']);
 	});
 
 	test('retains transient host instructions until the delayed prompt hook consumes them', async () => {

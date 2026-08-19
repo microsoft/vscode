@@ -1854,7 +1854,10 @@ export class CopilotAgentSession extends Disposable {
 			this._markMcpLaunchConfigurationDirty();
 			this._reconcileMcpServerEnablement().catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
 		}));
-		this._subscribeToEvents();
+		await this._subscribeToEvents();
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
 		this._subscribeForLogging();
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
@@ -3848,7 +3851,7 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- event wiring -------------------------------------------------------
 
-	private _subscribeToEvents(): void {
+	private async _subscribeToEvents(): Promise<void> {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
@@ -4895,10 +4898,10 @@ export class CopilotAgentSession extends Disposable {
 		// no surface to run MCP-server-initiated model sampling, so we advertise
 		// the capability and reject each request, which yields the runtime's
 		// canned cancelled sampling result to the plugin server.
-		this._registerSamplingInterest();
 		this._register(wrapper.onSamplingRequested(e => {
 			void this._handleSamplingRequested(e.data.requestId, e.data.serverName);
 		}));
+		await this._registerSamplingInterest();
 
 		// Seed the inventory with any servers the SDK has already loaded by
 		// the time we attach. The `session.mcp_servers_loaded` event may
@@ -4915,8 +4918,9 @@ export class CopilotAgentSession extends Disposable {
 	 * releases the registration on dispose. Best-effort: a failure just leaves
 	 * the session on the runtime's "no consumer" path (sampling unsupported).
 	 */
-	private _registerSamplingInterest(): void {
-		this._wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' }).then(({ handle }) => {
+	private async _registerSamplingInterest(): Promise<void> {
+		try {
+			const { handle } = await this._wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' });
 			if (this._store.isDisposed) {
 				void this._wrapper.session.rpc.eventLog.releaseInterest({ handle }).catch(() => { /* best-effort */ });
 				return;
@@ -4924,9 +4928,9 @@ export class CopilotAgentSession extends Disposable {
 			this._register(toDisposable(() => {
 				void this._wrapper.session.rpc.eventLog.releaseInterest({ handle }).catch(() => { /* best-effort */ });
 			}));
-		}, err => {
+		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to register interest in sampling.requested`, err);
-		});
+		}
 	}
 
 	/**
