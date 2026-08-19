@@ -217,7 +217,10 @@ export async function collectAgentHostDebugLogs(
 		const sources = isSingleSourceOutputChannelDescriptor(descriptor)
 			? [descriptor.source]
 			: isMultiSourceOutputChannelDescriptor(descriptor) ? descriptor.source : [];
-		const channelFolder = `vscode-logs/${sanitizeFilePart(descriptor.label)}`;
+		const channelFolderName = channelId === WINDOW_LOG_CHANNEL_ID
+			? 'Window'
+			: channelId === SHARED_PROCESS_LOG_CHANNEL_ID ? 'Shared' : sanitizeFilePart(descriptor.label);
+		const channelFolder = `vscode-logs/${channelFolderName}`;
 		const sourceNames = sources.map(source => basename(source.resource));
 		const sourceResults = await Promise.all(sources.map(async (source, index) => {
 			const sourceName = sourceNames[index];
@@ -503,8 +506,9 @@ export async function collectRotatedLogFiles(path: string, current: URI, fileSer
 	const parent = await fileService.resolve(dirname(current), { resolveMetadata: true });
 	const files: IAgentHostDebugLogFile[] = [];
 	for (const child of parent.children ?? []) {
-		if (!child.isDirectory && isRotatedLogFile(child.name, currentName)) {
-			files.push(await createDebugLogFile(`${path}/${child.name}`, child.resource, fileService, child.size));
+		if (child.isFile && !child.isSymbolicLink && isRotatedLogFile(child.name, currentName)) {
+			const contents = await fileService.readFile(child.resource, { length: child.size });
+			files.push({ path: `${path}/${child.name}`, contents: contents.value.toString() });
 		}
 	}
 	return files;
