@@ -111,8 +111,13 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
 
 const STATIC_PATH = `/static`;
+const MANIFEST_PATH = `/resources/server/manifest.json`;
 const CALLBACK_PATH = `/callback`;
 const WEB_EXTENSION_PATH = `/web-extension-resource`;
+
+interface IWebManifest {
+	start_url: string;
+}
 
 export class WebClientServer {
 
@@ -140,6 +145,9 @@ export class WebClientServer {
 	 */
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: URL, pathname: string): Promise<void> {
 		try {
+			if (pathname === `${STATIC_PATH}${MANIFEST_PATH}`) {
+				return this._handleManifest(req, res);
+			}
 			if (pathname.startsWith(STATIC_PATH) && pathname.charCodeAt(STATIC_PATH.length) === CharCode.Slash) {
 				return this._handleStatic(req, res, pathname.substring(STATIC_PATH.length));
 			}
@@ -163,6 +171,28 @@ export class WebClientServer {
 			return serveError(req, res, 500, 'Internal Server Error.');
 		}
 	}
+
+	private async _handleManifest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		const filePath = join(APP_ROOT, MANIFEST_PATH);
+		let manifest: IWebManifest;
+		try {
+			manifest = JSON.parse((await promises.readFile(filePath)).toString());
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return serveError(req, res, 404, 'Not found');
+			}
+			throw error;
+		}
+
+		manifest.start_url = posix.join(this._getEffectiveBasePath(req), '/');
+		res.writeHead(200, {
+			'Cache-Control': 'no-store',
+			'Content-Type': 'application/json',
+			'Vary': 'X-Forwarded-Prefix'
+		});
+		return void res.end(JSON.stringify(manifest));
+	}
+
 	/**
 	 * Handle HTTP requests for /static/*
 	 * @param resourcePath The path after /static/
@@ -257,14 +287,8 @@ export class WebClientServer {
 	 * Handle HTTP requests for /
 	 */
 	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: URL): Promise<void> {
-
-		const getFirstHeader = (headerName: string) => {
-			const val = req.headers[headerName];
-			return Array.isArray(val) ? val[0] : val;
-		};
-
 		// Prefix routes with basePath for clients
-		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+		const basePath = this._getEffectiveBasePath(req);
 
 		const queryConnectionTokens = parsedUrl.searchParams.getAll(connectionTokenQueryName);
 		if (queryConnectionTokens.length === 1) {
@@ -304,12 +328,12 @@ export class WebClientServer {
 		let remoteAuthority = (
 			useTestResolver
 				? 'test+test'
-				: (getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host)
+				: (this._getFirstHeader(req, 'x-original-host') || this._getFirstHeader(req, 'x-forwarded-host') || req.headers.host)
 		);
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
-		const forwardedPort = getFirstHeader('x-forwarded-port');
+		const forwardedPort = this._getFirstHeader(req, 'x-forwarded-port');
 		if (forwardedPort) {
 			remoteAuthority = replacePort(remoteAuthority, forwardedPort);
 		}
@@ -327,7 +351,7 @@ export class WebClientServer {
 
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			['x-original-host', 'x-forwarded-host', 'x-forwarded-port', 'host'].forEach(header => {
-				const value = getFirstHeader(header);
+				const value = this._getFirstHeader(req, header);
 				if (value) {
 					this._logService.trace(`[WebClientServer] ${header}: ${value}`);
 				}
@@ -466,6 +490,15 @@ export class WebClientServer {
 
 		res.writeHead(200, headers);
 		return void res.end(data);
+	}
+
+	private _getEffectiveBasePath(req: http.IncomingMessage): string {
+		return this._getFirstHeader(req, 'x-forwarded-prefix') || this._basePath;
+	}
+
+	private _getFirstHeader(req: http.IncomingMessage, headerName: string): string | undefined {
+		const value = req.headers[headerName];
+		return Array.isArray(value) ? value[0] : value;
 	}
 
 	private _getScriptCspHashes(content: string): string[] {
