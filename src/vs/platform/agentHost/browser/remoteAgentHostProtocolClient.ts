@@ -19,7 +19,8 @@ import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
-import { IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { CollectAgentHostDebugLogsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -32,10 +33,10 @@ import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/re
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type IProtocolTransport } from '../common/state/sessionTransport.js';
-import { AhpErrorCodes } from '../common/state/protocol/errors.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { encodeBase64 } from '../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
@@ -97,13 +98,6 @@ function connectionDisposedError(address: string): ProtocolError {
 
 function transportLostError(address: string): ProtocolError {
 	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Transport lost (reconnecting): ${address}`);
-}
-
-interface IRemoteAgentHostExtensionCommandMap {
-	'shutdown': { params: undefined; result: void };
-	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
-	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };
-	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 }
 
 interface IRemoteAgentHostExtensionNotificationMap {
@@ -227,6 +221,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
+
+	private readonly _onDidFatalClose = this._register(new Emitter<ProtocolError>());
+	readonly onDidFatalClose = this._onDidFatalClose.event;
 
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<AgentHostClientState>());
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
@@ -496,6 +493,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				throw error;
 			}
 			if (error instanceof NonReconnectableTransportError) {
+				this._onDidFatalClose.fire(protocolError);
 				this._handleClose(protocolError);
 				throw error;
 			}
@@ -693,7 +691,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				return;
 			}
 			if (err instanceof NonReconnectableTransportError) {
-				this._handleClose(new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message));
+				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
+				this._onDidFatalClose.fire(protocolError);
+				this._handleClose(protocolError);
 				return;
 			}
 			// Replace the gate so awaiting callers see the failure but new
@@ -1127,6 +1127,68 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._sendExtensionRequest('getManagedSettingsDiagnostics');
 	}
 
+	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+		const result = await this._sendExtensionRequest(CollectAgentHostDebugLogsExtensionMethod, {
+			session: session?.toString(),
+			kind,
+		});
+		if (result.kind !== kind) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned ${result.kind} debug logs for a ${kind} request`);
+		}
+		const resource = URI.parse(result.resource, true);
+		if (resource.scheme !== Schemas.file) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned a non-file debug log resource: ${resource.toString()}`);
+		}
+		const maxUncompressedSize = kind === 'archive' ? AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES : AGENT_HOST_DEBUG_LOGS_MAX_BYTES;
+		if (!Number.isSafeInteger(result.size) || result.size < 0 || result.size > AGENT_HOST_DEBUG_LOGS_MAX_BYTES
+			|| !Number.isSafeInteger(result.uncompressedSize) || result.uncompressedSize < 0 || result.uncompressedSize > maxUncompressedSize) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned invalid debug log artifact sizes');
+		}
+		if (!Array.isArray(result.entries) || result.entries.length > AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid debug log artifact manifest');
+		}
+		const entryPaths = new Set<string>();
+		let manifestSize = 0;
+		for (const entry of result.entries) {
+			const segments = entry.path.split('/');
+			if (!entry.path || entry.path.includes('\\') || segments.some((segment: string) => !segment || segment === '.' || segment === '..')
+				|| !Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES
+				|| entryPaths.has(entry.path)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid debug log artifact manifest entry');
+			}
+			entryPaths.add(entry.path);
+			manifestSize += entry.size;
+		}
+		if (!Number.isSafeInteger(manifestSize) || manifestSize !== result.uncompressedSize) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host debug log artifact manifest size does not match its declared size');
+		}
+		return {
+			kind: result.kind,
+			resource: toAgentHostUri(resource, this._connectionAuthority),
+			providerLogsIncluded: result.providerLogsIncluded,
+			size: result.size,
+			uncompressedSize: result.uncompressedSize,
+			entries: result.entries,
+		};
+	}
+
+	/**
+	 * Read one bounded slice of a debug-log artifact previously returned by
+	 * {@link collectDebugLogs}. `resource` is the agent-host URI handed out by
+	 * that call; it is unwrapped back to the host-local path here.
+	 */
+	async readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
+		const result = await this._sendExtensionRequest(ReadAgentHostDebugLogsChunkExtensionMethod, {
+			resource: fromAgentHostUri(resource).toString(),
+			position,
+		});
+		const data = decodeBase64(result.data);
+		if (data.byteLength > AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an oversized debug log chunk');
+		}
+		return { data, eof: result.eof === true };
+	}
+
 	/**
 	 * Probe connectivity from the remote agent host to a single `url`.
 	 */
@@ -1286,8 +1348,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Read the content of a resource on the remote host.
 	 */
-	async resourceRead(uri: URI): Promise<CommandMap['resourceRead']['result']> {
-		return this._sendRequest('resourceRead', { channel: ROOT_STATE_URI, uri: uri.toString() });
+	async resourceRead(uri: URI, encoding?: ContentEncoding): Promise<CommandMap['resourceRead']['result']> {
+		return this._sendRequest('resourceRead', { channel: ROOT_STATE_URI, uri: uri.toString(), encoding });
 	}
 
 	async resourceWrite(params: CommandMap['resourceWrite']['params']): Promise<CommandMap['resourceWrite']['result']> {
@@ -1627,8 +1689,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	/** Send a JSON-RPC request for a VS Code extension method (not in the protocol spec). */
-	private _sendExtensionRequest<M extends keyof IRemoteAgentHostExtensionCommandMap>(method: M, params?: IRemoteAgentHostExtensionCommandMap[M]['params']): Promise<IRemoteAgentHostExtensionCommandMap[M]['result']> {
-		return this._dispatchRequest<IRemoteAgentHostExtensionCommandMap[M]['result']>(method, params);
+	private _sendExtensionRequest<M extends keyof IAgentHostExtensionCommandMap>(method: M, params?: IAgentHostExtensionCommandMap[M]['params']): Promise<IAgentHostExtensionCommandMap[M]['result']> {
+		return this._dispatchRequest<IAgentHostExtensionCommandMap[M]['result']>(method, params);
 	}
 
 	private _updateTelemetryLevel(): void {

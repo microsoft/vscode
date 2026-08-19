@@ -197,18 +197,18 @@ async function startAgentHost(): Promise<void> {
 		sdkDownloadProgress = agentSdkDownloader.onDidDownloadProgress;
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
-		// BYOK language-model proxy + bridge registry. Always registered so the
-		// session launcher can inject them, but BYOK *use* is gated: the
-		// per-connection bridge below (and the renderer's server channel) are only
-		// wired when `chat.agentHost.byokModels.enabled` is on, so the registry
-		// stays empty and the proxy never binds when the feature is off.
+		// BYOK infrastructure is always wired; synchronized root config gates model
+		// publication and per-session provider configuration.
 		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
 		diServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
 		const byokLmProxyService = disposables.add(instantiationService.createInstance(ByokLmProxyService));
 		diServices.set(IByokLmProxyService, byokLmProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], hostLaunchKind, storageResource);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], hostLaunchKind, storageResource, undefined, undefined, {
+			logsHome: environmentService.logsHome,
+			tmpDir: environmentService.tmpDir,
+		});
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
