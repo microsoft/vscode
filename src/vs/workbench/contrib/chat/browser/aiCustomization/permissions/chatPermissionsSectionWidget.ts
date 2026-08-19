@@ -7,6 +7,7 @@ import './media/chatPermissions.css';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
@@ -16,7 +17,7 @@ import { localize } from '../../../../../../nls.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { formatPermissionRuleText } from '../../../common/permissions/chatPermissionRuleSyntax.js';
 import {
 	CHAT_PERMISSION_SCOPE_ORDER,
@@ -25,6 +26,7 @@ import {
 	ChatPermissionSnapshot,
 	ChatPermissionUnavailableReason,
 	IChatPermissionCeiling,
+	IChatPermissionProviderFailure,
 	IChatPermissionRule,
 	filterRulesForDomain,
 } from '../../../common/permissions/chatPermissions.js';
@@ -132,6 +134,13 @@ export class ChatPermissionsSectionWidget extends Disposable {
 		this.listContainer.setAttribute('role', 'list');
 
 		this._register(autorun(reader => this.render(this.snapshotService.snapshot.read(reader))));
+
+		// Opening the section is the moment the user expects current data, and the service has no
+		// way to observe policy changing underneath it. Skip when a probe is already running so
+		// first-open does not immediately re-issue the one the service just started.
+		if (this.snapshotService.snapshot.get().state !== 'loading') {
+			void this.snapshotService.refresh();
+		}
 	}
 
 	layout(): void {
@@ -179,6 +188,20 @@ export class ChatPermissionsSectionWidget extends Disposable {
 			this.filterText = value.trim().toLowerCase();
 			this.render(this.snapshotService.snapshot.get());
 		}));
+
+		// The customization sections put their primary action here. Permissions are read-only, so
+		// the equivalent action is re-reading them: resolution is a slow probe that does not
+		// observe policy changes, so without this the view can only go stale.
+		const buttonContainer = DOM.append(searchRow, $('.list-add-button-container'));
+		const refreshButton = this._register(new Button(buttonContainer, {
+			...defaultButtonStyles,
+			supportIcons: true,
+			title: localize('chatPermissions.refreshTooltip', "Re-read the effective permissions from the agent"),
+		}));
+		refreshButton.element.classList.add('list-add-button');
+		refreshButton.label = `$(${Codicon.refresh.id}) ${localize('chatPermissions.refresh', "Refresh")}`;
+		this._register(refreshButton.onDidClick(() => this.snapshotService.refresh()));
+
 		return input;
 	}
 
@@ -199,6 +222,7 @@ export class ChatPermissionsSectionWidget extends Disposable {
 		}
 
 		this.renderCeiling(snapshot.ceiling);
+		this.renderFailedProviders(snapshot.failedProviders);
 
 		const rules = filterRulesForDomain(snapshot.rules, this.domain.id).filter(rule => this.matchesFilter(rule));
 		let isFirstGroup = true;
@@ -252,6 +276,23 @@ export class ChatPermissionsSectionWidget extends Disposable {
 	}
 
 	/**
+	 * Warns that a provider could not report. Its rules are missing from the list below, so
+	 * staying silent would present a partial policy as if it were the whole one.
+	 */
+	private renderFailedProviders(failures: readonly IChatPermissionProviderFailure[]): void {
+		if (failures.length === 0) {
+			return;
+		}
+		const banner = DOM.append(this.listContainer, $('.chat-permissions-banner.is-warning'));
+		DOM.append(banner, $('span.chat-permissions-banner-icon')).classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		DOM.append(banner, $('span.chat-permissions-banner-text')).textContent = localize(
+			'chatPermissions.failedProviders',
+			"Some rules may be missing. These agents could not report their permissions: {0}.",
+			failures.map(failure => `${failure.provider} (${failure.message})`).join(', '),
+		);
+	}
+
+	/**
 	 * Renders a collapsible scope group using the shared customization group-header markup, so a
 	 * permission group and a customization group are visually the same control.
 	 */
@@ -299,8 +340,11 @@ export class ChatPermissionsSectionWidget extends Disposable {
 			return;
 		}
 		if (rules.length === 0) {
-			DOM.append(this.listContainer, $('.chat-permissions-empty-group')).textContent =
-				localize('chatPermissions.noRulesInScope', "No rules.");
+			// While filtering, an empty group means "nothing matched", not "no policy exists".
+			// Saying the wrong one here would imply the scope is unrestricted.
+			DOM.append(this.listContainer, $('.chat-permissions-empty-group')).textContent = this.filterText
+				? localize('chatPermissions.noMatchingRulesInScope', "No matching rules.")
+				: localize('chatPermissions.noRulesInScope', "No rules.");
 			return;
 		}
 		for (const rule of rules) {

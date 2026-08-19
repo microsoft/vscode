@@ -134,7 +134,19 @@ export type ChatPermissionSnapshot =
 		readonly ceiling: IChatPermissionCeiling;
 		/** Scopes the source could actually resolve; others are omitted rather than shown empty. */
 		readonly resolvedScopes: readonly ChatPermissionScope[];
+		/**
+		 * Providers that failed to report, when at least one other succeeded. Their rules are
+		 * missing from {@link rules}, so this must be surfaced rather than silently dropped — a
+		 * partial list that looks complete is the failure mode this whole model exists to avoid.
+		 */
+		readonly failedProviders: readonly IChatPermissionProviderFailure[];
 	};
+
+/** A provider that could not report its managed permissions. */
+export interface IChatPermissionProviderFailure {
+	readonly provider: string;
+	readonly message: string;
+}
 
 /** Rules for `domain`, ordered by descending scope authority. */
 export function filterRulesForDomain(rules: readonly IChatPermissionRule[], domain: ChatPermissionDomainId): IChatPermissionRule[] {

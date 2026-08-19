@@ -120,6 +120,10 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-permissions-section .chat-permissions-banner.is-warning .chat-permissions-banner-icon {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)));
+}
+
 .chat-permissions-section .chat-permissions-banner-text {
 	line-height: 1.45;
 }

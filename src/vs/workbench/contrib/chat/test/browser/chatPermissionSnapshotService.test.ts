@@ -47,7 +47,29 @@ suite('chatPermissionSnapshotService', () => {
 			],
 			ceiling: { mode: 'manual', bypassRestriction: undefined, failClosed: false, allowIntersected: false },
 			resolvedScopes: [ChatPermissionScope.Managed],
+			failedProviders: [],
 		});
+	});
+
+	test('reports a provider that failed alongside one that succeeded, rather than hiding it', () => {
+		// The failed provider's rules are missing from the list, so a silent drop would present a
+		// partial policy as the whole one.
+		const snapshot = buildManagedSnapshot([
+			diagnostic({ permissions: { deny: ['Shell(rm -rf *)'] } }),
+			{ provider: 'claude' as AgentProvider, error: 'probe timed out' },
+		]);
+
+		assert.deepStrictEqual(
+			snapshot.state === 'available' && { rules: snapshot.rules.length, failedProviders: snapshot.failedProviders },
+			{ rules: 1, failedProviders: [{ provider: 'claude', message: 'probe timed out' }] },
+		);
+	});
+
+	test('is an error, not "not supported", when every provider failed', () => {
+		assert.deepStrictEqual(
+			buildManagedSnapshot([{ provider: 'copilot' as AgentProvider, error: 'probe failed' }]),
+			{ state: 'error', message: 'copilot: probe failed' },
+		);
 	});
 
 	test('treats the resolved verdict as a floor the raw settings cannot soften', () => {
@@ -80,9 +102,9 @@ suite('chatPermissionSnapshotService', () => {
 		});
 	});
 
-	test('is unavailable rather than empty when no provider reports a snapshot', () => {
+	test('is unavailable rather than empty when a provider reports no policy at all', () => {
 		assert.deepStrictEqual(
-			buildManagedSnapshot([{ provider: 'copilot' as AgentProvider, error: 'probe failed' }]),
+			buildManagedSnapshot([]),
 			{ state: 'unavailable', reason: ChatPermissionUnavailableReason.NotSupported },
 		);
 	});

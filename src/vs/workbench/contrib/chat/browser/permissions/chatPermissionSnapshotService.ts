@@ -10,6 +10,7 @@ import { isObject } from '../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { localize } from '../../../../../nls.js';
 import { parsePermissionRuleText } from '../../common/permissions/chatPermissionRuleSyntax.js';
 import {
 	ChatPermissionEffect,
@@ -17,6 +18,7 @@ import {
 	ChatPermissionSnapshot,
 	ChatPermissionUnavailableReason,
 	IChatPermissionCeiling,
+	IChatPermissionProviderFailure,
 	IChatPermissionRule,
 } from '../../common/permissions/chatPermissions.js';
 import { IChatPermissionSnapshotService } from '../../common/permissions/chatPermissionSnapshotService.js';
@@ -53,6 +55,9 @@ export class ChatPermissionSnapshotService extends Disposable implements IChatPe
 		this._register(autorun(reader => {
 			const enabled = this.agentHostEnablementService.enabled.read(reader);
 			if (!enabled) {
+				// Bump the generation so an in-flight probe cannot land after this and overwrite
+				// the disabled state with a stale result.
+				this._refreshGeneration++;
 				this._snapshot.set({ state: 'unavailable', reason: ChatPermissionUnavailableReason.AgentHostDisabled }, undefined);
 				return;
 			}
@@ -62,6 +67,7 @@ export class ChatPermissionSnapshotService extends Disposable implements IChatPe
 
 	async refresh(): Promise<void> {
 		if (!this.agentHostEnablementService.enabled.get()) {
+			this._refreshGeneration++;
 			this._snapshot.set({ state: 'unavailable', reason: ChatPermissionUnavailableReason.AgentHostDisabled }, undefined);
 			return;
 		}
@@ -102,6 +108,7 @@ type ManagedDiagnostics = Awaited<ReturnType<IAgentHostService['getManagedSettin
  */
 export function buildManagedSnapshot(diagnostics: ManagedDiagnostics): ChatPermissionSnapshot {
 	const rules = new Map<string, IChatPermissionRule>();
+	const failedProviders: IChatPermissionProviderFailure[] = [];
 	let bypassRestriction: IChatPermissionCeiling['bypassRestriction'];
 	let failClosed = false;
 	let allowIntersected = false;
@@ -110,6 +117,12 @@ export function buildManagedSnapshot(diagnostics: ManagedDiagnostics): ChatPermi
 	for (const diagnostic of diagnostics) {
 		const snapshot = diagnostic.snapshot;
 		if (!snapshot) {
+			// Provider failures arrive in-band as `{ error }` rather than thrown. Recording them
+			// keeps a timeout from masquerading as "this runtime has no managed policy".
+			failedProviders.push({
+				provider: diagnostic.provider,
+				message: diagnostic.error ?? localize('chatPermissions.providerNoSnapshot', "No response."),
+			});
 			continue;
 		}
 		sawSnapshot = true;
@@ -127,7 +140,11 @@ export function buildManagedSnapshot(diagnostics: ManagedDiagnostics): ChatPermi
 	}
 
 	if (!sawSnapshot) {
-		return { state: 'unavailable', reason: ChatPermissionUnavailableReason.NotSupported };
+		// Nothing was readable. If providers actively failed, say so — reporting "not supported"
+		// would describe a transient failure as a permanent capability gap.
+		return failedProviders.length > 0
+			? { state: 'error', message: formatProviderFailures(failedProviders) }
+			: { state: 'unavailable', reason: ChatPermissionUnavailableReason.NotSupported };
 	}
 
 	return {
@@ -144,7 +161,12 @@ export function buildManagedSnapshot(diagnostics: ManagedDiagnostics): ChatPermi
 		// Only the managed layer is reachable today. Naming it explicitly keeps the UI from
 		// implying that the configured, location and session layers are empty.
 		resolvedScopes: [ChatPermissionScope.Managed],
+		failedProviders,
 	};
+}
+
+function formatProviderFailures(failures: readonly IChatPermissionProviderFailure[]): string {
+	return failures.map(failure => `${failure.provider}: ${failure.message}`).join('; ');
 }
 
 function readPermissionsSlice(settings: unknown): IManagedPermissionsSlice | undefined {

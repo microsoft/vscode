@@ -1907,6 +1907,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Move focus to the search input so keyboard users can immediately
 		// filter without extra Tab traversal (parity with mouse-click flow).
+		this.focusSectionSearch(section);
+	}
+
+	/**
+	 * Focuses the search control of `section`. Contributed sections own their own input, so they
+	 * must be routed to explicitly — falling through to the prompts list would focus a hidden box.
+	 */
+	private focusSectionSearch(section: AICustomizationManagementSection): void {
 		if (section === AICustomizationManagementSection.McpServers) {
 			this.mcpListWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Plugins) {
@@ -1915,6 +1923,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.modelsWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Tools) {
 			this.toolsListWidget?.focusSearch();
+		} else if (this.contributedSectionContainers.has(section)) {
+			this.ensureContributedSectionWidget(section)?.focus?.();
 		} else {
 			this.listWidget?.focusSearch();
 		}
@@ -2242,19 +2252,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.welcomePage?.focus();
 			return;
 		}
-		if (this.selectedSection === AICustomizationManagementSection.McpServers) {
-			this.mcpListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Models) {
-			this.modelsWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
-			this.toolsListWidget?.focusSearch();
-		} else if (this.selectedSection && this.contributedSectionContainers.has(this.selectedSection)) {
-			this.ensureContributedSectionWidget(this.selectedSection)?.focus?.();
-		} else {
-			this.listWidget?.focusSearch();
-		}
+		this.focusSectionSearch(this.selectedSection);
 	}
 
 	/**
