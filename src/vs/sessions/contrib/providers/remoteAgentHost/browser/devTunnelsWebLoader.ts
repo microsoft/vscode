@@ -7,7 +7,7 @@ import type { TunnelRelayTunnelClient } from '@microsoft/dev-tunnels-connections
 import type { TunnelManagementHttpClient } from '@microsoft/dev-tunnels-management';
 import { AppResourcePath, FileAccess } from '../../../../../base/common/network.js';
 import type { ITunnelDescriptor } from '../../../../../platform/agentHost/common/tunnelAgentHostConnector.js';
-import type { ITunnelDuplexStream, WebSocketConnectionCtor } from '../../../../../platform/agentHost/common/tunnelMessageSocket.js';
+import type { ITunnelDuplexStream } from '../../../../../platform/agentHost/common/tunnelMessageSocket.js';
 
 const devTunnelsWebBundlePath: AppResourcePath = 'vs/sessions/contrib/providers/remoteAgentHost/browser/devTunnelsModule.js';
 
@@ -61,7 +61,6 @@ export interface IDevTunnelsWeb {
 	};
 	readonly TunnelRelayTunnelClient: new (managementClient: IDevTunnelsWebManagementClient) => IDevTunnelsWebRelayClient;
 	readonly TunnelAccessScopes: object;
-	readonly WebSocketConnection: WebSocketConnectionCtor;
 }
 
 /**
