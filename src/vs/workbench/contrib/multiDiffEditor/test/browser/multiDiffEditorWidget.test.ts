@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../base/common/observable.js';
@@ -31,6 +32,8 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('MultiDiffEditorWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -71,14 +74,17 @@ suite('MultiDiffEditorWidget', () => {
 		};
 		harness.widget.setViewState(viewState);
 
-		assert.deepStrictEqual({
+		const actual = {
 			afterRefresh,
 			afterRepeatedRestore: {
 				collapsed: updatedItemA.collapsed.get(),
 				selections: serializeSelections(updatedItemA),
 			},
 			viewState,
-		}, {
+		};
+		await harness.dispose();
+
+		assert.deepStrictEqual(actual, {
 			afterRefresh: {
 				sameViewModel: true,
 				collapsed: true,
@@ -135,13 +141,16 @@ suite('MultiDiffEditorWidget', () => {
 		documents.value = [documentA.ref, documentC.ref, documentD.ref];
 		await waitForItems(viewModel, 3);
 
-		assert.deepStrictEqual({
+		const actual = {
 			initiallyRestored,
 			afterRefresh: {
 				collapsed: getItem(viewModel, documentC.key).collapsed.get(),
 				selections: serializeSelections(getItem(viewModel, documentC.key)),
 			},
-		}, {
+		};
+		await harness.dispose();
+
+		assert.deepStrictEqual(actual, {
 			initiallyRestored: {
 				collapsed: true,
 				selections: [serializeSelection(restoredSelection)],
@@ -159,73 +168,66 @@ suite('MultiDiffEditorWidget', () => {
 		const documentA = harness.createDocument('a');
 		const documentB = harness.createDocument('b');
 		const documentC = harness.createDocument('c');
-		const documentD = harness.createDocument('d');
-		const documentE = harness.createDocument('e');
-		const documentF = harness.createDocument('f');
-		const documentG = harness.createDocument('g');
-		const documentH = harness.createDocument('h');
-		const documents = [documentA, documentB, documentC, documentD, documentE, documentF, documentG, documentH];
-		const restoredSelections = documents.slice(0, -1).map((_, index) => new Selection(1, index + 2, 1, index + 2));
+		const documents = new ValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>([documentA.ref, documentB.ref]);
+		const restoredSelectionA = new Selection(1, 2, 1, 2);
+		const restoredSelectionB = new Selection(1, 3, 1, 3);
 		const defaultSelection = new Selection(1, 1, 1, 1);
-		const currentSelectionA = new Selection(1, 11, 1, 11);
-		const currentSelectionB = new Selection(1, 13, 1, 13);
+		const currentSelectionA = new Selection(1, 5, 1, 5);
+		const currentSelectionB = new Selection(1, 8, 1, 8);
 		const viewModel = harness.createViewModel({
-			documents: ValueWithChangeEvent.const(documents.map(document => document.ref)),
+			documents,
 		});
 		harness.widget.setViewModel(viewModel, {
 			preserveFocus: true,
 			viewState: {
 				scrollState: { top: 0, left: 0 },
-				docStates: Object.fromEntries(documents.map((document, index) => {
-					const selection = restoredSelections[index];
-					return [document.key, selection
-						? { collapsed: false, selections: [selection] }
-						: { collapsed: false }];
-				})),
+				docStates: {
+					[documentA.key]: { collapsed: false, selections: [restoredSelectionA] },
+					[documentB.key]: { collapsed: false, selections: [restoredSelectionB] },
+				},
 				activeDiffItemKey: documentA.key,
 			},
 		});
-		await waitForItems(viewModel, documents.length);
+		await waitForItems(viewModel, 2);
 
 		const itemA = getItem(viewModel, documentA.key);
 		const itemB = getItem(viewModel, documentB.key);
-		const pooledEditors = [getEditor(harness.widget, itemA)];
+		const editorForA = getEditor(harness.widget, itemA);
 		setEditorSelection(harness.widget, itemA, currentSelectionA);
 		itemA.collapsed.set(true, undefined);
 
-		const initiallyRestoredSelections: ReturnType<typeof serializeEditorSelections>[] = [];
-		for (const document of documents.slice(1)) {
-			const item = getItem(viewModel, document.key);
-			revealModified(harness.widget, item);
-			const editor = getEditor(harness.widget, item);
-			pooledEditors.push(editor);
-			initiallyRestoredSelections.push(serializeEditorSelections(editor));
-			if (item === itemB) {
-				editor.setSelections([currentSelectionB]);
-			}
-		}
-
-		revealModified(harness.widget, itemA);
-		const editorForAAgain = getEditor(harness.widget, itemA);
-		const restoredA = {
-			collapsed: itemA.collapsed.get(),
-			selections: serializeEditorSelections(editorForAAgain),
-		};
-
 		revealModified(harness.widget, itemB);
-		const editorForBAgain = getEditor(harness.widget, itemB);
+		setEditorSelection(harness.widget, itemB, currentSelectionB);
 
-		assert.deepStrictEqual({
-			reusedAcrossDocuments: new Set(pooledEditors).size < pooledEditors.length,
-			initiallyRestoredSelections,
-			restoredA,
-			restoredB: serializeEditorSelections(editorForBAgain),
-		}, {
-			reusedAcrossDocuments: true,
-			initiallyRestoredSelections: [
-				...restoredSelections.slice(1).map(selection => [serializeSelection(selection)]),
-				[serializeSelection(defaultSelection)],
-			],
+		documents.value = [documentB.ref, documentC.ref];
+		await waitForItems(viewModel, 2);
+		const itemC = getItem(viewModel, documentC.key);
+		revealModified(harness.widget, itemC);
+		const editorForC = getEditor(harness.widget, itemC);
+		const selectionForC = serializeEditorSelections(editorForC);
+
+		documents.value = [documentA.ref, documentB.ref, documentC.ref];
+		await waitForItems(viewModel, 3);
+		const recreatedItemA = getItem(viewModel, documentA.key);
+		revealModified(harness.widget, recreatedItemA);
+		const editorForAAgain = getEditor(harness.widget, recreatedItemA);
+
+		const actual = {
+			reusedForC: editorForC === editorForA,
+			selectionForC,
+			recreatedA: recreatedItemA !== itemA,
+			restoredA: {
+				collapsed: recreatedItemA.collapsed.get(),
+				selections: serializeEditorSelections(editorForAAgain),
+			},
+			restoredB: serializeSelections(getItem(viewModel, documentB.key)),
+		};
+		await harness.dispose();
+
+		assert.deepStrictEqual(actual, {
+			reusedForC: true,
+			selectionForC: [serializeSelection(defaultSelection)],
+			recreatedA: true,
 			restoredA: {
 				collapsed: true,
 				selections: [serializeSelection(currentSelectionA)],
@@ -277,7 +279,8 @@ suite('MultiDiffEditorWidget', () => {
 		const replacementItemA = getItem(replacementViewModel, documentA.key);
 		const replacementState = {
 			collapsed: replacementItemA.collapsed.get(),
-			selections: serializeSelections(replacementItemA),
+			cachedSelections: serializeSelections(replacementItemA),
+			editorSelections: serializeEditorSelections(getEditor(harness.widget, replacementItemA)),
 		};
 		const lateRestoredSelection = new Selection(1, 3, 1, 3);
 		harness.widget.setViewState({
@@ -288,14 +291,17 @@ suite('MultiDiffEditorWidget', () => {
 			activeDiffItemKey: documentA.key,
 		});
 
-		assert.deepStrictEqual({
+		const actual = {
 			recreatedState,
 			replacementState,
 			lateRestoredState: {
 				collapsed: replacementItemA.collapsed.get(),
 				selections: serializeSelections(replacementItemA),
 			},
-		}, {
+		};
+		await harness.dispose();
+
+		assert.deepStrictEqual(actual, {
 			recreatedState: {
 				newViewModel: true,
 				collapsed: true,
@@ -303,7 +309,8 @@ suite('MultiDiffEditorWidget', () => {
 			},
 			replacementState: {
 				collapsed: false,
-				selections: undefined,
+				cachedSelections: undefined,
+				editorSelections: [serializeSelection(new Selection(1, 1, 1, 1))],
 			},
 			lateRestoredState: {
 				collapsed: true,
@@ -356,6 +363,7 @@ suite('MultiDiffEditorWidget', () => {
 		});
 		services.set(IHoverService, NullHoverService);
 		services.set(IStorageService, serviceDisposables.add(new InMemoryStorageService()));
+		services.set(IUserDataProfileService, new TestUserDataProfileService());
 		services.set(IActionViewItemService, new NullActionViewItemService());
 		const instantiationService = createCodeEditorServices(serviceDisposables, services);
 		const modelService = instantiationService.get(IModelService);
@@ -391,6 +399,10 @@ suite('MultiDiffEditorWidget', () => {
 			createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel {
 				return viewModels.add(widget.createViewModel(model));
 			},
+			async dispose(): Promise<void> {
+				cleanup.dispose();
+				await timeout(0);
+			},
 		};
 	}
 });
@@ -399,6 +411,7 @@ interface TestHarness {
 	readonly widget: MultiDiffEditorWidget;
 	createDocument(name: string): TestDocument;
 	createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel;
+	dispose(): Promise<void>;
 }
 
 interface TestDocument {

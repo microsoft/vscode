@@ -780,9 +780,7 @@ class VirtualizedViewItem extends Disposable {
 		if (!ref) {
 			ref = this._objectPool.getUnusedObj(new TemplateData(this.viewModel, this._deltaScrollVertical));
 			const selections = this.viewModel.lastTemplateData.get().selections;
-			if (selections) {
-				ref.object.editor.setSelections(selections);
-			}
+			ref.object.editor.setSelections(selections ?? [new Selection(1, 1, 1, 1)]);
 			this._templateRef.set(ref, undefined);
 		}
 		ref.object.render(verticalSpace, width, offset, viewPort);
