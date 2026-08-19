@@ -146,7 +146,7 @@ Evidence is written to `.build/vscode-playwright-mcp/evidence/<run-id>/`:
 | `*.png` | Per-step screenshots |
 | `logs/` | Playwright trace, window and server logs |
 
-The caption band is added **below** the recorded frame rather than drawn over it, so no recorded
+The caption band is added **above** the recorded frame rather than drawn over it, so no recorded
 pixel is hidden and the recording keeps its original length. Each caption carries the step number
 and id, its status, the step title, and the validation detail the step reported. Re-render after
 editing a manifest with `node test/mcp/out/renderEvidenceChapters.js <run-dir>`.

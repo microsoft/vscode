@@ -9,9 +9,9 @@
 // the run instead of being drawn into the window while it is recorded, so the
 // capture shows unmodified product UI.
 //
-// The band is added below the recorded frame rather than drawn over it, so the
-// annotation costs no recorded pixels: the status bar and the bottom of the
-// workbench stay legible, and the recording keeps its original length.
+// The band is added above the recorded frame rather than drawn over it, so the
+// annotation costs no recorded pixels: the entire workbench stays legible, and
+// the recording keeps its original length.
 //
 // Usage: node out/renderEvidenceChapters.js <evidence-run-directory>
 
@@ -189,7 +189,7 @@ export function renderChapters(runRoot: string): void {
 			+ margin;
 		bandHeight += bandHeight % 2; // yuv420p requires even dimensions
 
-		const filters: string[] = [`[0:v]pad=${width}:${height + bandHeight}:0:0:color=0x0D1117[base]`];
+		const filters: string[] = [`[0:v]pad=${width}:${height + bandHeight}:0:${bandHeight}:color=0x0D1117[base]`];
 		let textIndex = 0;
 		let label = 'base';
 
@@ -218,7 +218,7 @@ export function renderChapters(runRoot: string): void {
 			if (!(caption.to > caption.from + 0.05)) {
 				continue;
 			}
-			let y = height + margin;
+			let y = margin;
 			draw([caption.eyebrow], eyebrowSize, y, caption.accent, caption, 'left');
 			draw([outcomeText], eyebrowSize, y, '0x8B949E', caption, 'right');
 			y += lineHeight(eyebrowSize) + gap;
