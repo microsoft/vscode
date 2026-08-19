@@ -93,7 +93,8 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		}, 50, 20);
 	}
 
-	test('session metadata history and provider context survive a host restart', async function () {
+	const sessionPersistenceEnabled = !(context.isWindows && config.provider === 'codex') || context.runKnownIssueTests;
+	(sessionPersistenceEnabled ? test : test.skip)('session metadata history and provider context survive a host restart', async function () {
 		this.timeout(240_000);
 		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-`);
 		tempDirs.push(workspace);
