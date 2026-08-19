@@ -185,4 +185,15 @@ export class AgentSessionRegistry extends Disposable {
 	async clearTombstone(session: URI): Promise<void> {
 		await this._database.clearSessionTombstone(session.toString());
 	}
+
+	/** Maintains the host-owned index of Agent-Merge-enabled sessions. */
+	async setAgentMergeEnabled(session: URI, enabled: boolean): Promise<void> {
+		await this._database.setSessionAgentMergeEnabled(session.toString(), enabled);
+	}
+
+	/** Session URIs the index marks Agent-Merge-enabled, without opening any session database. */
+	async listAgentMergeEnabled(): Promise<readonly URI[]> {
+		const sessions = await this._database.listAgentMergeEnabledSessions();
+		return sessions.map(session => URI.parse(session));
+	}
 }

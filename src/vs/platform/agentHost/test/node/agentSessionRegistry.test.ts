@@ -12,6 +12,7 @@ import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 
 class TestAgentHostDatabase implements IAgentHostDatabase {
 	readonly sessions = new Map<string, IAgentHostDatabaseSession>();
+	readonly agentMergeEnabled = new Set<string>();
 	backfilled = false;
 	private readonly _providerBackfilled = new Set<string>();
 	private readonly _tombstones = new Set<string>();
@@ -121,6 +122,20 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	async clearSessionTombstone(session: string): Promise<void> {
 		this._throwWriteFailure();
 		this._tombstones.delete(session);
+	}
+
+	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
+		this._throwWriteFailure();
+		if (enabled) {
+			this.agentMergeEnabled.add(session);
+		} else {
+			this.agentMergeEnabled.delete(session);
+		}
+	}
+
+	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
+		this._throwReadFailure();
+		return [...this.agentMergeEnabled];
 	}
 
 	async close(): Promise<void> { }
