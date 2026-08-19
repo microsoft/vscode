@@ -93,6 +93,11 @@ function effectIcon(effect: ChatPermissionEffect): ThemeIcon {
 	}
 }
 
+/** Optional initial state, so a filtered view can be rendered directly rather than typed into. */
+export interface IChatPermissionsSectionOptions {
+	readonly initialFilter?: string;
+}
+
 /**
  * Renders one permission domain: the ceiling banner, the rules grouped by the scope that declared
  * them, and the layers the source could not read.
@@ -113,13 +118,14 @@ export class ChatPermissionsSectionWidget extends Disposable {
 	private readonly container: HTMLElement;
 	private readonly listContainer: HTMLElement;
 	private readonly filterInput: InputBox;
-	private filterText = '';
+	private filterText: string;
 	/** Scopes the user has collapsed. View-only state; deliberately not persisted. */
 	private readonly collapsedScopes = new Set<ChatPermissionScope>();
 
 	constructor(
 		parent: HTMLElement,
 		private readonly domain: IChatPermissionDomain,
+		options: IChatPermissionsSectionOptions | undefined,
 		@IChatPermissionSnapshotService private readonly snapshotService: IChatPermissionSnapshotService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -127,6 +133,7 @@ export class ChatPermissionsSectionWidget extends Disposable {
 	) {
 		super();
 
+		this.filterText = options?.initialFilter?.trim().toLowerCase() ?? '';
 		this.container = DOM.append(parent, $('.chat-permissions-section'));
 		this.createTitleHeader();
 		this.filterInput = this.createSearchRow();
@@ -184,6 +191,9 @@ export class ChatPermissionsSectionWidget extends Disposable {
 			ariaLabel: this.domain.filterAriaLabel,
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
+		if (this.filterText) {
+			input.value = this.filterText;
+		}
 		this._register(input.onDidChange(value => {
 			this.filterText = value.trim().toLowerCase();
 			this.render(this.snapshotService.snapshot.get());
@@ -366,7 +376,13 @@ export class ChatPermissionsSectionWidget extends Disposable {
 			DOM.append(pattern, $('span.chat-permissions-rule-lock')).classList.add(...ThemeIcon.asClassNameArray(Codicon.lock));
 		}
 		DOM.append(pattern, $('span.chat-permissions-rule-kind')).textContent = rule.kind;
-		DOM.append(pattern, $('span.chat-permissions-rule-argument')).textContent = rule.argument ?? '';
+		if (rule.argument === undefined) {
+			// A family-wide rule matches every request in its family. Naming that keeps the row
+			// from looking like a rule whose pattern failed to render.
+			DOM.append(pattern, $('span.chat-permissions-rule-all')).textContent = this.domain.allRequestsLabel;
+		} else {
+			DOM.append(pattern, $('span.chat-permissions-rule-argument')).textContent = rule.argument;
+		}
 
 		if (rule.shadowedBy) {
 			// Name the layer that wins, with its icon, so the row explains why it has no effect.
@@ -392,15 +408,30 @@ export class ChatPermissionsSectionWidget extends Disposable {
 		this.renderDisposables.add(this.hoverService.setupManagedHover(
 			getDefaultHoverDelegate('element'),
 			row,
-			formatPermissionRuleText(rule.kind, rule.argument),
+			this.ruleTooltip(rule),
 		));
 	}
 
+	/**
+	 * The canonical rule text, plus the domain's plain-language reading when it has one. The
+	 * canonical form stays first because it is what an administrator actually authored.
+	 */
+	private ruleTooltip(rule: IChatPermissionRule): string {
+		const canonical = formatPermissionRuleText(rule.kind, rule.argument);
+		const described = rule.argument === undefined ? undefined : this.domain.describeArgument?.(rule.argument);
+		return described ? `${canonical} — ${described}` : canonical;
+	}
+
 	private ruleAriaLabel(rule: IChatPermissionRule): string {
+		// Prefer the domain's plain-language reading, so a screen reader is not left to interpret
+		// path anchors such as `//` versus `/`.
+		const described = rule.argument === undefined
+			? this.domain.allRequestsLabel
+			: this.domain.describeArgument?.(rule.argument) ?? formatPermissionRuleText(rule.kind, rule.argument);
 		const base = localize(
 			'chatPermissions.ruleAriaLabel',
 			"{0}, {1}, from {2}",
-			formatPermissionRuleText(rule.kind, rule.argument),
+			described,
 			effectLabel(rule.effect),
 			scopePresentation(rule.scope).label,
 		);

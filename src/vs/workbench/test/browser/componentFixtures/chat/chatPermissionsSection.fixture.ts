@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { localize } from '../../../../../nls.js';
-import { ChatPermissionsSectionWidget } from '../../../../contrib/chat/browser/aiCustomization/permissions/chatPermissionsSectionWidget.js';
+import { CHAT_PERMISSION_DOMAINS } from '../../../../contrib/chat/browser/aiCustomization/permissions/chatPermissionDomains.js';
 import { IChatPermissionDomain } from '../../../../contrib/chat/browser/aiCustomization/permissions/chatPermissionDomainRegistry.js';
+import { ChatPermissionsSectionWidget } from '../../../../contrib/chat/browser/aiCustomization/permissions/chatPermissionsSectionWidget.js';
 import { IChatPermissionSnapshotService } from '../../../../contrib/chat/common/permissions/chatPermissionSnapshotService.js';
 import {
 	ChatPermissionDomainId,
@@ -16,86 +15,224 @@ import {
 	ChatPermissionScope,
 	ChatPermissionSnapshot,
 	ChatPermissionUnavailableReason,
+	IChatPermissionCeiling,
+	IChatPermissionRule,
 } from '../../../../contrib/chat/common/permissions/chatPermissions.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
-const terminalDomain: IChatPermissionDomain = {
-	id: ChatPermissionDomainId.Terminal,
-	label: localize('fixture.terminal', "Terminal"),
-	icon: Codicon.terminal,
-	description: localize('fixture.terminalDescription', "Controls which terminal commands the agent may run, and which need your approval first."),
-	filterAriaLabel: localize('fixture.terminalFilter', "Search terminal rules"),
-	learnMoreLabel: localize('fixture.learnMore', "Learn more about agent permissions"),
-	learnMoreUrl: 'https://code.visualstudio.com/docs/agents/run/security',
-};
+/**
+ * Fixtures for the Permissions sections of the Chat Customizations editor.
+ *
+ * The real domain definitions are used rather than hand-written stand-ins, so a change to a
+ * label, description or docs link is reflected here instead of drifting.
+ */
+function domain(id: ChatPermissionDomainId): IChatPermissionDomain {
+	const found = CHAT_PERMISSION_DOMAINS.find(candidate => candidate.id === id);
+	if (!found) {
+		throw new Error(`No registered permission domain for ${id}`);
+	}
+	return found;
+}
 
-function rule(id: string, kind: string, argument: string, effect: ChatPermissionEffect, scope: ChatPermissionScope, extra?: Partial<{ editable: boolean; shadowedBy: { scope: ChatPermissionScope; effect: ChatPermissionEffect } }>) {
+let nextRuleId = 0;
+
+function rule(
+	domainId: ChatPermissionDomainId,
+	kind: string,
+	argument: string | undefined,
+	effect: ChatPermissionEffect,
+	scope: ChatPermissionScope,
+	extra?: { editable?: boolean; shadowedBy?: { scope: ChatPermissionScope; effect: ChatPermissionEffect } },
+): IChatPermissionRule {
 	return {
-		id,
-		domain: ChatPermissionDomainId.Terminal,
+		id: `rule-${nextRuleId++}`,
+		domain: domainId,
 		kind,
-		argument,
+		...(argument === undefined ? {} : { argument }),
 		effect,
 		scope,
-		editable: extra?.editable ?? false,
+		// Managed rules are never editable; every other layer is, once the runtime can report it.
+		editable: extra?.editable ?? scope !== ChatPermissionScope.Managed,
 		...(extra?.shadowedBy ? { shadowedBy: extra.shadowedBy } : {}),
 	};
 }
 
-const managedOnly: ChatPermissionSnapshot = {
-	state: 'available',
-	rules: [
-		rule('1', 'Shell', 'rm -rf *', ChatPermissionEffect.Deny, ChatPermissionScope.Managed),
-		rule('2', 'Shell', 'sudo *', ChatPermissionEffect.Deny, ChatPermissionScope.Managed),
-		rule('3', 'Shell', 'git push *', ChatPermissionEffect.Ask, ChatPermissionScope.Managed),
-	],
-	ceiling: { mode: 'manual', bypassRestriction: 'disable', failClosed: false, allowIntersected: false },
-	resolvedScopes: [ChatPermissionScope.Managed],
-	failedProviders: [],
-};
+const openCeiling: IChatPermissionCeiling = { mode: 'manual', bypassRestriction: undefined, failClosed: false, allowIntersected: false };
 
-/** The shape the UI takes once the runtime can report every layer, including a shadowed rule. */
-const allScopes: ChatPermissionSnapshot = {
-	state: 'available',
-	rules: [
-		rule('1', 'Shell', 'rm -rf *', ChatPermissionEffect.Deny, ChatPermissionScope.Managed),
-		rule('2', 'Shell', 'git push *', ChatPermissionEffect.Ask, ChatPermissionScope.Managed),
-		rule('3', 'Shell', 'npm run *', ChatPermissionEffect.Allow, ChatPermissionScope.Config, { editable: true }),
-		rule('4', 'Shell', 'git push *', ChatPermissionEffect.Allow, ChatPermissionScope.Config, {
-			editable: true,
+function available(
+	rules: readonly IChatPermissionRule[],
+	resolvedScopes: readonly ChatPermissionScope[],
+	overrides?: Partial<Pick<Extract<ChatPermissionSnapshot, { state: 'available' }>, 'ceiling' | 'failedProviders'>>,
+): ChatPermissionSnapshot {
+	return {
+		state: 'available',
+		rules,
+		ceiling: overrides?.ceiling ?? openCeiling,
+		resolvedScopes,
+		failedProviders: overrides?.failedProviders ?? [],
+	};
+}
+
+// ---- Terminal -------------------------------------------------------------
+
+/** What ships today: only the managed layer is readable, so the rest is named as unread. */
+const terminalManagedOnly = available(
+	[
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'rm -rf *', ChatPermissionEffect.Deny, ChatPermissionScope.Managed),
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'sudo *', ChatPermissionEffect.Deny, ChatPermissionScope.Managed),
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'git push *', ChatPermissionEffect.Ask, ChatPermissionScope.Managed),
+	],
+	[ChatPermissionScope.Managed],
+	{ ceiling: { ...openCeiling, bypassRestriction: 'disable' } },
+);
+
+/** The shape the UI takes once the runtime reports every layer, including a shadowed rule. */
+const terminalAllScopes = available(
+	[
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'rm -rf *', ChatPermissionEffect.Deny, ChatPermissionScope.Managed),
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'git push *', ChatPermissionEffect.Ask, ChatPermissionScope.Managed),
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'npm run *', ChatPermissionEffect.Allow, ChatPermissionScope.Config),
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'git push *', ChatPermissionEffect.Allow, ChatPermissionScope.Config, {
 			shadowedBy: { scope: ChatPermissionScope.Managed, effect: ChatPermissionEffect.Ask },
 		}),
-		rule('5', 'Shell', 'git status', ChatPermissionEffect.Allow, ChatPermissionScope.Location, { editable: true }),
-		rule('6', 'Shell', 'ls', ChatPermissionEffect.Allow, ChatPermissionScope.Session, { editable: true }),
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'git status', ChatPermissionEffect.Allow, ChatPermissionScope.Location),
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'ls', ChatPermissionEffect.Allow, ChatPermissionScope.Session),
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'echo *', ChatPermissionEffect.Allow, ChatPermissionScope.Editor),
 	],
-	ceiling: { mode: 'manual', bypassRestriction: 'allowAutoOnly', failClosed: false, allowIntersected: true },
-	resolvedScopes: [
+	[
 		ChatPermissionScope.Managed,
 		ChatPermissionScope.Config,
 		ChatPermissionScope.Location,
 		ChatPermissionScope.Session,
+		ChatPermissionScope.Editor,
 	],
-	failedProviders: [],
-};
+	{ ceiling: { ...openCeiling, bypassRestriction: 'allowAutoOnly', allowIntersected: true } },
+);
 
-const partialFailure: ChatPermissionSnapshot = {
-	...managedOnly,
-	failedProviders: [{ provider: 'claude', message: 'probe timed out' }],
-};
+/** One provider answered and one did not: rules are shown, but flagged as incomplete. */
+const terminalPartialFailure = available(
+	terminalManagedOnly.state === 'available' ? terminalManagedOnly.rules : [],
+	[ChatPermissionScope.Managed],
+	{ failedProviders: [{ provider: 'claude', message: 'probe timed out' }] },
+);
 
-const unavailable: ChatPermissionSnapshot = {
-	state: 'unavailable',
-	reason: ChatPermissionUnavailableReason.NotSupported,
-};
+/** Policy could not be confirmed, so the most restrictive behavior applies. */
+const terminalFailClosed = available(
+	[],
+	[ChatPermissionScope.Managed],
+	{ ceiling: { mode: 'manual', bypassRestriction: 'disable', failClosed: true, allowIntersected: false } },
+);
+
+/** Long arguments must ellipsize rather than push the effect pill out of view. */
+const terminalLongPatterns = available(
+	[
+		rule(ChatPermissionDomainId.Terminal, 'Shell', 'docker run --rm -it --volume /very/long/host/path:/container/path --env-file ./config/.env.production ghcr.io/example/image:latest', ChatPermissionEffect.Ask, ChatPermissionScope.Managed),
+		rule(ChatPermissionDomainId.Terminal, 'Shell', undefined, ChatPermissionEffect.Deny, ChatPermissionScope.Managed),
+	],
+	[ChatPermissionScope.Managed],
+);
+
+// ---- Files ----------------------------------------------------------------
+
+/** Every path anchor the rule DSL understands, plus the read/write split. */
+const filesAllRoots = available(
+	[
+		rule(ChatPermissionDomainId.Files, 'Read', '//etc/hosts', ChatPermissionEffect.Deny, ChatPermissionScope.Managed),
+		rule(ChatPermissionDomainId.Files, 'Read', '**/.env*', ChatPermissionEffect.Deny, ChatPermissionScope.Managed),
+		rule(ChatPermissionDomainId.Files, 'Write', '/src/**', ChatPermissionEffect.Allow, ChatPermissionScope.Config),
+		rule(ChatPermissionDomainId.Files, 'Read', '~/Notes/**', ChatPermissionEffect.Allow, ChatPermissionScope.Config),
+		rule(ChatPermissionDomainId.Files, 'Write', './build/**', ChatPermissionEffect.Ask, ChatPermissionScope.Location),
+	],
+	[ChatPermissionScope.Managed, ChatPermissionScope.Config, ChatPermissionScope.Location],
+);
+
+// ---- Network --------------------------------------------------------------
+
+const networkRules = available(
+	[
+		rule(ChatPermissionDomainId.Network, 'Domain', '*.internal.corp', ChatPermissionEffect.Deny, ChatPermissionScope.Managed),
+		rule(ChatPermissionDomainId.Network, 'Domain', '*.prod.corp', ChatPermissionEffect.Ask, ChatPermissionScope.Managed),
+		rule(ChatPermissionDomainId.Network, 'Domain', 'github.com/*', ChatPermissionEffect.Allow, ChatPermissionScope.Config),
+	],
+	[ChatPermissionScope.Managed, ChatPermissionScope.Config],
+);
+
+// ---- Non-rule states ------------------------------------------------------
+
+const loading: ChatPermissionSnapshot = { state: 'loading' };
+const failed: ChatPermissionSnapshot = { state: 'error', message: 'copilot: Copilot runtime diagnostics exceeded 4.5 seconds while querying native MDM.' };
+const unavailableNotSupported: ChatPermissionSnapshot = { state: 'unavailable', reason: ChatPermissionUnavailableReason.NotSupported };
+const unavailableDisabled: ChatPermissionSnapshot = { state: 'unavailable', reason: ChatPermissionUnavailableReason.AgentHostDisabled };
+const unavailableNoAgentHost: ChatPermissionSnapshot = { state: 'unavailable', reason: ChatPermissionUnavailableReason.NoAgentHost };
 
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
-	PermissionsSectionManagedOnly: defineComponentFixture({ render: ctx => render(ctx, managedOnly) }),
-	PermissionsSectionAllScopes: defineComponentFixture({ render: ctx => render(ctx, allScopes) }),
-	PermissionsSectionPartialFailure: defineComponentFixture({ render: ctx => render(ctx, partialFailure) }),
-	PermissionsSectionUnavailable: defineComponentFixture({ render: ctx => render(ctx, unavailable) }),
+	// Terminal — the reference domain, covering the rule-list states.
+	PermissionsTerminalManagedOnly: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, terminalManagedOnly),
+	}),
+	PermissionsTerminalAllScopes: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, terminalAllScopes),
+	}),
+	PermissionsTerminalPartialFailure: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, terminalPartialFailure),
+	}),
+	/** A resolved scope with no rules — distinct from a scope that could not be read. */
+	PermissionsTerminalEmptyScope: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, terminalFailClosed),
+	}),
+	/** Filtering with no matches must not read as "no policy exists". */
+	PermissionsTerminalNoMatches: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, terminalManagedOnly, { initialFilter: 'kubectl' }),
+	}),
+	PermissionsTerminalLongPatterns: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, terminalLongPatterns),
+	}),
+
+	// The other two domains, whose arguments render differently.
+	PermissionsFilesAllRoots: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Files, filesAllRoots),
+	}),
+	PermissionsNetwork: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Network, networkRules),
+	}),
+
+	// States that replace the rule list entirely.
+	PermissionsLoading: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, loading),
+	}),
+	PermissionsError: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, failed),
+	}),
+	PermissionsUnavailableNotSupported: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, unavailableNotSupported),
+	}),
+	PermissionsUnavailableAgentHostDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, unavailableDisabled),
+	}),
+	PermissionsUnavailableNoAgentHost: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => render(ctx, ChatPermissionDomainId.Terminal, unavailableNoAgentHost),
+	}),
 });
 
-function render({ container, disposableStore, theme }: ComponentFixtureContext, snapshot: ChatPermissionSnapshot): void {
+function render(
+	{ container, disposableStore, theme }: ComponentFixtureContext,
+	domainId: ChatPermissionDomainId,
+	snapshot: ChatPermissionSnapshot,
+	options?: { initialFilter?: string },
+): void {
 	container.style.width = '760px';
 	container.style.height = '520px';
 
@@ -110,5 +247,5 @@ function render({ container, disposableStore, theme }: ComponentFixtureContext, 
 		},
 	});
 
-	disposableStore.add(instantiationService.createInstance(ChatPermissionsSectionWidget, container, terminalDomain));
+	disposableStore.add(instantiationService.createInstance(ChatPermissionsSectionWidget, container, domain(domainId), options));
 }

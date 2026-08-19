@@ -59,12 +59,22 @@
 	text-overflow: ellipsis;
 }
 
+/* A family-wide rule has no pattern, so its stand-in reads as prose rather than as code. */
+.chat-permissions-section .chat-permissions-rule-all {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 /*
  * A rule a higher-authority layer overrides. Both the pattern and its verdict are de-emphasized:
  * the stated effect does not apply, so showing it at full strength would misrepresent it.
  */
 .chat-permissions-section .chat-permissions-rule.shadowed .chat-permissions-rule-kind,
-.chat-permissions-section .chat-permissions-rule.shadowed .chat-permissions-rule-argument {
+.chat-permissions-section .chat-permissions-rule.shadowed .chat-permissions-rule-argument,
+.chat-permissions-section .chat-permissions-rule.shadowed .chat-permissions-rule-all {
 	text-decoration: line-through;
 	opacity: 0.7;
 }

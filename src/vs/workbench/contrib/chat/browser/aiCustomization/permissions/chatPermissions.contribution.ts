@@ -30,6 +30,6 @@ for (const [section, domainId] of PERMISSION_SECTION_DOMAINS) {
 		// Permission state comes from the runtime rather than from a harness's own customization
 		// store, so every harness shows the same sections.
 		supportsHarness: () => true,
-		create: (instantiationService, container) => instantiationService.createInstance(ChatPermissionsSectionWidget, container, domain),
+		create: (instantiationService, container) => instantiationService.createInstance(ChatPermissionsSectionWidget, container, domain, undefined),
 	});
 }
