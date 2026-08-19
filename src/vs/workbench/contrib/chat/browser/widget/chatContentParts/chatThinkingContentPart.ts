@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { extractCodeblockUrisFromText } from '../../../common/widget/annotations.js';
@@ -172,6 +172,12 @@ function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
 function extractTitleFromThinkingContent(content: string): string | undefined {
 	const headerMatch = content.match(/^\*\*([^*]+)\*\*/);
 	return headerMatch ? headerMatch[1] : undefined;
+}
+
+type ChatThinkingTitle = string | IMarkdownString;
+
+function getThinkingTitleValue(title: ChatThinkingTitle): string {
+	return typeof title === 'string' ? title : title.value;
 }
 
 /**
@@ -354,7 +360,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private lastKnownScrollTop: number = 0;
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
-	private collapsedTitleBeforeExpansion: string | undefined;
+	private lastRenderedTitle: ChatThinkingTitle | undefined;
+	private collapsedTitleBeforeExpansion: ChatThinkingTitle | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
 	private readonly _pendingExternalResources = new Map<string, IChatToolInvocation | IChatToolInvocationSerialized>();
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
@@ -552,13 +559,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				const expanded = this.isExpanded();
 				if (expanded) {
 					// Just expanded: show plain 'Working' with no detail
-					this.collapsedTitleBeforeExpansion = this.lastExtractedTitle;
+					this.collapsedTitleBeforeExpansion = this.lastRenderedTitle ?? this.lastExtractedTitle;
 					this.setTitle(this.defaultTitle, true);
 					this.currentTitle = this.defaultTitle;
 				} else {
 					// Restore the title that was visible before expansion. Tool state
 					// updates can become less descriptive while the section is open.
-					const collapsedTitle = this.collapsedTitleBeforeExpansion ?? this.lastExtractedTitle;
+					const collapsedTitle = this.collapsedTitleBeforeExpansion ?? this.lastRenderedTitle ?? this.lastExtractedTitle;
 					this.collapsedTitleBeforeExpansion = undefined;
 					if (collapsedTitle) {
 						this.setTitle(collapsedTitle);
@@ -2000,19 +2007,21 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		let toolCallLabel: string;
+		let toolCallTitle: ChatThinkingTitle;
 
 		const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
 		if (isToolInvocation && toolInvocationOrMarkdown.invocationMessage) {
-			const message = typeof toolInvocationOrMarkdown.invocationMessage === 'string' ? toolInvocationOrMarkdown.invocationMessage : toolInvocationOrMarkdown.invocationMessage.value;
+			const invocationMessage = toolInvocationOrMarkdown.invocationMessage;
 
 			// For edit-type tools that are still streaming, use a friendlier label
 			// instead of the generic tool display name (e.g. "Replace String in File")
 			const isStreamingEditTool = toolInvocationOrMarkdown.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(toolInvocationOrMarkdown) && isGenericEditToolId(toolInvocationOrMarkdown.toolId);
 			if (isStreamingEditTool) {
-				toolCallLabel = localize('chat.thinking.editingFiles', 'Editing files');
+				toolCallTitle = localize('chat.thinking.editingFiles', 'Editing files');
 			} else {
-				toolCallLabel = message;
+				toolCallTitle = invocationMessage;
 			}
+			toolCallLabel = getThinkingTitleValue(toolCallTitle);
 
 			this.toolInvocations.push(toolInvocationOrMarkdown);
 
@@ -2040,7 +2049,8 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				const toolStore = new DisposableStore();
 				this.toolDisposables.set(toolInvocationOrMarkdown.toolCallId, toolStore);
 
-				const updateTitle = (updatedMessage: string) => {
+				const updateTitle = (updatedTitle: ChatThinkingTitle) => {
+					const updatedMessage = getThinkingTitleValue(updatedTitle);
 					if (updatedMessage && updatedMessage !== currentToolLabel) {
 						// replace old title if exists, otherwise add new
 						const oldIndex = this.extractedTitles.indexOf(currentToolLabel);
@@ -2056,12 +2066,14 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 							this.extractedTitles.push(updatedMessage);
 						}
 						currentToolLabel = updatedMessage;
+						toolCallLabel = updatedMessage;
+						toolCallTitle = updatedTitle;
 						this.toolLabelsByCallId.set(toolCallId, updatedMessage);
 						this.lastExtractedTitle = updatedMessage;
 
 						// make sure not to set title if expanded
 						if (!this.fixedScrollingMode && !this._isExpanded.read(undefined)) {
-							this.setTitle(updatedMessage);
+							this.setTitle(updatedTitle);
 						}
 					}
 				};
@@ -2124,8 +2136,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 						isStreaming = true;
 						const streamingMessage = currentState.streamingMessage.read(reader);
 						if (streamingMessage) {
-							const updatedMessage = typeof streamingMessage === 'string' ? streamingMessage : streamingMessage.value;
-							updateTitle(updatedMessage);
+							updateTitle(streamingMessage);
 						}
 						return;
 					}
@@ -2134,13 +2145,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 					if (currentState.type === IChatToolInvocation.StateKind.Executing) {
 						const progressData = currentState.progress.read(reader);
 						if (progressData.message) {
-							const updatedMessage = typeof progressData.message === 'string' ? progressData.message : progressData.message.value;
-							updateTitle(updatedMessage);
+							updateTitle(progressData.message);
 						} else {
 							const invocationMsg = toolInvocationOrMarkdown.invocationMessage;
 							if (invocationMsg) {
-								const updatedMessage = typeof invocationMsg === 'string' ? invocationMsg : invocationMsg.value;
-								updateTitle(updatedMessage);
+								updateTitle(invocationMsg);
 							}
 						}
 						return;
@@ -2149,8 +2158,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 					// confirmations, failures, completed, other, etc
 					const invocationMsg = toolInvocationOrMarkdown.invocationMessage;
 					if (invocationMsg) {
-						const updatedMessage = typeof invocationMsg === 'string' ? invocationMsg : invocationMsg.value;
-						updateTitle(updatedMessage);
+						updateTitle(invocationMsg);
 					}
 				});
 				toolStore.add(autorunDisposable);
@@ -2163,6 +2171,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			} else {
 				toolCallLabel = localize('chat.thinking.editingFile', 'Edited file');
 			}
+			toolCallTitle = toolCallLabel;
 		} else if (toolInvocationOrMarkdown?.kind === 'externalEdit') {
 			const filename = basename(toolInvocationOrMarkdown.uri);
 			switch (toolInvocationOrMarkdown.editKind) {
@@ -2179,8 +2188,10 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 					toolCallLabel = localize('chat.thinking.editedFile', 'Edited {0}', filename);
 					break;
 			}
+			toolCallTitle = toolCallLabel;
 		} else {
 			toolCallLabel = toolInvocationId;
+			toolCallTitle = toolCallLabel;
 		}
 
 		// Add tool call to extracted titles for LLM title generation
@@ -2191,7 +2202,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.lastExtractedTitle = toolCallLabel;
 
 		if (!this.fixedScrollingMode && !this._isExpanded.get()) {
-			this.setTitle(toolCallLabel);
+			this.setTitle(toolCallTitle);
 		}
 	}
 
@@ -2424,8 +2435,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.updateDropdownClickability();
 	}
 
-	protected override setTitle(title: string, omitPrefix?: boolean): void {
-		if (!title || this.element.isComplete) {
+	protected override setTitle(title: ChatThinkingTitle, omitPrefix?: boolean): void {
+		const titleValue = getThinkingTitleValue(title);
+		if (!titleValue || this.element.isComplete) {
 			return;
 		}
 
@@ -2434,21 +2446,21 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				const labelElement = this._collapseButton.labelElement;
 				labelElement.textContent = '';
 				const plainSpan = $('span');
-				plainSpan.textContent = title;
+				plainSpan.textContent = titleValue;
 				labelElement.appendChild(plainSpan);
-				this._collapseButton.element.ariaLabel = title;
+				this._collapseButton.element.ariaLabel = titleValue;
 			}
 			this.titleShimmerSpan = undefined;
 			this.titleDetailContainer = undefined;
 			this._titleDetailRendered.clear();
 			this._titleFileWidgetStore.clear();
-			this.currentTitle = title;
+			this.currentTitle = titleValue;
 			return;
 		}
 
-		this.lastExtractedTitle = title;
-		const thinkingLabel = localize('chat.thinking.label', "{0}: {1}", this.defaultTitle, title);
-		this.currentTitle = thinkingLabel;
+		this.lastExtractedTitle = titleValue;
+		this.lastRenderedTitle = title;
+		this.currentTitle = localize('chat.thinking.label', "{0}: {1}", this.defaultTitle, titleValue);
 
 		if (!this._collapseButton) {
 			return;
@@ -2468,7 +2480,8 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this._titleDetailRendered.clear();
 		this._titleFileWidgetStore.clear();
 
-		const result = this.chatContentMarkdownRenderer.render(new MarkdownString(title));
+		const markdownTitle = typeof title === 'string' ? new MarkdownString(title) : title;
+		const result = this.chatContentMarkdownRenderer.render(markdownTitle);
 		result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._titleFileWidgetStore);
 		this._titleDetailRendered.value = result;
@@ -2481,6 +2494,8 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 		this.titleDetailContainer = result.element;
 
+		const renderedTitle = result.element.textContent?.trim() || titleValue;
+		const thinkingLabel = localize('chat.thinking.label', "{0}: {1}", this.defaultTitle, renderedTitle);
 		this._collapseButton.element.ariaLabel = thinkingLabel;
 		this._collapseButton.element.ariaExpanded = String(this.isExpanded());
 	}

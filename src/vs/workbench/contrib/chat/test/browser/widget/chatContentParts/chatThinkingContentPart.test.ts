@@ -23,8 +23,8 @@ import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextMode
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ChatConfiguration, ThinkingDisplayMode } from '../../../../common/constants.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -1688,7 +1688,7 @@ suite('ChatThinkingContentPart', () => {
 			} as IChatToolInvocation;
 		}
 
-		function createMockExecutingToolInvocation(toolId: string, invocationMessage: string, toolCallId: string): IChatToolInvocation {
+		function createMockExecutingToolInvocation(toolId: string, invocationMessage: string | IMarkdownString, toolCallId: string): IChatToolInvocation {
 			return {
 				kind: 'toolInvocation',
 				toolId,
@@ -2045,6 +2045,43 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(button, 'Should have collapse button');
 			const labelText = button.querySelector('.icon-label')?.textContent ?? button.textContent ?? '';
 			assert.ok(labelText.includes('Replacing 5 lines in file.ts'), `Title should contain "Replacing 5 lines in file.ts" but got "${labelText}"`);
+		});
+
+		test('should preserve markdown file pills in the thinking header', () => {
+			const markdownRenderer: IMarkdownRenderer = {
+				render: (markdown, options) => renderMarkdown(markdown, options),
+			};
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Working**'),
+				createMockRenderContext(false),
+				markdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const invocationMessage = new MarkdownString('Edit [](claudeAgent.ts)');
+			invocationMessage.baseUri = URI.file('/workspace/');
+			const editTool = createMockExecutingToolInvocation('edit', invocationMessage, 'call-markdown');
+			part.appendItem(() => ({ domNode: $('div.test-item') }), editTool.toolId, editTool);
+
+			const button = part.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+			const initialPill = button?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+			button?.click();
+			button?.click();
+			const restoredPill = button?.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label');
+
+			assert.deepStrictEqual({
+				initialPill: initialPill?.textContent,
+				restoredPill: restoredPill?.textContent,
+				ariaLabel: button?.ariaLabel,
+			}, {
+				initialPill: 'claudeAgent.ts',
+				restoredPill: 'claudeAgent.ts',
+				ariaLabel: 'Working: Edit claudeAgent.ts',
+			});
 		});
 
 		test('should keep original message for create_file tool even when streaming', () => {
