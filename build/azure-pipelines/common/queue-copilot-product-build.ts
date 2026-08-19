@@ -13,6 +13,7 @@ interface ProductBuildRequest {
 		readonly VSCODE_CLI_CANARY_VERSION: string;
 		readonly VSCODE_PUBLISH: boolean;
 		readonly VSCODE_RELEASE: boolean;
+		readonly VSCODE_RUN_ARTIFACT_SANITY_TESTS: boolean;
 	};
 }
 
@@ -69,6 +70,7 @@ export function createProductBuildRequest(options: QueueOptions): ProductBuildRe
 			VSCODE_CLI_CANARY_VERSION: options.runtimeVersion,
 			VSCODE_PUBLISH: options.publish,
 			VSCODE_RELEASE: options.release,
+			VSCODE_RUN_ARTIFACT_SANITY_TESTS: !options.publish,
 		},
 	};
 }

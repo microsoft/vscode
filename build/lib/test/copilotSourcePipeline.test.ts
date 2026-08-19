@@ -192,6 +192,7 @@ suite('Copilot source pipeline', () => {
 				VSCODE_CLI_CANARY_VERSION: '0.0.0-vscode.123',
 				VSCODE_PUBLISH: false,
 				VSCODE_RELEASE: false,
+				VSCODE_RUN_ARTIFACT_SANITY_TESTS: true,
 			},
 		});
 	});
