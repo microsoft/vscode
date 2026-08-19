@@ -9,6 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -90,6 +91,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			createdAt: now,
 			modifiedAt: now,
 		});
+		const metadata = withEphemeralSessionMeta(request._meta, request.isEphemeral ? true : undefined);
+		if (metadata) {
+			this._provisional.setSessionCreationMetadata(item.resource, metadata);
+		}
 
 		// Bridge any pre-creation provisional session the user built up
 		// against the untitled chat-input URI to the freshly-minted real
