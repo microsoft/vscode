@@ -76,10 +76,7 @@ const DEFAULT_WAKING_RETRY_AFTER_SECONDS = 5;
 /** How many recent tasks to scan for sandbox sessions during discovery, per page. */
 const DISCOVERY_TASK_SCAN_LIMIT = 100;
 
-/**
- * Ceiling on discovery pages, so a large task history cannot make discovery unbounded. Reaching it
- * with a full page means tasks went unscanned, which downgrades the result to `partial`.
- */
+/** Bounds sequential page fetches. Hitting it leaves tasks unscanned, so the result is `partial`. */
 const DISCOVERY_TASK_PAGE_LIMIT = 10;
 
 /** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
@@ -141,22 +138,20 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * Enumerate sandbox-backed cloud sessions by scanning recent tasks and resolving each one's
 	 * Mission Control environment binding.
 	 *
-	 * The result distinguishes a full scan from a partial or failed one: a caller that reconciles
-	 * against this list would otherwise treat a transient request failure as "these sessions no
-	 * longer exist" and tear down live providers. A truncated scan is `partial` for the same
-	 * reason — the tasks it never looked at are indistinguishable from tasks that are gone.
+	 * Only a `complete` result may be reconciled against: a partial or truncated scan is missing
+	 * entries that still exist.
 	 */
 	async listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult> {
 		const tasks: ITaskSummary[] = [];
 		let truncated = false;
 		for (let page = 1; page <= DISCOVERY_TASK_PAGE_LIMIT; page++) {
 			let batch: readonly ITaskSummary[];
+			let hasNextPage: boolean;
 			try {
 				const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks?per_page=${DISCOVERY_TASK_SCAN_LIMIT}&page=${page}`, 'list', token);
 				const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
 				if (!response?.tasks) {
-					// Nothing usable came back. A later page failing still leaves the earlier ones
-					// worth seeding, so only give up outright when the first one does.
+					// Earlier pages are still worth seeding, so only fail outright on the first.
 					if (page === 1) {
 						return { kind: 'failed', reason: `listTasks returned no 'tasks' array` };
 					}
@@ -164,6 +159,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					break;
 				}
 				batch = response.tasks;
+				hasNextPage = hasNextLink(context.res.headers?.['link']);
 			} catch (error) {
 				if (page === 1) {
 					return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
@@ -173,9 +169,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				break;
 			}
 			tasks.push(...batch);
-			// A short page is the last one. A full page means there may be more, and hitting the
-			// ceiling with one still full leaves tasks unscanned.
-			if (batch.length < DISCOVERY_TASK_SCAN_LIMIT) {
+			if (!hasNextPage) {
 				break;
 			}
 			if (page === DISCOVERY_TASK_PAGE_LIMIT) {
@@ -226,12 +220,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	/**
-	 * Provision a sandbox task bound to an on-demand environment.
-	 *
-	 * The `environment_id` sentinel is what separates this from a regular cloud task: Mission
-	 * Control provisions a VM for it and binds a session, but starts no run — so the caller owns
-	 * sending the first turn over the relay. The bound environment on the returned session is the
-	 * real VM, not the sentinel, and is the only id the relay can address.
+	 * Provision a sandbox task bound to an on-demand environment. Mission Control provisions a VM
+	 * and binds a session but starts no run, so the caller sends the first turn over the relay.
+	 * The environment on the returned session is the real VM, not the sentinel.
 	 */
 	async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
 		const repository = parseNwo(request.repoNwo);
@@ -240,8 +231,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, REQUEST_TIMEOUT_MS, {
 			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
-			// Persisted on the session as its first turn, so a reload that replays history from
-			// Mission Control shows the prompt even though no run was started for it.
+			// Persisted for display, so replayed history shows the prompt no run was started for.
 			prompt: request.prompt,
 			...(repository && { repositories: [repository] }),
 		});
@@ -529,17 +519,19 @@ function parseRetryAfter(value: string | string[] | undefined): number {
  * Whether a task is a cloud sandbox task: owned by {@link CLOUD_SANDBOX_AGENT_SLUG} and running on
  * the `sandboxes` compute provider. Reads list-level fields only.
  *
- * ⚠️ The slug half of this test must be settled before `chat.agentHost.cloudSandbox.enabled` is
- * turned on for anyone. Sandbox tasks are expected to move under a different agent slug (see
- * {@link CLOUD_SANDBOX_AGENT_SLUG}), and because both halves are required, that migration would
- * make discovery return *zero* sessions — silently, since an empty scan is a valid `complete`
- * result. `compute.provider` is the durable signal; Mission Control also now reports
- * `current_environment.kind === 'managed-sandbox'` on list payloads, which names the same property
- * semantically. Either is a better primary test than the slug.
+ * The slug half must be settled before `chat.agentHost.cloudSandbox.enabled` is turned on: sandbox
+ * tasks are expected to move to a different slug, which would silently make discovery return
+ * nothing. `compute.provider` is the durable test.
  */
 function isCloudSandboxTask(task: ITaskSummary): boolean {
 	const isCloudCodingAgent = task.agent_collaborators?.some(c => c.slug === CLOUD_SANDBOX_AGENT_SLUG) ?? false;
 	return isCloudCodingAgent && task.compute?.provider === 'sandboxes';
+}
+
+/** Whether a `Link` header advertises another page (`rel="next"`). */
+function hasNextLink(value: string | string[] | undefined): boolean {
+	const raw = Array.isArray(value) ? value.join(',') : value;
+	return raw ? /rel="?next"?/.test(raw) : false;
 }
 
 /** Split an `owner/name` into the pair Mission Control expects, or `undefined` when unusable. */

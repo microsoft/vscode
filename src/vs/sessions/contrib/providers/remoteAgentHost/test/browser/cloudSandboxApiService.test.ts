@@ -19,9 +19,9 @@ import { IAuthenticationService } from '../../../../../../workbench/services/aut
 import { CloudSandboxApiService } from '../../browser/cloudSandboxApiService.js';
 import { ICloudSandboxTelemetryService } from '../../browser/cloudSandboxTelemetry.js';
 
-function jsonResponse(body: unknown, statusCode = 200): IRequestContext {
+function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
 	return {
-		res: { headers: {}, statusCode },
+		res: { headers, statusCode },
 		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
 	};
 }
@@ -47,6 +47,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly tasks: readonly unknown[];
 	/** Repository id -> response, or 'error' to fail the lookup. */
 	readonly repositories: ReadonlyMap<number, { full_name?: string } | 'error'>;
+	/** Serve page 1 with fewer rows than requested while still advertising `rel="next"`. */
+	readonly shortFirstPage?: boolean;
 }): ITestSetup {
 	const requestedUrls: string[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
@@ -67,10 +69,18 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 				const id = url.split('/').pop()!;
 				return jsonResponse(options.tasks.find(t => (t as { id: string }).id === decodeURIComponent(id)));
 			}
-			// Paginate like Mission Control does, so a scan that spans pages is exercised.
+			// Paginate like Mission Control does, advertising further pages via the `Link` header.
 			const perPage = Number(url.match(/[?&]per_page=(\d+)/)?.[1] ?? options.tasks.length);
 			const page = Number(url.match(/[?&]page=(\d+)/)?.[1] ?? 1);
-			return jsonResponse({ tasks: options.tasks.slice((page - 1) * perPage, page * perPage) });
+			if (options.shortFirstPage && page === 1) {
+				return jsonResponse({ tasks: [] }, 200, { link: `<https://api.github.com/agents/tasks?page=2&per_page=${perPage}>; rel="next"` });
+			}
+			const slice = options.shortFirstPage ? options.tasks : options.tasks.slice((page - 1) * perPage, page * perPage);
+			const hasNext = !options.shortFirstPage && page * perPage < options.tasks.length;
+			const link = hasNext
+				? `<https://api.github.com/agents/tasks?page=${page + 1}&per_page=${perPage}>; rel="next"`
+				: `<https://api.github.com/agents/tasks?page=${page}&per_page=${perPage}>; rel="last"`;
+			return jsonResponse({ tasks: slice }, 200, { link });
 		}
 	}());
 	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -183,6 +193,28 @@ suite('CloudSandboxApiService repository resolution', () => {
 		assert.deepStrictEqual({
 			kind: result.kind,
 			found: result.kind === 'failed' ? [] : result.sessions.filter(s => s.sessionId === 'sess-old').map(s => s.sessionId),
+			listPages: requestedUrls.filter(u => /[?&]per_page=/.test(u)).length,
+		}, {
+			kind: 'complete',
+			found: ['sess-old'],
+			listPages: 2,
+		});
+	});
+
+	test('follows the Link header past a short page', async () => {
+		// Mission Control can return fewer rows than asked for and still advertise a next page, so
+		// page length must not be used to detect the end.
+		const { service, requestedUrls } = createService(store, {
+			tasks: [task('task-old', 'older sandbox', undefined, 'sess-old', 'env-old')],
+			repositories: new Map(),
+			shortFirstPage: true,
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			found: result.kind === 'failed' ? [] : result.sessions.map(s => s.sessionId),
 			listPages: requestedUrls.filter(u => /[?&]per_page=/.test(u)).length,
 		}, {
 			kind: 'complete',
