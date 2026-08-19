@@ -162,9 +162,9 @@ export class ChatGroupsView extends Themable {
 		};
 		store.add(this._instantiationService.createInstance(ChatGroupDropTarget, this.element, dropDelegate));
 
-		store.add(autorun(reader => this._reconcile(reader)));
-
+		// Reconciliation may query adjacent views, which requires the new grid's first layout.
 		this._applyLayout();
+		store.add(autorun(reader => this._reconcile(reader)));
 	}
 
 	private _createSingleGroupGrid(session: IActiveSession, store: DisposableStore): SerializableGrid<ChatGroupView> {

@@ -165,6 +165,30 @@ suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const options = { renderSessionTypePickerInControls: constObservable(false) };
 
+	test('opens a session with an active child chat after initial layout', () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, child]);
+		session.activeChat.set(child, undefined);
+		view.layout(800, 600, 0, 0);
+
+		view.setSession(session, options);
+		view.focus();
+
+		assert.deepStrictEqual({
+			renderedKind: view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind,
+			focusedKind: mainWindow.document.activeElement?.closest<HTMLElement>('.chat-view')?.dataset.kind,
+			activeTab: view.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
+			tabs: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
+		}, {
+			renderedKind: 'chat',
+			focusedKind: 'chat',
+			activeTab: child.resource.toString(),
+			tabs: [main.resource.toString(), child.resource.toString()],
+		});
+	});
+
 	test('focusing another group updates the session active chat', () => {
 		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
