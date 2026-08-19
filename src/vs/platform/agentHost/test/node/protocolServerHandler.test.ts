@@ -145,6 +145,7 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
+	readonly getSessionStateFileCalls: string[] = [];
 	readonly collectDebugLogsCalls: { session: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
@@ -218,6 +219,10 @@ class MockAgentService implements IAgentService {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
+	async getSessionStateFile(session: URI): Promise<URI | undefined> {
+		this.getSessionStateFileCalls.push(session.toString());
+		return URI.file('/state/sdk-session/events.jsonl');
+	}
 	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory') {
 		this.collectDebugLogsCalls.push({ session: session?.toString(), kind });
 		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
@@ -641,6 +646,42 @@ suite('ProtocolServerHandler', () => {
 				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
 			},
 			calls: [{ session: 'copilotcli:/session-1', kind: 'archive' }],
+		});
+	});
+
+	test('gets an Agent Host session state file through the extension request', async () => {
+		const transport = connectClient('client-session-state-file');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 17);
+
+		transport.simulateMessage(request(17, 'vscode/getAgentHostSessionStateFile', {
+			session: 'copilotcli:/session-1',
+		}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.getSessionStateFileCalls,
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 17,
+				result: { resource: 'file:///state/sdk-session/events.jsonl' },
+			},
+			calls: ['copilotcli:/session-1'],
+		});
+	});
+
+	test('rejects a non-string Agent Host session state file session', async () => {
+		const transport = connectClient('client-session-state-file-invalid');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 18);
+
+		transport.simulateMessage(request(18, 'vscode/getAgentHostSessionStateFile', { session: 123 }));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 18,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a URI string' },
 		});
 	});
 

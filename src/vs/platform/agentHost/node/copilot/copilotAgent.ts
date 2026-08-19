@@ -2226,6 +2226,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return true;
 	}
 
+	async getSessionStateFile(session: URI): Promise<URI | undefined> {
+		const resource = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', this._sdkConversationId(session), 'events.jsonl'));
+		return await this._fileService.exists(resource) ? resource : undefined;
+	}
+
 	private _copilotChatDiscovery: Promise<void> | undefined;
 	private readonly _copilotChatDiscoverySequencer = new Sequencer();
 	private readonly _discoveredChats = new Map<string, { readonly signature: string; readonly external: boolean }>();

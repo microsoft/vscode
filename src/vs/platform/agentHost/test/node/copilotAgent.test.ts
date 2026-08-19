@@ -1049,6 +1049,29 @@ suite('CopilotAgent', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('resolves the state file from the SDK backing instead of the Agent Host session id', async () => {
+		const { agent, fileService } = createTestAgentContext(disposables, { userHome: URI.file('/home/test') });
+		try {
+			const session = AgentSession.uri('copilotcli', 'agent-host-session-id');
+			chatBackings(agent).set(buildDefaultChatUri(session).toString(), { sdkSessionId: 'sdk-conversation-id' });
+			const stateFile = URI.file('/home/test/.copilot/session-state/sdk-conversation-id/events.jsonl');
+			const provider = disposables.add(new InMemoryFileSystemProvider());
+			disposables.add(fileService.registerProvider(Schemas.file, provider));
+			const beforeCreate = await agent.getSessionStateFile(session);
+			await fileService.createFile(stateFile);
+
+			assert.deepStrictEqual({
+				beforeCreate,
+				afterCreate: (await agent.getSessionStateFile(session))?.toString(),
+			}, {
+				beforeCreate: undefined,
+				afterCreate: 'file:///home/test/.copilot/session-state/sdk-conversation-id/events.jsonl',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('selects provider-native autonomous session config and respects policy', async () => {
 		const { agent, configurationService } = createTestAgentContext(disposables);
 		try {
