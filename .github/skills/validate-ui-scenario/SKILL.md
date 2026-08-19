@@ -1,9 +1,9 @@
 ---
-name: ui-scenario-validation
+name: validate-ui-scenario
 description: Use when reproducing a UI bug or verifying a fix by driving a real VS Code window end to end and capturing evidence. Writes a scenario file, runs it against a dev build or installed Insiders, and produces a captioned video, per-step screenshots, a Playwright trace, and an HTML report to attach to an issue or pull request.
 ---
 
-# UI Scenario Validation
+# Validate UI Scenario
 
 Drives a real VS Code instance through a scenario and records reproducible evidence.
 
@@ -181,12 +181,17 @@ the issue or pull request by dragging it into the comment box.
   skill when a scenario is not yet covered there, or to iterate locally before proposing one.
 
 <example>
-User: "Reproduce https://github.com/microsoft/vscode/issues/250159 against Insiders and record it."
+User: "/validate-ui-scenario reproduce https://github.com/microsoft/vscode/issues/250159 against my
+installed VS Code Insiders, and give me the report and the annotated video."
 
 1. Read the issue and identify the observable claim: searching `chat confirm` in the Settings editor
    should match **Max Requests**, whose description mentions confirmation.
 2. Add a baseline step (`max requests` finds the setting) so a failure cannot be explained by the
    setting being missing from the build.
-3. Write the scenario file, run it with `--build`, and read the printed report path.
-4. Report the outcome and attach `videos/annotated.mp4`.
+3. Write `.build/vscode-playwright-mcp/issue-250159.cjs`, run it with `--build`, and read the
+   printed report path.
+4. Report the outcome per step, link `report.html`, and attach `videos/annotated.mp4`.
+
+The run fails at the search step, and that is the answer: the issue reproduces. Report it as a
+successful reproduction, not as a broken scenario.
 </example>
