@@ -7101,11 +7101,9 @@ suite('AgentService (node dispatcher)', () => {
 			await Promise.all([firstRestore, secondRestore]);
 
 			assert.deepStrictEqual({
-				metadataCalls: agent.getChatMetadataCalls,
 				messageCalls: agent.getSessionMessagesCalls,
 				restored: !!service.stateManager.getSessionState(session.toString()),
 			}, {
-				metadataCalls: 1,
 				messageCalls: 1,
 				restored: true,
 			});

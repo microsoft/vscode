@@ -320,6 +320,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _restoreCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	private readonly _sessionStates: ResourceMap<ISessionState>;
+	private readonly _pendingRestoredChatResources = new ResourceMap<URI>();
 	private readonly _navigation: SessionsNavigation;
 	/**
 	 * The single source of truth for session recency (most-recently-opened
@@ -489,14 +490,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
 		const disposables = new DisposableStore();
-		const initialChatResource = activeSession.activeChat.get().resource;
+		const initialChatResource = activeSession.activeChat.get()?.resource;
 		let pendingRestoredChatResource: URI | undefined;
+		this._pendingRestoredChatResources.delete(activeSession.resource);
 		const storedActiveChatResource = this._sessionStates.get(activeSession.resource)?.activeChatResource;
 		if (storedActiveChatResource) {
 			try {
 				const resource = URI.parse(storedActiveChatResource);
-				if (!this.uriIdentityService.extUri.isEqual(resource, initialChatResource)) {
+				if (!initialChatResource || !this.uriIdentityService.extUri.isEqual(resource, initialChatResource)) {
 					pendingRestoredChatResource = resource;
+					this._pendingRestoredChatResources.set(activeSession.resource, resource);
 				}
 			} catch (error) {
 				this.logService.warn('[SessionsView] Failed to restore active chat from stored session state', error);
@@ -547,6 +550,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					this.uriIdentityService.extUri.isEqual(candidate.resource, resource));
 				if (chat) {
 					pendingRestoredChatResource = undefined;
+					this._pendingRestoredChatResources.delete(activeSession.resource);
 					this._visibility.openChat(activeSession, chat);
 					this._visibility.setActiveChat(activeSession, chat);
 				}
@@ -563,10 +567,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		disposables.add(autorun(reader => {
 			const chat = activeSession.activeChat.read(reader);
 			if (chat && chat.status.read(undefined) !== SessionStatus.Untitled) {
-				if (pendingRestoredChatResource && this.uriIdentityService.extUri.isEqual(chat.resource, initialChatResource)) {
+				if (pendingRestoredChatResource && initialChatResource && this.uriIdentityService.extUri.isEqual(chat.resource, initialChatResource)) {
 					return;
 				}
 				pendingRestoredChatResource = undefined;
+				this._pendingRestoredChatResources.delete(activeSession.resource);
 				const existing = this._sessionStates.get(activeSession.resource);
 				this._sessionStates.set(activeSession.resource, {
 					...existing,
@@ -1124,7 +1129,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const existing = this._sessionStates.get(session.resource);
 			const state: ISessionState = {
 				sessionResource: session.resource.toString(),
-				activeChatResource: session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
+				activeChatResource: this._pendingRestoredChatResources.get(session.resource)?.toString() ?? session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
 				closedChatResources: existing?.closedChatResources ?? session.closedChats.get().map(c => c.resource.toString()),
 				visibleOrder: index,
 				isSticky: session.sticky.get(),

@@ -2876,6 +2876,7 @@ suite('SessionsManagementService', () => {
 			await first.openSession(firstSession.resource);
 			await first.openChat(firstSession, side.resource);
 			await storage.flush();
+			first.dispose();
 
 			const chats = observableValue<readonly IChat[]>('delayedChats', [main]);
 			const restoredSession = stubSession({
@@ -2888,15 +2889,32 @@ suite('SessionsManagementService', () => {
 			});
 			const second = makeView(restoredSession);
 			await second.restoreVisibleSessions();
-			const beforeCatalog = second.activeSession.get()?.activeChat.get().resource.toString();
+			const beforeSave = second.activeSession.get()?.activeChat.get().resource.toString();
+			await storage.flush();
+			second.dispose();
 
-			chats.set([main, side], undefined);
+			const chatsAfterRestart = observableValue<readonly IChat[]>('delayedChatsAfterRestart', [main]);
+			const restartedSession = stubSession({
+				sessionId: 'delayed-active-chat',
+				providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: chatsAfterRestart,
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const third = makeView(restartedSession);
+			await third.restoreVisibleSessions();
+			const afterSaveBeforeCatalog = third.activeSession.get()?.activeChat.get().resource.toString();
+
+			chatsAfterRestart.set([main, side], undefined);
 
 			assert.deepStrictEqual({
-				beforeCatalog,
-				afterCatalog: second.activeSession.get()?.activeChat.get().resource.toString(),
+				beforeSave,
+				afterSaveBeforeCatalog,
+				afterCatalog: third.activeSession.get()?.activeChat.get().resource.toString(),
 			}, {
-				beforeCatalog: main.resource.toString(),
+				beforeSave: main.resource.toString(),
+				afterSaveBeforeCatalog: main.resource.toString(),
 				afterCatalog: side.resource.toString(),
 			});
 		});
