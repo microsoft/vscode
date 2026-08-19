@@ -55,7 +55,7 @@ export function activate(
 
 	// Register features that work in both TSGO and non-TSGO modes
 	import('./languageFeatures/tsconfig').then(module => {
-		context.subscriptions.push(module.register());
+		context.subscriptions.push(module.register(versionProvider, context.workspaceState));
 	});
 
 	// Conditionally register features based on whether TSGO is enabled
