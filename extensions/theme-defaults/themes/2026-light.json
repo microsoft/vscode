@@ -384,7 +384,10 @@
 			}
 		},
 		{
-			"scope": "keyword",
+			"scope": [
+				"keyword",
+				"keyword.control"
+			],
 			"settings": {
 				"foreground": "#cf222e"
 			}
