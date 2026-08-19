@@ -1350,16 +1350,14 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			await this._proxy.$handleInlineCompletionSetProviderOption(this.handle, optionId, valueId);
 		} : undefined;
 
-		this.onDidChangeInlineCompletions = this._supportsOnDidChange || !this._meteredNetworkAware ? this._onDidChangeEmitter.event : undefined;
+		this.onDidChangeInlineCompletions = this._supportsOnDidChange ? this._onDidChangeEmitter.event : undefined;
 		this.onDidChangeModelInfo = this._supportsOnDidChangeModelInfo ? this._onDidChangeModelInfoEmitter.event : undefined;
 		this.onDidProviderOptionsChange = this._supportsOnDidChangeProviderOptions ? this._onDidProviderOptionsChangeEmitter.event : undefined;
 
-		if (!this._meteredNetworkAware) {
-			this._register(Event.filter(this._meteredConnectionService.onDidChangeIsConnectionMetered, isMetered => !isMetered)(() => this._onDidChangeEmitter.fire()));
-		}
-
 		this._register(this._languageFeaturesService.inlineCompletionsProvider.register(this._selector, this));
 	}
+
+	public readonly onDidChangeAvailability = this._meteredNetworkAware ? undefined : Event.signal(this._meteredConnectionService.onDidChangeIsConnectionMetered);
 
 	public _setModelInfo(newModelInfo: languages.IInlineCompletionModelInfo | undefined) {
 		this.modelInfo = newModelInfo;

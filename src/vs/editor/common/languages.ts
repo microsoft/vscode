@@ -954,6 +954,12 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	isAvailable?(context: Pick<InlineCompletionContext, 'triggerKind'>): boolean;
 
 	/**
+	 * Fired when this provider's availability changes.
+	 * @internal
+	 */
+	onDidChangeAvailability?: Event<void>;
+
+	/**
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/

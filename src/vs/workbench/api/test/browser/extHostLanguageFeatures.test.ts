@@ -205,9 +205,9 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.ok(networkProvider);
 		assert.ok(localProvider);
 		assert.ok(delayedProvider);
-		assert.ok(networkProvider.onDidChangeInlineCompletions);
+		assert.ok(networkProvider.onDidChangeAvailability);
 		let networkAvailabilityChanges = 0;
-		disposables.add(networkProvider.onDidChangeInlineCompletions(() => networkAvailabilityChanges++));
+		disposables.add(networkProvider.onDidChangeAvailability(() => networkAvailabilityChanges++));
 
 		const context = (triggerKind: languages.InlineCompletionTriggerKind): languages.InlineCompletionContext => ({
 			triggerKind,
@@ -249,7 +249,7 @@ suite('ExtHostLanguageFeatures', function () {
 			inFlightAfterMetered: inFlightAfterMetered?.items.length,
 		}, {
 			calls: ['local:automatic', 'network:explicit', 'network:automatic', 'delayed:automatic'],
-			networkAvailabilityChanges: 1,
+			networkAvailabilityChanges: 3,
 			networkAutomaticAvailable: false,
 			localAutomaticAvailable: true,
 			networkExplicitAvailable: true,

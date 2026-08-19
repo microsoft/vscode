@@ -64,6 +64,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _noDelaySignal = observableSignal(this);
 
 	private readonly _fetchSpecificProviderSignal = observableSignal<{ provider: InlineCompletionsProvider; changeHint?: IInlineCompletionChangeHint } | undefined>(this);
+	private readonly _providerAvailabilityChangeSignal = observableSignal(this);
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
 	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
@@ -219,13 +220,7 @@ export class InlineCompletionsModel extends Disposable {
 			}
 
 			store.add(provider.onDidChangeInlineCompletions(changeHint => {
-				if (!this._enabled.get()) {
-					return;
-				}
-
-				// Only update the active editor
-				const activeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
-				if (activeEditor !== this._editor) {
+				if (!this.shouldHandleProviderChange()) {
 					return;
 				}
 
@@ -250,7 +245,38 @@ export class InlineCompletionsModel extends Disposable {
 			}));
 		}).recomputeInitiallyAndOnChange(this._store);
 
+		const providerAvailabilityChangeEvents = inlineCompletionProviders.map(providers => [...new Set(providers.map(provider => provider.onDidChangeAvailability).filter(isDefined))]);
+		mapObservableArrayCached(this, providerAvailabilityChangeEvents, (event, store) => {
+			store.add(event(() => {
+				if (!this.shouldHandleProviderChange()) {
+					return;
+				}
+
+				const providerBecameAvailable = inlineCompletionProviders.get().some(provider =>
+					provider.onDidChangeAvailability === event
+					&& provider.isAvailable?.({ triggerKind: InlineCompletionTriggerKind.Automatic }) !== false
+				);
+				if (!providerBecameAvailable) {
+					return;
+				}
+
+				transaction(tx => {
+					this._providerAvailabilityChangeSignal.trigger(tx);
+					this.trigger(tx);
+				});
+			}));
+		}).recomputeInitiallyAndOnChange(this._store);
+
 		this._didUndoInlineEdits.recomputeInitiallyAndOnChange(this._store);
+	}
+
+	private shouldHandleProviderChange(): boolean {
+		if (!this._enabled.get()) {
+			return false;
+		}
+
+		const activeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
+		return activeEditor === this._editor;
 	}
 
 	private _lastShownInlineCompletionInfo: { alternateTextModelVersionId: number; /* already freed! */ inlineCompletion: InlineSuggestionItem } | undefined = undefined;
@@ -363,6 +389,8 @@ export class InlineCompletionsModel extends Disposable {
 					changeSummary.provider = ctx.change?.provider;
 					changeSummary.changeHint = ctx.change?.changeHint;
 					changeSummary.forceUpdate = true;
+				} else if (ctx.didChange(this._providerAvailabilityChangeSignal)) {
+					changeSummary.forceUpdate = true;
 				}
 				return true;
 			},
@@ -375,6 +403,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._onlyRequestInlineEditsSignal.read(reader);
 		this._forceUpdateExplicitlySignal.read(reader);
 		this._fetchSpecificProviderSignal.read(reader);
+		this._providerAvailabilityChangeSignal.read(reader);
 		const shouldUpdate = !this._isSuppressed()
 			&& ((this._enabled.read(reader) && this._selectedSuggestItem.read(reader)) || this._isActive.read(reader))
 			&& (!this._inlineCompletionsService.isSnoozing() || changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit);

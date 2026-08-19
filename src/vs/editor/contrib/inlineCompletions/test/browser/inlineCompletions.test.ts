@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -907,6 +907,46 @@ suite('Multi Cursor Support', () => {
 
 suite('Provider Selection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Availability changes refresh all newly available providers once', async function () {
+		const availabilityChanged = new Emitter<void>();
+		let available = false;
+		const createProvider = (groupId: string) => Object.assign(new MockInlineCompletionsProvider(), {
+			groupId,
+			isAvailable: () => available,
+			onDidChangeAvailability: availabilityChanged.event,
+		});
+		const firstProvider = createProvider('first');
+		const secondProvider = createProvider('second');
+		firstProvider.setReturnValue({ insertText: 'first' });
+		secondProvider.setReturnValue({ insertText: 'second' });
+
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider: firstProvider, inlineSuggest: { enabled: true } },
+			async ({ context, instantiationService, store }) => {
+				store.add(availabilityChanged);
+				const languageFeaturesService = instantiationService.get(ILanguageFeaturesService);
+				store.add(languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, secondProvider));
+
+				context.keyboardType('a');
+				await timeout(1000);
+				firstProvider.getAndClearCallHistory();
+				secondProvider.getAndClearCallHistory();
+
+				available = true;
+				availabilityChanged.fire();
+				await timeout(1000);
+
+				assert.deepStrictEqual({
+					firstProviderCalls: firstProvider.getAndClearCallHistory().length,
+					secondProviderCalls: secondProvider.getAndClearCallHistory().length,
+				}, {
+					firstProviderCalls: 1,
+					secondProviderCalls: 1,
+				});
+			}
+		);
+	});
 
 	test('Unavailable providers do not exclude available providers', async function () {
 		const localProvider = Object.assign(new MockInlineCompletionsProvider(), {
