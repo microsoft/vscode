@@ -18,7 +18,6 @@ import * as os from 'os';
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { raceTimeout } from '../../../base/common/async.js';
-import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -30,7 +29,7 @@ import { LoggerService } from '../../log/node/loggerService.js';
 import { OtlpEmitterLogger, OtlpLogEmitter } from '../common/otlp/otlpLogEmitter.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
-import { createAgentHostServices, registerAgentHostProviderServices } from './agentHostBootstrap.js';
+import { createAgentHostRuntime } from './agentHostBootstrap.js';
 import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
@@ -46,14 +45,9 @@ import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentH
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
-import { FileService } from '../../files/common/fileService.js';
-import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
-import { Schemas } from '../../../base/common/network.js';
-import { SessionDataService } from './sessionDataService.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
-import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 
@@ -183,64 +177,38 @@ async function main(): Promise<void> {
 
 	logService.info('[AgentHostServer] Starting standalone agent host server');
 
-	// File service
-	const fileService = disposables.add(new FileService(logService));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
-	// In-memory filesystem backing transient file-edit previews shown during
-	// tool-call confirmations.
-	disposables.add(registerPendingEditContentProvider(fileService));
-
-	// Session data service
-	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
-	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
-	const storageResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-storage.json');
-
-	const hostServices = await createAgentHostServices({
-		environmentService,
-		productService,
-		logService,
-		loggerService,
-		fileService,
-		sessionDataService,
-		disposables,
-		disableTelemetry: options.quiet,
-		agentServiceOptions: {
-			rootConfigResource,
-			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
-			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
-			storageResource,
-			debugLogsEnvironment: {
-				logsHome: environmentService.logsHome,
-				tmpDir: environmentService.tmpDir,
-			},
-		},
-	});
-	const { agentService, instantiationService } = hostServices;
-	disposables.add(agentService);
-	errorTelemetry.value = new ErrorTelemetry(hostServices.telemetryService);
-
-	// Register agents
-	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	if (!options.quiet) {
-		// CLI flags become env vars BEFORE the downloader is constructed so
-		// `isAvailable()` and `loadSdkRoot()` see them as dev overrides.
 		if (options.claudeSdkRoot) {
 			process.env[AgentHostClaudeSdkRootEnvVar] = options.claudeSdkRoot;
 		}
 		if (options.codexSdkRoot) {
 			process.env[AgentHostCodexAgentSdkRootEnvVar] = options.codexSdkRoot;
 		}
-		const providerServices = registerAgentHostProviderServices({
-			...hostServices,
-			environmentService,
-			fileService,
-			logService,
-			disposables,
+	}
+
+	const runtime = await createAgentHostRuntime({
+		environmentService,
+		productService,
+		logService,
+		loggerService,
+		disposables,
+		disableTelemetry: options.quiet,
+		hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
+		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
+		providerInfrastructure: options.quiet ? undefined : {
 			byokBridgeRegistry: new NullByokLmBridgeRegistry(),
 			byokLmProxyService: new NullByokLmProxyService(),
-		});
-		const agentSdkDownloader = providerServices.agentSdkDownloader;
-		sdkDownloadProgress = providerServices.sdkDownloadProgress;
+		}
+	});
+	const { agentService, instantiationService, fileService, sessionDataService } = runtime;
+	disposables.add(agentService);
+	errorTelemetry.value = new ErrorTelemetry(runtime.telemetryService);
+
+	// Register agents
+	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
+	if (!options.quiet) {
+		const agentSdkDownloader = runtime.agentSdkDownloader!;
+		sdkDownloadProgress = runtime.sdkDownloadProgress;
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');

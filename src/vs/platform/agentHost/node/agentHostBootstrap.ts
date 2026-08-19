@@ -7,10 +7,13 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { Event } from '../../../base/common/event.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ConfigurationService } from '../../configuration/common/configurationService.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
+import { FileService } from '../../files/common/fileService.js';
+import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
@@ -48,49 +51,42 @@ import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxySer
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService } from './copilot/byokLmProxyService.js';
+import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
+import { SessionDataService } from './sessionDataService.js';
+import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
+import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 
 export interface IAgentHostNetworkServices {
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly requestService: IRequestService;
 }
 
-export interface ICreateAgentHostServicesOptions {
-	readonly environmentService: INativeEnvironmentService;
-	readonly productService: IProductService;
-	readonly logService: ILogService;
-	readonly loggerService: ILoggerService | undefined;
-	readonly fileService: IFileService;
-	readonly sessionDataService: ISessionDataService;
-	readonly disposables: DisposableStore;
-	readonly disableTelemetry?: boolean;
-	readonly agentServiceOptions: IAgentServiceOptions;
-}
-
-export interface IAgentHostServices {
-	readonly services: ServiceCollection;
-	readonly instantiationService: IInstantiationService;
-	readonly agentService: AgentService;
-	readonly proxyResolver: IAgentHostProxyResolver;
-	readonly telemetryService: IAgentHostTelemetryService;
-	readonly fetchFn: typeof globalThis.fetch;
-}
-
-export interface IRegisterAgentHostProviderServicesOptions {
-	readonly services: ServiceCollection;
-	readonly instantiationService: IInstantiationService;
-	readonly agentService: AgentService;
-	readonly environmentService: INativeEnvironmentService;
-	readonly fileService: IFileService;
-	readonly logService: ILogService;
-	readonly disposables: DisposableStore;
-	readonly fetchFn: typeof globalThis.fetch;
+export interface IAgentHostProviderInfrastructureOptions {
 	readonly byokBridgeRegistry: IByokLmBridgeRegistry;
 	readonly byokLmProxyService?: IByokLmProxyService;
 }
 
-export interface IAgentHostProviderServices {
-	readonly agentSdkDownloader: AgentSdkDownloader;
-	readonly sdkDownloadProgress: Event<IAgentSdkDownloadProgress>;
+export interface ICreateAgentHostRuntimeOptions {
+	readonly environmentService: INativeEnvironmentService;
+	readonly productService: IProductService;
+	readonly logService: ILogService;
+	readonly loggerService: ILoggerService | undefined;
+	readonly disposables: DisposableStore;
+	readonly disableTelemetry?: boolean;
+	readonly hostLaunchKind: AgentHostLaunchKind;
+	readonly providerConfigurations: readonly IAgentCustomizationSettingsRegistration[];
+	readonly providerInfrastructure?: IAgentHostProviderInfrastructureOptions;
+}
+
+export interface IAgentHostRuntime {
+	readonly instantiationService: IInstantiationService;
+	readonly agentService: AgentService;
+	readonly fileService: IFileService;
+	readonly sessionDataService: ISessionDataService;
+	readonly proxyResolver: IAgentHostProxyResolver;
+	readonly telemetryService: IAgentHostTelemetryService;
+	readonly agentSdkDownloader: AgentSdkDownloader | undefined;
+	readonly sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 }
 
 /**
@@ -133,8 +129,12 @@ export async function registerAgentHostNetworkServices(
 	return { proxyResolver, requestService };
 }
 
-export async function createAgentHostServices(options: ICreateAgentHostServicesOptions): Promise<IAgentHostServices> {
-	const { environmentService, productService, logService, loggerService, fileService, sessionDataService, disposables } = options;
+export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOptions): Promise<IAgentHostRuntime> {
+	const { environmentService, productService, logService, loggerService, disposables } = options;
+	const fileService = disposables.add(new FileService(logService));
+	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
+	disposables.add(registerPendingEditContentProvider(fileService));
+	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 	const services = new ServiceCollection(
 		[INativeEnvironmentService, environmentService],
 		[ILogService, logService],
@@ -164,18 +164,66 @@ export async function createAgentHostServices(options: ICreateAgentHostServicesO
 		services.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
 		services.set(ISandboxHelperService, new SandboxHelperService());
 		services.set(IAgentHostGitService, instantiationService.createInstance(AgentHostGitService));
-		const agentService = instantiationService.createInstance(AgentService, options.agentServiceOptions, services);
+		const agentServiceOptions: IAgentServiceOptions = {
+			rootConfigResource: joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json'),
+			providerConfigurations: options.providerConfigurations,
+			hostLaunchKind: options.hostLaunchKind,
+			storageResource: joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-storage.json'),
+			debugLogsEnvironment: {
+				logsHome: environmentService.logsHome,
+				tmpDir: environmentService.tmpDir,
+			},
+		};
+		const agentService = instantiationService.createInstance(AgentService, agentServiceOptions, services);
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		services.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
-		return { services, instantiationService, agentService, proxyResolver, telemetryService, fetchFn };
+		const providerInfrastructure = options.providerInfrastructure
+			? registerProviderInfrastructure({
+				services,
+				instantiationService,
+				agentService,
+				environmentService,
+				fileService,
+				logService,
+				disposables,
+				fetchFn,
+				...options.providerInfrastructure,
+			})
+			: undefined;
+		return {
+			instantiationService,
+			agentService,
+			fileService,
+			sessionDataService,
+			proxyResolver,
+			telemetryService,
+			agentSdkDownloader: providerInfrastructure?.agentSdkDownloader,
+			sdkDownloadProgress: providerInfrastructure?.sdkDownloadProgress,
+		};
 	} catch (error) {
 		instantiationService.dispose();
 		throw error;
 	}
 }
 
-export function registerAgentHostProviderServices(options: IRegisterAgentHostProviderServicesOptions): IAgentHostProviderServices {
+interface IRegisterProviderInfrastructureOptions extends IAgentHostProviderInfrastructureOptions {
+	readonly services: ServiceCollection;
+	readonly instantiationService: IInstantiationService;
+	readonly agentService: AgentService;
+	readonly environmentService: INativeEnvironmentService;
+	readonly fileService: IFileService;
+	readonly logService: ILogService;
+	readonly disposables: DisposableStore;
+	readonly fetchFn: typeof globalThis.fetch;
+}
+
+interface IProviderInfrastructure {
+	readonly agentSdkDownloader: AgentSdkDownloader;
+	readonly sdkDownloadProgress: Event<IAgentSdkDownloadProgress>;
+}
+
+function registerProviderInfrastructure(options: IRegisterProviderInfrastructureOptions): IProviderInfrastructure {
 	const { services, instantiationService, agentService, environmentService, fileService, logService, disposables, fetchFn } = options;
 	services.set(IAgentPluginManager, new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService));
 	services.set(IDiffComputeService, disposables.add(instantiationService.createInstance(NodeWorkerDiffComputeService)));

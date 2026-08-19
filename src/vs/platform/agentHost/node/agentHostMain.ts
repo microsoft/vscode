@@ -10,7 +10,6 @@ import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { joinPath } from '../../../base/common/resources.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -45,18 +44,14 @@ import { DefaultURITransformer } from '../../../base/common/uriIpc.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { localize } from '../../../nls.js';
-import { FileService } from '../../files/common/fileService.js';
-import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
-import { Schemas } from '../../../base/common/network.js';
+import { IFileService } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { createAgentHostServices, registerAgentHostProviderServices } from './agentHostBootstrap.js';
+import { createAgentHostRuntime } from './agentHostBootstrap.js';
 import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
-import { SessionDataService } from './sessionDataService.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, createAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
-import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { join } from '../../../base/common/path.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
@@ -105,21 +100,10 @@ async function startAgentHost(): Promise<void> {
 	}
 	logService.info('Agent Host process started successfully');
 
-	// File service
-	const fileService = disposables.add(new FileService(logService));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
-	// In-memory filesystem backing transient file-edit previews shown during
-	// tool-call confirmations.
-	disposables.add(registerPendingEditContentProvider(fileService));
-
-	// Session data service
-	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
-	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
-	const storageResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-storage.json');
-
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	let instantiationService!: IInstantiationService;
+	let fileService!: IFileService;
 	// Hoisted out of the `try` below so the protocol handlers (constructed
 	// after the block) can forward agent-SDK download progress to clients.
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
@@ -128,41 +112,26 @@ async function startAgentHost(): Promise<void> {
 	const hostLaunchKind = readAgentHostLaunchKind(process.env[AgentHostLaunchKindEnvVar]);
 	const connectionTelemetryTracker = disposables.add(new AgentHostClientConnectionTelemetryTracker());
 	try {
-		const hostServices = await createAgentHostServices({
+		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
+		const runtime = await createAgentHostRuntime({
 			environmentService,
 			productService,
 			logService,
 			loggerService,
-			fileService,
-			sessionDataService,
 			disposables,
-			agentServiceOptions: {
-				rootConfigResource,
-				providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
-				hostLaunchKind,
-				storageResource,
-				debugLogsEnvironment: {
-					logsHome: environmentService.logsHome,
-					tmpDir: environmentService.tmpDir,
-				},
+			hostLaunchKind,
+			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
+			providerInfrastructure: {
+				byokBridgeRegistry: byokLmBridgeRegistry,
 			},
 		});
-		agentService = hostServices.agentService;
-		instantiationService = hostServices.instantiationService;
-		proxyResolver = hostServices.proxyResolver;
-		errorTelemetry.value = new ErrorTelemetry(hostServices.telemetryService);
-
-		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
-		const providerServices = registerAgentHostProviderServices({
-			...hostServices,
-			environmentService,
-			fileService,
-			logService,
-			disposables,
-			byokBridgeRegistry: byokLmBridgeRegistry,
-		});
-		const agentSdkDownloader = providerServices.agentSdkDownloader;
-		sdkDownloadProgress = providerServices.sdkDownloadProgress;
+		agentService = runtime.agentService;
+		instantiationService = runtime.instantiationService;
+		fileService = runtime.fileService;
+		proxyResolver = runtime.proxyResolver;
+		errorTelemetry.value = new ErrorTelemetry(runtime.telemetryService);
+		const agentSdkDownloader = runtime.agentSdkDownloader!;
+		sdkDownloadProgress = runtime.sdkDownloadProgress;
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
