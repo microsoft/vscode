@@ -342,15 +342,23 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('dispose removes editor listeners', () => {
 		const model = modelService.createModel('farboo', null);
 		const editor = myCreateTestCodeEditor(model);
+		const mainThreadTextEditor = mainThreadDocumentsAndEditors.getEditor(`${editor.getId()},${model.id}`);
+		assert.ok(mainThreadTextEditor);
 
+		let directPropertyChanges = 0;
+		disposables.add(mainThreadTextEditor.onPropertiesChanged(() => directPropertyChanges++));
 		const propertyChangesBeforeUpdate = propertyChanges;
+		const directPropertyChangesBeforeUpdate = directPropertyChanges;
 		editor.updateOptions({ lineNumbers: 'off' });
 		assert.ok(propertyChanges > propertyChangesBeforeUpdate);
+		assert.ok(directPropertyChanges > directPropertyChangesBeforeUpdate);
 		const propertyChangesAfterUpdate = propertyChanges;
+		const directPropertyChangesAfterUpdate = directPropertyChanges;
 
 		mainThreadDocumentsAndEditors.dispose();
 		editor.updateOptions({ lineNumbers: 'on' });
 		assert.strictEqual(propertyChanges, propertyChangesAfterUpdate);
+		assert.strictEqual(directPropertyChanges, directPropertyChangesAfterUpdate);
 
 		editor.dispose();
 		model.dispose();
