@@ -102,6 +102,7 @@ export class ChatGroupsView extends Themable {
 	private _lastSessionActiveChatId: string | undefined;
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	private _gridDidLayout = false;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -129,6 +130,7 @@ export class ChatGroupsView extends Themable {
 		this._groupDisposables.clearAndDisposeAll();
 		this._currentSessionStore = store;
 		this._grid = undefined;
+		this._gridDidLayout = false;
 		this._groups = [];
 		this._activeGroup = undefined;
 		this._restoreAssignment = undefined;
@@ -162,9 +164,8 @@ export class ChatGroupsView extends Themable {
 		};
 		store.add(this._instantiationService.createInstance(ChatGroupDropTarget, this.element, dropDelegate));
 
-		// Reconciliation may query adjacent views, which requires the new grid's first layout.
-		this._applyLayout();
 		store.add(autorun(reader => this._reconcile(reader)));
+		this._applyLayout();
 	}
 
 	private _createSingleGroupGrid(session: IActiveSession, store: DisposableStore): SerializableGrid<ChatGroupView> {
@@ -560,7 +561,7 @@ export class ChatGroupsView extends Themable {
 	}
 
 	private _findAdjacentGroup(reference: IGroupEntry): IGroupEntry | undefined {
-		if (this._grid && this._lastLayout) {
+		if (this._grid && this._gridDidLayout) {
 			for (const direction of [Direction.Right, Direction.Left, Direction.Down, Direction.Up]) {
 				const neighbor = this._grid.getNeighborViews(reference.view, direction)[0];
 				const group = neighbor && this._groups.find(candidate => candidate.view === neighbor);
@@ -829,7 +830,10 @@ export class ChatGroupsView extends Themable {
 		}
 		const { width, height, top, left } = this._lastLayout;
 		size(this.element, width, height);
-		this._grid?.layout(width, height, top, left);
+		if (this._grid) {
+			this._grid.layout(width, height, top, left);
+			this._gridDidLayout = true;
+		}
 	}
 
 	private get _separatorBorder(): Color {
