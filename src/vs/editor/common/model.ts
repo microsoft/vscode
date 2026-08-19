@@ -490,6 +490,13 @@ export const enum EndOfLineSequence {
 	CRLF = 1
 }
 
+export const enum DetectTextDirection {
+	LTR,
+	RTL,
+	DETECT_FILE,
+	DETECT_LINE,
+}
+
 /**
  * An identifier for a single edit operation.
  * @internal
@@ -1310,6 +1317,8 @@ export interface ITextModel {
 	 * Is there anything in the redo stack?
 	 */
 	canRedo(): boolean;
+
+	setDetectTextDirection(detectTextDirection: DetectTextDirection): void;
 
 	/**
 	 * An event emitted when the contents of the model have changed.
