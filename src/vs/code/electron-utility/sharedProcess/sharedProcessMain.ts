@@ -332,7 +332,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			const logAppender = new TelemetryLogAppender('', false, loggerService, environmentService, productService);
 			appenders.push(logAppender);
 			if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
-				const collectorAppender = new OneDataSystemAppender(requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
+				const collectorAppender = new OneDataSystemAppender(requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey, meteredConnectionService);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
 			}
@@ -354,7 +354,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(ITelemetryService, telemetryService);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService, meteredConnectionService);
+		const customEndpointTelemetryService = this._register(new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService, meteredConnectionService));
 		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management

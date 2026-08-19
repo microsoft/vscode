@@ -11,7 +11,6 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IMainProcessService } from '../../../ipc/common/mainProcessService.js';
-import { getIsBrowserConnectionMetered } from '../../common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL, MeteredConnectionCommand } from '../../common/meteredConnectionIpc.js';
 import { NativeMeteredConnectionService } from '../../electron-browser/meteredConnectionService.js';
 
@@ -42,11 +41,11 @@ suite('NativeMeteredConnectionService', () => {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 
-		store.add(new NativeMeteredConnectionService(configurationService, mainProcessService));
+		store.add(new NativeMeteredConnectionService(() => true, configurationService, mainProcessService));
 
 		assert.deepStrictEqual(channel.calls, [{
 			command: MeteredConnectionCommand.SetIsBrowserConnectionMetered,
-			argument: getIsBrowserConnectionMetered(),
+			argument: true,
 		}]);
 	});
 });
