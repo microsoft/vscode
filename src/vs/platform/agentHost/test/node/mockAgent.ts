@@ -154,7 +154,7 @@ export class MockAgent implements IAgent {
 		this._discoveredChatsEmitter.fire(chats);
 	}
 
-	async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
 		return [];
 	}
 
@@ -561,7 +561,7 @@ export class ScriptedMockAgent implements IAgent {
 		this._discoveredChatsEmitter.fire(chats);
 	}
 
-	async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
 		return [];
 	}
 

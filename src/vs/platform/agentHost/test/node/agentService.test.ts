@@ -37,13 +37,14 @@ import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
-import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -60,6 +61,8 @@ import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsSe
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
+import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -216,6 +219,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	private _backfilled = false;
 	private readonly _providerBackfilled = new Set<string>();
 	private readonly _tombstones = new Set<string>();
+	private readonly _agentMergeEnabled = new Set<string>();
 	registryWriteAttempts = 0;
 	private _remainingRegistryWriteFailures = 0;
 	private readonly _sessionsWithoutExternal = new Set<string>();
@@ -254,12 +258,14 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	async unregisterSession(session: string): Promise<void> {
 		this._beforeWrite();
 		this._sessions.delete(session);
+		this._agentMergeEnabled.delete(session);
 	}
 
 	async tombstoneAndUnregisterSession(session: string): Promise<void> {
 		this._beforeWrite();
 		this._tombstones.add(session);
 		this._sessions.delete(session);
+		this._agentMergeEnabled.delete(session);
 	}
 
 	async updateSessionExternal(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
@@ -324,6 +330,18 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._tombstones.delete(session);
 	}
 
+	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
+		if (enabled) {
+			this._agentMergeEnabled.add(session);
+		} else {
+			this._agentMergeEnabled.delete(session);
+		}
+	}
+
+	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
+		return [...this._agentMergeEnabled];
+	}
+
 	async close(): Promise<void> { }
 	dispose(): void { }
 
@@ -334,6 +352,96 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 			throw new Error('transient registry write failure');
 		}
 	}
+}
+
+/** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
+class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
+	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
+	private readonly _providerBackfilled = new Set<string>();
+	private readonly _tombstones = new Set<string>();
+	private readonly _agentMergeEnabled = new Set<string>();
+	private _backfilled = false;
+
+	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+			return false;
+		}
+		const { provider, startTime, source } = sessionOptions;
+		const existing = this._sessions.get(session);
+		this._sessions.set(session, existing ?? { session, provider, startTime, external: source === 'discovery', source });
+		if (!registerOptions.checkTombstone) {
+			this._tombstones.delete(session);
+		}
+		return true;
+	}
+
+	async unregisterSession(session: string): Promise<void> {
+		this._sessions.delete(session);
+		this._agentMergeEnabled.delete(session);
+	}
+
+	async tombstoneAndUnregisterSession(session: string): Promise<void> {
+		this._tombstones.add(session);
+		this._sessions.delete(session);
+		this._agentMergeEnabled.delete(session);
+	}
+
+	async updateSessionExternal(): Promise<void> { }
+
+	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
+		return [...this._sessions.values()];
+	}
+
+	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		return this._sessions.get(session);
+	}
+
+	async isSessionRegistryEmpty(): Promise<boolean> {
+		return this._sessions.size === 0;
+	}
+
+	async isSessionRegistryBackfilled(): Promise<boolean> {
+		return this._backfilled;
+	}
+
+	async markSessionRegistryBackfilled(): Promise<void> {
+		this._backfilled = true;
+	}
+
+	async isProviderBackfilled(provider: string): Promise<boolean> {
+		return this._providerBackfilled.has(provider);
+	}
+
+	async markProviderBackfilled(provider: string): Promise<void> {
+		this._providerBackfilled.add(provider);
+	}
+
+	async isSessionTombstoned(session: string): Promise<boolean> {
+		return this._tombstones.has(session);
+	}
+
+	async markSessionTombstoned(session: string): Promise<void> {
+		this._tombstones.add(session);
+	}
+
+	async clearSessionTombstone(session: string): Promise<void> {
+		this._tombstones.delete(session);
+	}
+
+	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
+		if (enabled) {
+			this._agentMergeEnabled.add(session);
+		} else {
+			this._agentMergeEnabled.delete(session);
+		}
+	}
+
+	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
+		return [...this._agentMergeEnabled];
+	}
+
+	async close(): Promise<void> { }
+	dispose(): void { }
 }
 
 suite('AgentService (node dispatcher)', () => {
@@ -3337,7 +3445,7 @@ suite('AgentService (node dispatcher)', () => {
 			const unknown = AgentSession.uri('copilot', 'filter-unknown');
 			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
 			await register(agent, [discoveredChat(registered), discoveredChat(deleted)]);
-			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(deleted);
+			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.tombstone(deleted);
 
 			const known = await (svc as unknown as { _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> })._filterKnownSessions([registered, deleted, unknown]);
 			const reRegistered = await register(agent, [discoveredChat(deleted)]);
@@ -3877,7 +3985,7 @@ suite('AgentService (node dispatcher)', () => {
 			const legacy = AgentSession.uri('copilot', 'deleted-adoptable-legacy');
 			svc.registerProvider(agent);
 			await svc.listSessions();
-			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(legacy);
+			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.tombstone(legacy);
 			agent.fireDiscoveredChats([{
 				...discoveredChat(legacy),
 				_meta: withSessionEhcliAdoptable(undefined),
@@ -3991,16 +4099,22 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.listExternalChatsCalls, 1);
 		});
 
-		test('listSessions rejects an unavailable migration catalog and retries it on the next call', async () => {
+		test('listSessions rejects an unavailable catalog and retries it on the next call', async () => {
 			class NotYetMigratableAgent extends MockAgent {
+				override readonly onDidDiscoverChats = Event.None;
 				migrationCalls = 0;
 				enumerable = false;
 			}
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const db = new TransientRegistryWriteDatabase();
+			const existing = AgentSession.uri('copilot', 'existing-before-unavailable');
+			await db.registerSession(existing.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const writesBeforeUnavailable = db.registryWriteAttempts;
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = disposables.add(new NotYetMigratableAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'legacy-migration-not-ready');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(existing), existing);
 			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listChatsToMigrate = async () => {
 				agent.migrationCalls++;
 				return agent.enumerable
@@ -4008,20 +4122,115 @@ suite('AgentService (node dispatcher)', () => {
 					: undefined;
 			};
 			svc.registerProvider(agent);
-			await assert.rejects(svc.listSessions(), /cannot enumerate its native session catalog yet/);
+			await assert.rejects(svc.listSessions(), error => {
+				assert.ok(error instanceof Error);
+				const provider = Object.entries(error).find(([key]) => key === 'provider')?.[1];
+				assert.deepStrictEqual({
+					name: error.name,
+					provider,
+				}, {
+					name: 'ProviderCatalogUnavailableError',
+					provider: 'copilot',
+				});
+				return true;
+			});
 			const callsAfterFailure = agent.migrationCalls;
+			assert.deepStrictEqual({
+				registryWrites: db.registryWriteAttempts,
+				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+			}, {
+				registryWrites: writesBeforeUnavailable,
+				registered: [existing.toString()],
+			});
 
 			agent.enumerable = true;
-			await timeout(0);
 			const listed = await svc.listSessions();
 			assert.deepStrictEqual({
 				retriedBeforeFailure: callsAfterFailure > 1,
 				retriedAfterFailure: agent.migrationCalls > callsAfterFailure,
-				listed: listed.map(session => session.session.toString()),
+				listed: listed.map(session => session.session.toString()).sort(),
 			}, {
 				retriedBeforeFailure: true,
 				retriedAfterFailure: true,
-				listed: [legacy.toString()],
+				listed: [existing.toString(), legacy.toString()].sort(),
+			});
+		});
+
+		test('overlapping mode computations share ownership of a replacement migration retry', async () => {
+			const retryGate = new DeferredPromise<void>();
+			class SingleFlightRetryAgent extends MockAgent {
+				catalogCalls = 0;
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
+					this.catalogCalls++;
+					if (this.catalogCalls === 1) {
+						return undefined;
+					}
+					await retryGate.p;
+					return [];
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SingleFlightRetryAgent('copilot'));
+			svc.registerProvider(agent);
+			for (let i = 0; i < 20 && agent.catalogCalls === 0; i++) {
+				await timeout(0);
+			}
+
+			const all = svc.listSessions(AgentHostExternalSessionsMode.All);
+			const recent = svc.listSessions(AgentHostExternalSessionsMode.Recent);
+			for (let i = 0; i < 20 && agent.catalogCalls < 2; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.catalogCalls, 2, 'overlapping computations must share the replacement retry');
+			retryGate.complete();
+			await Promise.all([all, recent]);
+			assert.strictEqual(agent.catalogCalls, 2, 'a losing caller must await the installed retry instead of queueing another');
+		});
+
+		test('concurrent aggregate listings retry only the unavailable provider', async () => {
+			class CatalogAgent extends MockAgent {
+				catalogCalls = 0;
+				available = true;
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
+					this.catalogCalls++;
+					return this.available
+						? this.listExternalChats()
+						: undefined;
+				}
+			}
+			const db = new TransientRegistryWriteDatabase();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
+			const copilot = disposables.add(new CatalogAgent('copilot'));
+			const claude = disposables.add(new CatalogAgent('claude'));
+			const copilotSession = AgentSession.uri('copilot', 'complete-provider');
+			const claudeSession = AgentSession.uri('claude', 'unavailable-provider');
+			(copilot as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(copilotSession), copilotSession);
+			(claude as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(claudeSession), claudeSession);
+			claude.available = false;
+			svc.registerProvider(copilot);
+			svc.registerProvider(claude);
+
+			await assert.rejects(Promise.all([svc.listSessions(), svc.listSessions()]), /cannot enumerate its native session catalog yet/);
+			const callsAfterFailure = { copilot: copilot.catalogCalls, claude: claude.catalogCalls };
+			claude.available = true;
+			const [first, second] = await Promise.all([svc.listSessions(), svc.listSessions()]);
+
+			assert.deepStrictEqual({
+				callsAfterFailure,
+				finalCalls: { copilot: copilot.catalogCalls, claude: claude.catalogCalls },
+				backfilled: {
+					copilot: await db.isProviderBackfilled('copilot'),
+					claude: await db.isProviderBackfilled('claude'),
+				},
+				first: first.map(session => session.session.toString()).sort(),
+				second: second.map(session => session.session.toString()).sort(),
+			}, {
+				callsAfterFailure: { copilot: 1, claude: 2 },
+				finalCalls: { copilot: 1, claude: 3 },
+				backfilled: { copilot: true, claude: true },
+				first: [claudeSession.toString(), copilotSession.toString()].sort(),
+				second: [claudeSession.toString(), copilotSession.toString()].sort(),
 			});
 		});
 
@@ -5721,13 +5930,16 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('stores GitHub Copilot token for operation handlers', async () => {
 			service.registerProvider(copilotAgent);
+			const changes: { resource: string; token: string | undefined }[] = [];
+			disposables.add(service.authenticationService.onDidChangeAuthToken(event => changes.push({ resource: event.resource, token: event.token })));
 
 			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
 
-			assert.deepStrictEqual({ result, token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }), authenticateCalls: copilotAgent.authenticateCalls }, {
+			assert.deepStrictEqual({ result, token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }), authenticateCalls: copilotAgent.authenticateCalls, changes }, {
 				result: { authenticated: true },
 				token: 'copilot-token',
 				authenticateCalls: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' }],
+				changes: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' }],
 			});
 		});
 
@@ -7699,6 +7911,107 @@ suite('AgentService (node dispatcher)', () => {
 				leakedBeforeRestart: false,
 				markerPersisted: chatUri.toString(),
 				leakedAfterRestart: false,
+			});
+		});
+
+		test('createSession carries client-owned _meta slots and drops unknown ones', async () => {
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+
+			const session = await svc.createSession({
+				provider: 'copilot',
+				workingDirectories: [URI.file('/repo')],
+				_meta: {
+					...withChatSurfaceMeta(withEphemeralSessionMeta(undefined, true), { surface: 'terminal', shellType: 'pwsh', osName: 'Windows' }),
+					// Session `_meta` is a whitelist, so an unrecognized slot must not survive.
+					'vscode.chat.unknownFutureSlot': { hello: 'world' },
+				},
+			});
+
+			const state = svc.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				ephemeral: readEphemeralSessionMeta(state ?? {}).isEphemeral,
+				surface: readChatSurfaceMeta(state ?? {}),
+				unknownSlot: state?._meta?.['vscode.chat.unknownFutureSlot'],
+			}, {
+				ephemeral: true,
+				surface: { surface: 'terminal', shellType: 'pwsh', osName: 'Windows' },
+				unknownSlot: undefined,
+			});
+		});
+
+		test('ephemeral session teardown clears its discovery tombstone', async () => {
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+
+			const session = await svc.createSession({
+				provider: 'copilot',
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			const tombstonedBeforeDispose = await registry.isTombstoned(session);
+			await svc.disposeSession(session);
+
+			assert.deepStrictEqual({
+				tombstonedBeforeDispose,
+				tombstonedAfterDispose: await registry.isTombstoned(session),
+			}, {
+				tombstonedBeforeDispose: true,
+				tombstonedAfterDispose: false,
+			});
+		});
+
+		test('ephemeral sessions never appear in direct or overlay listSessions paths', async () => {
+			const perSession = createPerSessionDataService();
+			const overlaySession = AgentSession.uri('copilot', 'ephemeral-overlay-session');
+			const directSession = AgentSession.uri('copilot', 'ephemeral-direct-session');
+			class LeakyAgent extends MockAgent {
+				override async listSessions(): Promise<IAgentSessionMetadata[]> {
+					return [
+						{ session: overlaySession, startTime: Date.now(), modifiedTime: Date.now() },
+						{ session: directSession, startTime: Date.now(), modifiedTime: Date.now() },
+					];
+				}
+			}
+
+			const agent = disposables.add(new LeakyAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+			await svc.createSession({
+				provider: 'copilot',
+				session: overlaySession,
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			await svc.createSession({
+				provider: 'copilot',
+				session: directSession,
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+
+			const firstList = await svc.listSessions();
+			const registeredBeforeRestart = await svc.getRegisteredSessions();
+
+			const restartedAgent = disposables.add(new LeakyAgent('copilot'));
+			const restarted = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			restarted.registerProvider(restartedAgent);
+			const afterRestart = await restarted.listSessions();
+
+			assert.deepStrictEqual({
+				overlayIncludesEphemeral: svc.stateManager.getOverlaySessionSummaries().some(s => s.resource === overlaySession.toString()),
+				directListIncludesEphemeral: firstList.some(s => s.session.toString() === directSession.toString()),
+				registeredBeforeRestart: registeredBeforeRestart.map(s => s.toString()),
+				restartedListIncludesEphemeral: afterRestart.some(s => s.session.toString() === overlaySession.toString() || s.session.toString() === directSession.toString()),
+				registeredAfterRestart: (await restarted.getRegisteredSessions()).map(s => s.toString()),
+			}, {
+				overlayIncludesEphemeral: false,
+				directListIncludesEphemeral: false,
+				registeredBeforeRestart: [],
+				restartedListIncludesEphemeral: false,
+				registeredAfterRestart: [],
 			});
 		});
 
@@ -11917,6 +12230,160 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(state);
 			assert.deepStrictEqual(state!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(localService.stateManager, sessionStr);
+		});
+	});
+
+	suite('Agent Merge durable session monitoring', () => {
+
+		function createAgentMergeService(sessionDb: TestSessionDatabase, orchestratorDb: IAgentHostDatabase): AgentService {
+			const localService = disposables.add(new AgentService(
+				new NullLogService(), fileService, createSessionDataService(sessionDb),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+			));
+			localService.configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+			return localService;
+		}
+
+		async function createEnabledSession(sessionDb: TestSessionDatabase, orchestratorDb: IAgentHostDatabase): Promise<{ readonly localService: AgentService; readonly localAgent: MockAgent; readonly sessionResource: URI }> {
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			// Restore resolves a config only when the session has persisted
+			// values; without one a `SessionConfigChanged` would be a no-op.
+			await sessionDb.setMetadata('configValues', '{}');
+			const localService = createAgentMergeService(sessionDb, orchestratorDb);
+			localService.registerProvider(localAgent);
+			const { session } = await createAgentSession(localAgent);
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+			const sessionResource = (await localAgent.listSessions())[0].session;
+			await localService.restoreSession(sessionResource);
+			localService.configurationService.updateSessionConfig(sessionResource.toString(), { [SessionConfigKey.AgentMerge]: { enabled: true } });
+			await localService.whenAgentMergeSessionsRestored();
+			return { localService, localAgent, sessionResource };
+		}
+
+		test('an Agent-Merge-enabled session stays resident after its last subscriber drops, and is released once disabled', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+				const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), orchestratorDb);
+				const sessionStr = sessionResource.toString();
+				localService.addSubscriber(sessionResource, 'client-1');
+
+				localService.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 60_000));
+				const residentWhileEnabled = localService.stateManager.getSessionState(sessionStr) !== undefined;
+
+				localService.configurationService.updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+				await new Promise(resolve => setTimeout(resolve, 60_000));
+
+				assert.deepStrictEqual({
+					residentWhileEnabled,
+					residentAfterDisable: localService.stateManager.getSessionState(sessionStr) !== undefined,
+					indexedAfterDisable: await orchestratorDb.listAgentMergeEnabledSessions(),
+				}, {
+					residentWhileEnabled: true,
+					residentAfterDisable: false,
+					indexedAfterDisable: [],
+				});
+			});
+		});
+
+		test('enabling records the session in the host index rather than in each session database', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const { sessionResource } = await createEnabledSession(new TestSessionDatabase(), orchestratorDb);
+
+			assert.deepStrictEqual(await orchestratorDb.listAgentMergeEnabledSessions(), [sessionResource.toString()]);
+		});
+
+		test('a persisted Agent-Merge-enabled session begins monitoring on a fresh host, and is released once disabled', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+				const sessionDb = new TestSessionDatabase();
+				const { localAgent, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
+				const sessionStr = sessionResource.toString();
+
+				// A fresh host over the same durable state must resume monitoring
+				// from the index alone.
+				const restarted = createAgentMergeService(sessionDb, orchestratorDb);
+				restarted.registerProvider(localAgent);
+				await restarted.whenAgentMergeSessionsRestored();
+				const resumed = {
+					materialized: restarted.stateManager.getSessionState(sessionStr) !== undefined,
+					// Distinguishes a genuine resume from a session that was
+					// materialized and immediately disabled.
+					enabled: readAgentMergeSessionState(restarted.stateManager.getSessionState(sessionStr)?.config?.values)?.enabled,
+					indexed: await orchestratorDb.listAgentMergeEnabledSessions(),
+				};
+
+				// Nothing ever subscribed, so only the monitoring pin is holding
+				// this session resident; disabling must let it go.
+				restarted.configurationService.updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+				await new Promise(resolve => setTimeout(resolve, 60_000));
+
+				assert.deepStrictEqual({
+					resumed,
+					residentAfterDisable: restarted.stateManager.getSessionState(sessionStr) !== undefined,
+				}, {
+					resumed: { materialized: true, enabled: true, indexed: [sessionStr] },
+					residentAfterDisable: false,
+				});
+			});
+		});
+
+		test('an archived session is dropped from the index instead of being restored', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sessionDb = new TestSessionDatabase();
+			const { localAgent, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
+			await sessionDb.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+
+			const restarted = createAgentMergeService(sessionDb, orchestratorDb);
+			restarted.registerProvider(localAgent);
+			await restarted.whenAgentMergeSessionsRestored();
+
+			assert.deepStrictEqual({
+				materialized: restarted.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+				indexed: await orchestratorDb.listAgentMergeEnabledSessions(),
+			}, {
+				materialized: false,
+				indexed: [],
+			});
+		});
+
+		test('archiving a session drops it from the index', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), orchestratorDb);
+
+			localService.stateManager.dispatchServerAction(sessionResource.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			await localService.whenAgentMergeSessionsRestored();
+
+			assert.deepStrictEqual(await orchestratorDb.listAgentMergeEnabledSessions(), []);
+		});
+
+		test('deleting a session drops it from the index', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), orchestratorDb);
+
+			await localService.disposeSession(sessionResource);
+
+			assert.deepStrictEqual(await orchestratorDb.listAgentMergeEnabledSessions(), []);
+		});
+
+		test('an archived Agent-Merge session is released like any other idle session', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { localService, sessionResource } = await createEnabledSession(new TestSessionDatabase(), new TestAgentHostOrchestratorDatabase());
+				const sessionStr = sessionResource.toString();
+				localService.addSubscriber(sessionResource, 'client-1');
+				// Archiving is the terminal state that must not keep the session pinned.
+				localService.stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+
+				localService.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 60_000));
+
+				assert.strictEqual(localService.stateManager.getSessionState(sessionStr), undefined, 'an archived session must not stay pinned');
+			});
 		});
 	});
 });

@@ -21,8 +21,27 @@ npm --prefix test/mcp run compile
 ```
 
 The automation MCP server is `test/mcp` (`out/stdio.js`). Add it to your MCP configuration so the
-`vscode_automation_*` tools are available; append `--web --headless` to the args to record the web
-build instead of Electron.
+`vscode_automation_*` tools are available.
+
+| Target | Args | Use for |
+|--------|------|---------|
+| Dev build from this checkout | *(none)* | Verifying a local change |
+| Installed Insiders | `--build <app-root>` | Reproducing a report against shipped behavior |
+| Web | `--web --headless` | Browser-only behavior |
+
+`--build` takes the application root — the install directory on Windows and Linux, or the `.app`
+bundle on macOS. For example:
+
+```bash
+# Windows
+--build "C:/Users/<you>/AppData/Local/Programs/Microsoft VS Code Insiders"
+# macOS
+--build "/Applications/Visual Studio Code - Insiders.app"
+```
+
+An installed build runs with an isolated profile, so your own extensions and settings do not leak
+into the recording. Note that Insiders only reproduces **shipped** behavior — to validate an
+unmerged change you must run the dev build from a checkout that contains it.
 
 ## Record a clean capture
 
@@ -32,6 +51,16 @@ Evidence capture can draw a step banner into the window it is recording. That ba
 DOM of the product under test, so it can shift layout and affect focus and selectors. With clean
 capture enabled the recording shows unmodified UI, and step boundaries are still recorded in
 `manifest.json` with timestamps and screenshots.
+
+Add the step titles back afterwards, once the recording is finished:
+
+```bash
+node test/mcp/out/renderEvidenceChapters.js .build/vscode-playwright-mcp/evidence/<run-id>
+```
+
+This writes `videos/annotated.mp4` with a full-screen card before each step, inserted between
+segments so no recorded frame is hidden. It needs `ffmpeg` and `ffprobe` on `PATH`; without them it
+prints a warning and leaves the raw recording untouched.
 
 ## Run a scenario
 
@@ -71,7 +100,7 @@ Evidence is written to `.build/vscode-playwright-mcp/evidence/<run-id>/`:
 |------|----------|
 | `report.html` | Step table, outcome, embedded video |
 | `manifest.json` | Step timestamps, statuses, artifact paths, environment |
-| `videos/` | Screen recording of the run |
+| `videos/` | Screen recording, plus `annotated.mp4` once chapters are rendered |
 | `*.png` | Per-step screenshots |
 | `logs/` | Playwright trace, window and server logs |
 

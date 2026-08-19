@@ -1148,12 +1148,7 @@ export interface IAgent {
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
-	/**
-	 * Enumerate provider-native chats for one-time registry migration.
-	 *
-	 * Returns `undefined` when the provider cannot enumerate yet; `[]` is an
-	 * authoritative result indicating there are no legacy chats to migrate.
-	 */
+	/** Enumerate provider-native chats for registry migration; `undefined` means the catalog is unavailable. */
 	listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */

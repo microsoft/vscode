@@ -42,6 +42,7 @@
     "watch-clientd": "deemon npm run watch-client",
     "kill-watch-clientd": "deemon --kill npm run watch-client",
     "transpile-client": "node build/next/index.ts transpile",
+    "bundle-dev-tunnels-web": "node build/next/devTunnelsWeb.ts",
     "watch-client-transpile": "node build/next/index.ts transpile --watch",
     "watch-client-transpiled": "deemon npm run watch-client-transpile",
     "kill-watch-client-transpiled": "deemon --kill npm run watch-client-transpile",
