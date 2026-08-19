@@ -54,9 +54,6 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 	} catch (error) {
 		throw enrichLaunchError(error, options);
 	}
-	// Recording begins with the Electron application, so this is the origin of
-	// the video timeline that captured timestamps are measured against.
-	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 
 	let window = electron.windows()[0];
 	if (!window) {
@@ -66,6 +63,9 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 			throw enrichLaunchError(error, options);
 		}
 	}
+	// Recording is per page, so sample the origin once the first window exists
+	// rather than when the application finished launching.
+	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 
 	const context = window.context();
 

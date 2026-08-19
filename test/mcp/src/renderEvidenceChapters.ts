@@ -57,10 +57,18 @@ export function renderChapters(runRoot: string): void {
 	const manifestPath = path.join(runRoot, 'manifest.json');
 	const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Manifest;
 	const videoStartedAtMs = Date.parse(manifest.videoStartedAt ?? '');
-	const relativeVideo = (manifest.artifacts?.videos ?? []).find(video => /\.webm$/iu.test(video));
+	const videos = (manifest.artifacts?.videos ?? []).filter(video => /\.webm$/iu.test(video));
+	const relativeVideo = videos[0];
 
 	if (!relativeVideo) {
 		console.log('No recorded video is available, so no chapters were rendered.');
+		return;
+	}
+	if (videos.length > 1) {
+		// One recording is written per captured page. Aligning every step onto the
+		// first one would silently drop the other windows from the evidence, so
+		// refuse rather than publish an incomplete recording.
+		console.log(`The run captured ${videos.length} recordings (one per window), which cannot be chaptered onto a single timeline.`);
 		return;
 	}
 	if (!Number.isFinite(videoStartedAtMs)) {
@@ -133,7 +141,9 @@ export function renderChapters(runRoot: string): void {
 			const name = `text-${textIndex++}.txt`;
 			fs.writeFileSync(path.join(workDir, name), text);
 			return {
-				filter: `drawtext=fontfile=font.ttf:textfile=${name}:fontcolor=${color}:fontsize=${size}:line_spacing=${Math.round(size * 0.4)}:x=(w-text_w)/2:y=${y}`,
+				// Expansion is on by default even for `textfile`, which would make
+				// ordinary evidence text containing `%` fail to parse.
+				filter: `drawtext=fontfile=font.ttf:textfile=${name}:expansion=none:fontcolor=${color}:fontsize=${size}:line_spacing=${Math.round(size * 0.4)}:x=(w-text_w)/2:y=${y}`,
 				lines: text.split('\n').length
 			};
 		};
@@ -200,10 +210,29 @@ export function renderChapters(runRoot: string): void {
 
 		manifest.artifacts!.videos = [...new Set([outputRelative, ...(manifest.artifacts?.videos ?? [])])];
 		fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, undefined, 2)}\n`);
+		pointReportAtAnnotatedVideo(runRoot, relativeVideo, outputRelative);
 		console.log(`Rendered ${boundaries.length} step chapters into ${outputRelative}`);
 	} finally {
 		fs.rmSync(workDir, { recursive: true, force: true });
 	}
+}
+
+/**
+ * Point the generated report at the annotated recording.
+ *
+ * `EvidenceService.finish()` writes `report.html` before chapters exist, so the
+ * report would otherwise keep showing the unannotated capture.
+ */
+function pointReportAtAnnotatedVideo(runRoot: string, rawVideo: string, annotatedVideo: string): void {
+	const reportPath = path.join(runRoot, 'report.html');
+	if (!fs.existsSync(reportPath)) {
+		return;
+	}
+	const report = fs.readFileSync(reportPath, 'utf8');
+	if (!report.includes(`src="${rawVideo}"`)) {
+		return;
+	}
+	fs.writeFileSync(reportPath, report.replace(`src="${rawVideo}"`, `src="${annotatedVideo}"`));
 }
 
 function wrap(value: string, limit: number): string {

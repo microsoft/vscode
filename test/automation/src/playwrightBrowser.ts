@@ -119,9 +119,6 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		'browser.newContext',
 		logger
 	);
-	// Recording begins with the context, so this is the origin of the video
-	// timeline that captured timestamps are measured against.
-	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 
 	if (tracing) {
 		try {
@@ -131,6 +128,10 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		}
 	}
 
+	// Recording is per page and starts when the page is created, so sample the
+	// origin here rather than at context creation: tracing startup above can take
+	// long enough to visibly skew offsets measured against it.
+	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 	const page = await measureAndLog(() => context.newPage(), 'context.newPage()', logger);
 	await measureAndLog(() => page.setViewportSize({ width: 1440, height: 900 }), 'page.setViewportSize', logger);
 
