@@ -61,6 +61,34 @@ function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, sourceM
 	});
 }
 
+function runDevTunnelsWebBundle(outDir: string, minify: boolean): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const scriptPath = path.join(REPO_ROOT, 'build/next/devTunnelsWeb.ts');
+		const args = [
+			scriptPath,
+			'--out',
+			path.join(outDir, 'vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser'),
+		];
+		if (minify) {
+			args.push('--minify');
+		}
+
+		const proc = cp.spawn(process.execPath, args, {
+			cwd: REPO_ROOT,
+			stdio: 'inherit'
+		});
+
+		proc.on('error', reject);
+		proc.on('close', code => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error(`Dev Tunnels web bundle failed with exit code ${code} (outDir: ${outDir}, minify: ${minify})`));
+			}
+		});
+	});
+}
+
 export const vscodeWebResourceIncludes = [
 
 	// NLS
@@ -171,8 +199,15 @@ task.task(minifyVSCodeWebTask);
 
 // esbuild-based tasks (new)
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
-const esbuildBundleVSCodeWebTask = task.define('esbuild-vscode-web', () => runEsbuildBundle('out-vscode-web', false, true));
-const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', () => runEsbuildBundle('out-vscode-web-min', true, true, `${sourceMappingURLBase}/core`));
+const esbuildBundleVSCodeWebTask = task.define('esbuild-vscode-web', async () => {
+	await runEsbuildBundle('out-vscode-web', false, true);
+	// Required by the web-target invariant in build/next/index.ts.
+	await runDevTunnelsWebBundle('out-vscode-web', false);
+});
+const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', async () => {
+	await runEsbuildBundle('out-vscode-web-min', true, true, `${sourceMappingURLBase}/core`);
+	await runDevTunnelsWebBundle('out-vscode-web-min', true);
+});
 
 function packageTask(sourceFolderName: string, destinationFolderName: string) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);

@@ -57,6 +57,10 @@ const options = {
 
 // Build targets
 type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web';
+const buildTargets: readonly BuildTarget[] = ['desktop', 'server', 'server-web', 'web'];
+
+// The Dev Tunnels bundle is emitted only by the standalone web build tasks.
+const devTunnelsWebBundleTargets: ReadonlySet<BuildTarget> = new Set(['web']);
 
 const SRC_DIR = 'src';
 const OUT_DIR = 'out';
@@ -121,8 +125,9 @@ const webEntryPoints = [
 ];
 
 // Additional web-only entry points (CDN build only, not in server-web)
+const sessionsWebEntryPoint = 'vs/sessions/sessions.web.main.internal';
 const webOnlyEntryPoints = [
-	'vs/sessions/sessions.web.main.internal',
+	sessionsWebEntryPoint,
 ];
 
 const keyboardMapEntryPoints = [
@@ -187,6 +192,18 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 			throw new Error(`Unknown target: ${target}`);
 	}
 }
+
+/** Ensures every Sessions web target emits the Dev Tunnels bundle. */
+function assertDevTunnelsWebBundleTargetInvariant(): void {
+	for (const target of buildTargets) {
+		const hasSessionsWebEntryPoint = getEntryPointsForTarget(target).includes(sessionsWebEntryPoint);
+		if (hasSessionsWebEntryPoint !== devTunnelsWebBundleTargets.has(target)) {
+			throw new Error(`The Dev Tunnels web bundle and '${sessionsWebEntryPoint}' must target the same builds (mismatch for '${target}').`);
+		}
+	}
+}
+
+assertDevTunnelsWebBundleTargetInvariant();
 
 /**
  * Get bootstrap entry points for a build target.
