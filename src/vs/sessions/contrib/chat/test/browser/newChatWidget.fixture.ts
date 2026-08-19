@@ -36,7 +36,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession, ISessionWorkspace, ISessionType, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
@@ -163,7 +163,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			}());
 			reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 				override readonly onDidChangeFeedback = Event.None;
+				override readonly onDidChangeFeedbackVisibility = Event.None;
 				override readonly onDidChangeFeedbackScope = Event.None;
+				override readonly onDidRevealSessionComment = Event.None;
+				override getVisibleResolvedFeedbackIds(): ReadonlySet<string> { return new Set(); }
 				override getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
 					return sessionResource.toString() === AGENT_FEEDBACK_NEW_SESSION_RESOURCE.toString() ? feedbackItems : [];
 				}
@@ -390,6 +393,10 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType): IActiveSession {
 	const activeChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('fixture-chat://new-session');
+		// Read by model selection: an untitled chat with no model of its own.
+		override readonly status = constObservable(SessionStatus.Untitled);
+		override readonly modelId = constObservable<string | undefined>(undefined);
+		override readonly modelSource = constObservable<ChatModelSource | undefined>(undefined);
 	}();
 	return new class extends mock<IActiveSession>() {
 		override readonly resource = URI.from({ scheme: 'fixture-session', path: '/fixture-session' });
@@ -411,7 +418,7 @@ function createStandardPromptOptions(): readonly INewSessionPromptOption[] {
 			id: 'standard:implementFeature',
 			title: 'Implement a feature',
 			description: 'Describe what you want to build',
-			prompt: 'Help me implement [describe the feature] in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks.',
+			prompt: 'Help me implement [describe the feature] in this project. Ask me questions if anything is unclear regarding the intended behaviour.',
 			placeholder: '[describe the feature]',
 			icon: Codicon.lightbulbSparkleAutofix,
 		},
@@ -419,7 +426,7 @@ function createStandardPromptOptions(): readonly INewSessionPromptOption[] {
 			id: 'standard:fixBug',
 			title: 'Fix a bug',
 			description: 'Describe the unexpected behavior',
-			prompt: 'Help me fix [describe the bug] in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks.',
+			prompt: 'Help me fix [describe the bug] in this project. Ask me questions if anything is unclear regarding the bug or the intended behaviour.',
 			placeholder: '[describe the bug]',
 			icon: Codicon.bug,
 		},
@@ -427,7 +434,7 @@ function createStandardPromptOptions(): readonly INewSessionPromptOption[] {
 			id: 'standard:fixCi',
 			title: 'Fix CI',
 			description: 'Describe a failing check or paste a link',
-			prompt: 'Help me fix the failing CI for [describe the CI failure or paste a link] in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution and run the most relevant checks.',
+			prompt: 'Help me fix the failing CI for [describe the CI failure or paste a link] in this project. Ask me questions if anything is unclear regarding the CI failure or how it should be fixed.',
 			placeholder: '[describe the CI failure or paste a link]',
 			icon: Codicon.runErrors,
 		},

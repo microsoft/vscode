@@ -9,50 +9,42 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISinglePaneLayoutContext, SinglePaneDockedTabsCoordinator } from '../../browser/singlePane/singlePaneLayoutStrategy.js';
-import { SinglePaneDetailsStrategy } from '../../browser/singlePane/singlePaneDetailsStrategy.js';
-import { SinglePaneDetailPanelStrategy } from '../../browser/singlePane/singlePaneDetailPanelStrategy.js';
-import { SinglePaneManagedTabsStrategy } from '../../browser/singlePane/singlePaneManagedTabsStrategy.js';
-import { SinglePaneEditorAreaCollapseStrategy } from '../../browser/singlePane/singlePaneEditorAreaCollapseStrategy.js';
-import { SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
-import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { SinglePaneDetailPanelCoordinator } from '../../browser/singlePane/singlePaneDetailPanelCoordinator.js';
+import { SinglePaneExistingSessionStrategy } from '../../browser/singlePane/singlePaneExistingSessionStrategy.js';
+import { ISinglePaneLayoutContext } from '../../browser/singlePane/singlePaneLayoutStrategy.js';
+import { SinglePaneNewSessionStrategy } from '../../browser/singlePane/singlePaneNewSessionStrategy.js';
+import { SinglePaneQuickChatStrategy } from '../../browser/singlePane/singlePaneQuickChatStrategy.js';
+import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from '../../browser/singlePane/singlePaneVisibilityProfileStore.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
-/**
- * Mutable state backing a test {@link ISinglePaneLayoutContext}. Tests flip these
- * flags to reproduce the coordination the real controller drives.
- */
 interface ITestContextState {
 	isRestoringSessionLayout: boolean;
 	togglingSidePane: boolean;
-	/** Fires the settled-restore signal strategies reconcile off ([Trigger D]). */
+	setHasSavedWorkingSet(sessionResource: URI, hasSavedWorkingSet: boolean): void;
 	endSessionLayoutRestore(): void;
 }
 
-/**
- * Builds an {@link ISinglePaneLayoutContext} backed by the shared test harness so
- * a strategy can be instantiated in isolation via `createInstance(Strategy, ctx)`.
- * The returned `state` lets tests toggle the coordination flags the controller
- * would otherwise own.
- */
 function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutHarness): { readonly ctx: ISinglePaneLayoutContext; readonly state: ITestContextState } {
 	const onDidEndSessionLayoutRestore = store.add(new Emitter<void>());
+	const savedWorkingSets = new Set<string>();
 	const state: ITestContextState = {
 		isRestoringSessionLayout: false,
 		togglingSidePane: false,
+		setHasSavedWorkingSet: (sessionResource, hasSavedWorkingSet) => {
+			const key = sessionResource.toString();
+			if (hasSavedWorkingSet) {
+				savedWorkingSets.add(key);
+			} else {
+				savedWorkingSets.delete(key);
+			}
+		},
 		endSessionLayoutRestore: () => onDidEndSessionLayoutRestore.fire(),
 	};
-
-	const activeSessionResourceObs = derived(reader => harness.activeSessionObs.read(reader)?.resource);
-	const multipleSessionsVisibleObs = derived(reader => harness.visibleSessionsObs.read(reader).length > 1);
-
 	const ctx: ISinglePaneLayoutContext = {
 		get isRestoringSessionLayout() { return state.isRestoringSessionLayout; },
 		withSessionLayoutRestore: work => {
@@ -65,21 +57,21 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 			try {
 				const result = work();
 				if (result instanceof Promise) {
-					result.finally(done);
+					void result.finally(done);
 				} else {
 					done();
 				}
-			} catch (e) {
+			} catch (error) {
 				done();
-				throw e;
+				throw error;
 			}
 		},
 		onDidEndSessionLayoutRestore: onDidEndSessionLayoutRestore.event,
 		get togglingSidePane() { return state.togglingSidePane; },
-		multipleSessionsVisibleObs,
-		activeSessionResourceObs,
+		multipleSessionsVisibleObs: derived(reader => harness.visibleSessionsObs.read(reader).length > 1),
+		activeSessionResourceObs: derived(reader => harness.activeSessionObs.read(reader)?.resource),
+		hasSavedWorkingSet: sessionResource => savedWorkingSets.has(sessionResource.toString()),
 	};
-
 	return { ctx, state };
 }
 
@@ -91,374 +83,389 @@ suite('SinglePane layout strategies', () => {
 	teardown(() => store.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: ICreateOptions = {}): { readonly ctx: ISinglePaneLayoutContext; readonly state: ITestContextState } {
+	function setup(options: ICreateOptions = {}): ISinglePaneLayoutContext {
 		harness = createTestHarness(store, options);
-		return createStrategyTestContext(store, harness);
+		return createStrategyTestContext(store, harness).ctx;
 	}
 
-	/** Makes the given session the single active + visible session. */
 	function activate(session: IActiveSession | undefined): void {
 		harness.activeSessionObs.set(session, undefined);
 		harness.visibleSessionsObs.set(session ? [session] : [], undefined);
 	}
 
-	/** Flushes the shared docked-tab / detail sequencers (several chained microtasks). */
-	async function settle(): Promise<void> {
-		for (let i = 0; i < 6; i++) {
-			await timeout(0);
-		}
+	function createDetailPanel(): SinglePaneDetailPanelCoordinator {
+		return store.add(harness.instaService.createInstance(SinglePaneDetailPanelCoordinator));
 	}
 
-	// --- Toggle Details owns only the detail panel (the sessions list is never touched) ---
-	suite('DetailsStrategy', () => {
+	function createVisibilityStore(): SinglePaneVisibilityProfileStore {
+		return harness.instaService.createInstance(SinglePaneVisibilityProfileStore);
+	}
 
-		function create(ctx: ISinglePaneLayoutContext) {
-			return store.add(harness.instaService.createInstance(SinglePaneDetailsStrategy, ctx));
-		}
+	test('Existing Session toggles only the detail panel', () => {
+		const ctx = setup();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		const strategy = store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			harness.instaService.createInstance(SinglePaneVisibilityProfileStore),
+			createDetailPanel()
+		));
+		harness.setPartHiddenCalls.length = 0;
 
-		test('toggleDetails reveals a hidden detail without touching the sessions list', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			harness.partVisibility.set(Parts.SIDEBAR_PART, true);
-			const strategy = create(ctx);
-			harness.setPartHiddenCalls.length = 0;
+		const nowVisible = strategy.toggleDetails();
 
-			const nowVisible = strategy.toggleDetails();
-
-			assert.deepStrictEqual({ nowVisible, calls: harness.setPartHiddenCalls }, {
-				nowVisible: true,
-				calls: [{ hidden: false, part: Parts.AUXILIARYBAR_PART }],
-			});
-		});
-
-		test('toggleDetails hides a visible detail without touching the sessions list', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-			harness.partVisibility.set(Parts.SIDEBAR_PART, true);
-			const strategy = create(ctx);
-			harness.setPartHiddenCalls.length = 0;
-
-			const nowVisible = strategy.toggleDetails();
-
-			assert.deepStrictEqual({ nowVisible, calls: harness.setPartHiddenCalls }, {
-				nowVisible: false,
-				calls: [{ hidden: true, part: Parts.AUXILIARYBAR_PART }],
-			});
+		assert.deepStrictEqual({ nowVisible, calls: harness.setPartHiddenCalls }, {
+			nowVisible: true,
+			calls: [{ hidden: false, part: Parts.AUXILIARYBAR_PART }],
 		});
 	});
 
-	// --- Detail container (Changes / Files) follows the active editor ---
-	suite('DetailPanelStrategy', () => {
+	test('New Session entry hides Editor when Empty Files is the only input', () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		harness.activeGroupEditors.push(store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get())));
+		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel()));
+		harness.setPartHiddenCalls.length = 0;
 
-		const S = URI.parse('session:/s');
+		activate(session);
 
-		function create(ctx: ISinglePaneLayoutContext) {
-			return store.add(harness.instaService.createInstance(SinglePaneDetailPanelStrategy, ctx));
-		}
+		assert.deepStrictEqual(harness.setPartHiddenCalls.filter(call => call.part === Parts.EDITOR_PART), [
+			{ hidden: true, part: Parts.EDITOR_PART },
+		]);
+	});
 
-		function changesEditor(): TestStubEditorInput {
-			const resource = harness.sessionChangesService.getChangesEditorResource(S);
-			return store.add(new TestStubEditorInput(resource));
-		}
+	test('New Session close fallback replaces the last file and opens Details', async () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel()));
+		activate(session);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 
-		function auxHiddenCalls() {
-			return harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART);
-		}
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+		const replacementDuringClose = harness.activeGroupEditors.find(input => input instanceof EmptyFileEditorInput);
+		harness.onDidEditorsChange.fire();
+		await Promise.resolve();
 
-		test('hides the detail for a quick chat', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-			create(ctx);
-
-			activate(makeSession(S, { isQuickChat: true }));
-			await timeout(0);
-
-			assert.deepStrictEqual(auxHiddenCalls(), [{ hidden: true, part: Parts.AUXILIARYBAR_PART }]);
-		});
-
-		test('hides the detail when a created session has an empty editor group', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-			harness.editorGroupsHaveContent = false;
-			create(ctx);
-
-			activate(makeSession(S, { isCreated: true }));
-			await timeout(0);
-
-			assert.deepStrictEqual(auxHiddenCalls(), [{ hidden: true, part: Parts.AUXILIARYBAR_PART }]);
-		});
-
-		test('preserves the detail for an empty group during a session restore', async () => {
-			const { ctx, state } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-			harness.editorGroupsHaveContent = false;
-			state.isRestoringSessionLayout = true;
-			create(ctx);
-
-			activate(makeSession(S, { isCreated: true }));
-			await timeout(0);
-
-			assert.deepStrictEqual(auxHiddenCalls(), []);
-		});
-
-		test('opens Changes for a created session with no active editor', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-			harness.editorGroupsHaveContent = true;
-			create(ctx);
-
-			activate(makeSession(S, { isCreated: true }));
-			await timeout(0);
-
-			assert.deepStrictEqual(harness.openedViewContainers, [CHANGES_VIEW_CONTAINER_ID]);
-		});
-
-		test('opens Files for an uncreated session with no active editor', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-			harness.editorGroupsHaveContent = true;
-			create(ctx);
-
-			activate(makeSession(S, { status: SessionStatus.Untitled }));
-			await timeout(0);
-
-			assert.deepStrictEqual(harness.openedViewContainers, [SESSIONS_FILES_CONTAINER_ID]);
-		});
-
-		test('forces Changes when a changes editor is active', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-			harness.editorGroupsHaveContent = true;
-			harness.activeEditorInput = changesEditor();
-			create(ctx);
-
-			activate(makeSession(S, { isCreated: true }));
-			await timeout(0);
-
-			assert.deepStrictEqual(harness.openedViewContainers, [CHANGES_VIEW_CONTAINER_ID]);
-		});
-
-		test('forces Files when the empty landing editor is active', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-			harness.editorGroupsHaveContent = true;
-			harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
-			create(ctx);
-
-			activate(makeSession(S, { isCreated: true }));
-			await timeout(0);
-
-			assert.deepStrictEqual(harness.openedViewContainers, [SESSIONS_FILES_CONTAINER_ID]);
-		});
-
-		test('does not reveal a hidden detail when a changes editor becomes active', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			harness.editorGroupsHaveContent = true;
-			harness.activeEditorInput = changesEditor();
-			create(ctx);
-
-			activate(makeSession(S, { isCreated: true }));
-			await timeout(0);
-
-			assert.deepStrictEqual({ hidden: auxHiddenCalls(), opened: harness.openedViewContainers }, { hidden: [], opened: [] });
-		});
-
-		test('forces Changes while the editor is maximized', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-			harness.editorGroupsHaveContent = true;
-			harness.editorMaximized = true;
-			create(ctx);
-
-			activate(makeSession(S, { isCreated: true }));
-			await timeout(0);
-
-			assert.deepStrictEqual(harness.openedViewContainers, [CHANGES_VIEW_CONTAINER_ID]);
+		assert.deepStrictEqual({
+			replacementPreservedAfterClose: replacementDuringClose === harness.activeGroupEditors[0],
+			editorsAfterCloseCompleted: harness.activeGroupEditors.map(input => input.typeId),
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			replacementPreservedAfterClose: true,
+			editorsAfterCloseCompleted: [EmptyFileEditorInput.ID],
+			editorVisible: true,
+			auxiliaryBarVisible: true,
 		});
 	});
 
-	// --- Managed docked tabs (Changes multi-diff + Files placeholder) ---
-	suite('ManagedTabsStrategy', () => {
+	test('New Session closes the side pane when Empty Files is closed', () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		const editor = store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get()));
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel()));
+		activate(session);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 
-		const S = URI.parse('session:/s');
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
 
-		function create(ctx: ISinglePaneLayoutContext) {
-			const coordinator = store.add(new SinglePaneDockedTabsCoordinator(harness.instaService.get(ISessionChangesService)));
-			return store.add(harness.instaService.createInstance(SinglePaneManagedTabsStrategy, ctx, coordinator));
-		}
-
-		/** Classifies the managed group's editors: 'changes' | 'files' | 'other'. */
-		function editorKinds(): string[] {
-			return harness.activeGroupEditors.map(e => {
-				if (e instanceof EmptyFileEditorInput) {
-					return 'files';
-				}
-				return e.resource && harness.sessionChangesService.getSessionResource(e.resource) ? 'changes' : 'other';
-			});
-		}
-
-		function filesTabMissing(): boolean {
-			return !!harness.contextKeyService.getContextKeyValue(SinglePaneFilesTabMissingContext.key);
-		}
-
-		test('ensures the Changes and Files tabs for a created session', async () => {
-			const { ctx } = setup();
-			create(ctx);
-
-			activate(makeSession(S, { isCreated: true }));
-			await settle();
-
-			assert.deepStrictEqual(editorKinds(), ['changes', 'files']);
-		});
-
-		test('ensures the Changes and Files tabs for an uncreated (new-session) view', async () => {
-			const { ctx } = setup();
-			create(ctx);
-
-			activate(makeSession(S, { status: SessionStatus.Untitled }));
-			await settle();
-
-			assert.deepStrictEqual(editorKinds(), ['changes', 'files']);
-		});
-
-		test('ensures no managed tabs for a quick chat', async () => {
-			const { ctx } = setup();
-			create(ctx);
-
-			activate(makeSession(S, { isQuickChat: true }));
-			await settle();
-
-			assert.deepStrictEqual(editorKinds(), []);
-		});
-
-		test('remembers a user Files-tab dismissal and offers the + Files entry', async () => {
-			const { ctx } = setup();
-			create(ctx);
-			activate(makeSession(S, { isCreated: true }));
-			await settle();
-
-			const placeholder = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
-			harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(placeholder), 1);
-			harness.onDidCloseEditor.fire({ editor: placeholder });
-			harness.onDidEditorsChange.fire();
-			await settle();
-
-			assert.deepStrictEqual({ kinds: editorKinds(), filesMissing: filesTabMissing() }, { kinds: ['changes'], filesMissing: true });
-		});
-
-		test('re-ensures a dismissed Files tab after the side pane is reopened', async () => {
-			const { ctx } = setup();
-			create(ctx);
-			activate(makeSession(S, { isCreated: true }));
-			await settle();
-
-			// User dismisses the Files placeholder.
-			const placeholder = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
-			harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(placeholder), 1);
-			harness.onDidCloseEditor.fire({ editor: placeholder });
-			harness.onDidEditorsChange.fire();
-			await settle();
-
-			// Fully close the side pane, then reopen it.
-			harness.partVisibility.set(Parts.EDITOR_PART, false);
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-			await settle();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-			harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-			await settle();
-
-			assert.deepStrictEqual(editorKinds(), ['changes', 'files']);
-		});
-
-		test('removes the Files placeholder while a workspace file is open in a visible editor', async () => {
-			const { ctx } = setup();
-			create(ctx);
-			activate(makeSession(S, { isCreated: true }));
-			await settle();
-
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			const file = store.add(new TestStubEditorInput(URI.file('/repo/a.ts')));
-			// The tidy strip reacts to a genuinely new file open, not to the group contents.
-			harness.onWillOpenEditor.fire({ groupId: 1, editor: file });
-			harness.activeGroupEditors.push(file);
-			harness.onDidEditorsChange.fire();
-			await settle();
-
-			assert.strictEqual(harness.activeGroupEditors.some(e => e instanceof EmptyFileEditorInput), false);
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
 		});
 	});
 
-	// --- Editor-area collapse (hide real editors while detail-only) ---
-	suite('EditorAreaCollapseStrategy', () => {
+	test('New Session rules are inert outside the New Session view', async () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel()));
+		activate(session);
+		harness.setPartHiddenCalls.length = 0;
+		harness.openedViewContainers.length = 0;
 
-		function create(ctx: ISinglePaneLayoutContext) {
-			const coordinator = store.add(new SinglePaneDockedTabsCoordinator(harness.instaService.get(ISessionChangesService)));
-			const strategy = store.add(harness.instaService.createInstance(SinglePaneEditorAreaCollapseStrategy, ctx, coordinator));
-			return { strategy, coordinator };
-		}
-
-		function hideEditorArea(): void {
-			harness.partVisibility.set(Parts.EDITOR_PART, false);
-			harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
-		}
-
-		function showEditorArea(): void {
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
-		}
-
-		test('collapses non-managed editors when the editor area is hidden', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			const { coordinator } = create(ctx);
-			harness.activeGroupEditors.push(store.add(new TestStubEditorInput(URI.file('/repo/a.ts'))));
-
-			hideEditorArea();
-			await settle();
-
-			assert.deepStrictEqual({ editors: harness.activeGroupEditors.length, captured: coordinator.collapsedEditors?.length }, { editors: 0, captured: 1 });
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+		harness.onDidToggleSidePane.fire({
+			before: { editor: false, auxiliaryBar: false },
+			after: { editor: true, auxiliaryBar: false },
 		});
+		harness.onWillOpenEditor.fire({ editor, groupId: 1 });
+		await Promise.resolve();
 
-		test('restores collapsed editors when the editor area is shown again', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			const { coordinator } = create(ctx);
-			harness.activeGroupEditors.push(store.add(new TestStubEditorInput(URI.file('/repo/a.ts'))));
-
-			hideEditorArea();
-			await settle();
-			showEditorArea();
-			await settle();
-
-			assert.deepStrictEqual({ editors: harness.activeGroupEditors.length, captured: coordinator.collapsedEditors }, { editors: 1, captured: undefined });
-		});
-
-		test('skips the collapse during a session-switch restore', async () => {
-			const { ctx, state } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			const { coordinator } = create(ctx);
-			harness.activeGroupEditors.push(store.add(new TestStubEditorInput(URI.file('/repo/a.ts'))));
-			state.isRestoringSessionLayout = true;
-
-			hideEditorArea();
-			await settle();
-
-			assert.deepStrictEqual({ editors: harness.activeGroupEditors.length, captured: coordinator.collapsedEditors }, { editors: 1, captured: undefined });
-		});
-
-		test('does not collapse the managed placeholder tab', async () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			const { coordinator } = create(ctx);
-			harness.activeGroupEditors.push(store.add(new EmptyFileEditorInput(undefined, harness.layoutService)));
-
-			hideEditorArea();
-			await settle();
-
-			assert.deepStrictEqual({ editors: harness.activeGroupEditors.length, captured: coordinator.collapsedEditors }, { editors: 1, captured: undefined });
+		assert.deepStrictEqual({
+			hasEmptyFiles: harness.activeGroupEditors.some(input => input instanceof EmptyFileEditorInput),
+			partVisibilityChanges: harness.setPartHiddenCalls,
+			openedViewContainers: harness.openedViewContainers,
+		}, {
+			hasEmptyFiles: false,
+			partVisibilityChanges: [],
+			openedViewContainers: [],
 		});
 	});
 
+	test('Existing Session closes the side pane when its last editor closes', async () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		const visibilityStore = harness.instaService.createInstance(SinglePaneVisibilityProfileStore);
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			visibilityStore,
+			createDetailPanel()
+		));
+		activate(session);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidEditorsChange.fire({ groupId: 1, event: { kind: GroupModelChangeKind.EDITOR_CLOSE } });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			partVisibilityChanges: harness.setPartHiddenCalls,
+			existingProfile: visibilityStore.get(SessionVisibilityProfile.Existing),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			partVisibilityChanges: [
+				{ hidden: true, part: Parts.EDITOR_PART },
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			],
+			existingProfile: {
+				editorVisible: false,
+				auxiliaryBarVisible: false,
+			},
+		});
+	});
+
+	test('Existing Session keeps the side pane open when multiple sessions are visible', async () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const otherSession = makeSession(URI.parse('session:/other'));
+		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			harness.instaService.createInstance(SinglePaneVisibilityProfileStore),
+			createDetailPanel()
+		));
+		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session, otherSession], undefined);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+		harness.onDidEditorsChange.fire();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: true,
+			visibilityChanges: [],
+		});
+	});
+
+	test('Quick Chat hides the side pane once on entry', async () => {
+		const ctx = setup();
+		const editor = store.add(new TestStubEditorInput(URI.parse('search-editor://outgoing')));
+		harness.activeGroupEditors.push(editor);
+		harness.editorGroupsHaveContent = true;
+		harness.activeEditorInput = editor;
+		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel(), createVisibilityStore()));
+		activate(makeSession(URI.parse('session:/workspace')));
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+
+		activate(makeSession(URI.parse('session:/quick'), { isQuickChat: true }));
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			hideOrder: harness.setPartHiddenCalls.filter(call => call.hidden),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			hideOrder: [
+				{ part: Parts.EDITOR_PART, hidden: true },
+				{ part: Parts.AUXILIARYBAR_PART, hidden: true },
+			],
+		});
+
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+		harness.onDidEditorsChange.fire();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: true,
+			visibilityChanges: [],
+		});
+	});
+
+	test('Quick Chat reveals its restored editors after layout restoration settles', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		state.setHasSavedWorkingSet(quickChat.resource, true);
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: false, auxiliaryBarVisible: false });
+		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel(), visibilityStore));
+
+		activate(makeSession(URI.parse('session:/workspace')));
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		activate(quickChat);
+		const restoredEditor = store.add(new TestStubEditorInput(URI.parse('browser://restored')));
+		harness.activeGroupEditors.push(restoredEditor);
+		harness.editorGroupsHaveContent = true;
+		harness.activeEditorInput = restoredEditor;
+		harness.setPartHiddenCalls.length = 0;
+
+		state.endSessionLayoutRestore();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [],
+		});
+
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.setPartHiddenCalls.length = 0;
+		state.endSessionLayoutRestore();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: false,
+			visibilityChanges: [],
+		});
+	});
+
+	test('Quick Chat records a newly opened editor before its first switch', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		const newQuickChat = makeSession(URI.parse('session:/new-quick'), { isQuickChat: true });
+		const restoredQuickChat = makeSession(URI.parse('session:/restored-quick'), { isQuickChat: true });
+		state.setHasSavedWorkingSet(restoredQuickChat.resource, true);
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: false, auxiliaryBarVisible: false });
+		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel(), visibilityStore));
+
+		activate(newQuickChat);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		const openedEditor = store.add(new TestStubEditorInput(URI.parse('browser://new')));
+		harness.activeGroupEditors.push(openedEditor);
+		harness.editorGroupsHaveContent = true;
+		harness.activeEditorInput = openedEditor;
+		harness.onDidEditorsChange.fire();
+
+		activate(restoredQuickChat);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			sharedVisibility: { editorVisible: true, auxiliaryBarVisible: false },
+		});
+	});
+
+	test('Quick Chat shares side-pane visibility without persisting an editorless hide', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		const emptyQuickChat = makeSession(URI.parse('session:/empty-quick'), { isQuickChat: true });
+		const editorQuickChat = makeSession(URI.parse('session:/editor-quick'), { isQuickChat: true });
+		state.setHasSavedWorkingSet(editorQuickChat.resource, true);
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: false, auxiliaryBarVisible: true });
+		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel(), visibilityStore));
+
+		activate(makeSession(URI.parse('session:/workspace')));
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+
+		activate(emptyQuickChat);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			sharedVisibility: { editorVisible: false, auxiliaryBarVisible: true },
+		});
+
+		activate(editorQuickChat);
+		const restoredEditor = store.add(new TestStubEditorInput(URI.parse('browser://restored')));
+		harness.activeGroupEditors.push(restoredEditor);
+		harness.editorGroupsHaveContent = true;
+		harness.activeEditorInput = restoredEditor;
+		harness.setPartHiddenCalls.length = 0;
+
+		state.endSessionLayoutRestore();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [],
+			sharedVisibility: { editorVisible: false, auxiliaryBarVisible: true },
+		});
+
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+
+		assert.deepStrictEqual(visibilityStore.get(SessionVisibilityProfile.Existing), {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+		});
+	});
 });

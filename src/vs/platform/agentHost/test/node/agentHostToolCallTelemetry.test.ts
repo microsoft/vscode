@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -15,7 +16,9 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentSession, IAgent } from '../../common/agentService.js';
+import { AgentSession, IAgent } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
@@ -26,6 +29,7 @@ import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
+import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -109,7 +113,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}
 
-	function startTurn(turnId: string, text = 'hello', modelId?: string): void {
+	function startTurn(turnId: string, text = 'hello', modelId?: string, clientContext?: IAgentHostClientTelemetryContext): void {
 		const action: ChatAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
@@ -117,7 +121,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			message: { text, origin: { kind: MessageKind.User }, model: modelId ? { id: modelId } : undefined },
 		};
 		stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
-		sideEffects.handleAction(defaultChatUri, action);
+		sideEffects.handleAction(defaultChatUri, action, 'test', clientContext);
 	}
 
 	function fire(action: ChatAction): void {
@@ -193,6 +197,17 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const telemetryService = disposables.add(new AgentHostTelemetryService(telemetry));
 		const sessionDataService = createNullSessionDataService();
+		const customizationEnablementService: IAgentHostCustomizationEnablementService = {
+			_serviceBrand: undefined,
+			onDidChange: Event.None,
+			initializeSession: async () => { },
+			getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+			resolve: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+			applyClientGlobalEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+			replaceEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+			setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+			whenIdle: async () => { },
+		};
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
@@ -202,7 +217,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
 		), /*strict*/ true));
-		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, {
+		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService,
@@ -248,6 +263,39 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				model: undefined,
 			},
 		}]);
+	});
+
+	test('attributes tool telemetry to the initiating turn client', () => {
+		setupSession();
+		const clientContext: IAgentHostClientTelemetryContext = {
+			clientType: AgentHostClientType.EditorWindow,
+			connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+			transportKind: AgentHostTransportKind.MessagePort,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		};
+		startTurn('turn-client', 'hello', 'model-a', clientContext);
+		toolStart('turn-client', 'tool-client', 'grep');
+		toolComplete('turn-client', 'tool-client', { success: true, pastTenseMessage: 'searched' });
+		completeTurn('turn-client');
+
+		const event = toolEvents()[0];
+		assert.deepStrictEqual({
+			initiatorClientType: event.data.initiatorClientType,
+			initiatorConnectionKind: event.data.initiatorConnectionKind,
+			initiatorTransportKind: event.data.initiatorTransportKind,
+			hostLaunchKind: event.data.hostLaunchKind,
+			initiatorMachineId: event.data.initiatorMachineId,
+			initiatorDevDeviceId: event.data.initiatorDevDeviceId,
+		}, {
+			initiatorClientType: 'editor_window',
+			initiatorConnectionKind: 'remote_extension_host',
+			initiatorTransportKind: 'message_port',
+			hostLaunchKind: 'vscode_main_process',
+			initiatorMachineId: 'client-machine-id',
+			initiatorDevDeviceId: 'client-dev-device-id',
+		});
 	});
 
 	test('emits userCancelled with mcp source kind for a denied mcp tool', () => {

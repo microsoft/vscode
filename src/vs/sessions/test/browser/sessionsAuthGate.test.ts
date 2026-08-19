@@ -5,20 +5,36 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { ConditionalAuthState, conditionalAuthState, shouldForceGitHubSignIn, shouldShowDiscoveredConfigNudge } from '../../browser/sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, shouldShowDiscoveredConfigNudge, shouldShowGitHubWorkspaceGroupSignIn, SignedOutWindowGate } from '../../browser/sessionsAuthGate.js';
+import { SessionTypeAuthRequirement } from '../../services/sessions/common/session.js';
 
 suite('Sessions - Auth Gate', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('blocking sign-in follows the signed-out opt-in only', () => {
+	test('blocking sign-in requires the opt-in and a provider that does not need GitHub', () => {
 		assert.deepStrictEqual({
-			featureDisabled: shouldForceGitHubSignIn(false),
-			featureEnabled: shouldForceGitHubSignIn(true),
+			featureDisabled: resolveSignedOutWindowGate(false, [SessionTypeAuthRequirement.None]),
+			providersUnresolved: resolveSignedOutWindowGate(true, []),
+			allRequireGitHub: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.GitHub]),
+			nativeProvider: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.None]),
+			nativeProviderInitializing: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.Unusable]),
 		}, {
-			featureDisabled: true,
-			featureEnabled: false,
+			featureDisabled: SignedOutWindowGate.ForceGitHubSignIn,
+			providersUnresolved: SignedOutWindowGate.Unresolved,
+			allRequireGitHub: SignedOutWindowGate.ForceGitHubSignIn,
+			nativeProvider: SignedOutWindowGate.Proceed,
+			nativeProviderInitializing: SignedOutWindowGate.Proceed,
 		});
+	});
+
+	test('GitHub workspace group offers sign-in only for signed-out opted-in users', () => {
+		assert.deepStrictEqual([
+			shouldShowGitHubWorkspaceGroupSignIn(false, false),
+			shouldShowGitHubWorkspaceGroupSignIn(false, true),
+			shouldShowGitHubWorkspaceGroupSignIn(true, false),
+			shouldShowGitHubWorkspaceGroupSignIn(true, true),
+		], [false, true, false, false]);
 	});
 
 	test('conditionalAuthState treats an unresolved account as unknown, never signed out', () => {

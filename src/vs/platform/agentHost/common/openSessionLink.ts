@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { AgentSession } from './agentService.js';
+import { localize } from '../../../nls.js';
+import { ILinkPresentation, ILinkPresentationStatus } from '../../dataChannel/common/dataChannel.js';
+import { AgentSession } from './agent.js';
 import { SessionServerToolName } from './serverToolNames.js';
 import { DEFAULT_CHAT_ID, isAhpChatChannel, parseChatUri } from './state/sessionState.js';
 
@@ -19,6 +21,33 @@ import { DEFAULT_CHAT_ID, isAhpChatChannel, parseChatUri } from './state/session
  * authority and the id is the path.
  */
 export const AGENT_HOST_SESSION_LINK_SCHEME = 'agent-host-session';
+export const AGENT_HOST_SESSION_LINK_PATTERN = /^agent-host-session:\/\/[^/?#]+\/[^?#]+(?:\?[^#]*)?(?:#.*)?$/i;
+
+export type AgentSessionLinkStatus = 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error';
+
+export function createAgentSessionLinkPresentation(title: string, description: string | undefined, status: AgentSessionLinkStatus, kind: 'session' | 'chat' = 'session'): ILinkPresentation {
+	const presentationStatus = getAgentSessionLinkPresentationStatus(status);
+	return {
+		kind,
+		title,
+		...(description ? { detail: description } : {}),
+		status: presentationStatus,
+		tooltip: localize('agentSessionLink.tooltip', "{0} · {1}", title, presentationStatus.label),
+		ariaLabel: kind === 'chat'
+			? localize('agentChatLink.ariaLabel', "Agent chat {0}, {1}", title, presentationStatus.label)
+			: localize('agentSessionLink.ariaLabel', "Agent session {0}, {1}", title, presentationStatus.label),
+	};
+}
+
+function getAgentSessionLinkPresentationStatus(status: AgentSessionLinkStatus): ILinkPresentationStatus {
+	switch (status) {
+		case 'untitled': return { kind: 'neutral', label: localize('agentSessionLink.notStarted', "Not started") };
+		case 'inProgress': return { kind: 'pending', label: localize('agentSessionLink.working', "Working") };
+		case 'needsInput': return { kind: 'warning', label: localize('agentSessionLink.needsInput', "Needs input") };
+		case 'completed': return { kind: 'success', label: localize('agentSessionLink.completed', "Completed") };
+		case 'error': return { kind: 'error', label: localize('agentSessionLink.error', "Error") };
+	}
+}
 
 /**
  * Whether {@link toolName} (as seen on a tool call) matches {@link bareName}.
@@ -97,7 +126,12 @@ export function parseOpenSessionLinkChatId(uri: URI | string): string | undefine
 		return undefined;
 	}
 	const match = /(?:^|&)chat=([^&]+)/.exec(parsed.query);
-	const chatId = match ? decodeURIComponent(match[1]) : undefined;
+	let chatId: string | undefined;
+	try {
+		chatId = match ? decodeURIComponent(match[1]) : undefined;
+	} catch {
+		return undefined;
+	}
 	return chatId === DEFAULT_CHAT_ID ? undefined : chatId;
 }
 

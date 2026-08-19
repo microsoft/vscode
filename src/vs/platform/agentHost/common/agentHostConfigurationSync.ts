@@ -72,6 +72,26 @@ export function getGlobalConfigurationValue<T>(configurationService: IConfigurat
 }
 
 /**
+ * Inspects the configured application-wide value of `settingId`, excluding the
+ * registered default and workspace/folder layers.
+ */
+export function inspectValue<T>(configurationService: IConfigurationService, settingId: string): readonly [value: T, source: 'policyValue' | 'userValue' | 'applicationValue'] | undefined {
+	const inspected = configurationService.inspect<T>(settingId);
+	const property = getPropertySchema(settingId);
+	const values = [
+		['policyValue', inspected.policyValue],
+		['userValue', inspected.userValue],
+		['applicationValue', inspected.applicationValue],
+	] as const;
+	for (const [source, value] of values) {
+		if (value !== undefined && matchesSchemaType(value, property?.type)) {
+			return [value, source];
+		}
+	}
+	return undefined;
+}
+
+/**
  * A setting that declares {@link IAgentHostConfigurationSync}, paired with the
  * setting id it was declared on.
  */
@@ -106,6 +126,23 @@ export function getAgentHostConfigurationSyncEntries(isLocalAgentHost: boolean):
 export function resolveAgentHostConfigurationSyncValue(configurationService: IConfigurationService, entry: IAgentHostConfigurationSyncEntry): unknown {
 	const value = getGlobalConfigurationValue(configurationService, entry.settingId);
 	return entry.sync.transform ? entry.sync.transform(value) : value;
+}
+
+/**
+ * Renders a mirrored value for logging, redacting anything that could carry
+ * user content. Mirrored settings are registry-driven and may hold paths or
+ * arbitrary strings, so only closed-set values (booleans, numbers, and declared
+ * enum members) are printed verbatim.
+ */
+export function formatAgentHostConfigurationSyncValueForLog(settingId: string, value: unknown): string {
+	if (typeof value === 'boolean' || typeof value === 'number') {
+		return String(value);
+	}
+	const property = getPropertySchema(settingId);
+	if (typeof value === 'string' && property?.enum?.includes(value)) {
+		return value;
+	}
+	return `<${Array.isArray(value) ? 'array' : typeof value}>`;
 }
 
 /**

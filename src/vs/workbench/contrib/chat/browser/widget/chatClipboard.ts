@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../../base/browser/dom.js';
 import { appendEscapedMarkdownInlineCode, isPortableLinkTarget, isPortableMarkdownTarget } from '../../../../../base/common/htmlContent.js';
 import * as marked from '../../../../../base/common/marked/marked.js';
 import { IMarkdownEdit, markdownTokensToPlainText, rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
@@ -22,7 +23,7 @@ function replaceWithLabel(element: Element, label: string): void {
 		return;
 	}
 
-	const code = element.ownerDocument.createElement('code');
+	const code = $('code');
 	code.textContent = label;
 	element.replaceWith(code);
 }

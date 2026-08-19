@@ -18,6 +18,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { INewSessionPromptOption, NewSessionPromptOptionsState } from './newSessionComposerService.js';
 
 const promptOptionButtonStyles: IButtonStyles = {
@@ -54,14 +55,14 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 	private _selecting = false;
 
 	constructor(
-		container: HTMLElement,
+		private readonly _container: HTMLElement,
 		private readonly _options: INewSessionPromptOptionsWidgetOptions,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
 		const title = localize('newSessionPromptOptions.title', "Send your first prompt");
-		this.element = dom.append(container, dom.$('.new-session-prompt-options'));
+		this.element = dom.append(this._container, dom.$('.new-session-prompt-options'));
 		this.element.role = 'group';
 		this.element.ariaLabel = title;
 		const header = dom.append(this.element, dom.$('.new-session-prompt-options-header'));
@@ -77,7 +78,16 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 		));
 		actionBar.push(closeAction, { icon: true, label: false });
 		this._optionsContainer = dom.append(this.element, dom.$('.new-session-prompt-options-list'));
-		dom.setVisibility(false, this.element);
+		this._setVisible(false);
+	}
+
+	/**
+	 * Show or hide the options, and report to the stack. Standalone, so a tip
+	 * above joins the options rather than the input.
+	 */
+	private _setVisible(visible: boolean): void {
+		dom.setVisibility(visible, this.element);
+		setChatInputStackSlot(this.element, visible ? ChatInputStackSlot.Standalone : ChatInputStackSlot.Empty);
 	}
 
 	setState(state: NewSessionPromptOptionsState | undefined): void {
@@ -89,11 +99,11 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 
 		if (!state) {
 			this.element.removeAttribute('aria-busy');
-			dom.setVisibility(false, this.element);
+			this._setVisible(false);
 			return;
 		}
 
-		dom.setVisibility(true, this.element);
+		this._setVisible(true);
 		if (state.kind === 'loading') {
 			this.element.setAttribute('aria-busy', 'true');
 			this._renderLoading();
@@ -167,6 +177,9 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 			dom.append(title, dom.$('.new-session-prompt-option-title-label')).textContent = option.title;
 			if (option.titleDetail) {
 				dom.append(title, dom.$('.new-session-prompt-option-title-detail')).textContent = option.titleDetail;
+				const actionIcon = dom.append(title, renderIcon(Codicon.arrowRight));
+				actionIcon.classList.add('new-session-prompt-option-action-icon');
+				actionIcon.ariaHidden = 'true';
 			}
 			dom.append(button.element, dom.$('.new-session-prompt-option-description')).textContent = option.description;
 			store.add(button.onDidClick(() => {
