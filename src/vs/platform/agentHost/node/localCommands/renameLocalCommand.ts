@@ -40,15 +40,19 @@ export class RenameLocalCommand extends Disposable implements ILocalChatCommand 
 			// completes the turn.
 			return;
 		}
-		const isAdditional = (uri: ProtocolURI): boolean => isAhpChatChannel(uri) && !isDefaultChatUri(uri);
-		const chatTarget = isAdditional(channel) ? channel : undefined;
+		const chatTarget = isAhpChatChannel(channel) ? channel : undefined;
 		const sessionChannel = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
 		if (chatTarget) {
-			// Rename only this chat, independently of the session title.
 			this._context.updateChatTitle(sessionChannel, chatTarget, title);
 			this._context.markTitleRenamed(sessionChannel, chatTarget);
 			this._context.persistSessionFlag(sessionChannel, customChatTitleMetadataKey(chatTarget), title);
 			this._context.persistSessionFlag(sessionChannel, customChatTitleSourceMetadataKey(chatTarget), AGENT_HOST_TITLE_SOURCE_USER);
+			if (isDefaultChatUri(chatTarget)) {
+				this._context.dispatch(sessionChannel, { type: ActionType.SessionTitleChanged, title });
+				this._context.markTitleRenamed(sessionChannel);
+				this._context.persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_KEY, title);
+				this._context.persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+			}
 		} else {
 			this._context.dispatch(sessionChannel, { type: ActionType.SessionTitleChanged, title });
 			this._context.markTitleRenamed(sessionChannel);

@@ -589,10 +589,11 @@ function inputRequestResponsePartKey(part: InputRequestResponsePart): string {
 }
 
 function getChatTitle(state: Pick<SessionState, 'chats' | 'defaultChat' | 'title'>, chatURI: string): string | undefined {
-	if (state.defaultChat === chatURI && state.chats.length === 1) {
-		return state.title;
+	const chat = state.chats.find(chat => chat.resource === chatURI);
+	if (!chat) {
+		return undefined;
 	}
-	return state.chats.find(chat => chat.resource === chatURI)?.title;
+	return chat.title || (state.defaultChat === chatURI ? state.title : undefined);
 }
 
 /**

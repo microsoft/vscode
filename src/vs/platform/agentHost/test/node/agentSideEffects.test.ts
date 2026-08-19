@@ -50,6 +50,7 @@ import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationController.js';
+import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -1513,6 +1514,30 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, []);
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.title, 'Test');
+		});
+
+		test('/rename updates both the session and default chat title once multi-chat', async () => {
+			setupSession();
+			const renameSideEffects = createRenameSideEffects();
+			stateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-rename',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: '/rename Renamed Default', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(defaultChatUri, action);
+			await timeout(10);
+
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.deepStrictEqual({
+				sessionTitle: state?.title,
+				defaultChatTitle: state?.chats.find(chat => chat.resource === defaultChatUri)?.title,
+			}, {
+				sessionTitle: 'Renamed Default',
+				defaultChatTitle: 'Renamed Default',
+			});
 			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
 		});
 
@@ -4911,6 +4936,50 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.strictEqual(await waitForMetadata('customTitle'), 'Custom Title');
+		});
+
+		test('default chat title change updates and persists the session title', async () => {
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService,
+				onTurnComplete: () => { },
+			});
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
+
+			localSideEffects.handleAction(defaultChat, {
+				type: ActionType.SessionTitleChanged,
+				title: 'Renamed Default',
+			});
+
+			assert.deepStrictEqual({
+				sessionTitle: localStateManager.getSessionState(sessionUri.toString())?.title,
+				defaultChatTitle: localStateManager.getChatState(defaultChat)?.title,
+				persistedSessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY),
+				persistedSessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+				persistedChatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
+				persistedChatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
+			}, {
+				sessionTitle: 'Renamed Default',
+				defaultChatTitle: 'Renamed Default',
+				persistedSessionTitle: 'Renamed Default',
+				persistedSessionSource: 'user',
+				persistedChatTitle: 'Renamed Default',
+				persistedChatSource: 'user',
+			});
 		});
 
 		test('handleListSessions returns persisted custom title', async () => {

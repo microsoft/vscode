@@ -1136,6 +1136,22 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		test('restored peer chat snapshots the inherited default chat title', () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const beforeRestore = manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title;
+
+			manager.registerRestoredChatSummary(sessionUri, peerChat, { title: 'Peer' });
+
+			assert.deepStrictEqual({
+				beforeRestore,
+				afterRestore: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title,
+			}, {
+				beforeRestore: '',
+				afterRestore: 'Test',
+			});
+		});
+
 		test('addChat is idempotent for an existing chat URI', () => {
 			manager.createSession(makeSessionSummary());
 			const first = manager.addChat(sessionUri, peerChat, { title: 'Peer' });

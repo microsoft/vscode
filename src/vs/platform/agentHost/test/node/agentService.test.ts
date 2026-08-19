@@ -10538,6 +10538,14 @@ suite('AgentService (node dispatcher)', () => {
 			await db.setMetadata('customTitleSource', 'user');
 			await db.setMetadata(`customChatTitle:${peerChat}`, 'Previous peer title');
 			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
+			await timeout(0);
+			localService.stateManager.prepareSessionSummariesForListing([localService.stateManager.getSessionSummary(sessionUri)!]);
+			const summaryTitleChanged = new DeferredPromise<string>();
+			disposables.add(localService.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionSummaryChanged && notification.changes.title) {
+					void summaryTitleChanged.complete(notification.changes.title);
+				}
+			}));
 
 			const multiChatDefaultResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
 				title: 'Complete replacement default chat title',
@@ -10547,7 +10555,7 @@ suite('AgentService (node dispatcher)', () => {
 				title: 'Complete replacement peer chat title',
 			});
 			await db.finalRenamePersisted.p;
-			await timeout(0);
+			const summaryTitleChange = await summaryTitleChanged.p;
 
 			assert.deepStrictEqual({
 				singleChatResult,
@@ -10562,19 +10570,21 @@ suite('AgentService (node dispatcher)', () => {
 				persistedDefaultChatSource: await db.getMetadata(`customChatTitleSource:${defaultChat}`),
 				persistedChatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
 				persistedChatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
+				summaryTitleChange,
 			}, {
 				singleChatResult: 'Renamed chat to "Single-chat title".',
 				multiChatDefaultResult: 'Renamed chat to "Complete replacement default chat title".',
 				chatResult: 'Renamed chat to "Complete replacement peer chat title".',
-				liveSessionTitle: 'Multi-chat session title',
+				liveSessionTitle: 'Complete replacement default chat title',
 				liveDefaultChatTitle: 'Complete replacement default chat title',
 				liveChatTitle: 'Complete replacement peer chat title',
-				persistedSessionTitle: 'Multi-chat session title',
-				persistedSessionSource: 'user',
+				persistedSessionTitle: 'Complete replacement default chat title',
+				persistedSessionSource: 'agent',
 				persistedDefaultChatTitle: 'Complete replacement default chat title',
 				persistedDefaultChatSource: 'agent',
 				persistedChatTitle: 'Complete replacement peer chat title',
 				persistedChatSource: 'agent',
+				summaryTitleChange: 'Complete replacement default chat title',
 			});
 		});
 

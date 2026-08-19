@@ -9,15 +9,14 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, type ActionEnvelope, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { isDefaultChatUri, readSessionEhcliAdoptable, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { readSessionEhcliAdoptable, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 /**
  * Minimal agent-host connection surface needed by the session list store.
  */
 export interface IAgentHostSessionListConnection {
-	readonly onDidAction: Event<ActionEnvelope>;
 	readonly onDidNotification: Event<INotification>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	disposeSession(session: URI): Promise<void>;
@@ -62,9 +61,9 @@ export interface IAgentHostSessionListDelta {
 
 /**
  * Shared provider-agnostic cache of agent-host sessions. It owns the
- * provider-wide listSessions refresh, workspace filtering, session
- * notifications, and live title actions. Per-provider list controllers project
- * this state into chat session items.
+ * provider-wide listSessions refresh, workspace filtering, and root session
+ * notifications. Per-provider list controllers project this state into chat
+ * session items.
  */
 export class AgentHostSessionListStore extends Disposable {
 
@@ -95,7 +94,6 @@ export class AgentHostSessionListStore extends Disposable {
 	) {
 		super();
 
-		this._register(this._connection.onDidAction(e => this._onAction(e)));
 		this._register(this._connection.onDidNotification(n => this._onNotification(n)));
 
 		// Re-fetch the session list whenever the set of VS Code workspace
@@ -321,39 +319,6 @@ export class AgentHostSessionListStore extends Disposable {
 			this._entries.set(key, updated);
 			this._onDidChangeSessions.fire({ addedOrUpdated: [updated] });
 		}
-	}
-
-	/** Projects independent default-chat titles, which are not part of the root session summary, into the flat editor session list. */
-	private _onAction(envelope: ActionEnvelope): void {
-		if (envelope.rejectionReason !== undefined) {
-			return;
-		}
-		const action = envelope.action;
-		const title = action.type === ActionType.SessionChatUpdated && isDefaultChatUri(action.chat)
-			? action.changes.title
-			: undefined;
-		if (!title) {
-			return;
-		}
-
-		const provider = AgentSession.provider(envelope.channel);
-		if (!provider) {
-			return;
-		}
-		const rawId = AgentSession.id(envelope.channel);
-		const key = this._key(provider, rawId);
-		const cached = this._entries.get(key);
-		if (!cached || cached.summary.title === title) {
-			return;
-		}
-
-		const updated: IAgentHostSessionListEntry = {
-			...cached,
-			summary: { ...cached.summary, title },
-		};
-		this._mutationGeneration++;
-		this._entries.set(key, updated);
-		this._onDidChangeSessions.fire({ addedOrUpdated: [updated] });
 	}
 
 	private _makeEntryFromMetadata(session: IAgentSessionMetadata): IAgentHostSessionListEntry | undefined {

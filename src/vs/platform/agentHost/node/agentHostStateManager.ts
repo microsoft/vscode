@@ -1021,11 +1021,7 @@ export class AgentHostStateManager extends Disposable {
 		// titles become fully independent. Without this the default chat keeps
 		// an empty title (= inherit the session title), so renaming the session
 		// would also move the default chat tab and vice-versa.
-		const defaultChatUri = sessionState.defaultChat ?? buildDefaultChatUri(session);
-		const defaultEntry = sessionState.chats.find(c => c.resource === defaultChatUri);
-		if (defaultEntry && !defaultEntry.title && sessionState.title) {
-			this.updateChatTitle(session, defaultChatUri, sessionState.title);
-		}
+		this._snapshotDefaultChatTitle(session, sessionState);
 
 		const chatSummary: ChatSummary = {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
@@ -1067,6 +1063,7 @@ export class AgentHostStateManager extends Disposable {
 			}
 			return existing;
 		}
+		this._snapshotDefaultChatTitle(session, sessionState);
 		const chatSummary: ChatSummary = {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options.title ?? '',
@@ -1087,6 +1084,14 @@ export class AgentHostStateManager extends Disposable {
 			valid: true,
 		});
 		return chatSummary;
+	}
+
+	private _snapshotDefaultChatTitle(session: URI, state: SessionState): void {
+		const defaultChat = state.defaultChat ?? buildDefaultChatUri(session);
+		const summary = state.chats.find(chat => chat.resource === defaultChat);
+		if (summary && !summary.title && state.title) {
+			this.updateChatTitle(session, defaultChat, state.title);
+		}
 	}
 
 	/**
