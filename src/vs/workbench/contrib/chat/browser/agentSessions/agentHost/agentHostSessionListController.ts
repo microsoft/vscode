@@ -13,6 +13,7 @@ import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/c
 import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -53,9 +54,18 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 		void _connectionAuthority;
+
+		this._register(chatService.onDidDisposeSession(event => {
+			for (const resource of event.sessionResources) {
+				if (resource.scheme === this._sessionType) {
+					this._sessionListStore.clearPendingNewSession(this._provider, AgentSession.id(resource));
+				}
+			}
+		}));
 
 		// Project the store's provider-agnostic delta down to this provider's
 		// chat-session-item delta, dropping events that don't touch us. Both
@@ -76,6 +86,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	isNewSession(resource: URI): boolean {
 		return resource.scheme === this._sessionType
 			&& this._sessionListStore.isPendingNewSession(this._provider, resource.path.substring(1));
+	}
+
+	notifySessionMaterialized(resource: URI): void {
+		if (resource.scheme === this._sessionType) {
+			this._sessionListStore.clearPendingNewSession(this._provider, AgentSession.id(resource));
+		}
 	}
 
 	async newChatSessionItem(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {

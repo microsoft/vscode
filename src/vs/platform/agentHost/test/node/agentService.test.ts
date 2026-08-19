@@ -7706,6 +7706,29 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('ephemeral session teardown clears its discovery tombstone', async () => {
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+
+			const session = await svc.createSession({
+				provider: 'copilot',
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			const tombstonedBeforeDispose = await registry.isTombstoned(session);
+			await svc.disposeSession(session);
+
+			assert.deepStrictEqual({
+				tombstonedBeforeDispose,
+				tombstonedAfterDispose: await registry.isTombstoned(session),
+			}, {
+				tombstonedBeforeDispose: true,
+				tombstonedAfterDispose: false,
+			});
+		});
+
 		test('ephemeral sessions never appear in direct or overlay listSessions paths', async () => {
 			const perSession = createPerSessionDataService();
 			const overlaySession = AgentSession.uri('copilot', 'ephemeral-overlay-session');

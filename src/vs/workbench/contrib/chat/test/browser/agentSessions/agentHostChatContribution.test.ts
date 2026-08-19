@@ -807,10 +807,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	const chatModels = new Map<string, IChatModel>();
 	const onDidCreateModel = disposables.add(new Emitter<IChatModel>());
+	const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>());
 	const chatService = {
 		getSession: (sessionResource: URI) => chatModels.get(sessionResource.toString()),
 		onDidCreateModel: onDidCreateModel.event,
-		onDidDisposeSession: Event.None,
+		onDidDisposeSession: onDidDisposeSession.event,
+		fireDidDisposeSession(...sessionResources: URI[]) {
+			onDidDisposeSession.fire({ sessionResources, reason: 'cleared' });
+		},
 		setSession(sessionResource: URI, model: IChatModel) {
 			chatModels.set(sessionResource.toString(), model);
 			onDidCreateModel.fire(model);
@@ -1000,6 +1004,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 		connection: agentHostService,
 		connectionAuthority: 'local',
 		isNewSession: sessionResource => listController.isNewSession(sessionResource),
+		onSessionMaterialized: sessionResource => listController.notifySessionMaterialized(sessionResource),
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
@@ -3486,9 +3491,10 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('terminal ephemeral session creation carries the list-suppression metadata', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { listController, sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { listController, sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
 			const item = await listController.newChatSessionItem({ prompt: '', isEphemeral: true }, CancellationToken.None);
 			assert.ok(item);
+			assert.strictEqual(listController.isNewSession(item.resource), true);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'Explain this command',
@@ -3504,6 +3510,13 @@ suite('AgentHostChatContribution', () => {
 				resourceQuery: '',
 				metadata: { [VSCODE_EPHEMERAL_SESSION_META_KEY]: true },
 			});
+			assert.strictEqual(listController.isNewSession(item.resource), false, 'materialization must clear the pending marker');
+
+			const abandoned = await listController.newChatSessionItem({ prompt: '', isEphemeral: true }, CancellationToken.None);
+			assert.ok(abandoned);
+			assert.strictEqual(listController.isNewSession(abandoned.resource), true);
+			chatService.fireDidDisposeSession(abandoned.resource);
+			assert.strictEqual(listController.isNewSession(abandoned.resource), false, 'disposing an abandoned model must clear the pending marker');
 		}));
 
 		test('newChatSessionItem rebinds untitled provisional to real resource so chip-selected config survives first send', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

@@ -661,6 +661,11 @@ export interface IChatSessionItemController {
 
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
+	/**
+	 * Notifies the controller that a locally-created session now exists on its backend.
+	 */
+	notifySessionMaterialized?(resource: URI): void;
+
 	getNewChatSessionInputState?(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 
 	resolveChatSessionItem?(resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
@@ -975,6 +980,11 @@ export interface IChatSessionsService {
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
 	 */
 	createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Notifies the registered controller that a locally-created session now exists on its backend.
+	 */
+	notifySessionMaterialized?(sessionResource: URI): void;
 
 	/**
 	 * Permanently deletes a chat session item by delegating to the registered controller's `deleteChatSessionItem`
