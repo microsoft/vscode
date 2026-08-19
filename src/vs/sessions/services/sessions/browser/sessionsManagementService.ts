@@ -25,10 +25,11 @@ import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
-import { IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { localize } from '../../../../nls.js';
 
 /** Storage key for the last session type used to create a quick chat. */
 const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUsedSessionType';
@@ -825,7 +826,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	): Promise<void> {
 		if (createOptions?.modelId) {
 			const resolvedModelId = await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
-			provider.setModel(session.sessionId, resolvedModelId);
+			provider.setModel(session.sessionId, session.mainChat.get().resource, resolvedModelId, ChatModelSource.Chosen);
 		}
 		if (createOptions?.modeId) {
 			provider.setMode?.(session.sessionId, createOptions.modeId);
@@ -1045,7 +1046,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async cancelCurrentRequest(session: ISession): Promise<void> {
-		await this.chatService.cancelCurrentRequestForSession(session.mainChat.get().resource, 'sessionsManagement');
+		const resource = session.mainChat.get().resource;
+		// A restored, unloaded session has no pending request tracked in this window, so load its model first to re-establish cancellation tracking.
+		const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'sessionsManagement:cancel');
+		if (!modelRef) {
+			throw new Error(localize('sessions.cancelCurrentRequest.loadFailed', "Failed to load chat session for cancellation."));
+		}
+		try {
+			await this.chatService.cancelCurrentRequestForSession(resource, 'sessionsManagement');
+		} finally {
+			modelRef.dispose();
+		}
 	}
 
 	async archiveSession(session: ISession): Promise<void> {

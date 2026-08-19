@@ -16,10 +16,11 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostPromptCache } from './agentHostPromptCache.js';
 import { IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
@@ -165,13 +166,6 @@ async function startAgentHost(): Promise<void> {
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	let byokLmBridgeRegistry: ByokLmBridgeRegistry;
 	let proxyResolver: IAgentHostProxyResolver | undefined;
-	// Gate BYOK *use* behind the opt-in `chat.agentHost.byokModels.enabled`
-	// setting, forwarded from the renderer as an env var. The proxy and bridge
-	// registry are always constructed below (so the session launcher can inject
-	// them), but when off they stay inert: the per-connection bridge and the
-	// renderer's BYOK server channel are not wired, so the registry stays empty
-	// and the proxy never binds.
-	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], true);
 	const hostLaunchKind = readAgentHostLaunchKind(process.env[AgentHostLaunchKindEnvVar]);
 	const connectionTelemetryTracker = disposables.add(new AgentHostClientConnectionTelemetryTracker());
 	try {
@@ -183,7 +177,7 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IProductService, productService);
-		const networkServices = await registerAgentHostNetworkServices(diServices, fileService, environmentService, logService, disposables);
+		const networkServices = registerAgentHostNetworkServices(diServices, logService, disposables);
 		proxyResolver = networkServices.proxyResolver;
 		const fetchFn = proxyResolver.fetch.bind(proxyResolver);
 		const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables, fetchFn, requestService: networkServices.requestService });
@@ -204,26 +198,29 @@ async function startAgentHost(): Promise<void> {
 		sdkDownloadProgress = agentSdkDownloader.onDidDownloadProgress;
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
-		// BYOK language-model proxy + bridge registry. Always registered so the
-		// session launcher can inject them, but BYOK *use* is gated: the
-		// per-connection bridge below (and the renderer's server channel) are only
-		// wired when `chat.agentHost.byokModels.enabled` is on, so the registry
-		// stays empty and the proxy never binds when the feature is off.
+		// BYOK infrastructure is always wired; synchronized root config gates model
+		// publication and per-session provider configuration.
 		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
 		diServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
 		const byokLmProxyService = disposables.add(instantiationService.createInstance(ByokLmProxyService));
 		diServices.set(IByokLmProxyService, byokLmProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], hostLaunchKind, storageResource);
-		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
-		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
-		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], hostLaunchKind, storageResource, undefined, undefined, {
+			logsHome: environmentService.logsHome,
+			tmpDir: environmentService.tmpDir,
+		});
 		diServices.set(IAgentService, agentService);
+		diServices.set(IAgentHostAuthenticationService, agentService.authenticationService);
 		diServices.set(IAgentHostStateManager, agentService.stateManager);
 		// Narrow host seams providers consume instead of the whole state manager.
 		diServices.set(IAgentHostPromptCache, agentService.promptCache);
 		diServices.set(IAgentHostSessionTitleSignal, agentService.sessionTitleSignal);
+		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		proxyResolver.bindConfigurationService(agentService.configurationService, true);
+		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
+		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
+		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
@@ -234,7 +231,6 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
-		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		diServices.set(IAgentHostStorageService, agentService.storageService);
 		diServices.set(IAgentHostCustomizationEnablementService, agentService.customizationEnablementService);
 		diServices.set(IAgentHostManagedSettingsService, agentService.managedSettingsService);
@@ -294,7 +290,7 @@ async function startAgentHost(): Promise<void> {
 				}
 			};
 			registerCodexIfEnabled();
-			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
+			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
@@ -380,10 +376,7 @@ async function startAgentHost(): Promise<void> {
 				const getChannel = (channelName: string) => server.getChannel(channelName, c => c.ctx === clientId);
 				const proxyConnection = createAgentHostClientProxyConnection(getChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL));
 				connectionStore.add(proxyResolver.register(clientId, proxyConnection));
-				// BYOK bridge is gated: only wire it when the feature is enabled, so
-				// the registry stays empty (and the launcher synthesizes no BYOK
-				// providers/models) when `chat.agentHost.byokModels.enabled` is off.
-				if (byokLmEnabled && byokLmBridgeRegistry) {
+				if (byokLmBridgeRegistry) {
 					const byokLmConnection = createAgentHostClientByokLmConnection(getChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL));
 					connectionStore.add(byokLmBridgeRegistry.register(clientId, byokLmConnection));
 				}

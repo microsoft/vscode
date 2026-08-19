@@ -75,7 +75,22 @@ The Plugins section keeps plugin maintenance close to plugin creation: its compa
 
 Agent Host MCP **Show Output** actions prepare and register their target channel, close the modal management editor, then reveal the prepared channel. Closing before preparation can tear down the active harness context, while showing before close lets modal teardown reset the Output presentation.
 
-When the active harness is an agent host (`agent-host-*` / `remote-*`), the overview can render a **Migrate** card. The card appears only when the core `IPromptsService` still discovers local/user `*.prompt.md` files, because those files are ignored by agent-host harnesses, and only when the experimental `chat.customizations.promptMigration.enabled` setting is enabled. The left sidebar also renders a bottom **Migrate Prompt Files** shortcut in that state so the flow is discoverable even when the overview is not visible. Choosing either entry opens a dedicated migration page where users can review all migratable prompt files, select the ones to migrate, and open individual files before running migration. Workspace and User prompt-file groups on that page are independently collapsible so large migrations stay scannable. The migrate action converts selected prompt files into skills under the harness-appropriate skill roots (for example `.github/skills` / `~/.copilot/skills` for Copilot, `.claude/skills` / `~/.claude/skills` for Claude), preserves manual invocation by setting `disable-model-invocation: true`, and removes the original prompt files. If multiple workspace skill roots are available, migration prompts once to choose the workspace target and reuses that target for all migrated workspace prompts.
+When the active harness is an agent host (`agent-host-*` / `remote-*`), the editor can offer **two separate, focused migrations**. Each is its own category with its own experimental setting, overview card, sidebar shortcut, page, copy, and confirmation, because they are different operations: one *converts* file types, the other only *relocates* files. Categories are non-overlapping, so no file is ever offered twice.
+
+- **Migrate Prompt Files** (`chat.customizations.promptMigration.enabled`) — appears when the core `IPromptsService` discovers workspace or user `*.prompt.md` files, which agent-host harnesses ignore. It converts selected prompt files into skills under the harness-appropriate skill roots (for example `.github/skills` / `~/.copilot/skills` for Copilot, `.claude/skills` / `~/.claude/skills` for Claude) and preserves manual invocation by setting `disable-model-invocation: true`. Its page groups by **Workspace** and **User**.
+- **Migrate User Data Customizations** (`chat.customizations.userDataMigration.enabled`) — appears when agents or instructions are found in the profile's User Data `promptsHome` (`PromptFileSource.UserData`), which only VS Code reads. These files keep their type and content and move to the active harness's global agents or instructions root. Its page groups by **Agents** and **Instructions**. User Data prompt files are deliberately left to the prompt migration so every prompt file is converted in one place.
+
+This page leads with a banner rather than a one-line description, because the migration has a consequence worth stating before the user commits: `promptsHome` is synced by `promptsSync`, so `.agent.md` and `.instructions.md` files there roam between devices with Settings Sync. Once migrated they live on one machine only. The banner names the trade so the choice is made knowingly, and is supplied by the category via the optional `getBanner` descriptor hook — a category that returns one has its page description suppressed to avoid repeating itself.
+
+The documentation link follows the migration note so the page reads in decision order: what this migration is, the consequence, then where to learn more.
+
+The two settings are independent: enabling one does not surface the other, and candidates are only scanned for enabled categories, so a disabled migration costs no prompt-file discovery. Each category declares its own `enablementSetting` on its descriptor, so adding a future migration means adding a descriptor rather than touching the editor.
+
+Both pages share the same machinery: search, per-item and per-group selection, independently collapsible groups, opening a file before migrating, deleting an obsolete file, an opt-out for deleting originals, collision-safe target names, and partial-failure reporting. Selection identity includes both URI and storage because one physical file can be configured as both workspace and user storage; the two rows remain independently selectable. Opening a candidate uses the shared `Button` widget around its name and path, leaving the checkbox and delete action as separate keyboard targets. Its accessible name includes both visible labels so same-named files remain distinguishable to screen-reader users.
+
+Migration is transactional per source URI. All selected storage identities for one source are copied before the original is deleted once. Targets are created with overwrite disabled and become rollback-owned only after creation succeeds, so a conflicting pre-existing target is preserved. If any target creation or the source deletion fails, every target created by this migration for that source is rolled back, so retrying does not create suffixed duplicates. When a destination type exposes multiple matching roots, migration prompts once for that target and reuses it for every selected file of that type and storage.
+
+Migration overview cards use their native action button as the only interactive target; the surrounding card is presentational rather than a focusable button containing another button. The full User Data migration page fixture is `blocksCi` because its warning and migration controls form a distinct full-page state.
 
 Automation run history stores the created session as a serialized URI. Its Open Session action uses the shared resource-first session opener, allowing the Agents window to route the URI through `ISessionsService` before the core workbench falls back to resolving an `IAgentSession`.
 
@@ -138,7 +153,7 @@ The shared plugin discovery pipeline selects format-specific component paths whi
 
 Runtime projection is provider-specific. Copilot receives strict skills and MCP explicitly rather than through legacy SDK plugin-directory discovery. Codex receives strict skill roots plus MCP, with remote transport selected by its existing auto-detection. Claude excludes strict packages from legacy plugin discovery and can project remote MCP through its existing auto-detection, but its current SDK cannot register external skill directories or provide the per-server working directory required by strict stdio MCP, so those components are reported and skipped.
 
-Claude Agent Host multi-root customization discovery is gated by the hidden, default-off `chat.agentHost.claudeAgent.multiRootEnabled` setting. When enabled, the primary working directory and each SDK `additionalDirectories` root contribute standalone `.claude/agents`, `.claude/skills`, and native plugin enablement to the Customizations editor. Roots are processed in session order, followed by user scope; same-named standalone agents or skills use the first visible definition as the display source. This display policy is centralized because the SDK reports standalone entries by name rather than source URI. Native plugin loaded state remains authoritative from the SDK snapshot. Rules, hooks, MCP configuration, commands, and CLAUDE.md remain primary-root/user scoped because Claude additional directories do not load those configuration types. Each contributing root has its own writable directory container, and secondary-root watchers observe only agents, skills, and plugin settings.
+Claude Agent Host multi-root customization discovery is gated by the hidden, default-off `chat.agentHost.claudeAgent.multiRootEnabled` setting. When enabled, the primary working directory and each SDK `additionalDirectories` root contribute standalone `.claude/agents`, `.claude/skills`, and native plugin enablement to the Customizations editor. Roots are processed in session order, followed by user scope; same-named standalone agents or skills use the first visible definition as the display source. This display policy is centralized because the SDK reports standalone entries by name rather than source URI. When a standalone agent or skill in one workspace folder is shadowed by a same-named copy in an earlier folder, the dropped copy is logged as a warning because it is unreachable by name (matching the Claude CLI); same-named user-scope copies are ordinary precedence and are not logged. Native plugin loaded state remains authoritative from the SDK snapshot. Rules, hooks, MCP configuration, commands, and CLAUDE.md remain primary-root/user scoped because Claude additional directories do not load those configuration types. Each contributing root has its own writable directory container, and secondary-root watchers observe only agents, skills, and plugin settings.
 
 ### IHarnessDescriptor
 
@@ -154,6 +169,7 @@ Key properties on the harness descriptor:
 | `sectionOverrides` | Per-section `ISectionOverride` map for button behavior |
 | `requiredAgentId` | Agent ID that must be registered for harness to appear |
 | `instructionFileFilter` | Filename/path patterns to filter instruction items |
+| `hiddenMcpServerCollectionIds` | Local MCP collections that do not apply to the harness; host-published servers remain visible |
 
 ### IStorageSourceFilter
 
@@ -203,6 +219,8 @@ Claude additionally applies:
 - `workspaceSubpaths: ['.claude']` (instruction files matching `instructionFileFilter` are exempt)
 - `sectionOverrides`: Instructions → "Add CLAUDE.md" primary, "Rule" type label, `.md` file extension
 
+Copilot, Claude, and Codex Agent Host harnesses hide the Copilot Chat extension's local GitHub MCP collection because that duplicate is intentionally excluded from synchronization; the provider's host-published GitHub MCP server remains visible.
+
 ### Built-in Extension Grouping (Core VS Code)
 
 In core VS Code, customization items contributed by the default chat extension (`productService.defaultChatAgent.chatExtensionId`, typically `GitHub.copilot-chat`) are grouped under the "Built-in" header in the management editor list widget, separate from third-party "Extensions".
@@ -240,7 +258,8 @@ AHP Remote Server ────────────────────�
 
 - **`customizationHarnessService.ts`** (common layer) — Defines `ICustomizationItem`, `ICustomizationItemProvider`, `ICustomizationDisableProvider`, and `IHarnessDescriptor`. A harness descriptor optionally carries an `itemProvider`; when absent, the widget falls back to `PromptsServiceCustomizationItemProvider`.
 
-- **`promptMigration.ts`** — Shared prompt-file migration utilities used by the management editor: prompt-to-skill content conversion, source-folder selection, collision-safe skill naming, and the per-file migrate/write/delete workflow with partial-failure reporting.
+- **`customizationMigration.ts`** — Shared, category-agnostic migration mechanics: prompt-to-skill content conversion, same-type relocation for other customizations, collision-safe target naming, and the per-file migrate/write/delete workflow with partial-failure reporting.
+- **`customizationMigrationCategories.ts`** — The focused migration categories (Prompt Files, User Data). Each descriptor owns its candidate predicate, grouping, enablement setting, and complete localized copy, so the editor renders both flows from one generic page without harness- or category-specific conditionals.
 
 ### MCP server list active-session controls
 

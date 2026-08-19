@@ -10,7 +10,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionEhcliAdoptable, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 /**
@@ -119,6 +119,11 @@ export class AgentHostSessionListStore extends Disposable {
 		return this._pendingNewSessions.has(this._key(provider, rawId));
 	}
 
+	/** Stop treating a locally-created session as pending without adding it to the visible list. */
+	clearPendingNewSession(provider: string, rawId: string): void {
+		this._pendingNewSessions.delete(this._key(provider, rawId));
+	}
+
 	resetCache(): void {
 		this._cacheValid = false;
 		this._mutationGeneration++;
@@ -217,16 +222,6 @@ export class AgentHostSessionListStore extends Disposable {
 		try {
 			sessions = await this._connection.listSessions();
 		} catch {
-			// If notifications mutated the list while we were fetching, the
-			// in-memory state is more up-to-date than our failed fetch.
-			if (startGeneration !== this._mutationGeneration) {
-				return;
-			}
-			if (this._entries.size === 0) {
-				return;
-			}
-			this._entries.clear();
-			this._onDidChangeSessions.fire({ removed: previousEntries.map(entry => this._toRemoval(entry)) });
 			return;
 		}
 
@@ -348,6 +343,10 @@ export class AgentHostSessionListStore extends Disposable {
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
 				changes: session.changes,
 				workingDirectories: session.workingDirectories?.map(d => d.toString()),
+				// The repository root a worktree-isolated session belongs to; the
+				// workspace filter matches on it because the worktree itself lives
+				// outside the repository folder.
+				...(session.project ? { project: { uri: session.project.uri.toString(), displayName: session.project.displayName } } : {}),
 				// Carry `_meta` so the adoptable-legacy marker survives into the list
 				// item; consumers use it to avoid passively restoring (and thereby
 				// migrating) an un-adopted legacy Copilot CLI session.
@@ -371,7 +370,7 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
-		const workingDirectories = entry.summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		const workingDirectories = this._containmentCandidates(entry.summary);
 		const workspace = this._workspaceContextService.getWorkspace();
 		const folders = workspace.folders;
 		const configuration = workspace.configuration;
@@ -396,6 +395,21 @@ export class AgentHostSessionListStore extends Disposable {
 		return workingDirectories.some(directory =>
 			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
 		);
+	}
+
+	/**
+	 * The directories a session may be matched against a workspace folder by: its
+	 * working directories plus - for legacy Copilot CLI sessions only - its
+	 * server-owned project (repository) root. Those legacy sessions run out of a
+	 * `copilot-worktrees/` directory outside the repository, so working
+	 * directories alone would hide them from a window opened on that repository.
+	 */
+	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
+		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		if (summary.project?.uri && readSessionEhcliAdoptable(summary._meta)) {
+			candidates.push(URI.parse(summary.project.uri));
+		}
+		return candidates;
 	}
 
 	private _toRemoval(entry: IAgentHostSessionListEntry): IAgentHostSessionListRemoval {

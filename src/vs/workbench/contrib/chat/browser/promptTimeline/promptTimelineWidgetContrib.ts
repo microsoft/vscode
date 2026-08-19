@@ -13,7 +13,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib, ChatWidget } from '../widget/chatWidget.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { MIN_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
+import { MIN_RAIL_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { PromptTimelineModel } from './promptTimelineModel.js';
 import { PromptTimelineGutterRail } from './promptTimelineGutterRail.js';
 import { IPromptTimelineRail } from './promptTimelineRail.js';
@@ -45,7 +45,7 @@ export function observePromptTimelineHostWidth(
 
 /**
  * Whether the sticky prompt header is mounted for a widget. Shared with the accessibility help so it
- * only describes the header (and its navigation buttons) on widgets that actually get one.
+ * only describes the header on widgets that actually get one.
  */
 export function isStickyPromptHeaderShown(widget: IChatWidget, configurationService: IConfigurationService): boolean {
 	return supportsPromptTimeline(widget)
@@ -165,7 +165,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			const ticks = ticksObs.read(reader);
 			// Toggle visibility before rendering so the rail's fit measurement in
 			// setTicks runs against the displayed (non-zero height) element.
-			rail.domNode.classList.toggle('hidden', ticks.length < MIN_PROMPTS);
+			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS);
 			rail.setTicks(ticks);
 		}));
 
@@ -185,24 +185,20 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	/**
 	 * Mounts the flat sticky header that pins the current prompt to the top of the transcript. It shows
 	 * only once that prompt's row has scrolled above the viewport (via {@link PromptTimelineModel.activePinned}).
-	 * Its previous/next toolbar actions step through prompts; activating the label jumps straight to the
-	 * prompt it names (scrolling it to the top of the transcript).
+	 * Activating the label jumps straight to the prompt it names (scrolling it to the top of the transcript).
 	 */
 	private _createStickyHeader(model: PromptTimelineModel): void {
 		const sticky = this._enablement.add(this.instantiationService.createInstance(PromptTimelineStickyHeader, this.widget.domNode));
 		this._enablement.add(sticky.onDidActivate(() => model.revealActivePrompt()));
-		this._enablement.add(sticky.onDidNavigate(delta => model.navigate(delta)));
 		this._enablement.add(autorun(reader => {
 			// Drive the header from the unbucketed active prompt so the label and N/M position match
 			// the real prompt list (the rail's ticks are bucketed/capped and would misreport long chats).
 			const active = model.activePrompt.read(reader);
 			const pinned = model.activePinned.read(reader);
-			if (active) {
+			if (active && pinned) {
 				sticky.update(active.text, active.index, active.total);
 			}
-			// The header reveals once its prompt is pinned above the viewport; it is independent of the
-			// rail, so a narrow transcript (where the rail hides) still gets the header.
-			sticky.setVisible(pinned && !!active && active.total >= MIN_PROMPTS);
+			sticky.setVisible(!!active && pinned);
 		}));
 	}
 
