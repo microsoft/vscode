@@ -38,8 +38,8 @@ import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 export const NEW_CHAT_VOICE_SENTINEL = URI.from({ scheme: 'sessions-voice', authority: 'new-chat', path: '/composer' });
 
 /** Whether the shared voice transport belongs to the new-session composer. */
-export function isNewChatVoiceSessionActive(connected: boolean, connecting: boolean, targetSession: URI | undefined, hasDraftTarget: boolean, omniInputOpen = false): boolean {
-	return !omniInputOpen && (connected || connecting) && targetSession === undefined && hasDraftTarget;
+export function isNewChatVoiceSessionActive(connected: boolean, connecting: boolean, targetSession: URI | undefined, hasDraftTarget: boolean): boolean {
+	return (connected || connecting) && targetSession === undefined && hasDraftTarget;
 }
 
 /** New-session composer APIs used by voice mode. */
@@ -281,7 +281,6 @@ export class NewChatVoiceController extends Disposable {
 				voiceSessionController.isConnecting.read(reader),
 				voiceSessionController.targetSession.read(reader),
 				voiceSessionController.hasDraftTarget.read(reader),
-				voiceSessionController.omniInputOpen.read(reader),
 			);
 			return voiceActive && isVoiceSurface.read(reader);
 		});
