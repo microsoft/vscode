@@ -20,7 +20,6 @@ import { IProductService } from '../../platform/product/common/productService.js
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../workbench/services/environment/common/environmentService.js';
 import { IAuthenticationService } from '../../workbench/services/authentication/common/authentication.js';
-import { ICommandService } from '../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService } from '../../workbench/services/layout/browser/layoutService.js';
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
 import { IHostService } from '../../workbench/services/host/browser/host.js';
@@ -73,14 +72,12 @@ class SessionsSetUpWidget extends Disposable {
 
 	private readonly dialogRef = this._register(new MutableDisposable<DisposableStore>());
 	private readonly watcherRef = this._register(new MutableDisposable());
-	private _initialSetupFlow = true;
 	/** True while the window is open for a signed-out user via the conditional-auth opt-in. */
 	private _proceedingSignedOut = false;
 	/**
 	 * Set when the user closes the sign-in dialog. Honoured for the rest of the
 	 * session so the gate does not immediately put the dialog back up.
 	 */
-	private _signInDismissed = false;
 	/** Whether a signed-out user can work without GitHub right now. */
 	private readonly _usableWithoutGitHub: IObservable<boolean>;
 
@@ -89,7 +86,6 @@ class SessionsSetUpWidget extends Disposable {
 		private readonly onCompleted: () => void,
 		private readonly serviceWhenSetupDone: () => Promise<boolean>,
 		private readonly serviceMarkDone: () => void,
-		private readonly onInitialSignInDialogShown: () => void,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -97,7 +93,6 @@ class SessionsSetUpWidget extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ILogService private readonly logService: ILogService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -147,7 +142,7 @@ class SessionsSetUpWidget extends Disposable {
 		}
 
 		if (isWeb) {
-			void this._checkWebAuth().finally(() => this._initialSetupFlow = false);
+			void this._checkWebAuth();
 			this._watchWebAuth();
 			return;
 		}
@@ -155,9 +150,9 @@ class SessionsSetUpWidget extends Disposable {
 		const isFirstLaunch = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
 
 		if (isFirstLaunch) {
-			void this._showWelcome(true).finally(() => this._initialSetupFlow = false);
+			void this._showWelcome(true);
 		} else {
-			void this._watchSignInState().finally(() => this._initialSetupFlow = false);
+			void this._watchSignInState();
 		}
 	}
 
@@ -240,30 +235,15 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	/**
-	 * Whether the Agents window must fall back to forcing GitHub sign-in. Every
-	 * caller is on a signed-out path, so this is simply the inverse of "can work
-	 * without GitHub" — always true while the opt-in is off, which is today's
-	 * mandatory-sign-in behavior.
-	 */
-	private _mustForceGitHubSignIn(): boolean {
-		return !this._signInDismissed && !this._usableWithoutGitHub.get();
-	}
-
-	/**
-	 * Re-run the signed-out decision after an input change: force GitHub sign-in
-	 * when the gate demands it, otherwise open the window without GitHub. A no-op
-	 * while a dialog is up — that dialog owns the next transition.
+	 * Re-run the signed-out decision after an input change. Signing in is the
+	 * composer's job now, so this only has to open the window. A no-op while a
+	 * dialog is up — that dialog owns the next transition.
 	 */
 	private _reevaluateSignedOut(): void {
 		if (this.dialogRef.value) {
 			return;
 		}
-		if (this._mustForceGitHubSignIn()) {
-			this._proceedingSignedOut = false;
-			void this._showWelcome(false);
-		} else {
-			void this._proceedWithoutGitHub();
-		}
+		void this._proceedWithoutGitHub();
 	}
 
 	/**
@@ -338,10 +318,10 @@ class SessionsSetUpWidget extends Disposable {
 			return;
 		}
 
-		// A non-first-launch _showWelcome means the user is signed out. Consult the
-		// last-resort GitHub gate before forcing sign-in: when a session type is
-		// usable without GitHub (and the opt-in is on), open the window instead.
-		if (!isFirstLaunch && !this._mustForceGitHubSignIn()) {
+		// A non-first-launch _showWelcome means the user is signed out, and the
+		// composer's provider list is now the sign-in surface. Open the window
+		// and let it ask rather than putting a second dialog in front of it.
+		if (!isFirstLaunch) {
 			await this._proceedWithoutGitHub();
 			return;
 		}
@@ -379,16 +359,15 @@ class SessionsSetUpWidget extends Disposable {
 				}
 
 				await this._showWelcomeDialog();
-			} else if (this._mustForceGitHubSignIn()) {
-				await this._showSignInDialog();
 			} else {
-				// Signed-out first launch, but a session type is usable without GitHub.
+				// Signed out. The composer's provider list offers every route
+				// this dialog did — GitHub, Google and Enterprise on the card,
+				// ChatGPT and your own key behind the disclosure — so open the
+				// window rather than stacking a second sign-in on top of it.
 				this.dialogRef.clear();
 				await this._proceedWithoutGitHub();
 				return;
 			}
-		} else {
-			await this._showSignInDialog();
 		}
 
 		this.dialogRef.clear();
@@ -403,61 +382,6 @@ class SessionsSetUpWidget extends Disposable {
 		overlay.setAttribute('aria-label', localize('loading', "Loading"));
 		append(overlay, $('div.sessions-loading-icon.codicon.codicon-agent'));
 		return { element: overlay, dispose: () => overlay.remove() };
-	}
-
-	private async _showSignInDialog(): Promise<void> {
-		if (this._initialSetupFlow) {
-			this.onInitialSignInDialogShown();
-		}
-		this.logService.info('[sessions welcome] Showing sign-in dialog');
-
-		const signingInDialogRef = new MutableDisposable<DisposableStore>();
-
-		const success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
-			forceSignInDialog: true,
-			dialogIcon: Codicon.agent,
-			dialogTitle: localize('sessions.signIn', "Sign in to use Agents"),
-			// A user who cannot sign in — or wants their own key — needs a way
-			// past this dialog to reach the composer, where the provider list
-			// offers the other routes.
-			disableCloseButton: false,
-			onSignInStarted: () => {
-				const disposables = new DisposableStore();
-				signingInDialogRef.value = disposables;
-				const dialog = disposables.add(new Dialog(
-					this.layoutService.activeContainer,
-					localize('sessions.signingIn', "Signing in…"),
-					[],
-					createWorkbenchDialogOptions({
-						type: 'none',
-						extraClasses: ['chat-setup-dialog', 'sessions-welcome-dialog'],
-						detail: localize('sessions.signingIn.detail', "Please complete sign-in in the browser."),
-						icon: Codicon.agent,
-						alignment: DialogContentsAlignment.Vertical,
-						cancelId: 0,
-						disableCloseButton: true,
-						disableDefaultAction: true,
-					}, this.keybindingService, this.layoutService, this.hostService)
-				));
-				dialog.show();
-			}
-		});
-
-		signingInDialogRef.dispose();
-
-		if (success) {
-			this.logService.info('[sessions welcome] Sign-in completed successfully');
-			this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this.serviceMarkDone();
-		} else {
-			// Dismissing is a choice, not a failure: the user may want to bring
-			// their own key, which can only be set up inside the window. Let
-			// them through to the composer, where the provider list offers the
-			// other routes. The choice is not persisted — a user who set nothing
-			// up is asked again next launch.
-			this.logService.info('[sessions welcome] Sign-in was canceled; opening the window so other providers can be set up');
-			this._signInDismissed = true;
-		}
 	}
 
 	private async _showWelcomeDialog(): Promise<void> {
@@ -519,10 +443,13 @@ export class SessionsSetUpService extends Disposable implements ISessionsSetUpSe
 
 	private readonly _initPromise: Promise<void>;
 	private readonly _welcomeDoneDeferred = new DeferredPromise<void>();
-	private _initialSignInDialogShown = false;
-
+	/**
+	 * The Agents window no longer puts a sign-in dialog in front of the
+	 * composer, so this is always false. Kept so the window-open telemetry
+	 * keeps its shape rather than losing a field mid-flight.
+	 */
 	get initialSignInDialogShown(): boolean {
-		return this._initialSignInDialogShown;
+		return false;
 	}
 
 	constructor(
@@ -540,8 +467,7 @@ export class SessionsSetUpService extends Disposable implements ISessionsSetUpSe
 			SessionsSetUpWidget,
 			() => this._welcomeDoneDeferred.complete(),
 			() => this.whenSetupDone(),
-			() => this.markDone(),
-			() => this._initialSignInDialogShown = true
+			() => this.markDone()
 		));
 	}
 
