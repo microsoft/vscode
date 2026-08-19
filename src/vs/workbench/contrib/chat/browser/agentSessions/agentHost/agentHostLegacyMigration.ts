@@ -7,14 +7,23 @@ import { raceTimeout } from '../../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
-import { migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
+import { COPILOT_CLI_AGENT_PROVIDER, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 
-/** How long an adoption probe may take before falling back to the legacy resource. */
+/**
+ * How long an adoption probe may take before falling back to the legacy resource.
+ *
+ * Interactive opens happen against a warm host and answer immediately, so a short
+ * bound keeps a wedged host from looking like a hang. Restore is the cold case:
+ * the host is still working through its initial catalogue, and a measured restore
+ * took ~28s on a large one — giving up early there is what makes a restored
+ * session silently stay on the legacy provider.
+ */
 export const LEGACY_MIGRATION_TIMEOUT_MS = 10_000;
+export const LEGACY_MIGRATION_RESTORE_TIMEOUT_MS = 60_000;
 
 /**
  * Redirects a legacy extension-host Copilot CLI resource to its agent-host twin,
@@ -35,16 +44,30 @@ export async function adoptLegacyCopilotCliResource(
 	connection: IAgentConnection | undefined,
 	resource: URI,
 	logService: ILogService,
+	timeoutMs: number = LEGACY_MIGRATION_TIMEOUT_MS,
 ): Promise<URI | undefined> {
 	const twin = migratedCopilotCliResource(resource);
 	if (!twin || !connection) {
 		return undefined;
 	}
+	const rawId = getCopilotCliSessionRawId(twin);
+	if (!rawId) {
+		return undefined;
+	}
+	// AHP channels are backend session URIs (`<provider>:/<id>`); the
+	// `agent-host-` scheme is a client-side naming that the host does not know.
+	const backendSession = AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, rawId);
+	const startedAt = Date.now();
 	const store = new DisposableStore();
 	try {
-		const ref = store.add(connection.getSubscription(StateComponents.Session, twin, 'AgentHostLegacyMigration'));
-		const settled = await raceTimeout(whenSubscriptionSettles(ref.object as IAgentSubscription<SessionState>, store), LEGACY_MIGRATION_TIMEOUT_MS);
-		return settled === true ? twin : undefined;
+		const ref = store.add(connection.getSubscription(StateComponents.Session, backendSession, 'AgentHostLegacyMigration'));
+		const settled = await raceTimeout(whenSubscriptionSettles(ref.object as IAgentSubscription<SessionState>, store), timeoutMs);
+		if (settled === true) {
+			logService.trace(`[AgentHost] adopted legacy session ${resource.toString()} in ${Date.now() - startedAt}ms`);
+			return twin;
+		}
+		logService.info(`[AgentHost] legacy session ${resource.toString()} not adopted (${settled === false ? 'declined by host' : `no answer within ${timeoutMs}ms`}); opening it unmigrated`);
+		return undefined;
 	} catch (err) {
 		logService.warn(`[AgentHost] legacy migration probe failed for ${resource.toString()}`, err);
 		return undefined;

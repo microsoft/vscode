@@ -9,11 +9,11 @@ import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { adoptLegacyCopilotCliResource } from '../../../browser/agentSessions/agentHost/agentHostLegacyMigration.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
+import { COPILOT_CLI_AGENT_PROVIDER, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
 
 suite('AgentHost legacy Copilot CLI migration', () => {
 
@@ -21,6 +21,9 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	const RAW_ID = 'sess-abc';
 	const legacyResource = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${RAW_ID}` });
 	const twinResource = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${RAW_ID}` });
+	// AHP channels are backend session URIs (`<provider>:/<id>`) — subscribing with
+	// the client-facing `agent-host-` scheme makes the host reject the channel.
+	const backendChannel = AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, RAW_ID);
 
 	/** A subscription that either already carries state, or errors when probed. */
 	function createConnection(outcome: 'adopted' | 'refused' | 'pending'): { connection: IAgentConnection; subscribed: URI[] } {
@@ -53,7 +56,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 
 		assert.deepStrictEqual(
 			{ resolved: resolved?.toString(), subscribed: subscribed.map(s => s.toString()) },
-			{ resolved: twinResource.toString(), subscribed: [twinResource.toString()] },
+			{ resolved: twinResource.toString(), subscribed: [backendChannel.toString()] },
 		);
 	});
 

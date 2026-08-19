@@ -202,13 +202,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Copilot CLI adoption). Falls back to `resource` when no provider claims it,
 	 * so an unresolvable session still opens the way it does today.
 	 */
-	async resolveSessionResource(resource: URI): Promise<URI> {
+	async resolveSessionResource(resource: URI, timeoutMs?: number): Promise<URI> {
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			if (!provider.resolveSessionResource) {
 				continue;
 			}
 			try {
-				const resolved = await provider.resolveSessionResource(resource);
+				const resolved = await provider.resolveSessionResource(resource, timeoutMs);
 				if (resolved) {
 					return resolved;
 				}

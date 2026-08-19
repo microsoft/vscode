@@ -90,12 +90,12 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	 * Local-only by definition: `copilotcli:` and `agent-host-copilotcli:` name
 	 * sessions on this machine, so a remote host must never claim or probe them.
 	 */
-	async resolveSessionResource(resource: URI): Promise<URI | undefined> {
+	async resolveSessionResource(resource: URI, timeoutMs?: number): Promise<URI | undefined> {
 		const rawId = getCopilotCliSessionRawId(migratedCopilotCliResource(resource));
 		if (rawId && this._sessionCache.has(rawId)) {
 			return migratedCopilotCliResource(resource); // already adopted; no round-trip
 		}
-		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService);
+		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, timeoutMs);
 	}
 
 	constructor(

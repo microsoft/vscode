@@ -30,7 +30,7 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/edi
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { adoptLegacyCopilotCliResource } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IClearEditingSessionConfirmationOptions } from '../../actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
@@ -249,6 +249,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				this.agentHostConnectionsService.ambientConnection,
 				this._sessionResource,
 				this.logService,
+				LEGACY_MIGRATION_RESTORE_TIMEOUT_MS,
 			);
 			if (migrated) {
 				this._sessionResource = migrated;

@@ -22,6 +22,8 @@ import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/c
 const COPILOT_CLI_PROVIDER = 'copilotcli';
 export const COPILOT_CLI_LOCAL_AH_SCHEME = `agent-host-${COPILOT_CLI_PROVIDER}`;
 export const COPILOT_CLI_EH_SCHEME = COPILOT_CLI_PROVIDER;
+/** Agent-host provider id for Copilot CLI, used to build backend (AHP channel) session URIs. */
+export const COPILOT_CLI_AGENT_PROVIDER = COPILOT_CLI_PROVIDER;
 
 /**
  * Builds the local `events.jsonl` URI under `<COPILOT_HOME>/session-state/<rawId>/`.

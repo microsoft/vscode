@@ -240,7 +240,7 @@ export interface ISessionsManagementService {
 	 * than only being hidden from the list. Returns `resource` unchanged when
 	 * no provider claims it.
 	 */
-	resolveSessionResource(resource: URI): Promise<URI>;
+	resolveSessionResource(resource: URI, timeoutMs?: number): Promise<URI>;
 
 	/**
 	 * Get the session and chat that own the given chat resource URI.

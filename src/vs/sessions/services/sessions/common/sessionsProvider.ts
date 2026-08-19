@@ -179,7 +179,7 @@ export interface ISessionsProvider {
 	 * Implementations must return quickly and synchronously decline resources
 	 * they do not own.
 	 */
-	resolveSessionResource?(resource: URI): Promise<URI | undefined>;
+	resolveSessionResource?(resource: URI, timeoutMs?: number): Promise<URI | undefined>;
 	/**
 	 * Optional. Fires when a temporary (untitled) session is atomically replaced
 	 * by a committed session after the first turn.

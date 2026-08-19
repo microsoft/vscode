@@ -29,6 +29,7 @@ import { ISessionsPartService } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
+import { LEGACY_MIGRATION_RESTORE_TIMEOUT_MS } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -1197,7 +1198,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const targets: IRestoreTarget[] = await Promise.all(this._getVisibleSessionStates().map(async state => ({
 			// Persisted state names a session by URI, so a legacy Copilot CLI slot
 			// restores through the old provider unless it is redirected here.
-			resource: await this.sessionsManagementService.resolveSessionResource(URI.parse(state.sessionResource)),
+			resource: await this.sessionsManagementService.resolveSessionResource(URI.parse(state.sessionResource), LEGACY_MIGRATION_RESTORE_TIMEOUT_MS),
 			isSticky: !!state.isSticky,
 			isActive: !!state.isActive,
 			order: state.visibleOrder!,
