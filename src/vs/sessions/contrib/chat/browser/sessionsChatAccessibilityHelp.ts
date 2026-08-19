@@ -10,6 +10,7 @@ import { IAccessibleViewImplementation } from '../../../../platform/accessibilit
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
@@ -17,6 +18,21 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from './promptTemplatePlaceholder.js';
 import { FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING } from './transientSideChatService.js';
+
+export function getSessionsChatSideChatAccessibilityContent(transientSideChatEnabled: boolean): readonly string[] {
+	const content: string[] = [];
+	if (transientSideChatEnabled) {
+		content.push(localize('sessionsChat.transientSideChat', "Use /btw to ask a side question without leaving the main conversation. Its answer appears in a card above the unchanged main input. Press Escape from the card or from the main input when no input interaction is active, or activate Close Side Question, to dismiss the card. The side chat remains available in Closed chats. Activate Open Full Chat to move the side question into the normal chat tabs."));
+	}
+	content.push(localize('sessionsChat.conversations', "When a session supports multiple chats, a New Chat button is always shown: as a labeled button in the session header while the session has a single visible chat tab, and as a compact button at the end of the chat tab strip once the session has more than one visible chat tab. Activate it to start a new chat. A Chats dropdown is also shown in the session header meta row, at the end of the pills, once the session has more than one committed chat or the active chat has subagents."));
+	content.push(transientSideChatEnabled
+		? localize('sessionsChat.conversations.transientSideChat', "Side chats appear as first-level chats after they are opened as full chats.")
+		: localize('sessionsChat.conversations.sideChat', "Side chats appear as first-level chats."));
+	content.push(localize('sessionsChat.conversations.subagents', "A Subagents group lists work delegated by the active chat, and every item announces its state. When there is one first-level chat, only its Subagents are listed. The active chat or subagent is selected when the dropdown opens. Select an item to open or focus it."));
+	return content;
+}
+
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -27,6 +43,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	getProvider(accessor: ServicesAccessor) {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsService = accessor.get(ISessionsService);
+		const configurationService = accessor.get(IConfigurationService);
 		const previouslyFocused = getActiveElement();
 
 		const content: string[] = [];
@@ -56,7 +73,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.contextReferences', "Type # in the chat input to attach context. Use #file to reference a file or folder, or #session to reference another agent session. Referencing a session together with the /troubleshoot command analyzes that session's logs instead of the current one. Accept a suggestion with Tab or Enter; the reference appears as a pill above the input that you can remove."));
 		content.push(localize('sessionsChat.pastedText', "Long pasted text is stored as an attached text item and replaced in the input with a numbered inline reference."));
 		content.push(localize('sessionsChat.backgroundActivities', "Press Shift+Tab from the chat input to reach status pills above it, then press Enter or Space to activate a pill. Live browsers appear in their own pill, and background activities such as running subagents in another. A pill with more than one entry opens a picker; use the up and down arrows to navigate, Enter to open an entry, and Escape to dismiss the picker and return focus to the pill."));
-		content.push(localize('sessionsChat.conversations', "When a session supports multiple chats, a New Chat button is always shown: as a labeled button in the session header while the session has a single visible chat tab, and as a compact button at the end of the chat tab strip once the session has more than one visible chat tab. Activate it to start a new chat. A Chats dropdown is also shown in the session header meta row, at the end of the pills, once the session has more than one committed chat or the active chat has subagents. Side chats appear as first-level chats. A Subagents group lists work delegated by the active chat, and every item announces its state. When there is one first-level chat, only its Subagents are listed. The active chat or subagent is selected when the dropdown opens. Select an item to open or focus it."));
+		content.push(...getSessionsChatSideChatAccessibilityContent(configurationService.getValue<boolean>(AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING) === true));
 		content.push(localize('sessionsChat.subagentPills', "Subagent pills in the chat transcript can be dragged to a chat group's edge to open the subagent beside the current chat. With the keyboard, focus a subagent pill and press Alt+Enter to open it beside the current chat."));
 		content.push(localize('sessionsChat.chatGroups', "Chats can be arranged in groups. Focus the previous group{0} or next group{1}. Split the active chat into a group to the right{2} or below{3}, or move it to the previous group{4} or next group{5}.", `<keybinding:${FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID}>`, `<keybinding:${FOCUS_NEXT_CHAT_GROUP_COMMAND_ID}>`, `<keybinding:${SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID}>`, `<keybinding:${SPLIT_CHAT_GROUP_DOWN_COMMAND_ID}>`, `<keybinding:${MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID}>`, `<keybinding:${MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.closeChat', "Activate a chat tab's close button to close (hide) that chat from the tab strip without deleting it; reopen it later from the Chats menu. The session's main chat cannot be closed."));

@@ -49,6 +49,9 @@ import { ISessionsChatViewStateService, SessionsChatViewStateService } from './c
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../../common/sessionConfig.js';
+import { AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING, ITransientSideChatService, TransientSideChatService } from './transientSideChatService.js';
+import { ISideChatOrchestrationService, SideChatOrchestrationService } from './sideChatOrchestration.js';
+import { CloseTransientSideChatAction } from './transientSideChatWidget.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -115,6 +118,7 @@ registerAction2(NewChatInSessionsWindowAction);
 
 // register actions
 registerAction2(BranchChatSessionAction);
+registerAction2(CloseTransientSideChatAction);
 
 // register workbench contributions
 registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, WorkbenchPhase.AfterRestored);
@@ -132,6 +136,8 @@ registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessServ
 registerSingleton(IChatViewFactory, ChatViewFactory, InstantiationType.Delayed);
 registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, InstantiationType.Delayed);
 registerSingleton(IChatResponseFileChangesService, SessionsChatResponseFileChangesService, InstantiationType.Delayed);
+registerSingleton(ITransientSideChatService, TransientSideChatService, InstantiationType.Delayed);
+registerSingleton(ISideChatOrchestrationService, SideChatOrchestrationService, InstantiationType.Delayed);
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
@@ -156,6 +162,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.showSessionMetadataInInput', "Controls whether session metadata such as changes, pull requests, and issues appears above the chat input instead of in the session header."),
+		},
+		[AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			description: localize('chat.agentSessions.transientSideChat', "Controls whether new side questions appear in a transient answer card above the source chat input. When disabled, side questions open as full chats beside the source chat."),
+			experiment: { mode: 'auto' },
 		},
 	},
 });
