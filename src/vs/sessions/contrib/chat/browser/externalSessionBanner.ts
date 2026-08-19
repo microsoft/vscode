@@ -138,7 +138,7 @@ export class ExternalSessionBanner extends Disposable {
 		);
 		dom.append(content, dom.$('.external-session-banner-description', { role: 'status' })).textContent = localize(
 			'externalSessionBanner.description',
-			"Choose which external sessions you want to see in {0}. You can change this later in Settings.",
+			"Choose how you want external sessions to appear in {0}. You can change this later in Settings.",
 			this._productService.nameShort
 		);
 
@@ -152,6 +152,8 @@ export class ExternalSessionBanner extends Disposable {
 			defaultSelectBoxStyles,
 			{
 				ariaLabel: localize('externalSessionBanner.select.ariaLabel', "External sessions to show"),
+				hideDisabledOptions: true,
+				showOptionDescriptionHovers: true,
 				useCustomDrawn: true,
 			}
 		));

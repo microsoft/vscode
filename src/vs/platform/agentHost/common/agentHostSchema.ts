@@ -460,6 +460,9 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 
+/** Root config key forwarded from the renderer for the GitHub MCP server. */
+export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled';
+
 /**
  * Independently synchronized proxy settings retain their VS Code `http.*`
  * names, matching other flat namespaced root keys such as `agentMerge.*`.
@@ -489,7 +492,6 @@ const agentHostProxyConfigDefinition = {
 		default: [],
 	}),
 };
-
 export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
 
 /** Root config key forwarded from the renderer for active-agent title generation. */
@@ -777,6 +779,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.systemProxyEnabled.title', "System Proxy Discovery"),
 		description: localize('agentHost.config.systemProxyEnabled.description', "Whether Copilot sessions automatically discover and use the operating system's proxy configuration."),
+		default: true,
+	}),
+	[AgentHostGitHubMcpServerEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.githubMcpServerEnabled.title', "GitHub MCP Server"),
+		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
 		default: true,
 	}),
 	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
