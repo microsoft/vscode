@@ -378,8 +378,14 @@ All commands and UI respect `ChatContextKeys.enabled`.
 
 | Command ID | Purpose |
 |-----------|---------|
-| `aiCustomization.openManagementEditor` | Opens the management editor, optionally accepting an `AICustomizationManagementSection` to deep-link |
+| `aiCustomization.openManagementEditor` | Opens the management editor, optionally accepting an `AICustomizationManagementSection` to deep-link, or an object with `section`, `sessionType`, and `revealUri` |
 | `aiCustomization.openMarketplace` | Opens the management editor with marketplace browse mode active. Accepts an optional section (`mcpServers` or `plugins`); defaults to `mcpServers` |
+
+### Revealing a Specific Customization
+
+`aiCustomization.openManagementEditor` accepts a `revealUri` alongside `section`, which selects that section and then reveals and selects the row backed by the URI (`AICustomizationManagementEditor.revealCustomizationByUri`). The reveal retries while the list loads, and clears the search box once so a filtered list cannot hide the target. Only prompt-backed sections have URI-addressable rows; for MCP servers and plugins, selecting the section is the whole reveal.
+
+The customizations pill above the Agents-window chat input is the main consumer: it lists the customizations a chat used or read and reveals the one the user picks.
 
 ## Settings
 

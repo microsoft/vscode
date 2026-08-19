@@ -100,6 +100,45 @@
 	white-space: nowrap;
 }
 
+.chat-composite-bar-workspace-meta {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 40%;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	white-space: nowrap;
+}
+
+.chat-composite-bar-workspace-meta.hidden {
+	display: none;
+}
+
+/* Compact glyph at the compact size. The compound selector outranks the base
+	`.codicon` font shorthand; the clamped box keeps combined glyphs (wider
+	advance) tight against the label, and the padding optically centers it. */
+.monaco-workbench .chat-composite-bar-workspace-meta-icon.codicon[class*='codicon-'] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	margin: 0;
+	padding: 3px 1px 0 2px;
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+.chat-composite-bar-workspace-meta-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 /* Hover feedback: only when the title can actually be renamed and we aren't
 	currently editing it. */
 .chat-composite-bar-session-title.editable {
@@ -167,7 +206,7 @@
 	white-space: nowrap;
 }
 
-/* Session header meta toolbar: contributed actions render as compact secondary buttons. */
+/* Session header meta toolbar */
 .chat-composite-bar-meta-toolbar,
 .chat-composite-bar-meta-toolbar .monaco-action-bar,
 .chat-composite-bar-meta-toolbar .actions-container {
@@ -181,66 +220,6 @@
 /* Spacing between the contributed meta buttons (e.g. changes · pull request). */
 .chat-composite-bar-meta-toolbar .actions-container {
 	gap: 6px;
-}
-
-.chat-composite-bar-meta-item {
-	display: inline-flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-meta-item.chat-composite-bar-meta-workspace-item {
-	flex: 1 1 auto;
-	min-width: 0;
-}
-
-/* Inline, auto-width layout only — the secondary-button sizing/colors come from the standard
-	`.monaco-text-button.small.secondary` styles. */
-.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button {
-	display: inline-flex;
-	width: auto;
-	gap: 4px;
-	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
-}
-
-.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-workspace-button {
-	min-width: 0;
-	max-width: 100%;
-	overflow: hidden;
-}
-
-.chat-composite-bar-meta-workspace-button .chat-composite-bar-meta-item-label {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-/* Tighten the focus ring on these compact pills. The base `.monaco-text-button`
-	uses `outline-offset: 2px`, which on a small pill reads as a bloated ring
-	detached from the border — hug the border instead. */
-.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button:focus {
-	outline-offset: 0 !important;
-}
-
-.monaco-workbench .chat-composite-bar-meta-item-icon.codicon[class*='codicon-'] {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-codiconFontSize-compact, 12px);
-	height: var(--vscode-codiconFontSize-compact, 12px);
-	margin: 0;
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-meta-added {
-	color: var(--vscode-chat-linesAddedForeground);
-}
-
-.chat-composite-bar-meta-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 /* Tabs row */

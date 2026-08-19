@@ -76,6 +76,9 @@ export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.expe
 /** Configuration key enabling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
 
+/** Configuration key gating the artifact tools and their agent instruction. */
+export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
+
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
  * agent-host provider. When `true`, the Copilot provider advertises the

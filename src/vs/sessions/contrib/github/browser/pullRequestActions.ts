@@ -24,7 +24,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
@@ -32,6 +32,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
+import { OPEN_PULL_REQUEST_COMMAND_ID } from '../common/githubCommands.js';
 import { IGitHubService } from './githubService.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from './githubReferenceList.js';
 import { createPullRequestHoverElement } from './pullRequestHover.js';
@@ -58,7 +59,7 @@ interface IPullRequestListEntry extends IGitHubReferenceListEntry {
 // --- Open Pull Request action
 
 class OpenPullRequestAction extends Action2 {
-	static readonly ID = 'workbench.agentSessions.action.openPullRequest';
+	static readonly ID = OPEN_PULL_REQUEST_COMMAND_ID;
 
 	constructor() {
 		super({
@@ -141,7 +142,7 @@ registerAction2(CopyPullRequestUrlAction);
 /**
  * Renders the session's pull requests as a single header pill and opens a picker for history.
  */
-export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewItem {
+export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 
 	private readonly _pullRequestRefsObs: IObservable<readonly IGitHubPullRequestRef[]>;
 	private readonly _pullRequestIdentitiesObs: IObservable<readonly IPullRequestIdentity[]>;
@@ -271,7 +272,7 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 
 	protected override getIconElement(): HTMLElement | undefined {
 		const icon = this._pullRequestsObs.get()[0]?.icon ?? Codicon.gitPullRequest;
-		const iconElement = $(`span.chat-composite-bar-meta-item-icon${ThemeIcon.asCSSSelector(icon)}`);
+		const iconElement = $(`span.chat-pill-icon${ThemeIcon.asCSSSelector(icon)}`, { 'aria-hidden': 'true' });
 		if (icon.color) {
 			// Inline `!important` wins over `button.css`'s `.monaco-text-button .codicon
 			// { color: inherit !important }`, so the glyph reflects the live PR state color.

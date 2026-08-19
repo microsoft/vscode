@@ -1,0 +1,167 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Shared workbench chat-pill presentation. */
+.chat-pills,
+.chat-pills .monaco-toolbar,
+.chat-pills .monaco-action-bar,
+.chat-pills .monaco-action-bar .actions-container {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.chat-pills.hidden {
+	display: none;
+}
+
+.chat-pills .monaco-action-bar .actions-container {
+	gap: var(--vscode-spacing-size60);
+}
+
+.chat-pill-item {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.chat-pill-item.chat-pill-workspace-item {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-pill-item .monaco-button.chat-pill-button {
+	display: inline-flex;
+	width: auto;
+	gap: var(--vscode-spacing-size40);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.chat-pill-item .monaco-button.chat-pill-workspace-button {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.chat-pill-workspace-button .chat-pill-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Inset the focus ring so it sits on the pill's own border rather than the
+	bloated ring the base `outline-offset: 2px` would draw. */
+.chat-pill-item .monaco-button.chat-pill-button:focus {
+	outline-offset: -1px !important;
+}
+
+/* Inset the focus ring so it sits on the pill's own border rather than the
+	bloated ring the base `outline-offset: 2px` would draw. Applies to every pill
+	in the row, including hosted ones. */
+.chat-pills .monaco-button:focus {
+	outline-offset: -1px !important;
+}
+
+.chat-pills .monaco-action-bar .chat-hosted-pill {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.monaco-workbench .chat-pill-icon.codicon[class*='codicon-'] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+.chat-pill-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.chat-pill-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Artifact pill: a single artifact shows its own label (a resource label for
+	files); several collapse into a summary button that opens the dropdown. */
+.chat-pills .monaco-action-bar .chat-section-pill {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+	max-width: 280px;
+}
+
+.chat-section-pill .monaco-button {
+	display: inline-flex;
+	align-items: center;
+	width: auto;
+	min-width: 0;
+	max-width: 280px;
+	gap: var(--vscode-spacing-size40);
+	overflow: hidden;
+	white-space: nowrap;
+	touch-action: manipulation;
+}
+
+.chat-section-pill .monaco-button.hidden,
+.chat-section-pill .chat-section-pill-resource.hidden,
+.chat-section-pill .chat-section-pill-inline.hidden {
+	display: none;
+}
+
+.chat-section-pill-resource,
+.chat-section-pill-inline {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	overflow: hidden;
+}
+
+.chat-section-pill-single .monaco-icon-label {
+	align-items: center;
+	min-width: 0;
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.chat-section-pill-single .monaco-icon-label::before {
+	width: var(--vscode-codiconFontSize-compact);
+	height: 18px;
+}
+
+.chat-section-pill-summary > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-pills .monaco-action-bar .chat-section-pill-summary .codicon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+/* File rows render a themed file icon in the same slot codicon rows use, so
+	every label in the dropdown starts on the same vertical line. */
+.action-widget .action-list-item .icon.file-icon {
+	display: flex;
+	align-items: center;
+	background-size: var(--vscode-codiconFontSize);
+	background-repeat: no-repeat;
+	background-position: center center;
+}
