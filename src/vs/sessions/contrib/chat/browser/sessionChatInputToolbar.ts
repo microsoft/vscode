@@ -25,7 +25,7 @@ import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../.
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../changes/common/changes.js';
-import { OPEN_ISSUE_COMMAND_ID, OPEN_PULL_REQUEST_COMMAND_ID } from '../../github/common/githubCommands.js';
+import { OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { getSessionChatPillMenu, SessionChatPillKind, SessionChatPillVisibility, type ISessionChatPillMenuEntry } from '../common/sessionChatPills.js';
 import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../../common/sessionConfig.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -82,9 +82,9 @@ export function getSessionChatPillKindForAction(actionId: string): SessionChatPi
 			return SessionChatPillKind.Artifacts;
 		case SESSION_CUSTOMIZATIONS_PILL_ID:
 			return SessionChatPillKind.Customizations;
-		case OPEN_PULL_REQUEST_COMMAND_ID:
+		case OPEN_PULL_REQUEST_ACTION_ID:
 			return SessionChatPillKind.PullRequests;
-		case OPEN_ISSUE_COMMAND_ID:
+		case OPEN_ISSUE_ACTION_ID:
 			return SessionChatPillKind.Issues;
 		case SESSION_BROWSERS_PILL_ID:
 			return SessionChatPillKind.Browsers;

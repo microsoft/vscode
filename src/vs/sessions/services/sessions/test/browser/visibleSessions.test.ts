@@ -23,6 +23,7 @@ const stubChat: IChat = {
 	changes: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
+	modelSource: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
@@ -1459,6 +1460,7 @@ suite('VisibleSession - per-chat model/mode', () => {
 			resource: URI.parse(`test:///chat/${id}`),
 			title: constObservable(id),
 			modelId: constObservable(modelId),
+			modelSource: constObservable(undefined),
 			mode: constObservable(modeId ? { id: modeId, kind: 'agent' } : undefined),
 		};
 	}

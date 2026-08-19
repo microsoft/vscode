@@ -101,7 +101,6 @@
 }
 
 .new-session-prompt-option-title {
-	color: var(--vscode-descriptionForeground);
 	display: flex;
 	font-size: var(--vscode-agents-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
@@ -147,7 +146,7 @@
 }
 
 .new-session-prompt-option-description {
-	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
+	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-agents-fontSize-label1);
 	font-weight: var(--vscode-agents-fontWeight-regular);
 	grid-column: 1 / -1;

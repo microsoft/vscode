@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CHAT_TURN_ARTIFACT_PILL_ID, CHAT_TURN_CHANGES_PILL_ID } from '../../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../changes/common/changes.js';
-import { OPEN_ISSUE_COMMAND_ID, OPEN_PULL_REQUEST_COMMAND_ID } from '../../../github/common/githubCommands.js';
+import { OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
 import { SessionChatPillKind } from '../../common/sessionChatPills.js';
 import { getSessionChatPillKindForAction, SESSION_BROWSERS_PILL_ID, SESSION_SUBAGENTS_PILL_ID, shouldShowSessionTurnPills } from '../../browser/sessionChatInputToolbar.js';
 import { SESSION_CUSTOMIZATIONS_PILL_ID } from '../../browser/sessionCustomizations.js';
@@ -21,8 +21,8 @@ suite('SessionChatInputToolbar', () => {
 			getSessionChatPillKindForAction(VIEW_SESSION_CHANGES_COMMAND_ID),
 			getSessionChatPillKindForAction(CHAT_TURN_ARTIFACT_PILL_ID),
 			getSessionChatPillKindForAction(SESSION_CUSTOMIZATIONS_PILL_ID),
-			getSessionChatPillKindForAction(OPEN_PULL_REQUEST_COMMAND_ID),
-			getSessionChatPillKindForAction(OPEN_ISSUE_COMMAND_ID),
+			getSessionChatPillKindForAction(OPEN_PULL_REQUEST_ACTION_ID),
+			getSessionChatPillKindForAction(OPEN_ISSUE_ACTION_ID),
 			getSessionChatPillKindForAction(SESSION_BROWSERS_PILL_ID),
 			getSessionChatPillKindForAction(SESSION_SUBAGENTS_PILL_ID),
 			getSessionChatPillKindForAction('workbench.agentSessions.action.openFilesView'),

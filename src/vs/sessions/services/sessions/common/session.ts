@@ -570,6 +570,20 @@ export interface IChatCapabilities {
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canDelete: true };
 
 /**
+ * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
+ * question model selection asks of it: `chat.defaultModel` seeds a chat that has no model of its
+ * own, and the model id alone cannot say which case this is.
+ *
+ * Client-local: not persisted, and it does not cross the agent-host wire.
+ */
+export const enum ChatModelSource {
+	/** The chat's own: the user picked it, or it was restored from where the chat left off. */
+	Chosen = 'chosen',
+	/** Put there for the chat: inherited from the chat it was created from, or picked for it. */
+	CarriedOver = 'carriedOver',
+}
+
+/**
  * A single chat within a session, produced by the sessions management layer.
  */
 export interface IChat {
@@ -606,6 +620,13 @@ export interface IChat {
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
+	/**
+	 * Whether {@link modelId} is this chat's own model. Required rather than optional: an absent
+	 * value is read as {@link ChatModelSource.Chosen}, which is what stops `chat.defaultModel`
+	 * overwriting it, and a provider should not be able to claim that by saying nothing. A
+	 * provider with no model, or one it cannot account for, states `undefined` deliberately.
+	 */
+	readonly modelSource: IObservable<ChatModelSource | undefined>;
 	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the chat is archived. */

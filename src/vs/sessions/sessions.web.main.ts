@@ -156,6 +156,11 @@ import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js
 // Web tunnel agent host — discovers tunnels via Dev Tunnels REST API and connects via relay
 import './contrib/providers/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
 
+// Tunnel hosting is CLI-backed and therefore unavailable in the browser, but
+// the tunnel agent host contribution below still depends on the service to
+// identify a locally hosted tunnel. Register the inert web implementation.
+import './contrib/tunnelHost/browser/webTunnelHostService.contribution.js';
+
 // Tunnel agent host — reconciles discovered tunnels into session providers
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 

@@ -18,6 +18,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
@@ -30,6 +31,7 @@ import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
+import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Promise<CCAModel[]>, rootConfig: Record<string, boolean> = {}, userHome = '/tmp'): CodexAgent {
 	const instantiationService = new TestInstantiationService();
@@ -41,6 +43,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Pr
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentSdkDownloader, {
 		_serviceBrand: undefined,
