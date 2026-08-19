@@ -23,7 +23,7 @@ import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type Se
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
-import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
+import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
@@ -150,6 +150,7 @@ class MockAgentService implements IAgentService {
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
 	subscribeBarrier: DeferredPromise<void> | undefined;
+	afterListSessionsSnapshot: (() => void) | undefined;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -204,7 +205,11 @@ class MockAgentService implements IAgentService {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
-	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
+	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		const result = [...this.listedSessions];
+		this.afterListSessionsSnapshot?.();
+		return result;
+	}
 	async subscribe(resource: URI, _clientId: string): Promise<IStateSnapshot> {
 		await this.subscribeBarrier?.p;
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
@@ -1025,6 +1030,191 @@ suite('ProtocolServerHandler', () => {
 
 		const result = (resp as unknown as { result: ListSessionsResult }).result;
 		assert.deepStrictEqual(result.items.map(item => item.project), [{ uri: URI.file('/workspace/project').toString(), displayName: 'Project' }]);
+	});
+
+	test('listSessions exposure does not suppress a global sessionAdded notification', async () => {
+		const summary = makeSessionSummary();
+		const transportA = connectClient('client-list-exposed');
+		const transportB = connectClient('client-list-missing');
+		transportA.sent.length = 0;
+		transportB.sent.length = 0;
+
+		let responsePromise = waitForResponse(transportB, 2);
+		transportB.simulateMessage(request(2, 'listSessions'));
+		await responsePromise;
+
+		agentService.listedSessions.push({
+			session: URI.parse(summary.resource),
+			startTime: Date.parse(summary.createdAt),
+			modifiedTime: Date.parse(summary.modifiedAt),
+			summary: summary.title,
+			status: summary.status,
+		});
+		responsePromise = waitForResponse(transportA, 2);
+		transportA.simulateMessage(request(2, 'listSessions'));
+		await responsePromise;
+		transportA.sent.length = 0;
+		transportB.sent.length = 0;
+
+		stateManager.announceSurfacedSession(summary);
+
+		assert.deepStrictEqual({
+			exposedClient: findNotifications(transportA.sent, 'root/sessionAdded').length,
+			missingClient: findNotifications(transportB.sent, 'root/sessionAdded').length,
+		}, {
+			exposedClient: 1,
+			missingClient: 1,
+		});
+	});
+
+	test('listSessions publishes only changed canonical fields for restored sessions', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const project = { uri: 'file:///test-project', displayName: 'Test Project' };
+			const summary = {
+				...makeSessionSummary(),
+				project,
+				workingDirectories: ['file:///test-project'],
+				changes: { additions: 1, deletions: 2, files: 3 },
+				_meta: { live: 'current' },
+			};
+			const startedAt = new Date(Date.parse(summary.modifiedAt) + 1000).toISOString();
+			stateManager.restoreSession(summary, []);
+			agentService.listedSessions.push({
+				session: URI.parse(summary.resource),
+				startTime: Date.parse(summary.createdAt),
+				modifiedTime: Date.parse(summary.modifiedAt),
+				summary: summary.title,
+				status: summary.status,
+				project: { uri: URI.parse(project.uri), displayName: project.displayName },
+				workingDirectories: summary.workingDirectories.map(directory => URI.parse(directory)),
+				changes: { ...summary.changes },
+				_meta: { providerOnly: true, live: 'stale' },
+			});
+
+			const transport = connectClient('client-list-status');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			const response = await responsePromise;
+			const listedMeta = (response as unknown as { result: ListSessionsResult }).result.items[0]._meta;
+			transport.sent.length = 0;
+
+			stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt,
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			const summaryChanges = transport.sent
+				.filter(isJsonRpcNotification)
+				.filter(message => message.method === 'root/sessionSummaryChanged')
+				.map(message => (message.params as SessionSummaryChangedParams).changes);
+			assert.deepStrictEqual({ listedMeta, summaryChanges }, {
+				listedMeta: { providerOnly: true, live: 'current' },
+				summaryChanges: [{ status: SessionStatus.InProgress }],
+			});
+		});
+	});
+
+	test('repeated listSessions flushes a pending status before returning the new baseline', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const summary = makeSessionSummary();
+			stateManager.restoreSession(summary, []);
+			const listedSession: IAgentSessionMetadata = {
+				session: URI.parse(summary.resource),
+				startTime: Date.parse(summary.createdAt),
+				modifiedTime: Date.parse(summary.modifiedAt),
+				summary: summary.title,
+				status: summary.status,
+			};
+			agentService.listedSessions.push(listedSession);
+
+			const transport = connectClient('client-repeat-list-status');
+			transport.sent.length = 0;
+			let responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			await responsePromise;
+			transport.sent.length = 0;
+
+			stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: new Date().toISOString(),
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			agentService.listedSessions[0] = { ...listedSession, status: SessionStatus.InProgress };
+			responsePromise = waitForResponse(transport, 3);
+			transport.simulateMessage(request(3, 'listSessions'));
+			const response = await responsePromise;
+			const listedStatus = (response as unknown as { result: ListSessionsResult }).result.items[0].status;
+
+			stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1,
+			});
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			const statusChanges = transport.sent
+				.filter(isJsonRpcNotification)
+				.filter(message => message.method === 'root/sessionSummaryChanged')
+				.map(message => (message.params as SessionSummaryChangedParams).changes.status);
+			assert.deepStrictEqual({ listedStatus, statusChanges }, {
+				listedStatus: SessionStatus.InProgress,
+				statusChanges: [SessionStatus.InProgress, SessionStatus.Idle],
+			});
+		});
+	});
+
+	test('repeated listSessions refreshes a stale snapshot before its response', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const summary = makeSessionSummary();
+			const startedAt = new Date(Date.parse(summary.modifiedAt) + 1000).toISOString();
+			stateManager.restoreSession(summary, []);
+			agentService.listedSessions.push({
+				session: URI.parse(summary.resource),
+				startTime: Date.parse(summary.createdAt),
+				modifiedTime: Date.parse(summary.modifiedAt),
+				summary: summary.title,
+				status: summary.status,
+			});
+
+			const transport = connectClient('client-stale-list-status');
+			transport.sent.length = 0;
+			let responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			await responsePromise;
+			transport.sent.length = 0;
+
+			agentService.afterListSessionsSnapshot = () => {
+				agentService.afterListSessionsSnapshot = undefined;
+				stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-1',
+					startedAt,
+					message: { text: 'hello', origin: { kind: MessageKind.User } },
+				});
+			};
+			responsePromise = waitForResponse(transport, 3);
+			transport.simulateMessage(request(3, 'listSessions'));
+			await responsePromise;
+
+			const observed = transport.sent.flatMap(message => {
+				if (isJsonRpcNotification(message) && message.method === 'root/sessionSummaryChanged') {
+					return [{ kind: 'notification', status: (message.params as SessionSummaryChangedParams).changes.status }];
+				}
+				if (isJsonRpcResponse(message) && message.id === 3 && hasKey(message, { result: true })) {
+					return [{ kind: 'response', status: (message.result as ListSessionsResult).items[0].status }];
+				}
+				return [];
+			});
+			assert.deepStrictEqual(observed, [
+				{ kind: 'notification', status: SessionStatus.InProgress },
+				{ kind: 'response', status: SessionStatus.InProgress },
+			]);
+		});
 	});
 
 	test('listSessions omits project metadata when absent', async () => {

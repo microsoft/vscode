@@ -40,7 +40,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -2958,7 +2958,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		function createExternalSessionService(now: () => number, sessionDataService = createSessionDataService()): AgentService {
+		function createExternalSessionService(now: () => number, sessionDataService = createSessionDataService(), orchestratorDatabase?: IAgentHostDatabase): AgentService {
 			return disposables.add(new AgentService(
 				new NullLogService(),
 				fileService,
@@ -2973,7 +2973,7 @@ suite('AgentService (node dispatcher)', () => {
 				[],
 				undefined,
 				undefined,
-				undefined,
+				orchestratorDatabase,
 				now,
 			));
 		}
@@ -2987,6 +2987,29 @@ suite('AgentService (node dispatcher)', () => {
 
 		async function waitForSessionListReconciliation(service: AgentService): Promise<void> {
 			await (service as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
+		}
+
+		function exposeListedSessions(service: AgentService, sessions: readonly IAgentSessionMetadata[]): void {
+			const summaries = sessions.map((session): SessionSummary => {
+				const provider = AgentSession.provider(session.session);
+				if (!provider) {
+					throw new Error(`Session has no provider: ${session.session.toString()}`);
+				}
+				return {
+					resource: session.session.toString(),
+					provider,
+					title: session.summary ?? 'Session',
+					status: session.status ?? SessionStatus.Idle,
+					activity: session.activity,
+					createdAt: new Date(session.startTime).toISOString(),
+					modifiedAt: new Date(session.modifiedTime).toISOString(),
+					...(session.project ? { project: { uri: session.project.uri.toString(), displayName: session.project.displayName } } : {}),
+					workingDirectories: session.workingDirectories?.map(directory => directory.toString()),
+					changes: session.changes,
+					...(session._meta !== undefined ? { _meta: session._meta } : {}),
+				};
+			});
+			service.stateManager.prepareSessionSummariesForListing(summaries);
 		}
 
 		test('listSessions aggregates sessions from all providers', async () => {
@@ -3154,6 +3177,55 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				visible: [AgentSession.id(first), AgentSession.id(newest)].sort(),
 				notifications: ['add:newest', `remove:${AgentSession.id(second)}`],
+			});
+		});
+
+		test('recent re-adds a registry-known external session after restart list visibility rotates', async () => {
+			const now = Date.now();
+			const database = new TransientRegistryWriteDatabase();
+			const first = AgentSession.uri('copilot', 'first');
+			const second = AgentSession.uri('copilot', 'second');
+			const third = AgentSession.uri('copilot', 'third');
+			for (const [session, startTime] of [[first, now - 1], [second, now - 2], [third, now - 3]] as const) {
+				await database.registerSession(session.toString(), { provider: 'copilot', startTime, source: 'discovery' }, { checkTombstone: true });
+			}
+			await database.markProviderBackfilled('copilot');
+
+			const svc = createExternalSessionService(() => now, createSessionDataService(), database);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
+			await waitForSessionListReconciliation(svc);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			agent.addSession('first', now - 1);
+			agent.addSession('second', now - 2);
+			agent.addSession('third', now - 3);
+			svc.registerProvider(agent);
+
+			const initiallyListed = await svc.listSessions();
+			exposeListedSessions(svc, initiallyListed);
+			const notifications: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(`add:${AgentSession.id(URI.parse(notification.summary.resource))}`);
+				} else if (notification.type === NotificationType.SessionRemoved) {
+					notifications.push(`remove:${AgentSession.id(URI.parse(notification.session))}`);
+				}
+			}));
+
+			agent.addSession('third', now);
+			(svc as unknown as { _queueSessionListReconciliation(): void })._queueSessionListReconciliation();
+			await waitForSessionListReconciliation(svc);
+			agent.addSession('second', now + 1);
+			(svc as unknown as { _queueSessionListReconciliation(): void })._queueSessionListReconciliation();
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual({
+				initiallyListed: initiallyListed.map(session => AgentSession.id(session.session)),
+				visible: (await svc.listSessions()).map(session => AgentSession.id(session.session)),
+				notifications,
+			}, {
+				initiallyListed: ['first', 'second'],
+				visible: ['second', 'third'],
+				notifications: ['add:first', 'add:third', 'remove:second', 'add:second', 'remove:first'],
 			});
 		});
 
