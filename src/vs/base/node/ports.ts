@@ -39,7 +39,7 @@ function doFindFreePort(startPort: number, giveUpAfter: number, stride: number, 
 
 	// If we can connect to the port it means the port is already taken so we continue searching
 	client.once('connect', () => {
-		dispose(client);
+		disposeSocket(client);
 
 		return doFindFreePort(startPort + stride, giveUpAfter - 1, stride, clb);
 	});
@@ -49,7 +49,7 @@ function doFindFreePort(startPort: number, giveUpAfter: number, stride: number, 
 	});
 
 	client.once('error', (err: Error & { code?: string }) => {
-		dispose(client);
+		disposeSocket(client);
 
 		// If we receive any non ECONNREFUSED error, it means the port is used but we cannot connect
 		if (err.code !== 'ECONNREFUSED') {
@@ -198,12 +198,29 @@ export function findFreePortFaster(startPort: number, giveUpAfter: number, timeo
 	});
 }
 
-function dispose(socket: net.Socket): void {
+
+/**
+ * Maximum time to wait for a 'close' event to fire after the socket stream
+ * ends. For unix domain sockets, the close event may not fire consistently
+ * due to what appears to be a Node.js bug.
+ *
+ * @see https://github.com/microsoft/vscode/issues/211462#issuecomment-2155471996
+ */
+export const socketEndTimeoutMs = 30_000;
+
+export function disposeSocket(socket: net.Socket, allowSendingQueuedMessages = false): void {
 	try {
 		socket.removeAllListeners('connect');
 		socket.removeAllListeners('error');
-		socket.end();
-		socket.destroy();
+		if (allowSendingQueuedMessages) {
+			const timeout = setTimeout(() => socket.destroy(), socketEndTimeoutMs);
+			timeout.unref();
+			socket.once('close', () => clearTimeout(timeout));
+			socket.destroySoon();
+		} else {
+			socket.end();
+			socket.destroy();
+		}
 		socket.unref();
 	} catch (error) {
 		console.error(error); // otherwise this error would get lost in the callback chain
