@@ -154,13 +154,28 @@ export function getProductVersion(): string {
 	return version ?? sourceVersion;
 }
 
+/**
+ * Reject per-run arguments that would move the launched instance off its
+ * isolated profile.
+ *
+ * VS Code keeps the last value of a repeated string option, and per-run
+ * arguments are appended after the generated ones, so a caller-supplied
+ * `--user-data-dir` or `--extensions-dir` would silently replace the isolated
+ * directory and let the real profile and its extensions back into the run.
+ */
+export function assertNoProfileOverrides(extraArgs: string[] | undefined): void {
+	for (const option of ['--user-data-dir', '--extensions-dir']) {
+		if (extraArgs?.some(arg => arg === option || arg.startsWith(`${option}=`))) {
+			throw new Error(`Per-run extraArgs cannot override the isolated profile directory '${option}'.`);
+		}
+	}
+}
+
 export async function getApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] } = {}) {
 	if (opts.web && extraArgs?.length) {
 		throw new Error('Per-run extraArgs are not supported by the web automation launcher.');
 	}
-	if (extraArgs?.some(arg => arg === '--user-data-dir' || arg.startsWith('--user-data-dir='))) {
-		throw new Error('Per-run extraArgs cannot override the isolated user data directory.');
-	}
+	assertNoProfileOverrides(extraArgs);
 	// The from-source environment is resolved once at module load, which is also
 	// where the Electron path is validated. Re-applying it here would set
 	// `VSCODE_DEV=1` for `--build` runs as well: a packaged build then behaves as
