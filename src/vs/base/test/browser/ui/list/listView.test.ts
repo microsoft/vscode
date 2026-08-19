@@ -527,4 +527,54 @@ suite('ListView', function () {
 			listView.dispose();
 		}
 	});
+
+	test('preserves offscreen rows when extending user selection with shift click', function () {
+		const element = document.createElement('div');
+		document.body.appendChild(element);
+
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		};
+		const renderer: IListRenderer<number, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) { return container; },
+			renderElement(element, _index, container) { container.textContent = String(element); },
+			disposeTemplate() { }
+		};
+
+		const listView = new ListView<number>(element, delegate, [renderer], { userSelection: true });
+		const selection = document.getSelection()!;
+		try {
+			listView.layout(60, 200);
+			listView.splice(0, 0, range(10));
+
+			const firstRow = listView.domElement(0)!;
+			const lastSelectedRow = listView.domElement(2)!;
+			firstRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			firstRow.dispatchEvent(new Event('selectstart', { bubbles: true }));
+
+			const selectionRange = document.createRange();
+			selectionRange.setStart(firstRow.firstChild!, 0);
+			selectionRange.setEnd(lastSelectedRow.firstChild!, lastSelectedRow.textContent!.length);
+			selection.removeAllRanges();
+			selection.addRange(selectionRange);
+			document.dispatchEvent(new Event('selectionchange'));
+			document.dispatchEvent(new MouseEvent('mouseup'));
+
+			listView.setScrollTop(100);
+			const extensionRow = listView.domElement(7)!;
+			extensionRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, shiftKey: true }));
+			extensionRow.dispatchEvent(new Event('selectstart', { bubbles: true }));
+			document.dispatchEvent(new MouseEvent('mousemove', { clientY: 30 }));
+			document.dispatchEvent(new MouseEvent('mouseup'));
+
+			assert.strictEqual(listView.domElement(0), firstRow);
+		} finally {
+			listView.dispose();
+			selection.removeAllRanges();
+			document.dispatchEvent(new Event('selectionchange'));
+			element.remove();
+		}
+	});
 });

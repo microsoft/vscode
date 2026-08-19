@@ -169,7 +169,8 @@ const richLinkIcons: Readonly<Record<ChatLinkPresentationKind, string>> = {
 	commit: 'git-commit',
 	file: 'file',
 	folder: 'folder',
-	session: 'comment-discussion',
+	session: 'agent',
+	chat: 'comment-discussion',
 	repository: 'repo',
 	branch: 'git-branch',
 };
@@ -276,8 +277,6 @@ function hasLeadingLifecycleStatus(presentation: IChatLinkPresentation): boolean
 			return statusKind === 'open' || statusKind === 'closed' || statusKind === 'notPlanned';
 		case 'pullRequest':
 			return statusKind === 'open' || statusKind === 'closed' || statusKind === 'merged' || statusKind === 'draft';
-		case 'session':
-			return statusKind !== undefined;
 		default:
 			return false;
 	}
