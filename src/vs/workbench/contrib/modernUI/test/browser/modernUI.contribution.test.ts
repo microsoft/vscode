@@ -20,6 +20,10 @@ import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../..
 import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
@@ -282,12 +286,12 @@ suite('ModernUIContribution', () => {
 		const paneHeader = appendElement(appendElement(paneView, 'pane'), 'pane-header');
 		const paneTitle = appendElement(paneHeader, 'title');
 
-		const explorerPart = appendElement(layoutService.mainContainer, 'part preserve-merged-workspace-name-case');
+		const explorerPart = appendElement(layoutService.mainContainer, `part ${PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS}`);
 		explorerPart.dataset.activeComposite = 'workbench.views.service.sidebar.custom';
 		const explorerTitleLabel = appendElement(appendElement(explorerPart, 'title'), 'title-label');
 		const explorerTitle = document.createElement('h2');
 		explorerTitleLabel.appendChild(explorerTitle);
-		const explorerPaneHeader = appendElement(appendElement(appendElement(explorerPart, 'monaco-pane-view'), 'pane preserve-workspace-name-case'), 'pane-header');
+		const explorerPaneHeader = appendElement(appendElement(appendElement(explorerPart, 'monaco-pane-view'), `pane ${PRESERVE_WORKSPACE_NAME_CASE_CLASS}`), 'pane-header');
 		appendElement(explorerPaneHeader, 'icon codicon-explorer-view-icon');
 		const explorerPaneTitle = appendElement(explorerPaneHeader, 'title');
 		const multiViewPart = appendElement(layoutService.mainContainer, 'part');
@@ -295,7 +299,7 @@ suite('ModernUIContribution', () => {
 		const multiViewTitleLabel = appendElement(appendElement(multiViewPart, 'title'), 'title-label');
 		const multiViewTitle = document.createElement('h2');
 		multiViewTitleLabel.appendChild(multiViewTitle);
-		const multiViewExplorerPaneHeader = appendElement(appendElement(appendElement(multiViewPart, 'monaco-pane-view'), 'pane preserve-workspace-name-case'), 'pane-header');
+		const multiViewExplorerPaneHeader = appendElement(appendElement(appendElement(multiViewPart, 'monaco-pane-view'), `pane ${PRESERVE_WORKSPACE_NAME_CASE_CLASS}`), 'pane-header');
 		appendElement(multiViewExplorerPaneHeader, 'icon codicon-explorer-view-icon');
 		const multiViewExplorerPaneTitle = appendElement(multiViewExplorerPaneHeader, 'title');
 		const extensionsPart = appendElement(layoutService.mainContainer, 'part');
@@ -362,27 +366,60 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('capitalizes Untitled Explorer titles by default', () => {
+	test('Explorer title casing follows the workspace name decision', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui';
-		const explorerPart = appendElement(root, 'part');
-		explorerPart.dataset.activeComposite = 'workbench.view.explorer';
-		const explorerTitleLabel = appendElement(appendElement(explorerPart, 'title'), 'title-label');
-		const explorerTitle = document.createElement('h2');
-		explorerTitleLabel.appendChild(explorerTitle);
+
+		function createExplorerTitles(workbenchState: WorkbenchState, configuration: URI | null) {
+			const preserveCase = shouldPreserveWorkspaceNameCase(workbenchState, { id: 'test', folders: [], configuration }, TestEnvironmentService);
+			const part = appendElement(root, preserveCase ? `part ${PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS}` : 'part');
+			const mergedTitle = document.createElement('h2');
+			appendElement(appendElement(part, 'title'), 'title-label').appendChild(mergedTitle);
+			const paneHeader = appendElement(appendElement(appendElement(part, 'monaco-pane-view'), preserveCase ? `pane ${PRESERVE_WORKSPACE_NAME_CASE_CLASS}` : 'pane'), 'pane-header');
+			appendElement(paneHeader, 'icon codicon-explorer-view-icon');
+			const paneTitle = appendElement(paneHeader, 'title');
+			return { mergedTitle, paneTitle };
+		}
+
+		const untitled = createExplorerTitles(WorkbenchState.WORKSPACE, joinPath(TestEnvironmentService.untitledWorkspacesHome, '1234', 'workspace.json'));
+		const named = createExplorerTitles(WorkbenchState.WORKSPACE, URI.file('/some/path/myWorkspace.code-workspace'));
+		const folder = createExplorerTitles(WorkbenchState.FOLDER, null);
 
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 		const targetWindow = getWindow(root);
-		const defaultTransform = targetWindow.getComputedStyle(explorerTitle).textTransform;
+		const transforms = () => ({
+			untitledMerged: targetWindow.getComputedStyle(untitled.mergedTitle).textTransform,
+			untitledPane: targetWindow.getComputedStyle(untitled.paneTitle).textTransform,
+			namedMerged: targetWindow.getComputedStyle(named.mergedTitle).textTransform,
+			namedPane: targetWindow.getComputedStyle(named.paneTitle).textTransform,
+			folderMerged: targetWindow.getComputedStyle(folder.mergedTitle).textTransform,
+			folderPane: targetWindow.getComputedStyle(folder.paneTitle).textTransform,
+		});
+
+		const defaultTransforms = transforms();
 		root.classList.add('modern-ui-uppercase-view-headers');
 
 		assert.deepStrictEqual({
-			defaultTransform,
-			uppercaseTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
+			defaultTransforms,
+			uppercaseTransforms: transforms(),
 		}, {
-			defaultTransform: 'capitalize',
-			uppercaseTransform: 'uppercase',
+			defaultTransforms: {
+				untitledMerged: 'capitalize',
+				untitledPane: 'capitalize',
+				namedMerged: 'none',
+				namedPane: 'none',
+				folderMerged: 'none',
+				folderPane: 'none',
+			},
+			uppercaseTransforms: {
+				untitledMerged: 'uppercase',
+				untitledPane: 'uppercase',
+				namedMerged: 'uppercase',
+				namedPane: 'uppercase',
+				folderMerged: 'uppercase',
+				folderPane: 'uppercase',
+			},
 		});
 	});
 

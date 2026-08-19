@@ -12,7 +12,7 @@ import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { isUntitledWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { isUntitledWorkspace, IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -150,10 +150,32 @@ export interface IExplorerViewPaneOptions extends IViewPaneOptions {
 	delegate: IExplorerViewContainerDelegate;
 }
 
+/**
+ * Marks the Explorer pane header as showing a name the user chose.
+ */
+export const PRESERVE_WORKSPACE_NAME_CASE_CLASS = 'preserve-workspace-name-case';
+
+/**
+ * Marks the part hosting the Explorer as showing a name the user chose in its
+ * merged (single view) title.
+ */
+export const PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS = 'preserve-merged-workspace-name-case';
+
+/**
+ * Whether the Explorer title shows a name the user provided and therefore has to
+ * be rendered with its original casing. Untitled workspaces show a generated
+ * label and empty workbenches show a static label, so both keep the default casing.
+ */
+export function shouldPreserveWorkspaceNameCase(workbenchState: WorkbenchState, workspace: IWorkspace, environmentService: IEnvironmentService): boolean {
+	if (workbenchState === WorkbenchState.EMPTY) {
+		return false;
+	}
+
+	return !workspace.configuration || !isUntitledWorkspace(workspace.configuration, environmentService);
+}
+
 export class ExplorerView extends ViewPane implements IExplorerView {
 
-	private static readonly preserveWorkspaceNameCaseClass = 'preserve-workspace-name-case';
-	private static readonly preserveMergedWorkspaceNameCaseClass = 'preserve-merged-workspace-name-case';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
@@ -318,23 +340,21 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private updateWorkspaceTitleContainer(): void {
 		const workspaceTitleContainer = DOM.findParentWithClass(this.element, 'part') ?? undefined;
 		if (this.workspaceTitleContainer !== workspaceTitleContainer) {
-			this.workspaceTitleContainer?.classList.remove(ExplorerView.preserveMergedWorkspaceNameCaseClass);
+			this.workspaceTitleContainer?.classList.remove(PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS);
 			this.workspaceTitleContainer = workspaceTitleContainer;
 		}
 		this.updateWorkspaceTitleCase();
 	}
 
 	private clearWorkspaceTitleContainer(): void {
-		this.workspaceTitleContainer?.classList.remove(ExplorerView.preserveMergedWorkspaceNameCaseClass);
+		this.workspaceTitleContainer?.classList.remove(PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS);
 		this.workspaceTitleContainer = undefined;
 	}
 
 	private updateWorkspaceTitleCase(): void {
-		const workspace = this.contextService.getWorkspace();
-		const isUntitled = workspace.configuration ? isUntitledWorkspace(workspace.configuration, this.environmentService) : false;
-		const preserveWorkspaceNameCase = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && !isUntitled;
-		this.element.classList.toggle(ExplorerView.preserveWorkspaceNameCaseClass, preserveWorkspaceNameCase);
-		this.workspaceTitleContainer?.classList.toggle(ExplorerView.preserveMergedWorkspaceNameCaseClass, preserveWorkspaceNameCase && this.isVisible() && !this.headerVisible);
+		const preserveWorkspaceNameCase = shouldPreserveWorkspaceNameCase(this.contextService.getWorkbenchState(), this.contextService.getWorkspace(), this.environmentService);
+		this.element.classList.toggle(PRESERVE_WORKSPACE_NAME_CASE_CLASS, preserveWorkspaceNameCase);
+		this.workspaceTitleContainer?.classList.toggle(PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, preserveWorkspaceNameCase && this.isVisible() && !this.headerVisible);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
