@@ -780,12 +780,12 @@ export interface IAgentModelInfo {
  * Most signals carry a protocol {@link SessionAction} directly via the
  * `kind: 'action'` shape, eliminating a parallel event ontology. A small
  * number of cases that have no clean protocol action (permission
- * auto-approval, subagent session creation, steering message
- * acknowledgment) remain as discriminated non-action signals so the host
- * can perform side effects before — or instead of — dispatching an action.
+ * auto-approval, subagent session creation, steering acknowledgment, and
+ * host-owned model-call telemetry) remain as discriminated non-action signals.
  */
 export type AgentSignal =
 	| IAgentActionSignal
+	| IAgentModelCallCompletedSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
 	| IAgentSubagentResumedSignal
@@ -807,6 +807,19 @@ export interface IAgentActionSignal {
 	/** Protocol action to dispatch. */
 	readonly action: SessionAction | ChatAction;
 	/** If set, route the action to the subagent session belonging to this tool call. */
+	readonly parentToolCallId?: string;
+}
+
+/** Reports one completed upstream model response for host-owned turn telemetry. */
+export interface IAgentModelCallCompletedSignal {
+	readonly kind: 'model_call_completed';
+	/** Target chat channel URI. For inner subagent calls this is the parent chat channel. */
+	readonly resource: URI;
+	/** Provider-reported turn identifier. The host remaps it when routing to a subagent chat. */
+	readonly turnId: string;
+	/** Stable provider message or response identifier used to suppress duplicate notifications. */
+	readonly modelCallId: string;
+	/** If set, route the model call to the subagent session belonging to this tool call. */
 	readonly parentToolCallId?: string;
 }
 
@@ -1135,12 +1148,7 @@ export interface IAgent {
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
-	/**
-	 * Enumerate provider-native chats for one-time registry migration.
-	 *
-	 * Returns `undefined` when the provider cannot enumerate yet; `[]` is an
-	 * authoritative result indicating there are no legacy chats to migrate.
-	 */
+	/** Enumerate provider-native chats for registry migration; `undefined` means the catalog is unavailable. */
 	listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
@@ -1172,6 +1180,12 @@ export interface IAgent {
 
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
+
+	/** Return the provider-owned state file for a session, when one exists. */
+	getSessionStateFile?(session: URI): Promise<URI | undefined>;
+
+	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
+	collectDebugLogs?(session: URI | undefined, outputDirectory: URI): Promise<boolean>;
 
 	// ---- MCP and server tools -----------------------------------------------
 

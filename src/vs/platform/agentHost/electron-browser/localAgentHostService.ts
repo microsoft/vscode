@@ -32,6 +32,7 @@ import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.j
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
+	type AgentHostDebugLogsArtifactKind,
 	AgentHostIpcChannels,
 	AgentHostOTelPolicyIpcChannel,
 	AgentHostRestartIpcChannel,
@@ -40,6 +41,7 @@ import {
 	IAgentCreateChatOptions,
 	IAgentCreateSessionConfig,
 	IAgentHostInspectInfo,
+	type IAgentHostDebugLogsArtifact,
 	IAgentHostManagementService,
 	IAgentHostManagedSettingsDiagnostics,
 	IAgentHostNetworkDiagnosticsInfo,
@@ -53,10 +55,11 @@ import {
 	AuthenticateResult,
 	IMcpNotification,
 	readAgentHostOTelPolicySettings,
+	type IAgentHostDebugLogsChunk,
 } from '../common/agentService.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -467,8 +470,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().resourceList(uri);
 	}
 
-	resourceRead(uri: URI): Promise<ResourceReadResult> {
-		return this._requireClient().resourceRead(uri);
+	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {
+		return this._requireClient().resourceRead(uri, encoding);
 	}
 
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
@@ -513,6 +516,18 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
 		return this._getManagementService().diagnosticsFetch(url);
+	}
+
+	getSessionStateFile(session: URI): Promise<URI | undefined> {
+		return this._getManagementService().getSessionStateFile(session);
+	}
+
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+		return this._getManagementService().collectDebugLogs(session, kind);
+	}
+
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
+		return this._getManagementService().readDebugLogsChunk(resource, position);
 	}
 
 	async restartAgentHost(): Promise<void> {

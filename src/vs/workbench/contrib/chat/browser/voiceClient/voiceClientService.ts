@@ -798,14 +798,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	sendToolResult(callId: string, result: string | IVoiceDispatchResult, codingSessionId?: string): void {
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({
-				type: 'tool_result',
-				call_id: callId,
-				result,
-				...(codingSessionId ? { coding_session_id: codingSessionId } : {}),
-			}));
+			this._ws.send(JSON.stringify({ type: 'tool_result', call_id: callId, result }));
 		}
 	}
 
@@ -820,13 +815,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }, prepareToReceiveAudio?: () => void): string | undefined {
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined {
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
 		// a retry that onSessionInit replays once the session exists.
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
-			prepareToReceiveAudio?.();
 			// Reuse a caller-supplied id (a `busy` retry) so the backend dedups; else mint one.
 			const id = narrationId ?? generateUuid();
 			this._ws.send(JSON.stringify({

@@ -776,6 +776,8 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly resolveWorkingDirectory?: (sessionResource: URI) => URI | undefined;
 	/** Whether a final-looking chat resource is still a client-side draft. */
 	readonly isNewSession?: (sessionResource: URI) => boolean;
+	/** Called after a locally-created session has been accepted by the backend. */
+	readonly onSessionMaterialized?: (sessionResource: URI) => void;
 	/**
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
@@ -1259,6 +1261,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// Embedded resources will be added when the workbench grows first-class support for them.
 				return undefined; // unknown attachment type
 		}
+	}
+
+	updateChatSessionMetadata(sessionResource: URI, metadata: Record<string, unknown>): void {
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const state = this._getSessionState(backendSession.toString());
+		if (state) {
+			this._config.connection.dispatch(backendSession.toString(), {
+				type: ActionType.SessionMetaChanged,
+				_meta: { ...state._meta, ...metadata },
+			});
+			return;
+		}
+
+		this._provisionalService.setSessionCreationMetadata(sessionResource, {
+			...(this._provisionalService.getInitialSessionMetadata(sessionResource) ?? {}),
+			...metadata,
+		});
 	}
 
 	async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
@@ -3732,7 +3751,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			} else if (status === ToolCallStatus.PendingConfirmation) {
 				// The protocol can refresh a pending tool's command without an
 				// intervening status transition. Refresh the whole presentation, not
-				// just its message, so Omni and voice expose the command that is
+				// just its message, so voice exposes the command that is
 				// actually awaiting approval while preserving the current gate.
 				const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
 				invocation.updatePreparedInvocation(prepared, invocation.parameters);
@@ -4994,6 +5013,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; chat: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void): Promise<URI> {
 		const workingDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
+		const meta = this._provisionalService.getInitialSessionMetadata(sessionResource);
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
 
@@ -5017,7 +5037,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		try {
 			session = await this._config.connection.createSession({
 				session: requestedSession,
-				_meta: this._provisionalService.getInitialSessionMetadata(),
+				_meta: meta,
 				model,
 				provider: this._config.provider,
 				workingDirectories,
@@ -5037,7 +5057,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					onFailureStage?.('createSession');
 					session = await this._config.connection.createSession({
 						session: requestedSession,
-						_meta: this._provisionalService.getInitialSessionMetadata(),
+						_meta: meta,
 						model,
 						provider: this._config.provider,
 						workingDirectories,
@@ -5054,10 +5074,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				throw err;
 			}
 		}
+		this._provisionalService.clearSessionCreationMetadata(sessionResource);
 
 		if (requestedSession && !isEqual(session, requestedSession)) {
 			throw new Error(`Agent host returned unexpected session URI. Expected ${requestedSession.toString()}, got ${session.toString()}`);
 		}
+		this._config.onSessionMaterialized?.(sessionResource);
 
 		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
 
