@@ -41,7 +41,8 @@ export class ContextViewHandler extends Disposable implements IContextViewProvid
 			domPosition = ContextViewDOMPosition.ABSOLUTE;
 		}
 
-		this.contextView.setContainer(container ?? this.layoutService.activeContainer, domPosition);
+		const contextViewContainer = shadowRoot && container ? this.layoutService.getContainer(getWindow(container)) : container ?? this.layoutService.activeContainer;
+		this.contextView.setContainer(contextViewContainer, domPosition);
 
 		this.contextView.show(delegate);
 
