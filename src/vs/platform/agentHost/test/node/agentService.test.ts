@@ -6364,6 +6364,48 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(await db.getChatDraft(chat), expected);
 		}
 
+		test('waits for initial provider migration before restoring a session', async () => {
+			class DelayedMigrationAgent extends MockAgent {
+				readonly migrationGate = new DeferredPromise<void>();
+				migrationComplete = false;
+				metadataCalls = 0;
+
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+					await this.migrationGate.p;
+					this.migrationComplete = true;
+					return this.listExternalChats();
+				}
+
+				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+					this.metadataCalls++;
+					return this.migrationComplete ? super.getChatMetadata(chat, context) : undefined;
+				}
+			}
+
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new DelayedMigrationAgent('copilot'));
+			const { session } = await createAgentSession(agent);
+			svc.registerProvider(agent);
+
+			const restore = svc.restoreSession(session);
+			await timeout(0);
+			const metadataCallsBeforeMigration = agent.metadataCalls;
+			agent.migrationGate.complete();
+			await restore;
+
+			assert.deepStrictEqual({
+				metadataCallsBeforeMigration,
+				metadataReadAfterMigration: agent.metadataCalls > 0,
+				registeredSessions: (await svc.getRegisteredSessions()).map(resource => resource.toString()),
+				restored: !!svc.stateManager.getSessionState(session.toString()),
+			}, {
+				metadataCallsBeforeMigration: 0,
+				metadataReadAfterMigration: true,
+				registeredSessions: [session.toString()],
+				restored: true,
+			});
+		});
+
 		test('rejects restoring a session that has been explicitly deleted (tombstoned) without resurrecting it', async () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));

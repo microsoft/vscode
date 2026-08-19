@@ -2620,7 +2620,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	suite('closed chats persistence', () => {
+	suite('chat persistence', () => {
 
 		function chat(id: string, status: SessionStatus = SessionStatus.Completed, origin?: ChatOriginKind): IChat {
 			return {
@@ -2842,6 +2842,63 @@ suite('SessionsManagementService', () => {
 			await second.restoreVisibleSessions();
 			await second.openSession(sessionB.resource);
 			assert.deepStrictEqual((second.activeSession.get()?.closedChats.get() ?? []).map(c => c.title.get()), ['b2']);
+		});
+
+		test('restores the active chat when it appears after the session', async () => {
+			const main = chat('main');
+			const side = chat('side', SessionStatus.Completed, ChatOriginKind.SideChat);
+			const storage = disposables.add(new InMemoryStorageService());
+			const makeView = (session: ISession) => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(ILogService, new NullLogService());
+				instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+				instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([new TestSessionsProvider(session)]));
+				instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+				instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+				instantiationService.stub(IProgressService, new TestProgressService());
+				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+					override readonly onDidSubmitRequest = Event.None;
+				});
+				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				return createView(instantiationService, service, disposables);
+			};
+
+			const firstSession = stubSession({
+				sessionId: 'delayed-active-chat',
+				providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: constObservable([main, side]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const first = makeView(firstSession);
+			await first.openSession(firstSession.resource);
+			await first.openChat(firstSession, side.resource);
+			await storage.flush();
+
+			const chats = observableValue<readonly IChat[]>('delayedChats', [main]);
+			const restoredSession = stubSession({
+				sessionId: 'delayed-active-chat',
+				providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats,
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const second = makeView(restoredSession);
+			await second.restoreVisibleSessions();
+			const beforeCatalog = second.activeSession.get()?.activeChat.get().resource.toString();
+
+			chats.set([main, side], undefined);
+
+			assert.deepStrictEqual({
+				beforeCatalog,
+				afterCatalog: second.activeSession.get()?.activeChat.get().resource.toString(),
+			}, {
+				beforeCatalog: main.resource.toString(),
+				afterCatalog: side.resource.toString(),
+			});
 		});
 	});
 
