@@ -46,14 +46,9 @@ function loadAdmZip(): any {
 	return fromSdk('adm-zip');
 }
 
-/**
- * NuGet feeds tried in order: the stable nuget.org feed, the authenticated VS
- * Code feed, then the public ORT-Nightly Azure DevOps feed as a final fallback.
- */
+/** The authenticated VS Code NuGet feed used for native runtime packages. */
 const FEEDS: readonly string[] = [
-	'https://api.nuget.org/v3/index.json',
 	VSCODE_NUGET_FEED,
-	'https://pkgs.dev.azure.com/aiinfra/PublicPackages/_packaging/ORT-Nightly/nuget/v3/index.json',
 ];
 
 function getRequestOptions(url: string): https.RequestOptions {

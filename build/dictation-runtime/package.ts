@@ -11,7 +11,7 @@
  *
  * The library form is what `produce.ts` calls during the per-platform
  * "Dictation runtime: build + upload" pipeline step; the CLI form is for local
- * one-off builds.
+ * one-off builds and requires `VSS_NUGET_ACCESSTOKEN` for the VS Code NuGet feed.
  *
  * The addon is copied from the pinned `foundry-local-sdk` package's `prebuilds/`
  * (which ships every target), and the core libraries are fetched from NuGet for
