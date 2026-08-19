@@ -61,7 +61,7 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 			configPath = FileAccess.asFileUri('vs/workbench/contrib/codeEditor/test/node/language-configuration.json').fsPath;
 			break;
 		case LanguageId.Yaml:
-			configPath = FileAccess.asFileUri('vs/../../extensions/yaml/language-configuration.json').fsPath;
+			configPath = FileAccess.asFileUri('vs/workbench/contrib/codeEditor/test/node/yaml-language-configuration.json').fsPath;
 			break;
 		default:
 			throw new Error('Unknown languageId');
@@ -537,7 +537,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 suite('Auto-Reindentation - YAML', () => {
 
 	const languageId = LanguageId.Yaml;
-	const options: IRelaxedTextModelCreationOptions = {};
+	const options: IRelaxedTextModelCreationOptions = { insertSpaces: true, tabSize: 2, indentSize: 2 };
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageConfigurationService: ILanguageConfigurationService;
@@ -571,7 +571,7 @@ suite('Auto-Reindentation - YAML', () => {
 			'endLineNumber': 2,
 			'endColumn': 1,
 		});
-		assert.deepStrictEqual(operation.text, '    ');
+		assert.deepStrictEqual(operation.text, '  ');
 	});
 
 	test('Issue #330394: indent after an anchor', () => {
@@ -589,7 +589,7 @@ suite('Auto-Reindentation - YAML', () => {
 			'endLineNumber': 2,
 			'endColumn': 1,
 		});
-		assert.deepStrictEqual(operation.text, '    ');
+		assert.deepStrictEqual(operation.text, '  ');
 	});
 
 	test('Issue #330394: indent after a block scalar', () => {
@@ -607,7 +607,7 @@ suite('Auto-Reindentation - YAML', () => {
 			'endLineNumber': 2,
 			'endColumn': 1,
 		});
-		assert.deepStrictEqual(operation.text, '    ');
+		assert.deepStrictEqual(operation.text, '  ');
 	});
 
 	test('Issue #330394: a plain scalar does not indent', () => {
