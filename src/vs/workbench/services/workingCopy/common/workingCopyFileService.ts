@@ -10,7 +10,7 @@ import { Promises } from '../../../../base/common/async.js';
 import { insert } from '../../../../base/common/arrays.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IFileService, FileOperation, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { IFileService, FileOperation, IFileStatWithMetadata, IFileCopyProgress } from '../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IWorkingCopyService } from './workingCopyService.js';
 import { IWorkingCopy } from './workingCopy.js';
@@ -254,7 +254,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo, progress?: IProgress<IFileCopyProgress>): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
 	 * Will delete working copies matching the provided resources and children
@@ -391,11 +391,11 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return this.doMoveOrCopy(operations, true, token, undoInfo);
 	}
 
-	async copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
-		return this.doMoveOrCopy(operations, false, token, undoInfo);
+	async copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo, progress?: IProgress<IFileCopyProgress>): Promise<IFileStatWithMetadata[]> {
+		return this.doMoveOrCopy(operations, false, token, undoInfo, progress);
 	}
 
-	private async doMoveOrCopy(operations: IMoveOperation[] | ICopyOperation[], move: boolean, token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
+	private async doMoveOrCopy(operations: IMoveOperation[] | ICopyOperation[], move: boolean, token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo, progress?: IProgress<IFileCopyProgress>): Promise<IFileStatWithMetadata[]> {
 		const stats: IFileStatWithMetadata[] = [];
 
 		// validate move/copy operation before starting
@@ -429,7 +429,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 				if (move) {
 					stats.push(await this.fileService.move(source, target, overwrite));
 				} else {
-					stats.push(await this.fileService.copy(source, target, overwrite));
+					stats.push(await this.fileService.copy(source, target, overwrite, progress));
 				}
 			}
 		} catch (error) {
