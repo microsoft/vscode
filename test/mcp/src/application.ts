@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, measureAndLog, Application } from '../../automation';
+import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, Application } from '../../automation';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as vscodetest from '@vscode/test-electron';
 import * as sqlite3 from '@vscode/sqlite3';
 import type { Page } from '@playwright/test';
-import { createApp, retry, parseVersion } from './utils';
+import { createApp, parseVersion } from './utils';
 import { opts } from './options';
 
 export type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
@@ -155,93 +154,6 @@ export function getProductVersion(): string {
 	return version ?? sourceVersion;
 }
 
-async function ensureStableCode(): Promise<void> {
-	let stableCodePath = opts['stable-build'];
-	if (!stableCodePath) {
-		const current = parseVersion(version!);
-		const versionsReq = await retry(() => measureAndLog(() => fetch('https://update.code.visualstudio.com/api/releases/stable'), 'versionReq', logger), 1000, 20);
-
-		if (!versionsReq.ok) {
-			throw new Error('Could not fetch releases from update server');
-		}
-
-		const versions: string[] = await measureAndLog(() => versionsReq.json(), 'versionReq.json()', logger);
-		const stableVersion = versions.find(raw => {
-			const version = parseVersion(raw);
-			return version.major < current.major || (version.major === current.major && version.minor < current.minor);
-		});
-
-		if (!stableVersion) {
-			throw new Error(`Could not find suitable stable version for ${version}`);
-		}
-
-		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${stableVersion}...`);
-
-		let lastProgressMessage: string | undefined = undefined;
-		let lastProgressReportedAt = 0;
-		const stableCodeDestination = path.join(testDataPath, 's');
-		const stableCodeExecutable = await retry(() => measureAndLog(() => vscodetest.download({
-			cachePath: stableCodeDestination,
-			version: stableVersion,
-			extractSync: true,
-			reporter: {
-				report: report => {
-					let progressMessage = `download stable code progress: ${report.stage}`;
-					const now = Date.now();
-					if (progressMessage !== lastProgressMessage || now - lastProgressReportedAt > 10000) {
-						lastProgressMessage = progressMessage;
-						lastProgressReportedAt = now;
-
-						if (report.stage === 'downloading') {
-							progressMessage += ` (${report.bytesSoFar}/${report.totalBytes})`;
-						}
-
-						logger.log(progressMessage);
-					}
-				},
-				error: error => logger.log(`download stable code error: ${error}`)
-			}
-		}), 'download stable code', logger), 1000, 3, () => new Promise<void>((resolve, reject) => {
-			fs.rm(stableCodeDestination, { recursive: true, force: true, maxRetries: 10 }, error => {
-				if (error) {
-					reject(error);
-				} else {
-					resolve();
-				}
-			});
-		}));
-
-		if (process.platform === 'darwin') {
-			// Visual Studio Code.app/Contents/MacOS/Code
-			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
-		} else {
-			// VSCode/Code.exe (Windows) | VSCode/code (Linux)
-			stableCodePath = path.dirname(stableCodeExecutable);
-		}
-
-		opts['stable-version'] = parseVersion(stableVersion);
-	}
-
-	if (!fs.existsSync(stableCodePath)) {
-		throw new Error(`Cannot find Stable VSCode at ${stableCodePath}.`);
-	}
-
-	logger.log(`Using stable build ${stableCodePath} for migration tests`);
-
-	opts['stable-build'] = stableCodePath;
-}
-
-async function setup(): Promise<void> {
-	logger.log('Preparing smoketest setup...');
-
-	if (!opts.web && !opts.remote && opts.build) {
-		// only enabled when running with --build and not in web or remote
-		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
-	}
-
-	logger.log('Smoketest setup done!\n');
-}
-
 export async function getApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] } = {}) {
 	if (opts.web && extraArgs?.length) {
 		throw new Error('Per-run extraArgs are not supported by the web automation launcher.');
@@ -256,7 +168,6 @@ export async function getApplication({ recordVideo, workspacePath, userSettings,
 	// against an installed build times out waiting for its first window.
 	delete process.env.ELECTRON_RUN_AS_NODE; // Ensure we run as Node.js
 
-	await setup();
 	const application = createApp({
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
