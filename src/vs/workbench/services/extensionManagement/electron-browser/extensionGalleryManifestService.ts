@@ -6,26 +6,31 @@
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IHeaders, IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { asJson, asText, IRequestService } from '../../../../platform/request/common/request.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
-import { isSafeTokenTarget, MarketplaceAuthRequiredError, MarketplaceClientRejectedError } from './extensionGalleryAccess.js';
+import { MarketplaceAuthRequiredError, MarketplaceClientRejectedError } from './extensionGalleryAccess.js';
 import { ExtensionGalleryAccountStatus, IExtensionGalleryAccountService } from './extensionGalleryAccountService.js';
-import { ExtensionGalleryAccessCache } from './extensionGalleryAccessCache.js';
-import { ExtensionGalleryServiceIndexFetcher } from './extensionGalleryServiceIndex.js';
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
 
+	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
 
 	private _onDidChangeExtensionGalleryManifest = this._register(new Emitter<IExtensionGalleryManifest | null>());
@@ -36,32 +41,32 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	private _onDidChangeExtensionGalleryManifestStatus = this._register(new Emitter<ExtensionGalleryManifestStatus>());
 	override readonly onDidChangeExtensionGalleryManifestStatus = this._onDidChangeExtensionGalleryManifestStatus.event;
 
-
-	// Fetches and memoizes the service index for the configured marketplace.
-	private readonly serviceIndexFetcher: ExtensionGalleryServiceIndexFetcher;
-
-	// Durable "was this account allowed here?" verdicts, scoped to account + marketplace.
-	private readonly accessCache: ExtensionGalleryAccessCache;
-
-	// Supersedes an in-flight resolution after a sign-out, account switch or configuration change.
 	private readonly resolutionTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	constructor(
 		@IProductService productService: IProductService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IFileService fileService: IFileService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService,
 		@IExtensionGalleryAccountService private readonly galleryAccountService: IExtensionGalleryAccountService,
-		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(productService);
-
-		this.serviceIndexFetcher = instantiationService.createInstance(ExtensionGalleryServiceIndexFetcher);
-		this.accessCache = instantiationService.createInstance(ExtensionGalleryAccessCache);
+		this.commonHeadersPromise = resolveMarketplaceHeaders(
+			productService.version,
+			productService,
+			environmentService,
+			configurationService,
+			fileService,
+			storageService,
+			telemetryService);
 
 		const channels = [sharedProcessService.getChannel('extensionGalleryManifest')];
 		const remoteConnection = remoteAgentService.getConnection();
@@ -74,7 +79,6 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		};
 		this.getExtensionGalleryManifest().then(manifest => {
 			if (this._store.isDisposed) {
-				this.logService.trace('[Marketplace] Store is already disposed, skipping channel initialization');
 				return;
 			}
 			updateChannels(manifest);
@@ -99,45 +103,31 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			return;
 		}
 
-		// Registered before any resolution below: resolving may await a slow network call, and a
-		// configuration change during that window still has to supersede it.
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)
-				&& !e.affectsConfiguration(ExtensionGalleryAuthProviderConfigKey)) {
-				return;
-			}
-			// The restart prompt is dismissable, so the process may keep running under the old
-			// configuration. Supersede any in-flight resolution, drop the memoized index, and discard
-			// the durable verdict so nothing written for the previous marketplace survives.
-			this.beginResolution();
-			this.serviceIndexFetcher.invalidate();
-			this.accessCache.clear();
-			this.requestRestart();
-		}));
-
 		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
 		if (configuredServiceUrl) {
 			this.logService.trace('[Marketplace] Private marketplace configured, checking access and fetching manifest', configuredServiceUrl);
-			// Registered before the initial resolution for the same reason: a sign-out or account
-			// switch mid-flight needs a live listener to supersede it.
+			// Registered before the first resolution: it may await a slow index fetch, and a sign-out
+			// during that window still has to supersede it.
 			this._register(this.galleryAccountService.onDidChangeAccount(() => this.resolve(configuredServiceUrl)));
 			await this.resolve(configuredServiceUrl);
 		} else {
 			const defaultExtensionGalleryManifest = await super.getExtensionGalleryManifest();
 			this.update(defaultExtensionGalleryManifest);
 		}
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)
+				&& !e.affectsConfiguration(ExtensionGalleryAuthProviderConfigKey)) {
+				return;
+			}
+			this.requestRestart();
+		}));
 	}
 
-	// --- Access resolution ---
-
-	/** Resolves the account, then fetches the marketplace's service index with it. */
 	private async resolve(configuredServiceUrl: string): Promise<void> {
 		const token = this.beginResolution();
-		this.serviceIndexFetcher.invalidate();
-		let accountId: string | undefined;
 		try {
 			const account = await this.galleryAccountService.getAccount();
-			accountId = account?.id;
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -146,78 +136,45 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				return;
 			}
 			if (this.galleryAccountService.accountStatus === ExtensionGalleryAccountStatus.Ineligible) {
-				// Entitlement is decided client-side, so this is durable for as long as the account is
-				// current — record it against this marketplace and never probe with it.
 				this.logService.debug('[Marketplace] User signed in but lacks access to private marketplace');
-				this.accessCache.write(configuredServiceUrl, account.id, false);
 				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 				return;
 			}
-			if (account.accessToken && !isSafeTokenTarget(configuredServiceUrl, configuredServiceUrl)) {
-				// Won't attach a bearer to a non-HTTPS index; without it an auth-gated index is
-				// unreadable, so this deployment cannot work.
-				this.logService.error('[Marketplace] Refusing to send the Microsoft token to a non-HTTPS service index URL — the marketplace is misconfigured for Entra auth.');
-				this.accessCache.clear();
+			if (account.accessToken && !isHttpsUrl(configuredServiceUrl)) {
+				this.logService.error('[Marketplace] Refusing to send the Microsoft token to a non-HTTPS service index URL.');
 				this.update(null, ExtensionGalleryManifestStatus.Misconfigured);
 				return;
 			}
-			// A cached denial for this exact account and marketplace is durable — surface it without
-			// touching a marketplace that has already refused this identity.
-			if (this.accessCache.read(configuredServiceUrl, account.id) === false) {
-				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
-				return;
-			}
-			const manifest = await this.serviceIndexFetcher.getServiceIndex(configuredServiceUrl, token, account.accessToken);
+			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, token, account.accessToken);
 			if (token.isCancellationRequested) {
 				return;
 			}
-			this.accessCache.write(configuredServiceUrl, account.id, true);
 			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
-				this.renderAvailable(manifest);
+				this.setAvailable(manifest);
 			}
 		} catch (error) {
 			if (!token.isCancellationRequested) {
-				this.applyFetchError(error, configuredServiceUrl, accountId);
+				this.applyFetchError(error);
 			}
 		}
 	}
 
-	/** Maps "no usable account" to a status, distinguishing signed-out from a transient failure. */
 	private applyNoAccount(): void {
+		// A transient auth failure is not a sign-out, so it must not demand sign-in.
 		if (this.galleryAccountService.accountStatus === ExtensionGalleryAccountStatus.Unknown) {
-			// The account could not be resolved. Do not demand sign-in, and deliberately keep any
-			// cached verdict: it cannot be checked against the current identity right now, but it may
-			// still be valid once the auth service recovers.
 			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
 				this.update(null, ExtensionGalleryManifestStatus.Unreachable);
 			}
 			return;
 		}
-		// Definitively signed out — a verdict written for the previous account must not survive.
-		this.accessCache.clear();
 		this.logService.debug('[Marketplace] Private marketplace configured but user not signed in');
 		this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 	}
 
-	/**
-	 * A rejection by the server (401/403, or another 4xx) is durable and reported as a denial;
-	 * anything else is transient and never downgrades an available marketplace.
-	 */
-	private applyFetchError(error: unknown, configuredServiceUrl: string, accountId: string | undefined): void {
-		if (error instanceof MarketplaceAuthRequiredError) {
-			// Only a 403 is persisted: the token was accepted and the identity refused, so the verdict
-			// belongs to the account. A 401 means the token itself was rejected (it may simply have
-			// expired), which must not outlive this run.
-			if (error.statusCode === 403 && accountId) {
-				this.accessCache.write(configuredServiceUrl, accountId, false);
-			} else {
-				this.accessCache.clear();
-			}
-			this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
-			return;
-		}
-		if (error instanceof MarketplaceClientRejectedError) {
-			// Belongs to the client, not the account, so it is not persisted.
+	private applyFetchError(error: unknown): void {
+		// A rejection by the server is durable, so retrying cannot help. Anything else is transient and
+		// must not downgrade a marketplace that is already available.
+		if (error instanceof MarketplaceAuthRequiredError || error instanceof MarketplaceClientRejectedError) {
 			this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 			return;
 		}
@@ -227,26 +184,16 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 	}
 
-	/**
-	 * Starts a new resolution generation, cancelling the previous one so a superseded result — after
-	 * a sign-out, account switch or configuration change — can never publish a stale manifest.
-	 */
+	// Cancels the previous generation so a superseded result can never publish a stale manifest.
 	private beginResolution(): CancellationToken {
-		// MutableDisposable disposes the previous source on assignment, but dispose() does not cancel;
-		// cancel explicitly so any in-flight continuation is superseded first.
 		this.resolutionTokenSource.value?.cancel();
 		const source = new CancellationTokenSource();
 		this.resolutionTokenSource.value = source;
 		return source.token;
 	}
 
-	// --- Status management ---
-
-	/** Publishes the manifest and reports successful custom-marketplace access (any auth provider). */
-	private renderAvailable(manifest: IExtensionGalleryManifest): void {
+	private setAvailable(manifest: IExtensionGalleryManifest): void {
 		this.update(manifest);
-		// Fired for every successfully accessed serviceUrl-configured marketplace regardless of auth
-		// provider; the github/microsoft distinction is tracked separately by 'marketplace:auth:checked'.
 		this.telemetryService.publicLog2<
 			{},
 			{
@@ -279,6 +226,86 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		if (confirmation.confirmed) {
 			return this.hostService.restart();
 		}
+	}
+
+	private async getExtensionGalleryManifestFromServiceUrl(url: string, token: CancellationToken, accessToken?: string): Promise<IExtensionGalleryManifest> {
+		const commonHeaders = await this.commonHeadersPromise;
+		const headers: IHeaders = {
+			...commonHeaders,
+			'Content-Type': 'application/json',
+			'Accept-Encoding': 'gzip',
+		};
+		if (accessToken) {
+			headers['Authorization'] = `Bearer ${accessToken}`;
+		}
+
+		try {
+			const context = await this.requestService.request({
+				type: 'GET',
+				url,
+				headers,
+				// Never follow a redirect while a bearer is attached: the request service would forward
+				// the Authorization header to the target, possibly a different origin.
+				followRedirects: accessToken ? 0 : undefined,
+				callSite: 'extensionGalleryManifestService.fetchManifest'
+			}, token);
+
+			const statusCode = context.res.statusCode;
+			if (statusCode === 401 || statusCode === 403) {
+				throw new MarketplaceAuthRequiredError(statusCode);
+			}
+			if (statusCode && (statusCode < 200 || statusCode >= 300)) {
+				const detail = await this.readErrorDetail(context);
+				const message = `Service index returned status ${statusCode}${detail ? `: ${detail}` : ''}`;
+				if (statusCode >= 400 && statusCode < 500) {
+					throw new MarketplaceClientRejectedError(statusCode, message);
+				}
+				throw new Error(message);
+			}
+
+			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);
+
+			if (!extensionGalleryManifest) {
+				throw new Error('Unable to retrieve extension gallery manifest.');
+			}
+
+			// Valid JSON is not necessarily a service index (a captive-portal page parses fine). Reject
+			// here so it counts as a failed fetch instead of throwing later during endpoint discovery.
+			if (!Array.isArray(extensionGalleryManifest.resources)
+				|| !extensionGalleryManifest.resources.every(resource => resource && typeof resource.id === 'string' && typeof resource.type === 'string')) {
+				throw new Error('Service index response is not a valid extension gallery manifest.');
+			}
+
+			return extensionGalleryManifest;
+		} catch (error) {
+			if (error instanceof MarketplaceAuthRequiredError) {
+				this.logService.trace('[Marketplace] Extension gallery manifest requires authentication', error.statusCode);
+			} else {
+				this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
+			}
+			throw error;
+		}
+	}
+
+	private async readErrorDetail(context: IRequestContext): Promise<string | undefined> {
+		try {
+			const text = await asText(context);
+			const trimmed = text?.trim();
+			if (!trimmed) {
+				return undefined;
+			}
+			return trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
+		} catch {
+			return undefined;
+		}
+	}
+}
+
+function isHttpsUrl(url: string): boolean {
+	try {
+		return URI.parse(url, true).scheme === 'https';
+	} catch {
+		return false;
 	}
 }
 

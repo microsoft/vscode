@@ -25,14 +25,10 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider } from './extensionGalleryAccess.js';
 
 
-/** Storage key for the account the user chose ({@link IPreferredAccount}), remembered across windows. */
 const PREFERRED_ACCOUNT_KEY = 'marketplace.account';
 
-/**
- * Well-known Microsoft Account (MSA) tenant ids — a token with one of these `tid` claims is a
- * personal account, not work/school. Duplicated from the microsoft-authentication extension, which
- * lives in the extension host and is not importable here.
- */
+// Well-known MSA (personal account) tenant ids. Duplicated from the microsoft-authentication
+// extension, which lives in the extension host and is not importable here.
 const MSA_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHROUGH_TENANT_ID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
 
@@ -58,73 +54,48 @@ type MarketplaceAuthClassification = {
 };
 
 
-/**
- * The account the user settled on for the Private Marketplace, persisted so a remembered choice
- * survives restarts. `authProvider` scopes the preference so it is ignored after a provider switch;
- * `id` is the stable account id (never a display label).
- */
+/** The remembered account choice. `authProvider` scopes it so a provider switch ignores it. */
 interface IPreferredAccount {
 	readonly authProvider: string;
 	readonly id: string;
 }
 
-/**
- * An account that may be used for the Private Marketplace. `accessToken` is only carried on the
- * Microsoft path (the GitHub/default path has no bearer).
- */
+/** `accessToken` is only carried on the Microsoft path; the GitHub path has no bearer. */
 export interface IExtensionGalleryAccount {
 	readonly id: string;
 	readonly accessToken?: string;
 }
 
-/** Whether an account usable for the Private Marketplace is available, and if not, why. */
 export const enum ExtensionGalleryAccountStatus {
-	/** No account is signed in, or several are and none has been chosen. */
+	/** None signed in, or several with no choice made. */
 	SignedOut = 'signedOut',
-	/** An account is signed in but is not entitled to a Private Marketplace. */
 	Ineligible = 'ineligible',
-	/** An entitled account is available; {@link IExtensionGalleryAccountService.getAccount} returns it. */
 	Eligible = 'eligible',
-	/** The account could not be resolved (transient auth-service failure). */
+	/** Could not be resolved — a transient auth failure, not a sign-out. */
 	Unknown = 'unknown'
 }
 
 export const IExtensionGalleryAccountService = createDecorator<IExtensionGalleryAccountService>('extensionGalleryAccountService');
 
-/**
- * Answers "is there an account we may use for the Private Marketplace, and is it entitled?".
- * Knows nothing about marketplace URLs, the service index or HTTP — that belongs to the manifest
- * service. Authentication is supplied post-startup via {@link connectAuthentication} rather than
- * injected, to avoid a service DI cycle.
- */
+/** Identity and entitlement for the Private Marketplace. Knows nothing about URLs or HTTP. */
 export interface IExtensionGalleryAccountService {
 	readonly _serviceBrand: undefined;
 
-	/** Whether a usable account is available, and if not, why. */
 	readonly accountStatus: ExtensionGalleryAccountStatus;
 
-	/** Fires when {@link accountStatus} changes. */
 	readonly onDidChangeAccountStatus: Event<ExtensionGalleryAccountStatus>;
 
-	/**
-	 * The signed-in account, or `undefined` when there is none. Never prompts. Check
-	 * {@link accountStatus} for whether it may actually be used.
-	 */
+	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
 	getAccount(): Promise<IExtensionGalleryAccount | undefined>;
 
-	/** Fires when the underlying account may have changed, so callers can re-resolve. */
 	readonly onDidChangeAccount: Event<void>;
 
-	/**
-	 * Remembers the account the user chose, so selection stays grounded across restarts when several
-	 * Microsoft accounts are signed in. Call after an explicit choice during sign-in.
-	 */
+	/** Remembers an explicit choice so selection stays grounded across restarts. */
 	setPreferredAccount(accountId: string): void;
 
 	/**
-	 * Supplies the {@link IAuthenticationService} the Microsoft path needs. An initialization API
-	 * rather than a constructor dependency because auth transitively depends back on this service.
-	 * Idempotent; until it runs the Microsoft path reports "no account".
+	 * Not a constructor dependency: auth transitively depends back on this service. Idempotent;
+	 * until it runs the Microsoft path reports "no account".
 	 */
 	connectAuthentication(authenticationService: IAuthenticationService): void;
 }
@@ -135,9 +106,8 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 
 	private readonly authProvider: ExtensionGalleryAccessProviderId;
 
-	// Not an `@IAuthenticationService` constructor dependency: that would form a DI cycle (this
-	// service → auth → extensionService → gallery → manifest → this service) which the instantiation
-	// graph walker detects and aborts startup on. Supplied later via connectAuthentication.
+	// A constructor dependency here would form a DI cycle: this → auth → extensionService → gallery
+	// → manifest → this, which aborts startup.
 	private authenticationService: IAuthenticationService | undefined;
 
 	private readonly _onDidChangeAccount = this._register(new Emitter<void>());
@@ -158,20 +128,15 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
-		// Entra (microsoft) is gated behind a product flag; when off, the effective provider coerces
-		// to github so the UI never advertises Microsoft sign-in.
 		this.authProvider = getEffectiveAuthProvider(configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey), !!productService.enableExtensionGalleryEntraAuth);
 		CONTEXT_MARKETPLACE_AUTH_PROVIDER.bindTo(contextKeyService).set(this.authProvider);
 
-		// The GitHub/default path resolves through IDefaultAccountService, which does not re-enter this
-		// service, so it can be wired here. The Microsoft path's change signal is wired later, once
-		// authentication is connected (see connectAuthentication), to keep the cycle broken.
+		// The Microsoft path's change signal is wired in connectAuthentication instead, to keep the DI
+		// cycle broken.
 		if (this.authProvider !== 'microsoft') {
 			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this._onDidChangeAccount.fire()));
 		}
 	}
-
-	// --- Account resolution ---
 
 	async getAccount(): Promise<IExtensionGalleryAccount | undefined> {
 		try {
@@ -180,8 +145,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 				: await this.getGitHubAccount();
 			return account;
 		} catch (error) {
-			// Transient auth-service failure — distinct from "no account" so the caller can preserve
-			// whatever it is already showing instead of demanding sign-in.
+			// Distinct from "no account" so the caller does not demand sign-in for a transient failure.
 			this.logService.error('[Marketplace] Unable to resolve the marketplace account', error);
 			this.setAccountStatus(ExtensionGalleryAccountStatus.Unknown);
 			return undefined;
@@ -203,25 +167,17 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		if (this.authProvider !== 'microsoft') {
 			return;
 		}
-		// Re-fire the change signal only for the effective (Microsoft) provider so the host does not
-		// re-validate on unrelated account activity.
 		this._register(authenticationService.onDidChangeSessions(e => {
 			if (e.providerId === 'microsoft') {
 				this._onDidChangeAccount.fire();
 			}
 		}));
-		// Authentication connected after startup: re-signal once so a verdict resolved during the
-		// pre-connect window (when no Microsoft session was reachable) is re-validated now.
+		// Re-signal once: anything resolved before auth was connected saw no Microsoft session.
 		this._onDidChangeAccount.fire();
 	}
 
-	/**
-	 * The GitHub/default path: entitlement comes from the account's SKU or enterprise flag. No
-	 * bearer is carried — the default gallery is read anonymously.
-	 */
+	/** Entitlement from the account's SKU or enterprise flag. No bearer is carried. */
 	private async getGitHubAccount(): Promise<IExtensionGalleryAccount | undefined> {
-		// May throw on a transient auth-service failure — propagated to getAccount, which reports
-		// `Unknown` rather than demanding sign-in.
 		const account = await this.defaultAccountService.getDefaultAccount();
 		if (!account) {
 			this.setAccountStatus(ExtensionGalleryAccountStatus.SignedOut);
@@ -230,8 +186,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		const eligible = this.checkGitHubAccess(account);
 		this.reportEligibility(eligible);
 		this.setAccountStatus(eligible ? ExtensionGalleryAccountStatus.Eligible : ExtensionGalleryAccountStatus.Ineligible);
-		// Returned even when ineligible so the caller can scope a durable denial to this account;
-		// `accountStatus` is what says whether it may be used.
+		// Returned even when ineligible; `accountStatus` says whether it may be used.
 		return { id: account.accountName };
 	}
 
@@ -246,28 +201,20 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		return account.enterprise;
 	}
 
-	/**
-	 * The Microsoft (Entra ID) path: the grounded session is resolved silently and entitlement is
-	 * decided locally from its tenant claim. The access token travels with the account so the
-	 * caller can read an auth-gated service index.
-	 */
+	/** Entitlement decided locally from the token's tenant claim. The bearer travels with it. */
 	private async getMicrosoftAccount(): Promise<IExtensionGalleryAccount | undefined> {
-		// Never prompts. A throw is a transient auth-service failure and is propagated to getAccount.
 		const session = await this.getMicrosoftSession();
 		if (!session) {
-			// No usable account: none signed in, or several with no remembered choice.
 			this.setAccountStatus(ExtensionGalleryAccountStatus.SignedOut);
 			return undefined;
 		}
 		const eligible = this.isEntraEligible(session);
 		this.reportEligibility(eligible);
 		this.setAccountStatus(eligible ? ExtensionGalleryAccountStatus.Eligible : ExtensionGalleryAccountStatus.Ineligible);
-		// Returned even when ineligible so the caller can scope a durable denial to this account, but
-		// the bearer is withheld: an ineligible identity must never reach the marketplace.
+		// The bearer is withheld when ineligible: that identity must never reach the marketplace.
 		return { id: session.account.id, accessToken: eligible ? session.accessToken : undefined };
 	}
 
-	/** Reports the eligibility outcome for the effective auth provider. */
 	private reportEligibility(eligible: boolean): void {
 		this.telemetryService.publicLog2<MarketplaceAuthEvent, MarketplaceAuthClassification>('marketplace:auth:checked', {
 			authProvider: this.authProvider,
@@ -275,11 +222,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		});
 	}
 
-	/**
-	 * Client-side eligibility for the Microsoft (Entra ID) path: a work/school tenant is eligible, a
-	 * personal Microsoft Account is not, read locally from the token's `tid` claim. An undecodable
-	 * token, or one without `tid`, is treated as ineligible so it can never wrongly grant access.
-	 */
+	/** Work/school tenant is eligible, personal is not. Fails closed on an unreadable token. */
 	private isEntraEligible(session: AuthenticationSession): boolean {
 		const rawToken = session.idToken ?? session.accessToken;
 		let tid: string | undefined;
@@ -290,22 +233,18 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 			return false;
 		}
 		if (!tid) {
-			// No tenant claim → cannot confirm a work/school account. Deny rather than guess.
 			return false;
 		}
 		return tid !== MSA_TENANT_ID && tid !== MSA_PASSTHROUGH_TENANT_ID;
 	}
 
 	/**
-	 * Selects the effective Microsoft session. Several accounts may be signed in, so selection is
-	 * anchored to the persisted {@link IPreferredAccount} rather than an arbitrary `sessions[0]`:
-	 * remembered account if still signed in; a single account is adopted and persisted; several with no
-	 * preference returns `undefined` rather than guessing. Never prompts.
+	 * Anchored to the remembered account rather than an arbitrary `sessions[0]`. Several accounts
+	 * with no preference returns `undefined` rather than guessing. Never prompts.
 	 */
 	private async getMicrosoftSession(): Promise<AuthenticationSession | undefined> {
 		if (!this.authenticationService) {
-			// Orchestrator wiring (connectAuthentication) has not run yet — treat as "no account".
-			// connectAuthentication re-signals onDidChangeAccount once wired, driving re-validation.
+			// connectAuthentication has not run yet; it re-signals once wired.
 			return undefined;
 		}
 		const sessions = await this.authenticationService.getSessions('microsoft', PRIVATE_MARKETPLACE_SCOPES);
@@ -315,8 +254,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		const preferredId = this.readPreferredAccountId();
 		if (preferredId) {
 			const remembered = sessions.find(session => session.account.id === preferredId);
-			// If the remembered account is no longer signed in, fall through rather than silently
-			// switching to a different account.
+			// Fall through rather than silently switching accounts.
 			if (remembered) {
 				return remembered;
 			}
@@ -328,7 +266,6 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		return undefined;
 	}
 
-	/** Reads the remembered account id, scoped to the effective provider; `undefined` if none/other. */
 	private readPreferredAccountId(): string | undefined {
 		const raw = this.storageService.get(PREFERRED_ACCOUNT_KEY, StorageScope.APPLICATION);
 		if (!raw) {
@@ -345,14 +282,12 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 			return undefined;
 		}
 		const candidate = parsed as Partial<IPreferredAccount>;
-		// Scoped to the effective provider so a provider switch ignores a stale preference.
 		if (candidate.authProvider !== this.authProvider || typeof candidate.id !== 'string') {
 			return undefined;
 		}
 		return candidate.id;
 	}
 
-	/** Remembers `accountId` as the chosen account for the effective provider. */
 	private storePreferredAccountId(accountId: string): void {
 		const preferred: IPreferredAccount = { authProvider: this.authProvider, id: accountId };
 		this.storageService.store(PREFERRED_ACCOUNT_KEY, JSON.stringify(preferred), StorageScope.APPLICATION, StorageTarget.MACHINE);
@@ -366,13 +301,8 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 registerSingleton(IExtensionGalleryAccountService, ExtensionGalleryAccountService, InstantiationType.Delayed);
 
 /**
- * Orchestrator wiring that hands {@link IAuthenticationService} to
- * {@link IExtensionGalleryAccountService} after startup. The account service cannot inject
- * authentication directly without forming a service DI cycle (see its class doc), so this
- * contribution — which is created outside the core service graph and therefore free to depend on
- * both — performs the one-time connection. Registered at {@link WorkbenchPhase.AfterRestored} so it
- * runs off the critical startup path; the account service reports "no account" until then and
- * re-validates once connected.
+ * Hands authentication to the account service after startup. Lives outside the core service graph,
+ * so it can depend on both without forming the DI cycle the account service must avoid.
  */
 export class ExtensionGalleryAccountAuthenticationContribution implements IWorkbenchContribution {
 
@@ -389,25 +319,18 @@ export class ExtensionGalleryAccountAuthenticationContribution implements IWorkb
 registerWorkbenchContribution2(ExtensionGalleryAccountAuthenticationContribution.ID, ExtensionGalleryAccountAuthenticationContribution, WorkbenchPhase.AfterRestored);
 
 /**
- * Interactive Microsoft (Entra ID) sign-in for the Private Marketplace. When several Microsoft
- * accounts are already signed in, it prompts the user to choose which one to use (with an explicit
- * "different account" escape hatch), then remembers the choice via
- * {@link IExtensionGalleryAccountService.setPreferredAccount} so session selection stays grounded to
- * it across restarts. Invoked by id from the browser-layer sign-in action, which cannot reach this
- * Electron layer directly.
+ * Interactive Microsoft sign-in. Invoked by id from the browser-layer action, which cannot reach
+ * this Electron layer directly.
  */
 CommandsRegistry.registerCommand(ExtensionGalleryMicrosoftSignInCommandId, async accessor => {
 	const authenticationService = accessor.get(IAuthenticationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const accountService = accessor.get(IExtensionGalleryAccountService);
 
-	// Establish a session for the marketplace scopes and remember the resulting account. Passing a
-	// known account both binds to it without a fresh interactive login and lets the eventual
-	// re-validation (driven by the new session) resolve to the intended account; a missing account
-	// falls back to interactive sign-in, which is also how the user adds a different account.
+	// Passing a known account binds to it without a fresh interactive login; omitting it falls back
+	// to interactive sign-in, which is also how the user adds a different account.
 	const chooseAccount = async (account: AuthenticationSessionAccount | undefined): Promise<void> => {
-		// Persist a known choice before establishing the session so any re-validation the new session
-		// triggers already sees the grounded account.
+		// Persist before creating the session so re-validation already sees the grounded account.
 		if (account) {
 			accountService.setPreferredAccount(account.id);
 		}
@@ -417,7 +340,6 @@ CommandsRegistry.registerCommand(ExtensionGalleryMicrosoftSignInCommandId, async
 
 	const accounts = await authenticationService.getAccounts('microsoft');
 	if (accounts.length <= 1) {
-		// Zero accounts means first-time sign-in; one means there is nothing to disambiguate.
 		await chooseAccount(accounts.at(0));
 		return;
 	}

@@ -11,7 +11,7 @@ import { IRequestContext, IRequestOptions } from '../../../../../base/parts/requ
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -259,6 +259,25 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 	});
 
+	test('GitHub provider — a denied account that is later granted entitlement becomes Available', async () => {
+		// A denial is a verdict about the account as it is now, not a durable one: nothing may
+		// outlive the condition that produced it and keep the user locked out after it changes.
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: false });
+		requestHandler = () => mockResponse(200, createGalleryManifest());
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+
+		// The same account gains entitlement, with no sign-out in between.
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		onDidChangeDefaultAccount.fire(defaultAccount);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+	});
+
 	test('GitHub provider — account with matching SKU → Available', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		defaultAccount = createDefaultAccount({
@@ -317,7 +336,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 		assert.strictEqual(indexRequests, 0);
-		assert.strictEqual(JSON.parse(storageData.get('marketplace.cachedAccess')!).eligible, false);
 	});
 
 	test('Microsoft provider — MSA pass-through tenant → AccessDenied without touching the index', async () => {
@@ -407,7 +425,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
 	});
 
-	test('Microsoft provider — manifest fetch fails, no cache → Unreachable', async () => {
+	test('Microsoft provider — manifest fetch fails → Unreachable', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
 		// Manifest discovery fails transiently (network error)
@@ -503,21 +521,14 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	test('Microsoft provider — auth-gated service index, token forbidden (403) → AccessDenied', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
-		// A token is presented but the server returns 403 — the identity is accepted but
-		// forbidden from reading the index. This is a durable denial and is cached.
+		// A token is presented but the server returns 403 — the identity is accepted but forbidden
+		// from reading the index.
 		requestHandler = () => mockResponse(403, { message: 'forbidden' });
 
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
-		const cached = storageData.get('marketplace.cachedAccess');
-		assert.ok(cached);
-		const parsed = JSON.parse(cached);
-		assert.strictEqual(parsed.authProvider, 'microsoft');
-		assert.strictEqual(parsed.accountId, 'ms-account-1');
-		assert.strictEqual(parsed.eligible, false);
-		assert.strictEqual(parsed.serviceUrl, 'https://marketplace.example.com');
 	});
 
 	test('Microsoft — single signed-in account, no stored preference → adopted and persisted', async () => {
@@ -580,7 +591,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
 		// The bearer carries the remembered account's token ('token-2'), never the first session's.
 		assert.ok(typeof seenAuthHeader === 'string' && seenAuthHeader.includes('token-2') && !seenAuthHeader.includes('token-1'));
-		assert.strictEqual(JSON.parse(storageData.get('marketplace.cachedAccess')!).accountId, 'ms-account-2');
 	});
 
 	test('Microsoft — stored preference no longer signed in, several remain → RequiresSignIn (no silent switch)', async () => {
@@ -605,7 +615,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(indexRequests, 0);
 	});
 
-	test('Microsoft provider — service index returns a non-manifest 200 → Unreachable (not a crash, not cached)', async () => {
+	test('Microsoft provider — service index returns a non-manifest 200 → Unreachable (not a crash)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
 		// A 200 whose JSON body has no `resources` array must be rejected — otherwise resource-URI
@@ -617,10 +627,9 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		await service.getExtensionGalleryManifest();
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
-		assert.ok(!storageData.has('marketplace.cachedAccess'));
 	});
 
-	test('Microsoft provider — service index 200 with malformed resources → Unreachable (not a crash, not cached)', async () => {
+	test('Microsoft provider — service index 200 with malformed resources → Unreachable (not a crash)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
 		// `resources` is an array but an entry is missing `id`/`type`. Endpoint discovery calls
@@ -633,10 +642,9 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		await service.getExtensionGalleryManifest();
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
-		assert.ok(!storageData.has('marketplace.cachedAccess'));
 	});
 
-	test('Microsoft provider — auth-gated service index, token rejected (401) → AccessDenied (not cached)', async () => {
+	test('Microsoft provider — auth-gated service index, token rejected (401) → AccessDenied', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
 		// A token is presented but the server returns 401 — the user is already signed in, so
@@ -649,7 +657,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		await service.getExtensionGalleryManifest();
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
-		assert.ok(!storageData.has('marketplace.cachedAccess'));
 	});
 
 	test('Microsoft provider — stale validation superseded by sign-out does not restore access', async () => {
@@ -684,43 +691,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 	});
 
-	test('Microsoft provider — stale validation superseded by config change does not re-cache access', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		storageData.set('marketplace.cachedAccess', JSON.stringify({
-			authProvider: 'microsoft',
-			accountId: 'ms-account-1',
-			eligible: true,
-			serviceUrl: 'https://marketplace.example.com',
-		}));
-
-		// Park the index fetch so the resolution is still in flight when the configuration changes.
-		let releaseIndex!: (v: IRequestContext) => void;
-		const indexGate = new Promise<IRequestContext>(resolve => { releaseIndex = resolve; });
-		requestHandler = () => indexGate;
-
-		const service = createService();
-		const resolving = service.getExtensionGalleryManifest();
-
-		// Let the resolution advance to the point where it awaits the index fetch.
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		// The marketplace/auth-provider configuration changes — this clears the cache and asks
-		// the user to restart (which they may decline). It must also supersede the in-flight
-		// resolution so its late result cannot re-populate the cache we just cleared.
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as unknown as IConfigurationChangeEvent);
-		await new Promise(resolve => setTimeout(resolve, 0));
-		assert.ok(!storageData.has('marketplace.cachedAccess'));
-
-		// The stale index fetch finally returns a valid manifest — it must be discarded and must
-		// NOT re-write the cache.
-		releaseIndex(mockResponse(200, createGalleryManifest()));
-		await resolving;
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		assert.ok(!storageData.has('marketplace.cachedAccess'));
-	});
-
 	test('GitHub provider — eligible account, manifest fetch fails → Unreachable', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		defaultAccount = createDefaultAccount({ enterprise: true });
@@ -746,266 +716,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
 	});
 
-	// --- Cache behavior ---
-
-	test('cache hit on startup — eligible result applied immediately', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
-		defaultAccount = createDefaultAccount({ enterprise: true });
-		storageData.set('marketplace.cachedAccess', JSON.stringify({
-			authProvider: 'github',
-			accountId: 'testuser',
-			eligible: true,
-			serviceUrl: 'https://marketplace.example.com',
-		}));
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
-	});
-
-	test('cache hit on startup — ineligible result applied', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
-		defaultAccount = null;
-		storageData.set('marketplace.cachedAccess', JSON.stringify({
-			authProvider: 'github',
-			accountId: 'testuser',
-			eligible: false,
-			serviceUrl: 'https://marketplace.example.com',
-		}));
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		// The cache was written for account 'testuser' but there is no current account, so the
-		// cache is not trusted (dropped). Background github validation then sees no account and
-		// lands on RequiresSignIn.
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
-	});
-
-	test('cache for a different account of the same provider is dropped, not applied', async () => {
-		// The cache says the CURRENT provider's user is eligible, but it was written for a
-		// different account id than the one now signed in. A cached verdict is an authorization
-		// input scoped to an account, so it must not grant (or deny) access to a different
-		// account — it is dropped and fresh validation runs for the current identity.
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()]; // account id 'ms-account-1'
-		storageData.set('marketplace.cachedAccess', JSON.stringify({
-			authProvider: 'microsoft',
-			accountId: 'ms-account-2', // different account
-			eligible: true,
-			serviceUrl: 'https://marketplace.example.com',
-		}));
-		requestHandler = () => mockResponse(200, createGalleryManifest());
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-		// Background validation for the current account runs fire-and-forget; give it a tick.
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		// Background validation re-establishes access for the CURRENT account (ms-account-1),
-		// writing a fresh cache for it — proving the stale ms-account-2 entry was not applied.
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
-		const cached = storageData.get('marketplace.cachedAccess');
-		assert.ok(cached);
-		assert.strictEqual(JSON.parse(cached).accountId, 'ms-account-1');
-	});
-
-	test('cache written for a different serviceUrl is dropped, not applied', async () => {
-		// A verdict is scoped to the marketplace it was computed against. Only the serviceUrl
-		// differs here (same provider + account), isolating service-URL scoping from account
-		// matching. The current account is NOT eligible, so if the stale eligible cache were
-		// wrongly trusted we'd see Available instead of AccessDenied.
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
-		defaultAccount = createDefaultAccount(); // testuser, not enterprise → ineligible
-		storageData.set('marketplace.cachedAccess', JSON.stringify({
-			authProvider: 'github',
-			accountId: 'testuser',
-			eligible: true,
-			serviceUrl: 'https://old-marketplace.example.com', // differs from the configured URL
-		}));
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		// Stale-URL cache dropped; fresh validation for the current marketplace denies access.
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
-		const cached = storageData.get('marketplace.cachedAccess');
-		assert.ok(cached);
-		const parsed = JSON.parse(cached);
-		assert.strictEqual(parsed.eligible, false);
-		assert.strictEqual(parsed.serviceUrl, 'https://marketplace.example.com');
-	});
-
-	test('session change during cached manifest fetch does not apply a stale manifest', async () => {
-		// The cache is applied with a cancellation guard while listeners are already active. If the
-		// signed-in session changes while the cached manifest fetch is in flight, the stale
-		// fetch result must be discarded rather than applied for the previous account.
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		storageData.set('marketplace.cachedAccess', JSON.stringify({
-			authProvider: 'microsoft',
-			accountId: 'ms-account-1',
-			eligible: true,
-			serviceUrl: 'https://marketplace.example.com',
-		}));
-
-		// Park the cached-path index fetch so applyCachedAccess suspends mid-fetch.
-		let releaseIndex!: (v: IRequestContext) => void;
-		const indexGate = new Promise<IRequestContext>(resolve => { releaseIndex = resolve; });
-		requestHandler = () => indexGate;
-
-		const service = createService();
-		const inflight = service.getExtensionGalleryManifest();
-
-		// Let cache application advance to the parked index fetch.
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		// The user signs out while the cached fetch is parked — this supersedes it.
-		microsoftSessions = [];
-		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		// Release the stale cached index fetch; its manifest must be discarded, not applied.
-		releaseIndex(mockResponse(200, createGalleryManifest()));
-		await inflight.catch(() => { });
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
-	});
-
-	test('cache from a different provider is dropped, not trusted', async () => {
-		// The cache says the user is microsoft-eligible, but the effective provider is now
-		// github with no account. The stale microsoft cache is an authorization input for a
-		// different provider and must not grant access — it is dropped and github validation
-		// runs, ending at RequiresSignIn.
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
-		defaultAccount = null;
-		storageData.set('marketplace.cachedAccess', JSON.stringify({
-			authProvider: 'microsoft',
-			accountId: 'ms-account-1',
-			eligible: true,
-			serviceUrl: 'https://marketplace.example.com',
-		}));
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
-		assert.ok(!storageData.has('marketplace.cachedAccess'));
-	});
-
-	test('malformed cache entry is dropped without throwing', async () => {
-		// A cache entry with an unexpected shape (e.g. written by an incompatible build) must
-		// be discarded rather than trusted or allowed to crash startup.
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
-		defaultAccount = null;
-		storageData.set('marketplace.cachedAccess', JSON.stringify({ unexpected: 'shape' }));
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
-		assert.ok(!storageData.has('marketplace.cachedAccess'));
-	});
-
-	test('Microsoft — server error (500), with cache → cache preserved', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		storageData.set('marketplace.cachedAccess', JSON.stringify({
-			authProvider: 'microsoft',
-			accountId: 'ms-account-1',
-			eligible: true,
-			serviceUrl: 'https://marketplace.example.com',
-		}));
-		// The cached fast-path materializes the index (first fetch → succeeds, Available). The
-		// background re-validation's index fetch (second) fails transiently (500); a transient
-		// failure must not downgrade the Available state nor invalidate the cache.
-		let indexCalls = 0;
-		requestHandler = () => {
-			indexCalls++;
-			return indexCalls === 1 ? mockResponse(200, createGalleryManifest()) : mockResponse(500, { error: 'Internal Server Error' });
-		};
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-		// Let the background re-validation run and observe the 500.
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
-		assert.ok(storageData.has('marketplace.cachedAccess'));
-	});
-
-	test('cache NOT invalidated when getSessions throws', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		storageData.set('marketplace.cachedAccess', JSON.stringify({
-			authProvider: 'microsoft',
-			accountId: 'ms-account-1',
-			eligible: true,
-			serviceUrl: 'https://marketplace.example.com',
-		}));
-		requestHandler = () => mockResponse(200, createGalleryManifest());
-
-		// Override auth service to throw
-		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
-			override readonly onDidChangeSessions = onDidChangeSessions.event;
-			override async getSessions(): Promise<readonly AuthenticationSession[]> {
-				throw new Error('Auth service unavailable');
-			}
-		}());
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		// The current account can't be resolved (transient auth failure), so the eligible cache
-		// can't be verified for the current identity and must not be applied — but it is also NOT
-		// invalidated. The user sees "unreachable" while the cache is retained for a later retry.
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
-		assert.ok(storageData.has('marketplace.cachedAccess'));
-	});
-
-	test('GitHub — result is cached after successful check', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
-		defaultAccount = createDefaultAccount({ enterprise: true });
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		const cached = storageData.get('marketplace.cachedAccess');
-		assert.ok(cached);
-		const parsed = JSON.parse(cached);
-		assert.strictEqual(parsed.authProvider, 'github');
-		assert.strictEqual(parsed.eligible, true);
-	});
-
-	test('Microsoft — result is cached after successful check', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		requestHandler = () => mockResponse(200, createGalleryManifest());
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		const cached = storageData.get('marketplace.cachedAccess');
-		assert.ok(cached);
-		const parsed = JSON.parse(cached);
-		assert.strictEqual(parsed.authProvider, 'microsoft');
-		assert.strictEqual(parsed.eligible, true);
-	});
-
-	test('corrupt (non-JSON) cache entry is dropped without throwing', async () => {
-		// A cache value that isn't valid JSON (e.g. truncated/corrupt storage) must be discarded
-		// rather than crash startup with a parse error.
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
-		defaultAccount = null;
-		storageData.set('marketplace.cachedAccess', '{not valid json');
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
-		assert.ok(!storageData.has('marketplace.cachedAccess'));
-	});
 
 	test('Microsoft — token-bearing requests disable redirect following (no header leak)', async () => {
 		// A bearer token must never be forwarded across a redirect (the request service would
@@ -1026,7 +736,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.ok(seen.every(r => r.followRedirects === 0));
 	});
 
-	test('Microsoft — getSessions throws with no cache → Unreachable (not silent Unavailable)', async () => {
+	test('Microsoft — getSessions throws → Unreachable (not silent Unavailable)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
@@ -1043,7 +753,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
 	});
 
-	test('GitHub — getDefaultAccount throws with no cache → Unreachable (not silent Unavailable)', async () => {
+	test('GitHub — getDefaultAccount throws → Unreachable (not silent Unavailable)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = onDidChangeDefaultAccount.event;
@@ -1059,52 +769,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	});
 
 	// --- Cache invalidation ---
-
-	test('cache invalidated on onDidChangeSessions for microsoft provider', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
-		microsoftSessions = [createMicrosoftSession()];
-		requestHandler = () => mockResponse(200, createGalleryManifest());
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.ok(storageData.has('marketplace.cachedAccess'));
-
-		// Simulate session change — should clear cache
-		microsoftSessions = [];
-		onDidChangeSessions.fire({
-			providerId: 'microsoft',
-			label: 'Microsoft',
-			event: { added: undefined, removed: undefined, changed: undefined },
-		});
-
-		// Wait for async handler
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		// Cache should be cleared
-		assert.ok(!storageData.has('marketplace.cachedAccess'));
-	});
-
-	test('cache invalidated on onDidChangeDefaultAccount for github provider', async () => {
-		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
-		defaultAccount = createDefaultAccount({ enterprise: true });
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.ok(storageData.has('marketplace.cachedAccess'));
-
-		// Simulate account change — should clear cache and re-evaluate
-		defaultAccount = null;
-		onDidChangeDefaultAccount.fire(null);
-
-		// Wait for async handler
-		await new Promise(resolve => setTimeout(resolve, 0));
-
-		// Cache should be cleared (account is null)
-		assert.ok(!storageData.has('marketplace.cachedAccess'));
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
-	});
 
 	// --- No configuredServiceUrl ---
 
