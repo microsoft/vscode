@@ -60,6 +60,8 @@ import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsSe
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
+import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -3322,7 +3324,7 @@ suite('AgentService (node dispatcher)', () => {
 			const unknown = AgentSession.uri('copilot', 'filter-unknown');
 			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
 			await register(agent, [discoveredChat(registered), discoveredChat(deleted)]);
-			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(deleted);
+			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.tombstone(deleted);
 
 			const known = await (svc as unknown as { _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> })._filterKnownSessions([registered, deleted, unknown]);
 			const reRegistered = await register(agent, [discoveredChat(deleted)]);
@@ -3862,7 +3864,7 @@ suite('AgentService (node dispatcher)', () => {
 			const legacy = AgentSession.uri('copilot', 'deleted-adoptable-legacy');
 			svc.registerProvider(agent);
 			await svc.listSessions();
-			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(legacy);
+			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.tombstone(legacy);
 			agent.fireDiscoveredChats([{
 				...discoveredChat(legacy),
 				_meta: withSessionEhcliAdoptable(undefined),
@@ -5706,13 +5708,16 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('stores GitHub Copilot token for operation handlers', async () => {
 			service.registerProvider(copilotAgent);
+			const changes: { resource: string; token: string | undefined }[] = [];
+			disposables.add(service.authenticationService.onDidChangeAuthToken(event => changes.push({ resource: event.resource, token: event.token })));
 
 			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
 
-			assert.deepStrictEqual({ result, token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }), authenticateCalls: copilotAgent.authenticateCalls }, {
+			assert.deepStrictEqual({ result, token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }), authenticateCalls: copilotAgent.authenticateCalls, changes }, {
 				result: { authenticated: true },
 				token: 'copilot-token',
 				authenticateCalls: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' }],
+				changes: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' }],
 			});
 		});
 
@@ -7684,6 +7689,107 @@ suite('AgentService (node dispatcher)', () => {
 				leakedBeforeRestart: false,
 				markerPersisted: chatUri.toString(),
 				leakedAfterRestart: false,
+			});
+		});
+
+		test('createSession carries client-owned _meta slots and drops unknown ones', async () => {
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+
+			const session = await svc.createSession({
+				provider: 'copilot',
+				workingDirectories: [URI.file('/repo')],
+				_meta: {
+					...withChatSurfaceMeta(withEphemeralSessionMeta(undefined, true), { surface: 'terminal', shellType: 'pwsh', osName: 'Windows' }),
+					// Session `_meta` is a whitelist, so an unrecognized slot must not survive.
+					'vscode.chat.unknownFutureSlot': { hello: 'world' },
+				},
+			});
+
+			const state = svc.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				ephemeral: readEphemeralSessionMeta(state ?? {}).isEphemeral,
+				surface: readChatSurfaceMeta(state ?? {}),
+				unknownSlot: state?._meta?.['vscode.chat.unknownFutureSlot'],
+			}, {
+				ephemeral: true,
+				surface: { surface: 'terminal', shellType: 'pwsh', osName: 'Windows' },
+				unknownSlot: undefined,
+			});
+		});
+
+		test('ephemeral session teardown clears its discovery tombstone', async () => {
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+
+			const session = await svc.createSession({
+				provider: 'copilot',
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			const tombstonedBeforeDispose = await registry.isTombstoned(session);
+			await svc.disposeSession(session);
+
+			assert.deepStrictEqual({
+				tombstonedBeforeDispose,
+				tombstonedAfterDispose: await registry.isTombstoned(session),
+			}, {
+				tombstonedBeforeDispose: true,
+				tombstonedAfterDispose: false,
+			});
+		});
+
+		test('ephemeral sessions never appear in direct or overlay listSessions paths', async () => {
+			const perSession = createPerSessionDataService();
+			const overlaySession = AgentSession.uri('copilot', 'ephemeral-overlay-session');
+			const directSession = AgentSession.uri('copilot', 'ephemeral-direct-session');
+			class LeakyAgent extends MockAgent {
+				override async listSessions(): Promise<IAgentSessionMetadata[]> {
+					return [
+						{ session: overlaySession, startTime: Date.now(), modifiedTime: Date.now() },
+						{ session: directSession, startTime: Date.now(), modifiedTime: Date.now() },
+					];
+				}
+			}
+
+			const agent = disposables.add(new LeakyAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+			await svc.createSession({
+				provider: 'copilot',
+				session: overlaySession,
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			await svc.createSession({
+				provider: 'copilot',
+				session: directSession,
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+
+			const firstList = await svc.listSessions();
+			const registeredBeforeRestart = await svc.getRegisteredSessions();
+
+			const restartedAgent = disposables.add(new LeakyAgent('copilot'));
+			const restarted = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			restarted.registerProvider(restartedAgent);
+			const afterRestart = await restarted.listSessions();
+
+			assert.deepStrictEqual({
+				overlayIncludesEphemeral: svc.stateManager.getOverlaySessionSummaries().some(s => s.resource === overlaySession.toString()),
+				directListIncludesEphemeral: firstList.some(s => s.session.toString() === directSession.toString()),
+				registeredBeforeRestart: registeredBeforeRestart.map(s => s.toString()),
+				restartedListIncludesEphemeral: afterRestart.some(s => s.session.toString() === overlaySession.toString() || s.session.toString() === directSession.toString()),
+				registeredAfterRestart: (await restarted.getRegisteredSessions()).map(s => s.toString()),
+			}, {
+				overlayIncludesEphemeral: false,
+				directListIncludesEphemeral: false,
+				registeredBeforeRestart: [],
+				restartedListIncludesEphemeral: false,
+				registeredAfterRestart: [],
 			});
 		});
 

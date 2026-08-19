@@ -76,6 +76,7 @@ A descriptor may define:
 - visible management sections;
 - per-section creation behavior;
 - hidden or renamed item types;
+- MCP collection exclusions that do not hide host-published servers;
 - required agent availability;
 - external items, enablement, and plugin actions.
 
