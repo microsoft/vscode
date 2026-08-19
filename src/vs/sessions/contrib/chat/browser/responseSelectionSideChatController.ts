@@ -15,12 +15,10 @@ import { editorSelectionBackground, editorSelectionForeground } from '../../../.
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { FeedbackInputWidget } from '../../agentFeedback/browser/feedbackInputWidget.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IResolvedResponseSelection, resolveResponseSelection } from './responseSelectionResolver.js';
-import { createAndSendSideChat } from './sideChatOrchestration.js';
+import { ISideChatOrchestrationService, SideChatPresentation } from './sideChatOrchestration.js';
 
 /**
  * Name of the CSS custom highlight that stands in for the native selection
@@ -109,8 +107,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	constructor(
 		private readonly _widget: IChatWidget,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
+		@ISideChatOrchestrationService private readonly _sideChatOrchestrationService: ISideChatOrchestrationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
@@ -388,34 +385,47 @@ export class ResponseSelectionSideChatController extends Disposable {
 			return;
 		}
 
-		// Keep the overlay visible with a busy state instead of eagerly
-		// dismissing: opening the created side chat naturally dismisses it via
-		// `setChat`; on failure the question and normal controls are restored
-		// below so the user can retry.
 		this._input.setBusy(true, localize('sessions.selectionSideChat.busy', "Asking question…"));
 		const generation = this._generation;
-		createAndSendSideChat(this._sessionsManagementService, this._sessionsService, this._sessionsPartService, session, chat.resource, resolved.response.requestId, { query }, { text: resolved.text })
-			.then(() => {
-				// A stale completion after a genuine navigation force-dismissed this overlay must no-op.
-				if (this._generation !== generation) {
-					return;
-				}
-				// `setChat` (fired by the view change from opening the side
-				// chat) normally dismisses this overlay already; clear busy
-				// defensively in case that doesn't happen.
+		void this._createAndSendSideChat(session, chat, resolved.response.requestId, resolved.text, query, generation);
+	}
+
+	private async _createAndSendSideChat(session: ISession, sourceChat: IChat, turnId: string, selectedText: string, query: string, generation: number): Promise<void> {
+		let presentedTransiently = false;
+		try {
+			const prepared = await this._sideChatOrchestrationService.createAndPresent(session, sourceChat, turnId, query, { text: selectedText });
+			presentedTransiently = prepared.presentation === SideChatPresentation.Transient;
+			if (presentedTransiently && this._generation === generation) {
+				this._dismissAfterTransientPresentation();
+			}
+
+			await prepared.send({ query });
+			if (!presentedTransiently && this._generation === generation) {
 				this._input.setBusy(false);
-			})
-			.catch(err => {
-				this._logService.error('[selectionSideChat] Failed to create side chat', err);
-				if (this._generation !== generation) {
-					return;
-				}
-				this._notificationService.error(localize('sessions.selectionSideChat.createFailed', "The side chat could not be created."));
-				this._input.setBusy(false);
-				this._input.inputElement.value = query;
-				this._input.autoSize();
-				this._input.updateActionEnabled();
-				this._input.inputElement.focus();
-			});
+				this._dismiss();
+			}
+		} catch (err) {
+			this._logService.error('[selectionSideChat] Failed to create or send side chat', err);
+			if (this._generation !== generation) {
+				return;
+			}
+			if (presentedTransiently) {
+				this._notificationService.error(localize('sessions.selectionSideChat.sendFailed', "The side question could not be answered."));
+				return;
+			}
+			this._notificationService.error(localize('sessions.selectionSideChat.createFailed', "The side chat could not be created."));
+			this._input.setBusy(false);
+			this._input.inputElement.value = query;
+			this._input.autoSize();
+			this._input.updateActionEnabled();
+			this._input.inputElement.focus();
+		}
+	}
+
+	private _dismissAfterTransientPresentation(): void {
+		dom.getWindow(this._widget.domNode).getSelection()?.removeAllRanges();
+		this._input.setBusy(false);
+		this._dismiss();
+		this._autoScrollHold.clear();
 	}
 }

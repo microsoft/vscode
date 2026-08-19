@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatProvider } from '../../common/chatSideChatService.js';
+import { ChatSideChatSendResultKind, ChatSideChatService, IChatSideChatOrigin, IChatSideChatProvider } from '../../common/chatSideChatService.js';
 
 suite('ChatSideChatService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,7 +22,7 @@ suite('ChatSideChatService', () => {
 	function createProvider(sideChatOrigin: IObservable<IChatSideChatOrigin | undefined>, reveal?: () => void): IChatSideChatProvider {
 		return {
 			canAskInSideChat: () => false,
-			askInSideChat: async () => { },
+			askInSideChat: async () => ({ kind: ChatSideChatSendResultKind.Sent }),
 			observeSideChatOrigin: sessionResource => sessionResource.toString() === resource.toString() ? sideChatOrigin : constObservable(undefined),
 			revealSideChatSource: async () => { reveal?.(); },
 		};

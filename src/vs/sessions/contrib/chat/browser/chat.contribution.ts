@@ -59,6 +59,9 @@ import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING, unifiedWorkspacePickerConfigurationMigration } from './unifiedWorkspacePickerConfiguration.js';
 import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudgeContribution, SessionArchiveNudgeService } from './sessionArchiveNudge.js';
+import { AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING, ITransientSideChatService, TransientSideChatService } from './transientSideChatService.js';
+import { ISideChatOrchestrationService, SideChatOrchestrationService } from './sideChatOrchestration.js';
+import { CloseTransientSideChatAction } from './transientSideChatWidget.js';
 
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackground';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackgroundLayout';
@@ -347,6 +350,7 @@ registerAction2(ChangeChatBackgroundLayoutAction);
 
 // register actions
 registerAction2(BranchChatSessionAction);
+registerAction2(CloseTransientSideChatAction);
 
 // register workbench contributions
 registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, WorkbenchPhase.AfterRestored);
@@ -368,6 +372,8 @@ registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, I
 registerSingleton(IChatResponseFileChangesService, SessionsChatResponseFileChangesService, InstantiationType.Delayed);
 registerSingleton(ISessionsChatBackgroundService, SessionsChatBackgroundService, InstantiationType.Delayed);
 registerSingleton(ISessionArchiveNudgeService, SessionArchiveNudgeService, InstantiationType.Eager);
+registerSingleton(ITransientSideChatService, TransientSideChatService, InstantiationType.Delayed);
+registerSingleton(ISideChatOrchestrationService, SideChatOrchestrationService, InstantiationType.Delayed);
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
@@ -444,6 +450,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('chat.agentSessions.preferredLightBackgroundImageLayout', "Controls how the chat background image is laid out in the Agents Window when using a light color theme."),
 			tags: ['experimental'],
 			ignoreSync: true,
+		},
+		[AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			description: localize('chat.agentSessions.transientSideChat', "Controls whether new side questions appear in a transient answer card above the source chat input. When disabled, side questions open as full chats beside the source chat."),
+			experiment: { mode: 'auto' },
 		},
 	},
 });

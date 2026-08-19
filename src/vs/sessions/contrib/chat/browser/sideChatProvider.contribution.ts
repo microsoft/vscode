@@ -14,13 +14,12 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { isRequestVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSideChatOrigin, IChatSideChatProvider, IChatSideChatSelection, IChatSideChatService } from '../../../../workbench/contrib/chat/common/chatSideChatService.js';
+import { ChatSideChatSendResult, IChatSideChatOrigin, IChatSideChatProvider, IChatSideChatSelection, IChatSideChatService } from '../../../../workbench/contrib/chat/common/chatSideChatService.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { createAndSendSideChat } from './sideChatOrchestration.js';
+import { ISideChatOrchestrationService } from './sideChatOrchestration.js';
 
 const SIDE_CHAT_SOURCE_REVEAL_TIMEOUT = 2_000;
 
@@ -42,7 +41,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 		@IChatSideChatService sideChatService: IChatSideChatService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ISideChatOrchestrationService private readonly sideChatOrchestrationService: ISideChatOrchestrationService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -62,13 +61,14 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 		return !!this._resolveSource(sessionResource);
 	}
 
-	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<void> {
+	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<ChatSideChatSendResult> {
 		const source = this._resolveSource(sessionResource);
 		if (!source) {
 			throw new Error(`Side chats are not supported for ${sessionResource.toString()}`);
 		}
-		const { session, chatResource, turnId } = source;
-		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, session, chatResource, turnId, { query }, selection);
+		const { session, chat, turnId } = source;
+		const prepared = await this.sideChatOrchestrationService.createAndPresent(session, chat, turnId, query, selection);
+		return prepared.send({ query });
 	}
 
 	/** Observes the source metadata for a side chat. */
@@ -115,8 +115,9 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 			return;
 		}
 
-		const widget = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
+		const sideChatWidget = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
 		await this.sessionsService.openChat(resolved.session, origin.sourceSessionResource);
+		const widget = this.chatWidgetService.getWidgetBySessionResource(origin.sourceSessionResource) ?? sideChatWidget;
 
 		if (!widget) {
 			return;
@@ -178,7 +179,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 		if (!sourceTurn) {
 			return undefined;
 		}
-		return { session, chatResource: chat.resource, turnId: sourceTurn.id };
+		return { session, chat, turnId: sourceTurn.id };
 	}
 }
 

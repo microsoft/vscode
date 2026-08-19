@@ -17,7 +17,7 @@ import { IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatRequestOriginPart } from '../../../../browser/widget/chatContentParts/chatRequestOriginPart.js';
 import { ChatRequestOriginKind, ChatRequestOriginService, IChatRequestOriginService } from '../../../../common/chatRequestOrigin.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
-import { ChatSideChatService, IChatSideChatService } from '../../../../common/chatSideChatService.js';
+import { ChatSideChatSendResultKind, ChatSideChatService, IChatSideChatService } from '../../../../common/chatSideChatService.js';
 
 suite('ChatRequestOriginPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -140,7 +140,7 @@ suite('ChatRequestOriginPart', () => {
 		const sideChatService = disposables.add(new ChatSideChatService());
 		disposables.add(sideChatService.registerProvider({
 			canAskInSideChat: () => false,
-			askInSideChat: async () => { },
+			askInSideChat: async () => ({ kind: ChatSideChatSendResultKind.Sent }),
 			observeSideChatOrigin: () => constObservable({
 				sourceSessionResource,
 				sourceTurnId: 'turn-1',

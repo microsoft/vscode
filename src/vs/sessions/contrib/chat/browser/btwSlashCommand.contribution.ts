@@ -16,12 +16,10 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { IChatSlashCommandService } from '../../../../workbench/contrib/chat/common/participants/chatSlashCommands.js';
 import { captureSideChatSelection } from '../../../../workbench/contrib/chat/browser/chatSideChat.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionSupportsSideChatContext } from '../../../common/contextkeys.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { openAndSendSideChat } from './sideChatOrchestration.js';
+import { ISideChatOrchestrationService } from './sideChatOrchestration.js';
 
 
 export class BtwSlashCommandContribution extends Disposable implements IWorkbenchContribution {
@@ -30,11 +28,10 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 
 	constructor(
 		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
-		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
-		@ISessionsPartService sessionsPartService: ISessionsPartService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@ISideChatOrchestrationService sideChatOrchestrationService: ISideChatOrchestrationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ILogService logService: ILogService,
 		@INotificationService notificationService: INotificationService,
@@ -93,7 +90,13 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 				return;
 			}
 
-			await openAndSendSideChat(sessionsManagementService, sessionsService, sessionsPartService, session, sideChat, { query: remainder, attachedContext: options?.attachedContext });
+			try {
+				const prepared = await sideChatOrchestrationService.prepare(session, chat, sideChat, remainder);
+				await prepared.send({ query: remainder, attachedContext: options?.attachedContext });
+			} catch (err) {
+				logService.error('[btw] Failed to send side chat request', err);
+				notificationService.error(localize('btw.sendFailed', "The side question could not be answered."));
+			}
 		}));
 	}
 }
