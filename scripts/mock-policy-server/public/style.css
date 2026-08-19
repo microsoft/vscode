@@ -315,6 +315,13 @@ h2 {
 	align-items: start;
 }
 
+.setup-method-picker {
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
 .setup-method {
 	position: relative;
 	overflow: hidden;
@@ -323,8 +330,12 @@ h2 {
 	background: var(--surface);
 }
 
-.setup-method.recommended {
-	border-color: var(--border);
+.setup-method[data-selected='true'] {
+	border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+
+.setup-method[data-selected='false'] {
+	opacity: 0.45;
 }
 
 .method-heading {
@@ -334,6 +345,26 @@ h2 {
 	gap: 16px;
 	padding: 20px 20px 16px;
 	border-bottom: 1px solid var(--border);
+}
+
+.method-choice {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr);
+	gap: 8px;
+	min-width: 0;
+}
+
+.method-choice input {
+	width: 14px;
+	height: 14px;
+	margin: 6px 0 0;
+	accent-color: var(--accent);
+	cursor: pointer;
+}
+
+.method-label {
+	min-width: 0;
+	cursor: pointer;
 }
 
 .method-heading h3 {

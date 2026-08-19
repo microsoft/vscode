@@ -39,23 +39,28 @@
 				<div>
 					<p class="eyebrow">Connect a client</p>
 					<h2 id="setup-title">Route policy requests to this server</h2>
-					<p class="setup-lede">Choose one connection method. Connection status is checked automatically.</p>
+					<p class="setup-lede">Select a connection method below to enable its steps. You can switch methods at any time.</p>
 				</div>
 			</div>
 
-			<div class="setup-methods">
-				<article class="setup-method recommended">
+			<fieldset class="setup-method-picker">
+				<legend class="sr-only">Connection method</legend>
+				<div class="setup-methods">
+				<article id="proxy-method" class="setup-method recommended" data-selected="true">
 					<div class="method-heading">
-						<div>
-							<span class="method-badge">Recommended</span>
-							<h3>System Proxy</h3>
-							<span class="method-recommendation">Recommended on macOS: Proxyman</span>
-							<p>Routes policy requests from Code OSS, Stable, Insiders, Copilot CLI, SDK sessions, and Agent Runtime Resolution.</p>
+						<div class="method-choice">
+							<input id="setup-method-proxy" type="radio" name="setup-method" value="proxy" checked>
+							<label class="method-label" for="setup-method-proxy">
+								<span class="method-badge">Recommended</span>
+								<h3>System Proxy</h3>
+								<span class="method-recommendation">Recommended on macOS: Proxyman</span>
+								<p>Routes policy requests from Code OSS, Stable, Insiders, Copilot CLI, SDK sessions, and Agent Runtime Resolution.</p>
+							</label>
 						</div>
 						<div id="proxy-status" class="status-pill" data-state="checking" role="status" aria-live="polite">Checking…</div>
 					</div>
 
-					<ol class="setup-steps">
+					<ol id="proxy-method-steps" class="setup-steps">
 						<li>
 							<div class="step-number" aria-hidden="true">1</div>
 							<div class="step-content">
@@ -105,17 +110,20 @@
 					</ol>
 				</article>
 
-				<article class="setup-method alternative">
+				<article id="overrides-method" class="setup-method alternative" data-selected="false">
 					<div class="method-heading">
-						<div>
-							<span class="method-badge secondary">Code OSS only</span>
-							<h3>Product overrides</h3>
-							<p>The fastest option for Code OSS built from this checkout. It does not route the separate Agent Runtime Resolution request.</p>
+						<div class="method-choice">
+							<input id="setup-method-overrides" type="radio" name="setup-method" value="overrides">
+							<label class="method-label" for="setup-method-overrides">
+								<span class="method-badge secondary">Code OSS only</span>
+								<h3>Product overrides</h3>
+								<p>The fastest option for Code OSS built from this checkout. It does not route the separate Agent Runtime Resolution request.</p>
+							</label>
 						</div>
 						<div id="override-status" class="status-pill" data-state="pending" role="status" aria-live="polite">Not applied</div>
 					</div>
 
-					<ol class="setup-steps compact">
+					<ol id="overrides-method-steps" class="setup-steps compact" inert>
 						<li>
 							<div class="step-number" aria-hidden="true">1</div>
 							<div class="step-content">
@@ -134,7 +142,8 @@
 						</li>
 					</ol>
 				</article>
-			</div>
+				</div>
+			</fieldset>
 
 		</section>
 
