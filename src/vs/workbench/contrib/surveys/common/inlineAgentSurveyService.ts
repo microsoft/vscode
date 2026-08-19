@@ -29,7 +29,8 @@ export const enum InlineAgentSurveyTrigger {
 }
 
 /**
- * The three survey outcomes. `Yes` submits in one tap; `Partly` and `No` reveal optional reasons.
+ * The three survey outcomes. `Yes` submits in one tap; `No` reveals reason buttons. `Partly` is
+ * reserved and not currently presented by the widget.
  */
 export const enum InlineAgentSurveyRating {
 	Yes = 'yes',
@@ -38,15 +39,13 @@ export const enum InlineAgentSurveyRating {
 }
 
 /**
- * The finite, optional reason offered for `Partly`/`No` ratings. Numeric so it can be logged as a
- * finite reason ID without free text.
+ * The finite reason offered for a `No` rating on whether Auto chose the right model. Numeric so
+ * it can be logged as a finite reason ID without free text.
  */
 export const enum InlineAgentSurveyReason {
-	WrongResult = 0,
-	TooSlow = 1,
-	Misunderstood = 2,
-	LostContext = 3,
-	Incomplete = 4,
+	TooHeavy = 0,
+	TooLight = 1,
+	DifferentModelFamily = 2,
 }
 
 /**
@@ -83,7 +82,7 @@ export interface IInlineAgentSurveyPending {
  */
 export interface IInlineAgentSurveySubmission {
 	readonly rating: InlineAgentSurveyRating;
-	/** Optional finite reason for `Partly`/`No`. Ignored for `Yes`. */
+	/** Optional finite reason for a `No` rating. Ignored for `Yes`. */
 	readonly reason?: InlineAgentSurveyReason;
 }
 

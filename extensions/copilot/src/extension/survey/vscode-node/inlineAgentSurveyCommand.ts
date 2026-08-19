@@ -21,7 +21,7 @@ export const INLINE_AGENT_SURVEY_SUBMIT_ID = 'github.copilot.chat.internal.inlin
 const VALID_RATINGS: ReadonlySet<InlineAgentSurveyRating> = new Set<InlineAgentSurveyRating>(['yes', 'partly', 'no']);
 
 /** Finite allow-list of survey reason IDs. */
-const VALID_REASONS: ReadonlySet<string> = new Set<string>(['wrong_result', 'too_slow', 'misunderstood', 'lost_context', 'incomplete']);
+const VALID_REASONS: ReadonlySet<string> = new Set<string>(['too_heavy', 'too_light', 'different_model_family']);
 
 /** Finite allow-list of survey triggers. */
 const VALID_TRIGGERS: ReadonlySet<string> = new Set<string>(['first_response', 'mature_response']);

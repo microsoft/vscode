@@ -145,7 +145,7 @@ suite('InlineAgentSurveyService', () => {
 		service.recordDismiss(ctx);
 		service.recordUndo(ctx);
 		service.recordRating(ctx, InlineAgentSurveyRating.No);
-		service.recordSubmission(ctx, { rating: InlineAgentSurveyRating.No, reason: InlineAgentSurveyReason.WrongResult });
+		service.recordSubmission(ctx, { rating: InlineAgentSurveyRating.No, reason: InlineAgentSurveyReason.TooHeavy });
 		assert.deepStrictEqual(telemetry.events, []);
 	});
 
@@ -205,7 +205,7 @@ suite('InlineAgentSurveyService', () => {
 		const ctx = responseContext();
 		await service.evaluateResponseCompletion(ctx);
 		service.recordImpression(ctx);
-		service.recordSubmission(ctx, { rating: InlineAgentSurveyRating.Partly, reason: InlineAgentSurveyReason.TooSlow });
+		service.recordSubmission(ctx, { rating: InlineAgentSurveyRating.Partly, reason: InlineAgentSurveyReason.TooLight });
 
 		assert.strictEqual(service.getPendingSurvey(ctx.chatResource, ctx.responseId), undefined);
 		const submission = telemetry.events.find(e => e.data.action === 'submission');

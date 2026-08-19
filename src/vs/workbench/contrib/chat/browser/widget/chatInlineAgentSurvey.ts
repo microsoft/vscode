@@ -16,14 +16,11 @@ import { IInlineAgentSurveyPending, IInlineAgentSurveyResponseContext, IInlineAg
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 const INLINE_AGENT_SURVEY_SUBMIT_COMMAND_ID = 'github.copilot.chat.internal.inlineAgentSurvey.submit';
-const OPEN_ISSUE_REPORTER_COMMAND_ID = 'workbench.action.openIssueReporter';
 
 const REASONS: readonly { readonly reason: InlineAgentSurveyReason; readonly telemetryId: string; readonly label: string }[] = [
-	{ reason: InlineAgentSurveyReason.WrongResult, telemetryId: 'wrong_result', label: localize('inlineAgentSurvey.reason.wrongResult', "Wrong result") },
-	{ reason: InlineAgentSurveyReason.TooSlow, telemetryId: 'too_slow', label: localize('inlineAgentSurvey.reason.tooSlow', "Too slow") },
-	{ reason: InlineAgentSurveyReason.Misunderstood, telemetryId: 'misunderstood', label: localize('inlineAgentSurvey.reason.misunderstood', "Misunderstood") },
-	{ reason: InlineAgentSurveyReason.LostContext, telemetryId: 'lost_context', label: localize('inlineAgentSurvey.reason.lostContext', "Lost context") },
-	{ reason: InlineAgentSurveyReason.Incomplete, telemetryId: 'incomplete', label: localize('inlineAgentSurvey.reason.incomplete', "Incomplete") },
+	{ reason: InlineAgentSurveyReason.TooHeavy, telemetryId: 'too_heavy', label: localize('inlineAgentSurvey.reason.tooHeavy', "No - too heavy") },
+	{ reason: InlineAgentSurveyReason.TooLight, telemetryId: 'too_light', label: localize('inlineAgentSurvey.reason.tooLight', "No - too light") },
+	{ reason: InlineAgentSurveyReason.DifferentModelFamily, telemetryId: 'different_model_family', label: localize('inlineAgentSurvey.reason.differentModelFamily', "No - different model family") },
 ];
 
 export class ChatInlineAgentSurvey extends Disposable {
@@ -39,9 +36,11 @@ export class ChatInlineAgentSurvey extends Disposable {
 	private focused = false;
 	private feedbackDisabled: boolean;
 	private questionFirstButton: HTMLElement | undefined;
-	private firstReasonButton: HTMLElement | undefined;
+	private feedbackTextarea: HTMLTextAreaElement | undefined;
 	private undoButton: HTMLElement | undefined;
 	private confirmationElement: HTMLElement | undefined;
+	/** Rating/reason chosen but not yet submitted, awaiting the optional free-text step. */
+	private pendingSubmission: IInlineAgentSurveySubmission | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -82,11 +81,11 @@ export class ChatInlineAgentSurvey extends Disposable {
 		return this.focused;
 	}
 
-	private render(focusTarget?: 'question' | 'reasons' | 'undo' | 'confirmation'): void {
+	private render(focusTarget?: 'question' | 'feedback' | 'undo' | 'confirmation'): void {
 		this.renderDisposables.clear();
 		dom.clearNode(this.domNode);
 		this.questionFirstButton = undefined;
-		this.firstReasonButton = undefined;
+		this.feedbackTextarea = undefined;
 		this.undoButton = undefined;
 		this.confirmationElement = undefined;
 
@@ -96,13 +95,15 @@ export class ChatInlineAgentSurvey extends Disposable {
 			this.renderConfirmation();
 		} else if (this.dismissed) {
 			this.renderDismissed();
+		} else if (this.pendingSubmission) {
+			this.renderFeedback();
 		} else {
 			this.renderQuestion();
 		}
 		this.focusAfterRender(focusTarget);
 	}
 
-	private focusAfterRender(focusTarget: 'question' | 'reasons' | 'undo' | 'confirmation' | undefined): void {
+	private focusAfterRender(focusTarget: 'question' | 'feedback' | 'undo' | 'confirmation' | undefined): void {
 		if (!focusTarget) {
 			return;
 		}
@@ -110,9 +111,9 @@ export class ChatInlineAgentSurvey extends Disposable {
 			case 'question':
 				this.questionFirstButton?.focus();
 				break;
-			case 'reasons':
-				this.firstReasonButton?.focus();
-				status(localize('inlineAgentSurvey.reasonsAnnounce', "Choose a reason to submit feedback."));
+			case 'feedback':
+				this.feedbackTextarea?.focus();
+				status(localize('inlineAgentSurvey.feedbackAnnounce', "Optional feedback. Submit when ready."));
 				break;
 			case 'undo':
 				this.undoButton?.focus();
@@ -127,22 +128,30 @@ export class ChatInlineAgentSurvey extends Disposable {
 	}
 
 	private renderDisabled(): void {
-		const disabled = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-dismissed'));
+		const body = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-body'));
+		const disabled = dom.append(body, dom.$('.chat-inline-agent-survey-dismissed'));
 		disabled.textContent = localize('inlineAgentSurvey.disabled', "Feedback is disabled.");
 	}
 
 	private renderQuestion(): void {
-		const primary = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-primary'));
-		dom.append(primary, dom.$('span.chat-inline-agent-survey-question', undefined, localize('inlineAgentSurvey.question', "Did this do what you wanted?")));
+		this.renderHeader();
 
-		const ratings = dom.append(primary, dom.$('.chat-inline-agent-survey-rating'));
+		const body = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-body'));
+		const ratings = dom.append(body, dom.$('.chat-inline-agent-survey-rating'));
 		ratings.setAttribute('role', 'group');
-		ratings.setAttribute('aria-label', localize('inlineAgentSurvey.ratingLabel', "Rate this agent response"));
-		this.addRatingButton(ratings, InlineAgentSurveyRating.Yes, localize('inlineAgentSurvey.yes', "Yes"));
-		this.addRatingButton(ratings, InlineAgentSurveyRating.Partly, localize('inlineAgentSurvey.partly', "Partly"));
-		this.addRatingButton(ratings, InlineAgentSurveyRating.No, localize('inlineAgentSurvey.no', "No"));
+		ratings.setAttribute('aria-label', localize('inlineAgentSurvey.ratingLabel', "Rate Auto's model choice"));
 
-		const dismiss = dom.append(primary, dom.$<HTMLButtonElement>('button.chat-inline-agent-survey-dismiss'));
+		this.addOptionButton(ratings, localize('inlineAgentSurvey.yes', "Yes"), () => ({ rating: InlineAgentSurveyRating.Yes }));
+		for (const entry of REASONS) {
+			this.addOptionButton(ratings, entry.label, () => ({ rating: InlineAgentSurveyRating.No, reason: entry.reason }));
+		}
+	}
+
+	private renderHeader(): void {
+		const header = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-header'));
+		dom.append(header, dom.$('span.chat-inline-agent-survey-question', undefined, localize('inlineAgentSurvey.question', "Did Auto choose the right model for the job?")));
+
+		const dismiss = dom.append(header, dom.$<HTMLButtonElement>('button.chat-inline-agent-survey-dismiss'));
 		dismiss.type = 'button';
 		dismiss.setAttribute('aria-label', localize('inlineAgentSurvey.dismissAriaLabel', "Dismiss survey"));
 		dismiss.title = localize('inlineAgentSurvey.dismissTitle', "Not now");
@@ -156,53 +165,53 @@ export class ChatInlineAgentSurvey extends Disposable {
 			}
 			this.render('undo');
 		}));
-
-		if (this.rating === InlineAgentSurveyRating.Partly || this.rating === InlineAgentSurveyRating.No) {
-			this.renderReasons();
-		}
 	}
 
-	private addRatingButton(container: HTMLElement, rating: InlineAgentSurveyRating, label: string): void {
+	private addOptionButton(container: HTMLElement, label: string, toSubmission: () => IInlineAgentSurveySubmission): void {
 		const button = this.renderDisposables.add(new Button(container, { secondary: true, ariaLabel: label }));
 		button.label = label;
-		button.checked = this.rating === rating;
 		this.questionFirstButton ??= button.element;
 		this.renderDisposables.add(button.onDidClick(() => {
 			if (this.feedbackDisabled) {
 				return;
 			}
-			this.rating = rating;
+			const submission = toSubmission();
+			this.rating = submission.rating;
 			if (!this.isDebug) {
-				this.surveyService.recordRating(this.context, rating);
+				this.surveyService.recordRating(this.context, submission.rating);
 			}
-			if (rating === InlineAgentSurveyRating.Yes) {
-				this.submit({ rating });
-				return;
-			}
-			this.render('reasons');
+			this.pendingSubmission = submission;
+			this.render('feedback');
 		}));
 	}
 
-	private renderReasons(): void {
-		const reasons = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-reasons'));
-		dom.append(reasons, dom.$('span.chat-inline-agent-survey-reason-label', undefined, localize('inlineAgentSurvey.reasonsLabel', "What went wrong?")));
-		const options = dom.append(reasons, dom.$('.chat-inline-agent-survey-reason-options'));
-		options.setAttribute('role', 'group');
-		options.setAttribute('aria-label', localize('inlineAgentSurvey.reasonsAriaLabel', "Choose a reason"));
-		for (const entry of REASONS) {
-			const button = this.renderDisposables.add(new Button(options, { secondary: true, ariaLabel: entry.label }));
-			button.label = entry.label;
-			this.firstReasonButton ??= button.element;
-			this.renderDisposables.add(button.onDidClick(() => {
-				if (!this.feedbackDisabled && (this.rating === InlineAgentSurveyRating.Partly || this.rating === InlineAgentSurveyRating.No)) {
-					this.submit({ rating: this.rating, reason: entry.reason });
-				}
-			}));
-		}
+	private renderFeedback(): void {
+		this.renderHeader();
+
+		const body = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-body'));
+		dom.append(body, dom.$('span.chat-inline-agent-survey-feedback-label', undefined, localize('inlineAgentSurvey.feedbackLabel', "Anything else you'd like to share? (optional)")));
+
+		const textarea = dom.append(body, dom.$<HTMLTextAreaElement>('textarea.chat-inline-agent-survey-feedback-textarea'));
+		textarea.rows = 2;
+		textarea.placeholder = localize('inlineAgentSurvey.feedbackPlaceholder', "Optional feedback");
+		textarea.setAttribute('aria-label', localize('inlineAgentSurvey.feedbackLabel', "Anything else you'd like to share? (optional)"));
+		this.feedbackTextarea = textarea;
+
+		const actions = dom.append(body, dom.$('.chat-inline-agent-survey-feedback-actions'));
+		const submitButton = this.renderDisposables.add(new Button(actions, { secondary: true, ariaLabel: localize('inlineAgentSurvey.submit', "Submit") }));
+		submitButton.label = localize('inlineAgentSurvey.submit', "Submit");
+		this.renderDisposables.add(submitButton.onDidClick(() => {
+			const submission = this.pendingSubmission;
+			if (!submission) {
+				return;
+			}
+			this.submit(submission);
+		}));
 	}
 
 	private renderDismissed(): void {
-		const dismissed = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-dismissed'));
+		const body = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-body'));
+		const dismissed = dom.append(body, dom.$('.chat-inline-agent-survey-dismissed'));
 		dom.append(dismissed, dom.$('span', undefined, localize('inlineAgentSurvey.dismissed', "Feedback skipped.")));
 		const undo = dom.append(dismissed, dom.$<HTMLButtonElement>('button.chat-inline-agent-survey-undo', undefined, localize('inlineAgentSurvey.undo', "Undo")));
 		undo.type = 'button';
@@ -212,44 +221,23 @@ export class ChatInlineAgentSurvey extends Disposable {
 			if (!this.isDebug) {
 				this.surveyService.recordUndo(this.context);
 			}
-			this.render('question');
+			this.render(this.pendingSubmission ? 'feedback' : 'question');
 		}));
 	}
 
 	private renderConfirmation(): void {
-		const confirmation = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-confirmation'));
+		const body = dom.append(this.domNode, dom.$('.chat-inline-agent-survey-body'));
+		const confirmation = dom.append(body, dom.$('.chat-inline-agent-survey-confirmation'));
 		confirmation.tabIndex = -1;
 		this.confirmationElement = confirmation;
 		const icon = dom.append(confirmation, dom.$('span'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
 		icon.setAttribute('aria-hidden', 'true');
-		if (this.rating === InlineAgentSurveyRating.No) {
-			dom.append(confirmation, dom.$('span', undefined, localize('inlineAgentSurvey.confirmation.no', "Sorry this missed the mark.")));
-			this.addIssueReporterAction(confirmation, localize('inlineAgentSurvey.reportIssue', "Report an issue"), localize('inlineAgentSurvey.reportIssue.title', "Copilot agent response did not meet expectations"));
-		} else if (this.rating === InlineAgentSurveyRating.Partly) {
-			dom.append(confirmation, dom.$('span', undefined, localize('inlineAgentSurvey.confirmation.partly', "Thanks. Tell us what would make this better.")));
-			this.addIssueReporterAction(confirmation, localize('inlineAgentSurvey.requestFeature', "Request a feature"), localize('inlineAgentSurvey.requestFeature.title', "Feature request for Copilot agent"));
-		} else {
-			dom.append(confirmation, dom.$('span', undefined, this.confirmationMessage()));
-		}
+		dom.append(confirmation, dom.$('span', undefined, this.confirmationMessage()));
 	}
 
 	private confirmationMessage(): string {
-		if (this.rating === InlineAgentSurveyRating.No) {
-			return localize('inlineAgentSurvey.confirmation.no', "Sorry this missed the mark.");
-		}
-		if (this.rating === InlineAgentSurveyRating.Partly) {
-			return localize('inlineAgentSurvey.confirmation.partly', "Thanks. Tell us what would make this better.");
-		}
 		return localize('inlineAgentSurvey.confirmation.yes', "Thanks for your feedback.");
-	}
-
-	private addIssueReporterAction(parent: HTMLElement, label: string, issueTitle: string): void {
-		const action = dom.append(parent, dom.$<HTMLButtonElement>('button.chat-inline-agent-survey-link', undefined, label));
-		action.type = 'button';
-		this.renderDisposables.add(dom.addDisposableListener(action, dom.EventType.CLICK, () => {
-			void this.commandService.executeCommand(OPEN_ISSUE_REPORTER_COMMAND_ID, { issueTitle }).catch(onUnexpectedError);
-		}));
 	}
 
 	private submit(submission: IInlineAgentSurveySubmission): void {
@@ -261,9 +249,13 @@ export class ChatInlineAgentSurvey extends Disposable {
 		if (!this.isDebug) {
 			this.surveyService.recordSubmission(this.context, submission);
 		}
+		this.pendingSubmission = undefined;
 		this.submitted = true;
 		this.render('confirmation');
 
+		// The optional free-text comment is intentionally never included in this payload: the
+		// event is documented and validated as structured-only, with no transcript, code, or
+		// free-text content.
 		const reason = submission.reason === undefined ? undefined : REASONS.find(entry => entry.reason === submission.reason)?.telemetryId;
 		if (this.isDebug) {
 			return;

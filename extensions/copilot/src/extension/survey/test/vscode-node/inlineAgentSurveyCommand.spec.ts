@@ -10,7 +10,7 @@ describe('validateInlineAgentSurveyPayload', () => {
 	it('accepts a well-formed payload and normalizes rating casing', () => {
 		const result = validateInlineAgentSurveyPayload({
 			rating: 'Partly',
-			reason: 'too_slow',
+			reason: 'too_light',
 			trigger: 'mature_response',
 			surface: 'agents_window',
 			turnCount: 5,
@@ -21,7 +21,7 @@ describe('validateInlineAgentSurveyPayload', () => {
 
 		expect(result).toEqual({
 			rating: 'partly',
-			reason: 'too_slow',
+			reason: 'too_light',
 			trigger: 'mature_response',
 			surface: 'agents_window',
 			turnCount: 5,

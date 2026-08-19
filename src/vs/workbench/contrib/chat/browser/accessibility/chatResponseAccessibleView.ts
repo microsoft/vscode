@@ -416,7 +416,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		if (survey?.dismissed) {
 			contentParts.push(localize('inlineAgentSurveyDismissedAccessibleView', "Agent quality survey: feedback skipped. Return to the chat response to undo."));
 		} else if (survey) {
-			contentParts.push(localize('inlineAgentSurveyAccessibleView', "Optional agent quality survey: Did this do what you wanted? Select Yes, Partly, or No in the chat response. Partly or No reveals reason buttons; selecting one submits feedback."));
+			contentParts.push(localize('inlineAgentSurveyAccessibleView', "Optional model-choice survey: Did Auto choose the right model for the job? Select Yes, or a No reason (too heavy, too light, different model family) in the chat response, then optionally add a comment and submit."));
 		}
 
 		return this._normalizeWhitespace(contentParts.join('\n'));
