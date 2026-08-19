@@ -50,7 +50,6 @@ import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultR
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostCopilotManagedSandboxEnabledConfigKey } from '../../common/sandboxConfigSchema.js';
 import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
@@ -84,7 +83,6 @@ import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConver
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
-import { getServerManagedSandboxEnabled } from './sandboxConfigForSdk.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
@@ -763,7 +761,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private readonly _hostCustomizations = new ResourceMap<readonly Customization[]>();
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
-	private _managedSandboxEnabled: boolean | undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -1244,7 +1241,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error(`Copilot runtime diagnostics exceeded 4.5 seconds while ${stage}.`);
 		}
 		this._logService.debug('[Copilot] Runtime managed-settings diagnostics collected');
-		this._updateManagedSandbox(result.resolved);
 		return {
 			...result.resolved,
 			...(result.account ? { account: result.account } : {}),
@@ -1419,7 +1415,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
 		if (!token) {
-			this._updateManagedSandbox(undefined);
 			await this._requestClientRestart('GitHub authentication cleared');
 			void this._scheduleModelRefresh();
 			return;
@@ -1450,30 +1445,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._requestClientRestart('GitHub credential update failed');
 		}
 		await this._resolveCopilotSku(token);
-		void this._refreshManagedSandbox();
 		void this._scheduleModelRefresh();
-	}
-
-	private async _refreshManagedSandbox(): Promise<void> {
-		try {
-			await this.getManagedSettingsDiagnostics();
-		} catch (error) {
-			this._logService.warn(`[Copilot] Failed to refresh managed sandbox settings: ${getErrorMessage(error)}`);
-		}
-	}
-
-	private _updateManagedSandbox(data: ManagedSettingsResolvedData | undefined): void {
-		const enabled = data ? getServerManagedSandboxEnabled(data) : undefined;
-		if (this._managedSandboxEnabled === enabled) {
-			return;
-		}
-		this._managedSandboxEnabled = enabled;
-		for (const session of this._allLiveSessions()) {
-			session.setManagedSandboxEnabled(enabled);
-		}
-		this._configurationService.publishRootTransientValues?.({
-			[AgentHostCopilotManagedSandboxEnabledConfigKey]: enabled ?? null,
-		});
 	}
 
 	private _handleCopilotSessionAuthRequired(): void {
@@ -3139,7 +3111,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
 				githubToken: this._githubToken,
-				managedSandboxEnabled: this._managedSandboxEnabled,
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
@@ -3644,7 +3615,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					managedSandboxEnabled: this._managedSandboxEnabled,
 					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 				};
 			} else if (options.sideChat) {
@@ -3674,7 +3644,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					managedSandboxEnabled: this._managedSandboxEnabled,
 					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 				};
 			} else {
@@ -3690,7 +3659,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					managedSandboxEnabled: this._managedSandboxEnabled,
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
@@ -4092,7 +4060,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					managedSandboxEnabled: this._managedSandboxEnabled,
 					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 				};
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
@@ -4385,8 +4352,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sessionLauncher: this._sessionLauncher,
 				launchPlan,
 				shellManager: launchPlan.shellManager,
-				managedSandboxEnabled: this._managedSandboxEnabled,
-				onManagedSettingsResolved: data => this._updateManagedSandbox(data),
 				workingDirectory: launchPlan.workingDirectory,
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
@@ -4553,7 +4518,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
 			githubToken: this._githubToken,
-			managedSandboxEnabled: this._managedSandboxEnabled,
 			workspaceless: storedMetadata.workspaceless,
 			fallback: {
 				model: storedMetadata.model,

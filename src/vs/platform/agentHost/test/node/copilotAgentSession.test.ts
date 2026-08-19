@@ -4193,32 +4193,6 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
 		});
 
-		test('server-managed sandbox enablement skips host updates and removal restores the local setting', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
-
-			session.setManagedSandboxEnabled(true);
-			await timeout(0);
-			const managedEnabled = mockSession.sandboxConfigUpdates.at(-1);
-
-			session.setManagedSandboxEnabled(false);
-			await timeout(0);
-			const managedDisabled = mockSession.sandboxConfigUpdates.at(-1);
-
-			session.setManagedSandboxEnabled(undefined);
-			await timeout(0);
-			const localRestored = mockSession.sandboxConfigUpdates.at(-1);
-
-			assert.deepStrictEqual({
-				managedEnabled,
-				managedDisabled,
-				localRestored,
-			}, {
-				managedEnabled: buildSandboxConfigForSdk('linux', undefined, true),
-				managedDisabled: undefined,
-				localRestored: { enabled: false },
-			});
-		});
-
 		test('per-request sandbox: left untouched when the custom terminal tool is enabled', async () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: {
