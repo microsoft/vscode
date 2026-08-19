@@ -4040,7 +4040,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sendRequests, []);
 		});
 
-		test('syncs permission mode when the session approval level changes', async () => {
+		test('defers an idle session approval change until the next turn', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
@@ -4049,8 +4049,16 @@ suite('CopilotAgentSession', () => {
 
 			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
 			await timeout(0);
+			const beforeTurn = [...mockSession.permissionModeSetCalls];
+			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto', 'off']);
+			assert.deepStrictEqual({
+				beforeTurn,
+				afterTurn: mockSession.permissionModeSetCalls,
+			}, {
+				beforeTurn: ['auto'],
+				afterTurn: ['auto', 'off'],
+			});
 		});
 
 		test('keeps sandbox enabled when the session approval level changes', async () => {
@@ -4098,6 +4106,7 @@ suite('CopilotAgentSession', () => {
 		test('syncs permission mode when root approval configuration changes', async () => {
 			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables);
 			await session.syncPermissionMode('turn-start');
+			session.resetTurnState('active-turn');
 			setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
 
 			fireRootConfigChange();
@@ -4111,6 +4120,7 @@ suite('CopilotAgentSession', () => {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
 			await session.syncPermissionMode('turn-start');
+			session.resetTurnState('active-turn');
 			mockSession.permissionModeSetSuccess = false;
 			setConfigValue(SessionConfigKey.AutoApprove, 'default');
 
@@ -4123,6 +4133,7 @@ suite('CopilotAgentSession', () => {
 		test('aborts when a live sandbox update fails', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
 			await session.syncPermissionMode('turn-start');
+			session.resetTurnState('active-turn');
 			mockSession.sandboxConfigUpdateSuccess = false;
 			setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
 
@@ -4195,6 +4206,7 @@ suite('CopilotAgentSession', () => {
 
 		test('server-managed sandbox enablement skips host updates and removal restores the local setting', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('active-turn');
 
 			session.setManagedSandboxEnabled(true);
 			await timeout(0);
@@ -4216,6 +4228,24 @@ suite('CopilotAgentSession', () => {
 				managedEnabled: buildSandboxConfigForSdk('linux', undefined, true),
 				managedDisabled: undefined,
 				localRestored: { enabled: false },
+			});
+		});
+
+		test('defers managed sandbox changes while idle and applies the latest value on the next turn', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			session.setManagedSandboxEnabled(true);
+			session.setManagedSandboxEnabled(undefined);
+			await timeout(0);
+			const whileIdle = [...mockSession.sandboxConfigUpdates];
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual({
+				whileIdle,
+				afterTurnStart: mockSession.sandboxConfigUpdates,
+			}, {
+				whileIdle: [],
+				afterTurnStart: [{ enabled: false }],
 			});
 		});
 
@@ -4434,6 +4464,7 @@ suite('CopilotAgentSession', () => {
 
 			const { session: initialSession, mockSession: initialMockSession, setConfigValue: setInitialConfigValue, fireSessionConfigChange: fireInitialSessionConfigChange } = await createAgentSession(disposables, { configValues: { ...configValues } });
 			await initialSession.syncPermissionMode('turn-start');
+			initialSession.resetTurnState('active-turn');
 			setInitialConfigValue(SessionConfigKey.AutoApprove, 'default');
 			fireInitialSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
 			await timeout(0);
@@ -4445,6 +4476,7 @@ suite('CopilotAgentSession', () => {
 				configValues: { ...configValues },
 			});
 			await peerSession.syncPermissionMode('turn-start');
+			peerSession.resetTurnState('active-turn');
 			setPeerConfigValue(SessionConfigKey.AutoApprove, 'default');
 			// Config changes are always emitted keyed by the owning session URI
 			// (the default here), never by this peer chat's own `resource`.
