@@ -30,11 +30,6 @@ export interface IPullRequestSessionRepository {
 	readonly repo: string;
 }
 
-export interface IRepositoryRemote {
-	readonly name: string;
-	readonly fetchUrl?: string;
-}
-
 export async function resolvePullRequestSessionRepository(
 	sectionSessions: readonly ISession[],
 ): Promise<IPullRequestSessionRepository | undefined> {
