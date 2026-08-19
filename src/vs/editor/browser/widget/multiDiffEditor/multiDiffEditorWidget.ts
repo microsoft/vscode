@@ -27,6 +27,7 @@ export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
 	private readonly _renderSideBySide = observableValue<boolean | undefined>(this, undefined);
+	private readonly _paddingBottomPx = observableValue<number>(this, 0);
 
 	private readonly _widgetImpl = derived(this, (reader) => {
 		readHotReloadableExport(DiffEditorItemTemplate, reader);
@@ -38,6 +39,7 @@ export class MultiDiffEditorWidget extends Disposable {
 			this._workbenchUIElementFactory,
 			this._renderSideBySide,
 			this._diffEditorOptions,
+			this._paddingBottomPx,
 		));
 	});
 
@@ -106,6 +108,11 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public toggleRenderSideBySide(): void {
 		this._renderSideBySide.set(!(this._renderSideBySide.get() ?? true), undefined);
+	}
+
+	/** Reserves empty space below the last diff entry. */
+	public setPaddingBottom(px: number): void {
+		this._paddingBottomPx.set(px, undefined);
 	}
 
 	private readonly _activeControl = derived(this, (reader) => this._widgetImpl.read(reader).activeControl.read(reader));
