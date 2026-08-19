@@ -159,7 +159,7 @@ export class TerminalChatWidget extends Disposable {
 				}
 			},
 		);
-		this._register(this._inlineChatWidget.chatWidget.onDidChangeViewModel(() => this._saveViewState()));
+		this._register(this._inlineChatWidget.chatWidget.onDidChangeViewModel(() => this._saveInputState()));
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,
 			this._instance.onDimensionsChanged,
@@ -352,10 +352,10 @@ export class TerminalChatWidget extends Disposable {
 		this._sessionDisposables.value = toDisposable(() => this._sessionCtor?.cancel());
 	}
 
-	private _saveViewState() {
-		const viewState = this._inlineChatWidget.chatWidget.getViewState();
-		if (viewState) {
-			this._storageService.store(this._viewStateStorageKey, JSON.stringify(viewState), StorageScope.PROFILE, StorageTarget.USER);
+	private _saveInputState() {
+		const inputState = this._inlineChatWidget.chatWidget.getInputState();
+		if (inputState) {
+			this._storageService.store(this._viewStateStorageKey, JSON.stringify(inputState), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 

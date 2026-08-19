@@ -314,8 +314,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
 
-			assert.ok(notificationMock.getNotification());
-			assert.strictEqual(notificationMock.getNotification()!.message, 'Credit Limit Reached');
+			assert.strictEqual(notificationMock.getNotification()?.message, 'Credit Limit Reached');
 		});
 
 		test('shows exhausted notification for free user via chat snapshot', () => {

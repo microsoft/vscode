@@ -16,12 +16,18 @@ import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../.
 import { BreadcrumbsConfig } from './breadcrumbs.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
+import { IWorkspaceFolderLabelService } from '../../../services/workspaces/common/workspaceFolderLabelService.js';
 
 export class FileElement {
 	constructor(
 		readonly uri: URI,
-		readonly kind: FileKind
+		readonly kind: FileKind,
+		readonly label?: string
 	) { }
+
+	equals(other: FileElement): boolean {
+		return isEqual(this.uri, other.uri) && this.label === other.label;
+	}
 }
 
 type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder };
@@ -52,6 +58,7 @@ export class BreadcrumbsModel {
 		readonly editor: IEditorPane | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
+		@IWorkspaceFolderLabelService private readonly _workspaceFolderLabelService: IWorkspaceFolderLabelService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
 	) {
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
@@ -141,7 +148,14 @@ export class BreadcrumbsModel {
 		}
 
 		if (info.folder && this._workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
+			const folderCount = this._workspaceService.getWorkspace().folders.length;
+			if (folderCount > 1 || isEqual(info.folder.uri, this.resource)) {
+				info.path.unshift(new FileElement(
+					info.folder.uri,
+					FileKind.ROOT_FOLDER,
+					this._workspaceFolderLabelService.getWorkspaceFolderLabel(info.folder)
+				));
+			}
 		}
 		return info;
 	}

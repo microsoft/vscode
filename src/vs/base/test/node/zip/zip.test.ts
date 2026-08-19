@@ -10,7 +10,7 @@ import { createCancelablePromise } from '../../../common/async.js';
 import { FileAccess } from '../../../common/network.js';
 import * as path from '../../../common/path.js';
 import { Promises } from '../../../node/pfs.js';
-import { buffer, extract, zip } from '../../../node/zip.js';
+import { buffer, extract, validateZip, zip } from '../../../node/zip.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
 import { getRandomTestPath } from '../testUtils.js';
 
@@ -87,6 +87,20 @@ suite('Zip', () => {
 		assert.strictEqual((await buffer(zipPath, 'present.txt')).toString(), 'present');
 		await assert.rejects(buffer(zipPath, 'missing.txt'));
 
+		await Promises.rm(testDir);
+	});
+
+	test('validateZip enforces entry and expanded-size limits', async () => {
+		const testDir = getRandomTestPath(tmpdir(), 'vsctests', 'zip-validation');
+		const zipPath = path.join(testDir, 'logs.zip');
+		await fs.promises.mkdir(testDir, { recursive: true });
+		await zip(zipPath, [
+			{ path: 'one.txt', contents: '1234' },
+			{ path: 'two.txt', contents: '5678' },
+		]);
+
+		await assert.rejects(validateZip(zipPath, { maxEntries: 1, maxUncompressedSize: 100 }), /too many entries/);
+		await assert.rejects(validateZip(zipPath, { maxEntries: 10, maxUncompressedSize: 7 }), /expands beyond the allowed size/);
 		await Promises.rm(testDir);
 	});
 });

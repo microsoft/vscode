@@ -34,7 +34,7 @@ Two registrations can target the same slot with opposite `when` clauses, pointin
 
 | Feature | Phone Status | Mechanism |
 |---------|--------------|-----------|
-| Sessions list (sidebar) | ✅ Compatible | No gate |
+| Sessions list (sidebar) | ✅ Compatible | No gate — session rows reuse the inline workspace badge under custom groups; live-status rows still hide details, and the phone toolbar reservation constrains the remaining badge width |
 | Sessions Part (chat views) | ✅ Compatible | No gate — phone enforces a single visible session via `MobileSessionsPart` |
 | Changes view (AuxiliaryBar) | ❌ Gated (with mobile equivalent) | `when: !sessionsIsPhoneLayout` on view descriptor; phone uses `MobileChangesView` overlay reachable from the title-bar Changes pill |
 | Files view (AuxiliaryBar) | ❌ Gated | `when: !sessionsIsPhoneLayout` on view descriptor |
@@ -153,8 +153,8 @@ Mobile picker subclasses live in `contrib/` alongside their base classes (not in
 | `contrib/automations/browser/automationDialog.ts` | `AutomationsWorkspacePicker` | `MobileAutomationsWorkspacePicker` renders the Automation workspace target, including **No workspace**, through the workspace bottom sheet on phone. |
 | `contrib/chat/browser/mobile/mobileWorkspacePickerSheet.ts` | (helper) | Builds `IMobilePickerSheetItem[]` from workspace picker items + browse actions. Used by `WebWorkspacePicker` on phone. |
 | `contrib/providers/agentHost/browser/agentHostSessionConfigPicker.ts` | `AgentHostSessionConfigPicker` | The phone variant `MobileAgentHostSessionConfigPicker` is a private subclass defined **in the same file** as the base (to avoid a circular ESM import); it routes Isolation + Branch to a unified bottom sheet on phone. |
-| `contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.ts` | (standalone) | Phone-only compact Mode and Model picker button that opens a unified bottom sheet. It consumes the input-scoped `SessionModelSelectionModel`, so it shares the desktop picker's models snapshot, current selection, canonical persistence, and empty-model state without enumerating language models itself. |
-| `contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts` | `IChatPhonePresenterImpl` | Builds the combined sheet for an opened chat. Agent Host rows come from `ISessionsProvider.getModelsSnapshot`; model actions route through the owning workbench delegate or input-scoped `SessionModelSelectionModel`, while every action revalidates provider/session/chat identity through `IUriIdentityService`. |
+| `contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.ts` | (standalone) | Phone-only compact Mode and Model picker button that opens a unified bottom sheet. It consumes the input-scoped `SessionModelSelection`, so it shares the desktop picker's models snapshot, current selection, canonical persistence, and empty-model state without enumerating language models itself. |
+| `contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts` | `IChatPhonePresenterImpl` | Builds the combined sheet for an opened chat. Agent Host rows come from `ISessionsProvider.getModelsSnapshot`; model actions route through the owning workbench delegate or input-scoped `SessionModelSelection`, while every action revalidates provider/session/chat identity through `IUriIdentityService`. |
 
 ### Layout & Navigation
 

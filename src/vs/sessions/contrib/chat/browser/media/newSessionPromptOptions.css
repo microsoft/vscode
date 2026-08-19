@@ -1,0 +1,219 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.new-session-prompt-options {
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsChatInput-border);
+	/* Top corners follow the stack, so a tip above joins these options. */
+	border-radius:
+		var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))
+		var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))
+		var(--vscode-cornerRadius-large)
+		var(--vscode-cornerRadius-large);
+	box-sizing: border-box;
+	container-type: inline-size;
+	margin-bottom: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size120);
+	width: 100%;
+}
+
+.new-session-prompt-options-header {
+	align-items: center;
+	display: flex;
+	margin-bottom: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.new-session-prompt-options-title {
+	color: var(--vscode-agentsChatInput-foreground);
+	flex: 1;
+	font-size: var(--vscode-agents-fontSize-heading3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 1.4;
+	margin: 0;
+	min-width: 0;
+}
+
+.new-session-prompt-options-actions {
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.new-session-prompt-options-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	width: 100%;
+}
+
+.new-session-prompt-options-list > .new-session-prompt-option {
+	align-items: center;
+	background-color: var(--vscode-agentsChatInput-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsChatInput-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	box-sizing: border-box;
+	color: var(--vscode-agentsChatInput-foreground);
+	display: grid;
+	flex: 1 1 calc((100% - var(--vscode-spacing-size160)) / 3);
+	grid-template-columns: var(--vscode-spacing-size160) minmax(0, 1fr);
+	grid-template-rows: auto auto;
+	column-gap: var(--vscode-spacing-size80);
+	row-gap: var(--vscode-spacing-size40);
+	margin: 0;
+	min-width: 0;
+	padding: var(--vscode-spacing-size100);
+	text-align: left;
+	cursor: pointer;
+}
+
+.new-session-prompt-options-list > .new-session-prompt-option.monaco-button:hover,
+.new-session-prompt-options-list > .new-session-prompt-option.monaco-button:focus-visible {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.new-session-prompt-options-list > .new-session-prompt-option.monaco-button.checked {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-color: currentColor;
+}
+
+.new-session-prompt-options-list > .new-session-prompt-option.monaco-button.option-disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+.new-session-prompt-options-list > .new-session-prompt-option.monaco-button.checked.option-disabled {
+	opacity: 0.75;
+}
+
+.new-session-prompt-option-icon {
+	font-size: var(--vscode-codiconFontSize);
+	grid-column: 1;
+	grid-row: 1;
+}
+
+.new-session-prompt-option-title,
+.new-session-prompt-option-description {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.new-session-prompt-option-title {
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	gap: var(--vscode-spacing-size40);
+	grid-column: 2;
+	grid-row: 1;
+}
+
+.new-session-prompt-option-title-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.new-session-prompt-option-title-detail {
+	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
+	flex-shrink: 0;
+	font-weight: var(--vscode-agents-fontWeight-regular);
+}
+
+.new-session-prompt-option.has-title-detail .new-session-prompt-option-title {
+	align-items: center;
+	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	grid-column: 2;
+	grid-row: 2;
+}
+
+.new-session-prompt-options-list > .new-session-prompt-option.has-title-detail .new-session-prompt-option-action-icon {
+	color: inherit;
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
+	transform: translateY(-1px);
+}
+
+.new-session-prompt-option.has-title-detail .new-session-prompt-option-description {
+	color: var(--vscode-agentsChatInput-foreground);
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	grid-column: 2;
+	grid-row: 1;
+}
+
+.new-session-prompt-option-description {
+	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	grid-column: 1 / -1;
+	grid-row: 2;
+}
+
+.new-session-prompt-option.no-icon .new-session-prompt-option-title {
+	grid-column: 1 / -1;
+}
+
+.new-session-prompt-option-skeleton {
+	pointer-events: none;
+}
+
+.new-session-prompt-option-skeleton-icon,
+.new-session-prompt-option-skeleton-line {
+	animation: new-session-prompt-option-loading 1.2s ease-in-out infinite alternate;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.new-session-prompt-option-skeleton-icon {
+	grid-column: 1;
+	grid-row: 1;
+	height: var(--vscode-spacing-size160);
+}
+
+.new-session-prompt-option-skeleton-line {
+	height: var(--vscode-spacing-size120);
+}
+
+.new-session-prompt-option-skeleton-line.title {
+	grid-column: 2;
+	grid-row: 1;
+	width: 55%;
+}
+
+.new-session-prompt-option-skeleton-line.description {
+	grid-column: 1 / -1;
+	grid-row: 2;
+	width: 85%;
+}
+
+@keyframes new-session-prompt-option-loading {
+	from {
+		opacity: 0.4;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+.monaco-reduce-motion .new-session-prompt-option-skeleton-icon,
+.monaco-reduce-motion .new-session-prompt-option-skeleton-line {
+	animation: none;
+}
+
+@container (max-width: 720px) {
+	.new-session-prompt-options-list > .new-session-prompt-option {
+		flex-basis: calc((100% - var(--vscode-spacing-size80)) / 2);
+	}
+}
+
+@container (max-width: 360px) {
+	.new-session-prompt-options-list > .new-session-prompt-option {
+		flex-basis: 100%;
+	}
+}

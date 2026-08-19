@@ -33,21 +33,6 @@ suite('sandboxSettingsReader', () => {
 		);
 	});
 
-	test('falls back to deprecated key when modern key is not user-set', () => {
-		// Build a config where the deprecated parent key is explicitly user-set.
-		// `chat.agent.sandbox` is the deprecated namespace parent of
-		// `chat.agent.sandbox.enabled`, but `TestConfigurationService.inspect`
-		// only reflects the exact user keys, so this exercises the fallback
-		// path cleanly.
-		const cfg = new TestConfigurationService();
-		cfg.setUserConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
-
-		assert.strictEqual(
-			readSandboxSetting<string>(cfg, new NullLogService(), AgentSandboxSettingId.AgentSandboxEnabled),
-			AgentSandboxEnabledValue.AllowNetwork,
-		);
-	});
-
 	test('normalizes legacy boolean form of chat.agent.sandbox.enabled', () => {
 		const cfgOn = new TestConfigurationService();
 		cfgOn.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, true);
@@ -77,27 +62,6 @@ suite('sandboxSettingsReader', () => {
 		assert.strictEqual(
 			readSandboxSetting<string>(cfgOff, new NullLogService(), AgentSandboxSettingId.AgentSandboxWindowsEnabled),
 			AgentSandboxEnabledValue.Off,
-		);
-	});
-
-	test('normalizes legacy boolean form when arriving via the deprecated key', () => {
-		const cfg = new TestConfigurationService();
-		cfg.setUserConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled, true);
-
-		assert.strictEqual(
-			readSandboxSetting<string>(cfg, new NullLogService(), AgentSandboxSettingId.AgentSandboxEnabled),
-			AgentSandboxEnabledValue.On,
-		);
-	});
-
-	test('modern user value wins over deprecated user value', () => {
-		const cfg = new TestConfigurationService();
-		cfg.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
-		cfg.setUserConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
-
-		assert.strictEqual(
-			readSandboxSetting<string>(cfg, new NullLogService(), AgentSandboxSettingId.AgentSandboxEnabled),
-			AgentSandboxEnabledValue.On,
 		);
 	});
 

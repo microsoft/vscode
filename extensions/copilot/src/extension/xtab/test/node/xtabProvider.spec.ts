@@ -14,7 +14,7 @@ import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/do
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -752,7 +752,7 @@ describe('XtabProvider integration', () => {
 			beforeText,
 			[doc],
 			0,
-			[{ docId, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
+			[{ docId, kind: 'visibleRanges', ordinal: 0, visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
 			new DeferredPromise<Result<unknown, NoNextEditReason>>(),
 			opts?.expandedEditWindowNLines,
 			opts?.isSpeculative ?? false,
@@ -760,6 +760,7 @@ describe('XtabProvider integration', () => {
 			undefined,
 			undefined,
 			Date.now(),
+			[],
 		);
 	}
 
@@ -831,6 +832,7 @@ describe('XtabProvider integration', () => {
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),
+				[],
 			);
 
 			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
@@ -855,10 +857,11 @@ describe('XtabProvider integration', () => {
 
 			const request = new StatelessNextEditRequest(
 				'req-1', 'opp-1', text, [doc], 0,
-				[{ docId: doc.id, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 50)], documentContent: text }],
+				[{ docId: doc.id, kind: 'visibleRanges', ordinal: 0, visibleRanges: [new OffsetRange(0, 50)], documentContent: text }],
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),
+				[],
 			);
 
 			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
@@ -1045,6 +1048,40 @@ describe('XtabProvider integration', () => {
 			const systemMessage = capturedMessages?.find(m => m.role === Raw.ChatRole.System);
 			expect(systemMessage).toBeDefined();
 			expect(getMessageText(systemMessage!)).toBe(xtab275SystemPrompt);
+		});
+
+		it('applies configured aggressiveness only to aggressiveness strategies', async () => {
+			const lines = ['const x = 1;', 'const y = 2;'];
+			const captureUserPrompt = async (promptingStrategy: PromptingStrategy, aggressivenessLevel: AggressivenessLevel) => {
+				mockModelService.setSelectedConfig({ promptingStrategy });
+				await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, aggressivenessLevel);
+				streamingFetcher.setStreamingLines(lines);
+
+				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }), createMockLogger(), createLogContext(), CancellationToken.None);
+				await AsyncIterUtils.drainUntilReturn(gen);
+
+				const messages = streamingFetcher.capturedOptions.at(-1)?.messages;
+				const userMessage = messages?.find(message => message.role === Raw.ChatRole.User);
+				expect(userMessage).toBeDefined();
+				return getMessageText(userMessage!);
+			};
+
+			const nonAggressiveLow = await captureUserPrompt(PromptingStrategy.Xtab275, AggressivenessLevel.Low);
+			const nonAggressiveHigh = await captureUserPrompt(PromptingStrategy.Xtab275, AggressivenessLevel.High);
+			const aggressiveLow = await captureUserPrompt(PromptingStrategy.XtabAggressiveness, AggressivenessLevel.Low);
+			const aggressiveHigh = await captureUserPrompt(PromptingStrategy.XtabAggressiveness, AggressivenessLevel.High);
+
+			expect({
+				nonAggressivePromptsMatch: nonAggressiveLow === nonAggressiveHigh,
+				nonAggressivePromptHasLevel: nonAggressiveLow.includes('<|aggressive|>'),
+				aggressiveLowHasLevel: aggressiveLow.includes('<|aggressive|>low<|/aggressive|>'),
+				aggressiveHighHasLevel: aggressiveHigh.includes('<|aggressive|>high<|/aggressive|>'),
+			}).toEqual({
+				nonAggressivePromptsMatch: true,
+				nonAggressivePromptHasLevel: false,
+				aggressiveLowHasLevel: true,
+				aggressiveHighHasLevel: true,
+			});
 		});
 
 		it('retries with default model after NotFound response', async () => {
@@ -1411,6 +1448,29 @@ describe('XtabProvider integration', () => {
 
 			expect(edits.length).toBe(0);
 			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('CustomDiffPatch clamps tagged content range to the source document', async () => {
+			const provider = createProvider();
+			mockModelService.setSelectedConfig({
+				promptingStrategy: PromptingStrategy.PatchBased02,
+				includeTagsInCurrentFile: true,
+			});
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i}`);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'e' });
+			streamingFetcher.setStreamingLines([]);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect({
+				editCount: edits.length,
+				finalReason: finalReason.v.constructor.name,
+			}).toEqual({
+				editCount: 0,
+				finalReason: NoNextEditReason.NoSuggestions.name,
+			});
 		});
 
 		it('UnifiedWithXml INSERT yields insertion edit at cursor line', async () => {
@@ -1954,6 +2014,30 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 
 	describe('debounce behavior', () => {
+		it('does not change timing for a non-aggressiveness strategy when user eagerness is default', async () => {
+			mockModelService.setSelectedConfig({ promptingStrategy: PromptingStrategy.Xtab275 });
+			const setBaseDebounceTime = vi.spyOn(DelaySession.prototype, 'setBaseDebounceTime');
+			const setExpectedTotalTime = vi.spyOn(DelaySession.prototype, 'setExpectedTotalTime');
+
+			try {
+				const lines = ['const x = 1;', 'const y = 2;'];
+				streamingFetcher.setStreamingLines(lines);
+				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }), createMockLogger(), createLogContext(), CancellationToken.None);
+				await AsyncIterUtils.drainUntilReturn(gen);
+
+				expect({
+					setBaseDebounceTimeCalls: setBaseDebounceTime.mock.calls.length,
+					setExpectedTotalTimeCalls: setExpectedTotalTime.mock.calls.length,
+				}).toEqual({
+					setBaseDebounceTimeCalls: 0,
+					setExpectedTotalTimeCalls: 0,
+				});
+			} finally {
+				setBaseDebounceTime.mockRestore();
+				setExpectedTotalTime.mockRestore();
+			}
+		});
+
 		it('debounce is skipped in simulation tests', async () => {
 			// Override the simulation test context to indicate we're in sim tests
 			const testingServiceCollection = createExtensionUnitTestingServices(disposables);
@@ -1974,10 +2058,11 @@ describe('XtabProvider integration', () => {
 			const beforeText = new StringText(doc.documentBeforeEdits.value);
 			const request = new StatelessNextEditRequest(
 				'req-sim', 'opp-sim', beforeText, [doc], 0,
-				[{ docId: doc.id, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
+				[{ docId: doc.id, kind: 'visibleRanges', ordinal: 0, visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),
+				[],
 			);
 
 			// Response with a change
@@ -2264,6 +2349,7 @@ describe('XtabProvider integration', () => {
 				base.recordingBookmark,
 				base.recording,
 				base.providerRequestStartDateTime,
+				base.xtabRejectedEditHistory,
 			);
 		}
 

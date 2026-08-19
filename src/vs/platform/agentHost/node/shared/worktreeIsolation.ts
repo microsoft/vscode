@@ -4,23 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
-import { SequencerByKey } from '../../../../base/common/async.js';
+import { RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentSessionProjectInfo } from '../../common/agentService.js';
-import { IAgentHostGitService, IDefaultBranch, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
+import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
+import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, AgentBranchNameGenerator, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { ICopilotApiService } from './copilotApiService.js';
+
+export const IAgentHostWorktreeIsolation = createDecorator<IAgentHostWorktreeIsolation>('agentHostWorktreeIsolation');
+
+export interface IAgentHostWorktreeIsolation {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeWorkingDirectoryPending: Event<string>;
+	isWorkingDirectoryPending(sessionId: string): boolean;
+}
 
 /**
  * Per-session-database metadata keys under which the worktree an agent
@@ -34,6 +46,8 @@ import { ICopilotApiService } from './copilotApiService.js';
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
 const WORKTREE_META_PATH = 'copilot.worktree.path';
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
+const WORKTREE_META_CREATION_FAILURE = 'copilot.worktree.creationFailure';
+const MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH = 200;
 
 /** Thrown when a persisted session working directory is missing and cannot be repaired. */
 export class SessionWorkingDirectoryMissingError extends Error {
@@ -47,10 +61,17 @@ export class SessionWorkingDirectoryMissingError extends Error {
 
 /** Default upper bound on branch names returned for the branch picker. */
 const BRANCH_COMPLETION_LIMIT = 25;
+const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 
-interface ICreatedWorktree {
+interface ISessionWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
+}
+
+interface IWorktreeMetadata {
+	readonly branchName: string;
+	readonly worktreePath?: URI;
+	readonly repositoryRoot?: URI;
 }
 
 /**
@@ -94,6 +115,114 @@ export function buildWorktreeAnnouncementText(branchName: string): string {
 	) + '\n\n';
 }
 
+/** Builds the warning shown when worktree isolation falls back to the original folder. */
+export function buildWorktreeFailureNotification(diagnostic?: string): Extract<ResponsePart, { kind: ResponsePartKind.SystemNotification }> {
+	const normalizedDiagnostic = normalizeWorktreeFailureDiagnostic(diagnostic);
+	const content = normalizedDiagnostic
+		? localize(
+			'agentHost.worktreeCreationFailedWithDiagnostic',
+			"Couldn't create the isolated worktree. This session is continuing in the original folder.\n\n{0}",
+			appendEscapedMarkdownInlineCode(normalizedDiagnostic)
+		)
+		: localize(
+			'agentHost.worktreeCreationFailed',
+			"Couldn't create the isolated worktree. This session is continuing in the original folder."
+		);
+	return {
+		kind: ResponsePartKind.SystemNotification,
+		content,
+		_meta: toAgentSystemNotificationMeta({
+			kind: AgentSystemNotificationKind.WorktreeCreationFailure,
+			severity: AgentSystemNotificationSeverity.Warning,
+		}),
+	};
+}
+
+/** Normalizes an arbitrary worktree failure into a bounded single-line diagnostic. */
+export function normalizeWorktreeFailureDiagnostic(diagnostic: string | undefined): string | undefined {
+	const normalized = diagnostic?.replace(/\s+/g, ' ').trim();
+	if (!normalized) {
+		return undefined;
+	}
+	return normalized.length > MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH
+		? `${normalized.slice(0, MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH - 3)}...`
+		: normalized;
+}
+
+/**
+ * The steps of worktree creation that are slow enough to be worth naming while
+ * a session materializes. Ordered as they run.
+ */
+export const enum WorktreeCreationPhase {
+	/** Queued behind another worktree being created in the same repository. */
+	Starting,
+	/** Asking the model for a branch name, then probing candidates for collisions. */
+	NamingBranch,
+	/** `git worktree add` — the phase that reports file-level progress. */
+	CheckingOut,
+	/** Copying the git-ignored files the client asked to carry over. */
+	CopyingIncludeFiles,
+}
+
+/**
+ * Builds the localized activity label for a worktree-creation phase. `percent`
+ * only applies to the phases that report file-level progress
+ * ({@link WorktreeCreationPhase.CheckingOut} and
+ * {@link WorktreeCreationPhase.CopyingIncludeFiles}), where it is absent until
+ * the first sample arrives.
+ */
+export function buildWorktreeProgressText(phase: WorktreeCreationPhase, percent?: number): string {
+	switch (phase) {
+		case WorktreeCreationPhase.NamingBranch:
+			return localize('agentHost.worktreeNamingBranch', "Creating isolated worktree (naming branch)");
+		case WorktreeCreationPhase.CheckingOut:
+			return percent === undefined
+				? localize('agentHost.worktreeCheckingOut', "Creating isolated worktree (checking out files)")
+				: localize('agentHost.worktreeCheckingOutPercent', "Creating isolated worktree (checking out files, {0}%)", percent);
+		case WorktreeCreationPhase.CopyingIncludeFiles:
+			return percent === undefined
+				? localize('agentHost.worktreeCopyingIncludeFiles', "Creating isolated worktree (copying additional files)")
+				: localize('agentHost.worktreeCopyingIncludeFilesPercent', "Creating isolated worktree (copying additional files, {0}%)", percent);
+		default:
+			return localize('agentHost.worktreeCreating', "Creating isolated worktree");
+	}
+}
+
+/**
+ * Adapts the raw file counts the git service reports into progress labels for
+ * a phase. Rounds down to whole percentages, drops non-advancing samples, and
+ * debounces updates to avoid overwhelming consumers, flushing the latest
+ * percentage when the operation completes.
+ */
+async function withPercentProgress<T>(
+	phase: WorktreeCreationPhase,
+	onProgress: ((activity: string) => void) | undefined,
+	operation: (onProgress: ((progress: IWorktreeFileProgress) => void) | undefined) => Promise<T>,
+): Promise<T> {
+	if (!onProgress) {
+		return operation(undefined);
+	}
+
+	let lastPercent = -1;
+	const scheduler = new RunOnceScheduler(() => onProgress(buildWorktreeProgressText(phase, lastPercent)), WORKTREE_PROGRESS_DEBOUNCE_MS);
+	try {
+		return await operation(({ filesDone, filesTotal }) => {
+			const percent = Math.min(100, Math.floor(filesDone * 100 / filesTotal));
+			if (percent <= lastPercent) {
+				return;
+			}
+			lastPercent = percent;
+			scheduler.schedule();
+		});
+	} finally {
+		const shouldFlush = scheduler.isScheduled();
+		scheduler.dispose();
+		if (shouldFlush) {
+			onProgress(buildWorktreeProgressText(phase, lastPercent));
+		}
+	}
+}
+
 /**
  * Returns a copy of `turns` where `announcement` has been prepended to the
  * first top-level assistant turn's first markdown response part. Used on
@@ -122,6 +251,19 @@ export function prependAnnouncementToFirstTurn(turns: readonly Turn[], announcem
 	return result;
 }
 
+function prependWorktreeFailureToFirstTurn(turns: readonly Turn[], diagnostic: string | undefined): readonly Turn[] {
+	if (turns.length === 0) {
+		return turns;
+	}
+	const result = turns.slice();
+	const first = result[0];
+	result[0] = {
+		...first,
+		responseParts: [buildWorktreeFailureNotification(diagnostic), ...first.responseParts],
+	};
+	return result;
+}
+
 /** Parameters for {@link WorktreeIsolation.resolveIsolationConfig}. */
 export interface IResolveIsolationConfigRequest {
 	readonly workingDirectory: URI | undefined;
@@ -147,6 +289,8 @@ export interface IIsolationConfigContribution {
 	readonly worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 	/** Read-only carrier for the client's `git.worktreeIncludeFiles`. */
 	readonly worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
+	/** Read-only carrier for the programmatic worktree branch tracking preference. */
+	readonly worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 	readonly isolationValue: 'folder' | 'worktree';
 	readonly branchDefault: string | undefined;
 	readonly branchValue: string | undefined;
@@ -160,6 +304,15 @@ export interface IResolveWorkingDirectoryRequest {
 	readonly config: Record<string, unknown> | undefined;
 	readonly prompt?: string;
 	readonly githubToken?: string;
+	/**
+	 * Receives localized activity labels while the worktree is being created,
+	 * so callers can surface live progress. Only called for sessions that
+	 * selected worktree isolation — though such a session can still fall back
+	 * to its folder after the first label (e.g. the directory turns out not to
+	 * be a git repository) — and the caller is responsible for clearing the
+	 * activity once resolution settles.
+	 */
+	readonly onProgress?: (activity: string) => void;
 }
 
 /**
@@ -171,25 +324,21 @@ export interface IResolveWorkingDirectoryRequest {
  * - completing branch names for the branch picker ({@link branchCompletions});
  * - creating the worktree on materialization and persisting its metadata
  *   ({@link resolveWorkingDirectory});
- * - surfacing the "Created isolated worktree" announcement live on the first
- *   turn ({@link takePendingAnnouncement}) and on restore
- *   ({@link applyRestoreAnnouncement});
- * - cleaning up / recreating the worktree on dispose, archive, and unarchive.
+ * - surfacing worktree creation success/failure notices live and on restore;
+ * - cleaning up / recreating the worktree on session deletion, archive, and unarchive.
  *
  * A single host-owned instance serves every agent: the orchestrator
  * ({@link AgentService}) creates it and drives the lifecycle so individual
  * agents stay unaware of the folder-vs-worktree distinction. Session state
- * (`_createdWorktrees`, pending markers, pending announcements) is keyed by the
+ * (`_materializedWorktrees`, pending markers, pending announcements) is keyed by the
  * globally-unique sessionId, so sharing one instance across agents is safe.
  */
-export class WorktreeIsolation extends Disposable {
+export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeIsolation {
+	declare readonly _serviceBrand: undefined;
 
-	/**
-	 * Worktrees created by this agent in the current process, keyed by
-	 * sessionId. Used to remove the worktree on dispose / error and to
-	 * enumerate live worktrees during shutdown.
-	 */
-	private readonly _createdWorktrees = new Map<string, ICreatedWorktree>();
+	/** Worktrees materialized during this host process, keyed by sessionId. */
+	private readonly _materializedWorktrees = new Map<string, ISessionWorktree>();
+	private readonly _worktreeDeletionRetries = new Map<string, ISessionWorktree>();
 
 	/**
 	 * Per-session announcement (markdown) emitted as a synthetic streaming
@@ -210,6 +359,8 @@ export class WorktreeIsolation extends Disposable {
 	 * on disk and their persisted working directory already points at it.
 	 */
 	private readonly _pending = new Set<string>();
+	private readonly _onDidChangeWorkingDirectoryPending = this._register(new Emitter<string>());
+	readonly onDidChangeWorkingDirectoryPending: Event<string> = this._onDidChangeWorkingDirectoryPending.event;
 
 	/** Fixed log label; one host-owned instance serves every agent. */
 	private readonly _logLabel = 'AgentHost';
@@ -218,7 +369,7 @@ export class WorktreeIsolation extends Disposable {
 	 * Serializes the worktree lifecycle per session so a first-send creation
 	 * ({@link resolveOnFirstSend}) never interleaves with archive/unarchive
 	 * cleanup ({@link cleanupWorktreeOnArchive} / {@link recreateWorktreeOnUnarchive})
-	 * or dispose ({@link removeCreatedWorktree}) for the same session — the
+	 * or deletion ({@link removeSessionWorktree}) for the same session — the
 	 * guarantee each agent previously enforced with its own sequencer.
 	 */
 	private readonly _sequencer = new SequencerByKey<string>();
@@ -238,23 +389,23 @@ export class WorktreeIsolation extends Disposable {
 		this._branchNameGenerator = branchNameGenerator ?? new AgentBranchNameGenerator(copilotApiService, this._logService);
 	}
 
-	/** SessionIds with a worktree created by this agent in the current process. */
-	get createdWorktreeSessionIds(): readonly string[] {
-		return [...this._createdWorktrees.keys()];
-	}
-
 	/**
 	 * Marks a fresh worktree-isolation session as pending — its worktree is
 	 * deferred to the first send. Called by the host while a creating session's
 	 * resolved config selects `worktree` isolation.
 	 */
 	notePending(sessionId: string): void {
-		this._pending.add(sessionId);
+		if (!this._pending.has(sessionId)) {
+			this._pending.add(sessionId);
+			this._onDidChangeWorkingDirectoryPending.fire(sessionId);
+		}
 	}
 
 	/** Clears a pending marker when a session will not materialize a worktree. */
 	clearPending(sessionId: string): void {
-		this._pending.delete(sessionId);
+		if (this._pending.delete(sessionId)) {
+			this._onDidChangeWorkingDirectoryPending.fire(sessionId);
+		}
 	}
 
 	/**
@@ -268,7 +419,7 @@ export class WorktreeIsolation extends Disposable {
 
 	/** The worktree created for a session in this process, if any. */
 	getResolvedWorktree(sessionId: string): URI | undefined {
-		return this._createdWorktrees.get(sessionId)?.worktree;
+		return this._materializedWorktrees.get(sessionId)?.worktree;
 	}
 
 	/**
@@ -321,6 +472,7 @@ export class WorktreeIsolation extends Disposable {
 		let branchValue: string | undefined;
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
+		let worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 		if (gitInfo) {
 			const branchReadOnly = isolationValue === 'folder';
 			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch.name : gitInfo.currentBranch;
@@ -357,6 +509,15 @@ export class WorktreeIsolation extends Disposable {
 				sessionMutable: false,
 			});
 
+			worktreeBranchTrackProperty = schemaProperty<boolean>({
+				type: 'boolean',
+				title: localize('agentHost.sessionConfig.worktreeBranchTrack', "Worktree Branch Tracking"),
+				description: localize('agentHost.sessionConfig.worktreeBranchTrackDescription', "Whether the branch created for an isolated worktree tracks its upstream."),
+				default: false,
+				readOnly: true,
+				sessionMutable: false,
+			});
+
 			worktreeIncludeFilesProperty = schemaProperty<readonly string[]>({
 				type: 'array',
 				title: localize('agentHost.sessionConfig.worktreeIncludeFiles', "Worktree Include Files"),
@@ -370,7 +531,7 @@ export class WorktreeIsolation extends Disposable {
 			});
 		}
 
-		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeIncludeFilesProperty, isolationValue, branchDefault, branchValue };
+		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeBranchTrackProperty, worktreeIncludeFilesProperty, isolationValue, branchDefault, branchValue };
 	}
 
 	/**
@@ -382,8 +543,19 @@ export class WorktreeIsolation extends Disposable {
 		if (!workingDirectory) {
 			return { items: [] };
 		}
-		const branches = await this._gitService.getBranches(workingDirectory, { query, limit: BRANCH_COMPLETION_LIMIT });
-		return { items: branches.map(branch => ({ value: branch, label: branch })) };
+		const [branches, currentBranch, defaultBranch] = await Promise.all([
+			this._gitService.getBranches(workingDirectory, { pattern: ['refs/heads'], sort: 'committerdate' }),
+			this._gitService.getCurrentBranch(workingDirectory),
+			this._gitService.getDefaultBranch(workingDirectory),
+		]);
+		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), {
+			currentBranch,
+			defaultBranch: defaultBranch?.name,
+			query,
+			limit: BRANCH_COMPLETION_LIMIT,
+		});
+
+		return { items: branchCompletions.map(branch => ({ value: branch, label: branch })) };
 	}
 
 	/**
@@ -395,7 +567,7 @@ export class WorktreeIsolation extends Disposable {
 	 * working directory unchanged.
 	 */
 	async resolveWorkingDirectory(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> {
-		const { config, workingDirectory, sessionId, sessionUri, prompt, githubToken } = request;
+		const { config, workingDirectory, sessionId, sessionUri, prompt, githubToken, onProgress } = request;
 		if (config?.[SessionConfigKey.Isolation] !== 'worktree' || !workingDirectory || typeof config[SessionConfigKey.Branch] !== 'string') {
 			return workingDirectory;
 		}
@@ -404,16 +576,19 @@ export class WorktreeIsolation extends Disposable {
 		// process (e.g. the caller re-enters materialization after a thread
 		// restart or a post-creation failure) reuse it rather than creating a
 		// second branch + worktree.
-		const already = this._createdWorktrees.get(sessionId);
+		const already = this._materializedWorktrees.get(sessionId);
 		if (already) {
 			return already.worktree;
 		}
 
-		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
-		if (!repositoryRoot) {
+		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.Starting));
+
+		const checkoutRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+		if (!checkoutRoot) {
 			return workingDirectory;
 		}
 
+		const repositoryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, checkoutRoot);
 		const worktreesRoot = getWorktreesRoot(repositoryRoot);
 		// Prefix (e.g. the user's `git.branchPrefix`) the client forwards for
 		// worktree-isolated sessions. Prepended ahead of the built-in `agents/`
@@ -423,6 +598,7 @@ export class WorktreeIsolation extends Disposable {
 			: undefined;
 		const selectedBranch = config[SessionConfigKey.Branch] as string;
 		const { branchName, worktree, baseBranch } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
+			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
 			const branchName = await this._branchNameGenerator.generateBranchName({
 				sessionId,
 				message: prompt,
@@ -439,7 +615,15 @@ export class WorktreeIsolation extends Disposable {
 			const worktree = URI.joinPath(worktreesRoot, getWorktreeName(branchName, worktreeBranchPrefix));
 			const baseBranch = await this._resolveBranchStartPoint(repositoryRoot, selectedBranch);
 			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
-			await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch);
+
+			// Git suppresses progress for the first couple of seconds, so name
+			// the phase up front rather than leaving the label stale until the
+			// first percentage arrives.
+			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
+
+			const worktreeBranchTrack = config[SessionConfigKey.WorktreeBranchTrack] === true;
+			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
+				this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch, worktreeBranchTrack, progress));
 			return { branchName, worktree, baseBranch };
 		});
 		const worktreeIncludeFiles = Array.isArray(config[SessionConfigKey.WorktreeIncludeFiles])
@@ -448,12 +632,14 @@ export class WorktreeIsolation extends Disposable {
 			: undefined;
 		if (worktreeIncludeFiles?.length) {
 			try {
-				await this._gitService.copyWorktreeIncludeFiles(repositoryRoot, worktree, worktreeIncludeFiles);
+				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CopyingIncludeFiles));
+				await withPercentProgress(WorktreeCreationPhase.CopyingIncludeFiles, onProgress, progress =>
+					this._gitService.copyWorktreeIncludeFiles(checkoutRoot, worktree, worktreeIncludeFiles, progress));
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}
 		}
-		this._createdWorktrees.set(sessionId, { repositoryRoot, worktree });
+		this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree });
 		// Queue the worktree announcement so the first turn (live) and any
 		// subsequent restore (history) both surface the message in the chat.
 		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
@@ -526,53 +712,78 @@ export class WorktreeIsolation extends Disposable {
 		return announcement;
 	}
 
+	async persistCreationFailure(sessionUri: URI, sessionId: string, diagnostic: string | undefined): Promise<void> {
+		const dbRef = this._sessionDataService.openDatabase(sessionUri);
+		try {
+			await dbRef.object.setMetadata(WORKTREE_META_CREATION_FAILURE, JSON.stringify({
+				sessionId,
+				diagnostic: normalizeWorktreeFailureDiagnostic(diagnostic),
+			}));
+		} finally {
+			dbRef.dispose();
+		}
+	}
+
 	/**
-	 * Re-injects the worktree announcement into a restored transcript by
-	 * prepending it to the first turn. No-op when the session was not worktree
-	 * isolated. Callers forward the turns returned from their history-read path.
+	 * Re-injects the applicable worktree notice into the first restored turn.
 	 *
 	 * The live path ({@link takePendingAnnouncement}) handles the very first
 	 * turn while the session is fresh; this path takes over on subsequent loads
 	 * (where the synthetic announcement is not part of the agent transcript).
 	 */
 	async applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		const worktreeMeta = await this._readWorktreeMetadata(sessionUri).catch(() => undefined);
-		if (!worktreeMeta?.branchName) {
+		const notice = await this._readWorktreeNotice(sessionUri).catch(() => undefined);
+		if (notice?.kind === 'failure') {
+			return prependWorktreeFailureToFirstTurn(turns, notice.diagnostic);
+		}
+		if (notice?.kind !== 'success') {
 			return turns;
 		}
-		return prependAnnouncementToFirstTurn(turns, buildWorktreeAnnouncementText(worktreeMeta.branchName));
+		return prependAnnouncementToFirstTurn(turns, buildWorktreeAnnouncementText(notice.branchName));
 	}
 
-	/**
-	 * Removes the worktree created for a session in the current process (if
-	 * any). Used on session dispose and on materialization failure.
-	 */
-	async removeCreatedWorktree(sessionId: string): Promise<void> {
-		return this._sequencer.queue(sessionId, () => this._removeCreatedWorktree(sessionId));
+	/** Resolves the worktree to remove before the session database is deleted. */
+	async prepareSessionDeletion(sessionUri: URI, sessionId: string): Promise<ISessionWorktree | undefined> {
+		return this._sequencer.queue(sessionId, async () => {
+			const deletionRetry = this._worktreeDeletionRetries.get(sessionId);
+			if (deletionRetry) {
+				return deletionRetry;
+			}
+			const materializedWorktree = this._materializedWorktrees.get(sessionId);
+			if (materializedWorktree) {
+				return materializedWorktree;
+			}
+			try {
+				const meta = await this._readWorktreeMetadata(sessionUri);
+				return meta?.worktreePath && meta.repositoryRoot
+					? { repositoryRoot: meta.repositoryRoot, worktree: meta.worktreePath }
+					: undefined;
+			} catch (error) {
+				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to read worktree metadata before session deletion: ${errorMessage(error)}`);
+				throw error;
+			}
+		});
 	}
 
-	private async _removeCreatedWorktree(sessionId: string): Promise<void> {
+	/** Force-removes the resolved worktree after the user confirms session deletion. */
+	async removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void> {
+		return this._sequencer.queue(sessionId, () => this._removeSessionWorktree(sessionId, worktree));
+	}
+
+	private async _removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void> {
 		this.clearPending(sessionId);
-		const worktree = this._createdWorktrees.get(sessionId);
 		if (!worktree) {
 			return;
 		}
 		try {
-			await this._gitService.removeWorktree(worktree.repositoryRoot, worktree.worktree);
+			await this._gitService.removeWorktree(worktree.repositoryRoot, worktree.worktree, { force: true });
+			this._materializedWorktrees.delete(sessionId);
+			this._worktreeDeletionRetries.delete(sessionId);
 		} catch (error) {
+			this._worktreeDeletionRetries.set(sessionId, worktree);
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktree.worktree.fsPath}': ${errorMessage(error)}`);
-		} finally {
-			this._createdWorktrees.delete(sessionId);
+			throw error;
 		}
-	}
-
-	/**
-	 * Removes every worktree created by this agent in the current process.
-	 * Called from the agent's `shutdown` so no isolated worktree is leaked when
-	 * the provider is torn down, matching Copilot's shutdown drain.
-	 */
-	async removeAllCreatedWorktrees(): Promise<void> {
-		await Promise.all(this.createdWorktreeSessionIds.map(sessionId => this.removeCreatedWorktree(sessionId)));
 	}
 
 	/**
@@ -596,7 +807,7 @@ export class WorktreeIsolation extends Disposable {
 		try {
 			await fs.access(worktreePath.fsPath);
 		} catch {
-			this._createdWorktrees.delete(sessionId);
+			this._materializedWorktrees.delete(sessionId);
 			return;
 		}
 
@@ -608,20 +819,23 @@ export class WorktreeIsolation extends Disposable {
 			return;
 		}
 
-		// Skip if there are uncommitted changes — don't silently destroy work.
-		const dirty = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
-		if (dirty) {
-			this._logService.info(`[${this._logLabel}:${sessionId}] Skipping worktree cleanup: '${worktreePath.fsPath}' has uncommitted changes`);
-			return;
+		// Commit any uncommitted changes before archiving the session
+		const hasUncommittedChanges = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
+		if (hasUncommittedChanges) {
+			try {
+				await this._gitService.commitAll(worktreePath, localize('worktreeIsolation.commitMessage', 'Saving uncommitted changes before archiving session'));
+			} catch (error) {
+				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to commit uncommitted changes in '${worktreePath.fsPath}': ${errorMessage(error)}`);
+				return;
+			}
 		}
 
 		try {
 			await this._gitService.removeWorktree(repositoryRoot, worktreePath);
 			this._logService.info(`[${this._logLabel}:${sessionId}] Removed worktree '${worktreePath.fsPath}' on archive`);
+			this._materializedWorktrees.delete(sessionId);
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktreePath.fsPath}' on archive: ${errorMessage(error)}`);
-		} finally {
-			this._createdWorktrees.delete(sessionId);
 		}
 	}
 
@@ -662,7 +876,7 @@ export class WorktreeIsolation extends Disposable {
 		try {
 			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
 			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
-			this._createdWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
+			this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
 			this._logService.info(`[${this._logLabel}:${sessionId}] Recreated worktree '${worktreePath.fsPath}'`);
 			return { ok: true };
 		} catch (error) {
@@ -673,8 +887,67 @@ export class WorktreeIsolation extends Disposable {
 	}
 
 	/** Reads the persisted worktree metadata for a session, if any. */
-	async readWorktreeMetadata(sessionUri: URI): Promise<{ branchName: string; worktreePath?: URI; repositoryRoot?: URI } | undefined> {
+	async readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
 		return this._readWorktreeMetadata(sessionUri);
+	}
+
+	/**
+	 * Bridges worktree metadata for a legacy session adopted in place, whose
+	 * working directory is a pre-existing git worktree the agent host did not
+	 * create. When `workingDirectory` is a linked worktree (its checkout root
+	 * differs from the repository's primary worktree root), persists the worktree
+	 * branch / path / repository-root (and diff base branch) so the adopted
+	 * session groups under its repository and computes diffs against the right
+	 * base — parity with natively worktree-isolated sessions. Deliberately does
+	 * NOT register the worktree as host-created, so disposing the session never
+	 * deletes the user-owned worktree. Returns `true` when metadata was recorded.
+	 */
+	async adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean> {
+		const linkedWorktree = await this._resolveLinkedWorktree(workingDirectory);
+		if (!linkedWorktree) {
+			return false;
+		}
+		const { worktreeRoot, primaryRoot, baseBranch } = linkedWorktree;
+		const branchName = await this._gitService.getCurrentBranch(worktreeRoot).catch(() => undefined) ?? 'HEAD';
+		await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktreeRoot, repositoryRoot: primaryRoot });
+		return true;
+	}
+
+	/**
+	 * Records repository identity for an externally-owned linked worktree without taking ownership of its lifecycle.
+	 */
+	async recordExternalWorktreeProject(sessionUri: URI, workingDirectory: URI): Promise<IAgentSessionProjectInfo | undefined> {
+		const linkedWorktree = await this._resolveLinkedWorktree(workingDirectory);
+		if (!linkedWorktree) {
+			return undefined;
+		}
+		const { primaryRoot, baseBranch } = linkedWorktree;
+		const dbRef = this._sessionDataService.openDatabase(sessionUri);
+		try {
+			const work: Promise<void>[] = [
+				dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, primaryRoot.toString()),
+			];
+			if (baseBranch) {
+				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, baseBranch));
+			}
+			await Promise.all(work);
+		} finally {
+			dbRef.dispose();
+		}
+		return projectFromRepositoryRoot(primaryRoot);
+	}
+
+	private async _resolveLinkedWorktree(workingDirectory: URI): Promise<{ worktreeRoot: URI; primaryRoot: URI; baseBranch: string | undefined } | undefined> {
+		const worktreeRoot = await this._gitService.getRepositoryRoot(workingDirectory).catch(() => undefined);
+		if (!worktreeRoot) {
+			return undefined;
+		}
+		const primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, worktreeRoot).catch(() => undefined);
+		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
+			return undefined;
+		}
+		const baseBranch = (await this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined))?.name;
+		return { worktreeRoot, primaryRoot, baseBranch };
 	}
 
 	/**
@@ -694,6 +967,15 @@ export class WorktreeIsolation extends Disposable {
 		return meta?.repositoryRoot ? projectFromRepositoryRoot(meta.repositoryRoot) : undefined;
 	}
 
+	private async _resolvePrimaryWorktreeRoot(checkoutRoot: URI, fallbackRoot: URI): Promise<URI> {
+		try {
+			return await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot) ?? fallbackRoot;
+		} catch (error) {
+			this._logService.warn(`[${this._logLabel}] Failed to resolve primary worktree for '${checkoutRoot.fsPath}': ${errorMessage(error)}`);
+			return fallbackRoot;
+		}
+	}
+
 	/**
 	 * Synchronous companion to {@link resolveWorktreeProject} for the
 	 * materialize-event path: the repository project for a worktree this agent
@@ -702,8 +984,8 @@ export class WorktreeIsolation extends Disposable {
 	 * metadata read so a fresh worktree groups under the repository the moment it
 	 * materializes.
 	 */
-	createdWorktreeProject(sessionId: string): IAgentSessionProjectInfo | undefined {
-		const worktree = this._createdWorktrees.get(sessionId);
+	sessionWorktreeProject(sessionId: string): IAgentSessionProjectInfo | undefined {
+		const worktree = this._materializedWorktrees.get(sessionId);
 		return worktree ? projectFromRepositoryRoot(worktree.repositoryRoot) : undefined;
 	}
 
@@ -748,11 +1030,18 @@ export class WorktreeIsolation extends Disposable {
 		}
 	}
 
-	private async _readWorktreeMetadata(sessionUri: URI): Promise<{ branchName: string; worktreePath?: URI; repositoryRoot?: URI } | undefined> {
+	/**
+	 * Reads persisted worktree metadata, canonicalizing, repairing, and persisting the repository root when needed.
+	 * It probes an existing worktree when available and otherwise falls back to the persisted root for archived sessions.
+	 * The repair is only reachable when {@link WORKTREE_META_BRANCH} is present, so a root
+	 * persisted without its branch will never heal.
+	 */
+	private async _readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(sessionUri);
 		if (!ref) {
 			return undefined;
 		}
+
 		try {
 			const [branchName, worktreePathRaw, repositoryRootRaw] = await Promise.all([
 				ref.object.getMetadata(WORKTREE_META_BRANCH),
@@ -763,8 +1052,53 @@ export class WorktreeIsolation extends Disposable {
 				return undefined;
 			}
 			const worktreePath = worktreePathRaw ? URI.parse(worktreePathRaw) : undefined;
-			const repositoryRoot = repositoryRootRaw ? URI.parse(repositoryRootRaw) : undefined;
+			let repositoryRoot = repositoryRootRaw ? URI.parse(repositoryRootRaw) : undefined;
+			if (repositoryRoot) {
+				const checkoutRoot = worktreePath && await fileExists(worktreePath.fsPath) ? worktreePath : repositoryRoot;
+				const primaryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, repositoryRoot);
+				if (primaryRoot.toString() !== repositoryRoot.toString()) {
+					repositoryRoot = primaryRoot;
+					try {
+						await ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, primaryRoot.toString());
+					} catch (error) {
+						this._logService.warn(`[${this._logLabel}] Failed to normalize worktree repository metadata for '${sessionUri.toString()}': ${errorMessage(error)}`);
+					}
+				}
+			}
 			return { branchName, worktreePath, repositoryRoot };
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async _readWorktreeNotice(sessionUri: URI): Promise<{ kind: 'success'; branchName: string } | { kind: 'failure'; diagnostic?: string } | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase(sessionUri);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			const [branchName, failureRaw] = await Promise.all([
+				ref.object.getMetadata(WORKTREE_META_BRANCH),
+				ref.object.getMetadata(WORKTREE_META_CREATION_FAILURE),
+			]);
+			if (branchName) {
+				return { kind: 'success', branchName };
+			}
+			if (!failureRaw) {
+				return undefined;
+			}
+			const failure = JSON.parse(failureRaw);
+			if (!failure || typeof failure !== 'object' || Array.isArray(failure)) {
+				return undefined;
+			}
+			const raw = failure as Record<string, unknown>;
+			if (raw['sessionId'] !== AgentSession.id(sessionUri)) {
+				return undefined;
+			}
+			return {
+				kind: 'failure',
+				diagnostic: typeof raw['diagnostic'] === 'string' ? normalizeWorktreeFailureDiagnostic(raw['diagnostic']) : undefined,
+			};
 		} finally {
 			ref.dispose();
 		}

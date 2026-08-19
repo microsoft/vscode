@@ -14,10 +14,12 @@ import { SinglePaneMainEditorPart } from './singlePaneEditorPart.js';
 export class EditorParts extends EditorPartsBase {
 	protected override createMainEditorPart(): MainEditorPart {
 		const layoutService = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentWorkbenchLayoutService));
-		if (layoutService.isSinglePaneLayoutEnabled) {
-			return this.instantiationService.createInstance(SinglePaneMainEditorPart, this);
-		}
-		return this.instantiationService.createInstance(MainEditorPart, this);
+		const editorPart = layoutService.isSinglePaneLayoutEnabled
+			? this.instantiationService.createInstance(SinglePaneMainEditorPart, this)
+			: this.instantiationService.createInstance(MainEditorPart, this);
+		this._register(editorPart.enforcePartOptions({ tabActionReserveSpace: false }));
+
+		return editorPart;
 	}
 }
 

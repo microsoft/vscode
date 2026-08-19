@@ -75,6 +75,8 @@
 .agent-feedback-input-widget .agent-feedback-input-actions {
 	display: flex;
 	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
 	margin-left: 2px;
 	flex-shrink: 0;
 }
@@ -83,6 +85,34 @@
 	box-sizing: content-box;
 	width: 16px;
 	height: 16px;
+}
+
+.agent-feedback-input-widget .agent-feedback-input-actions .monaco-action-bar .action-item .action-label.codicon-arrow-up-compact {
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.agent-feedback-input-widget textarea:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.agent-feedback-input-widget .agent-feedback-input-busy-indicator {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	/* Same shared line-height box as .agent-feedback-input-actions, so the spinner replacing the send action centers identically to it. */
+	box-sizing: border-box;
+	margin-left: 2px;
+	flex-shrink: 0;
+	color: var(--vscode-icon-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-feedback-input-widget .agent-feedback-input-busy-indicator {
+		animation: none;
+	}
 }
 
 .monaco-editor .line-numbers.agent-feedback-glyph {

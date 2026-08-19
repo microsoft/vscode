@@ -22,9 +22,13 @@ import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 
 // The new-session input box styling lives in these stylesheets; `style.css`
 // provides the `--vscode-agentsChatInput-*` theme variables and the
@@ -37,6 +41,8 @@ import '../../../../browser/media/style.css';
 interface NewChatInputFixtureOptions {
 	readonly value?: string;
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+	/** Docks the sub-session tip above the composer. */
+	readonly subSessionTip?: boolean;
 }
 
 /**
@@ -47,7 +53,7 @@ interface NewChatInputFixtureOptions {
  */
 async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptions: NewChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { value, selection } = fixtureOptions;
+	const { value, selection, subSessionTip } = fixtureOptions;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -81,12 +87,30 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 				override readonly onDidChangeSlashCommands = Event.None;
 				override async getSlashCommands() { return []; }
 			}());
-			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService()));
+			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
+				new class extends mock<ISessionsService>() {
+					override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+				}(),
+				new class extends mock<IChatWidgetService>() {
+					override readonly onDidChangeFocusedSession = Event.None;
+				}(),
+			)));
+			reg.defineInstance(IVoiceInputModeService, new class extends mock<IVoiceInputModeService>() {
+				override readonly selectedMode = observableValue<VoiceInputMode>('selectedMode', 'voice');
+				override readonly voiceAvailable = observableValue<boolean>('voiceAvailable', false);
+				override readonly dictationAvailable = observableValue<boolean>('dictationAvailable', false);
+				override readonly handsFree = observableValue<boolean>('handsFree', true);
+				override readonly simulatedVoiceState = observableValue<undefined>('simulatedVoiceState', undefined);
+				override readonly simulatedHandsFree = observableValue<undefined>('simulatedHandsFree', undefined);
+				override readonly simulatedVersion = observableValue<undefined>('simulatedVersion', undefined);
+				override readonly simulatedHover = observableValue<boolean>('simulatedHover', false);
+			}());
 			reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
 				override readonly isConnected = observableValue<boolean>('isConnected', false);
 				override readonly isConnecting = observableValue<boolean>('isConnecting', false);
 				override readonly voiceState = observableValue<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('voiceState', 'idle');
 				override readonly targetSession = observableValue<URI | undefined>('targetSession', undefined);
+				override readonly hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
 				override readonly transcriptTurns = observableValue<never[]>('transcriptTurns', []);
 			}());
 			reg.defineInstance(ITtsPlaybackService, new class extends mock<ITtsPlaybackService>() {
@@ -98,9 +122,11 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 			reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
 				override readonly onDidChangeState = Event.None;
 				override readonly onDidChangePreparingModel = Event.None;
+				override readonly onDidChangeDownloadingModel = Event.None;
 				override readonly state = ChatSpeechToTextState.Idle;
 				override readonly isConfigured = false;
 				override readonly isPreparingModel = false;
+				override readonly isDownloadingModel = false;
 			}());
 		},
 	});
@@ -111,16 +137,32 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 
 	// `.new-chat-in-session` scopes the layout overrides and
 	// `.new-chat-widget-container.revealed` flips `.new-chat-input-container`
-	// from `display: none` to visible.
+	// from `display: none` to visible. The content element is the outer chat
+	// input stack, as it is in `NewChatInSessionWidget`.
 	const root = dom.append(container, dom.$('.new-chat-in-session.sessions-chat-widget'));
 	const widgetContainer = dom.append(root, dom.$('.new-chat-widget-container.revealed'));
-	const content = dom.append(widgetContainer, dom.$('.new-chat-widget-content'));
+	const content = dom.append(widgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+
+	// The sub-session tip, docked above the composer. The composer is a stack of
+	// its own, so this covers a notice reaching through a nested stack to square
+	// the input inside it.
+	if (subSessionTip) {
+		const tipSlot = dom.append(content, dom.$(`.sub-session-tip-container.${chatInputStackSlotClass}`));
+		const tip = disposableStore.add(new ChatInputNoticeWidget({
+			container: tipSlot,
+			variant: ChatInputNoticeVariant.Tip,
+			ariaLabel: 'Sub-session tip',
+		}));
+		dom.append(tip.domNode, dom.$('span.sub-session-tip-text')).textContent =
+			'Start a parallel conversation to build on all the changes made in this session.';
+		setChatInputStackSlot(tipSlot, ChatInputStackSlot.Docked);
+	}
 
 	const session = observableValue<IActiveSession | undefined>('session', undefined);
 	const widget = disposableStore.add(instantiationService.createInstance(NewChatInputWidget, {
 		session,
 		getContextFolderUri: () => undefined,
-		sendRequest: async () => { },
+		sendRequest: async () => true,
 		canSendRequest: observableValue('canSendRequest', true),
 		loading: observableValue('loading', false),
 	}));
@@ -160,4 +202,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
 	SlashCommand: defineComponentFixture({ render: context => renderNewChatInput(context, { value: '/models' }) }),
 	// A `#file:` reference is highlighted via `.sessions-variable-reference`.
 	VariableReference: defineComponentFixture({ render: context => renderNewChatInput(context, { value: 'Explain #file:src/app.ts to me' }) }),
+	// The sub-session tip docked above the composer: a notice in the outer stack
+	// squaring the input inside the composer's own nested stack.
+	WithSubSessionTip: defineComponentFixture({
+		render: context => renderNewChatInput(context, { value: 'What are you building?', subSessionTip: true })
+	}),
 });

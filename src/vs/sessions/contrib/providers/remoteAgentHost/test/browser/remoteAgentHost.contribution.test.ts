@@ -6,10 +6,159 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
+import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { disconnectSSHEntry, shouldPauseSSHReconnectAfterFailure, sshConnectionKey, SSHReconnectState } from '../../browser/remoteAgentHost.contribution.js';
+import { SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
+import { categorizeSSHConnectError } from '../../../../../common/sessionsTelemetry.js';
+import { disconnectSSHEntry, RemoteAgentHostContribution, shouldPauseSSHReconnectAfterFailure, sshConnectionKey, SSHReconnectState } from '../../browser/remoteAgentHost.contribution.js';
+
+interface IRemoteAuthNotificationHarness {
+	_connections: Map<string, { readonly authTokenCache: AgentHostAuthTokenCache; readonly authRecovery: AgentHostAuthenticationRecovery }>;
+	_sessionsProvidersService: { getProvider(): undefined };
+	_instantiationService: TestInstantiationService;
+	_connectionCustomizations: { get(address: string): { readonly authenticate?: (request: { readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }) => Promise<{ readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }> } | undefined };
+	_logService: NullLogService;
+	_handleAuthenticationRequiredNotification(address: string, connection: Pick<IAgentConnection, 'authenticate'>, notification: INotification): void;
+}
+
+suite('RemoteAgentHost auth notifications', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resends the current token for an expired notification resource that is not advertised by root agents', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, {
+			getOrActivateProviderIdForServer: async () => 'test-provider',
+			getSessions: async () => [{
+				id: 'session-id',
+				account: { id: 'account-id', label: 'Test Account' },
+				scopes: ['session:read'],
+				accessToken: 'session-token',
+			}],
+		});
+		const logService = new NullLogService();
+		instantiationService.stub(ILogService, logService);
+		const authenticateCalls: Array<{ readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }> = [];
+		const connection = {
+			authenticate: async (params: { readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }) => {
+				authenticateCalls.push(params);
+				return { authenticated: true };
+			},
+		};
+		const address = 'test-host';
+		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
+		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }]]);
+		contribution._sessionsProvidersService = { getProvider: () => undefined };
+		contribution._instantiationService = instantiationService;
+		contribution._connectionCustomizations = { get: () => undefined };
+		contribution._logService = logService;
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com/session',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['session:read'],
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource,
+			reason: AuthRequiredReason.Expired,
+		};
+
+		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
+		await timeout(0);
+
+		assert.deepStrictEqual(authenticateCalls, [{
+			resource: 'https://api.example.com/session',
+			scopes: ['session:read'],
+			token: 'session-token',
+		}]);
+	});
+
+	test('reauthenticates each host independently with the same current token', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, {
+			getOrActivateProviderIdForServer: async () => 'test-provider',
+			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		const calls: string[] = [];
+		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
+		contribution._connections = new Map([
+			['host-one', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }],
+			['host-two', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }],
+		]);
+		contribution._sessionsProvidersService = { getProvider: () => undefined };
+		contribution._instantiationService = instantiationService;
+		contribution._connectionCustomizations = { get: () => undefined };
+		contribution._logService = new NullLogService();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com/session',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['session:read'],
+		};
+		const notification: INotification = { type: NotificationType.AuthRequired, channel: 'ahp-root://', resource, reason: AuthRequiredReason.Required };
+
+		contribution._handleAuthenticationRequiredNotification('host-one', { authenticate: async request => { calls.push(`one:${request.token}`); return { authenticated: true }; } }, notification);
+		contribution._handleAuthenticationRequiredNotification('host-two', { authenticate: async request => { calls.push(`two:${request.token}`); return { authenticated: true }; } }, notification);
+		await timeout(0);
+
+		assert.deepStrictEqual(calls, ['one:session-token', 'two:session-token']);
+	});
+
+	test('prompts on a second completed same-token challenge and creates a fresh transformed envelope', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, {
+			getOrActivateProviderIdForServer: async () => 'test-provider',
+			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		let promptCount = 0;
+		instantiationService.stub(ICommandService, {
+			executeCommand: async <R>() => {
+				promptCount++;
+				return { success: true } as R;
+			},
+		});
+		const envelopes: string[] = [];
+		let envelopeNumber = 0;
+		const address = 'sealed-host';
+		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
+		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }]]);
+		contribution._sessionsProvidersService = { getProvider: () => undefined };
+		contribution._instantiationService = instantiationService;
+		contribution._connectionCustomizations = {
+			get: () => ({
+				authenticate: async request => ({ ...request, token: `${request.token}:sealed-${++envelopeNumber}` }),
+			}),
+		};
+		contribution._logService = new NullLogService();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com/session',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['session:read'],
+		};
+		const notification: INotification = { type: NotificationType.AuthRequired, channel: 'ahp-root://', resource, reason: AuthRequiredReason.Expired };
+		const connection: Pick<IAgentConnection, 'authenticate'> = { authenticate: async request => { envelopes.push(request.token); return { authenticated: true }; } };
+
+		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
+		await timeout(0);
+		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
+		await timeout(0);
+
+		assert.deepStrictEqual({ envelopes, promptCount }, {
+			envelopes: ['session-token:sealed-1', 'session-token:sealed-2'],
+			promptCount: 1,
+		});
+	});
+});
 
 suite('SSHReconnectState', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -89,15 +238,61 @@ suite('SSHReconnectState', () => {
 			let fired = 0;
 			state.attempts = 7;
 			state.paused = true;
+			state.requiresUserInitiatedResume = true;
 			state.scheduleRetry(1000, () => fired++);
 
 			state.resetForResume();
-			assert.strictEqual(state.attempts, 0);
-			assert.strictEqual(state.paused, false);
-			assert.strictEqual(state.hasPendingTimer, false);
+			assert.deepStrictEqual({
+				attempts: state.attempts,
+				paused: state.paused,
+				requiresUserInitiatedResume: state.requiresUserInitiatedResume,
+				hasPendingTimer: state.hasPendingTimer,
+			}, {
+				attempts: 0,
+				paused: false,
+				requiresUserInitiatedResume: false,
+				hasPendingTimer: false,
+			});
 
 			await timeout(2000);
 			assert.strictEqual(fired, 0, 'pending retry must be cancelled by resetForResume');
+		});
+	});
+
+	test('host key denial requires an explicit resume', () => {
+		const state = store.add(new SSHReconnectState());
+		state.attempts = 1;
+		state.paused = true;
+		state.requiresUserInitiatedResume = true;
+
+		const automaticResume = state.resumeAutomatically();
+		const afterAutomaticResume = {
+			attempts: state.attempts,
+			paused: state.paused,
+			requiresUserInitiatedResume: state.requiresUserInitiatedResume,
+		};
+		state.resetForResume();
+
+		assert.deepStrictEqual({
+			automaticResume,
+			afterAutomaticResume,
+			afterExplicitResume: {
+				attempts: state.attempts,
+				paused: state.paused,
+				requiresUserInitiatedResume: state.requiresUserInitiatedResume,
+			},
+		}, {
+			automaticResume: false,
+			afterAutomaticResume: {
+				attempts: 1,
+				paused: true,
+				requiresUserInitiatedResume: true,
+			},
+			afterExplicitResume: {
+				attempts: 0,
+				paused: false,
+				requiresUserInitiatedResume: false,
+			},
 		});
 	});
 });
@@ -105,13 +300,35 @@ suite('SSHReconnectState', () => {
 suite('shouldPauseSSHReconnectAfterFailure', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('pauses reconnect after cancellation but not after regular failures', () => {
+	test('pauses reconnect after cancellation or host key denial but not after regular failures', () => {
 		assert.deepStrictEqual({
 			cancellation: shouldPauseSSHReconnectAfterFailure(new CancellationError()),
+			hostKeyDenial: shouldPauseSSHReconnectAfterFailure(new SSHHostKeyDeniedError('test-host')),
 			regularError: shouldPauseSSHReconnectAfterFailure(new Error('boom')),
 		}, {
 			cancellation: true,
+			hostKeyDenial: true,
 			regularError: false,
+		});
+	});
+});
+
+suite('categorizeSSHConnectError', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns bounded categories without logging error messages', () => {
+		assert.deepStrictEqual({
+			cancellation: categorizeSSHConnectError(new CancellationError()),
+			hostKeyDenial: categorizeSSHConnectError(new SSHHostKeyDeniedError('test-host')),
+			authentication: categorizeSSHConnectError(new Error('All configured authentication methods failed')),
+			network: categorizeSSHConnectError(new Error('connect ETIMEDOUT')),
+			other: categorizeSSHConnectError(new Error('remote setup failed')),
+		}, {
+			cancellation: 'cancelled',
+			hostKeyDenial: 'hostKeyDenied',
+			authentication: 'authentication',
+			network: 'network',
+			other: 'other',
 		});
 	});
 });

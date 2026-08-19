@@ -82,12 +82,13 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 	let istream: WriteStream;
 
-	token.onCancellationRequested(() => {
+	const listener = token.onCancellationRequested(() => {
 		istream?.destroy();
 	});
 
 	return Promise.resolve(promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {
 		if (token.isCancellationRequested) {
+			c();
 			return;
 		}
 
@@ -100,7 +101,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 		} catch (error) {
 			e(error);
 		}
-	}));
+	})).finally(() => listener.dispose());
 }
 
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
@@ -198,6 +199,49 @@ export interface IFile {
 	 * still produces a valid entry.
 	 */
 	localPathSize?: number;
+}
+
+export interface IZipValidationOptions {
+	readonly maxEntries: number;
+	readonly maxUncompressedSize: number;
+}
+
+export async function validateZip(zipPath: string, options: IZipValidationOptions): Promise<void> {
+	const zipfile = await openZip(zipPath, true);
+	return new Promise<void>((resolve, reject) => {
+		let entries = 0;
+		let uncompressedSize = 0;
+		let settled = false;
+		const fail = (error: Error) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			zipfile.close();
+			reject(error);
+		};
+		zipfile.once('error', error => fail(toExtractError(error)));
+		zipfile.once('end', () => {
+			if (!settled) {
+				settled = true;
+				resolve();
+			}
+		});
+		zipfile.on('entry', (entry: Entry) => {
+			entries++;
+			uncompressedSize += entry.uncompressedSize;
+			if (entries > options.maxEntries) {
+				fail(new Error(`ZIP contains too many entries (${entries}; limit ${options.maxEntries})`));
+				return;
+			}
+			if (uncompressedSize > options.maxUncompressedSize) {
+				fail(new Error(`ZIP expands beyond the allowed size (${uncompressedSize} bytes; limit ${options.maxUncompressedSize} bytes)`));
+				return;
+			}
+			zipfile.readEntry();
+		});
+		zipfile.readEntry();
+	});
 }
 
 export async function zip(zipPath: string, files: IFile[]): Promise<string> {

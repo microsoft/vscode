@@ -8,13 +8,20 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as vscodetest from '@vscode/test-electron';
+import * as sqlite3 from '@vscode/sqlite3';
+import type { Page } from '@playwright/test';
 import { createApp, retry, parseVersion } from './utils';
 import { opts } from './options';
+
+export type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
+
+type ApplicationLaunchOptions = { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] };
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 const logsRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'logs');
 const crashesRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'crashes');
 const videoRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'videos');
+const sourceVersion = (JSON.parse(fs.readFileSync(path.join(rootPath, 'package.json'), 'utf8')) as { version: string }).version;
 
 const logger = createLogger();
 
@@ -139,6 +146,10 @@ else {
 
 logger.log(`VS Code product quality: ${quality}.`);
 
+export function getProductVersion(): string {
+	return version ?? sourceVersion;
+}
+
 async function ensureStableCode(): Promise<void> {
 	let stableCodePath = opts['stable-build'];
 	if (!stableCodePath) {
@@ -226,7 +237,13 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
-export async function getApplication({ recordVideo, workspacePath }: { recordVideo?: boolean; workspacePath?: string } = {}) {
+export async function getApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] } = {}) {
+	if (opts.web && extraArgs?.length) {
+		throw new Error('Per-run extraArgs are not supported by the web automation launcher.');
+	}
+	if (extraArgs?.some(arg => arg === '--user-data-dir' || arg.startsWith('--user-data-dir='))) {
+		throw new Error('Per-run extraArgs cannot override the isolated user data directory.');
+	}
 	const testCodePath = getDevElectronPath();
 	const electronPath = testCodePath;
 	if (!fs.existsSync(electronPath || '')) {
@@ -244,6 +261,8 @@ export async function getApplication({ recordVideo, workspacePath }: { recordVid
 		codePath: opts.build,
 		// Use provided workspace path, or fall back to rootPath on CI (GitHub Actions)
 		workspacePath: workspacePath ?? (process.env.GITHUB_ACTIONS ? rootPath : undefined),
+		userDataDir: path.join(testDataPath, 'd'),
+		useInMemorySecretStorage: true,
 		logger,
 		logsPath: logsRootPath,
 		crashesPath: crashesRootPath,
@@ -254,19 +273,94 @@ export async function getApplication({ recordVideo, workspacePath }: { recordVid
 		tracing: true,
 		headless: opts.headless,
 		browser: opts.browser,
-		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
+		extraArgs: [
+			...(opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
+			...(extraArgs ?? [])
+		],
 		extensionDevelopmentPath: opts.extensionDevelopmentPath,
 	});
-	await application.start();
-	application.code.driver.currentPage.on('close', async () => {
-		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
+	try {
+		await preseedUserData(application.userDataPath, userSettings, !!opts.web);
+		await application.start();
+		return application;
+	} catch (error) {
+		try {
+			await application.stop();
+		} catch {
+			// Preserve the startup error.
+		}
+		await removeProfileData(application.userDataPath);
+		throw error;
+	}
+}
+
+async function removeProfileData(userDataPath: string | undefined): Promise<void> {
+	if (!userDataPath) {
+		return;
+	}
+	for (const profilePath of [userDataPath, `${userDataPath}-server`]) {
+		try {
+			await fs.promises.rm(profilePath, { recursive: true, force: true, maxRetries: 10 });
+		} catch (error) {
+			logger.log(`Failed to remove test profile '${profilePath}': ${error}`);
+		}
+	}
+}
+
+async function preseedUserData(userDataDir: string | undefined, userSettings: Record<string, JSONValue> | undefined, web: boolean): Promise<void> {
+	if (!userDataDir) {
+		throw new Error('Cannot pre-seed the MCP test profile without a user data directory.');
+	}
+
+	const userDir = path.join(userDataDir, ...(web ? ['data', 'User'] : ['User']));
+	fs.mkdirSync(userDir, { recursive: true });
+	if (userSettings) {
+		fs.writeFileSync(path.join(userDir, 'settings.json'), JSON.stringify(userSettings, undefined, 2));
+	}
+
+	const globalStorageDir = path.join(userDir, 'globalStorage');
+	fs.mkdirSync(globalStorageDir, { recursive: true });
+	const database = await new Promise<sqlite3.Database>((resolve, reject) => {
+		const instance = new sqlite3.Database(path.join(globalStorageDir, 'state.vscdb'), error => error ? reject(error) : resolve(instance));
 	});
-	return application;
+	try {
+		await new Promise<void>((resolve, reject) => database.exec([
+			'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);',
+			'INSERT INTO ItemTable (key, value) VALUES (\'builtinChatExtensionEnablementMigration\', \'true\');',
+		].join(' '), error => error ? reject(error) : resolve()));
+	} finally {
+		await new Promise<void>((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
+	}
+}
+
+function launchOptionsEqual(first: ApplicationLaunchOptions, second: ApplicationLaunchOptions): boolean {
+	return !!first.recordVideo === !!second.recordVideo
+		&& first.workspacePath === second.workspacePath
+		&& jsonValueEqual(first.userSettings, second.userSettings)
+		&& jsonValueEqual(first.extraArgs, second.extraArgs);
+}
+
+function jsonValueEqual(first: JSONValue | Record<string, JSONValue> | undefined, second: JSONValue | Record<string, JSONValue> | undefined): boolean {
+	if (first === second) {
+		return true;
+	}
+	if (first === undefined || second === undefined || first === null || second === null || typeof first !== 'object' || typeof second !== 'object') {
+		return false;
+	}
+	if (Array.isArray(first) || Array.isArray(second)) {
+		return Array.isArray(first) && Array.isArray(second) && first.length === second.length && first.every((value, index) => jsonValueEqual(value, second[index]));
+	}
+	const firstKeys = Object.keys(first);
+	const secondKeys = Object.keys(second);
+	return firstKeys.length === secondKeys.length && firstKeys.every(key => Object.prototype.hasOwnProperty.call(second, key) && jsonValueEqual(first[key], second[key]));
 }
 
 export class ApplicationService {
 	private _application: Application | undefined;
+	private _creating: { options: ApplicationLaunchOptions; promise: Promise<Application> } | undefined;
 	private _closing: Promise<void> | undefined;
+	private _profileCleanup: Promise<void> | undefined;
+	private readonly _profileCleanupDelays = new Set<Promise<void>>();
 	private _listeners: ((app: Application | undefined) => Promise<void> | void)[] = [];
 
 	onApplicationChange(listener: (app: Application | undefined) => Promise<void> | void): void {
@@ -284,25 +378,173 @@ export class ApplicationService {
 		return this._application;
 	}
 
-	async getOrCreateApplication({ recordVideo, workspacePath }: { recordVideo?: boolean; workspacePath?: string } = {}): Promise<Application> {
+	deferProfileCleanup(until: Promise<void>): void {
+		this._profileCleanupDelays.add(until);
+		void until.finally(() => this._profileCleanupDelays.delete(until));
+	}
+
+	async waitForProfileCleanup(): Promise<void> {
+		await this._profileCleanup;
+	}
+
+	async getOrCreateApplication(options: ApplicationLaunchOptions = {}): Promise<Application> {
+		if (this._creating) {
+			if (!launchOptionsEqual(this._creating.options, options)) {
+				throw new Error('An application launch is already in progress with different launch options.');
+			}
+			return this._creating.promise;
+		}
+		if (this._application) {
+			return this._application;
+		}
+
+		const creating = (async () => {
+			if (this._closing) {
+				await this._closing;
+			}
+			if (this._profileCleanup) {
+				await this._profileCleanup;
+			}
+			if (this._application) {
+				return this._application;
+			}
+
+			this._application = await getApplication(options);
+			const application = this._application;
+			const observedPages = new Set<Page>();
+			const observePage = (page: Page) => {
+				if (observedPages.has(page)) {
+					return;
+				}
+				observedPages.add(page);
+				page.once('close', () => void this._handlePageClose(application).catch(error => logger.log(`Failed to handle page close: ${error}`)));
+			};
+			for (const page of application.code.driver.getAllWindows()) {
+				observePage(page);
+			}
+			application.code.driver.browserContext.on('page', observePage);
+			await this._runAllListeners();
+			return application;
+		})();
+		this._creating = { options, promise: creating };
+		try {
+			return await creating;
+		} finally {
+			if (this._creating?.promise === creating) {
+				this._creating = undefined;
+			}
+		}
+	}
+
+	async getApplicationIfRunning(): Promise<Application | undefined> {
 		if (this._closing) {
 			await this._closing;
 		}
 		if (!this._application) {
-			this._application = await getApplication({ recordVideo, workspacePath });
-			this._application.code.driver.currentPage.on('close', () => {
-				this._closing = (async () => {
-					if (this._application) {
-						this._application.code.driver.browserContext.removeAllListeners();
-						await this._application.stop();
+			return undefined;
+		}
+		try {
+			const driver = this._application.code.driver;
+			const openWindowIndex = driver.getAllWindows().findIndex(page => !page.isClosed());
+			if (openWindowIndex < 0) {
+				return undefined;
+			}
+			if (driver.currentPage.isClosed()) {
+				driver.switchToWindow(openWindowIndex);
+			}
+			return this._application;
+		} catch {
+			return undefined;
+		}
+	}
+
+	async stopApplication(application?: Application): Promise<void> {
+		if (application) {
+			if (this._application === application) {
+				await this._closeApplication(application);
+			} else if (this._closing) {
+				await this._closing;
+			}
+			return;
+		}
+		if (this._creating) {
+			try {
+				await this._creating.promise;
+			} catch {
+				return;
+			}
+		}
+		if (this._application) {
+			await this._closeApplication(this._application);
+		} else if (this._closing) {
+			await this._closing;
+		}
+	}
+
+	private async _handlePageClose(application: Application): Promise<void> {
+		if (this._application !== application) {
+			return;
+		}
+		try {
+			const driver = application.code.driver;
+			const openWindowIndex = driver.getAllWindows().findIndex(page => !page.isClosed());
+			if (openWindowIndex >= 0) {
+				if (driver.currentPage.isClosed()) {
+					driver.switchToWindow(openWindowIndex);
+				}
+				return;
+			}
+		} catch {
+			// Fall through to closing the application.
+		}
+		await this._closeApplication(application);
+	}
+
+	private async _closeApplication(application: Application): Promise<void> {
+		if (this._application !== application) {
+			await this._closing;
+			return;
+		}
+		if (!this._closing) {
+			const closing = (async () => {
+				try {
+					application.code.driver.browserContext.removeAllListeners();
+					await application.stop();
+				} finally {
+					if (this._application === application) {
 						this._application = undefined;
 						await this._runAllListeners();
+						this._scheduleProfileCleanup(application.userDataPath);
 					}
-				})();
-			});
-			await this._runAllListeners();
+				}
+			})();
+			this._closing = closing;
+			try {
+				await closing;
+			} finally {
+				if (this._closing === closing) {
+					this._closing = undefined;
+				}
+			}
+		} else {
+			await this._closing;
 		}
-		return this._application;
+	}
+
+	private _scheduleProfileCleanup(userDataPath: string | undefined): void {
+		const previousCleanup = this._profileCleanup ?? Promise.resolve();
+		const cleanupDelays = [...this._profileCleanupDelays];
+		const cleanup = (async () => {
+			await previousCleanup;
+			await Promise.all(cleanupDelays);
+			await removeProfileData(userDataPath);
+		})();
+		this._profileCleanup = cleanup;
+		void cleanup.finally(() => {
+			if (this._profileCleanup === cleanup) {
+				this._profileCleanup = undefined;
+			}
+		});
 	}
 
 	private async _runAllListeners() {

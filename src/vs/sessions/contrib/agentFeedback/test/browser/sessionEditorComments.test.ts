@@ -122,12 +122,20 @@ suite('SessionEditorComments', () => {
 	});
 
 	test('excludes resolved feedback from the editor comments', () => {
-		const comments = getSessionEditorComments(session, [
+		const feedback = [
 			{ id: 'feedback-accepted', text: 'accepted', resourceUri: fileA, range: new Range(2, 1, 2, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
 			{ id: 'feedback-resolved', text: 'resolved', resourceUri: fileA, range: new Range(4, 1, 4, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Resolved },
-		]);
+		];
+		const comments = getSessionEditorComments(session, feedback);
+		const commentsWithResolvedVisible = getSessionEditorComments(session, feedback, undefined, new Set(['feedback-resolved']));
 
-		assert.deepStrictEqual(comments.map(comment => comment.sourceId), ['feedback-accepted']);
+		assert.deepStrictEqual({
+			hidden: comments.map(comment => comment.sourceId),
+			visible: commentsWithResolvedVisible.map(comment => comment.sourceId),
+		}, {
+			hidden: ['feedback-accepted'],
+			visible: ['feedback-accepted', 'feedback-resolved'],
+		});
 	});
 
 	test('hides a created PR-review mirror and shows the raw PR comment instead', () => {

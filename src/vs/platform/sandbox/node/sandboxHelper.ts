@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { execFile } from 'child_process';
+import { readFile } from 'fs/promises';
 import { getCaseInsensitive } from '../../../base/common/objects.js';
 import { win32 } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
@@ -14,6 +15,7 @@ import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig
 type FindCommand = (command: string) => Promise<string | undefined>;
 type BubblewrapProbe = (command: string) => Promise<{ usable: boolean; error?: string }>;
 type ResolveLinuxInstallEnvironment = () => Promise<{ distributionIds: readonly string[]; isRoot: boolean }>;
+type ResolveAppArmorRestriction = () => Promise<boolean | undefined>;
 
 const linuxDependencyInstallCommands: readonly { distributionIds: readonly string[]; commands: readonly [executable: string, command: string][] }[] = [
 	{ distributionIds: ['debian', 'ubuntu', 'linuxmint', 'pop', 'elementary', 'kali', 'raspbian'], commands: [['apt-get', 'apt-get update && apt-get install -y'], ['apt', 'apt update && apt install -y']] },
@@ -26,7 +28,7 @@ const linuxDependencyInstallCommands: readonly { distributionIds: readonly strin
 export class SandboxHelperService implements ISandboxHelperService {
 	declare readonly _serviceBrand: undefined;
 
-	static async checkSandboxDependenciesWith(findCommand: FindCommand, linux: boolean = isLinux, probeBubblewrap: BubblewrapProbe = command => SandboxHelperService._probeBubblewrap(command), resolveInstallEnvironment: ResolveLinuxInstallEnvironment = () => SandboxHelperService._resolveLinuxInstallEnvironment()): Promise<ISandboxDependencyStatus | undefined> {
+	static async checkSandboxDependenciesWith(findCommand: FindCommand, linux: boolean = isLinux, probeBubblewrap: BubblewrapProbe = command => SandboxHelperService._probeBubblewrap(command), resolveInstallEnvironment: ResolveLinuxInstallEnvironment = () => SandboxHelperService._resolveLinuxInstallEnvironment(), resolveAppArmorRestriction: ResolveAppArmorRestriction = () => SandboxHelperService._resolveAppArmorRestriction()): Promise<ISandboxDependencyStatus | undefined> {
 		if (!linux) {
 			return undefined;
 		}
@@ -36,9 +38,12 @@ export class SandboxHelperService implements ISandboxHelperService {
 			findCommand('socat'),
 		]);
 		const bubblewrapProbe = bubblewrapPath ? await probeBubblewrap(bubblewrapPath) : { usable: false };
-		const dependencyInstallCommand = !bubblewrapPath || !socatPath
-			? await SandboxHelperService._findDependencyInstallCommand(findCommand, resolveInstallEnvironment)
-			: undefined;
+		const [dependencyInstallCommand, apparmorRestrictsUnprivilegedUserNamespaces] = await Promise.all([
+			!bubblewrapPath || !socatPath
+				? SandboxHelperService._findDependencyInstallCommand(findCommand, resolveInstallEnvironment)
+				: undefined,
+			bubblewrapPath && !bubblewrapProbe.usable ? resolveAppArmorRestriction() : undefined,
+		]);
 
 		return {
 			bubblewrapInstalled: !!bubblewrapPath,
@@ -46,7 +51,13 @@ export class SandboxHelperService implements ISandboxHelperService {
 			bubblewrapError: bubblewrapProbe.error,
 			socatInstalled: !!socatPath,
 			dependencyInstallCommand,
+			...(apparmorRestrictsUnprivilegedUserNamespaces === undefined ? undefined : { apparmorRestrictsUnprivilegedUserNamespaces }),
 		};
+	}
+
+	private static async _resolveAppArmorRestriction(): Promise<boolean | undefined> {
+		const apparmorRestriction = await readFile('/proc/sys/kernel/apparmor_restrict_unprivileged_userns', 'utf8').catch(() => undefined);
+		return apparmorRestriction === undefined ? undefined : apparmorRestriction.trim() === '1';
 	}
 
 	private static async _findDependencyInstallCommand(findCommand: FindCommand, resolveInstallEnvironment: ResolveLinuxInstallEnvironment): Promise<string | undefined> {

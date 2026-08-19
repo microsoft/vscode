@@ -8,6 +8,7 @@ import { ApplicationService } from './application';
 import { applyAllTools } from './automationTools/index.js';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { z } from 'zod';
+import { applyEvidenceStartTool, applyEvidenceTools, EvidenceService } from './evidence.js';
 
 export async function getServer(appService: ApplicationService): Promise<Server> {
 	const server = new McpServer({
@@ -15,6 +16,7 @@ export async function getServer(appService: ApplicationService): Promise<Server>
 		version: '1.0.0',
 		title: 'An MCP Server that can interact with a local build of VS Code. Used for verifying UI behavior.'
 	}, { capabilities: { logging: {} } });
+	const evidenceService = new EvidenceService(appService);
 
 	server.tool(
 		'vscode_automation_start',
@@ -34,6 +36,8 @@ export async function getServer(appService: ApplicationService): Promise<Server>
 			};
 		}
 	);
+	applyEvidenceStartTool(server, evidenceService);
+	applyEvidenceTools(server, evidenceService);
 
 	// Apply all VS Code automation tools using the modular structure
 	const registeredTools = applyAllTools(server, appService);

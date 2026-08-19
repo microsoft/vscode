@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEventPayload } from '@github/copilot-sdk';
+import type { SessionEventPayload, SystemNotification } from '@github/copilot-sdk';
 import { softAssertNever } from '../../../../base/common/assert.js';
 import { localize } from '../../../../nls.js';
 
@@ -16,7 +16,7 @@ export interface ICopilotSystemNotification {
 
 export function buildCopilotSystemNotification(event: SessionEventPayload<'system.notification'>): ICopilotSystemNotification | undefined {
 	const data = event.data;
-	const kind = data.kind;
+	const kind: SystemNotification = data.kind;
 	const content = cleanSystemNotificationContent(data.content);
 	if (!content) {
 		return undefined;
@@ -45,6 +45,17 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 				messageText: localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", kind.agentId),
 				startsTurn: true,
 			};
+		case 'factory_completed':
+			return {
+				messageText: kind.status === 'error'
+					? localize('agentHost.copilot.systemNotification.factoryFailed', "Factory {0} failed", kind.factoryName)
+					: kind.status === 'halted'
+						? localize('agentHost.copilot.systemNotification.factoryHalted', "Factory {0} was halted", kind.factoryName)
+						: kind.status === 'cancelled'
+							? localize('agentHost.copilot.systemNotification.factoryCancelled', "Factory {0} was cancelled", kind.factoryName)
+							: localize('agentHost.copilot.systemNotification.factoryCompleted', "Factory {0} completed", kind.factoryName),
+				startsTurn: true,
+			};
 		case 'new_inbox_message':
 			return {
 				messageText: localize('agentHost.copilot.systemNotification.newInboxMessage', "New inbox message from {0}", kind.senderName),
@@ -54,6 +65,13 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 			return {
 				messageText: localize('agentHost.copilot.systemNotification.instructionDiscovered', "Instruction discovered: {0}", kind.description ?? kind.sourcePath),
 				startsTurn: false,
+			};
+		case 'unclassified':
+			// External-host notifications that do not match a runtime-owned kind.
+			// Use the cleaned content and wake the agent when idle.
+			return {
+				messageText: content,
+				startsTurn: true,
 			};
 		default:
 			softAssertNever(kind);

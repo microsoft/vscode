@@ -23,6 +23,14 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 
+class RecordingLogService extends TestLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
+}
+
 function assertContentArray(content: MessageParam['content']): ContentBlockParam[] {
 	expect(Array.isArray(content)).toBe(true);
 	return content as ContentBlockParam[];
@@ -574,6 +582,116 @@ suite('rawMessagesToMessagesAPI', function () {
 			const result = rawMessagesToMessagesAPI(assistantWithThinking({ id: 't1', text: '', encrypted: 'blob123', redacted: true }));
 			const content = assertContentArray(result.messages[0].content);
 			expect(content[0]).toEqual({ type: 'redacted_thinking', data: 'blob123' });
+		});
+	});
+
+	suite('merging consecutive assistant messages', function () {
+		// #327646: merging rounds whose tool results were dropped used to splice several
+		// responses' signed thinking blocks into one assistant message, which the API
+		// rejects with "thinking or redacted_thinking blocks in the latest assistant
+		// message cannot be modified". Only one response's blocks may survive a merge.
+		function assistantRound(thinking: { text: string; encrypted: string; redacted?: boolean } | undefined, text: string, toolCallId?: string): Raw.ChatMessage {
+			return {
+				role: Raw.ChatRole.Assistant,
+				content: [
+					...(thinking ? [{ type: Raw.ChatCompletionContentPartKind.Opaque as const, value: { type: 'thinking', thinking: { id: thinking.encrypted, ...thinking } } }] : []),
+					{ type: Raw.ChatCompletionContentPartKind.Text, text },
+				],
+				...(toolCallId ? { toolCalls: [{ id: toolCallId, type: 'function' as const, function: { name: 'read_file', arguments: '{}' } }] } : {}),
+			};
+		}
+
+		test('drops all thinking when no merged round still owns a tool call', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'old reasoning', encrypted: 'sigOLD' }, 'round one'),
+				assistantRound({ text: 'new reasoning', encrypted: 'sigNEW' }, 'round two'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'text', text: 'round one' },
+					{ type: 'text', text: 'round two' },
+				],
+			}]);
+		});
+
+		test('drops redacted_thinking blocks along with regular ones', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: '', encrypted: 'blobOLD', redacted: true }, 'round one'),
+				assistantRound({ text: 'new', encrypted: 'sigNEW' }, 'round two'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'text', text: 'round one' },
+					{ type: 'text', text: 'round two' },
+				],
+			}]);
+		});
+
+		test('chains through three consecutive assistant messages', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'first', encrypted: 'sig1' }, 'a'),
+				assistantRound({ text: 'second', encrypted: 'sig2' }, 'b'),
+				assistantRound({ text: 'third', encrypted: 'sig3' }, 'c', 'toolu_c'),
+			]);
+			// Only the run belonging to the round that still owns a tool call survives.
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'third', signature: 'sig3' },
+					{ type: 'text', text: 'a' },
+					{ type: 'text', text: 'b' },
+					{ type: 'text', text: 'c' },
+					{ type: 'tool_use', id: 'toolu_c', name: 'read_file', input: {} },
+				],
+			}]);
+		});
+
+		test('keeps the thinking of the newest round that owns a tool call', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'old', encrypted: 'sigOLD' }, 'round one'),
+				assistantRound({ text: 'new', encrypted: 'sigNEW' }, 'round two', 'toolu_1'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'new', signature: 'sigNEW' },
+					{ type: 'text', text: 'round one' },
+					{ type: 'text', text: 'round two' },
+					{ type: 'tool_use', id: 'toolu_1', name: 'read_file', input: {} },
+				],
+			}]);
+		});
+
+		test('falls back to the earlier round when only it owns a tool call', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'old', encrypted: 'sigOLD' }, 'round one', 'toolu_1'),
+				assistantRound({ text: 'new', encrypted: 'sigNEW' }, 'round two'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'old', signature: 'sigOLD' },
+					{ type: 'text', text: 'round one' },
+					{ type: 'tool_use', id: 'toolu_1', name: 'read_file', input: {} },
+					{ type: 'text', text: 'round two' },
+				],
+			}]);
+		});
+
+		test('leaves consecutive user messages concatenated as-is', function () {
+			const result = rawMessagesToMessagesAPI([
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }] },
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'world' }] },
+			]);
+			expect(result.messages).toEqual([{
+				role: 'user',
+				content: [
+					{ type: 'text', text: 'hello' },
+					{ type: 'text', text: 'world' },
+				],
+			}]);
 		});
 	});
 });
@@ -1862,7 +1980,8 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		expect(results[0].message.content).toHaveLength(0);
 	});
 
-	test('maps refusal stop_reason to ClientDone', async () => {
+	test('maps refusal stop_reason to Refusal, keeping any text the model did produce', async () => {
+		const explanation = 'API integrators: configure a fallback model.\n</pre>';
 		const response = createNonStreamingResponse({
 			id: 'msg_refusal',
 			type: 'message',
@@ -1870,21 +1989,34 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 			content: [{ type: 'text', text: 'refused' }],
 			model: 'claude-sonnet-4-20250514',
 			stop_reason: 'refusal',
+			stop_details: { type: 'refusal', category: 'cyber', explanation },
 			usage: { input_tokens: 10, output_tokens: 5 },
 		});
 		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const deltas: IResponseDelta[] = [];
+		const logService = new RecordingLogService();
 		const completions = await processNonStreamingResponseFromMessagesEndpoint(
 			new NullTelemetryService(),
-			new TestLogService(),
+			logService,
 			response,
-			async () => undefined,
+			async (_text, _idx, delta) => { deltas.push(delta); return undefined; },
 			telemetryData,
 		);
 		const results = [];
 		for await (const c of completions) {
 			results.push(c);
 		}
-		expect(results[0].finishReason).toBe('DONE');
+		expect({
+			finishReason: results[0].finishReason,
+			content: results[0].message.content,
+			copilotErrors: deltas.flatMap(d => d.copilotErrors ?? []),
+			loggedExplanation: logService.warnings.some(message => message.includes(explanation)),
+		}).toEqual({
+			finishReason: 'refusal',
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'refused' }],
+			copilotErrors: [],
+			loggedExplanation: false,
+		});
 	});
 
 	test('reports tool calls through finishCallback delta', async () => {
@@ -1974,13 +2106,13 @@ suite('processResponseFromMessagesEndpoint routing', () => {
 });
 
 suite('AnthropicMessagesProcessor streaming cache_creation', () => {
-	function makeProcessor(): AnthropicMessagesProcessor {
+	function makeProcessor(logService: TestLogService = new TestLogService()): AnthropicMessagesProcessor {
 		return new AnthropicMessagesProcessor(
 			TelemetryData.createAndMarkAsIssued(),
 			'req-1',
 			'gh-req-1',
 			'',
-			new TestLogService(),
+			logService,
 			new NullTelemetryService(),
 		);
 	}
@@ -2160,5 +2292,48 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 		const completion = processor.push({ type: 'message_stop' }, noop);
 		expect(completion!.usage?.completion_tokens).toBe(2024);
 		expect(completion!.usage?.completion_tokens_details?.reasoning_tokens).toBe(639);
+	});
+
+	test('refusal stop_reason maps to Refusal even when it arrives alongside context management', () => {
+		const logService = new RecordingLogService();
+		const processor = makeProcessor(logService);
+		const deltas: IResponseDelta[] = [];
+		const capture: FinishedCallback = async (_text, _idx, delta) => { deltas.push(delta); return undefined; };
+		const explanation = 'API integrators: configure a fallback model.\n</pre>';
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_refusal_stream',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: { input_tokens: 5, output_tokens: 0 },
+			},
+		}, capture);
+
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'refusal', stop_details: { type: 'refusal', category: 'cyber', explanation } },
+			usage: { output_tokens: 0, input_tokens: 5 },
+			context_management: { applied_edits: [] },
+		}, capture);
+
+		const completion = processor.push({ type: 'message_stop' }, capture);
+
+		expect({
+			finishReason: completion!.finishReason,
+			contextManagement: deltas.find(d => d.contextManagement)?.contextManagement,
+			copilotErrors: deltas.flatMap(d => d.copilotErrors ?? []),
+			loggedExplanation: logService.warnings.some(message => message.includes(explanation)),
+		}).toEqual({
+			finishReason: 'refusal',
+			contextManagement: { applied_edits: [] },
+			copilotErrors: [],
+			loggedExplanation: false,
+		});
 	});
 });

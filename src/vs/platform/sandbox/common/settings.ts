@@ -18,15 +18,11 @@ export const enum AgentSandboxSettingId {
 	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
 	AgentSandboxWindowsSchemaVersion = 'chat.agent.sandbox.advanced.windows.schemaVersion',
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
-	DeprecatedAgentSandboxEnabled = 'chat.agent.sandbox',
-	DeprecatedAgentSandboxLinuxFileSystem = 'chat.agent.sandboxFileSystem.linux',
-	DeprecatedAgentSandboxMacFileSystem = 'chat.agent.sandboxFileSystem.mac',
 }
 
 export const enum AgentSandboxEnabledValue {
 	Off = 'off',
 	On = 'on',
-	AllowNetwork = 'allowNetwork',
 }
 
 export type AgentSandboxEnabledSettingValue = AgentSandboxEnabledValue | boolean;

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, reset } from '../../../base/browser/dom.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { IAction } from '../../../base/common/actions.js';
+import { isMacintosh } from '../../../base/common/platform.js';
 import { defaultButtonStyles } from '../../../platform/theme/browser/defaultStyles.js';
 
 /**
@@ -33,15 +34,36 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 
 		const button = this.button = this._register(new Button(container, { secondary: true, small: true, ...defaultButtonStyles }));
 		button.element.classList.add('monaco-text-button', 'chat-composite-bar-meta-item-button');
+		this._register(addDisposableListener(button.element.ownerDocument.body, EventType.MOUSE_DOWN, event => {
+			if (event.button === 0 && (!isMacintosh || !event.ctrlKey) && this.hasOpenDropdown() && button.element.contains(event.target as Node | null)) {
+				event.stopPropagation();
+			}
+		}));
 		this._register(button.onDidClick(() => {
 			if (this._action.enabled) {
-				this.actionRunner.run(this._action, this._context);
+				this.onDidClickButton();
 			}
 		}));
 
 		this.updateLabel();
 		this.updateEnabled();
 		this.updateTooltip();
+	}
+
+	/**
+	 * Whether this item currently owns an open dropdown.
+	 */
+	protected hasOpenDropdown(): boolean {
+		return false;
+	}
+
+	/**
+	 * Invoked when the pill is activated. Runs the action by default; subclasses can
+	 * override to present their own affordance (e.g. a picker when the pill stands
+	 * for several items).
+	 */
+	protected onDidClickButton(): void {
+		this.actionRunner.run(this._action, this._context);
 	}
 
 	override focus(): void {

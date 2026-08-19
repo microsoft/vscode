@@ -343,8 +343,8 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 		return {
 			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
 			picks: (async () => {
-				const picks: IChatContextPickerPickItem[] = [];
-				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude, AgentSessionProviders.AgentHostCopilot];
+				const picks: { pick: IChatContextPickerPickItem; lastActivity: number }[] = [];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
 				for await (const group of this._chatSessionsService.getChatSessionItems(sessionProviderFilter, CancellationToken.None)) {
 					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
 					for (const item of group.items) {
@@ -356,21 +356,25 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 							continue;
 						}
 						const icon = item.iconPath ?? providerIcon;
+						const lastActivity = item.timing.lastRequestEnded ?? item.timing.created;
 						picks.push({
-							label: item.label,
-							description: new Date(item.timing.lastRequestEnded ?? item.timing.created).toLocaleString(),
-							asAttachment: (): IChatRequestVariableEntry => ({
-								kind: 'sessionReference',
-								id: sessionResource.toString(),
-								name: item.label,
-								value: sessionResource,
-								icon,
-							})
+							lastActivity,
+							pick: {
+								label: item.label,
+								description: new Date(lastActivity).toLocaleString(),
+								asAttachment: (): IChatRequestVariableEntry => ({
+									kind: 'sessionReference',
+									id: sessionResource.toString(),
+									name: item.label,
+									value: sessionResource,
+									icon,
+								})
+							}
 						});
 					}
 				}
-				picks.sort((a, b) => (b.description ?? '').localeCompare(a.description ?? ''));
-				return picks;
+				picks.sort((a, b) => b.lastActivity - a.lastActivity);
+				return picks.map(({ pick }) => pick);
 			})()
 		};
 	}

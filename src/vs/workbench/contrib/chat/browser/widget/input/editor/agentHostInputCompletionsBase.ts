@@ -8,7 +8,7 @@ import { Disposable, IDisposable } from '../../../../../../../base/common/lifecy
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { CompletionItem, CompletionList } from '../../../../../../../editor/common/languages.js';
+import { CompletionItem, CompletionItemKind, CompletionList } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { LanguageFilter } from '../../../../../../../editor/common/languageSelector.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
@@ -79,10 +79,7 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 
 	private async _provide(model: ITextModel, position: Position, token: CancellationToken, triggerCharacters: readonly string[], regData: TRegData): Promise<CompletionList | null> {
 		// Only consult the agent host when the cursor sits inside a token
-		// led by one of the host-announced trigger characters. Without
-		// this gate Monaco re-invokes the provider on every keystroke
-		// (for filtering / incomplete-result refresh), which would
-		// produce an RPC round-trip per character.
+		// led by one of the host-announced trigger characters.
 		if (!isAtTriggerCharacterToken(model, position, triggerCharacters)) {
 			return null;
 		}
@@ -103,10 +100,14 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 		for (const item of result.items) {
 			const built = this._buildItem(position, item, ctx.context);
 			if (built) {
+				if (item.start && (built.kind === CompletionItemKind.File || built.kind === CompletionItemKind.Folder)) {
+					built.filterText = model.getValueInRange(Range.fromPositions(item.start, position));
+				}
+				built.sortText ??= suggestions.length.toString().padStart(6, '0');
 				suggestions.push(built);
 			}
 		}
-		return { suggestions };
+		return { suggestions, incomplete: true };
 	}
 
 	/**

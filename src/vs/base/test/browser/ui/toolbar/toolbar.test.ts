@@ -201,6 +201,151 @@ suite('ToolBar', () => {
 		assert.strictEqual(toolbar.getElement().querySelector('.monaco-action-bar')?.classList.contains('has-overflow'), true);
 	});
 
+	test('does not repeatedly restore an action below its required width', () => {
+		const widths = new Map<string, number>([
+			['primary.a', 56],
+			['primary.b', 48],
+		]);
+		const renderCounts = new Map<string, number>();
+		let availableWidth = 128;
+
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'last',
+				minItems: 1,
+				actionMinWidth: 48,
+				getAvailableWidth: () => availableWidth,
+			},
+			actionViewItemProvider: action => {
+				renderCounts.set(action.id, (renderCounts.get(action.id) ?? 0) + 1);
+				const width = widths.get(action.id);
+				return typeof width === 'number' ? new FixedWidthActionViewItem(action, width) : undefined;
+			}
+		}));
+		const primaryActions = [
+			store.add(new Action('primary.a', 'Primary A')),
+			store.add(new Action('primary.b', 'Primary B')),
+		];
+		const secondaryActions = [store.add(new Action('secondary', 'Secondary'))];
+		const getActionIds = () => Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
+
+		toolbar.setActions(primaryActions, secondaryActions);
+		const afterInitialLayout = getActionIds();
+		toolbar.relayout();
+		const afterRepeatedLayout = getActionIds();
+
+		availableWidth = 136;
+		toolbar.relayout();
+		const afterGrowing = getActionIds();
+
+		availableWidth = 128;
+		toolbar.relayout();
+		toolbar.relayout();
+		const afterShrinkingAgain = getActionIds();
+
+		assert.deepStrictEqual({
+			afterInitialLayout,
+			afterRepeatedLayout,
+			afterGrowing,
+			afterShrinkingAgain,
+			primaryBRenderCount: renderCounts.get('primary.b'),
+		}, {
+			afterInitialLayout: ['primary.a', ToggleMenuAction.ID],
+			afterRepeatedLayout: ['primary.a', ToggleMenuAction.ID],
+			afterGrowing: ['primary.a', 'primary.b', ToggleMenuAction.ID],
+			afterShrinkingAgain: ['primary.a', ToggleMenuAction.ID],
+			primaryBRenderCount: 2,
+		});
+	});
+
+	test('ignores the responsive minimum when measuring an action that will stop shrinking', () => {
+		const widths = new Map<string, number>([
+			['primary.a', 22],
+			['primary.b', 48],
+		]);
+		let availableWidth = 90;
+
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'last',
+				minItems: 1,
+				actionMinWidth: 48,
+				getAvailableWidth: () => availableWidth,
+			},
+			actionViewItemProvider: action => {
+				const width = widths.get(action.id);
+				return typeof width === 'number' ? new FixedWidthActionViewItem(action, width) : undefined;
+			}
+		}));
+		const primaryActions = [
+			store.add(new Action('primary.a', 'Primary A')),
+			store.add(new Action('primary.b', 'Primary B')),
+		];
+		const secondaryActions = [store.add(new Action('secondary', 'Secondary'))];
+		const getActionIds = () => Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
+
+		toolbar.setActions(primaryActions, secondaryActions);
+		const beforeGrowing = getActionIds();
+
+		availableWidth = 110;
+		toolbar.relayout();
+		const afterGrowing = getActionIds();
+
+		assert.deepStrictEqual({
+			beforeGrowing,
+			afterGrowing,
+		}, {
+			beforeGrowing: ['primary.a', ToggleMenuAction.ID],
+			afterGrowing: ['primary.a', 'primary.b', ToggleMenuAction.ID],
+		});
+	});
+
+	test('restores a hidden action after a visible action shrinks', () => {
+		const availableWidth = 128;
+
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'last',
+				minItems: 1,
+				actionMinWidth: 48,
+				getAvailableWidth: () => availableWidth,
+			},
+			actionViewItemProvider: action => {
+				switch (action.id) {
+					case 'primary.a': return new FixedWidthActionViewItem(action, 100);
+					case 'primary.b': return new FixedWidthActionViewItem(action, 48);
+					default: return undefined;
+				}
+			}
+		}));
+		const primaryActions = [
+			store.add(new Action('primary.a', 'Primary A')),
+			store.add(new Action('primary.b', 'Primary B')),
+		];
+		const secondaryActions = [store.add(new Action('secondary', 'Secondary'))];
+		const getActionIds = () => Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
+
+		toolbar.setActions(primaryActions, secondaryActions);
+		const beforeShrinking = getActionIds();
+
+		const primaryAItem = toolbar.getElement().querySelector<HTMLElement>('.action-item');
+		assert.ok(primaryAItem);
+		primaryAItem.style.width = '48px';
+		toolbar.relayout();
+		const afterShrinking = getActionIds();
+
+		assert.deepStrictEqual({
+			beforeShrinking,
+			afterShrinking,
+		}, {
+			beforeShrinking: ['primary.a', ToggleMenuAction.ID],
+			afterShrinking: ['primary.a', 'primary.b', ToggleMenuAction.ID],
+		});
+	});
+
 	test('uses getAvailableWidth override instead of the element width', () => {
 		const widths = new Map<string, number>([
 			['a', 50],

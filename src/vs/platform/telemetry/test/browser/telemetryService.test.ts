@@ -874,12 +874,13 @@ suite('TelemetryService', () => {
 
 	test('Telemetry Service checks with config service', function () {
 
-		let telemetryLevel = TelemetryConfiguration.OFF;
+		let telemetryLevel: string = TelemetryConfiguration.OFF;
 		const emitter = new Emitter<any>();
 
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({
-			appenders: [testAppender]
+			appenders: [testAppender],
+			sendErrorTelemetry: true,
 		}, new class extends TestConfigurationService {
 			override onDidChangeConfiguration = emitter.event;
 			override getValue<T>(): T {
@@ -896,6 +897,18 @@ suite('TelemetryService', () => {
 		telemetryLevel = TelemetryConfiguration.ERROR;
 		emitter.fire({ affectsConfiguration: () => true });
 		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
+
+		telemetryLevel = 'invalid';
+		emitter.fire({ affectsConfiguration: () => true });
+		service.publicLog('invalidTelemetryLevel');
+		service.publicLogError('invalidTelemetryLevelError');
+		assert.deepStrictEqual({
+			telemetryLevel: service.telemetryLevel,
+			eventCount: testAppender.getEventsCount(),
+		}, {
+			telemetryLevel: TelemetryLevel.NONE,
+			eventCount: 0,
+		});
 
 		service.dispose();
 	});

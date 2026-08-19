@@ -17,7 +17,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
@@ -768,6 +768,7 @@ export class AICustomizationListWidget extends Disposable {
 			{
 				identityProvider: {
 					getId: (entry: IListEntry) => entry.type === 'group-header' ? entry.id : entry.item.id,
+					getGroupId: (entry: IListEntry) => entry.type === 'group-header' ? NotSelectableGroupId : 0,
 				},
 				accessibilityProvider: {
 					getAriaLabel: (entry: IListEntry) => {
@@ -1549,7 +1550,8 @@ export class AICustomizationListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this.lastLayoutHeight = height;
 		this.lastLayoutWidth = width;
-		this.element.style.height = `${height}px`;
+		// Use the CSS-computed height within the padded parent.
+		this.element.style.height = '';
 		this.searchInput.layout();
 
 		// Measure sibling elements to calculate the remaining space for the list.
@@ -1571,7 +1573,8 @@ export class AICustomizationListWidget extends Disposable {
 		}
 		const headerHeight = this.sectionTitleHeader.offsetHeight;
 		this.lastHeaderHeight = headerHeight;
-		const listHeight = Math.max(0, height - searchBarHeight - headerHeight);
+		const availableHeight = this.element.clientHeight || height;
+		const listHeight = Math.max(0, availableHeight - searchBarHeight - headerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);

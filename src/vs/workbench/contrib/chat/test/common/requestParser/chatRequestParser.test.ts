@@ -7,6 +7,7 @@ import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -22,6 +23,7 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
+import { chatReferenceVariableEntryId, toChatReferenceDynamicVariableValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IToolData, ToolAndToolSetEnablementMap, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -102,6 +104,33 @@ suite('ChatRequestParser', () => {
 		});
 	});
 
+	test('multi-word #chat reference preserves its range through toVariableEntry', () => {
+		// The reference carries the opaque backend chat URI verbatim.
+		const chatResource = URI.parse('ahp-chat://chat-2/base64session');
+		const text = 'what did I ask about in #chat:circuit-breaker testing coverage summary ?';
+		const tokenStart = text.indexOf('#chat:');
+		const tokenEnd = tokenStart + '#chat:circuit-breaker testing coverage summary'.length;
+		variableService.setDynamicVariables(testSessionUri, [{
+			id: chatReferenceVariableEntryId(chatResource, 'turn-5'),
+			fullName: 'circuit-breaker testing coverage summary',
+			range: new Range(1, tokenStart + 1, 1, tokenEnd + 1),
+			data: toChatReferenceDynamicVariableValue(chatResource, 'turn-5'),
+		}]);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, text);
+		const part = result.parts.find((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart);
+		const entry = part?.toVariableEntry();
+
+		assert.deepStrictEqual({
+			kind: entry?.kind,
+			range: entry?.range && { start: entry.range.start, endExclusive: entry.range.endExclusive },
+		}, {
+			kind: 'chatReference',
+			range: { start: tokenStart, endExclusive: tokenEnd },
+		});
+	});
+
 	test('slash in text', async () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'can we add a new file for an Express router to handle the / route';
@@ -159,9 +188,22 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const text = '    /fix';
+		const text = '    /fix   keep indentation';
 		const result = parser.parseChatRequest(testSessionUri, text);
-		await assertSnapshot(result);
+		assert.deepStrictEqual({
+			parts: result.parts.map(part => ({
+				kind: part.kind,
+				range: part.range ? { start: part.range.start, endExclusive: part.range.endExclusive } : undefined,
+			})),
+			promptText: getPromptText(result),
+		}, {
+			parts: [
+				{ kind: 'text', range: { start: 0, endExclusive: 4 } },
+				{ kind: 'slash', range: { start: 4, endExclusive: 8 } },
+				{ kind: 'text', range: { start: 8, endExclusive: 27 } },
+			],
+			promptText: { message: '/fix   keep indentation', diff: 4 },
+		});
 	});
 
 	test('prompt slash command', async () => {

@@ -56,7 +56,7 @@ export type AutomationTarget =
  * A single scheduled automation. Identity is the immutable `id`; everything
  * else may be edited by the user.
  */
-export interface IAutomation {
+export interface IAutomationDescriptor {
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;
@@ -104,8 +104,8 @@ export interface IAutomationRun {
 	readonly status: AutomationRunStatus;
 	readonly trigger: AutomationRunTrigger;
 
-	/** Session resource URI (stringified), recorded as soon as the committed session is available. */
-	readonly sessionResource?: string;
+	/** Session resource URI, recorded as soon as the committed session is available. */
+	readonly sessionResource?: URI;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;

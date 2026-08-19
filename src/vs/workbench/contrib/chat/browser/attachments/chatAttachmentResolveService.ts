@@ -30,6 +30,7 @@ import { IBrowserViewVariableEntry, IChatRequestVariableEntry, OmittedState, IDi
 import { imageToHash } from '../widget/input/editor/chatPasteProviders.js';
 import { resizeImage } from '../chatImageUtils.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 
 export const IChatAttachmentResolveService = createDecorator<IChatAttachmentResolveService>('IChatAttachmentResolveService');
@@ -65,6 +66,14 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 	// --- EDITORS ---
 
 	public async resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
+		if (!(editor instanceof EditorInput) && editor.options?.override === BrowserEditorInput.EDITOR_ID) {
+			const browserEditor = [...this.browserViewService.getKnownBrowserViews().values()].find(candidate => candidate.matches(editor));
+			if (!browserEditor) {
+				return undefined;
+			}
+			editor = browserEditor;
+		}
+
 		// untitled editor
 		if (isUntitledResourceEditorInput(editor)) {
 			return await this.resolveUntitledEditorAttachContext(editor);

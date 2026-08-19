@@ -5,16 +5,18 @@
 
 import assert from 'assert';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
-import { ChatModelsViewModel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
+import { ChatModelsViewModel, getManageModelsProviderLabel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
 
 class MockLanguageModelsService implements ILanguageModelsService {
 	_serviceBrand: undefined;
@@ -23,6 +25,8 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	private models = new Map<string, ILanguageModelChatMetadata>();
 	private modelsByVendor = new Map<string, string[]>();
 	private modelGroups = new Map<string, ILanguageModelsGroup[]>();
+	private hiddenModelIds = new Set<string>();
+	readonly setModelsHiddenCalls: { readonly modelIdentifiers: readonly string[]; readonly hidden: boolean }[] = [];
 
 	private readonly _onDidChangeLanguageModels = new Emitter<string>();
 	readonly onDidChangeLanguageModels = this._onDidChangeLanguageModels.event;
@@ -38,7 +42,7 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		this.modelGroups.set(vendor.vendor, []);
 	}
 
-	addModel(vendorId: string, identifier: string, metadata: ILanguageModelChatMetadata): void {
+	addModel(vendorId: string, identifier: string, metadata: ILanguageModelChatMetadata, groupName?: string): void {
 		this.models.set(identifier, metadata);
 		const models = this.modelsByVendor.get(vendorId) || [];
 		models.push(identifier);
@@ -46,16 +50,18 @@ class MockLanguageModelsService implements ILanguageModelsService {
 
 		// Add to model groups - create a single default group per vendor
 		const groups = this.modelGroups.get(vendorId) || [];
-		if (groups.length === 0) {
-			groups.push({
+		let group = groupName ? groups.find(candidate => candidate.group?.name === groupName) : groups[0];
+		if (!group) {
+			group = {
 				group: {
 					vendor: vendorId,
-					name: this.vendors.find(v => v.vendor === vendorId)?.displayName || 'Default'
+					name: groupName ?? (this.vendors.find(v => v.vendor === vendorId)?.displayName || 'Default')
 				},
 				modelIdentifiers: []
-			});
+			};
+			groups.push(group);
 		}
-		groups[0].modelIdentifiers.push(identifier);
+		group.modelIdentifiers.push(identifier);
 		this.modelGroups.set(vendorId, groups);
 	}
 
@@ -170,11 +176,23 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	unpinModel(_modelIdentifier: string): void { }
 	isModelPinned(_modelIdentifier: string): boolean { return false; }
 	onDidChangePinnedModels = Event.None;
-	isModelHidden(_modelIdentifier: string): boolean { return false; }
+	isModelHidden(modelIdentifier: string): boolean { return this.hiddenModelIds.has(modelIdentifier); }
 	isGroupHidden(_vendor: string, _groupName: string): boolean { return false; }
-	setModelHidden(_modelIdentifier: string, _hidden: boolean): void { }
+	setModelHidden(modelIdentifier: string, hidden: boolean): void {
+		this.setModelsHidden([modelIdentifier], hidden);
+	}
+	setModelsHidden(modelIdentifiers: readonly string[], hidden: boolean): void {
+		this.setModelsHiddenCalls.push({ modelIdentifiers: [...modelIdentifiers], hidden });
+		for (const modelIdentifier of modelIdentifiers) {
+			if (hidden) {
+				this.hiddenModelIds.add(modelIdentifier);
+			} else {
+				this.hiddenModelIds.delete(modelIdentifier);
+			}
+		}
+	}
 	setGroupHidden(_vendor: string, _groupName: string, _hidden: boolean): void { }
-	getHiddenModelIds(): string[] { return []; }
+	getHiddenModelIds(): string[] { return [...this.hiddenModelIds]; }
 	onDidChangeModelVisibility = Event.None;
 	getModelsControlManifest(): IModelsControlManifest { return { free: {}, paid: {} }; }
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
@@ -186,6 +204,13 @@ suite('ChatModelsViewModel', () => {
 	let viewModel: ChatModelsViewModel;
 
 	setup(async () => {
+		store.add(languageModelSourcePresentationRegistry.register({
+			ownerVendor: 'codex',
+			sourceId: 'chatgptSubscription',
+			label: 'ChatGPT',
+			icon: Codicon.openai,
+			description: 'Models provided by your ChatGPT subscription',
+		}));
 		languageModelsService = new MockLanguageModelsService();
 
 		// Setup test data
@@ -301,6 +326,142 @@ suite('ChatModelsViewModel', () => {
 
 		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.strictEqual(models.length, 4);
+	});
+
+	test('distinguishes the ChatGPT subscription from a custom group with the same name', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'chatgpt', displayName: 'ChatGPT', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'custom', displayName: 'Custom', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addModel('codex', 'codex:gpt-5.6', {
+			extension: new ExtensionIdentifier('vscode.codex'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'codex',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' },
+		});
+		service.addModel('custom', 'custom:gpt-5.6', {
+			extension: new ExtensionIdentifier('example.custom'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'custom',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+		}, 'ChatGPT');
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const entries = model.filter('');
+		const groups = entries.filter(isLanguageModelProviderEntry).map(entry => ({
+			id: entry.id,
+			label: entry.label,
+			sourcePresentation: entry.sourcePresentation?.sourceId,
+		}));
+		const models = entries.filter(entry => !isLanguageModelProviderEntry(entry) && !isLanguageModelGroupEntry(entry)) as ILanguageModelEntry[];
+
+		assert.deepStrictEqual({
+			groups,
+			providerLabels: models.map(entry => getManageModelsProviderLabel(entry.model)),
+		}, {
+			groups: [
+				{ id: 'chatgpt-ChatGPT-chatgptSubscription', label: 'ChatGPT', sourcePresentation: 'chatgptSubscription' },
+				{ id: 'custom-ChatGPT-configured', label: 'ChatGPT', sourcePresentation: undefined },
+			],
+			providerLabels: ['ChatGPT', 'ChatGPT'],
+		});
+	});
+
+	test('shows the first-party ChatGPT subscription header even when it is the only group', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'chatgpt', displayName: 'ChatGPT', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addModel('codex', 'codex:gpt-5.6', {
+			extension: new ExtensionIdentifier('vscode.codex'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'codex',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' },
+		});
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+
+		assert.deepStrictEqual(model.filter('').map(entry => ({
+			type: entry.type,
+			label: isLanguageModelProviderEntry(entry) ? entry.label : undefined,
+			sourcePresentation: isLanguageModelProviderEntry(entry) ? entry.sourcePresentation?.sourceId : undefined,
+		})), [
+			{ type: 'vendor', label: 'ChatGPT', sourcePresentation: 'chatgptSubscription' },
+			{ type: 'model', label: undefined, sourcePresentation: undefined },
+		]);
+	});
+
+	test('trusted source presentations are scoped to their owner vendor', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'other', displayName: 'Other', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addModel('other', 'other:gpt-5.6', {
+			extension: new ExtensionIdentifier('example.other'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'other',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' },
+		});
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const entry = model.filter('').find(candidate => !isLanguageModelProviderEntry(candidate) && !isLanguageModelGroupEntry(candidate)) as ILanguageModelEntry;
+		assert.strictEqual(entry.model.provider.group.name, 'Chatgpt');
+		assert.strictEqual(entry.model.provider.sourcePresentation, undefined);
+	});
+
+	test('group visibility toggles only the exact models rendered in that source group', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'custom', displayName: 'Custom', managementCommand: undefined, when: undefined, configuration: undefined });
+		const metadata = {
+			extension: new ExtensionIdentifier('vscode.codex'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+		};
+		service.addModel('codex', 'codex:gpt-5.6', { ...metadata, vendor: 'codex', modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' } });
+		service.addModel('custom', 'custom:gpt-5.6', { ...metadata, extension: new ExtensionIdentifier('example.custom'), vendor: 'custom' }, 'ChatGPT');
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const subscriptionGroup = model.filter('').find(entry => isLanguageModelProviderEntry(entry) && entry.sourcePresentation !== undefined);
+		assert.ok(subscriptionGroup && isLanguageModelProviderEntry(subscriptionGroup));
+
+		model.toggleGroupHidden(subscriptionGroup);
+		assert.deepStrictEqual({
+			hiddenModelIds: service.getHiddenModelIds(),
+			setModelsHiddenCalls: service.setModelsHiddenCalls,
+		}, {
+			hiddenModelIds: ['codex:gpt-5.6'],
+			setModelsHiddenCalls: [{ modelIdentifiers: ['codex:gpt-5.6'], hidden: true }],
+		});
 	});
 
 	test('should filter by provider name (vendor ID and display name)', () => {

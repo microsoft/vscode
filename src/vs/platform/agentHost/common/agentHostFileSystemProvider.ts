@@ -24,7 +24,7 @@ import { ROOT_STATE_URI } from './state/sessionState.js';
  */
 export interface IRemoteFilesystemConnection {
 	resourceList(uri: URI): Promise<ResourceListResult>;
-	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
@@ -46,10 +46,8 @@ export interface IRemoteFilesystemConnection {
 	 * reports under the watched root. Disposing the handle unsubscribes
 	 * the watch (subject to the receiver's grace window).
 	 *
-	 * Optional: implementations that do not have access to the AHP
-	 * subscription machinery (e.g. raw IPC channels in
-	 * {@link createAgentHostClientResourceConnection}) omit it; the FS
-	 * provider degrades to a no-op `watch()` in that case.
+	 * Optional: implementations without subscription machinery omit it; the
+	 * filesystem provider degrades to a no-op `watch()` in that case.
 	 */
 	watchResource?(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle>;
 }
@@ -450,7 +448,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const connection = await this._getConnection(resource.authority);
 		try {
 			const originalUri = this._decodeUri(resource);
-			const result = await connection.resourceRead(originalUri);
+			const result = await connection.resourceRead(originalUri, ContentEncoding.Base64);
 			if (result.encoding === ContentEncoding.Base64) {
 				return decodeBase64(result.data).buffer;
 			}

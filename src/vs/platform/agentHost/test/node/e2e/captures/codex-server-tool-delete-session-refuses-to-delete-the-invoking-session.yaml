@@ -1,0 +1,41 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: You must call delete_session exactly once with session "codex:/${uuid_0}" so its safety check can reject the call. Do not refuse on your own. After the tool fails, reply exactly "refused".
+    response:
+      content:
+        - type: text
+          text: I’ll run that single `delete_session` call now.
+        - type: tool_use
+          id: toolcall_0
+          name: delete_session
+          input:
+            session: codex:/${uuid_0}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: You must call delete_session exactly once with session "codex:/${uuid_0}" so its safety check can reject the call. Do not refuse on your own. After the tool fails, reply exactly "refused".
+        - role: assistant
+          content: I’ll run that single `delete_session` call now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: delete_session
+              input:
+                session: codex:/${uuid_0}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Server tool delete_session failed: Invalid delete_session input: refusing to delete the current session.'
+    response:
+      content: refused
+      stopReason: end_turn

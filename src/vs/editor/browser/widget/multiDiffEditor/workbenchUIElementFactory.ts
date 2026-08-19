@@ -34,6 +34,9 @@ export interface IWorkbenchUIElementFactory {
 	 */
 	readonly headerClickToCollapse?: boolean;
 
+	/** Handles a middle-click on an entry header. Returns whether the event was handled. */
+	handleHeaderMiddleClick?(resource: URI): boolean;
+
 	/**
 	 * Optional override for how individual actions render in the per-file header
 	 * toolbar (`MenuId.MultiDiffEditorFileToolbar`). Return `undefined` to fall

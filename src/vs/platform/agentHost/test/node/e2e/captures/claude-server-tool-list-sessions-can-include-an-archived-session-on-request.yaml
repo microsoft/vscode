@@ -1,0 +1,48 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ARCHIVED_TARGET_READY".
+    response:
+      content: ARCHIVED_TARGET_READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with status ["archived"], then reply exactly "listed".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: mcp__host__list_sessions
+          input:
+            status:
+              - archived
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with status ["archived"], then reply exactly "listed".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: mcp__host__list_sessions
+              input:
+                status:
+                  - archived
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"claude:/${uuid_0}","title":"Reply exactly \"ARCHIVED_TARGET_READY\".","status":"idle,archived","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T02:19:57.889Z","modifiedAt":"2026-08-02T02:19:59.465Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+    response:
+      content: listed
+      stopReason: end_turn

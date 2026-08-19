@@ -12,7 +12,6 @@ import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { ExplorerDecorationsProvider } from './explorerDecorationsProvider.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -21,7 +20,6 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { DelayedDragHandler } from '../../../../../base/browser/dnd.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -183,7 +181,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private dragHandler!: DelayedDragHandler;
 	private _autoReveal: boolean | 'force' | 'focusNoScroll' = false;
-	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 	private readonly delegate: IExplorerViewContainerDelegate | undefined;
 
 	override get singleViewPaneContainerTitle(): string {
@@ -203,7 +200,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IDecorationsService private readonly decorationService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService themeService: IWorkbenchThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -836,10 +832,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}, _progress => promise);
 
 		await promise;
-		if (!this.decorationsProvider) {
-			this.decorationsProvider = new ExplorerDecorationsProvider(this.explorerService, this.contextService);
-			this._register(this.decorationService.registerDecorationsProvider(this.decorationsProvider));
-		}
 	}
 
 	public async selectResource(resource: URI | undefined, reveal = this._autoReveal, retry = 0): Promise<void> {

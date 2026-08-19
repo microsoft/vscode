@@ -12,6 +12,7 @@ import { IAgentConnection } from '../../../../platform/agentHost/common/agentSer
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { AgentHostPty } from './agentHostPty.js';
+import { AgentHostOutputChannel } from './agentHostOutputChannel.js';
 import { AhpTerminalCommandSource } from './ahpTerminalCommandSource.js';
 import { ITerminalChatService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from './terminal.js';
 import { ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
@@ -89,6 +90,9 @@ export interface IAgentHostTerminalService {
 	 * state without creating a new process.
 	 */
 	reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance>;
+
+	/** Attach a non-pty output channel directly to chat without creating a terminal instance. */
+	attachOutputTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): IDisposable;
 
 	/**
 	 * Sets the default cwd used by profile providers when no explicit cwd
@@ -332,6 +336,13 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		});
 		this._pendingRevives.set(key, revive);
 		return revive;
+	}
+
+	attachOutputTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): IDisposable {
+		const store = new DisposableStore();
+		const source = store.add(new AgentHostOutputChannel(connection, terminalUri));
+		store.add(this._terminalChatService.registerOutputSource(terminalToolSessionId, source));
+		return store;
 	}
 
 	private async _doReviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string, key: string): Promise<ITerminalInstance> {

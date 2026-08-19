@@ -64,6 +64,8 @@ suite('SandboxHelperService', () => {
 			async command => `/usr/bin/${command}`,
 			true,
 			async () => ({ usable: false, error: 'No permissions to create namespace' }),
+			undefined,
+			async () => true,
 		);
 
 		deepStrictEqual(result, {
@@ -72,6 +74,7 @@ suite('SandboxHelperService', () => {
 			bubblewrapError: 'No permissions to create namespace',
 			socatInstalled: true,
 			dependencyInstallCommand: undefined,
+			apparmorRestrictsUnprivilegedUserNamespaces: true,
 		});
 	});
 

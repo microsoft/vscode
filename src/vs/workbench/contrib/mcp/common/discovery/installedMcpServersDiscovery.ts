@@ -99,12 +99,14 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					cwd: config.cwd,
 					sandbox: server.rootSandbox
 				};
+				const defaultCwd = config.type === 'http' ? undefined : mcpConfigPath?.workspaceFolder?.uri;
 
 				definitions[1].push({
 					id: `${collectionId}.${server.name}`,
 					label: server.name,
 					launch,
 					sandboxEnabled: config.type === 'http' ? undefined : config.sandboxEnabled,
+					defaultCwd,
 					cacheNonce: await McpServerLaunch.hash(launch),
 					roots: mcpConfigPath?.workspaceFolder ? [mcpConfigPath.workspaceFolder.uri] : undefined,
 					variableReplacement: {

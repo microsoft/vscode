@@ -38,11 +38,17 @@ export const ONBOARDING_ENABLED_CONFIG = 'onboarding.enabled';
  */
 export const ONBOARDING_DEVELOPER_MODE_CONFIG = 'onboarding.developerMode';
 
+/** Developer override for a scenario's experiment-selected variation. */
+export const ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG = 'onboarding.developerModeVariations';
+
 /**
  * The shape of the {@link ONBOARDING_DEVELOPER_MODE_CONFIG} setting: a map of
  * scenario/tour id to whether developer mode is enabled for that scenario.
  */
 export type OnboardingDeveloperMode = { readonly [scenarioId: string]: boolean };
+
+/** The shape of the {@link ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG} setting. */
+export type OnboardingDeveloperModeVariations = { readonly [scenarioId: string]: string };
 
 /**
  * Whether onboarding developer mode is enabled for the given scenario/tour id.
@@ -52,6 +58,15 @@ export type OnboardingDeveloperMode = { readonly [scenarioId: string]: boolean }
 export function isOnboardingDeveloperModeEnabled(configurationService: IConfigurationService, scenarioId: string): boolean {
 	const value = configurationService.getValue<OnboardingDeveloperMode | undefined>(ONBOARDING_DEVELOPER_MODE_CONFIG);
 	return typeof value === 'object' && value !== null && value[scenarioId] === true;
+}
+
+export function getOnboardingDeveloperModeVariation(configurationService: IConfigurationService, scenarioId: string): string | undefined {
+	if (!isOnboardingDeveloperModeEnabled(configurationService, scenarioId)) {
+		return undefined;
+	}
+	const value = configurationService.getValue<OnboardingDeveloperModeVariations | undefined>(ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG);
+	const variation = typeof value === 'object' && value !== null ? value[scenarioId] : undefined;
+	return typeof variation === 'string' && variation.length > 0 ? variation : undefined;
 }
 
 /**

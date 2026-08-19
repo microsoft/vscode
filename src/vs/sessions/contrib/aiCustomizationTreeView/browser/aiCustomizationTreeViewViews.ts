@@ -29,10 +29,9 @@ import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IPromptsService, PromptsStorage, IAgentSkill, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { agentIcon, automationIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
@@ -321,7 +320,6 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		private readonly promptsService: IPromptsService,
 		private readonly logService: ILogService,
 		private readonly onItemCountChanged: (count: number) => void,
-		private readonly isAutomationsEnabled: () => boolean,
 	) { }
 
 	/**
@@ -387,15 +385,6 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				icon: instructionsIcon,
 			},
 		];
-		if (this.isAutomationsEnabled()) {
-			items.push({
-				type: 'link',
-				id: 'link-automations',
-				label: localize('automations', "Automations"),
-				icon: automationIcon,
-				section: AICustomizationManagementSection.Automations,
-			});
-		}
 		items.push(
 			{
 				type: 'link',
@@ -688,7 +677,6 @@ export class AICustomizationViewPane extends ViewPane {
 			this.promptsService,
 			this.logService,
 			(count) => this.isEmptyContextKey.set(count === 0),
-			() => this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true,
 		);
 
 		this.tree = this.treeDisposables.add(this.instantiationService.createInstance(

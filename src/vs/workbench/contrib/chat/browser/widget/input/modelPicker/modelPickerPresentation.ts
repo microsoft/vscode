@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../../../../nls.js';
 import { ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../../common/languageModels.js';
+import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
 export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return isAutoLanguageModel(model);
@@ -15,10 +16,11 @@ export function isMultiplierPricing(model: ILanguageModelChatMetadataAndIdentifi
 }
 
 export function getPriceCategoryLabel(priceCategory: string | undefined): string | undefined {
+	// The value originates from extension provided metadata, so it may not be a string at runtime
+	if (typeof priceCategory !== 'string' || priceCategory.length === 0) {
+		return undefined;
+	}
 	switch (priceCategory) {
-		case undefined:
-		case '':
-			return undefined;
 		case 'low':
 			return localize('chat.priceCategory.low', "Low cost");
 		case 'medium':
@@ -35,6 +37,17 @@ export function getPriceCategoryLabel(priceCategory: string | undefined): string
 export const enum ModelPickerUnavailableReason {
 	Restricted = 'restricted',
 	SetupRequired = 'setupRequired',
+}
+
+export function modelPickerRequiresSetup(context: {
+	readonly entitlement: ChatEntitlement;
+	readonly anonymous: boolean;
+	readonly hasByokModels: boolean;
+}): boolean {
+	return context.entitlement === ChatEntitlement.Available
+		|| (context.entitlement === ChatEntitlement.Unknown
+			&& !context.anonymous
+			&& !context.hasByokModels);
 }
 
 export function getModelPickerUnavailableReason(context: {

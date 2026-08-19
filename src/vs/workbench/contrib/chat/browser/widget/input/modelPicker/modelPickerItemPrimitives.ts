@@ -3,20 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import * as semver from '../../../../../../../base/common/semver/semver.js';
+import Severity from '../../../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { withSeverityPrefix } from '../../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
-import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { languageModelSourcePresentationRegistry } from '../../../../common/languageModelSourcePresentation.js';
 import { getModelHoverContent } from './modelPickerHover.js';
-import { getPriceCategoryLabel, isMultiplierPricing } from './modelPickerPresentation.js';
+import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerPresentation.js';
 
 export function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
@@ -51,15 +56,6 @@ export function getProviderGroupKey(vendor: string, groupName: string): Provider
 	return `${vendor}\u0000${groupName}`;
 }
 
-function getVendorDisplayName(languageModelsService: ILanguageModelsService, vendor: string): string {
-	if (vendor === 'copilotcli') {
-		// @vritant24: This is temporary until we we have 2 distinct vendors for Copilot CLI vs Copilot Chat.
-		return localize('chat.modelPicker.copilotGroup', "Copilot");
-	}
-	const descriptor = languageModelsService.getVendors().find(candidate => candidate.vendor === vendor);
-	return descriptor?.displayName ?? vendor.charAt(0).toUpperCase() + vendor.slice(1);
-}
-
 export function buildModelToProviderGroupMap(languageModelsService: ILanguageModelsService): Map<string, IProviderGroupInfo> {
 	const map = new Map<string, IProviderGroupInfo>();
 	for (const vendor of languageModelsService.getVendors()) {
@@ -79,11 +75,18 @@ export function getProviderGroupForModel(
 	languageModelsService: ILanguageModelsService,
 ): IProviderGroupInfo {
 	if (model.metadata.modelGroup) {
-		return { vendor: model.metadata.vendor, groupName: getVendorDisplayName(languageModelsService, model.metadata.modelGroup.id) };
+		const byokGroup = model.metadata.byokModelIdentifier ? modelToGroup.get(model.metadata.byokModelIdentifier) : undefined;
+		const sourcePresentation = model.metadata.modelGroup.sourceId
+			? languageModelSourcePresentationRegistry.get(model.metadata.vendor, model.metadata.modelGroup.sourceId)
+			: undefined;
+		return byokGroup ?? {
+			vendor: model.metadata.vendor,
+			groupName: sourcePresentation?.label ?? getLanguageModelProviderDisplayName(languageModelsService, model.metadata.modelGroup.id),
+		};
 	}
 	return modelToGroup.get(model.identifier) ?? {
 		vendor: model.metadata.vendor,
-		groupName: getVendorDisplayName(languageModelsService, model.metadata.vendor),
+		groupName: getLanguageModelProviderDisplayName(languageModelsService, model.metadata.vendor),
 	};
 }
 
@@ -159,10 +162,31 @@ export function createModelAction(
 		section,
 		run: () => onSelect(model),
 	};
-	const ariaDescription = priceCategoryLabel
+	const baseDescription = priceCategoryLabel
 		? (textDescription ? textDescription + ' · ' + priceCategoryLabel : priceCategoryLabel)
 		: undefined;
+	const notices = getNoticeAriaLabels(model);
+	const ariaDescription = notices.length > 0
+		? [baseDescription ?? textDescription, ...notices].filter((part): part is string => !!part).join(', ')
+		: baseDescription;
 	return { action, ariaDescription };
+}
+
+/**
+ * Screen reader users never reach the rich hover, so its warning and info banners
+ * are folded into the row's accessible description, stripped of markdown and
+ * prefixed with their severity.
+ */
+function getNoticeAriaLabels(model: ILanguageModelChatMetadataAndIdentifier): string[] {
+	if (isAutoModel(model)) {
+		return [];
+	}
+	const toLabel = (message: string, severity: Severity): string =>
+		withSeverityPrefix(stripIcons(renderAsPlaintext(new MarkdownString(message))), severity);
+	return [
+		...Object.values(model.metadata.warningText ?? {}).map(message => toLabel(message, Severity.Warning)),
+		...Object.values(model.metadata.infoText ?? {}).map(message => toLabel(message, Severity.Info)),
+	];
 }
 
 export function getUnavailableReason(

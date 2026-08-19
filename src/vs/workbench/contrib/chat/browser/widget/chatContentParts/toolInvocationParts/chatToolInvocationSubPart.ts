@@ -44,4 +44,13 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 			IChatToolInvocation.isComplete(toolInvocation) ?
 				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
 	}
+
+	/**
+	 * Like {@link getIcon} but never returns the looping loading spinner — progress rows convey
+	 * activity via shimmer instead, so an in-progress row uses a (hidden) check rather than a spinner.
+	 */
+	protected getProgressIcon(): ThemeIcon {
+		const icon = this.getIcon();
+		return ThemeIcon.isEqual(icon, ThemeIcon.modify(Codicon.loading, 'spin')) ? Codicon.check : icon;
+	}
 }

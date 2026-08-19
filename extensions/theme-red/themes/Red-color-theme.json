@@ -41,7 +41,7 @@
 		"debugToolBar.background": "#660000",
 		"focusBorder": "#ff6666aa",
 		// agent sessions
-		"agentsPanel.border": "#ff666633",
+		"agentsPanel.border": "#ff666622",
 		"agentsChatInput.border": "#ff666633",
 		"agentsChatInput.focusBorder": "#ff6666aa",
 		"agentsNewSessionButton.border": "#ff666633",
@@ -63,7 +63,11 @@
 		"progressBar.background": "#cc3333",
 		"errorForeground": "#ffeaea",
 		"extensionButton.prominentBackground": "#cc3333",
-		"extensionButton.prominentHoverBackground": "#cc333388"
+		"extensionButton.prominentHoverBackground": "#cc333388",
+		// modern ui
+		"surface.border": "#00000000",
+		// "agentsBottomPanel.border": "#00000000",
+		// "agentsCard.border": "#00000000",
 	},
 	"tokenColors": [
 		{

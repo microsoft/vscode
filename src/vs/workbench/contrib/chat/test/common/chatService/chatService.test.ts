@@ -47,11 +47,13 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { ChatViewModel, isPendingDividerVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -60,7 +62,7 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
-import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionServerRequest, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -187,7 +189,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		const contextKeyService = testDisposables.add(new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
@@ -198,7 +201,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
-		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService())));
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
@@ -236,6 +239,26 @@ suite('ChatService', () => {
 		testServices.length = 0;
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('propagates Agents Voice Mode input to the participant request', async () => {
+		const captured = new DeferredPromise<boolean | undefined>();
+		testDisposables.add(chatAgentService.registerAgent('voiceAgent', getAgentData('voiceAgent')));
+		testDisposables.add(chatAgentService.registerAgentImplementation('voiceAgent', {
+			async invoke(request) {
+				captured.complete(request.isVoiceModeInput);
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+
+		await service.sendRequest(model.sessionResource, 'voice request', {
+			agentId: 'voiceAgent',
+			isVoiceModeInput: true,
+		});
+
+		assert.strictEqual(await captured.p, true);
+	});
 
 	test('slash commands can share ids across non-overlapping session types', async () => {
 		const slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
@@ -608,6 +631,127 @@ suite('ChatService', () => {
 		assert.strictEqual(chatModel2.getRequests()[0].isSystemInitiated, true);
 	});
 
+	test('can serialize and deserialize a request hidden from the transcript', async () => {
+		let serializedChatData: ISerializableChatData;
+		{
+			const testService = createChatService();
+			const chatModelRef = testDisposables.add(startSessionModel(testService));
+			const response = await testService.sendRequest(chatModelRef.object.sessionResource, 'hidden request', { hideFromTranscript: true });
+			ChatSendResult.assertSent(response);
+			await response.data.responseCompletePromise;
+
+			const request = chatModelRef.object.getRequests()[0];
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, chatModelRef.object, undefined));
+			assert.deepStrictEqual({
+				request: request.isHiddenFromTranscript,
+				response: request.response?.isHiddenFromTranscript,
+				visibleItems: viewModel.getItems().length,
+			}, {
+				request: true,
+				response: true,
+				visibleItems: 0,
+			});
+			serializedChatData = JSON.parse(JSON.stringify(chatModelRef.object));
+		}
+
+		const testService = createChatService();
+		const restored = testDisposables.add(testService.loadSessionFromData(serializedChatData)!);
+		const request = restored.object.getRequests()[0];
+		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, restored.object, undefined));
+		assert.deepStrictEqual({
+			request: request.isHiddenFromTranscript,
+			response: request.response?.isHiddenFromTranscript,
+			visibleItems: viewModel.getItems().length,
+		}, {
+			request: true,
+			response: true,
+			visibleItems: 0,
+		});
+	});
+
+	test('can serialize and deserialize a request origin', () => {
+		const sourceSessionResource = URI.parse('agent-host-codex:/source-thread');
+		const testService = createChatService();
+		const chatModelRef = testDisposables.add(startSessionModel(testService));
+		const chatModel = chatModelRef.object as ChatModel;
+		chatModel.addRequest(
+			{ parts: [], text: 'delegated request' },
+			{ variables: [] },
+			0,
+			undefined, // modeInfo
+			undefined, // chatAgent
+			undefined, // slashCommand
+			undefined, // confirmation
+			undefined, // locationData
+			undefined, // attachments
+			undefined, // isCompleteAddedRequest
+			undefined, // modelId
+			undefined, // userSelectedTools
+			undefined, // id
+			undefined, // isSystemInitiated
+			undefined, // systemInitiatedLabel
+			undefined, // terminalExecutionId
+			undefined, // isTerminalCommand
+			undefined, // timestamp
+			undefined, // hideFromTranscript
+			{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource,
+			},
+		);
+		const serialized: ISerializableChatData = JSON.parse(JSON.stringify(chatModel));
+
+		const restored = testDisposables.add(createChatService().loadSessionFromData(serialized)!);
+
+		assert.deepStrictEqual(restored.object.getRequests()[0].origin, {
+			kind: ChatRequestOriginKind.Delegation,
+			sourceSessionResource,
+		});
+	});
+
+	test('hidden queued requests remain absent from the transcript', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+		const slowAgent: IChatAgentImplementation = {
+			async invoke() {
+				requestStarted.complete();
+				await completeRequest.p;
+				return {};
+			},
+		};
+		testDisposables.add(chatAgentService.registerAgent('slowHiddenQueueAgent', { ...getAgentData('slowHiddenQueueAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowHiddenQueueAgent', slowAgent));
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const active = await testService.sendRequest(model.sessionResource, 'active request', { agentId: 'slowHiddenQueueAgent' });
+		ChatSendResult.assertSent(active);
+		await requestStarted.p;
+		const queued = await testService.sendRequest(model.sessionResource, 'hidden queued request', {
+			agentId: 'slowHiddenQueueAgent',
+			queue: ChatRequestQueueKind.Queued,
+			hideFromTranscript: true,
+		});
+		assert.ok(ChatSendResult.isQueued(queued));
+		const pendingRequest = model.getPendingRequests()[0].request;
+		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const visibleItems = viewModel.getItems();
+
+		assert.deepStrictEqual({
+			hidden: pendingRequest.isHiddenFromTranscript,
+			hasPendingRequest: visibleItems.some(item => item.id === pendingRequest.id),
+			hasPendingDivider: visibleItems.some(isPendingDividerVM),
+		}, {
+			hidden: true,
+			hasPendingRequest: false,
+			hasPendingDivider: false,
+		});
+
+		completeRequest.complete();
+		await active.data.responseCompletePromise;
+	});
+
 	test('acquireExistingSession keeps model alive for steering request after refs released', async () => {
 		const testService = createChatService();
 		const modelRef = startSessionModel(testService);
@@ -649,6 +793,38 @@ suite('ChatService', () => {
 		modelRef.dispose();
 		await testService.waitForModelDisposals();
 		assert.strictEqual(disposed, true);
+	});
+
+	test('disposing a session cancels pending followups', async () => {
+		let followupsToken: CancellationToken | undefined;
+		const followupsCancelled = new DeferredPromise<IChatFollowup[]>();
+		const followupsAgent: IChatAgentImplementation = {
+			async invoke() {
+				return {};
+			},
+			provideFollowups(request, result, history, token) {
+				followupsToken = token;
+				testDisposables.add(token.onCancellationRequested(() => followupsCancelled.complete([])));
+				return followupsCancelled.p;
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('followupsAgent', { ...getAgentData('followupsAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('followupsAgent', followupsAgent));
+
+		const testService = createChatService();
+		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const response = await testService.sendRequest(modelRef.object.sessionResource, 'test request', { agentId: 'followupsAgent' });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.ok(followupsToken);
+		assert.strictEqual(followupsToken.isCancellationRequested, false);
+
+		modelRef.dispose();
+		await testService.waitForModelDisposals();
+
+		assert.strictEqual(followupsToken.isCancellationRequested, true);
 	});
 
 	test('steering message queued triggers setYieldRequested', async () => {
@@ -1088,6 +1264,71 @@ suite('ChatService', () => {
 		// The agent should have been invoked twice: first request + re-sent queued request
 		assert.strictEqual(invokedMessages.length, 2);
 		assert.ok(invokedMessages[1].includes('queued request'));
+	});
+
+	test('syncPendingRequestsFromRemote adds, reorders and removes pending requests preserving ids', async () => {
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'first remote message' },
+			{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, message: 'second remote message' },
+		]);
+		assert.deepStrictEqual(
+			model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })),
+			[
+				{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'first remote message' },
+				{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, text: 'second remote message' },
+			],
+		);
+
+		const firstRequest = model.getPendingRequests()[0].request;
+
+		// Reorder, drop one, add a steering message and update text of the survivor.
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, message: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'first remote message' },
+		]);
+		assert.deepStrictEqual(
+			model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })),
+			[
+				{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
+				{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'first remote message' },
+			],
+		);
+		assert.strictEqual(model.getPendingRequests()[1].request, firstRequest, 'unchanged messages should not be rebuilt');
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, []);
+		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
+	test('syncPendingRequestsFromRemote atomically emits the final state and no-ops when it already matches', async () => {
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'old remote message' },
+			{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, message: 'removed remote message' },
+		]);
+
+		const snapshots: { id: string; kind: ChatRequestQueueKind; text: string }[][] = [];
+		testDisposables.add(model.onDidChangePendingRequests(() => {
+			snapshots.push(model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })));
+		}));
+
+		const remote = [
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, message: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'updated remote message' },
+		];
+		testService.syncPendingRequestsFromRemote(model.sessionResource, remote);
+		testService.syncPendingRequestsFromRemote(model.sessionResource, remote);
+
+		assert.deepStrictEqual(snapshots, [[
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'updated remote message' },
+		]]);
 	});
 
 	test('sendPendingRequestImmediately cancels current and sends the queued message on local sessions', async () => {
@@ -1751,7 +1992,10 @@ suite('ChatService', () => {
 		ChatSendResult.assertSent(response);
 		await response.data.responseCompletePromise;
 
-		assert.deepStrictEqual(providerInvokedEvents.map(event => event.sessionType), ['remote-agent-host']);
+		assert.deepStrictEqual(providerInvokedEvents.map(event => ({
+			sessionType: event.sessionType,
+			hasRequestId: typeof event.requestId === 'string',
+		})), [{ sessionType: 'remote-agent-host', hasRequestId: true }]);
 	});
 
 	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {
@@ -2140,7 +2384,7 @@ suite('ChatService', () => {
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly isReadOnly?: ISettableObservable<boolean>;
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
-			readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData; timestamp?: number; isSystemInitiated?: boolean; systemInitiatedLabel?: string }>;
+			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 			readonly history?: readonly IChatSessionHistoryItem[];
 		}
 
@@ -2268,7 +2512,7 @@ suite('ChatService', () => {
 		});
 
 		test('uses the Agent Host timestamp for live server-initiated requests', async () => {
-			const onDidStartServerRequest = testDisposables.add(new Emitter<{ prompt: string; timestamp?: number }>());
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
 			const timestamp = 1_752_012_321_000;
 			const { resource } = setupRemoteProvider({
 				progressObs: observableValue<IChatProgress[]>('progress', []),
@@ -2280,7 +2524,7 @@ suite('ChatService', () => {
 			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
-			onDidStartServerRequest.fire({ prompt: 'server request', timestamp });
+			onDidStartServerRequest.fire({ id: 'turn-1', prompt: 'server request', timestamp });
 
 			assert.deepStrictEqual({
 				message: ref.object.lastRequest?.message.text,
@@ -2289,6 +2533,27 @@ suite('ChatService', () => {
 				message: 'server request',
 				timestamp,
 			});
+		});
+
+		test('adopts the Agent Host turn id for live server-initiated requests', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [{ id: 'turn-1', type: 'request', prompt: 'hello', participant: remoteScheme }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'turn-2', prompt: 'server request' });
+
+			assert.deepStrictEqual(ref.object.getRequests().map(r => ({ id: r.id, message: r.message.text })), [
+				{ id: 'turn-1', message: 'hello' },
+				{ id: 'turn-2', message: 'server request' },
+			]);
 		});
 
 		test('already-complete session at load time: no initial pending request, response is completed via autorun', async () => {

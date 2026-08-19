@@ -7,7 +7,8 @@ import { DisposableMap } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { assertType } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry, type IAgentHostCompletionVariableValue } from '../../../../common/attachments/chatVariableEntries.js';
+import { localize } from '../../../../../../../nls.js';
+import { AgentHostCompletionReferenceKind, chatReferenceVariableEntryId, toAgentHostCompletionVariableEntry, toChatReferenceDynamicVariableValue, type IAgentHostCompletionVariableValue, type IChatReferenceDynamicVariableValue } from '../../../../common/attachments/chatVariableEntries.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind } from '../../../../../../../editor/common/languages.js';
@@ -229,6 +230,21 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 					},
 				};
 			}
+			case 'chat': {
+				const label = attachment.displayName ?? attachment.title;
+				return {
+					label: { label, description: localize('chatReferenceDescription', "Chat") },
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Reference,
+					command: {
+						id: AgentHostInputCompletions.addReferenceCommand,
+						title: '',
+						arguments: [AgentHostReferenceArgument.forChat(widget, attachment.uri, attachment.endTurn, attachment.title, attachment.displayName, AgentHostInputCompletions._insertedTokenRange(replaceRange, item.insertText), attachment._meta)],
+					},
+				};
+			}
 			default: {
 				const label = attachment.displayName ?? item.insertText;
 				const description = attachment.uri.path;
@@ -261,7 +277,7 @@ class AgentHostReferenceArgument {
 	private constructor(
 		readonly widget: IChatWidget,
 		readonly id: string,
-		readonly data: URI | IAgentHostCompletionVariableValue,
+		readonly data: URI | IAgentHostCompletionVariableValue | IChatReferenceDynamicVariableValue,
 		readonly displayName: string | undefined,
 		readonly isFile: boolean,
 		readonly isDirectory: boolean,
@@ -281,6 +297,15 @@ class AgentHostReferenceArgument {
 	static forCommand(widget: IChatWidget, command: string, description: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
 		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, description ?? command, command, _meta);
 		return new AgentHostReferenceArgument(widget, entry.id, entry.value, description, false, false, range, _meta);
+	}
+
+	static forChat(widget: IChatWidget, uri: URI, endTurn: string | undefined, title: string, displayName: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
+		// The referenced chat resource and `endTurn` ride through the dynamic
+		// variable's `data` channel (not an out-of-band `_meta` bag), so the
+		// request parser can rebuild the first-class `chatReference` entry via
+		// `ChatRequestDynamicVariablePart.toVariableEntry()`. The stable id
+		// dedupes re-accepting the same reference.
+		return new AgentHostReferenceArgument(widget, chatReferenceVariableEntryId(uri, endTurn), toChatReferenceDynamicVariableValue(uri, endTurn), displayName ?? title, false, false, range, _meta);
 	}
 }
 

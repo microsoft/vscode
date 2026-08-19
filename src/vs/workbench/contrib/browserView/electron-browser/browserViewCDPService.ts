@@ -26,9 +26,10 @@ export class BrowserViewCDPService extends Disposable implements IBrowserViewCDP
 	}
 
 	async createSessionGroup(browserId: string): Promise<string> {
-		const groupId = await this._groupService.createGroup({ mainWindowId: mainWindow.vscodeWindowId });
-		await this._groupService.addViewToGroup(groupId, browserId);
-		return groupId;
+		return this._groupService.createGroup(
+			{ mainWindowId: mainWindow.vscodeWindowId },
+			{ browserIds: [browserId] }
+		);
 	}
 
 	async destroySessionGroup(groupId: string): Promise<void> {

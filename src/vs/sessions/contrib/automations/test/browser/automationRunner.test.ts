@@ -13,9 +13,9 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AutomationService } from '../../browser/automationService.js';
+import { createAutomationService } from './automationTestUtils.js';
 import { AutomationTarget, AutomationWorkspaceIsolation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AutomationRunner } from '../../browser/automationRunner.js';
 
@@ -105,11 +105,12 @@ class RecordingNotificationService extends TestNotificationService {
 	}
 }
 
-function fakeSession(id: string, status = observableValue(`status-${id}`, SessionStatus.Completed)): ISession {
+function fakeSession(id: string, status = observableValue(`status-${id}`, SessionStatus.Completed), chatStatus = status): ISession {
 	return upcastPartial<ISession>({
 		sessionId: id,
 		resource: URI.from({ scheme: 'vscode-chat-session', authority: 'test', path: `/${id}` }),
 		status,
+		mainChat: observableValue(`main-chat-${id}`, upcastPartial<IChat>({ status: chatStatus })),
 	});
 }
 
@@ -120,7 +121,7 @@ suite('AutomationRunner', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		const sessionsMgmt = new FakeSessionsManagementService();
 		const notifications = new RecordingNotificationService();
 		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, notifications);
@@ -142,7 +143,7 @@ suite('AutomationRunner', () => {
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'completed');
-		assert.strictEqual(runs[0].sessionResource, 'vscode-chat-session://test/s1');
+		assert.strictEqual(runs[0].sessionResource?.toString(), 'vscode-chat-session://test/s1');
 		assert.strictEqual(runs[0].trigger, 'schedule');
 		assert.strictEqual(runs[0].leaderWindowId, 99);
 	});
@@ -162,7 +163,7 @@ suite('AutomationRunner', () => {
 		await dispatchPromise;
 		assert.deepStrictEqual(service.runs.get().map(run => ({
 			status: run.status,
-			sessionResource: run.sessionResource,
+			sessionResource: run.sessionResource?.toString(),
 			completedAt: run.completedAt,
 		})), [{
 			status: 'running',
@@ -188,6 +189,28 @@ suite('AutomationRunner', () => {
 		assert.strictEqual(service.runs.get()[0].status, 'completed');
 	});
 
+	test('completes the run when the main chat stops while the aggregate session remains active', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		const sessionStatus = observableValue('status-s1', SessionStatus.InProgress);
+		const chatStatus = observableValue('chat-status-s1', SessionStatus.InProgress);
+		sessionsMgmt.nextSession = fakeSession('s1', sessionStatus, chatStatus);
+
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		const operation = runner.runOnce(automation, 'manual', 1);
+		await operation.whenDispatched;
+
+		chatStatus.set(SessionStatus.Completed, undefined);
+		await operation.whenCompleted;
+
+		assert.deepStrictEqual({
+			sessionStatus: sessionStatus.get(),
+			runStatus: service.runs.get()[0].status,
+		}, {
+			sessionStatus: SessionStatus.InProgress,
+			runStatus: 'completed',
+		});
+	});
+
 	test('marks the run failed when the session reports an error', async () => {
 		const { service, sessionsMgmt, runner } = setup();
 		const status = observableValue('status-s1', SessionStatus.InProgress);
@@ -203,7 +226,7 @@ suite('AutomationRunner', () => {
 		const run = service.runs.get()[0];
 		assert.deepStrictEqual({
 			status: run.status,
-			sessionResource: run.sessionResource,
+			sessionResource: run.sessionResource?.toString(),
 			errorMessage: run.errorMessage,
 			hasCompletedAt: run.completedAt !== undefined,
 		}, {
@@ -373,7 +396,7 @@ suite('AutomationRunner', () => {
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'failed');
 		assert.strictEqual(runs[0].errorMessage, 'Cancelled');
-		assert.strictEqual(runs[0].sessionResource, 'vscode-chat-session://test/s-mid');
+		assert.strictEqual(runs[0].sessionResource?.toString(), 'vscode-chat-session://test/s-mid');
 		cts.dispose();
 	});
 
@@ -393,7 +416,7 @@ suite('AutomationRunner', () => {
 		const run = service.runs.get()[0];
 		assert.deepStrictEqual({
 			status: run.status,
-			sessionResource: run.sessionResource,
+			sessionResource: run.sessionResource?.toString(),
 			errorMessage: run.errorMessage,
 		}, {
 			status: 'failed',

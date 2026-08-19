@@ -185,6 +185,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'skip-release-notes': { type: 'boolean' },
 	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
+	'telemetry-level': { type: 'string' },
 	'disable-updates': { type: 'boolean' },
 	'share-secrets-with-agents-app': { type: 'boolean' },
 	'transient': { type: 'boolean', cat: 't', description: localize('transient', "Run with temporary data and extension directories, as if launched for the first time.") },

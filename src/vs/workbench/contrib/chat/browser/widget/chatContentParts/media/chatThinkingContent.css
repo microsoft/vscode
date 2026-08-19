@@ -24,11 +24,19 @@
 		margin: 0px;
 	}
 
+	> .chat-used-context-label {
+		position: relative;
+	}
+
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
 		line-height: 1.5em;
 		font-size: 13px;
+
+		&.chat-thinking-title-with-diff {
+			padding-right: var(--vscode-spacing-size20);
+		}
 
 		.monaco-button-mdlabel {
 			font-size: var(--vscode-chat-font-size-body-s);
@@ -56,19 +64,50 @@
 		.chat-thinking-title-detail-text {
 			opacity: 0.7;
 		}
+	}
 
-		.chat-thinking-title-diff {
-			padding-left: 6px;
+	> .chat-used-context-label > .chat-thinking-title-diff.monaco-button {
+		display: inline-flex;
+		align-items: center;
+		padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+		margin-left: var(--vscode-spacing-sizeNone);
+		border-radius: var(--vscode-cornerRadius-small);
+		gap: var(--vscode-spacing-size40);
+		background: transparent;
+		color: inherit;
+		line-height: 1.5em;
+		vertical-align: middle;
 
-			> .label-added {
-				color: var(--vscode-chat-linesAddedForeground);
-			}
-
-			> .label-removed {
-				padding-left: 4px;
-				color: var(--vscode-chat-linesRemovedForeground);
-			}
+		> .label-added {
+			color: var(--vscode-chat-linesAddedForeground);
 		}
+
+		> .label-removed {
+			color: var(--vscode-chat-linesRemovedForeground);
+		}
+
+		&:hover,
+		&.hovered {
+			background-color: var(--vscode-toolbar-hoverBackground);
+			color: var(--vscode-foreground);
+		}
+
+		&:focus {
+			outline: none;
+		}
+
+		&:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+	}
+
+	> .chat-used-context-label > .chat-collapsible-hover-chevron {
+		vertical-align: middle;
+	}
+
+	> .chat-used-context-label:hover > .chat-collapsible-hover-chevron {
+		opacity: 1;
 	}
 
 	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
@@ -118,11 +157,11 @@
 	}
 
 	/* Curved connector from the header to the first thinking item */
-	&:not(.chat-used-context-collapsed)::after {
+	&:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
 		content: '';
 		position: absolute;
 		left: 3px;
-		top: 22px;
+		top: 100%;
 		height: 16px;
 		width: 5px;
 		border-left: 1px solid var(--vscode-chat-requestBorder);

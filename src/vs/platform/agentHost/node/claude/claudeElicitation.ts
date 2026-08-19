@@ -7,7 +7,7 @@ import type { ElicitationRequest, ElicitationResult } from '@anthropic-ai/claude
 import type { PrimitiveSchemaDefinition } from '@modelcontextprotocol/sdk/types.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { vArray, vNumber, vObj, vOptionalProp, vString, vUnknown, type ValidatorType } from '../../../../base/common/validation.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest } from '../../common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest } from '../../common/state/sessionState.js';
 
 /**
  * Pure projections between the Claude SDK's MCP elicitation request/response
@@ -135,7 +135,7 @@ function parseElicitationSchema(schema: unknown): IParsedElicitationSchema | und
  */
 export function buildElicitationRequest(requestId: string, request: ElicitationRequest): ChatInputRequest {
 	if (request.mode === 'url') {
-		const result: ChatInputRequest = { id: requestId, message: request.message };
+		const result: ChatInputRequest = { id: requestId, purpose: ChatInputRequestPurpose.Elicitation, message: request.message };
 		if (request.url) {
 			result.url = request.url;
 		}
@@ -143,10 +143,10 @@ export function buildElicitationRequest(requestId: string, request: ElicitationR
 	}
 	const schema = parseElicitationSchema(request.requestedSchema);
 	if (!schema || schema.fields.length === 0) {
-		return { id: requestId, message: request.message };
+		return { id: requestId, purpose: ChatInputRequestPurpose.Elicitation, message: request.message };
 	}
 	const questions = schema.fields.map(([name, field]) => elicitationFieldToQuestion(name, field, schema.required.has(name)));
-	return { id: requestId, message: request.message, questions };
+	return { id: requestId, purpose: ChatInputRequestPurpose.Elicitation, message: request.message, questions };
 }
 
 /**

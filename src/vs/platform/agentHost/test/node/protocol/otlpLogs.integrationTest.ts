@@ -10,7 +10,7 @@ import type { InitializeResult } from '../../../common/state/sessionProtocol.js'
 import type { TelemetryCapabilities } from '../../../common/state/protocol/channels-otlp/state.js';
 import type { OtlpExportLogsParams } from '../../../common/state/protocol/channels-otlp/notifications.js';
 import { OTLP_LOGS_CHANNEL_TEMPLATE, iterateOtlpLogRecords } from '../../../common/otlp/otlpLogEmitter.js';
-import { getAgentHostE2ETestTimeout, IServerHandle, startServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { getAgentHostE2ETestTimeout, IServerHandle, startServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 /**
  * End-to-end checks that the agent host server actually advertises and
@@ -34,8 +34,9 @@ suite('Protocol WebSocket — OTLP logs channel', function () {
 		server = await startServer({ quiet: true });
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
@@ -49,7 +50,7 @@ suite('Protocol WebSocket — OTLP logs channel', function () {
 	});
 
 	test('initialize advertises the logs channel template', async function () {
-		this.timeout(5_000);
+		this.timeout(getAgentHostE2ETestTimeout(5_000, 20_000));
 
 		const result = await client.call<InitializeResult & { telemetry?: TelemetryCapabilities }>('initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
@@ -61,7 +62,7 @@ suite('Protocol WebSocket — OTLP logs channel', function () {
 	});
 
 	test('subscribe on the logs channel returns a stateless empty result', async function () {
-		this.timeout(5_000);
+		this.timeout(getAgentHostE2ETestTimeout(5_000, 20_000));
 
 		await client.call('initialize', {
 			protocolVersions: [PROTOCOL_VERSION],

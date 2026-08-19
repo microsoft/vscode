@@ -25,6 +25,10 @@ export class TestAgentHostTerminalManager extends Disposable implements IAgentHo
 	readonly created: CreateTerminalParams[] = [];
 	readonly sentTexts: { uri: string; data: string }[] = [];
 	readonly disposedTerminals: string[] = [];
+	readonly outputTerminalsCreated: { uri: string; title: string; claim: TerminalClaim }[] = [];
+	readonly outputTerminalData: { uri: string; data: string }[] = [];
+	readonly outputTerminalResets: string[] = [];
+	readonly outputTerminalsFinalized: { uri: string; exitCode: number | undefined }[] = [];
 
 	/** Resolves once a command-finished listener is registered (i.e. a command is running). */
 	readonly commandFinishedListenerRegistered = new DeferredPromise<void>();
@@ -59,5 +63,9 @@ export class TestAgentHostTerminalManager extends Disposable implements IAgentHo
 	getTerminalInfos(): TerminalInfo[] { return []; }
 	getTerminalState(): TerminalState | undefined { return undefined; }
 	async getDefaultShell(): Promise<string> { return this.defaultShell; }
+	createOutputTerminal(uri: string, options: { title: string; claim: TerminalClaim }): void { this.outputTerminalsCreated.push({ uri, title: options.title, claim: options.claim }); }
+	appendOutputTerminalData(uri: string, data: string): void { this.outputTerminalData.push({ uri, data }); }
+	resetOutputTerminal(uri: string): void { this.outputTerminalResets.push(uri); }
+	finalizeOutputTerminal(uri: string, exitCode: number | undefined): void { this.outputTerminalsFinalized.push({ uri, exitCode }); }
 	fireCommandFinished(event: ICommandFinishedEvent): void { this._onCommandFinished.fire(event); }
 }

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -45,6 +47,7 @@ export interface IChatSetupControllerOptions {
 	readonly useEnterpriseProvider?: boolean;
 	readonly additionalScopes?: readonly string[];
 	readonly forceAnonymous?: ChatSetupAnonymous;
+	readonly cancellationToken?: CancellationToken;
 }
 
 export class ChatSetupController extends Disposable {
@@ -108,6 +111,10 @@ export class ChatSetupController extends Disposable {
 	}
 
 	private async doSetup(options: IChatSetupControllerOptions, watch: StopWatch): Promise<ChatSetupResultValue> {
+		if (options.cancellationToken?.isCancellationRequested) {
+			return undefined;
+		}
+
 		this.context.suspend();  // reduces flicker
 
 		let success: ChatSetupResultValue = false;
@@ -130,6 +137,9 @@ export class ChatSetupController extends Disposable {
 			if (signIn) {
 				this.setStep(ChatSetupStep.SigningIn);
 				const result = await this.signIn(options);
+				if (!result) {
+					return undefined;
+				}
 				if (!result.defaultAccount) {
 					const provider = options.useSocialProvider ?? (options.useEnterpriseProvider ? defaultChat.provider.enterprise.id : defaultChat.provider.default.id);
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
@@ -137,6 +147,10 @@ export class ChatSetupController extends Disposable {
 				}
 
 				entitlement = result.entitlement;
+			}
+
+			if (options.cancellationToken?.isCancellationRequested) {
+				return undefined;
 			}
 
 			// Await Install
@@ -150,20 +164,31 @@ export class ChatSetupController extends Disposable {
 		return success;
 	}
 
-	private async signIn(options: IChatSetupControllerOptions): Promise<{ defaultAccount: IDefaultAccount | undefined; entitlement: ChatEntitlement | undefined }> {
+	private async signIn(options: IChatSetupControllerOptions): Promise<{ defaultAccount: IDefaultAccount | undefined; entitlement: ChatEntitlement | undefined } | undefined> {
 		const authExtensionReEnabled = await maybeEnableAuthExtension(this.extensionsWorkbenchService, this.logService);
 		if (authExtensionReEnabled) {
 			refreshTokens(this.commandService);
+		}
+		if (options.cancellationToken?.isCancellationRequested) {
+			return undefined;
 		}
 
 		let entitlements;
 		let defaultAccount;
 		let signInError: Error | undefined;
 		try {
-			({ defaultAccount, entitlements } = await this.requests.signIn(options));
+			const result = await raceCancellation(this.requests.signIn(options), options.cancellationToken ?? CancellationToken.None);
+			if (!result) {
+				return undefined;
+			}
+			({ defaultAccount, entitlements } = result);
 		} catch (e) {
 			this.logService.error(`[chat setup] signIn: error ${e}`);
 			signInError = e instanceof Error ? e : new Error(String(e));
+		}
+
+		if (options.cancellationToken?.isCancellationRequested) {
+			return undefined;
 		}
 
 		if (!defaultAccount && !this.lifecycleService.willShutdown) {
@@ -275,6 +300,10 @@ export class ChatSetupController extends Disposable {
 	}
 
 	async setupWithProvider(options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
+		if (options.cancellationToken?.isCancellationRequested) {
+			return undefined;
+		}
+
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		registry.registerConfiguration({
 			'id': 'copilot.setup',
@@ -300,6 +329,9 @@ export class ChatSetupController extends Disposable {
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedEnterpriseSetup', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
 				return success; // not properly configured, abort
 			}
+		}
+		if (options.cancellationToken?.isCancellationRequested) {
+			return undefined;
 		}
 
 		let existingAdvancedSetting = this.configurationService.inspect(defaultChat.completionsAdvancedSetting).user?.value;

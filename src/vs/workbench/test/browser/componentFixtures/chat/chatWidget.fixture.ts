@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -27,11 +27,12 @@ import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatPr
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
-import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
+import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
@@ -45,6 +46,8 @@ export interface IFixtureFileChange {
 	readonly removed: number;
 	/** Whether the file was created (vs. edited) during the turn. */
 	readonly created: boolean;
+	/** Whether the file is outside the owning session workspace. */
+	readonly isOutsideWorkspace?: boolean;
 }
 
 export interface IFixtureMessage {
@@ -69,10 +72,9 @@ export interface IChatWidgetFixtureOptions {
 	readonly messages: ReadonlyArray<IFixtureMessage>;
 	readonly width?: number;
 	readonly height?: number;
+	readonly listHeight?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
-	/** Chat list rendering style. Defaults to compact for existing fixtures. */
-	readonly renderStyle?: 'default' | 'compact' | 'minimal';
 	/** Whether to populate the response footer with an action. */
 	readonly responseFooterAction?: boolean;
 	/** Whether to show request and response timing details. */
@@ -93,19 +95,32 @@ export interface IChatWidgetFixtureOptions {
 	/**
 	 * When set, renders the chat as an agent host session and enables the turn
 	 * changes summary (`chat.turnStatusPills`), so completed turns with
-	 * {@link IFixtureMessage.fileChanges} show the summary/preview under the
-	 * response.
+	 * {@link IFixtureMessage.fileChanges} show workspace changes and external
+	 * Markdown previews under the response.
 	 */
 	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
+	readonly linkPresentationService?: ILinkPresentationService;
+	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
+	/** Selects the input-height consumer used by the ResizeObserver harness. */
+	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
 }
 
-function makeFileDiff(change: IFixtureFileChange): IEditSessionEntryDiff {
+interface IChatWidgetFixtureHandle {
+	readonly inputPart: ChatInputPart;
+	readonly listWidget: ChatListWidget;
+	readonly model: ChatModel;
+	readonly width: number;
+	readonly addTerminalConfirmation: (request: ReturnType<ChatModel['addRequest']>, command: string) => void;
+}
+
+function makeFileDiff(change: IFixtureFileChange): IChatResponseFileEdit {
 	// A created file has no before-content, so the agent host provider maps its
 	// `originalURI` to the `modifiedURI` (equal URIs); an edited file keeps a
 	// distinct original.
-	const modifiedURI = URI.file(`/repo/${change.name}`);
-	const originalURI = change.created ? modifiedURI : URI.file(`/repo/.original/${change.name}`);
-	return { originalURI, modifiedURI, added: change.added, removed: change.removed, quitEarly: false, identical: false, isFinal: true, isBusy: false };
+	const root = change.isOutsideWorkspace ? '/home/user' : '/repo';
+	const modifiedURI = URI.file(`${root}/${change.name}`);
+	const originalURI = change.created ? modifiedURI : URI.file(`${root}/.original/${change.name}`);
+	return { originalURI, modifiedURI, added: change.added, removed: change.removed, quitEarly: false, identical: false, isFinal: true, isBusy: false, isOutsideWorkspace: change.isOutsideWorkspace ?? false };
 }
 
 function makeUserMessage(text: string) {
@@ -137,12 +152,16 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// Maps a completed turn's requestId to its per-turn file diffs, consumed by
 	// the turn changes summary via the stubbed IChatResponseFileChangesService.
 	const requestDiffs = new Map<string, readonly IEditSessionEntryDiff[]>();
+	const requestFileEdits = new Map<string, readonly IChatResponseFileEdit[]>();
 	const needsTurnPills = isChatTurnStatusPillsEnabled(options.turnStatusPills);
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg);
+			if (options.linkPresentationService) {
+				reg.defineInstance(ILinkPresentationService, options.linkPresentationService);
+			}
 			// Override widget service so the chat list renderer can route tool
 			// confirmations to the carousel attached to our input part.
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
@@ -162,6 +181,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				reg.defineInstance(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
 					override getChangesForRequest(_sessionResource: URI, requestId: string) {
 						return constObservable(requestDiffs.get(requestId) ?? []);
+					}
+					override getFileEditsForRequest(_sessionResource: URI, requestId: string) {
+						return constObservable(requestFileEdits.get(requestId) ?? []);
 					}
 				}());
 			}
@@ -226,7 +248,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		const request = model.addRequest(makeUserMessage(message.user), { variables: [] }, 0);
 		const response = request.response!;
 		if (message.fileChanges) {
-			requestDiffs.set(request.id, message.fileChanges.map(makeFileDiff));
+			const fileEdits = message.fileChanges.map(makeFileDiff);
+			requestDiffs.set(request.id, fileEdits.filter(diff => !diff.isOutsideWorkspace));
+			requestFileEdits.set(request.id, fileEdits);
 		}
 		for (const part of message.assistant ?? []) {
 			if (part.kind === 'markdown') {
@@ -284,6 +308,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const width = options.width ?? 720;
 	const height = options.height ?? 600;
+	const listBackground = 'var(--vscode-editor-background)';
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
@@ -302,6 +327,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	container.appendChild(auxBar);
 
 	const session = dom.$('.interactive-session');
+	session.style.setProperty('--vscode-chat-list-background', listBackground);
 	auxContent.appendChild(session);
 
 	// Build the input part FIRST so the widget (with its inputPart) is registered
@@ -316,12 +342,11 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine }, group: 'navigation', order: 4 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Permissions' }, group: 'navigation', order: 10 });
 	if (options.responseFooterAction) {
 		menuService.addItem(MenuId.ChatMessageFooter, { command: { id: 'workbench.action.chat.copyResponse', title: 'Copy', icon: Codicon.copy }, group: 'navigation', order: 1 });
 	}
 
-	const renderStyle = options.renderStyle === 'default' ? undefined : options.renderStyle ?? 'compact';
 	const inputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
@@ -333,7 +358,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const inputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',
 		listForeground: 'var(--vscode-foreground)',
-		listBackground: 'var(--vscode-editor-background)',
+		listBackground,
 	};
 
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
@@ -355,7 +380,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	inputPart.element.classList.toggle('chat-input-hidden', options.inputVisible === false);
 
 	const listContainer = dom.$('.interactive-list');
-	listContainer.style.flex = '1 1 auto';
+	listContainer.style.flex = options.hostLayoutMode ? '0 0 auto' : '1 1 auto';
 	listContainer.style.minHeight = '0';
 	listContainer.style.position = 'relative';
 	// Prepend the list before the input so the visual order matches production.
@@ -367,10 +392,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		{
 			currentChatMode: () => ChatModeKind.Agent,
 			defaultElementHeight: 120,
-			renderStyle,
 			styles: {
 				listForeground: 'var(--vscode-foreground)',
-				listBackground: 'var(--vscode-editor-background)',
+				listBackground,
 			},
 			location: ChatAgentLocation.Chat,
 			rendererOptions: {
@@ -378,13 +402,68 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			},
 		},
 	));
+
 	listWidget.setViewModel(viewModel);
 	listWidget.setVisible(true);
 	listWidget.refresh();
 
-	const listHeight = 420;
+	const listHeight = options.listHeight ?? 420;
 	listWidget.layout(listHeight, width);
 	listWidget.scrollTop = 0;
+
+	if (options.hostLayoutMode && options.hostLayoutMode !== 'none') {
+		let layouting = false;
+		disposableStore.add(autorun(reader => {
+			const inputHeight = inputPart.height.read(reader);
+			if (layouting) {
+				return;
+			}
+
+			layouting = true;
+			try {
+				if (options.hostLayoutMode === 'stackedFull') {
+					// Mirrors ChatViewPane's stacked-sessions convergence path:
+					// the host synchronously lays out the input again.
+					inputPart.setMaxHeight(Math.max(0, height - 50));
+					inputPart.layout(width);
+				}
+
+				const contentHeight = options.hostLayoutMode === 'stackedFull' || options.hostLayoutMode === 'stackedTargeted'
+					? Math.max(0, Math.max(116, inputHeight) - inputHeight)
+					: Math.max(0, height - inputHeight);
+				listContainer.style.height = `${contentHeight}px`;
+				listContainer.dataset['expectedHeight'] = String(contentHeight);
+				listWidget.layout(contentHeight, width);
+			} finally {
+				layouting = false;
+			}
+		}));
+	}
+
+	options.onRendered?.({
+		inputPart,
+		listWidget,
+		model,
+		width,
+		addTerminalConfirmation: (request, command) => {
+			model.acceptResponseProgress(request, new ChatToolInvocation(
+				{
+					invocationMessage: new MarkdownString(`Running \`${command}\``),
+					pastTenseMessage: new MarkdownString(`Ran \`${command}\``),
+					confirmationMessages: { title: 'Run diagnostic command?', message: new MarkdownString(`\`${command}\``) },
+					toolSpecificData: {
+						kind: 'terminal',
+						commandLine: { original: command },
+						language: 'pwsh',
+					},
+				},
+				fixtureToolData,
+				generateUuid(),
+				undefined,
+				{ command },
+			));
+		},
+	});
 }
 
 const SIMPLE_QA: IFixtureMessage[] = [
@@ -396,28 +475,94 @@ const SIMPLE_QA: IFixtureMessage[] = [
 	},
 ];
 
+const SCROLL_TO_BOTTOM_ACTION: IFixtureMessage[] = [
+	{
+		user: [
+			'Please investigate why the chat transcript sometimes stops following a long-running agent response after I scroll upward to review an earlier step. Trace the list scroll state, the lock that controls automatic scrolling, and the event that reveals the action for returning to the newest content.',
+			'Start by reproducing the behavior with a response that grows over several updates. Record how the rendered height, scroll height, and scroll position change when new markdown, progress messages, and tool output arrive while the transcript is both locked to the bottom and intentionally paused above it.',
+			'Then compare mouse-wheel, keyboard, and programmatic scrolling. Make sure each path preserves the user decision to stay in place, but that selecting the return action reliably restores the bottom lock without causing the final response to jump or become obscured.',
+			'Review the floating action itself in light and dark themes. It should remain legible over transcript content, use the transcript surface at rest, show the secondary action treatment on hover and focus, and expose a descriptive label to keyboard and screen reader users.',
+			'Finally, add focused coverage for the scroll-state calculation and an isolated component fixture that renders enough real chat content to overflow. Position the list away from the bottom so the action is visible over content and future visual regressions are caught.',
+		].join('\n\n'),
+	},
+];
+
+async function renderScrollToBottomAction(context: ComponentFixtureContext): Promise<void> {
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget(context, {
+		messages: SCROLL_TO_BOTTOM_ACTION,
+		height: 240,
+		listHeight: 240,
+		inputVisible: false,
+		onRendered: value => handle = value,
+	});
+
+	if (!handle) {
+		throw new Error('Scroll-to-bottom fixture did not initialize');
+	}
+
+	const targetWindow = dom.getWindow(context.container);
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	await nextFrame();
+	await nextFrame();
+
+	const maximumScrollTop = handle.listWidget.scrollHeight - handle.listWidget.renderHeight;
+	if (maximumScrollTop <= 0) {
+		throw new Error('Scroll-to-bottom fixture content does not overflow');
+	}
+
+	handle.listWidget.scrollTop = maximumScrollTop / 2;
+	await nextFrame();
+
+	const scrollDownButton = context.container.querySelector<HTMLElement>('.chat-scroll-down');
+	if (!scrollDownButton) {
+		throw new Error('Scroll-to-bottom button was not rendered');
+	}
+
+	const buttonStyle = targetWindow.getComputedStyle(scrollDownButton);
+	if (buttonStyle.display !== 'flex') {
+		throw new Error(`Scroll-to-bottom button is not visible: ${buttonStyle.display}`);
+	}
+	if (handle.listWidget.isScrolledToBottom) {
+		throw new Error('Scroll-to-bottom fixture unexpectedly remained at the bottom');
+	}
+	if (!buttonStyle.backgroundColor || buttonStyle.backgroundColor === 'transparent' || buttonStyle.backgroundColor === 'rgba(0, 0, 0, 0)') {
+		throw new Error(`Scroll-to-bottom button background is transparent: ${buttonStyle.backgroundColor}`);
+	}
+
+	const buttonBounds = scrollDownButton.getBoundingClientRect();
+	const contentUnderButton = Array.from(context.container.querySelectorAll<HTMLElement>('.monaco-list-row')).some(row => {
+		const rowBounds = row.getBoundingClientRect();
+		return rowBounds.left < buttonBounds.right
+			&& rowBounds.right > buttonBounds.left
+			&& rowBounds.top < buttonBounds.bottom
+			&& rowBounds.bottom > buttonBounds.top;
+	});
+	if (!contentUnderButton) {
+		throw new Error('Scroll-to-bottom button does not overlay transcript content');
+	}
+}
+
 const LAST_RESPONSE_HOVER: IFixtureMessage[] = [
 	{
 		user: 'Summarize the changes',
 		assistant: [
-			{ kind: 'markdown', text: 'The response content ends here. The remaining row height is reserved space.' },
+			{ kind: 'markdown', text: 'The response content ends here.' },
 		],
 		details: 'Claude Opus 4.8 - 2 credits',
 	},
 ];
 
-async function renderLastResponseHover(context: ComponentFixtureContext, target: 'content' | 'reserved-space'): Promise<void> {
+async function renderLastResponseHover(context: ComponentFixtureContext): Promise<void> {
 	await renderChatWidget(context, {
 		messages: LAST_RESPONSE_HOVER,
 		height: 600,
 		inputVisible: false,
-		renderStyle: 'default',
 		responseFooterAction: true,
 	});
 
 	const response = context.container.querySelector<HTMLElement>('.interactive-response.chat-most-recent-response');
-	const hoverTarget = target === 'content' ? response?.querySelector<HTMLElement>(':scope > .value') : response;
-	hoverTarget?.dispatchEvent(new MouseEvent('mouseenter'));
+	response?.querySelector<HTMLElement>(':scope > .value')?.dispatchEvent(new MouseEvent('mouseenter'));
 }
 
 const KEYBOARD_FOCUS: IFixtureMessage[] = [
@@ -442,7 +587,6 @@ async function renderKeyboardFocus(context: ComponentFixtureContext, target: 're
 		messages: KEYBOARD_FOCUS,
 		height: 600,
 		inputVisible: false,
-		renderStyle: 'default',
 		responseFooterAction: true,
 		verbose: target === 'request-timestamp',
 	});
@@ -529,47 +673,184 @@ const MULTI_TURN: IFixtureMessage[] = [
 ];
 
 // Code blocks that follow or are nested in list items should have symmetric spacing
-// above and below. Covers the two DOM shapes markdown produces: a code block that is a
-// sibling after a list, and a code block nested inside a list item (indented fence).
+// above and below. This also covers tight lists, where prose before a code block is a
+// text node and the code block is therefore still the first element child.
 const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	{
-		user: 'How do I set up the project?',
+		user: 'Why do the files appear while diffs fail?',
 		assistant: [
 			{
 				kind: 'markdown', text: [
-					'Follow these steps:',
+					'## Root cause',
 					'',
-					'- Clone the repository',
-					'- Install the dependencies',
+					'Git is unusable on this Mac because the Xcode license has not been accepted. Both `git --version` and `/usr/bin/git --version` currently exit with code 69 and report:',
 					'',
-					'```bash',
-					'npm install',
-					'```',
+					'> You have not agreed to the Xcode license agreements.',
 					'',
-					'- Then start the build watcher:',
+					'### Why files appear but diffs fail',
 					'',
-					'  ```bash',
-					'  npm run watch',
-					'  ```',
-					'',
-					'- Finally, launch the app',
+					'1. The session restores/caches the change-set metadata, so VS Code can display the filenames and change counts.',
+					'2. Opening a diff requires loading its original side using a `git-blob:` URI.',
+					'3. Agent Host executes roughly:',
+					'   ```bash',
+					'   git show 1e393d7b352de7927a98d0321e51ae63046c8652:<path>',
+					'   ```',
+					'4. Git refuses to run because of the Xcode license.',
 				].join('\n')
 			},
 		],
 	},
 ];
 
+async function renderResizeObserverLoopHarness(context: ComponentFixtureContext, hostLayoutMode: IChatWidgetFixtureOptions['hostLayoutMode']): Promise<void> {
+	const targetWindow = dom.getWindow(context.container);
+
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget(context, {
+		messages: [{
+			user: [
+				'Investigate ResizeObserver re-entry.',
+				'',
+				'Context (text/plain; no binary upload):',
+				'Issue #316501 tracks chat list and input resize-observer loop warnings.',
+			].join('\n'),
+			assistant: [{
+				kind: 'markdown',
+				text: 'The mocked chat harness is ready.',
+			}],
+		}],
+		width: 720,
+		height: 600,
+		hostLayoutMode,
+		onRendered: value => handle = value,
+	});
+
+	if (!handle) {
+		throw new Error('ResizeObserver harness did not initialize');
+	}
+	const fixtureHandle = handle;
+
+	const controls = dom.$('.resize-observer-loop-harness');
+	const runButton = dom.append(controls, dom.$<HTMLButtonElement>('button.resize-observer-loop-run'));
+	runButton.type = 'button';
+	runButton.textContent = 'Run 20-turn burst';
+	const status = dom.append(controls, dom.$('span.resize-observer-loop-status'));
+	status.role = 'status';
+	status.textContent = 'Ready';
+	const warnings = dom.append(controls, dom.$('span.resize-observer-loop-warnings'));
+	warnings.textContent = 'Warnings: 0';
+	controls.style.position = 'absolute';
+	controls.style.top = '8px';
+	controls.style.right = '8px';
+	controls.style.zIndex = '100';
+	controls.style.display = 'flex';
+	controls.style.gap = '8px';
+	controls.style.alignItems = 'center';
+	controls.style.padding = '6px 8px';
+	controls.style.background = 'var(--vscode-editorWidget-background)';
+	controls.style.border = '1px solid var(--vscode-widget-border)';
+	context.container.style.position = 'relative';
+	context.container.appendChild(controls);
+
+	let warningCount = 0;
+	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
+		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
+			warningCount++;
+			warnings.textContent = `Warnings: ${warningCount}`;
+			warnings.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+			status.textContent = 'Captured ResizeObserver warning';
+		}
+	}));
+
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	const runBurst = async () => {
+		runButton.disabled = true;
+		status.textContent = 'Adding queued turns...';
+		const responses = [];
+
+		for (let index = 1; index <= 20; index++) {
+			const prompt = [
+				`Queued prompt ${index}`,
+				'',
+				'Context (text/plain; no binary upload):',
+				...Array.from({ length: 12 }, (_, line) => `Resize stress sample ${index}.${line + 1}: ${'layout '.repeat(index % 5 + 1)}`),
+			].join('\n');
+
+			fixtureHandle.inputPart.setValue(prompt, true);
+			fixtureHandle.inputPart.layout(fixtureHandle.width);
+
+			const request = fixtureHandle.model.addRequest(makeUserMessage(prompt), { variables: [] }, 0);
+			fixtureHandle.model.acceptResponseProgress(request, {
+				kind: 'progressMessage',
+				content: new MarkdownString(`Processing queued prompt ${index}...`),
+			});
+			if (index === 1) {
+				fixtureHandle.addTerminalConfirmation(request, 'git status --short');
+			}
+			responses.push(request.response!);
+
+			fixtureHandle.listWidget.refresh();
+			await nextFrame();
+
+			fixtureHandle.inputPart.setValue('', true);
+			fixtureHandle.inputPart.layout(fixtureHandle.width);
+			fixtureHandle.model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString(`Mock streamed output ${index}\n\n${'- response line\n'.repeat(index % 7 + 1)}`),
+			});
+			fixtureHandle.listWidget.refresh();
+			await nextFrame();
+		}
+
+		status.textContent = 'Completing mocked responses...';
+		for (const response of responses) {
+			response.complete();
+			fixtureHandle.listWidget.refresh();
+			await nextFrame();
+		}
+
+		status.textContent = warningCount > 0
+			? 'Completed with ResizeObserver warning'
+			: 'Completed without warning';
+		runButton.disabled = false;
+	};
+
+	context.disposableStore.add(dom.addDisposableListener(runButton, dom.EventType.CLICK, () => {
+		void runBurst();
+	}));
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
+	ScrollToBottomAction: defineComponentFixture({ render: renderScrollToBottomAction }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	ResizeObserverLoopHarness: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'stackedFull'),
+	}),
+	ResizeObserverLoopListOnly: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'listOnly'),
+	}),
+	ResizeObserverLoopStackedTargeted: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'stackedTargeted'),
+	}),
+	ResizeObserverLoopNoHostLayout: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderResizeObserverLoopHarness(context, 'none'),
+	}),
 	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
-	LastResponseContentHover: defineComponentFixture({ render: ctx => renderLastResponseHover(ctx, 'content') }),
-	LastResponseReservedSpaceHover: defineComponentFixture({ render: ctx => renderLastResponseHover(ctx, 'reserved-space') }),
+	LastResponseContentHover: defineComponentFixture({ render: renderLastResponseHover }),
 	ResponseActionKeyboardFocus: defineComponentFixture({ render: ctx => renderKeyboardFocus(ctx, 'response-action') }),
 	RequestTimestampKeyboardFocus: defineComponentFixture({ render: ctx => renderKeyboardFocus(ctx, 'request-timestamp') }),
 });

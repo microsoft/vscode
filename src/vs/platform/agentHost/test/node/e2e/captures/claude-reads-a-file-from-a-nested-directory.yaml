@@ -6,31 +6,31 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Read nested/value.txt and reply with its exact contents only.
+          content: Read nested/value.txt and reply with its exact contents only. Use your file tools; do not run a shell command.
     response:
       content:
         - type: text
-          text: I'll read the file.
+          text: I'll read the file for you.
         - type: tool_use
           id: toolcall_0
           name: Read
           input:
-            file_path: ${workdir}/ahp-coverage-nested-read-${temp}/nested/value.txt
+            file_path: ${workdir}/nested/value.txt
       stopReason: tool_use
   - request:
       model: claude-opus-4.8
       system: ${system}
       messages:
         - role: user
-          content: Read nested/value.txt and reply with its exact contents only.
+          content: Read nested/value.txt and reply with its exact contents only. Use your file tools; do not run a shell command.
         - role: assistant
           content:
             - type: text
-              text: I'll read the file.
+              text: I'll read the file for you.
             - type: tool_use
               name: Read
               input:
-                file_path: ${workdir}/ahp-coverage-nested-read-${temp}/nested/value.txt
+                file_path: ${workdir}/nested/value.txt
         - role: user
           content:
             - type: tool_result

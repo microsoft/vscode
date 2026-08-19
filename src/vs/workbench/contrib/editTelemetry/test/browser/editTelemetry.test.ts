@@ -31,6 +31,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { UserAttentionService, UserAttentionServiceEnv } from '../../../../services/userAttention/browser/userAttentionBrowser.js';
 import { IUserAttentionService } from '../../../../services/userAttention/common/userAttentionService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 
 suite('Edit Telemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,10 +60,11 @@ suite('Edit Telemetry', () => {
 		instantiationService.stubInstance(UriVisibilityProvider, { isVisible: (uri, reader) => true, });
 		instantiationService.stub(IRandomService, new DeterministicRandomService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITextFileService, { isDirty: () => false });
 
 		const w = new MutableObservableWorkspace();
 		const docs = disposables.add(new AnnotatedDocuments(w, instantiationService));
-		disposables.add(new EditSourceTrackingImpl(constObservable(true), docs, instantiationService));
+		disposables.add(new EditSourceTrackingImpl(constObservable(true), docs, undefined, instantiationService));
 
 		const d1 = disposables.add(w.createDocument({
 			uri: URI.parse('file:///a'), initialValue: `
@@ -115,10 +117,10 @@ function fib(n) {
 			'05:11:010 editTelemetry.reportEditArc: {\"sourceKeyCleaned\":\"source:Chat.applyEdits\",\"languageId\":\"plaintext\",\"uniqueEditId\":\"1eb8a394-2489-41c2-851b-6a79432fc6bc\",\"didBranchChange\":0,\"timeDelayMs\":300000,\"originalCharCount\":19,\"originalLineCount\":1,\"originalDeletedLineCount\":1,\"arc\":19,\"currentLineCount\":1,\"currentDeletedLineCount\":1}',
 			'12:00:000 editTelemetry.editSources.details: {\"mode\":\"10minFocusWindow\",\"sourceKey\":\"source:Chat.applyEdits\",\"sourceKeyCleaned\":\"source:Chat.applyEdits\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"509b5d53-9109-40a2-bdf5-1aa735a229fe\",\"modifiedCount\":35,\"deltaModifiedCount\":56,\"totalModifiedCount\":39}',
 			'12:00:000 editTelemetry.editSources.details: {\"mode\":\"10minFocusWindow\",\"sourceKey\":\"source:cursor-kind:type\",\"sourceKeyCleaned\":\"source:cursor-kind:type\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"509b5d53-9109-40a2-bdf5-1aa735a229fe\",\"modifiedCount\":4,\"deltaModifiedCount\":4,\"totalModifiedCount\":39}',
-			'12:00:000 editTelemetry.editSources.stats: {\"mode\":\"10minFocusWindow\",\"languageId\":\"plaintext\",\"statsUuid\":\"509b5d53-9109-40a2-bdf5-1aa735a229fe\",\"nesModifiedCount\":0,\"inlineCompletionsCopilotModifiedCount\":0,\"inlineCompletionsNESModifiedCount\":0,\"otherAIModifiedCount\":35,\"unknownModifiedCount\":0,\"userModifiedCount\":4,\"ideModifiedCount\":0,\"totalModifiedCharacters\":39,\"externalModifiedCount\":0,\"isTrackedByGit\":0,\"focusTime\":600000,\"actualTime\":720000,\"trigger\":\"time\"}',
+			'12:00:000 editTelemetry.editSources.stats: {\"attributionSchemaVersion\":2,\"mode\":\"10minFocusWindow\",\"languageId\":\"plaintext\",\"statsUuid\":\"509b5d53-9109-40a2-bdf5-1aa735a229fe\",\"nesModifiedCount\":0,\"inlineCompletionsCopilotModifiedCount\":0,\"inlineCompletionsNESModifiedCount\":0,\"otherAIModifiedCount\":35,\"agentHostModifiedCount\":0,\"unknownModifiedCount\":0,\"userModifiedCount\":4,\"ideModifiedCount\":0,\"totalModifiedCharacters\":39,\"externalModifiedCount\":0,\"isTrackedByGit\":0,\"focusTime\":600000,\"actualTime\":720000,\"trigger\":\"time\"}',
 			'22:00:000 editTelemetry.editSources.details: {\"mode\":\"20minFocusWindow\",\"sourceKey\":\"source:Chat.applyEdits\",\"sourceKeyCleaned\":\"source:Chat.applyEdits\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"a794406a-7779-4e9f-a856-1caca85123c7\",\"modifiedCount\":35,\"deltaModifiedCount\":56,\"totalModifiedCount\":39}',
 			'22:00:000 editTelemetry.editSources.details: {\"mode\":\"20minFocusWindow\",\"sourceKey\":\"source:cursor-kind:type\",\"sourceKeyCleaned\":\"source:cursor-kind:type\",\"trigger\":\"time\",\"languageId\":\"plaintext\",\"statsUuid\":\"a794406a-7779-4e9f-a856-1caca85123c7\",\"modifiedCount\":4,\"deltaModifiedCount\":4,\"totalModifiedCount\":39}',
-			'22:00:000 editTelemetry.editSources.stats: {\"mode\":\"20minFocusWindow\",\"languageId\":\"plaintext\",\"statsUuid\":\"a794406a-7779-4e9f-a856-1caca85123c7\",\"nesModifiedCount\":0,\"inlineCompletionsCopilotModifiedCount\":0,\"inlineCompletionsNESModifiedCount\":0,\"otherAIModifiedCount\":35,\"unknownModifiedCount\":0,\"userModifiedCount\":4,\"ideModifiedCount\":0,\"totalModifiedCharacters\":39,\"externalModifiedCount\":0,\"isTrackedByGit\":0,\"focusTime\":1200000,\"actualTime\":1320000,\"trigger\":\"time\"}'
+			'22:00:000 editTelemetry.editSources.stats: {\"attributionSchemaVersion\":2,\"mode\":\"20minFocusWindow\",\"languageId\":\"plaintext\",\"statsUuid\":\"a794406a-7779-4e9f-a856-1caca85123c7\",\"nesModifiedCount\":0,\"inlineCompletionsCopilotModifiedCount\":0,\"inlineCompletionsNESModifiedCount\":0,\"otherAIModifiedCount\":35,\"agentHostModifiedCount\":0,\"unknownModifiedCount\":0,\"userModifiedCount\":4,\"ideModifiedCount\":0,\"totalModifiedCharacters\":39,\"externalModifiedCount\":0,\"isTrackedByGit\":0,\"focusTime\":1200000,\"actualTime\":1320000,\"trigger\":\"time\"}'
 		]));
 
 		disposables.dispose();

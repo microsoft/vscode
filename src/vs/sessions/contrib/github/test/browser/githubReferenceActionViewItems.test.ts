@@ -1,0 +1,147 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Action } from '../../../../../base/common/actions.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { SessionHeaderMetaActionViewItem } from '../../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { OpenIssueActionViewItem } from '../../browser/issueActions.js';
+import { OpenPullRequestActionViewItem } from '../../browser/pullRequestActions.js';
+
+interface IIssueViewItemTestHarness {
+	_issuePickerVisible: boolean;
+	readonly _issuesObs: { get(): readonly object[] };
+	readonly _hoverService: { hideHover(force?: boolean): void };
+	hasOpenDropdown(): boolean;
+	_showIssuePicker(issues: readonly object[]): void;
+}
+
+interface IPullRequestViewItemTestHarness {
+	_pullRequestList: object | undefined;
+	readonly _pullRequestsObs: { get(): readonly object[] };
+	readonly _hoverService: { hideHover(force?: boolean): void };
+	hasOpenDropdown(): boolean;
+	_showPullRequestPicker(pullRequests: readonly object[]): void;
+}
+
+const openIssueViewItemOnDidClickButton = Reflect.get(OpenIssueActionViewItem.prototype, 'onDidClickButton') as (this: IIssueViewItemTestHarness) => void;
+const openPullRequestViewItemOnDidClickButton = Reflect.get(OpenPullRequestActionViewItem.prototype, 'onDidClickButton') as (this: IPullRequestViewItemTestHarness) => void;
+
+class TestDropdownMetaActionViewItem extends SessionHeaderMetaActionViewItem {
+
+	dropdownVisible = true;
+	opened = 0;
+	closed = 0;
+
+	protected override hasOpenDropdown(): boolean {
+		return this.dropdownVisible;
+	}
+
+	protected override onDidClickButton(): void {
+		if (this.dropdownVisible) {
+			this.dropdownVisible = false;
+			this.closed++;
+		} else {
+			this.dropdownVisible = true;
+			this.opened++;
+		}
+	}
+}
+
+suite('GitHub Reference Action View Items', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves an open dropdown for primary activation while allowing secondary dismissal', () => {
+		const store = new DisposableStore();
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const action = store.add(new Action('test', 'Test'));
+			const viewItem = store.add(new TestDropdownMetaActionViewItem(undefined, action, {}));
+			viewItem.render(container);
+			let ancestorMouseDowns = 0;
+			store.add(addDisposableListener(container, EventType.MOUSE_DOWN, () => ancestorMouseDowns++));
+			store.add(addDisposableListener(mainWindow.document, EventType.MOUSE_DOWN, () => viewItem.dropdownVisible = false));
+			const button = container.querySelector<HTMLElement>('.chat-composite-bar-meta-item-button')!;
+
+			button.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, button: 0 }));
+			button.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true }));
+
+			const afterPrimaryClick = {
+				ancestorMouseDowns,
+				opened: viewItem.opened,
+				closed: viewItem.closed,
+				dropdownVisible: viewItem.dropdownVisible,
+			};
+			viewItem.dropdownVisible = true;
+			button.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, button: 2 }));
+
+			assert.deepStrictEqual({
+				afterPrimaryClick,
+				ancestorMouseDowns,
+				dropdownVisible: viewItem.dropdownVisible,
+			}, {
+				afterPrimaryClick: {
+					ancestorMouseDowns: 1,
+					opened: 0,
+					closed: 1,
+					dropdownVisible: false,
+				},
+				ancestorMouseDowns: 2,
+				dropdownVisible: false,
+			});
+		} finally {
+			store.dispose();
+			container.remove();
+		}
+	});
+
+	test('clicking an open issues list closes it instead of reopening it', () => {
+		const events: string[] = [];
+		const harness: IIssueViewItemTestHarness = {
+			_issuePickerVisible: false,
+			_issuesObs: { get: () => [{}, {}] },
+			_hoverService: { hideHover: force => events.push(`hide:${force}`) },
+			hasOpenDropdown() {
+				return this._issuePickerVisible;
+			},
+			_showIssuePicker() {
+				events.push('show');
+				this._issuePickerVisible = true;
+			},
+		};
+
+		openIssueViewItemOnDidClickButton.call(harness);
+		openIssueViewItemOnDidClickButton.call(harness);
+
+		assert.deepStrictEqual(events, ['show', 'hide:true']);
+	});
+
+	test('clicking an open pull request list closes it instead of reopening it', () => {
+		const events: string[] = [];
+		const harness: IPullRequestViewItemTestHarness = {
+			_pullRequestList: undefined,
+			_pullRequestsObs: { get: () => [{}, {}] },
+			_hoverService: { hideHover: force => events.push(`hide:${force}`) },
+			hasOpenDropdown() {
+				return !!this._pullRequestList;
+			},
+			_showPullRequestPicker() {
+				events.push('show');
+				this._pullRequestList = {};
+			},
+		};
+
+		openPullRequestViewItemOnDidClickButton.call(harness);
+		openPullRequestViewItemOnDidClickButton.call(harness);
+
+		assert.deepStrictEqual(events, ['show', 'hide:true']);
+	});
+});

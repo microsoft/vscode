@@ -250,7 +250,7 @@ interface IPendingAction {
 export interface IPendingDispatchAction {
 	readonly clientSeq: number;
 	/** The optimistic action awaiting confirmation. */
-	readonly action: SessionAction | ChatAction;
+	readonly action: SessionAction | ChatAction | AnnotationsAction;
 	/** URI of the channel this action targets, as stored on the subscription. */
 	readonly channel: string;
 }
@@ -775,6 +775,24 @@ export class AnnotationsStateSubscription extends BaseAgentSubscription<Annotati
 		this._optimisticState = state;
 		this._onDidChange.fire(state);
 	}
+
+	clearPending(): void {
+		this._pendingActions.length = 0;
+		this._optimisticState = undefined;
+	}
+
+	getPendingActions(): IPendingDispatchAction[] {
+		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._annotationsUri }));
+	}
+
+	dropPendingByClientSeq(clientSeq: number): boolean {
+		const index = this._pendingActions.findIndex(p => p.clientSeq === clientSeq);
+		if (index === -1) {
+			return false;
+		}
+		this._pendingActions.splice(index, 1);
+		return true;
+	}
 }
 
 type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string> };
@@ -955,7 +973,7 @@ export class AgentSubscriptionManager extends Disposable {
 
 	private _disposeSubscriptionEntry(resource: URI, entry: ManagedSubscriptionEntry): void {
 		this._tryUnsubscribe(resource);
-		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
+		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
 			entry.sub.clearPending();
 		}
 		entry.sub.dispose();
@@ -1053,16 +1071,16 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
-	 * Snapshot of every pending optimistic action across all session
-	 * subscriptions. Callers use this to replay actions after a transport
+	 * Snapshot of every pending optimistic action that must survive reconnect.
+	 * Callers use this to replay actions after a transport
 	 * reconnect; entries are kept on their subscriptions until they're
 	 * either echoed back by the server or explicitly dropped via
-	 * {@link dropPendingSessionAction}.
+	 * {@link dropPendingAction}.
 	 */
-	getPendingSessionActions(): IPendingDispatchAction[] {
+	getPendingActions(): IPendingDispatchAction[] {
 		const out: IPendingDispatchAction[] = [];
 		for (const { sub } of this._subscriptions.values()) {
-			if (sub instanceof SessionStateSubscription || sub instanceof ChatStateSubscription) {
+			if (sub instanceof SessionStateSubscription || sub instanceof ChatStateSubscription || sub instanceof AnnotationsStateSubscription) {
 				out.push(...sub.getPendingActions());
 			}
 		}
@@ -1070,13 +1088,13 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
-	 * Remove a single pending optimistic action for a session by its
+	 * Remove a single pending optimistic action by its
 	 * `clientSeq`. Used during reconnect to evict actions the server
 	 * already processed (and replayed back to us) so they're not resent.
 	 */
-	dropPendingSessionAction(sessionUri: string, clientSeq: number): void {
-		const entry = this._subscriptions.get(URI.parse(sessionUri));
-		if (entry?.sub instanceof SessionStateSubscription || entry?.sub instanceof ChatStateSubscription) {
+	dropPendingAction(resource: string, clientSeq: number): void {
+		const entry = this._subscriptions.get(URI.parse(resource));
+		if (entry?.sub instanceof SessionStateSubscription || entry?.sub instanceof ChatStateSubscription || entry?.sub instanceof AnnotationsStateSubscription) {
 			entry.sub.dropPendingByClientSeq(clientSeq);
 		}
 	}
@@ -1088,7 +1106,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * subscription when {@link ROOT_STATE_URI} matches, otherwise reseats the
 	 * matching entry in {@link _subscriptions}. Unknown resources are ignored.
 	 */
-	applyReconnectSnapshot(resource: string, state: unknown, fromSeq: number): void {
+	applyReconnectSnapshot(resource: string, state: unknown, fromSeq: number, preservePending = false): void {
 		if (isAhpRootChannel(resource)) {
 			this._rootState.handleSnapshot(state as RootState, fromSeq);
 			return;
@@ -1100,7 +1118,7 @@ export class AgentSubscriptionManager extends Disposable {
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
 		// state and won't reconcile correctly against a fresh snapshot.
-		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
+		if (!preservePending && (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription)) {
 			entry.sub.clearPending();
 		}
 		entry.sub.handleSnapshot(state as never, fromSeq);
@@ -1116,7 +1134,7 @@ export class AgentSubscriptionManager extends Disposable {
 		for (const resource of missing) {
 			const entry = this._subscriptions.get(resource);
 			if (entry) {
-				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
+				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
 					entry.sub.clearPending();
 				}
 				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${resource.toString()}`));

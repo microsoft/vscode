@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { addDisposableListener, EventType, h } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventHelper, EventType, h } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -140,6 +140,20 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._register(btn.onDidClick(() => {
 			this._viewModel.get()?.collapsed.set(!this._collapsed.get(), undefined);
 		}));
+
+		if (this._workbenchUIElementFactory.handleHeaderMiddleClick) {
+			this._register(addDisposableListener(this._elements.header, EventType.AUXCLICK, e => {
+				if (e.button !== 1) {
+					return;
+				}
+
+				const viewModel = this._viewModel.get();
+				const resource = viewModel?.modifiedUri ?? viewModel?.originalUri;
+				if (resource && this._workbenchUIElementFactory.handleHeaderMiddleClick?.(resource)) {
+					EventHelper.stop(e, true);
+				}
+			}));
+		}
 
 		if (this._workbenchUIElementFactory.headerClickToCollapse) {
 			// Make the header clickable to toggle collapse/expand

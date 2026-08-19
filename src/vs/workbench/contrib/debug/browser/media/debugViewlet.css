@@ -25,7 +25,7 @@
 	border: 1px solid white;
 }
 
-.monaco-workbench .part > .title > .title-actions:has(.start-debug-action-item) {
+.monaco-workbench .part > .title.has-start-debug-action-item > .title-actions {
 	min-width: 0;
 	overflow: hidden;
 }

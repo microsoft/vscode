@@ -78,6 +78,7 @@ async function runCursorPipeline(sampleTask: NesDatagenSampleTask, nesDatagenOve
 			output: outputPath,
 			rowOffset: 0,
 			workerMode: false,
+			generateScoredEdits: false,
 			sampleTask,
 			inputFormat: NesDatagenInputFormat.AlternativeAction,
 			pivotStrategy: PivotStrategy.Random,

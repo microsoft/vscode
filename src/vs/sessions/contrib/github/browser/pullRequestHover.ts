@@ -47,7 +47,8 @@ export function createPullRequestHoverElement(data: IPullRequestHoverData): HTML
 	append(hoverElement, $('.sessions-pr-hover-title', undefined, data.pullRequest?.title || localize('agentSessions.pullRequestHover.titleFallback', "Pull Request #{0}", data.number)));
 
 	const body = data.pullRequest?.body.trim() || localize('agentSessions.pullRequestHover.bodyFallback', "No description provided.");
-	append(hoverElement, $('.sessions-pr-hover-description', undefined, body));
+	const description = append(hoverElement, $('.sessions-pr-hover-description'));
+	append(description, $('.sessions-pr-hover-description-content', undefined, body));
 
 	const branchRow = append(hoverElement, $('.sessions-pr-hover-branches'));
 	appendBranchPill(branchRow, data.pullRequest?.baseRef || localize('agentSessions.pullRequestHover.baseFallback', "target"));

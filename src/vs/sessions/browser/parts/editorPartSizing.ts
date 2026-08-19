@@ -9,9 +9,6 @@
  * can never drift apart.
  */
 
-/** Fraction of the full window width the single-pane side pane takes on first reveal and on sash double-click reset. */
-export const SIDE_PANE_WIDTH_RATIO = 0.6;
-
 /** Minimum width of the editor part / single-pane side pane. Also the floor below which a persisted width is treated as corrupt. */
 export const EDITOR_PART_MINIMUM_WIDTH = 300;
 

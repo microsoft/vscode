@@ -11,7 +11,7 @@ exchanges:
       content:
         - type: tool_use
           id: toolcall_0
-          name: bash
+          name: ${shell}
           input:
             command: git status --porcelain
             description: Check git status
@@ -38,5 +38,7 @@ exchanges:
                 ?? untracked.txt
                 <shellId: 0 completed with exit code 0>
     response:
-      content: tracked.txt, untracked.txt
+      content: |-
+        Modified: `tracked.txt`
+        Untracked: `untracked.txt`
       stopReason: end_turn

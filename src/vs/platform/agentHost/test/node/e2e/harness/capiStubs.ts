@@ -43,9 +43,28 @@ interface IStubModel {
 }
 
 const STUB_MODELS: readonly IStubModel[] = [
+	// Every family pinned by `copilotPromptsE2E`, plus the provider default and
+	// the generic models other suites use. `supportedEndpoints` picks the dialect.
+	{ id: 'gpt-5', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5-mini', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5-codex', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5.1', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5.1-codex', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5.1-codex-mini', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true },
+	{ id: 'gpt-5.6-sol', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 1050000, maxOutputTokens: 128000, maxPromptTokens: 922000, vision: true },
+	{ id: 'gpt-5.6-luna', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 1050000, maxOutputTokens: 128000, maxPromptTokens: 922000, vision: true },
+	{ id: 'gpt-5.6-terra', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 1050000, maxOutputTokens: 128000, maxPromptTokens: 922000, vision: true },
+	{ id: 'claude-haiku-4.5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 200000, maxOutputTokens: 32000, maxPromptTokens: 168000, vision: true },
+	{ id: 'claude-sonnet-4.5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 200000, maxOutputTokens: 32000, maxPromptTokens: 168000, vision: true },
+	{ id: 'claude-opus-4.5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-sonnet-4.6', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'claude-opus-4.6', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-opus-4.7', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-opus-4.8', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-sonnet-5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-opus-5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'gemini-2.0-flash', vendor: 'Google', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 1000000, maxOutputTokens: 8192, maxPromptTokens: 128000, vision: true },
 	{ id: 'gpt-5.3-codex', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true, isChatDefault: true, isChatFallback: true },
-	{ id: 'claude-sonnet-4.5', vendor: 'Anthropic', supportedEndpoints: ['/chat/completions', '/v1/messages'], maxContextWindowTokens: 200000, maxOutputTokens: 32000, maxPromptTokens: 168000, vision: true },
 	{ id: 'gpt-4o', vendor: 'Azure OpenAI', supportedEndpoints: ['/chat/completions'], maxContextWindowTokens: 128000, maxOutputTokens: 4096, maxPromptTokens: 64000, vision: true },
 	{ id: 'gpt-4o-mini', vendor: 'Azure OpenAI', supportedEndpoints: ['/chat/completions'], maxContextWindowTokens: 128000, maxOutputTokens: 4096, maxPromptTokens: 64000 },
 ];
@@ -103,7 +122,7 @@ function quotaSnapshots(): Record<string, unknown> {
 	return { chat: { ...snapshot, quota_id: 'chat' }, completions: { ...snapshot, quota_id: 'completions' }, premium_interactions: { ...snapshot, quota_id: 'premium_interactions' } };
 }
 
-/** A fake Copilot token pointing back at the proxy (used only by title/utility calls on replay). */
+/** A fake Copilot token pointing back at the proxy. */
 function tokenStubBody(): string {
 	return JSON.stringify({
 		token: 'replay-copilot-token',
@@ -113,13 +132,24 @@ function tokenStubBody(): string {
 	});
 }
 
+function utilityChatCompletionStubBody(): string {
+	return JSON.stringify({
+		choices: [{ message: { role: 'assistant', content: 'Generated utility response' }, finish_reason: 'stop', index: 0 }],
+	});
+}
+
 const JSON_HEADERS: Readonly<Record<string, string>> = { 'content-type': 'application/json' };
 
 /**
  * Returns a stub response for an ancillary bootstrap endpoint, or undefined if
  * the path is a model endpoint that should be recorded/replayed normally.
  */
-export function getAncillaryStub(method: string, path: string): IStubResponse | undefined {
+export function getAncillaryStub(method: string, path: string, body?: string): IStubResponse | undefined {
+	if (path === '/chat/completions' && method === 'POST' && isNonStreamingChatCompletion(body)) {
+		return isCommitMessageCompletion(body)
+			? { status: 200, headers: JSON_HEADERS, body: utilityChatCompletionStubBody() }
+			: { status: 403, headers: JSON_HEADERS, body: 'Forbidden' };
+	}
 	if (path === '/models' && method === 'GET') {
 		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ data: STUB_MODELS.map(expandModel), object: 'list' }) };
 	}
@@ -160,4 +190,31 @@ export function getAncillaryStub(method: string, path: string): IStubResponse | 
 		return { status: 200, headers: JSON_HEADERS, body: '{}' };
 	}
 	return undefined;
+}
+
+function isNonStreamingChatCompletion(body: string | undefined): boolean {
+	if (!body) {
+		return false;
+	}
+	try {
+		return JSON.parse(body).stream === false;
+	} catch {
+		return false;
+	}
+}
+
+function isCommitMessageCompletion(body: string | undefined): boolean {
+	if (!body) {
+		return false;
+	}
+	try {
+		const messages = JSON.parse(body).messages;
+		return Array.isArray(messages) && messages.some(message =>
+			message?.role === 'system'
+			&& typeof message.content === 'string'
+			&& message.content.includes('You generate concise Git commit messages.')
+		);
+	} catch {
+		return false;
+	}
 }

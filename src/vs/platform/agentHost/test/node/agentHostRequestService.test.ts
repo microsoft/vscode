@@ -17,12 +17,13 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, IRequestService } from '../../../request/common/request.js';
 import { AgentHostClientProxyChannel, createAgentHostClientProxyConnection, type IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
-import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { AgentHostProxyResolver, IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostRequestService } from '../../node/agentHostRequestService.js';
 import { NetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
 class TestProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
+	readonly onDidRegisterConnection = Event.None;
 
 	lastInput: string | URL | Request | undefined;
 	lastInit: RequestInit | undefined;
@@ -42,6 +43,35 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		return this.fetchImpl(input, init);
 	}
 }
+
+suite('AgentHostProxyResolver', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fires when the first connection registers and after all connections reconnect', () => {
+		const resolver = disposables.add(new AgentHostProxyResolver(new TestConfigurationService(), new NullLogService()));
+		let registrations = 0;
+		disposables.add(resolver.onDidRegisterConnection(() => registrations++));
+		const connection: IAgentHostClientProxyConnection = {
+			resolveProxy: async () => undefined,
+			lookupAuthorization: async () => undefined,
+			lookupKerberosAuthorization: async () => undefined,
+		};
+
+		const first = disposables.add(resolver.register('first', connection));
+		const afterFirst = registrations;
+		const second = disposables.add(resolver.register('second', connection));
+		const afterSecond = registrations;
+		first.dispose();
+		second.dispose();
+		disposables.add(resolver.register('third', connection));
+
+		assert.deepStrictEqual({ afterFirst, afterSecond, afterReconnect: registrations }, {
+			afterFirst: 1,
+			afterSecond: 1,
+			afterReconnect: 2,
+		});
+	});
+});
 
 suite('AgentHostRequestService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

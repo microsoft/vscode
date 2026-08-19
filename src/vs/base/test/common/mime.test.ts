@@ -29,6 +29,7 @@ suite('Mime', () => {
 		assert.strictEqual(getExtensionForMimeType('image/webp'), '.webp');
 		assert.ok(['.mp2', '.mp2a', '.mp3', '.mpga', '.m2a', '.m3a'].includes(getExtensionForMimeType('audio/mpeg')!));
 		assert.ok(['.mp4', '.mp4v', '.mpg4'].includes(getExtensionForMimeType('video/mp4')!));
+		assert.strictEqual(getExtensionForMimeType('text/plain'), '.txt');
 		assert.strictEqual(getExtensionForMimeType('unknown/type'), undefined);
 	});
 

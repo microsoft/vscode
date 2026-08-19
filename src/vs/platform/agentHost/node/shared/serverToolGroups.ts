@@ -6,6 +6,7 @@
 import { feedbackServerToolGroup } from './agentFeedbackServerTools.js';
 import { createSessionServerToolGroup, type ISessionServerToolAccessor } from './sessionServerTools.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
+import { createAgentMergeServerToolGroup, type IAgentMergeToolAccessor } from './agentMergeServerTools.js';
 
 /**
  * Builds the server-tool groups contributed to every agent host session, in
@@ -23,8 +24,12 @@ import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } f
  * When omitted (the pure display path) the session group's `execute` is inert,
  * but its definitions and display remain available.
  */
-export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor): readonly IServerToolGroup[] {
-	return [feedbackServerToolGroup, createSessionServerToolGroup(sessionAccessor)];
+export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor): readonly IServerToolGroup[] {
+	return [
+		feedbackServerToolGroup,
+		createSessionServerToolGroup(sessionAccessor),
+		createAgentMergeServerToolGroup(agentMergeAccessor),
+	];
 }
 
 /**

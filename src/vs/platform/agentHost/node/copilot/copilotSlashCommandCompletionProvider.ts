@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
 import { Customization, CustomizationType, DirectoryCustomization, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
-import { toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { getCompletionAction, toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
-import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken } from '../agentHostSlashCompletion.js';
+import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import type { CopilotSession } from '@github/copilot-sdk';
 
 export { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
@@ -84,20 +85,59 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		return await this._getRuntimeSlashCommandCompletionInfo(sessionId, typed, leading, returnJustSkills);
 	}
 
-	private async _getKnownSkills(sessionId: string) {
-		const knownCommands = new Set<string>();
+	private async _getKnownSkills(sessionId: string): Promise<{ readonly known: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
+		const known = new Set<string>();
+		const syncedContainerNames = new Set<string>();
 		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
 		for (const c of customizations) {
-			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
+			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
 				continue;
+			}
+			if (c.type === CustomizationType.Plugin && isSyncedCustomization(c)) {
+				syncedContainerNames.add(c.name.toLowerCase());
 			}
 			for (const child of c.children) {
 				if (child.type === CustomizationType.Skill) {
-					knownCommands.add(this._toSlashCommandCandidate(c, child));
+					known.add(this._toSlashCommandCandidate(c, child).toLowerCase());
 				}
 			}
 		}
-		return knownCommands;
+		return { known, syncedContainerNames };
+	}
+
+	/**
+	 * Whether a runtime skill command duplicates one the generic skill-completion
+	 * provider already surfaces, including the synced bundle's namespaced
+	 * `<bundleName>:<skill>` form (kept when its bare name is reserved).
+	 */
+	private _isKnownSkillDuplicate(name: string, knownSkills: ReadonlySet<string>, syncedContainerNames: ReadonlySet<string>, runtimeCommands: readonly ICopilotRuntimeSlashCommandInfo[]): boolean {
+		const lower = name.toLowerCase();
+		if (knownSkills.has(lower)) {
+			return true;
+		}
+		for (const syncedName of syncedContainerNames) {
+			const prefix = `${syncedName}:`;
+			if (lower.startsWith(prefix)) {
+				const stripped = lower.slice(prefix.length);
+				return knownSkills.has(stripped) && !this._isReservedBareName(stripped, runtimeCommands);
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Whether a bare slash name would be intercepted by something other than a
+	 * bundled skill on send: a Copilot config action, the client-handled
+	 * `compact` / `rubber-duck` commands, or a non-skill runtime command (by name
+	 * or alias).
+	 */
+	private _isReservedBareName(name: string, runtimeCommands: readonly ICopilotRuntimeSlashCommandInfo[]): boolean {
+		if (isCopilotConfigSlashCommand(name) || name === 'compact' || name === 'rubber-duck') {
+			return true;
+		}
+		return runtimeCommands.some(command =>
+			command.kind !== 'skill'
+			&& (command.name?.toLowerCase() === name || !!command.aliases?.some(alias => alias.toLowerCase() === name)));
 	}
 
 	private _toSlashCommandCandidate(container: PluginCustomization | DirectoryCustomization, skill: SkillCustomization): string {
@@ -110,7 +150,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 	}
 
 	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean): Promise<CompletionItem[]> {
-		const [runtimeCommands, knownSkills] = await Promise.all([
+		const [runtimeCommands, { known: knownSkills, syncedContainerNames }] = await Promise.all([
 			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
 			this._getKnownSkills(sessionId)
 		]);
@@ -126,8 +166,8 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (returnJustSkills && command.kind !== 'skill') {
 				continue;
 			}
-			if (command.kind === 'skill' && knownSkills.has(command.name)) {
-				// This is a known skill, so we don't want to show it in the runtime command completion list.
+			if (command.kind === 'skill' && this._isKnownSkillDuplicate(command.name, knownSkills, syncedContainerNames, runtimeCommands)) {
+				// Already surfaced by the generic skill-completion provider.
 				continue;
 			}
 			if (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias))) {
@@ -142,7 +182,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
 				continue;
 			}
-			if (typed.length > 0 && !command.name.toLowerCase().startsWith(typedLower) && !command.aliases?.some(alias => alias.toLowerCase().startsWith(typedLower))) {
+			if (!matchesSlashCompletion(typedLower, command.name) && !command.aliases?.some(alias => matchesSlashCompletion(typedLower, alias))) {
 				continue;
 			}
 			// Use structured input choices as options; if there are none, emit a single item for the command and surface any free-text hint as a prompt.
@@ -200,7 +240,6 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			for (const item of getCopilotConfigSlashCommandItems(typed, configState)) {
 				completionItems.push({
 					insertText: item.insertText,
-					label: item.label,
 					rangeStart,
 					rangeEnd,
 					attachment: {
@@ -217,7 +256,10 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			}
 		}
 
-		return completionItems.sort((a, b) => (a.label ?? a.insertText).localeCompare(b.label ?? b.insertText));
+		const getSortText = (item: CompletionItem): string => {
+			return getCompletionAction(item.attachment._meta) ? item.attachment.label : item.insertText;
+		};
+		return completionItems.sort((a, b) => getSortText(a).localeCompare(getSortText(b)));
 	}
 }
 

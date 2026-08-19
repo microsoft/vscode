@@ -53,4 +53,5 @@ suite('setModelPreservingInputTypedWhileLoading', () => {
 
 		assert.strictEqual(widget.getInput(), '');
 	});
+
 });

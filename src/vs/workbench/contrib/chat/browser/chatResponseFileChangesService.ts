@@ -12,6 +12,10 @@ import { IEditSessionEntryDiff } from '../common/editing/chatEditingService.js';
 
 export const IChatResponseFileChangesService = createDecorator<IChatResponseFileChangesService>('chatResponseFileChangesService');
 
+export interface IChatResponseFileEdit extends IEditSessionEntryDiff {
+	readonly isOutsideWorkspace: boolean;
+}
+
 /**
  * Supplies the per-response (per-request) file-change diffs rendered by the
  * "Changed N files" summary under a completed chat response.
@@ -35,9 +39,13 @@ export interface IChatResponseFileChangesProvider {
 	 * Returns the file edits produced by `requestId` from the response output
 	 * stream, or `undefined` when unavailable. Unlike {@link getChangesForRequest},
 	 * this is not limited to a changeset and can include files outside the
-	 * workspace.
+	 * workspace. Each edit is classified against its owning session.
 	 */
-	getFileEditsForRequest?(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined;
+	getFileEditsForRequest?(sessionResource: URI, requestId: string): IObservable<readonly IChatResponseFileEdit[]> | undefined;
+}
+
+export interface IChatResponseFileChangesOpenContext {
+	readonly isLastTurn: boolean;
 }
 
 export interface IChatResponseFileChangesService {
@@ -59,12 +67,15 @@ export interface IChatResponseFileChangesService {
 
 	/**
 	 * Returns file edits produced by `requestId` from the response output stream,
-	 * when the provider can supply them.
+	 * classified against their owning session, when the provider can supply them.
 	 */
-	getFileEditsForRequest?(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined;
+	getFileEditsForRequest?(sessionResource: URI, requestId: string): IObservable<readonly IChatResponseFileEdit[]> | undefined;
+
+	/** Opens response changes. `requestId` may be omitted for invocations not tied to a rendered response; `context.isLastTurn` controls last-turn routing. */
+	openChangesForRequest(sessionResource: URI, requestId: string | undefined, context: IChatResponseFileChangesOpenContext): void;
 }
 
-export class ChatResponseFileChangesService extends Disposable implements IChatResponseFileChangesService {
+export abstract class AbstractChatResponseFileChangesService extends Disposable implements IChatResponseFileChangesService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _providers = new Map<string, IChatResponseFileChangesProvider>();
@@ -86,8 +97,10 @@ export class ChatResponseFileChangesService extends Disposable implements IChatR
 		return provider?.getChangesForRequest(sessionResource, requestId);
 	}
 
-	getFileEditsForRequest(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined {
+	getFileEditsForRequest(sessionResource: URI, requestId: string): IObservable<readonly IChatResponseFileEdit[]> | undefined {
 		const provider = this._providers.get(getChatSessionType(sessionResource));
 		return provider?.getFileEditsForRequest?.(sessionResource, requestId);
 	}
+
+	abstract openChangesForRequest(sessionResource: URI, requestId: string | undefined, context: IChatResponseFileChangesOpenContext): void;
 }

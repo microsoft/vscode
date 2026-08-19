@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogLevel as ProxyLogLevel, ProxyAgentParams, ProxySupportSetting, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
-import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
@@ -26,6 +27,8 @@ export const IAgentHostProxyResolver = createDecorator<IAgentHostProxyResolver>(
 export interface IAgentHostProxyResolver {
 	readonly _serviceBrand: undefined;
 
+	readonly onDidRegisterConnection: Event<void>;
+
 	/** Register a renderer connection. Disposing the result removes it. */
 	register(clientId: string, connection: IAgentHostClientProxyConnection): IDisposable;
 
@@ -42,9 +45,12 @@ export interface IAgentHostProxyResolver {
 	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
 }
 
-export class AgentHostProxyResolver implements IAgentHostProxyResolver {
+export class AgentHostProxyResolver extends Disposable implements IAgentHostProxyResolver {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidRegisterConnection = this._register(new Emitter<void>());
+	readonly onDidRegisterConnection = this._onDidRegisterConnection.event;
 
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
 	private _proxyResolver: ReturnType<typeof createProxyResolver> | undefined;
@@ -54,10 +60,16 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+	}
 
 	register(clientId: string, connection: IAgentHostClientProxyConnection): IDisposable {
+		const hadConnections = this._connections.size > 0;
 		this._connections.set(clientId, connection);
+		if (!hadConnections) {
+			this._onDidRegisterConnection.fire();
+		}
 		return toDisposable(() => {
 			if (this._connections.get(clientId) === connection) {
 				this._connections.delete(clientId);

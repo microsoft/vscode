@@ -1,0 +1,49 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call addComment exactly once for untitled://server-tools/reviewed.ts with range startLineNumber 1, startColumn 7, endLineNumber 1, endColumn 13 and text "rename this", then reply exactly "added".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: addComment
+          input:
+            resourceUri: untitled://server-tools/reviewed.ts
+            range:
+              startLineNumber: 1
+              startColumn: 7
+              endLineNumber: 1
+              endColumn: 13
+            text: rename this
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call addComment exactly once for untitled://server-tools/reviewed.ts with range startLineNumber 1, startColumn 7, endLineNumber 1, endColumn 13 and text "rename this", then reply exactly "added".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: addComment
+              input:
+                resourceUri: untitled://server-tools/reviewed.ts
+                range:
+                  startLineNumber: 1
+                  startColumn: 7
+                  endLineNumber: 1
+                  endColumn: 13
+                text: rename this
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Comment added.
+    response:
+      content: added
+      stopReason: end_turn

@@ -274,6 +274,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				kind: TabModelOperationKind.TAB_UPDATE
 			});
 		} else {
+			if (this._editorGroupsService.activeModalEditorPart?.groups.some(group => group.id === groupId)) {
+				return;
+			}
 			this._logService.error('Invalid model for label change, rebuilding');
 			this._createTabsModel();
 		}

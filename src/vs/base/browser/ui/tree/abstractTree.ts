@@ -424,6 +424,9 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
+		if (this.renderer.rowClassName) {
+			container.classList.add(this.renderer.rowClassName);
+		}
 		const el = append(container, $('.monaco-tl-row'));
 		const indent = append(el, $('.monaco-tl-indent'));
 		const twistie = append(el, $('.monaco-tl-twistie'));
@@ -447,9 +450,11 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 		this.renderer.disposeElement?.(node, index, templateData.templateData, { ...details, indent: templateData.indentSize });
 
-		if (typeof details?.height === 'number') {
+		if (typeof details?.height === 'number' && this.renderedNodes.get(node) === templateData) {
 			this.renderedNodes.delete(node);
-			this.renderedElements.delete(node.element);
+			if (this.renderedElements.get(node.element) === node) {
+				this.renderedElements.delete(node.element);
+			}
 		}
 	}
 

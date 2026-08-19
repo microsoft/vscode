@@ -42,6 +42,7 @@ type CONTEXT_KEY_STATES = 'connected' | 'connecting' | 'disconnected';
 
 export const REMOTE_TUNNEL_CONNECTION_STATE_KEY = 'remoteTunnelConnection';
 export const REMOTE_TUNNEL_CONNECTION_STATE = new RawContextKey<CONTEXT_KEY_STATES>(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'disconnected');
+const REMOTE_TUNNEL_HAS_LINK = new RawContextKey<boolean>('remoteTunnelHasLink', false);
 
 const REMOTE_TUNNEL_USED_STORAGE_KEY = 'remoteTunnelServiceUsed';
 const REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY = 'remoteTunnelServicePromptedPreview';
@@ -82,6 +83,7 @@ namespace RemoteTunnelCommandLabels {
 export class RemoteTunnelWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly connectionStateContext: IContextKey<CONTEXT_KEY_STATES>;
+	private readonly hasLinkContext: IContextKey<boolean>;
 
 	private readonly serverConfiguration: ITunnelApplicationConfig;
 
@@ -112,6 +114,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		this.logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
 
 		this.connectionStateContext = REMOTE_TUNNEL_CONNECTION_STATE.bindTo(this.contextKeyService);
+		this.hasLinkContext = REMOTE_TUNNEL_HAS_LINK.bindTo(this.contextKeyService);
 
 		const serverConfiguration = productService.tunnelApplicationConfig;
 		if (!serverConfiguration || !productService.tunnelApplicationName) {
@@ -132,6 +135,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 	private handleTunnelStatusUpdate(status: TunnelStatus) {
 		this.connectionInfo = undefined;
+		this.hasLinkContext.set(false);
 		if (status.type === 'disconnected') {
 			if (status.onTokenFailed) {
 				this.expiredSessions.add(status.onTokenFailed.sessionId);
@@ -141,6 +145,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			this.connectionStateContext.set('connecting');
 		} else if (status.type === 'connected') {
 			this.connectionInfo = status.info;
+			this.hasLinkContext.set(!!status.info.link);
 			this.connectionStateContext.set('connected');
 		}
 	}
@@ -552,31 +557,38 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				const connectionInfo = await that.startTunnel(/* installAsService= */ asService);
 
 				if (connectionInfo) {
-					const linkToOpen = that.getLinkToOpen(connectionInfo);
 					const remoteExtension = that.serverConfiguration.extension;
-					const linkToOpenForMarkdown = linkToOpen.toString(false).replace(/\)/g, '%29');
-					notificationService.notify({
-						severity: Severity.Info,
-						message:
-							localize(
-								{
-									key: 'progress.turnOn.final',
-									comment: ['{0} will be the tunnel name, {1} will the link address to the web UI, {6} an extension name, {7} a link to the extension documentation. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
-								},
-								"You can now access this machine anywhere via the secure tunnel [{0}](command:{4}). To connect via a different machine, use the generated [{1}]({2}) link or use the [{6}]({7}) extension in the desktop or web. You can [configure](command:{3}) or [turn off](command:{5}) this access via the VS Code Accounts menu.",
-								connectionInfo.tunnelName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName, 'https://code.visualstudio.com/docs/remote/tunnels'
-							),
-						actions: {
-							primary: [
-								toAction({ id: 'copyToClipboard', label: localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), run: () => clipboardService.writeText(linkToOpen.toString(true)) }),
-								toAction({
-									id: 'showExtension', label: localize('action.showExtension', "Show Extension"), run: () => {
-										return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
-									}
-								})
-							]
-						}
-					});
+					if (connectionInfo.link && connectionInfo.domain) {
+						const linkToOpen = that.getLinkToOpen(connectionInfo.link);
+						const linkToOpenForMarkdown = linkToOpen.toString(false).replace(/\)/g, '%29');
+						notificationService.notify({
+							severity: Severity.Info,
+							message:
+								localize(
+									{
+										key: 'progress.turnOn.final',
+										comment: ['{0} will be the tunnel name, {1} will the link address to the web UI, {6} an extension name, {7} a link to the extension documentation. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
+									},
+									"You can now access this machine anywhere via the secure tunnel [{0}](command:{4}). To connect via a different machine, use the generated [{1}]({2}) link or use the [{6}]({7}) extension in the desktop or web. You can [configure](command:{3}) or [turn off](command:{5}) this access via the VS Code Accounts menu.",
+									connectionInfo.tunnelName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName, 'https://code.visualstudio.com/docs/remote/tunnels'
+								),
+							actions: {
+								primary: [
+									toAction({ id: 'copyToClipboard', label: localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), run: () => clipboardService.writeText(linkToOpen.toString(true)) }),
+									toAction({
+										id: 'showExtension', label: localize('action.showExtension', "Show Extension"), run: () => {
+											return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
+										}
+									})
+								]
+							}
+						});
+					} else {
+						notificationService.notify({
+							severity: Severity.Info,
+							message: localize('progress.turnOn.final.noLink', "Remote Tunnel Access is enabled for {0}. You can [configure](command:{1}) or [turn off](command:{2}) this access via the VS Code Accounts menu.", connectionInfo.tunnelName, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff),
+						});
+					}
 					const usedOnHostMessage: UsedOnHostMessage = { hostName: connectionInfo.tunnelName, timeStamp: new Date().getTime() };
 					storageService.store(REMOTE_TUNNEL_USED_STORAGE_KEY, JSON.stringify(usedOnHostMessage), StorageScope.APPLICATION, StorageTarget.USER);
 				} else {
@@ -701,18 +713,24 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					id: RemoteTunnelCommandIds.copyToClipboard,
 					title: RemoteTunnelCommandLabels.copyToClipboard,
 					category: REMOTE_TUNNEL_CATEGORY,
-					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'connected'),
+					precondition: ContextKeyExpr.and(
+						ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'connected'),
+						REMOTE_TUNNEL_HAS_LINK.isEqualTo(true),
+					),
 					menu: [{
 						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'connected'),
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'connected'),
+							REMOTE_TUNNEL_HAS_LINK.isEqualTo(true),
+						),
 					}]
 				});
 			}
 
 			async run(accessor: ServicesAccessor) {
 				const clipboardService = accessor.get(IClipboardService);
-				if (that.connectionInfo) {
-					const linkToOpen = that.getLinkToOpen(that.connectionInfo);
+				if (that.connectionInfo?.link) {
+					const linkToOpen = that.getLinkToOpen(that.connectionInfo.link);
 					clipboardService.writeText(linkToOpen.toString(true));
 				}
 
@@ -736,7 +754,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		}));
 	}
 
-	private getLinkToOpen(connectionInfo: ConnectionInfo): URI {
+	private getLinkToOpen(link: string): URI {
 		const workspace = this.workspaceContextService.getWorkspace();
 		const folders = workspace.folders;
 		let resource;
@@ -745,11 +763,11 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		} else if (workspace.configuration && !isUntitledWorkspace(workspace.configuration, this.environmentService)) {
 			resource = workspace.configuration;
 		}
-		const link = URI.parse(connectionInfo.link);
+		const tunnelLink = URI.parse(link);
 		if (resource?.scheme === Schemas.file) {
-			return joinPath(link, resource.path);
+			return joinPath(tunnelLink, resource.path);
 		}
-		return joinPath(link, this.environmentService.userHome.path);
+		return joinPath(tunnelLink, this.environmentService.userHome.path);
 	}
 
 
@@ -769,7 +787,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 						localize({ key: 'manage.title.attached', comment: ['{0} is the tunnel name'] }, 'Remote Tunnel Access enabled for {0} (launched externally)', this.connectionInfo.tunnelName) :
 						localize({ key: 'manage.title.orunning', comment: ['{0} is the tunnel name'] }, 'Remote Tunnel Access enabled for {0}', this.connectionInfo.tunnelName);
 
-				items.push({ id: RemoteTunnelCommandIds.copyToClipboard, label: RemoteTunnelCommandLabels.copyToClipboard, description: this.connectionInfo.domain });
+				if (this.connectionInfo.link && this.connectionInfo.domain) {
+					items.push({ id: RemoteTunnelCommandIds.copyToClipboard, label: RemoteTunnelCommandLabels.copyToClipboard, description: this.connectionInfo.domain });
+				}
 			} else {
 				quickPick.title = localize('manage.title.off', 'Remote Tunnel Access not enabled');
 			}

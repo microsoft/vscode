@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
+import { AgentHostClientConnectionKind } from './agentHostTelemetry.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from './ahpJsonlLogger.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from './state/sessionProtocol.js';
 import type { IProtocolTransport } from './state/sessionTransport.js';
@@ -53,6 +54,7 @@ export class RelayTransport extends Disposable implements IProtocolTransport {
 		private readonly _ahpLogger: AhpJsonlLogger | undefined,
 		private readonly _logService: ILogService,
 		private readonly _logPrefix: string,
+		readonly clientConnectionKind: AgentHostClientConnectionKind,
 	) {
 		super();
 		if (this._ahpLogger) {

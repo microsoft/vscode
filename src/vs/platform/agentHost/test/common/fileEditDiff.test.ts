@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { FileEdit } from '../../common/state/protocol/state.js';
@@ -50,5 +51,24 @@ suite('fileEditDiff', () => {
 
 	test('returns undefined when no usable URI is present', () => {
 		assert.strictEqual(normalizeFileEdit({}), undefined);
+	});
+
+	test('canonicalizes legacy session-db content URIs so their path is the edited file', () => {
+		const hex = (value: string) => encodeHex(VSBuffer.fromString(value)).toString();
+		const legacy = (part: string) => URI.from({
+			scheme: 'session-db',
+			authority: hex('copilot:/s1'),
+			path: `/call_1/${hex('/repo/a.ts')}/${part}/a.ts`,
+		}).toString();
+
+		const normalized = normalizeFileEdit({
+			before: { uri: fileA, content: { uri: legacy('before') } },
+			after: { uri: fileA, content: { uri: legacy('after') } },
+		});
+
+		assert.deepStrictEqual(
+			[normalized?.beforeContentUri?.path, normalized?.afterContentUri?.path],
+			['/repo/a.ts', '/repo/a.ts'],
+		);
 	});
 });

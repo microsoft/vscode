@@ -14,7 +14,11 @@
  * For the default (github.com) provider these URLs are read verbatim from
  * `product.json` -> `defaultChatAgent.<productKey>`, so pointing all of them at
  * a local server via `product.overrides.json` lets a dev exercise the whole
- * policy pipeline offline.
+ * policy pipeline offline. The same paths are also served under a system proxy
+ * rule, which is how a stable/Insiders build or the CLI reaches this server.
+ *
+ * Endpoints not marked `mockedByDefault` start in passthrough: the server
+ * forwards them to the real API so a blanket proxy rule stays safe.
  *
  * NOTE: The server uses `module.stripTypeScriptTypes()` to serve this file to
  * the browser as plain JavaScript — no build step is needed.
@@ -24,6 +28,7 @@ export interface EndpointPreset {
 	id: string;
 	label: string;
 	description: string;
+	status?: number;
 	body: unknown;
 }
 
@@ -38,6 +43,14 @@ export interface EndpointDef {
 	productKey: string;
 	/** One-line summary for the GUI. */
 	description: string;
+	/**
+	 * Whether this endpoint is mocked when the server starts. Everything else
+	 * is proxied to the real API, so a blanket proxy rule stays safe: only the
+	 * endpoints you deliberately turn on get faked.
+	 */
+	mockedByDefault?: boolean;
+	/** Validate 2xx bodies against the managed-settings JSON schema. */
+	schema?: boolean;
 	/** First preset is used as the default body. */
 	presets: EndpointPreset[];
 }
@@ -60,12 +73,91 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			path: '/copilot_internal/managed_settings',
 			productKey: 'managedSettingsUrl',
 			description: 'Enterprise copilot settings from .github/copilot/settings.json. An empty object means no policy file is present.',
+			mockedByDefault: true,
+			schema: true,
 			presets: [
 				{
 					id: 'empty',
 					label: 'Empty (no policy file)',
 					description: 'An empty object is a successful "no enterprise policy file present" response.',
+					status: 200,
 					body: {}
+				},
+				{
+					id: 'disable-bypass-permissions',
+					label: 'Disable bypass permissions',
+					description: 'Disables bypass permissions mode.',
+					status: 200,
+					body: {
+						permissions: {
+							disableBypassPermissionsMode: 'disable'
+						}
+					}
+				},
+				{
+					id: 'model-auto',
+					label: 'Model: auto',
+					description: 'Sets the managed model to auto.',
+					status: 200,
+					body: {
+						model: 'auto'
+					}
+				},
+				{
+					id: 'extra-known-marketplaces',
+					label: 'Extra known marketplaces',
+					description: 'Adds marketplaces with managed auto-update settings.',
+					status: 200,
+					body: {
+						extraKnownMarketplaces: {
+							'vscode-team-kit': {
+								source: {
+									source: 'github',
+									repo: 'microsoft/vscode-team-kit'
+								},
+								autoUpdate: true
+							},
+							'awesome-copilot': {
+								source: {
+									source: 'github',
+									repo: 'github/awesome-copilot',
+									ref: 'marketplace'
+								},
+								autoUpdate: false
+							}
+						}
+					}
+				},
+				{
+					id: 'customization-lockdown',
+					label: 'Customization lockdown',
+					description: 'Allows only managed plugins, MCP servers, and hooks, and forces a remote settings refresh.',
+					status: 200,
+					body: {
+						strictPluginOnlyCustomization: true,
+						allowManagedMcpServersOnly: true,
+						allowManagedHooksOnly: true,
+						forceRemoteSettingsRefresh: true
+					}
+				},
+				{
+					id: 'not-configured',
+					label: 'Not configured (404)',
+					description: 'No server-managed policy is configured.',
+					status: 404,
+					body: {}
+				},
+				{
+					id: 'update-required',
+					label: 'Client update required (466)',
+					description: 'Rejects the client because it cannot enforce the effective managed settings.',
+					status: 466,
+					body: {
+						error_code: 'client_update_required',
+						client_id: 'vscode',
+						client_version: '1.132.0',
+						minimum_client_version: '1.133.0'
+					}
 				}
 			]
 		},

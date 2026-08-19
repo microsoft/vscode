@@ -5,6 +5,7 @@
 
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../services/sessions/common/session.js';
 import { IGitHubChangedFile } from './types.js';
 
 export interface IPullRequestContentUriParams {
@@ -27,4 +28,22 @@ export function toPRContentUri(fileName: string, params: IPullRequestContentUriP
 
 export function getPullRequestKey(owner: string, repo: string, prNumber: number): string {
 	return `${owner}/${repo}/${prNumber}`;
+}
+
+export function getGitHubRepositoryFromUri(uri: URI): { readonly owner: string; readonly repo: string } | undefined {
+	if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
+		return undefined;
+	}
+	const segments = uri.path.split('/').filter(Boolean);
+	if (segments.length < 2) {
+		return undefined;
+	}
+	try {
+		return {
+			owner: decodeURIComponent(segments[0]),
+			repo: decodeURIComponent(segments[1]),
+		};
+	} catch {
+		return undefined;
+	}
 }

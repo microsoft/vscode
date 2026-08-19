@@ -70,6 +70,7 @@
 	padding: 0;
 	gap: 0;
 	background-color: transparent;
+	--vscode-agentStatusIndicator-background: var(--vscode-commandCenter-background);
 }
 
 .agent-status-pill.compact-mode:hover {
@@ -147,6 +148,7 @@
 }
 
 .agent-status-pill .agent-status-input-area:hover {
+	color: var(--vscode-commandCenter-activeForeground);
 	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
@@ -420,6 +422,7 @@
 	align-items: center;
 	justify-content: center;
 	background: none !important;
+	color: inherit;
 }
 
 .agent-status-badge-section.sparkle .action-container .action-label {

@@ -131,6 +131,54 @@ suite('SimpleFileDialog', () => {
 		assert.strictEqual(await fileService.exists(nestedFolder), false);
 	});
 
+	test('matches a direct child synchronously before accepting a folder', async () => {
+		const folder = URI.file('/root/folder');
+		const folderItem = { label: 'folder', uri: folder, isFolder: true };
+		const filePickBox = {
+			value: '/root/fol',
+			valueSelection: undefined as [number, number] | undefined,
+			activeItems: [] as { label: string; uri: URI; isFolder: boolean }[],
+			selectedItems: [] as { label: string; uri: URI; isFolder: boolean }[],
+			items: [folderItem],
+			validationMessage: undefined,
+			busy: false
+		};
+		let insertedValue: string | undefined;
+		let triedToUpdateItems = false;
+
+		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
+			filePickBox,
+			currentFolder: URI.file('/root'),
+			userEnteredPathSegment: '',
+			autoCompletePathSegment: '',
+			updatingPromise: undefined,
+			trailing: undefined,
+			separator: '/',
+			isWindows: false,
+			scheme: Schemas.file,
+			onBusyChangeEmitter: { fire: () => { } },
+			insertText: (wholeValue: string) => insertedValue = wholeValue,
+			tryUpdateItems: async () => {
+				triedToUpdateItems = true;
+				return 3;
+			},
+			validate: async () => false
+		}) as {
+			handleValueChange(value: string): Promise<void>;
+			onDidAccept(): Promise<URI | undefined>;
+		};
+
+		const valueChange = dialog.handleValueChange(filePickBox.value);
+		filePickBox.selectedItems = filePickBox.activeItems;
+		await dialog.onDidAccept();
+		await valueChange;
+
+		assert.deepStrictEqual({ insertedValue, triedToUpdateItems }, {
+			insertedValue: '/root/folder',
+			triedToUpdateItems: false
+		});
+	});
+
 	test('does not let a canceled slow folder update overwrite a newer folder', async () => {
 		const slowFolder = URI.file('/slow');
 		const fastFolder = URI.file('/fast');

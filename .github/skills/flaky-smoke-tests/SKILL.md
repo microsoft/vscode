@@ -224,6 +224,17 @@ Useful files include:
 
 - `window*/exthost/<extension>/<extension>.log`
 - `main.log`, `renderer.log`, and `agenthost.log`
+- `copilot-runtime-logs/process-*.log` — the Copilot runtime (`@github/copilot`
+  CLI) process logs, captured by `dumpFailureDiagnostics` when a Copilot-runtime
+  session fails. Check these first for a **hang or "Timed out waiting for
+  response"**: they are the SDK/CLI's own record (startup, auth, model request,
+  turn lifecycle, panics, out-of-order or protocol errors) and explain a timeout
+  the test error alone does not. A tail is also mirrored into
+  `smoke-test-runner.log`. **Agent Host** sessions (Agents Window / local
+  AgentHost) write a full log run at `trace`; Chat Sessions editor (Copilot CLI /
+  Claude) and Local sessions write only a minimal startup log here (whether the
+  runtime came up), with their detailed diagnostics in `GitHub Copilot Chat.log`.
+  (Claude / Codex sessions use a different runtime and are not captured here.)
 - `playwright-screenshot-*.png`
 - Playwright trace archives
 

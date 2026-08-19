@@ -361,22 +361,26 @@ class ProgressManager {
 
 	private enabled = false;
 	private disposable: IDisposable = EmptyDisposable;
+	private readonly disposables: IDisposable[] = [];
 
 	constructor(private repository: Repository) {
 		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
-		onDidChange(_ => this.updateEnablement());
+		onDidChange(_ => this.updateEnablement(), null, this.disposables);
 		this.updateEnablement();
 
-		this.repository.onDidChangeOperations(() => {
-			// Disable input box when the commit operation is running
-			this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
-		});
+		if (!workspace.isAgentSessionsWorkspace) {
+			this.repository.onDidChangeOperations(() => {
+				// Disable input box when the commit operation is running
+				this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
+			}, null, this.disposables);
+		}
 	}
 
 	private updateEnablement(): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const showProgress = config.get<boolean>('showProgress') === true && !workspace.isAgentSessionsWorkspace;
 
-		if (config.get<boolean>('showProgress')) {
+		if (showProgress) {
 			this.enable();
 		} else {
 			this.disable();
@@ -414,6 +418,7 @@ class ProgressManager {
 
 	dispose(): void {
 		this.disable();
+		dispose(this.disposables);
 	}
 }
 

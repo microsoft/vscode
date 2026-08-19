@@ -13,8 +13,8 @@
 	background: var(--vscode-editor-background);
 }
 
-/* Hide titlebar actions while policy-blocked */
-.monaco-workbench:has(.sessions-policy-blocked-overlay) .part.titlebar .titlebar-right {
+/* Hide titlebar actions while policy-blocked (class toggled in sessionsPolicyBlocked.ts) */
+.monaco-workbench.sessions-policy-blocked .part.titlebar .titlebar-right {
 	visibility: hidden;
 }
 

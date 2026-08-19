@@ -1,82 +1,114 @@
-# Mock Copilot policy endpoints
+# Mock Copilot policy server
 
-A standalone dev tool that mocks the Copilot **policy** endpoints that
-`DefaultAccountService`
-(`src/vs/workbench/services/accounts/browser/defaultAccount.ts`) calls, so you
-can exercise the entitlement / token / MCP-registry / managed-settings (policy)
-pipeline locally without the real GitHub backend.
+Local Node server and web GUI for the four Copilot policy endpoints used by
+`DefaultAccountService`. Mock selected endpoints while forwarding the rest to
+the real API. It has no runtime dependencies and is not shipped with VS Code.
 
-It is **not** part of the shipped product — it is a local Node server + web GUI.
-
-## What it mocks
-
-| Endpoint | Path | `product.json` key | Response |
-| --- | --- | --- | --- |
-| Entitlements | `/copilot_internal/user` | `entitlementUrl` | `IEntitlementsData` (`chat_enabled`, `copilot_plan`, `cloud_session_storage_enabled`, …) |
-| Token | `/copilot_internal/v2/token` | `tokenEntitlementUrl` | `{ token: "agent_mode=1;editor_preview_features=1;mcp=1;…:sig" }` |
-| MCP registry | `/copilot/mcp_registry` | `mcpRegistryDataUrl` | `{ mcp_registries: [{ url, registry_access }] }` |
-| Managed settings | `/copilot_internal/managed_settings` | `managedSettingsUrl` | `IManagedSettingsResponse` (enterprise `settings.json`) |
-
-The flow is gated: the **token** and **managed settings** are only fetched when
-entitlements report `chat_enabled: true`, and the **MCP registry** only when the
-token enables `mcp`.
-
-## Usage
+## Start
 
 ```sh
-npm run mock-policy-server          # starts on http://127.0.0.1:3000
-npm run mock-policy-server -- --port 4000
-npm run mock-policy-server -- --schema ./copilot-agent-runtime/schema/managed-settings-schema.json
+npm run mock-policy-server
 ```
 
-1. Open the printed GUI URL.
-2. Pick an endpoint tab, choose a preset or edit the JSON, and **Save**.
-3. Click **Wire all endpoints** to point `product.overrides.json` at this server.
-4. **Reload** Code OSS (running from sources, so `VSCODE_DEV` is set).
-5. Sign in with your GitHub/Copilot account.
-6. Run **Developer: Sync Account Policy** (forces a refresh).
-7. Run **Developer: Policy Diagnostics** to inspect the applied values.
+Open `http://127.0.0.1:3000`. Managed settings is mocked by default. Use the
+switch beside each endpoint tab to choose mock or passthrough. Presets apply
+immediately; status and JSON edits auto-save.
 
-Click **Unwire** to restore the original URLs.
+Point a client at the server with either:
 
-## Managed-settings schema
+- **Code OSS from sources:** select **Apply Overrides**, reload, sign in, and run
+  **Developer: Sync Account Policy**.
+- **Stable, Insiders, CLI, or another client:** configure the system proxy
+  mapping shown for the selected endpoint and copy the VS Code `http.proxy`
+  setting.
 
-The GUI loads the managed-settings JSON schema and, on the **Managed Settings**
-tab, warns about top-level keys that are not declared in it (mirroring how
-`projectManagedSettings` drops undeclared keys). The schema source is resolved in
-this order:
+If no request appears in **Live Requests**, use **Clear Policy Cache**. A fresh
+managed-settings cache entry can prevent the client from making a request for up
+to one hour. Then run **Developer: Restart Local Agent Host** to force a new SDK
+policy resolution.
 
-1. `--schema <url | file-uri | path>` CLI flag
-2. `MANAGED_SETTINGS_SCHEMA` environment variable
-3. Default: `./copilot-agent-runtime/schema/managed-settings-schema.json`,
-   resolved against the **app's current working directory** (normally the vscode
-   repo root, where the schema repo sits side-by-side).
+Other Copilot clients share that cache. For an isolated run, start both the
+server and Code OSS with the same temporary cache home:
 
-`http(s)://` URLs and `file://` URIs are both accepted; relative paths are
-resolved from the cwd. The schema is re-read on every **Refresh**, so you can
-edit it without restarting the server. A missing schema is non-fatal — the GUI
-just shows the resolved path and skips schema validation.
+```sh
+COPILOT_CACHE_HOME="$PWD/.build/mock-policy-cache" npm run mock-policy-server
+COPILOT_CACHE_HOME="$PWD/.build/mock-policy-cache" ./scripts/code.sh
+```
 
-## How wiring works
+## HTTP API
 
-`src/bootstrap-meta.ts` merges `product.overrides.json` over `product.json` with
-a shallow, top-level `Object.assign`, only when `VSCODE_DEV` is set, and the file
-is git-ignored. To override nested keys the tool writes back the **entire**
-`defaultChatAgent` object (seeded from `product.json`) with only the four
-endpoint URLs flipped, preserving every other key. Unwiring restores those URLs
-to their `product.json` values and removes the file if nothing else remains.
+The control API is JSON-only and supports complete configuration without the
+GUI. Start with its machine-readable index and current state:
 
-## Caveats
+```sh
+BASE=http://127.0.0.1:3000
+curl "$BASE/api"
+curl "$BASE/api/state"
+```
 
-- Works for the **default (github.com) provider** path, which reads these URLs
-  directly from config. The enterprise provider derives some URLs from the
-  enterprise host instead.
-- You must be **signed in**; the fetch only fires for an authenticated account.
-- Overrides require a **reload** and only apply when running from sources.
-- The server ignores the `Authorization` header — any token is accepted.
+`GET /api/state` returns endpoint IDs, presets, current bodies, statuses, and
+mock/passthrough state.
 
-## Files
+Apply a known preset:
 
-- `server.js` — zero-dependency Node `http` server (endpoints + control API + schema loader + static).
-- `endpoints.js` — shared endpoint definitions and presets (used by server and GUI).
-- `public/` — the web GUI (`index.html`, `app.js`, `style.css`).
+```sh
+curl -X POST "$BASE/api/state" \
+  -H 'Content-Type: application/json' \
+  -d '{"endpoint":"managedSettings","preset":"not-configured"}'
+```
+
+Set a custom response:
+
+```sh
+curl -X POST "$BASE/api/state" \
+  -H 'Content-Type: application/json' \
+  -d '{"endpoint":"managedSettings","active":true,"status":200,"body":{}}'
+```
+
+Configure multiple endpoints atomically:
+
+```sh
+curl -X POST "$BASE/api/state" \
+  -H 'Content-Type: application/json' \
+  -d '{"endpoints":[
+    {"endpoint":"managedSettings","preset":"empty"},
+    {"endpoint":"entitlements","active":false},
+    {"endpoint":"token","active":false},
+    {"endpoint":"mcpRegistry","active":false}
+  ]}'
+```
+
+A preset sets its status and body and enables mocking. Explicit `status`, `body`,
+or `active` values in the same update override the preset. Invalid requests are
+rejected before any endpoint changes.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api` | Discover request shapes and routes |
+| `GET` | `/api/state` | Read definitions, presets, and current state |
+| `POST` | `/api/state` | Apply one update or an atomic endpoint array |
+| `POST` | `/api/reset` | Restore startup endpoint state |
+| `GET` | `/api/schema` | Read the managed-settings schema |
+| `GET`, `DELETE` | `/api/log` | Read or clear the request log |
+| `DELETE` | `/api/cache` | Clear the managed-settings disk cache |
+| `POST` | `/api/wire` | Apply `product.overrides.json` |
+| `POST` | `/api/unwire` | Restore `product.overrides.json` |
+
+## Schema and options
+
+The server auto-detects
+`copilot-agent-runtime/schema/managed-settings-schema.json` beside the primary
+VS Code checkout, including from a Git worktree. Override it at startup with
+`--schema` or `MANAGED_SETTINGS_SCHEMA`.
+
+```sh
+npm run mock-policy-server -- --upstream https://api.ghe.example.com
+npm run mock-policy-server -- --schema /path/to/managed-settings-schema.json
+npm run mock-policy-server -- --help
+```
+
+| Flag | Environment variable | Default |
+| --- | --- | --- |
+| `--host` | — | `127.0.0.1` |
+| `--upstream` | `MOCK_POLICY_UPSTREAM` | `https://api.github.com` |
+| `--schema` | `MANAGED_SETTINGS_SCHEMA` | Auto-detected sibling checkout |

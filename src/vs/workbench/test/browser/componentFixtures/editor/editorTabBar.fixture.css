@@ -1,0 +1,29 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab.fixture-hover:not(.selected):not(.active) > .tab-fill {
+	background-color: var(--modern-ui-editor-tab-hover-background);
+}
+
+.modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.fixture-hover:not(.selected):not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a,
+.modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.fixture-hover:not(.selected):not(.active) > .tab-actions .action-label {
+	color: var(--modern-ui-editor-tab-hover-foreground) !important;
+}
+
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab.active.fixture-hover > .tab-fill {
+	background-color: var(--modern-ui-editor-tab-active-hover-background);
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.fixture-hover:not(.close-action-off) > .tab-actions {
+	background-color: var(--modern-ui-editor-tab-action-active-hover-background);
+}
+
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.fixture-hover:not(.tab-actions-left):not(.close-action-off) > .tab-actions::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-active-hover-background));
+}
+
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.fixture-hover.tab-actions-left:not(.close-action-off) > .tab-actions::before {
+	background-image: linear-gradient(to left, transparent, var(--modern-ui-editor-tab-action-active-hover-background));
+}

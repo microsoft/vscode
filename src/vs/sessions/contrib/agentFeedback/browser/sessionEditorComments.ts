@@ -5,7 +5,7 @@
 
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackModel.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
 import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 
 export const enum SessionEditorCommentSource {
@@ -30,7 +30,7 @@ export interface ISessionEditorComment {
 	 * talk about the same code region as {@link text}. Only set for agent
 	 * feedback comments today.
 	 */
-	readonly replies?: readonly string[];
+	readonly replies?: readonly IAgentFeedbackReply[];
 	/**
 	 * Lifecycle state of this comment. Only set for agent feedback comments.
 	 */
@@ -45,6 +45,7 @@ export function getSessionEditorComments(
 	sessionResource: URI,
 	agentFeedbackItems: readonly IAgentFeedback[],
 	prReviewState?: IPRReviewState,
+	visibleResolvedFeedbackIds?: ReadonlySet<string>,
 ): readonly ISessionEditorComment[] {
 	const comments: ISessionEditorComment[] = [];
 
@@ -63,7 +64,7 @@ export function getSessionEditorComments(
 
 	for (const item of agentFeedbackItems) {
 		// Resolved feedback is hidden from the editor UI.
-		if (item.state === AgentFeedbackState.Resolved) {
+		if (item.state === AgentFeedbackState.Resolved && !visibleResolvedFeedbackIds?.has(item.id)) {
 			continue;
 		}
 		// Hide the still-unaccepted PR review mirror; the raw PR comment is
@@ -138,7 +139,7 @@ function estimateExpandedCommentLines(comment: ISessionEditorComment): number {
 	let replyLines = 0;
 	if (comment.replies?.length) {
 		for (const reply of comment.replies) {
-			replyLines += Math.ceil(Math.max(1, reply.length) / charsPerLine);
+			replyLines += Math.ceil(Math.max(1, reply.text.length) / charsPerLine);
 		}
 	}
 	return textLines + 1 + suggestionLines + replyLines;

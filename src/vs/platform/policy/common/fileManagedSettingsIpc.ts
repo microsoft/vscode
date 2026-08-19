@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { ManagedSettingsData } from '../../../base/common/policy.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IFileManagedSettingsService } from './copilotManagedSettings.js';
+import { IFileManagedSettingsService, RawManagedSettingsData } from './copilotManagedSettings.js';
 
 export class FileManagedSettingsChannel implements IServerChannel {
 
@@ -18,6 +18,7 @@ export class FileManagedSettingsChannel implements IServerChannel {
 
 	listen<T>(_: unknown, event: string): Event<T> {
 		switch (event) {
+			case 'onDidChangeRawManagedSettings': return this.service.onDidChangeRawManagedSettings as Event<T>;
 			case 'onDidChangeManagedSettings': return this.service.onDidChangeManagedSettings as Event<T>;
 		}
 
@@ -26,6 +27,7 @@ export class FileManagedSettingsChannel implements IServerChannel {
 
 	call<T>(_: unknown, command: string): Promise<T> {
 		switch (command) {
+			case 'getRawManagedSettings': return Promise.resolve(this.service.rawManagedSettings as T);
 			case 'getManagedSettings': return Promise.resolve(this.service.managedSettings as T);
 		}
 
@@ -41,21 +43,46 @@ export class FileManagedSettingsChannelClient extends Disposable implements IFil
 
 	readonly _serviceBrand: undefined;
 
+	private _rawManagedSettings: RawManagedSettingsData = {};
+	get rawManagedSettings(): RawManagedSettingsData { return this._rawManagedSettings; }
+	private hasReceivedRawManagedSettings = false;
+
 	private _managedSettings: ManagedSettingsData = {};
 	get managedSettings(): ManagedSettingsData { return this._managedSettings; }
 	private hasReceivedManagedSettings = false;
+
+	private readonly _onDidChangeRawManagedSettings = this._register(new Emitter<RawManagedSettingsData>());
+	readonly onDidChangeRawManagedSettings = this._onDidChangeRawManagedSettings.event;
 
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<ManagedSettingsData>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
 
 	constructor(channel: IChannel) {
 		super();
+		this._register(channel.listen<RawManagedSettingsData>('onDidChangeRawManagedSettings')(managedSettings => this.updateRawManagedSettings(managedSettings, true)));
 		this._register(channel.listen<ManagedSettingsData>('onDidChangeManagedSettings')(managedSettings => this.updateManagedSettings(managedSettings, true)));
+		channel.call<RawManagedSettingsData>('getRawManagedSettings').then(managedSettings => {
+			if (!this.hasReceivedRawManagedSettings) {
+				this.updateRawManagedSettings(managedSettings, true);
+			}
+		});
 		channel.call<ManagedSettingsData>('getManagedSettings').then(managedSettings => {
 			if (!this.hasReceivedManagedSettings) {
 				this.updateManagedSettings(managedSettings, true);
 			}
 		});
+	}
+
+	private updateRawManagedSettings(managedSettings: RawManagedSettingsData, fireEvent: boolean): void {
+		this.hasReceivedRawManagedSettings = true;
+		if (equals(this._rawManagedSettings, managedSettings)) {
+			return;
+		}
+
+		this._rawManagedSettings = managedSettings;
+		if (fireEvent) {
+			this._onDidChangeRawManagedSettings.fire(this._rawManagedSettings);
+		}
 	}
 
 	private updateManagedSettings(managedSettings: ManagedSettingsData, fireEvent: boolean): void {

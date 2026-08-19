@@ -17,12 +17,13 @@ import {
 	AgentHostLocalFilePermissionsSettingId,
 	AgentHostPermissionMode,
 	AgentHostPermissionsSetting,
+	AgentHostResourceIdentity,
 	AgentHostResourcePermissionError,
 	IAgentHostResourceService,
 	IPendingResourceRequest,
 	IResourceListResult,
 	IResourceReadResult,
-	LOCAL_AGENT_HOST_ADDRESS,
+	LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 } from '../../../../platform/agentHost/common/agentHostResourceService.js';
 import { normalizeRemoteAgentHostAddress } from '../../../../platform/agentHost/common/agentHostUri.js';
 import {
@@ -41,7 +42,7 @@ interface IInternalPendingRequest extends IPendingResourceRequest {
 }
 
 interface IInMemoryGrant {
-	readonly address: string;
+	readonly identity: AgentHostResourceIdentity;
 	/**
 	 * Resolves to the realpath'd URI for the grant. Stored as a promise so
 	 * `grantImplicitRead` can return synchronously while the realpath lookup
@@ -51,6 +52,10 @@ interface IInMemoryGrant {
 	 */
 	readonly realpath: Promise<URI>;
 	readonly mode: AgentHostAccessMode;
+}
+
+function normalizeResourceIdentity(identity: AgentHostResourceIdentity): AgentHostResourceIdentity {
+	return identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? identity : normalizeRemoteAgentHostAddress(identity);
 }
 
 /**
@@ -67,13 +72,12 @@ interface IInMemoryGrant {
  *   "localhost:3000": {
  *     "file:///Users/me/.gitconfig": "r",
  *     "file:///Users/me/.agentConfig": "rw"
- *   },
- *   "local": { ... }
+ *   }
  * }
  * ```
  *
- * - Keys are addresses normalized via {@link normalizeRemoteAgentHostAddress},
- *   with the in-process local agent host keyed under `'local'`.
+ * - Keys are remote addresses normalized via
+ *   {@link normalizeRemoteAgentHostAddress}.
  * - Values are URI strings → `r` | `rw`. Descendant URIs are covered by a
  *   parent grant.
  */
@@ -96,8 +100,8 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 
 	// ---- Gated FS operations ------------------------------------------------
 
-	async list(address: string, uri: URI): Promise<IResourceListResult> {
-		await this._gate(address, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
+	async list(identity: AgentHostResourceIdentity, uri: URI): Promise<IResourceListResult> {
+		await this._gate(identity, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
 		const stat = await this._fileService.resolve(uri);
 		if (!stat.isDirectory) {
 			throw new Error(`Resource is not a directory: ${uri.toString()}`);
@@ -110,8 +114,8 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		};
 	}
 
-	async read(address: string, uri: URI): Promise<IResourceReadResult> {
-		await this._gate(address, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
+	async read(identity: AgentHostResourceIdentity, uri: URI): Promise<IResourceReadResult> {
+		await this._gate(identity, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
 		try {
 			const content = await this._fileService.readFile(uri);
 			return { bytes: content.value };
@@ -124,9 +128,9 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		}
 	}
 
-	async write(address: string, params: ResourceWriteParams): Promise<void> {
+	async write(identity: AgentHostResourceIdentity, params: ResourceWriteParams): Promise<void> {
 		const uri = URI.parse(params.uri);
-		await this._gate(address, uri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: uri.toString(), write: true });
+		await this._gate(identity, uri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: uri.toString(), write: true });
 		const buf = params.encoding === ContentEncoding.Base64
 			? decodeBase64(params.data)
 			: VSBuffer.fromString(params.data);
@@ -144,31 +148,31 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		}
 	}
 
-	async del(address: string, params: ResourceDeleteParams): Promise<void> {
+	async del(identity: AgentHostResourceIdentity, params: ResourceDeleteParams): Promise<void> {
 		const uri = URI.parse(params.uri);
-		await this._gate(address, uri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: uri.toString(), write: true });
+		await this._gate(identity, uri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: uri.toString(), write: true });
 		await this._fileService.del(uri, { recursive: !!params.recursive });
 	}
 
-	async move(address: string, params: ResourceMoveParams): Promise<void> {
+	async move(identity: AgentHostResourceIdentity, params: ResourceMoveParams): Promise<void> {
 		const source = URI.parse(params.source);
 		const destination = URI.parse(params.destination);
-		await this._gate(address, source, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: source.toString(), write: true });
-		await this._gate(address, destination, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: destination.toString(), write: true });
+		await this._gate(identity, source, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: source.toString(), write: true });
+		await this._gate(identity, destination, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: destination.toString(), write: true });
 		await this._fileService.move(source, destination, !params.failIfExists);
 	}
 
-	async copy(address: string, params: ResourceCopyParams): Promise<void> {
+	async copy(identity: AgentHostResourceIdentity, params: ResourceCopyParams): Promise<void> {
 		const source = URI.parse(params.source);
 		const destination = URI.parse(params.destination);
-		await this._gate(address, source, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: source.toString(), read: true });
-		await this._gate(address, destination, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: destination.toString(), write: true });
+		await this._gate(identity, source, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: source.toString(), read: true });
+		await this._gate(identity, destination, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: destination.toString(), write: true });
 		await this._fileService.copy(source, destination, !params.failIfExists);
 	}
 
-	async resolve(address: string, params: ResourceResolveParams): Promise<ResourceResolveResult> {
+	async resolve(identity: AgentHostResourceIdentity, params: ResourceResolveParams): Promise<ResourceResolveResult> {
 		const uri = URI.parse(params.uri);
-		await this._gate(address, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
+		await this._gate(identity, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
 		let stat;
 		try {
 			stat = await this._fileService.stat(uri);
@@ -197,9 +201,9 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		};
 	}
 
-	async mkdir(address: string, params: ResourceMkdirParams): Promise<void> {
+	async mkdir(identity: AgentHostResourceIdentity, params: ResourceMkdirParams): Promise<void> {
 		const uri = URI.parse(params.uri);
-		await this._gate(address, uri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: uri.toString(), write: true });
+		await this._gate(identity, uri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: uri.toString(), write: true });
 		const existing = await this._fileService.stat(uri).catch(() => undefined);
 		if (existing && !existing.isDirectory) {
 			throw new Error(`Path exists and is not a directory: ${uri.toString()}`);
@@ -209,15 +213,18 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 
 	// ---- Permission requests / observables ---------------------------------
 
-	async check(address: string, uri: URI, mode: AgentHostPermissionMode): Promise<boolean> {
-		const normalized = normalizeRemoteAgentHostAddress(address);
+	async check(identity: AgentHostResourceIdentity, uri: URI, mode: AgentHostPermissionMode): Promise<boolean> {
+		const normalized = normalizeResourceIdentity(identity);
 		const canonical = await this._canonicalize(uri);
 		return this._isCovered(normalized, canonical, mode);
 	}
 
-	async request(address: string, params: ResourceRequestParams): Promise<void> {
-		const normalized = normalizeRemoteAgentHostAddress(address);
+	async request(identity: AgentHostResourceIdentity, params: ResourceRequestParams): Promise<void> {
+		const normalized = normalizeResourceIdentity(identity);
 		const canonical = await this._canonicalize(URI.parse(params.uri));
+		if (normalized === LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
+			return;
+		}
 		const wantsWrite = params.write === true;
 		const wantsRead = params.read === true || !wantsWrite;
 
@@ -238,7 +245,7 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		return this._pending.get().find(r => r.id === id);
 	}
 
-	grantImplicitRead(address: string, uri: URI): IDisposable {
+	grantImplicitRead(identity: AgentHostResourceIdentity, uri: URI): IDisposable {
 		const handle = generateUuid();
 		const lexical = extUri.normalizePath(uri);
 		const realpath = this._fileService.realpath(lexical).then(
@@ -246,22 +253,25 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 			() => lexical,
 		);
 		this._inMemoryGrants.set(handle, {
-			address: normalizeRemoteAgentHostAddress(address),
+			identity: normalizeResourceIdentity(identity),
 			realpath,
 			mode: AgentHostAccessMode.Read,
 		});
 		return toDisposable(() => this._inMemoryGrants.delete(handle));
 	}
 
-	connectionClosed(address: string): void {
-		const normalized = normalizeRemoteAgentHostAddress(address);
+	connectionClosed(identity: AgentHostResourceIdentity): void {
+		const normalized = normalizeResourceIdentity(identity);
 
 		for (const [handle, grant] of this._inMemoryGrants) {
-			if (grant.address === normalized) {
+			if (grant.identity === normalized) {
 				this._inMemoryGrants.delete(handle);
 			}
 		}
 
+		if (normalized === LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
+			return;
+		}
 		const cancel = new CancellationError();
 		const remaining: IInternalPendingRequest[] = [];
 		for (const request of this._pending.get()) {
@@ -279,12 +289,12 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 	// ---- internals ---------------------------------------------------------
 
 	private async _gate(
-		address: string,
+		identity: AgentHostResourceIdentity,
 		uri: URI,
 		mode: AgentHostPermissionMode,
 		deniedRequest: ResourceRequestParams,
 	): Promise<void> {
-		if (!await this.check(address, uri, mode)) {
+		if (!await this.check(identity, uri, mode)) {
 			throw new AgentHostResourcePermissionError(deniedRequest);
 		}
 	}
@@ -371,13 +381,13 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 			: normalized;
 	}
 
-	private async _isCovered(address: string, canonicalUri: URI, mode: AgentHostPermissionMode): Promise<boolean> {
-		if (address === LOCAL_AGENT_HOST_ADDRESS) {
+	private async _isCovered(identity: AgentHostResourceIdentity, canonicalUri: URI, mode: AgentHostPermissionMode): Promise<boolean> {
+		if (identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
 			return true;
 		}
 		const requireWrite = mode === AgentHostPermissionMode.Write;
 
-		for (const grant of this._readPersistedGrants(address)) {
+		for (const grant of this._readPersistedGrants(identity)) {
 			if (requireWrite && grant.mode !== AgentHostAccessMode.ReadWrite) {
 				continue;
 			}
@@ -388,7 +398,7 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 
 		const candidates: Promise<URI>[] = [];
 		for (const grant of this._inMemoryGrants.values()) {
-			if (grant.address !== address) {
+			if (grant.identity !== identity) {
 				continue;
 			}
 			if (requireWrite && grant.mode !== AgentHostAccessMode.ReadWrite) {
@@ -431,7 +441,7 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 			: AgentHostAccessMode.Read;
 
 		this._inMemoryGrants.set(generateUuid(), {
-			address: request.address,
+			identity: request.address,
 			realpath: Promise.resolve(request.uri),
 			mode: accessMode,
 		});

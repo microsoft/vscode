@@ -125,9 +125,17 @@
 		background-color: var(--vscode-inlineChat-background);
 	}
 
-	.chat-input-notification-container.has-notification {
-		margin-bottom: 12px;
+	/* Inline chat is the one surface where a notice sits clear of the input, so it
+		takes back the gap and the input keeps its own frame. Targets the input row
+		rather than `~ *`, which would also un-square joins between other docked
+		widgets. */
+	.chat-input-stack > .chat-input-notification-container.chat-input-stack-docked {
+		margin-bottom: var(--vscode-spacing-size120);
 		padding-right: 12px;
+	}
+
+	.chat-input-stack > .chat-input-notification-container.chat-input-stack-docked ~ .interactive-input-and-side-toolbar {
+		--chat-input-stack-radius-top: var(--chat-input-stack-radius-outer);
 	}
 }
 

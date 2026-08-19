@@ -1,0 +1,35 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call get_current_session exactly once, then reply exactly "current".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: mcp__host__get_current_session
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call get_current_session exactly once, then reply exactly "current".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: mcp__host__get_current_session
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"session":"claude:/${uuid_0}","openLink":"agent-host-session://claude/${uuid_0}","title":"Call get_current_session exactly once, then reply exactly \"current\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T00:59:56.191Z","modifiedAt":"2026-08-02T00:59:55.849Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}'
+    response:
+      content: current
+      stopReason: end_turn

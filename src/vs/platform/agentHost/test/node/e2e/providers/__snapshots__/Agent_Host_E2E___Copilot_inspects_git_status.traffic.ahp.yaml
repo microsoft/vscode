@@ -25,15 +25,12 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/ready
-      - channel: ${session_0}
-        action:
-          type: session/metaChanged
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
-          toolName: bash
+          toolName: ${shell}
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -47,7 +44,9 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: tracked.txt, untracked.txt
+            content: |-
+              Modified: `tracked.txt`
+              Untracked: `untracked.txt`
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

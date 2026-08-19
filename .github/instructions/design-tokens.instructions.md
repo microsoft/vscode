@@ -168,8 +168,8 @@ to its `*Compact` variant (e.g. `Codicon.close` → `Codicon.closeCompact`) so t
 icon is visually optimized for the small size. CSS `font-size` alone only scales
 the icon — it does not change to the compact glyph. Only swap the glyph when no
 CSS selector targets the original glyph class (e.g. `.codicon-close`), otherwise
-update that selector too. Some icons (settings/sliders, agent, vm, info, lock,
-plus) have no compact variant — keep the regular glyph at the compact size.
+update that selector too. Some icons (agent, vm, info, lock) have no compact
+variant — keep the regular glyph at the compact size.
 
 ## Stroke — border width
 

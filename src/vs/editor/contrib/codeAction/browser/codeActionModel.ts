@@ -230,6 +230,7 @@ export class CodeActionModel extends Disposable {
 		this._codeActionOracle.value = undefined;
 
 		this.setState(CodeActionsState.Empty);
+		this.codeActionsDisposable.clear();
 
 		const model = this._editor.getModel();
 		if (model
@@ -391,7 +392,7 @@ export class CodeActionModel extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger) {
 		this._codeActionOracle.value?.trigger(trigger);
-		this.codeActionsDisposable.dispose();
+		this.codeActionsDisposable.clear();
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {

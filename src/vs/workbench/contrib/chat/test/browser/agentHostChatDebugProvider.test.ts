@@ -255,7 +255,7 @@ suite('AgentHostChatDebugProvider - convertAgentHostEventsToDebugEvents', () => 
 					{ type: CustomizationType.Hook, id: 'hk1', uri: 'file:///ws/.github/hooks/lint.json', name: 'lint-on-save' },
 				],
 			},
-			{ type: CustomizationType.McpServer, id: 'mcp1', uri: 'file:///ws/.mcp.json', name: 'github', enabled: true, state: { kind: 'running' } },
+			{ type: CustomizationType.McpServer, id: 'mcp1', uri: 'file:///ws/.mcp.json', name: 'github', state: { kind: 'running' } },
 		] as unknown as readonly Customization[];
 
 		const { events, resolved } = buildCustomizationDebugEvents(customizations, sessionResource, 's', new Date('2026-06-17T00:00:00.000Z'));
