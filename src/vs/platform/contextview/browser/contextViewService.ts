@@ -27,7 +27,7 @@ export class ContextViewHandler extends Disposable implements IContextViewProvid
 
 	// ContextView
 
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView {
+	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean, useWindowContainerForShadowRoot?: boolean): IOpenContextView {
 		let domPosition: ContextViewDOMPosition;
 		if (container) {
 			if (container === this.layoutService.getContainer(getWindow(container))) {
@@ -41,7 +41,7 @@ export class ContextViewHandler extends Disposable implements IContextViewProvid
 			domPosition = ContextViewDOMPosition.ABSOLUTE;
 		}
 
-		const contextViewContainer = shadowRoot && container ? this.layoutService.getContainer(getWindow(container)) : container ?? this.layoutService.activeContainer;
+		const contextViewContainer = useWindowContainerForShadowRoot && container ? this.layoutService.getContainer(getWindow(container)) : container ?? this.layoutService.activeContainer;
 		this.contextView.setContainer(contextViewContainer, domPosition);
 
 		this.contextView.show(delegate);
