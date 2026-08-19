@@ -1224,6 +1224,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					// configured, the list is the only useful thing here, so it
 					// takes the input's place rather than sitting above it.
 					this.setInputVisible(false);
+					this.container.classList.add('chat-provider-setup-active');
 					if (!this.providerSetupPart.value) {
 						dom.clearNode(this.welcomeMessageContainer);
 						this.welcomePart.clear();
@@ -1237,6 +1238,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (this.providerSetupPart.value) {
 					this.providerSetupPart.clear();
 					dom.clearNode(this.welcomeMessageContainer);
+					this.container.classList.remove('chat-provider-setup-active');
 					this.setInputVisible(true);
 				}
 

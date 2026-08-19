@@ -96,7 +96,9 @@ interface IOnboardingProviderRow {
 	readonly icon?: ThemeIcon;
 	readonly name: string;
 	readonly description: string;
-	/** Copilot leads the list, so its row is taller and carries account marks. */
+	/** Label of the row's own action button. */
+	readonly action: string;
+	/** Copilot leads the list, so its row is a card and carries account marks. */
 	readonly primary?: boolean;
 }
 
@@ -157,8 +159,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private _importCompleted = false;
 	private readonly _importCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _userSignedIn = false;
-	/** Providers switched on in the sign-in step; Copilot leads by default. */
-	private readonly selectedProviders = new Set<string>(['copilot']);
+	/** Whether the sign-in step's "other ways" disclosure is open. */
+	private otherProvidersExpanded = false;
 	private copilotTermsEl: HTMLElement | undefined;
 	private selectedAiMode: AiCollaborationMode = AiCollaborationMode.Balanced;
 	private enterpriseSignInUiState: EnterpriseSignInUiState = 'options';
@@ -280,12 +282,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				this._logAction('complete');
 				this._dismiss('complete');
 			} else if (this.currentStepIndex === 0) {
-				if (this._userSignedIn || this.selectedProviders.size === 0) {
-					this._logAction('continueWithoutSignIn');
-					this._nextStep();
-				} else {
-					void this._handleProviderContinue();
-				}
+				// Sign-in is now a direct action on the card, so the footer is
+				// only ever a way past this step.
+				this._logAction(this._userSignedIn ? 'next' : 'continueWithoutSignIn');
+				this._nextStep();
 			} else {
 				this._logAction('next');
 				this._nextStep();
@@ -476,13 +476,9 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				if (this._userSignedIn) {
 					this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
 					this.nextButton.textContent = localize('onboarding.continue', "Continue");
-				} else if (this.selectedProviders.size > 0) {
-					// Something is switched on, so Continue is the action that
-					// acts on it rather than a way past the step.
-					this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
-					this.nextButton.textContent = localize('onboarding.continue', "Continue");
 				} else {
-					// Sign-in step: secondary "Continue without Signing In"
+					// Signing in is the card's job, so the footer stays quiet
+					// and only offers the way past.
 					this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-secondary';
 					this.nextButton.textContent = localize('onboarding.continueWithoutSignIn', "Continue without Signing In");
 				}
@@ -725,7 +721,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		title.textContent = localize('onboarding.signIn.heroTitle', "Welcome — let's get you set up");
 
 		const subtitle = append(contentMain, $('p.onboarding-a-signin-subtitle'));
-		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Turn on what you'd like to use. GitHub Copilot is the quickest way in, and you can add more anytime.");
+		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in with GitHub to get started. You can add other models anytime.");
 
 		const actions = append(contentMain, $('.onboarding-a-signin-actions'));
 
@@ -771,67 +767,115 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	/**
-	 * The provider list is the whole decision surface. Each row is one inline
-	 * line — toggle, mark, name, description — so the three options can be
-	 * compared by scanning a single column rather than re-reading a new shape
-	 * on every line. Copilot is preselected because it is the path we want
-	 * most people to take; the toggles let people add to it rather than
-	 * choose instead of it.
+	 * The sign-in step and the signed-out chat panel are the same decision, so
+	 * they are the same object: Copilot alone in a card with the only filled
+	 * button, the rarer routes waiting behind a disclosure. Someone who meets
+	 * one surface recognises the other instead of learning two designs.
 	 */
 	private _renderProviderList(actions: HTMLElement): void {
-		const list = append(actions, $('.onboarding-a-provider-list'));
-		list.setAttribute('role', 'group');
-		list.setAttribute('aria-label', localize('onboarding.signIn.providers.aria', "Ways to use AI"));
-
-		for (const descriptor of this._getProviderRows()) {
-			this._renderProviderRow(list, descriptor);
-		}
+		this._renderPrimaryProvider(actions);
+		this._renderOtherProviders(actions);
 	}
 
-	private _getProviderRows(): readonly IOnboardingProviderRow[] {
-		return [
-			{
-				id: 'copilot',
-				icon: Codicon.github,
-				name: localize('onboarding.signIn.copilot.name', "GitHub Copilot"),
-				description: localize('onboarding.signIn.copilot.description', "Free with your GitHub account."),
-				primary: true,
-			},
-			{
-				id: 'chatgpt',
-				markClass: 'openai',
-				name: localize('onboarding.signIn.chatgpt.name', "ChatGPT"),
-				description: localize('onboarding.signIn.chatgpt.description', "Your OpenAI account or key."),
-			},
-			{
-				id: 'byok',
-				icon: Codicon.key,
-				name: localize('onboarding.signIn.byok.name', "Your own key"),
-				description: localize('onboarding.signIn.byok.description', "Anthropic, Azure, OpenRouter."),
-			},
-		];
+	/** Copilot: the route we want most people to take, so it stands alone. */
+	private _renderPrimaryProvider(actions: HTMLElement): void {
+		const descriptor = this._getPrimaryProviderRow();
+		const card = append(actions, $('.onboarding-a-provider-primary'));
+
+		const mark = append(card, $('span.onboarding-a-provider-mark'));
+		mark.appendChild(renderIcon(descriptor.icon!));
+		mark.setAttribute('aria-hidden', 'true');
+
+		const copy = append(card, $('.onboarding-a-provider-copy'));
+		const name = append(copy, $('span.onboarding-a-provider-name'));
+		name.textContent = descriptor.name;
+		const description = append(copy, $('span.onboarding-a-provider-description'));
+		description.id = 'onboarding-a-provider-description-copilot';
+		description.textContent = descriptor.description;
+
+		// Copilot's other account routes live in its own card, as marks rather
+		// than a sentence: they are alternatives to this provider, not to the
+		// list, and a line of prose here would outweigh the choice itself.
+		const accounts = append(card, $('.onboarding-a-provider-accounts'));
+		const google = this._registerStepFocusable(append(accounts, $<HTMLButtonElement>('button.onboarding-a-provider-account.google')));
+		google.type = 'button';
+		google.title = localize('onboarding.signIn.copilot.google', "Continue with Google");
+		google.setAttribute('aria-label', google.title);
+		this.stepDisposables.add(addDisposableListener(google, EventType.CLICK, e => {
+			e.preventDefault();
+			this._logAction('signIn', undefined, 'google');
+			void this._handleSignIn('google');
+		}));
+
+		const ghe = this._registerStepFocusable(append(accounts, $<HTMLButtonElement>('button.onboarding-a-provider-account')));
+		ghe.type = 'button';
+		ghe.appendChild(renderIcon(Codicon.organization));
+		ghe.title = localize('onboarding.signIn.copilot.ghe', "Continue with GitHub Enterprise");
+		ghe.setAttribute('aria-label', ghe.title);
+		this.stepDisposables.add(addDisposableListener(ghe, EventType.CLICK, e => {
+			e.preventDefault();
+			this._logAction('signIn', undefined, 'github-enterprise');
+			void this._handleEnterpriseSignIn();
+		}));
+
+		const button = this._registerStepFocusable(append(card, $<HTMLButtonElement>('button.onboarding-a-provider-action.primary')));
+		button.type = 'button';
+		button.textContent = descriptor.action;
+		button.setAttribute('aria-describedby', description.id);
+		this.stepDisposables.add(addDisposableListener(button, EventType.CLICK, e => {
+			e.preventDefault();
+			this._logAction('signIn', undefined, 'github');
+			void this._handleSignIn();
+		}));
 	}
 
 	/**
-	 * The whole row is the switch's label, so the entire line is a hit target
-	 * and the description is announced with the control rather than after it.
+	 * A standard disclosure: the toggle owns the expanded state and points at
+	 * the region it controls, so the whole thing is one stop for a keyboard.
 	 */
-	private _renderProviderRow(list: HTMLElement, descriptor: IOnboardingProviderRow): void {
-		const selected = this.selectedProviders.has(descriptor.id);
-		const row = append(list, $('label.onboarding-a-provider-row'));
-		row.classList.toggle('selected', selected);
-		row.classList.toggle('primary', !!descriptor.primary);
+	private _renderOtherProviders(actions: HTMLElement): void {
+		const wrapper = append(actions, $('.onboarding-a-provider-other'));
 
-		const checkbox = this._registerStepFocusable(append(row, $<HTMLInputElement>('input.onboarding-a-provider-checkbox')));
-		checkbox.type = 'checkbox';
-		checkbox.checked = selected;
-		// A switch role matches the toggle affordance and reads as on/off.
-		checkbox.setAttribute('role', 'switch');
-		checkbox.setAttribute('aria-label', localize('onboarding.signIn.provider.select.aria', "Use {0}", descriptor.name));
+		const toggle = this._registerStepFocusable(append(wrapper, $<HTMLButtonElement>('button.onboarding-a-provider-other-toggle')));
+		toggle.type = 'button';
+		toggle.id = 'onboarding-a-provider-other-toggle';
+		toggle.setAttribute('aria-expanded', String(this.otherProvidersExpanded));
+		toggle.setAttribute('aria-controls', 'onboarding-a-provider-other-region');
+		toggle.classList.toggle('expanded', this.otherProvidersExpanded);
 
-		const toggle = append(row, $('span.onboarding-a-provider-toggle'));
-		toggle.setAttribute('aria-hidden', 'true');
-		append(toggle, $('span.onboarding-a-provider-toggle-knob'));
+		const chevron = append(toggle, $('span.onboarding-a-provider-chevron'));
+		chevron.appendChild(renderIcon(Codicon.chevronRight));
+		chevron.setAttribute('aria-hidden', 'true');
+
+		const label = append(toggle, $('span'));
+		label.textContent = localize('onboarding.signIn.other', "Other ways to get models");
+
+		const region = append(wrapper, $('.onboarding-a-provider-other-region'));
+		region.id = 'onboarding-a-provider-other-region';
+		region.setAttribute('role', 'group');
+		region.setAttribute('aria-labelledby', toggle.id);
+		region.hidden = !this.otherProvidersExpanded;
+
+		for (const descriptor of this._getOtherProviderRows()) {
+			this._renderProviderRow(region, descriptor);
+		}
+
+		this.stepDisposables.add(addDisposableListener(toggle, EventType.CLICK, e => {
+			e.preventDefault();
+			// Remembered on the instance so re-rendering the step (after a failed
+			// sign-in, say) does not silently collapse what the user opened.
+			this.otherProvidersExpanded = !this.otherProvidersExpanded;
+			region.hidden = !this.otherProvidersExpanded;
+			toggle.setAttribute('aria-expanded', String(this.otherProvidersExpanded));
+			toggle.classList.toggle('expanded', this.otherProvidersExpanded);
+			status(this.otherProvidersExpanded
+				? localize('onboarding.signIn.other.expanded', "Other ways to get models expanded.")
+				: localize('onboarding.signIn.other.collapsed', "Other ways to get models collapsed."));
+		}));
+	}
+
+	private _renderProviderRow(region: HTMLElement, descriptor: IOnboardingProviderRow): void {
+		const row = append(region, $('.onboarding-a-provider-row'));
 
 		const mark = append(row, $('span.onboarding-a-provider-mark'));
 		if (descriptor.markClass) {
@@ -841,90 +885,66 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}
 		mark.setAttribute('aria-hidden', 'true');
 
-		const name = append(row, $('span.onboarding-a-provider-name'));
+		const copy = append(row, $('.onboarding-a-provider-copy'));
+		const name = append(copy, $('span.onboarding-a-provider-name'));
 		name.textContent = descriptor.name;
-
-		const description = append(row, $('span.onboarding-a-provider-description'));
+		const description = append(copy, $('span.onboarding-a-provider-description'));
 		description.id = `onboarding-a-provider-description-${descriptor.id}`;
 		description.textContent = descriptor.description;
-		checkbox.setAttribute('aria-describedby', description.id);
 
-		// Copilot's other account routes live in its own row, as marks rather
-		// than a sentence: they are alternatives to this provider, not to the
-		// list, and a line of prose here would outweigh the choice itself.
-		if (descriptor.primary) {
-			const accounts = append(row, $('.onboarding-a-provider-accounts'));
-			const google = this._registerStepFocusable(append(accounts, $<HTMLButtonElement>('button.onboarding-a-provider-account.google')));
-			google.type = 'button';
-			google.title = localize('onboarding.signIn.copilot.google', "Continue with Google");
-			google.setAttribute('aria-label', google.title);
-			this.stepDisposables.add(addDisposableListener(google, EventType.CLICK, e => {
-				e.preventDefault();
-				this._logAction('signIn', undefined, 'google');
-				void this._handleSignIn('google');
-			}));
-
-			const ghe = this._registerStepFocusable(append(accounts, $<HTMLButtonElement>('button.onboarding-a-provider-account')));
-			ghe.type = 'button';
-			ghe.appendChild(renderIcon(Codicon.organization));
-			ghe.title = localize('onboarding.signIn.copilot.ghe', "Continue with GitHub Enterprise");
-			ghe.setAttribute('aria-label', ghe.title);
-			this.stepDisposables.add(addDisposableListener(ghe, EventType.CLICK, e => {
-				e.preventDefault();
-				this._logAction('signIn', undefined, 'github-enterprise');
-				void this._handleEnterpriseSignIn();
-			}));
-		}
-
-		this.stepDisposables.add(addDisposableListener(checkbox, EventType.CHANGE, () => {
-			if (checkbox.checked) {
-				this.selectedProviders.add(descriptor.id);
-			} else {
-				this.selectedProviders.delete(descriptor.id);
-			}
-			row.classList.toggle('selected', checkbox.checked);
-			this._logAction(checkbox.checked ? 'selectProvider' : 'deselectProvider', undefined, descriptor.id);
-			status(checkbox.checked
-				? localize('onboarding.signIn.provider.selected', "{0} selected.", descriptor.name)
-				: localize('onboarding.signIn.provider.deselected', "{0} deselected.", descriptor.name));
-			this._updateCopilotTermsVisibility();
-			this._updateButtonStates();
+		const button = this._registerStepFocusable(append(row, $<HTMLButtonElement>('button.onboarding-a-provider-action')));
+		button.type = 'button';
+		button.textContent = descriptor.action;
+		// The visible label repeats across rows, so name the control by the
+		// provider it belongs to rather than leaving identical buttons.
+		button.setAttribute('aria-label', localize('onboarding.signIn.provider.action.aria', "{0}: {1}", descriptor.name, descriptor.action));
+		button.setAttribute('aria-describedby', description.id);
+		this.stepDisposables.add(addDisposableListener(button, EventType.CLICK, e => {
+			e.preventDefault();
+			this._logAction('setUpProvider', undefined, descriptor.id);
+			// These need a key, which lives in chat model management. Handing off
+			// there keeps the modal from duplicating that surface.
+			this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
+			this._dismiss('skip');
 		}));
 	}
 
-	/**
-	 * The GitHub terms only bind someone who is actually signing in to Copilot,
-	 * so they appear with that choice rather than sitting under the list as a
-	 * permanent wall of text.
-	 */
-	private _updateCopilotTermsVisibility(): void {
-		this.copilotTermsEl?.classList.toggle('hidden', !this.selectedProviders.has('copilot'));
+	private _getPrimaryProviderRow(): IOnboardingProviderRow {
+		return {
+			id: 'copilot',
+			icon: Codicon.github,
+			name: localize('onboarding.signIn.copilot.name', "GitHub Copilot"),
+			description: localize('onboarding.signIn.copilot.description', "Free with your GitHub account."),
+			action: localize('onboarding.signIn.copilot.action', "Sign In"),
+			primary: true,
+		};
+	}
+
+	private _getOtherProviderRows(): readonly IOnboardingProviderRow[] {
+		return [
+			{
+				id: 'chatgpt',
+				markClass: 'openai',
+				name: localize('onboarding.signIn.chatgpt.name', "ChatGPT"),
+				description: localize('onboarding.signIn.chatgpt.description', "Your OpenAI account or key."),
+				action: localize('onboarding.signIn.chatgpt.action', "Connect"),
+			},
+			{
+				id: 'byok',
+				icon: Codicon.key,
+				name: localize('onboarding.signIn.byok.name', "Your own key"),
+				description: localize('onboarding.signIn.byok.description', "Anthropic, Azure, OpenRouter."),
+				action: localize('onboarding.signIn.byok.action', "Set Up"),
+			},
+		];
 	}
 
 	/**
-	 * Continue acts on everything that is switched on. Copilot owns the real
-	 * sign-in; the other providers need a key, so they hand off to the chat
-	 * model management surface once Copilot is settled.
+	 * The terms bind whoever signs in to Copilot, which is the primary action on
+	 * this step, so they sit with it rather than being toggled in and out.
 	 */
-	private async _handleProviderContinue(): Promise<void> {
-		const selected = this._getProviderRows().filter(row => this.selectedProviders.has(row.id));
-		this._logAction('continueWithProviders', undefined, selected.map(row => row.id).join(','));
-
-		if (this.selectedProviders.has('copilot')) {
-			await this._handleSignIn();
-		}
-
-		// Anything beyond Copilot needs a key, which lives in chat model
-		// management. Handing off there keeps the modal from duplicating it.
-		if (selected.some(row => row.id !== 'copilot')) {
-			this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
-			this._dismiss('skip');
-			return;
-		}
-
-		if (!this.selectedProviders.has('copilot')) {
-			this._nextStep();
-		}
+	private _updateCopilotTermsVisibility(): void {
+		this.copilotTermsEl?.classList.toggle('hidden', this._userSignedIn);
 	}
 
 	private static readonly GHE_INPUT_ACTION_PADDING = 28;

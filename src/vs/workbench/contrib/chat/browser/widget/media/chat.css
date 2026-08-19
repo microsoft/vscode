@@ -4856,10 +4856,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /*
- * A hidden input still reserves its own padding, leaving a sliver under the
- * signed-out provider list. Collapse it so the list's own input preview is
- * the only thing at the bottom of the panel.
+ * While the signed-out provider list stands in for the input, the hidden input
+ * part would still reserve its own padding and leave a sliver under the list.
  */
-.interactive-session .interactive-input-part.chat-input-hidden:not(:has(> .chat-input-persistent-content > :not(.hidden), > .chat-tool-confirmation-carousel-container:not(.hidden))) {
+.interactive-session.chat-provider-setup-active > .interactive-input-part {
 	padding: 0;
 }

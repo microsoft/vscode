@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Signed-out chat provider list. This sits where the welcome message normally
- * goes, directly above the input, so the decision and the place you act on it
- * stay together.
+ * Signed-out chat provider setup. This sits where the welcome message normally
+ * goes and stands in for the input, so the decision and the place you act on
+ * it stay together.
  *
- * One DOM, two shapes: the narrow editor sidebar stacks the rows, the wide
- * Agents composer lays them out side by side. A container query does the
- * switch, so the panel also adapts when the user drags the sidebar wider
- * rather than only matching whichever surface it was built for.
+ * The hierarchy is the point: Copilot is a card with a filled button, the
+ * alternatives wait behind a disclosure. One obvious thing to do, with the
+ * rarer routes still one click away.
  */
 
 .chat-provider-setup {
@@ -21,7 +20,7 @@
 	gap: 12px;
 	box-sizing: border-box;
 	width: 100%;
-	max-width: 900px;
+	max-width: 560px;
 	margin: 0 auto;
 	padding: 0 16px;
 }
@@ -41,21 +40,19 @@
 	letter-spacing: -0.005em;
 }
 
-/*
- * One container around the group, not three around each row. The list is a
- * single object, so it gets a single edge; the rows inside are separated by
- * hairlines rather than each being re-boxed.
- */
-/*
- * The same grouped object as the modal's sign-in step: one container, rows
- * separated by hairlines, toggles rather than buttons. Someone who has seen
- * the modal should recognise this immediately instead of learning a second
- * design for the same decision.
- */
-.chat-provider-setup-list {
+.chat-provider-setup-subtitle {
+	margin: 0;
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* The primary route gets the only box and the only filled button. */
+.chat-provider-setup-primary {
 	display: flex;
-	flex-direction: column;
-	overflow: hidden;
+	align-items: center;
+	gap: 10px;
+	padding: 12px;
 	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 11%, transparent));
 	border-radius: 8px;
 	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
@@ -65,113 +62,42 @@
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	box-sizing: border-box;
-	width: 100%;
-	padding: 10px 12px;
-	border: none;
+	padding: 8px 12px;
 	border-top: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 9%, transparent);
-	background: none;
-	cursor: pointer;
-	transition: background 100ms ease;
 }
 
 .chat-provider-setup-row:first-child {
 	border-top: none;
 }
 
-.chat-provider-setup-row:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
-}
-
-.chat-provider-setup-row.selected {
-	background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent);
-}
-
-.chat-provider-setup-row.selected:hover {
-	background: color-mix(in srgb, var(--vscode-focusBorder) 14%, transparent);
-}
-
-/*
- * The real input stays in the accessibility tree and keeps keyboard focus;
- * the pill below is its skin. Clipped rather than faded because a native
- * checkbox still paints its box at low opacity.
- */
-.chat-provider-setup-checkbox {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	margin: 0;
-	padding: 0;
-	border: 0;
-	appearance: none;
-	-webkit-appearance: none;
-	background: none;
-	clip-path: inset(50%);
-	overflow: hidden;
-	pointer-events: none;
-}
-
-.chat-provider-setup-toggle {
-	position: relative;
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	box-sizing: border-box;
-	width: 30px;
-	height: 18px;
-	padding: 2px;
-	border-radius: 999px;
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 22%, transparent);
-	/* High-contrast themes carry meaning in borders, where the tint vanishes. */
-	outline: 1px solid var(--vscode-contrastBorder, transparent);
-	outline-offset: -1px;
-	transition: background 140ms ease;
-}
-
-.chat-provider-setup-row:hover .chat-provider-setup-toggle {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 32%, transparent);
-}
-
-.chat-provider-setup-row.selected .chat-provider-setup-toggle {
-	background: var(--vscode-button-background);
-}
-
-/*
- * The ring keeps the knob legible on light themes, where the neutral track
- * composites to a pale grey and a white knob would sit near 1.5:1.
- */
-.chat-provider-setup-toggle-knob {
-	width: 14px;
-	height: 14px;
-	border-radius: 999px;
-	background: var(--vscode-button-foreground, #ffffff);
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.3);
-	transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.chat-provider-setup-row.selected .chat-provider-setup-toggle-knob {
-	transform: translateX(12px);
-}
-
-.chat-provider-setup-checkbox:focus-visible + .chat-provider-setup-toggle {
-	outline: 2px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
-}
-
 .chat-provider-setup-mark {
 	display: flex;
+	flex: 0 0 auto;
 	align-items: center;
 	justify-content: center;
-	flex: 0 0 auto;
-	width: 18px;
-	height: 18px;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
 	color: var(--vscode-foreground);
-	opacity: 0.7;
-	transition: opacity 140ms ease;
+	font-size: 15px;
+	/* High-contrast themes carry meaning in borders, not fills. Inert elsewhere. */
+	outline: 1px solid var(--vscode-contrastBorder, transparent);
+	outline-offset: -1px;
 }
 
-.chat-provider-setup-row.selected .chat-provider-setup-mark {
-	opacity: 1;
+/* The primary route's mark sits a step brighter than the alternatives. */
+.chat-provider-setup-primary .chat-provider-setup-mark {
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 13%, transparent);
+}
+
+/* Once we know who the user is, the mark becomes their monogram. */
+.chat-provider-setup-mark.account {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 24px;
 }
 
 .chat-provider-setup-mark .codicon {
@@ -205,11 +131,11 @@
 .chat-provider-setup-name {
 	font-size: 12px;
 	font-weight: 600;
-	line-height: 1.3;
+	line-height: 1.35;
 	color: var(--vscode-foreground);
+	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .chat-provider-setup-description {
@@ -218,109 +144,110 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.chat-provider-setup-footer {
-	display: flex;
-	justify-content: flex-end;
+/* Quiet by default; only the primary card's button is filled. */
+.chat-provider-setup-action {
+	flex: 0 0 auto;
+	padding: 4px 12px;
+	border: 1px solid var(--vscode-button-border, color-mix(in srgb, var(--vscode-editor-foreground) 18%, transparent));
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	font-size: 12px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 140ms ease;
 }
 
-.chat-provider-setup-continue {
-	padding: 5px 16px;
-	border: 1px solid var(--vscode-button-border, transparent);
-	border-radius: 5px;
+.chat-provider-setup-action:hover {
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
+}
+
+.chat-provider-setup-action.primary {
+	border-color: var(--vscode-contrastBorder, transparent);
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
-	font-size: 12px;
-	font-weight: 600;
-	cursor: pointer;
-	transition: background 120ms ease;
+	box-shadow: 0 1px 2px color-mix(in srgb, var(--vscode-widget-shadow, #000) 40%, transparent);
 }
 
-.chat-provider-setup-continue:hover:not(:disabled) {
+.chat-provider-setup-action.primary:hover {
 	background: var(--vscode-button-hoverBackground);
 }
 
-.chat-provider-setup-continue:disabled {
-	opacity: 0.4;
-	cursor: default;
+/* A press should be felt, not just seen. */
+.chat-provider-setup-action:active {
+	transform: translateY(1px);
 }
 
-.chat-provider-setup-continue:focus-visible {
+@media (prefers-reduced-motion: reduce) {
+	.chat-provider-setup-action {
+		transition: none;
+	}
+
+	.chat-provider-setup-action:active {
+		transform: none;
+	}
+}
+
+.chat-provider-setup-action:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
 
 /*
- * Wide surfaces (the Agents composer) lay the rows out side by side. Same
- * object, only the direction changes.
+ * The disclosure reads as a quiet link, not a third button competing with the
+ * two real actions above it.
  */
-@container (min-width: 620px) {
-	.chat-provider-setup-list {
-		flex-direction: row;
-		align-items: stretch;
-	}
+.chat-provider-setup-other-toggle {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-family: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}
 
-	.chat-provider-setup-row {
-		flex: 1 1 0;
-		min-width: 0;
-		border-top: none;
-		border-left: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 9%, transparent);
-	}
+.chat-provider-setup-other-toggle:hover {
+	color: var(--vscode-foreground);
+}
 
-	.chat-provider-setup-row:first-child {
-		border-left: none;
-	}
+.chat-provider-setup-other-toggle:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
 
-	.chat-provider-setup-description {
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+.chat-provider-setup-chevron {
+	display: flex;
+	align-items: center;
+	transition: transform 100ms ease-out;
+}
+
+.chat-provider-setup-other-toggle.expanded .chat-provider-setup-chevron {
+	transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-provider-setup-chevron {
+		transition: none;
 	}
 }
 
-/*
- * Scenery, not a control: it shows where the conversation will happen once a
- * provider exists. Inert to the pointer so a click lands on nothing rather
- * than appearing to focus a field that cannot accept text.
- */
-.chat-provider-setup-input-preview {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	box-sizing: border-box;
-	width: 100%;
-	margin-top: 4px;
-	padding: 10px 12px;
+.chat-provider-setup-chevron .codicon {
+	font-size: 14px;
+}
+
+.chat-provider-setup-other-region {
+	margin-top: 6px;
+	overflow: hidden;
 	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 11%, transparent));
 	border-radius: 8px;
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
-	pointer-events: none;
-	user-select: none;
 }
 
-.chat-provider-setup-input-placeholder {
-	flex: 1;
-	min-width: 0;
-	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	line-height: 1.4;
-	opacity: 0.6;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.chat-provider-setup-input-send {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	width: 20px;
-	height: 20px;
-	border-radius: 999px;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.4;
-}
-
-.chat-provider-setup-input-send .codicon {
-	font-size: 13px;
+.chat-provider-setup-other-region[hidden] {
+	display: none;
 }

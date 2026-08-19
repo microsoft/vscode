@@ -321,59 +321,35 @@
  * emphasis comes from the selected state, which is where the meaning is.
  */
 /*
- * One container around the group, not three around each row. The list is a
- * single object, so it gets a single edge; the rows inside are separated by
- * hairlines rather than each being re-boxed.
+ * Copilot gets the only card and the only filled button; the rarer routes wait
+ * behind a disclosure. One obvious thing to do, with the alternatives still a
+ * single click away. This mirrors the signed-out chat panel exactly, so the
+ * two surfaces read as one decision rather than two designs.
  */
-.onboarding-a-provider-list {
+.onboarding-a-provider-primary {
 	display: flex;
-	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	box-sizing: border-box;
 	width: 100%;
-	overflow: hidden;
+	padding: 14px;
 	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 11%, transparent));
 	border-radius: 10px;
 	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
 }
 
 .onboarding-a-provider-row {
-	position: relative;
 	display: flex;
 	align-items: center;
 	gap: 12px;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 12px 14px;
-	border: none;
+	padding: 10px 14px;
 	border-top: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 9%, transparent);
-	background: none;
-	cursor: pointer;
-	transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .onboarding-a-provider-row:first-child {
 	border-top: none;
-}
-
-.onboarding-a-provider-row:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
-}
-
-/*
- * Selected rows lift rather than merely tint, so what is on reads at a
- * glance without the list turning into a field of competing colour.
- */
-.onboarding-a-provider-row.selected {
-	background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent);
-}
-
-.onboarding-a-provider-row.selected:hover {
-	background: color-mix(in srgb, var(--vscode-focusBorder) 14%, transparent);
-}
-
-/* Copilot leads, so its row is taller — weight without a louder colour. */
-.onboarding-a-provider-row.primary {
-	padding-top: 21px;
-	padding-bottom: 21px;
 }
 
 /* Alternate GitHub accounts: available at a glance, quiet until wanted. */
@@ -382,9 +358,8 @@
 	flex: 0 0 auto;
 	align-items: center;
 	gap: 4px;
-	margin-left: 10px;
-	padding-left: 10px;
-	border-left: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
+	padding-right: 10px;
+	border-right: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
 }
 
 .onboarding-a-provider-account {
@@ -399,20 +374,17 @@
 	background: none;
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
-	opacity: 0.75;
-	transition: background 120ms ease, opacity 120ms ease;
+	transition: background 140ms ease, color 140ms ease;
 }
 
 .onboarding-a-provider-account:hover {
 	background: color-mix(in srgb, var(--vscode-editor-foreground) 10%, transparent);
 	color: var(--vscode-foreground);
-	opacity: 1;
 }
 
 .onboarding-a-provider-account:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
+	outline: 2px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
-	opacity: 1;
 }
 
 .onboarding-a-provider-account .codicon {
@@ -423,98 +395,15 @@
 	content: '';
 	width: 15px;
 	height: 15px;
-	background-image: url('./google.svg');
-	background-repeat: no-repeat;
-	background-position: center;
-	background-size: contain;
-}
-
-/* Terms bind whoever signs in to Copilot, so they follow that choice. */
-.onboarding-a-signin-disclaimer.hidden {
-	visibility: hidden;
-}
-
-/*
- * The real input stays in the accessibility tree and keeps keyboard focus;
- * the pill below is its skin. Clipped rather than faded because a native
- * checkbox still paints its box at low opacity, which showed through the
- * toggle. `appearance: none` removes that painting outright.
- */
-.onboarding-a-provider-checkbox {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	margin: 0;
-	padding: 0;
-	border: 0;
-	appearance: none;
-	-webkit-appearance: none;
-	background: none;
-	clip-path: inset(50%);
-	overflow: hidden;
-	pointer-events: none;
-}
-
-.onboarding-a-provider-toggle {
-	position: relative;
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	box-sizing: border-box;
-	width: 30px;
-	height: 18px;
-	padding: 2px;
-	border-radius: 999px;
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 22%, transparent);
-	/*
-	 * High-contrast themes carry meaning in borders rather than fills, where
-	 * the track's tint does not survive. `contrastBorder` is only defined by
-	 * those themes, so this is inert elsewhere. Drawn as an inset outline so
-	 * it costs no layout and the knob's travel stays the same.
-	 */
-	outline: 1px solid var(--vscode-contrastBorder, transparent);
-	outline-offset: -1px;
-	transition: background 140ms ease;
-}
-
-.onboarding-a-provider-row:hover .onboarding-a-provider-toggle {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 32%, transparent);
-}
-
-.onboarding-a-provider-row.selected .onboarding-a-provider-toggle {
-	background: var(--vscode-button-background);
-}
-
-.onboarding-a-provider-row.selected:hover .onboarding-a-provider-toggle {
-	background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
-}
-
-/*
- * The knob must read against both the neutral and accent track, so it uses
- * the button foreground rather than the editor background (dark on dark).
- *
- * The ring is what makes the off state legible on light themes: there the
- * neutral track composites to a pale grey, and a white knob on it is about
- * 1.5:1 — well under the 3:1 that a UI component's boundary needs. The ring
- * restores that edge, and is harmless on dark themes where the track is
- * already dark enough to carry the contrast on its own.
- */
-.onboarding-a-provider-toggle-knob {
-	width: 14px;
-	height: 14px;
-	border-radius: 999px;
-	background: var(--vscode-button-foreground, #ffffff);
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.3);
-	transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.onboarding-a-provider-row.selected .onboarding-a-provider-toggle-knob {
-	transform: translateX(12px);
-}
-
-.onboarding-a-provider-checkbox:focus-visible + .onboarding-a-provider-toggle {
-	outline: 2px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
+	background-color: currentColor;
+	-webkit-mask-image: url('./google.svg');
+	mask-image: url('./google.svg');
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-position: center;
+	mask-position: center;
+	-webkit-mask-size: contain;
+	mask-size: contain;
 }
 
 .onboarding-a-provider-mark {
@@ -522,15 +411,19 @@
 	flex: 0 0 auto;
 	align-items: center;
 	justify-content: center;
-	width: 20px;
-	height: 20px;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
 	color: var(--vscode-editor-foreground);
-	opacity: 0.7;
-	transition: opacity 140ms ease;
+	/* High-contrast themes carry meaning in borders, not fills. Inert elsewhere. */
+	outline: 1px solid var(--vscode-contrastBorder, transparent);
+	outline-offset: -1px;
 }
 
-.onboarding-a-provider-row.selected .onboarding-a-provider-mark {
-	opacity: 1;
+/* The primary route's mark sits a step brighter than the alternatives. */
+.onboarding-a-provider-primary .onboarding-a-provider-mark {
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 13%, transparent);
 }
 
 .onboarding-a-provider-mark .codicon {
@@ -553,8 +446,15 @@
 	mask-size: contain;
 }
 
+.onboarding-a-provider-copy {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+}
+
 .onboarding-a-provider-name {
-	flex: 0 0 auto;
 	font-size: 13px;
 	font-weight: 600;
 	line-height: 1.3;
@@ -562,20 +462,124 @@
 	letter-spacing: -0.005em;
 }
 
-/*
- * The description trails on the same line and truncates rather than wrapping,
- * so every row stays one line tall and the column keeps its rhythm.
- */
 .onboarding-a-provider-description {
-	flex: 1 1 auto;
-	min-width: 0;
 	font-size: 12px;
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
-	text-align: right;
+}
+
+/* Quiet by default; only the primary card's button is filled. */
+.onboarding-a-provider-action {
+	flex: 0 0 auto;
+	padding: 6px 16px;
+	border: 1px solid var(--vscode-button-border, color-mix(in srgb, var(--vscode-editor-foreground) 18%, transparent));
+	border-radius: 5px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	font-size: 12px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 140ms ease;
+}
+
+.onboarding-a-provider-action:hover {
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
+}
+
+.onboarding-a-provider-action.primary {
+	border-color: var(--vscode-contrastBorder, transparent);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	box-shadow: 0 1px 2px color-mix(in srgb, var(--vscode-widget-shadow, #000) 40%, transparent);
+}
+
+.onboarding-a-provider-action.primary:hover {
+	background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+}
+
+/* A press should be felt, not just seen. */
+.onboarding-a-provider-action:active {
+	transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.onboarding-a-provider-action {
+		transition: none;
+	}
+
+	.onboarding-a-provider-action:active {
+		transform: none;
+	}
+}
+
+.onboarding-a-provider-action:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+/*
+ * The disclosure reads as a quiet link, not a third button competing with the
+ * card's action.
+ */
+.onboarding-a-provider-other {
+	width: 100%;
+	margin-top: 10px;
+}
+
+.onboarding-a-provider-other-toggle {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 0;
+	border: none;
+	border-radius: 3px;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-family: inherit;
+	font-size: 12px;
+	cursor: pointer;
+	transition: color 140ms ease;
+}
+
+.onboarding-a-provider-other-toggle:hover {
+	color: var(--vscode-foreground);
+}
+
+.onboarding-a-provider-other-toggle:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.onboarding-a-provider-chevron {
+	display: flex;
+	align-items: center;
+	transition: transform 140ms ease;
+}
+
+.onboarding-a-provider-other-toggle.expanded .onboarding-a-provider-chevron {
+	transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.onboarding-a-provider-chevron {
+		transition: none;
+	}
+}
+
+.onboarding-a-provider-chevron .codicon {
+	font-size: 15px;
+}
+
+.onboarding-a-provider-other-region {
+	margin-top: 8px;
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 11%, transparent));
+	border-radius: 10px;
+}
+
+.onboarding-a-provider-other-region[hidden] {
+	display: none;
 }
 
 .onboarding-a-signin-footer {
