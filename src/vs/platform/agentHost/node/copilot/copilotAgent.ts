@@ -89,6 +89,7 @@ import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/
 import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
+import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, workspaceDirectoryHasHooks, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
@@ -4407,7 +4408,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Resolves root-configured MCP servers that must be disabled when the SDK session starts. */
 	private _disabledRootMcpServers(session: URI, sessionId: string, snapshot: IActiveClientSnapshot): readonly string[] {
-		const rootServers: McpServerCustomization[] = Object.keys(snapshot.mcpServers).map(name => {
+		const serverNames = new Set(Object.keys(snapshot.mcpServers));
+		if (this._isGitHubMcpServerEnabled()) {
+			serverNames.add(GITHUB_MCP_SERVER_NAME);
+		}
+		const rootServers: McpServerCustomization[] = [...serverNames].map(name => {
 			const id = buildMcpTopLevelCustomizationId(this.id, sessionId, name);
 			return {
 				type: CustomizationType.McpServer,

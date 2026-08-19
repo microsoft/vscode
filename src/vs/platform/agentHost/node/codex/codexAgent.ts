@@ -50,7 +50,7 @@ import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, 
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
-import type { IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
+import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { codexDirectoryHasHooks } from './codexFolderPickerCriteria.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -1044,6 +1044,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _mcpAuthServerUrlsByResource = new Map<string, Set<string>>();
 	private _githubToken: string | undefined;
 	private _gitHubMcpServerConfiguration: IMcpServerConfiguration | undefined;
+	private _githubAuthenticationGeneration = 0;
 	private _githubMcpServerEnabled = true;
 	private _connection: ConnectionState = { kind: 'idle' };
 	private _connectionGeneration = 0;
@@ -1249,11 +1250,16 @@ export class CodexAgent extends Disposable implements IAgent {
 			return false;
 		}
 		const normalizedToken = token || undefined;
+		const generation = ++this._githubAuthenticationGeneration;
 		const changed = this._githubToken !== normalizedToken;
-		this._githubToken = normalizedToken;
-		if (changed) {
-			await this._refreshGitHubMcpServerConfiguration(normalizedToken);
+		const gitHubMcpServerConfiguration = changed
+			? await this._resolveGitHubMcpServerConfiguration(normalizedToken)
+			: this._gitHubMcpServerConfiguration;
+		if (generation !== this._githubAuthenticationGeneration) {
+			return true;
 		}
+		this._githubToken = normalizedToken;
+		this._gitHubMcpServerConfiguration = gitHubMcpServerConfiguration;
 		if (changed && this._connection.kind === 'ready' && this._connection.proxyHandle) {
 			// The app-server stays running. The proxy reads the new token from its
 			// own cell, while MCP-backed threads reconcile their per-thread config.
@@ -1262,6 +1268,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		} else if (changed) {
 			// Defer model refresh until the connection comes up.
 			this._queueModelRefresh();
+		}
+		if (changed) {
+			for (const session of this._sessions.values()) {
+				await this._reconcileMaterializedCustomizations(session);
+			}
 		}
 		this._logService.info(normalizedToken ? '[Codex] Auth token updated' : '[Codex] Auth token cleared');
 		void this._refreshProviderConfiguration();
@@ -1272,19 +1283,17 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostGitHubMcpServerEnabledConfigKey) !== false;
 	}
 
-	private async _refreshGitHubMcpServerConfiguration(token: string | undefined): Promise<void> {
+	private async _resolveGitHubMcpServerConfiguration(token: string | undefined): Promise<IMcpServerConfiguration | undefined> {
 		try {
-			this._gitHubMcpServerConfiguration = await resolveGitHubMcpServerConfiguration(this._copilotApiService, token);
+			return await resolveGitHubMcpServerConfiguration(this._copilotApiService, token);
 		} catch (error) {
 			this._logService.warn(`[Codex] Failed to resolve the GitHub MCP server endpoint: ${error instanceof Error ? error.message : String(error)}`);
-			this._gitHubMcpServerConfiguration = undefined;
-		}
-		for (const session of this._sessions.values()) {
-			await this._reconcileMaterializedCustomizations(session);
+			return undefined;
 		}
 	}
 
 	private _handleGitHubEndpointChange(): void {
+		this._githubAuthenticationGeneration++;
 		this._githubToken = undefined;
 		this._gitHubMcpServerConfiguration = undefined;
 		if (this._connection.kind === 'ready' && this._connection.proxyHandle) {
@@ -2087,9 +2096,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const workspace = codexMcpServersFromDefinitions(this._sessionMcpDiscoveries.get(session.sessionId)?.discovery.definitions ?? []);
 		const enabledWorkspace = Object.fromEntries(Object.entries(workspace).filter(([name]) => this._isMcpServerEnabledForSdk(session, name)));
 		const clientPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session), session.workingDirectory);
-		const configuredServers = { ...configuredRoot, ...workspace, ...clientPlugins };
-		const builtInGitHub = this._builtInGitHubMcpServer(session, configuredServers);
-		return injectCodexMcpAuthTokens({ ...builtInGitHub, ...root, ...enabledWorkspace, ...clientPlugins }, this._mcpAuthTokens);
+		const enabledConfiguredServers = { ...root, ...enabledWorkspace, ...clientPlugins };
+		const builtInGitHub = this._builtInGitHubMcpServer(session, enabledConfiguredServers);
+		return injectCodexMcpAuthTokens({ ...builtInGitHub, ...enabledConfiguredServers }, this._mcpAuthTokens);
 	}
 
 	private _builtInGitHubMcpServer(session: ICodexSession, configuredServers: Record<string, ICodexMcpServerConfigJson>): Record<string, ICodexMcpServerConfigJson> {
@@ -2097,10 +2106,19 @@ export class CodexAgent extends Disposable implements IAgent {
 			|| !this._githubToken
 			|| !this._gitHubMcpServerConfiguration
 			|| !this._isMcpServerEnabledForSdk(session, GITHUB_MCP_SERVER_NAME)
-			|| Object.hasOwn(configuredServers, GITHUB_MCP_SERVER_NAME)) {
+			|| this._hasConfiguredGitHubMcpServer(configuredServers)) {
 			return {};
 		}
 		return { [GITHUB_MCP_SERVER_NAME]: toCodexMcpServerJson(this._gitHubMcpServerConfiguration) };
+	}
+
+	private _hasConfiguredGitHubMcpServer(configuredServers: Record<string, ICodexMcpServerConfigJson>): boolean {
+		const builtInUrl = this._gitHubMcpServerConfiguration?.type === McpServerType.REMOTE
+			? normalizeCodexMcpResourceUrl(this._gitHubMcpServerConfiguration.url)
+			: undefined;
+		return Object.hasOwn(configuredServers, GITHUB_MCP_SERVER_NAME)
+			|| builtInUrl !== undefined && Object.values(configuredServers).some(server =>
+				server.url !== undefined && normalizeCodexMcpResourceUrl(server.url) === builtInUrl);
 	}
 
 	private async _refreshSessionMcpDiscovery(session: ICodexSession): Promise<void> {
@@ -2141,10 +2159,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Computed from a token-free build so the URLs are the bare server URLs.
 	 */
 	private _httpMcpServerUrls(session: ICodexSession): Map<string, string> {
-		const root = codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey));
+		const root = Object.fromEntries(
+			Object.entries(codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)))
+				.filter(([name]) => this._isMcpServerEnabledForSdk(session, name)),
+		);
 		const workspace = codexMcpServersFromDefinitions(this._sessionMcpDiscoveries.get(session.sessionId)?.discovery.definitions ?? []);
+		const enabledWorkspace = Object.fromEntries(Object.entries(workspace).filter(([name]) => this._isMcpServerEnabledForSdk(session, name)));
 		const clientPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session), session.workingDirectory);
-		const configuredServers = { ...root, ...workspace, ...clientPlugins };
+		const configuredServers = { ...root, ...enabledWorkspace, ...clientPlugins };
 		const builtInGitHub = this._builtInGitHubMcpServer(session, configuredServers);
 		const urls = new Map<string, string>();
 		for (const [name, server] of Object.entries({ ...builtInGitHub, ...configuredServers })) {

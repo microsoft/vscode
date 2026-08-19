@@ -58,6 +58,7 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION } from '../../node/copilot/prompts/toolInstructions.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -1036,6 +1037,30 @@ async function disposeAgent(agent: CopilotAgent): Promise<void> {
 suite('CopilotAgent', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('disables the built-in GitHub MCP server at launch from scoped enablement', () => {
+		const disabledRootMcpServers = (CopilotAgent.prototype as unknown as {
+			_disabledRootMcpServers(this: {
+				readonly id: string;
+				_isGitHubMcpServerEnabled(): boolean;
+				readonly _customizationEnablementService: {
+					resolve(session: string, target: { readonly name: string }): { kind: 'resolved'; enablement: readonly [{ kind: CustomizationEnablementKind.Session; enabled: boolean }]; enabled: boolean; workingDirectory: { kind: 'workspaceless' } };
+				};
+			}, session: URI, sessionId: string, snapshot: { readonly mcpServers: Record<string, unknown> }): readonly string[];
+		})._disabledRootMcpServers;
+		const result = disabledRootMcpServers.call({
+			id: 'copilotcli',
+			_isGitHubMcpServerEnabled: () => true,
+			_customizationEnablementService: {
+				resolve: (_session, target) => {
+					const enabled = target.name !== GITHUB_MCP_SERVER_NAME;
+					return { kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Session, enabled }], enabled, workingDirectory: { kind: 'workspaceless' } };
+				},
+			},
+		}, AgentSession.uri('copilotcli', 'session'), 'sdk-session', { mcpServers: {} });
+
+		assert.deepStrictEqual(result, [GITHUB_MCP_SERVER_NAME]);
+	});
 
 	test('selects provider-native autonomous session config and respects policy', async () => {
 		const { agent, configurationService } = createTestAgentContext(disposables);

@@ -75,6 +75,10 @@ interface ICodexGitHubEndpointChangeHarness {
 	_handleGitHubEndpointChange(): void;
 }
 
+interface ICodexAuthenticateHarness {
+	authenticate(resource: string, token: string): Promise<boolean>;
+}
+
 function resolveConversationSession(harness: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined {
 	const resolver = (CodexAgent.prototype as unknown as {
 		_resolveConversationSession(this: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined;
@@ -138,6 +142,20 @@ suite('CodexAgent', () => {
 			settingDisabled: undefined,
 			unauthenticated: undefined,
 		});
+
+		const aliasedServers = Object.assign(Object.create(CodexAgent.prototype), {
+			_configurationService: { getRootValue: () => ({ alias: { type: 'http', url: 'https://api.githubcopilot.com/mcp/' } }) },
+			_sessionMcpDiscoveries: new Map(),
+			_enabledClientPlugins: () => [],
+			_mcpAuthTokens: new Map(),
+			_githubMcpServerEnabled: true,
+			_githubToken: 'token',
+			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.githubcopilot.com'),
+			_isMcpServerEnabledForSdk: () => true,
+		}) as ICodexGitHubMcpHarness;
+		assert.deepStrictEqual(aliasedServers._buildSessionMcpServers({ sessionId: 'alias', workingDirectory: URI.file('/work') }), {
+			alias: { url: 'https://api.githubcopilot.com/mcp/' },
+		});
 	});
 
 	test('clears GitHub MCP credentials when the GitHub endpoint changes', () => {
@@ -166,6 +184,43 @@ suite('CodexAgent', () => {
 			configuration: undefined,
 			proxyTokens: [''],
 			modelRefreshes: 1,
+			reconciliations: 1,
+		});
+	});
+
+	test('does not commit stale GitHub authentication after an endpoint change', async () => {
+		const resolution = new DeferredPromise<ReturnType<typeof createGitHubMcpServerConfiguration>>();
+		const proxyTokens: string[] = [];
+		let reconciliations = 0;
+		const copilotResource = { resource: 'https://api.github.com/copilot_internal/user' };
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_gitHubEndpointService: { getCopilotResource: () => copilotResource, getRepoResource: () => ({ resource: 'https://api.github.com' }) },
+			_githubAuthenticationGeneration: 0,
+			_githubToken: undefined,
+			_gitHubMcpServerConfiguration: undefined,
+			_resolveGitHubMcpServerConfiguration: async () => resolution.p,
+			_connection: { kind: 'ready', proxyHandle: { setToken: (token: string) => proxyTokens.push(token) } },
+			_queueModelRefresh: () => { },
+			_sessions: new Map([['session', {}]]),
+			_reconcileMaterializedCustomizations: async () => { reconciliations++; },
+			_logService: new NullLogService(),
+			_refreshProviderConfiguration: async () => { },
+		}) as ICodexAuthenticateHarness & ICodexGitHubEndpointChangeHarness & { _githubToken?: string; _gitHubMcpServerConfiguration?: object };
+
+		const authenticating = harness.authenticate(copilotResource.resource, 'old-token');
+		harness._handleGitHubEndpointChange();
+		resolution.complete(createGitHubMcpServerConfiguration('https://api.enterprise.githubcopilot.com'));
+		await authenticating;
+
+		assert.deepStrictEqual({
+			token: harness._githubToken,
+			configuration: harness._gitHubMcpServerConfiguration,
+			proxyTokens,
+			reconciliations,
+		}, {
+			token: undefined,
+			configuration: undefined,
+			proxyTokens: [''],
 			reconciliations: 1,
 		});
 	});
