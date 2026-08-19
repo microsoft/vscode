@@ -169,6 +169,16 @@ export interface ISessionsProvider {
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
 	/**
+	 * Optional. Settles once the provider's initial discovery pass has run, so
+	 * consumers can tell "this provider has no sessions" apart from "this
+	 * provider has not looked yet". Providers that populate `getSessions()`
+	 * synchronously may omit it and are treated as discovered immediately.
+	 *
+	 * Must be idempotent and memoized, and must never reject: a provider that
+	 * fails discovery still settles so consumers are not blocked.
+	 */
+	whenSessionsDiscovered?(): Promise<void>;
+	/**
 	 * Optional. Fires when a temporary (untitled) session is atomically replaced
 	 * by a committed session after the first turn.
 	 *

@@ -1117,6 +1117,13 @@ export interface IAgent {
 	/** Optional adoption hook for providers with a predecessor-owned on-disk format. */
 	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
 
+	/**
+	 * Settles once the provider's initial chat discovery pass has run, so a
+	 * caller can make a listing authoritative rather than racing discovery.
+	 * Idempotent and memoized; never rejects.
+	 */
+	whenChatsDiscovered?(): Promise<void>;
+
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 

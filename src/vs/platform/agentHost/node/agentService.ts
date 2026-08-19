@@ -5,7 +5,7 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { DeferredPromise, disposableTimeout, Limiter, Promises, ResourceQueue } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, Limiter, Promises, raceTimeout, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -117,6 +117,9 @@ import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
+
+/** Upper bound on how long the first listing waits for provider chat discovery. */
+const INITIAL_CHAT_DISCOVERY_TIMEOUT_MS = 20_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
@@ -343,6 +346,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private readonly _providerMigrations = new Map<AgentProvider, IProviderDiscoveryState>();
 	private readonly _initialProviderMigrations = new Map<AgentProvider, Promise<void>>();
+	/** Discovery registrations still in flight, drained before the first listing. */
+	private readonly _pendingDiscoveryRegistrations = new Set<Promise<void>>();
 
 	/**
 	 * Backing-session URIs (as strings) whose {@link CHAT_BACKING_METADATA_KEY}
@@ -989,8 +994,11 @@ export class AgentService extends Disposable implements IAgentService {
 		this._providerSubscriptions.add(this._sideEffects.registerProgressListener(provider));
 		this._providerSubscriptions.add(provider.onDidMaterializeChat(e => this._onDidMaterializeChat(e)));
 		this._providerSubscriptions.add(provider.onDidDiscoverChats(chats => {
-			void this._registerDiscoveredChats(provider, chats).catch(err =>
-				this._logService.warn(`[AgentService] registering discovered chats for provider ${provider.id} failed`, err));
+			const registration = this._registerDiscoveredChats(provider, chats)
+				.then(() => undefined)
+				.catch(err => this._logService.warn(`[AgentService] registering discovered chats for provider ${provider.id} failed`, err));
+			this._pendingDiscoveryRegistrations.add(registration);
+			void registration.finally(() => this._pendingDiscoveryRegistrations.delete(registration));
 		}));
 		if (provider.onMcpNotification) {
 			this._providerSubscriptions.add(provider.onMcpNotification(e => this._onMcpNotification.fire(e)));
@@ -1297,6 +1305,43 @@ export class AgentService extends Disposable implements IAgentService {
 			changesets: this._stateManager.getSessionState(metadata.session.toString())?.changesets ?? metadata.changesets,
 			...(_meta !== undefined ? { _meta } : {}),
 		};
+	}
+
+	/**
+	 * Makes the first listing authoritative for legacy migration by waiting for
+	 * each provider's initial discovery pass. Without this a client cannot tell
+	 * "no adoptable chats" from "not scanned yet", so it would surface a legacy
+	 * row that is still openable through its old provider.
+	 *
+	 * Gated on the migrate setting so the ordinary listing path is unaffected,
+	 * and bounded so a provider that never settles cannot hang the list.
+	 */
+	private async _awaitInitialChatDiscovery(): Promise<void> {
+		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) !== true) {
+			return;
+		}
+		const pending = [...this._providers.values()]
+			.map(provider => provider.whenChatsDiscovered?.())
+			.filter((discovered): discovered is Promise<void> => discovered !== undefined);
+		if (pending.length === 0) {
+			return;
+		}
+		const startedAt = Date.now();
+		await raceTimeout(this._settleInitialChatDiscovery(pending), INITIAL_CHAT_DISCOVERY_TIMEOUT_MS, () =>
+			this._logService.warn(`[AgentService] initial chat discovery did not settle within ${INITIAL_CHAT_DISCOVERY_TIMEOUT_MS}ms; listing sessions without it`));
+		this._logService.trace(`[AgentService] initial chat discovery awaited in ${Date.now() - startedAt}ms`);
+	}
+
+	/**
+	 * Discovery only *emits* chats; `onDidDiscoverChats` registers them
+	 * asynchronously. Draining those registrations too is what makes an adopted
+	 * chat present in the very first listing rather than one refresh later.
+	 */
+	private async _settleInitialChatDiscovery(pending: readonly Promise<void>[]): Promise<void> {
+		await Promise.allSettled(pending);
+		while (this._pendingDiscoveryRegistrations.size > 0) {
+			await Promise.allSettled([...this._pendingDiscoveryRegistrations]);
+		}
 	}
 
 	/**
@@ -1635,6 +1680,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const startedAt = Date.now();
 		// The first list waits for registration-time legacy migration if it is still in flight.
 		await this._awaitInitialProviderMigration();
+		await this._awaitInitialChatDiscovery();
 		// The registry is the source of truth for top-level sessions. Internal
 		// chat backings and subagent sessions never enter it, and a transiently
 		// missing provider snapshot no longer evicts a session.
@@ -1954,6 +2000,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Tracks the migrate-legacy setting so the config listener acts only on transitions. */
 	private _lastMigrateLegacyEnabled = false;
+	/** Adoptable keys retracted while migration was off, restored when it is re-enabled. */
+	private readonly _retractedAdoptableKeys = new Set<string>();
 
 	private _isMigrateLegacyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
@@ -1971,7 +2019,16 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._lastMigrateLegacyEnabled = enabled;
 		if (enabled) {
-			return; // turning on re-surfaces through the normal discovery / list path
+			// Discovery skips chats already in the registry, so it cannot re-announce
+			// what disabling retracted — restore exactly those from the registry.
+			const retracted = [...this._retractedAdoptableKeys];
+			this._retractedAdoptableKeys.clear();
+			if (retracted.length > 0) {
+				this._sessionListReconciliation = this._sessionListReconciliation
+					.then(() => this._resurfaceAdoptableSessions(new Set(retracted)))
+					.catch(error => this._logService.warn('[AgentService] Re-surfacing adoptable legacy sessions failed', error));
+			}
+			return;
 		}
 		for (const key of [...this._announcedSurfacedKeys]) {
 			if (this._stateManager.getSessionState(key)) {
@@ -1982,7 +2039,20 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._announcedSurfacedKeys.delete(key);
 			this._broadcastExternalSessions.delete(key);
+			this._retractedAdoptableKeys.add(key);
 			this._stateManager.retractSurfacedSession(key);
+		}
+	}
+
+	private async _resurfaceAdoptableSessions(keys: ReadonlySet<string>): Promise<void> {
+		for (const metadata of await this.listSessions()) {
+			if (!keys.has(metadata.session.toString())) {
+				continue;
+			}
+			const provider = AgentSession.provider(metadata.session);
+			if (provider) {
+				await this._announceSurfacedSession(metadata, provider);
+			}
 		}
 	}
 

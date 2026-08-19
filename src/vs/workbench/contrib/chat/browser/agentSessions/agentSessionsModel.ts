@@ -16,6 +16,7 @@ import { derived, IObservable, observableSignalFromEvent } from '../../../../../
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -27,6 +28,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
@@ -517,6 +519,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	get sessions(): IAgentSession[] { return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values())); }
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());
+	/** Providers that have completed at least one resolve pass, successful or not. */
+	private readonly _resolvedProviders = new Set<string>();
 
 	private readonly cache: AgentSessionsCache;
 	private readonly logger: AgentSessionsLogger;
@@ -531,6 +535,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -596,10 +601,21 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	 * Hide the extension-host `copilotcli:` row when its agent-host
 	 * `agent-host-copilotcli:` twin is present, so the list shows a single entry
 	 * per legacy Copilot CLI session — the agent-host one, which migrates on open.
+	 *
+	 * While migration is enabled the legacy rows are also withheld until the
+	 * agent-host provider has resolved once. Its first listing is authoritative
+	 * for which sessions are adoptable, so releasing them earlier would surface a
+	 * row that still opens through the extension host and can never migrate. Resolve failures still mark the provider resolved, so a broken
+	 * agent host releases the rows rather than emptying the list.
+	 *
 	 * Only display is deduped; {@link getSession} and the cache use the full map so
 	 * a hidden row can still resolve.
 	 */
 	private _dedupeMigratedCopilotCliSessions(sessions: IAgentSession[]): IAgentSession[] {
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true
+			&& !this._resolvedProviders.has(COPILOT_CLI_LOCAL_AH_SCHEME)) {
+			return sessions.filter(session => session.resource.scheme !== COPILOT_CLI_EH_SCHEME);
+		}
 		let migratedRawIds: Set<string> | undefined;
 		for (const session of sessions) {
 			if (session.resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
@@ -685,6 +701,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			} catch (error) {
 				this.logger.logIfTrace(`Error resolving sessions for provider ${provider}: ${error instanceof Error ? error.stack : String(error)}`);
 			} finally {
+				this._resolvedProviders.add(provider);
 				this._onDidResolve.fire(provider);
 			}
 		});

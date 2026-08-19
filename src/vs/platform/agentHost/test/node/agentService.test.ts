@@ -3277,6 +3277,38 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('an adoptable chat retracted by disabling migration is re-surfaced when it is re-enabled', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			await svc.listSessions();
+
+			const session = AgentSession.uri('copilot', 'toggled-adoptable');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			agent.fireDiscoveredChats([{ ...discoveredChat(session, false), _meta: withSessionEhcliAdoptable(undefined) }]);
+			for (let i = 0; i < 50 && !svc.stateManager.getSurfacedSessionSummary(session.toString()); i++) {
+				await timeout(0);
+			}
+			const afterFirstEnable = !!svc.stateManager.getSurfacedSessionSummary(session.toString());
+
+			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+			await timeout(0);
+			const whileDisabled = !!svc.stateManager.getSurfacedSessionSummary(session.toString());
+
+			// Discovery skips chats already in the registry, so re-enabling must restore
+			// them from the registry rather than waiting for another discovery pass.
+			svc.configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			for (let i = 0; i < 50 && !svc.stateManager.getSurfacedSessionSummary(session.toString()); i++) {
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual(
+				{ afterFirstEnable, whileDisabled, afterReEnable: !!svc.stateManager.getSurfacedSessionSummary(session.toString()) },
+				{ afterFirstEnable: true, whileDisabled: false, afterReEnable: true },
+			);
+		});
+
 		test('rediscovering a registered chat with different provenance performs no per-session database I/O', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -3745,6 +3777,43 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			assert.deepStrictEqual((await svc.listSessions()).map(session => session.session.toString()), [legacy.toString()]);
 			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(session => session.toString()), [legacy.toString()]);
+		});
+
+		test('the first listing already contains chats discovered while migration is enabled', async () => {
+			class DiscoveryReadyAgent extends MockAgent {
+				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
+				override readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
+				discoverable: readonly IAgentDiscoveredChat[] = [];
+
+				// Mirrors the real provider: discovery resolves once it has *emitted*,
+				// leaving the service to register the chats asynchronously.
+				async whenChatsDiscovered(): Promise<void> {
+					this._onDidDiscoverChats.fire(this.discoverable);
+				}
+
+				override fireDiscoveredChats(chats: readonly IAgentDiscoveredChat[]): void { this._onDidDiscoverChats.fire(chats); }
+				override dispose(): void {
+					this._onDidDiscoverChats.dispose();
+					super.dispose();
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({
+				[AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All,
+				[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true,
+			});
+			const agent = disposables.add(new DiscoveryReadyAgent('copilot'));
+			const legacy = AgentSession.uri('copilot', 'legacy-adoptable');
+			agent.discoverable = [discoveredChat(legacy)];
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			svc.registerProvider(agent);
+
+			// No polling: the very first listing must be authoritative, otherwise a
+			// client releases the legacy row before its migrated twin exists (#331266).
+			assert.deepStrictEqual(
+				(await svc.listSessions()).map(session => session.session.toString()),
+				[legacy.toString()],
+			);
 		});
 
 		test('a late-registered provider gets its own native discovery pass', async () => {

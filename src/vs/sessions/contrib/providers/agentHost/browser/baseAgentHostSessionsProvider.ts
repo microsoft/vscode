@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
@@ -5074,6 +5074,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._refreshSessions();
 	}
 
+	private readonly _sessionsDiscovered = new DeferredPromise<void>();
+
+	whenSessionsDiscovered(): Promise<void> {
+		this._ensureSessionCache();
+		return this._sessionsDiscovered.p;
+	}
+
 	protected async _refreshSessions(announceExistingAsAdded = false): Promise<void> {
 		const connection = this.connection;
 		if (!connection) {
@@ -5087,6 +5094,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// A successful return (even an empty list) means the cache is
 			// authoritative. Mark it initialized and reset the backoff.
 			this._cacheInitialized = true;
+			if (!this._sessionsDiscovered.isSettled) {
+				this._sessionsDiscovered.complete();
+			}
 			this._sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
 			const currentKeys = new Set<string>();
 			const listedAgentProviders = new Set<string>();

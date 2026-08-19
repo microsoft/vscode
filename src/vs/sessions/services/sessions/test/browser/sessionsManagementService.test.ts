@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -43,6 +43,7 @@ import { ISessionsProvidersService } from '../../browser/sessionsProvidersServic
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -224,6 +225,7 @@ function createSessionsManagementService(
 	provider: ISessionsProvider | readonly ISessionsProvider[] = new TestSessionsProvider(session),
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
+	configurationService: IConfigurationService = new TestConfigurationService(),
 ): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
@@ -233,6 +235,7 @@ function createSessionsManagementService(
 
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService(providers));
 	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
@@ -3209,6 +3212,72 @@ suite('SessionsManagementService', () => {
 			};
 			return createSessionsManagementService(sessions[0], disposables, provider).service;
 		}
+
+		/** Migration on, with a provider whose first discovery pass the test controls. */
+		function serviceAwaitingDiscovery(sessions: readonly ISession[], discovered: DeferredPromise<void>): ISessionsManagementService {
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessions[0]); }
+				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+				override getSessions(): ISession[] { return [...sessions]; }
+				override whenSessionsDiscovered(): Promise<void> { return discovered.p; }
+			};
+			return createSessionsManagementService(
+				sessions[0],
+				disposables,
+				provider,
+				undefined,
+				undefined,
+				new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }),
+			).service;
+		}
+
+		test('withholds legacy entries until discovery settles, then releases unmigrated ones', async () => {
+			const legacy = legacyCliSession();
+			const discovered = new DeferredPromise<void>();
+			const service = serviceAwaitingDiscovery([legacy], discovered);
+
+			const whileDiscovering = service.getSessions().map(s => s.sessionId);
+			discovered.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual(
+				{ whileDiscovering, afterDiscovery: service.getSessions().map(s => s.sessionId) },
+				{ whileDiscovering: [], afterDiscovery: [legacy.sessionId] },
+			);
+		});
+
+		test('does not withhold legacy entries while migration is disabled', () => {
+			const legacy = legacyCliSession();
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(legacy); }
+				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+				override getSessions(): ISession[] { return [legacy]; }
+				override whenSessionsDiscovered(): Promise<void> { return new DeferredPromise<void>().p; }
+			};
+			const service = createSessionsManagementService(legacy, disposables, provider).service;
+
+			assert.deepStrictEqual(service.getSessions().map(s => s.sessionId), [legacy.sessionId]);
+		});
+
+		test('withholds legacy entries while the agent-host provider has not registered yet', () => {
+			const legacy = legacyCliSession();
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(legacy); }
+				override getSessions(): ISession[] { return [legacy]; }
+			};
+			const service = createSessionsManagementService(
+				legacy,
+				disposables,
+				provider,
+				undefined,
+				undefined,
+				new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }),
+			).service;
+
+			// The local agent-host provider registers behind an enablement check, so
+			// "every registered provider is done" is not the same as "a twin cannot come".
+			assert.deepStrictEqual(service.getSessions().map(s => s.sessionId), []);
+		});
 
 		test('getSessions hides the legacy entry once its migrated agent-host entry exists', () => {
 			const legacy = legacyCliSession();
