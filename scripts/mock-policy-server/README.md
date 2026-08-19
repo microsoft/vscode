@@ -18,13 +18,13 @@ The GUI opens on a dedicated **Setup** page and guides you through either
 connection method:
 
 - **System proxy (recommended):** works with Code OSS, Stable, Insiders, Copilot
-  CLI, SDK sessions, and Agent Runtime Resolution. The page recommends Proxyman
-  on macOS and provides a **Map Remote** rule. VS Code normally uses the system
-  proxy; the `http.proxy` setting is available as an optional fallback when
-  explicit client configuration is needed.
+  CLI, and SDK/runtime clients. The page recommends Proxyman on macOS and
+  provides a **Map Remote** rule. VS Code normally uses the system proxy; the
+  `http.proxy` setting is available as an optional fallback when explicit client
+  configuration is needed.
 - **Code OSS overrides:** the quicker option for Code OSS from this checkout.
   Select **Apply Overrides**, reload, and sign in. This option does not redirect
-  the independent Agent Runtime Resolution probe.
+  SDK/runtime requests.
 
 After connecting, open the VS Code Command Palette and run **> Developer: Sync
 Account Policy**. To refresh the policy used by Local Agent Host, also run
