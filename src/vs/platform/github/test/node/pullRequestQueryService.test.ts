@@ -477,7 +477,8 @@ suite('PullRequestQueryService', () => {
 				}));
 				const { query, ref, credential } = setup(server);
 				const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, new AbortController().signal);
-				canMerge[viewerPermission ?? 'null'] = result.fragment === 'mergeability' && result.value.viewerCanMerge;
+				assert.ok(result.fragment === 'mergeability', `expected a mergeability fragment for ${viewerPermission ?? 'null'}, got ${result.fragment}`);
+				canMerge[viewerPermission ?? 'null'] = result.value.viewerCanMerge;
 				server.assertSatisfied();
 			});
 		}
