@@ -13,8 +13,67 @@ import { dirname } from 'path';
 import { fromNow } from './date';
 
 const LIMIT = 40;
+const MAX_HISTORICAL_VERSIONS = 50;
+
+const SORT_TEXT_LATEST = '00';
+const SORT_TEXT_CARET = '01';
+const SORT_TEXT_TILDE = '02';
+const SORT_PREFIX_HISTORICAL = '03-';
 
 const USER_AGENT = 'Visual Studio Code';
+
+interface ParsedSemver {
+	major: number;
+	minor: number;
+	patch: number;
+	prerelease?: string;
+}
+
+function parseSemver(version: string): ParsedSemver | undefined {
+	const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$/.exec(version.trim());
+	if (!match) {
+		return undefined;
+	}
+	return {
+		major: parseInt(match[1], 10),
+		minor: parseInt(match[2], 10),
+		patch: parseInt(match[3], 10),
+		prerelease: match[4]
+	};
+}
+
+function compareSemver(a: string, b: string): number {
+	const pa = parseSemver(a);
+	const pb = parseSemver(b);
+	if (pa && pb) {
+		if (pa.major !== pb.major) {
+			return pa.major - pb.major;
+		}
+		if (pa.minor !== pb.minor) {
+			return pa.minor - pb.minor;
+		}
+		if (pa.patch !== pb.patch) {
+			return pa.patch - pb.patch;
+		}
+		if (!pa.prerelease && pb.prerelease) {
+			return 1;
+		}
+		if (pa.prerelease && !pb.prerelease) {
+			return -1;
+		}
+		if (pa.prerelease && pb.prerelease) {
+			return pa.prerelease.localeCompare(pb.prerelease, undefined, { numeric: true });
+		}
+		return 0;
+	}
+	if (pa && !pb) {
+		return 1;
+	}
+	if (!pa && pb) {
+		return -1;
+	}
+	return a.localeCompare(b, undefined, { numeric: true });
+}
 
 export class PackageJSONContribution implements IJSONContribution {
 
@@ -195,7 +254,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
 					proposal.documentation = l10n.t("The currently latest version of the package");
-					proposal.sortText = 'a';
+					proposal.sortText = SORT_TEXT_LATEST;
 					result.add(proposal);
 
 					name = JSON.stringify('^' + info.version);
@@ -203,7 +262,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
 					proposal.documentation = l10n.t("Matches the most recent major version (1.x.x)");
-					proposal.sortText = 'b';
+					proposal.sortText = SORT_TEXT_CARET;
 					result.add(proposal);
 
 					name = JSON.stringify('~' + info.version);
@@ -211,20 +270,21 @@ export class PackageJSONContribution implements IJSONContribution {
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
 					proposal.documentation = l10n.t("Matches the most recent minor version (1.2.x)");
-					proposal.sortText = 'c';
+					proposal.sortText = SORT_TEXT_TILDE;
 					result.add(proposal);
 
 					if (Array.isArray(info.versions)) {
-						for (let i = info.versions.length - 1; i >= 0; i--) {
-							const version = info.versions[i];
-							if (version && version !== info.version) {
-								const name = JSON.stringify(version);
-								const proposal = new CompletionItem(name);
-								proposal.kind = CompletionItemKind.Property;
-								proposal.insertText = name;
-								proposal.sortText = 'd' + (info.versions.length - i).toString().padStart(5, '0');
-								result.add(proposal);
-							}
+						const historicalVersions = info.versions
+							.filter(version => version && version !== info.version)
+							.slice(0, MAX_HISTORICAL_VERSIONS);
+						for (let i = 0; i < historicalVersions.length; i++) {
+							const version = historicalVersions[i];
+							const name = JSON.stringify(version);
+							const proposal = new CompletionItem(name);
+							proposal.kind = CompletionItemKind.Property;
+							proposal.insertText = name;
+							proposal.sortText = `${SORT_PREFIX_HISTORICAL}${i.toString().padStart(5, '0')}`;
+							result.add(proposal);
 						}
 					}
 				}
@@ -345,9 +405,11 @@ export class PackageJSONContribution implements IJSONContribution {
 		if (stdout) {
 			try {
 				const content = JSON.parse(stdout);
-				const version = content['dist-tags.latest'] || content['version'];
 				const rawVersions = content['versions'];
-				const versions = Array.isArray(rawVersions) ? rawVersions : (typeof rawVersions === 'string' ? [rawVersions] : undefined);
+				const versions = Array.isArray(rawVersions)
+					? rawVersions.slice().sort((a, b) => compareSemver(b, a))
+					: (typeof rawVersions === 'string' ? [rawVersions] : undefined);
+				const version = content['dist-tags.latest'] || content['version'] || (versions && versions[0]);
 				return {
 					description: content['description'],
 					version,
@@ -370,8 +432,8 @@ export class PackageJSONContribution implements IJSONContribution {
 				headers: { agent: USER_AGENT }
 			});
 			const obj = JSON.parse(success.responseText);
-			const version = obj['dist-tags']?.latest || Object.keys(obj.versions || {}).pop() || '';
-			const versions = obj.versions ? Object.keys(obj.versions) : undefined;
+			const versions = obj.versions ? Object.keys(obj.versions).sort((a, b) => compareSemver(b, a)) : undefined;
+			const version = obj['dist-tags']?.latest || (versions && versions[0]) || '';
 			return {
 				description: obj.description || '',
 				version,
