@@ -62,6 +62,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 
 		const rebuildSignal = observableSignalFromEvent(this, Event.any(
 			this._agentFeedbackService.onDidChangeFeedback,
+			this._agentFeedbackService.onDidChangeFeedbackVisibility,
 			this._agentFeedbackService.onDidChangeFeedbackScope,
 			this._editor.onDidChangeModel,
 		));
@@ -114,6 +115,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			this._sessionResource,
 			this._agentFeedbackService.getFeedback(this._sessionResource),
 			prReviewState,
+			this._agentFeedbackService.getVisibleResolvedFeedbackIds(this._sessionResource),
 		);
 		const fileComments = this._getCommentsForModel(model.uri, comments);
 		if (fileComments.length === 0) {
@@ -230,6 +232,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			this._sessionResource,
 			this._agentFeedbackService.getFeedback(this._sessionResource),
 			this._codeReviewService.getPRReviewState(this._sessionResource).get(),
+			this._agentFeedbackService.getVisibleResolvedFeedbackIds(this._sessionResource),
 		);
 		const bearing = this._agentFeedbackService.getNavigationBearing(this._sessionResource, comments);
 		if (bearing.activeIdx < 0) {

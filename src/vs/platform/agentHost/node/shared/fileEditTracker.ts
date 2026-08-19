@@ -12,6 +12,7 @@ import { AttributedToolResultFileEditContent, FILE_EDIT_ATTRIBUTION_PROPERTY, IA
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
@@ -29,14 +30,14 @@ export class FileEditTracker {
 	 * before the edit tool runs; popped by {@link completeEdit} when it
 	 * finishes.
 	 */
-	private readonly _pendingEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; snapshotDone: Promise<void> }>();
+	private readonly _pendingEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; mode: string | undefined; snapshotDone: Promise<void> }>();
 
 	/**
 	 * Completed edits keyed by file path. Populated by {@link completeEdit};
 	 * drained by {@link takeCompletedEdit}, which persists the entry to
 	 * the database.
 	 */
-	private readonly _completedEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; afterContent: VSBuffer }>();
+	private readonly _completedEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; afterContent: VSBuffer; mode: string | undefined }>();
 
 	constructor(
 		private readonly _sessionUri: string,
@@ -56,12 +57,14 @@ export class FileEditTracker {
 	 * disk.
 	 *
 	 * @param filePath - Absolute path of the file being edited.
+	 * @param mode - Provider execution mode when the edit started.
 	 */
-	async trackEditStart(filePath: string): Promise<void> {
+	async trackEditStart(filePath: string, mode?: string): Promise<void> {
 		const snapshotDone = this._readFileWithExistence(filePath);
 		const entry = {
 			beforeContent: VSBuffer.fromString(''),
 			beforeExisted: false,
+			mode,
 			snapshotDone: snapshotDone.then(({ content, existed }) => {
 				entry.beforeContent = content;
 				entry.beforeExisted = existed;
@@ -92,6 +95,7 @@ export class FileEditTracker {
 			beforeContent: pending.beforeContent,
 			beforeExisted: pending.beforeExisted,
 			afterContent,
+			mode: pending.mode,
 		});
 	}
 
@@ -105,7 +109,7 @@ export class FileEditTracker {
 	 * for region-based survival scoring; unknown shapes fall back to
 	 * whole-file scoring.
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
@@ -152,6 +156,7 @@ export class FileEditTracker {
 		}
 
 		this._editSurvivalReporterFactory.launch({
+			clientContext,
 			sessionUri: this._sessionUri,
 			turnId,
 			toolCallId,
@@ -196,6 +201,7 @@ export class FileEditTracker {
 		const initialEdit = extractArcTextEdit(toolName, toolInput, beforeText, afterText)
 			?? createArcTextEditFromDiff(changes, beforeText, afterText);
 		this._editArcReporterService.reportEdit({
+			clientContext,
 			sessionUri: this._sessionUri,
 			turnId,
 			toolCallId,
@@ -205,6 +211,7 @@ export class FileEditTracker {
 			initialEdit,
 			modelId,
 			toolName,
+			mode: edit.mode,
 			completionTime,
 		}).catch(error => {
 			this._logService.warn(`[FileEditTracker] Failed to start ARC telemetry: ${filePath}`, error);

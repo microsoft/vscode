@@ -8,18 +8,20 @@ import { Gesture, EventType as TouchEventType } from '../../../../../base/browse
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
 import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -53,6 +55,9 @@ export interface IPermissionPickerDelegate {
 	 */
 	readonly isApplicable?: IObservable<boolean>;
 
+	/** Whether the picker is temporarily unavailable while its backing config resolves. */
+	readonly isResolving?: IObservable<boolean>;
+
 	/**
 	 * The ordered set of permission levels the picker should offer. When
 	 * omitted, the picker offers the default Copilot set
@@ -79,6 +84,12 @@ export interface IPermissionPickerDelegate {
 	 * Optional hover content for delegates that need provider-specific copy.
 	 */
 	getPermissionLevelHover?(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined;
+	readonly isSandboxToggleApplicable?: () => boolean;
+	readonly sandboxTogglePresentation?: 'standalone';
+	readonly getSandboxToggleSettingId?: () => string | undefined;
+	readonly getManagedSandboxEnabled?: () => boolean | undefined;
+	readonly onDidChangeSandboxToggle?: Event<void>;
+	readonly sandboxToggleConfigurationKeys?: readonly string[];
 }
 
 export interface IPermissionLevelMeta {
@@ -113,14 +124,14 @@ export function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionL
 		case ChatPermissionLevel.Autopilot:
 			return {
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
-				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				detail: localize('permissions.autopilot.subtext', "Works autonomously within permissions"),
 				icon: Codicon.rocket,
 				hover: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs."),
 			};
 		case ChatPermissionLevel.Default:
 		default:
 			return {
-				label: localize('permissions.default', "Default approvals"),
+				label: localize('permissions.default', "Default permissions"),
 				detail: localize('permissions.default.subtext', "Asks when approval settings don't apply"),
 				icon: Codicon.shield,
 			};
@@ -129,6 +140,7 @@ export function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionL
 
 interface IPermissionItem {
 	readonly level?: ChatPermissionLevel;
+	readonly kind?: 'sandbox' | 'learnMore';
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly checked: boolean;
@@ -151,6 +163,9 @@ export class PermissionPicker extends Disposable {
 		@IHoverService protected readonly hoverService: IHoverService,
 	) {
 		super();
+		if (this._delegate.onDidChangeSandboxToggle) {
+			this._register(this._delegate.onDidChangeSandboxToggle(() => this._updateTriggerLabel(this._triggerElement)));
+		}
 	}
 
 	render(container: HTMLElement): HTMLElement {
@@ -223,11 +238,25 @@ export class PermissionPicker extends Disposable {
 			}));
 		}
 
+		const isResolving = this._delegate.isResolving;
+		if (isResolving) {
+			this._renderDisposables.add(autorun(reader => {
+				const resolving = isResolving.read(reader);
+				slot.classList.toggle('resolving', resolving);
+				trigger.setAttribute('aria-disabled', resolving ? 'true' : 'false');
+			}));
+		}
+		this._renderDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (this._affectsSandboxToggle(e)) {
+				this._updateTriggerLabel(trigger);
+			}
+		}));
+
 		return slot;
 	}
 
 	showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible) {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
 			return;
 		}
 
@@ -258,6 +287,28 @@ export class PermissionPicker extends Disposable {
 			} satisfies IActionListItem<IPermissionItem>;
 		});
 
+		const sandboxToggle = this._getSandboxStandaloneToggle();
+		if (sandboxToggle) {
+			items.push({
+				kind: ActionListItemKind.Separator,
+				label: '',
+				disabled: false,
+			});
+			items.push({
+				kind: ActionListItemKind.Action,
+				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
+				item: {
+					kind: 'sandbox',
+					label: sandboxToggle.label,
+					icon: Codicon.blank,
+					checked: false,
+				},
+				label: sandboxToggle.label,
+				standaloneToggle: sandboxToggle,
+				disabled: false,
+			});
+		}
+
 		items.push({
 			kind: ActionListItemKind.Separator,
 			label: '',
@@ -267,6 +318,7 @@ export class PermissionPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
 			item: {
+				kind: 'learnMore',
 				label: localize('permissions.learnMore', "Learn more about permissions"),
 				icon: Codicon.blank,
 				checked: false,
@@ -282,7 +334,7 @@ export class PermissionPicker extends Disposable {
 				this.actionWidgetService.hide();
 				if (item.level) {
 					await this._selectLevel(item.level);
-				} else {
+				} else if (item.kind === 'learnMore') {
 					await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
 				}
 			},
@@ -303,6 +355,10 @@ export class PermissionPicker extends Disposable {
 			},
 			listOptions,
 		);
+	}
+
+	protected _isResolving(): boolean {
+		return this._delegate.isResolving?.get() ?? false;
 	}
 
 	protected async _selectLevel(level: ChatPermissionLevel): Promise<void> {
@@ -344,18 +400,66 @@ export class PermissionPicker extends Disposable {
 
 		dom.clearNode(trigger);
 		const meta = this._getPermissionLevelMeta(this._currentLevel);
+		const label = this._isSandboxToggleAvailable() && this._isSandboxingEnabled()
+			? localize('permissionPicker.sandboxedLabel', "{0} (sandboxed)", meta.label)
+			: meta.label;
 
 		dom.append(trigger, renderIcon(meta.icon));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = meta.label;
+		labelSpan.textContent = label;
 
 		const hover = this._getPermissionLevelHover(this._currentLevel, meta);
 		trigger.ariaLabel = hover
-			? localize('permissionPicker.triggerAriaLabelWithDescription', "Pick Permission Level, {0}, {1}", meta.label, hover)
-			: localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", meta.label);
+			? localize('permissionPicker.triggerAriaLabelWithDescription', "Pick Permission Level, {0}, {1}", label, hover)
+			: localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", label);
 
 		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot || this._currentLevel === ChatPermissionLevel.Assisted);
 		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
+	}
+
+	private _getSandboxStandaloneToggle() {
+		if (!this._isSandboxToggleAvailable()) {
+			return undefined;
+		}
+		return {
+			label: localize('permissionPicker.sandboxToggle', "Sandboxing for terminal"),
+			title: this._delegate.getManagedSandboxEnabled?.() === undefined
+				? localize('permissionPicker.sandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access")
+				: localize('permissionPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization"),
+			checked: this._isSandboxingEnabled(),
+			disabled: this._delegate.getManagedSandboxEnabled?.() !== undefined,
+			onChange: (checked: boolean) => {
+				const settingId = this._delegate.getSandboxToggleSettingId?.();
+				if (settingId) {
+					const target = checked ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
+					void this.configurationService.updateValue(settingId, target);
+				}
+			},
+		};
+	}
+
+	private _isSandboxToggleAvailable(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true
+			&& this._delegate.sandboxTogglePresentation === 'standalone'
+			&& this._delegate.isSandboxToggleApplicable?.() === true
+			&& this._delegate.getSandboxToggleSettingId?.() !== undefined;
+	}
+
+	private _isSandboxingEnabled(): boolean {
+		const managedEnabled = this._delegate.getManagedSandboxEnabled?.();
+		if (managedEnabled !== undefined) {
+			return managedEnabled;
+		}
+		const settingId = this._delegate.getSandboxToggleSettingId?.();
+		return settingId !== undefined
+			&& isAgentSandboxEnabledValue(this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId));
+	}
+
+	private _affectsSandboxToggle(event: IConfigurationChangeEvent): boolean {
+		const settingId = this._delegate.getSandboxToggleSettingId?.();
+		return event.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
+			|| (settingId !== undefined && event.affectsConfiguration(settingId))
+			|| this._delegate.sandboxToggleConfigurationKeys?.some(key => event.affectsConfiguration(key)) === true;
 	}
 
 	private _getPermissionLevelHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined {

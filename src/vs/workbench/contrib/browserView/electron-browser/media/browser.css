@@ -770,6 +770,11 @@
 			text-overflow: clip;
 		}
 
+		&[aria-readonly="true"] {
+			color: var(--vscode-descriptionForeground);
+			cursor: default;
+		}
+
 		&:empty::before {
 			content: attr(data-placeholder);
 			color: var(--vscode-input-placeholderForeground);

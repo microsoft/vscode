@@ -249,18 +249,8 @@ export class SessionDatabase implements ISessionDatabase {
 	protected _closed: Promise<void> | true | undefined;
 	private readonly _fileEditSequencer = new SequencerByKey<string>();
 
-	/**
-	 * Serializes `setMetadata` writes per key. `@vscode/sqlite3` runs in
-	 * parallelized mode, so two `db.run()` calls on the same connection
-	 * can be dispatched to the libuv thread pool and complete out of
-	 * submission order. For "last writer wins" keys (notably `configValues`
-	 * via {@link setMetadata}), that meant a fast-following second write
-	 * could be overtaken by the first and silently lose its value — see
-	 * the "Session Config persistence across restarts" integration test.
-	 * Sequencing by key preserves intra-key order while still allowing
-	 * writes for different keys to run concurrently.
-	 */
-	private readonly _metadataSequencer = new SequencerByKey<string>();
+	private readonly _metadataSequencer = new Sequencer();
+	private readonly _transactionSequencer = new Sequencer();
 
 	/**
 	 * Serializes every `turn_usage` access — writes, prunes, the fork remap, and the restore read
@@ -377,7 +367,7 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getTurnEventId(turnId: string): Promise<string | undefined> {
 		const db = await this._ensureDb();
-		const row = await dbGet(db, 'SELECT event_id FROM turns WHERE id = ?', [turnId]);
+		const row = await dbGet(db, 'SELECT event_id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1', [turnId]);
 		return row?.event_id as string | undefined ?? undefined;
 	}
 
@@ -686,9 +676,27 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	setMetadata(key: string, value: string): Promise<void> {
-		return this._track(() => this._metadataSequencer.queue(key, async () => {
+		return this._track(() => this._metadataSequencer.queue(async () => {
 			const db = await this._ensureDb();
 			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+		}));
+	}
+
+	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+		return this._track(() => this._metadataSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			await this._transactionSequencer.queue(async () => {
+				await dbExec(db, 'BEGIN TRANSACTION');
+				try {
+					for (const [key, value] of Object.entries(values)) {
+						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+					}
+					await dbExec(db, 'COMMIT');
+				} catch (err) {
+					await dbExec(db, 'ROLLBACK');
+					throw err;
+				}
+			});
 		}));
 	}
 
@@ -751,58 +759,63 @@ export class SessionDatabase implements ISessionDatabase {
 		return !!row;
 	}
 
-	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
+	remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void> {
 		// Mutates `turn_usage`, so it must serialize with every other such
 		// mutation — a usage write racing the fork transaction would otherwise
 		// land against either the old or the new turn id unpredictably.
 		return this._mutateTurnUsage(async db => {
-			// Defer FK checks to commit time so we can update turns.id and
-			// file_edits.turn_id in any order without mid-statement violations.
-			// This pragma auto-resets after the transaction ends.
-			await dbExec(db, 'PRAGMA defer_foreign_keys = ON');
-			await dbExec(db, 'BEGIN TRANSACTION');
-			try {
-				// Delete turns not present in the mapping (e.g. turns beyond
-				// the fork point). File edits cascade-delete via FK.
-				const oldIds = [...mapping.keys()];
-				if (oldIds.length > 0) {
-					const placeholders = oldIds.map(() => '?').join(',');
-					await dbRun(db,
-						`DELETE FROM turns WHERE id NOT IN (${placeholders})`,
-						oldIds,
-					);
-				}
+			await this._transactionSequencer.queue(async () => {
+				// Defer FK checks to commit time so we can update turns.id and
+				// file_edits.turn_id in any order without mid-statement violations.
+				// This pragma auto-resets after the transaction ends.
+				await dbExec(db, 'PRAGMA defer_foreign_keys = ON');
+				await dbExec(db, 'BEGIN TRANSACTION');
+				try {
+					// Delete turns not present in the mapping (e.g. turns beyond
+					// the fork point). File edits cascade-delete via FK.
+					const oldIds = [...mapping.keys()];
+					if (oldIds.length > 0) {
+						const placeholders = oldIds.map(() => '?').join(',');
+						await dbRun(db,
+							`DELETE FROM turns WHERE id NOT IN (${placeholders})`,
+							oldIds,
+						);
+					}
 
-				// Remap the remaining turn IDs to their new values
-				for (const [oldId, newId] of mapping) {
-					await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
-					await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
-				}
+					// Remap the remaining turn IDs to their new values
+					for (const [oldId, newId] of mapping) {
+						await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
+						await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+					}
+					for (const [turnId, eventId] of eventIds ?? []) {
+						await dbRun(db, 'UPDATE turns SET event_id = ? WHERE id = ?', [eventId, turnId]);
+					}
 
-				if (oldIds.length > 0) {
-					const placeholders = oldIds.map(() => '?').join(',');
-					await dbRun(db,
-						`DELETE FROM local_turns WHERE turn_id NOT IN (${placeholders})`,
-						oldIds,
-					);
-				}
-				for (const [oldId, newId] of mapping) {
-					await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
-					await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
-				}
+					if (oldIds.length > 0) {
+						const placeholders = oldIds.map(() => '?').join(',');
+						await dbRun(db,
+							`DELETE FROM local_turns WHERE turn_id NOT IN (${placeholders})`,
+							oldIds,
+						);
+					}
+					for (const [oldId, newId] of mapping) {
+						await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+						await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
+					}
 
-				// Rows past the fork point were already removed by the `turns`
-				// delete above, via the same cascade as file edits. The surviving
-				// ids still need remapping (the FK cascades deletes, not updates),
-				// or the forked session would restore with no gauge and zero cost.
-				for (const [oldId, newId] of mapping) {
-					await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+					// Rows past the fork point were already removed by the `turns`
+					// delete above, via the same cascade as file edits. The surviving
+					// ids still need remapping (the FK cascades deletes, not updates),
+					// or the forked session would restore with no gauge and zero cost.
+					for (const [oldId, newId] of mapping) {
+						await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+					}
+					await dbExec(db, 'COMMIT');
+				} catch (err) {
+					await dbExec(db, 'ROLLBACK');
+					throw err;
 				}
-				await dbExec(db, 'COMMIT');
-			} catch (err) {
-				await dbExec(db, 'ROLLBACK');
-				throw err;
-			}
+			});
 		});
 	}
 

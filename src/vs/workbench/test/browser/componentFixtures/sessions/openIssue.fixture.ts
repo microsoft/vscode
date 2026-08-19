@@ -19,7 +19,9 @@ import { computeIssueIcon, GitHubIssueState, GitHubIssueStateReason, IGitHubIssu
 // eslint-disable-next-line local/code-import-patterns
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { createIssueHoverElement, createIssueListElement } from '../../../../../sessions/contrib/github/browser/issueHover.js';
+import { createIssueHoverElement } from '../../../../../sessions/contrib/github/browser/issueHover.js';
+// eslint-disable-next-line local/code-import-patterns
+import { createGitHubReferenceListElement } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { OpenIssueActionViewItem } from '../../../../../sessions/contrib/github/browser/issueActions.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -155,7 +157,7 @@ function renderIssueHover(ctx: ComponentFixtureContext, issue: IGitHubIssue): vo
 }
 
 function renderIssueList(ctx: ComponentFixtureContext, issues: readonly IGitHubIssue[]): void {
-	renderInHoverWidget(ctx, createIssueListElement(issues.map(issue => ({
+	renderInHoverWidget(ctx, createGitHubReferenceListElement(issues.map(issue => ({
 		number: issue.number,
 		title: issue.title,
 		icon: computeIssueIcon(issue.state, issue.stateReason),
@@ -176,6 +178,16 @@ const openIssue: IGitHubIssue = {
 	createdAt: '2026-06-22T10:00:00Z',
 	updatedAt: '2026-06-24T12:00:00Z',
 	closedAt: undefined,
+};
+
+const shortDescriptionIssue: IGitHubIssue = {
+	...openIssue,
+	body: 'The terminal stops streaming output.',
+};
+
+const longDescriptionIssue: IGitHubIssue = {
+	...openIssue,
+	body: 'Steps to reproduce: open a session on a worktree, start a long-running build, and switch to another session while output is still streaming. Return to the original session and observe that the terminal no longer updates even though the task is still running. The task also never reports completion, so it is unclear whether the build finished, failed, or remains active in the background. This description is intentionally long enough to exceed three lines and verify that the issue hover clamps the text without revealing any part of a fourth line.',
 };
 
 const completedIssue: IGitHubIssue = {
@@ -221,7 +233,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 
 	OpenIssue_Hover: defineComponentFixture({
-		render: (ctx) => renderIssueHover(ctx, openIssue),
+		render: (ctx) => renderIssueHover(ctx, shortDescriptionIssue),
+	}),
+
+	OpenIssue_Hover_LongDescription: defineComponentFixture({
+		render: (ctx) => renderIssueHover(ctx, longDescriptionIssue),
 	}),
 
 	OpenIssue_List: defineComponentFixture({

@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -20,23 +20,25 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { INotification, INotificationHandle, INotificationService, NoOpNotification } from '../../../../../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestChatEntitlementService } from '../../../../../test/common/workbenchTestServices.js';
 import { IVoiceTranscriptStore, IVoiceTranscriptTurn } from '../../../../agentsVoice/common/voiceTranscriptStore.js';
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
-import { IChatWidgetService } from '../../../browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
-import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
+import { VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatSendResult, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoicePttStartOptions, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -72,6 +74,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private readonly connectionStateEmitter = new Emitter<boolean>();
 	override readonly onDidChangeConnectionState = this.connectionStateEmitter.event;
 	override readonly onFatalDisconnect = Event.None;
+	override readonly onConnectionIssue = Event.None;
 	override readonly onTurnAutoEnded = Event.None;
 	private connected = false;
 	private resuming = false;
@@ -83,6 +86,8 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override disconnect(): void { this.connected = false; }
 	override async connect(): Promise<void> { }
 	readonly wireEvents: ({ type: 'session_context'; context: IVoiceSessionContext } | { type: 'request_narration'; kind: VoiceNarrationKind; text: string; confirmationType?: VoiceConfirmationType })[] = [];
+	readonly pttStarts: { turnId: string; hasActiveSession: boolean; passive: boolean }[] = [];
+	pttEndCalls = 0;
 	private pendingContext: IVoiceSessionContext | undefined;
 	override sendSessionContext(context: IVoiceSessionContext): void {
 		this.pendingContext = context;
@@ -119,6 +124,12 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.requests.push({ sessionId: codingSessionId, kind, text, narrationId: id, ...(pending ? { pendingId: pending.pendingId } : {}), ...(checkpoint ? { checkpoint } : {}), ...(confirmationType ? { confirmationType } : {}) });
 		this.wireEvents.push({ type: 'request_narration', kind, text, ...(confirmationType ? { confirmationType } : {}) });
 		return id;
+	}
+	override sendPttEnd(): void {
+		this.pttEndCalls++;
+	}
+	override sendPttStart(turnId: string, options: IVoicePttStartOptions): void {
+		this.pttStarts.push({ turnId, hasActiveSession: options.hasActiveSession, passive: options.passive ?? false });
 	}
 
 	fireAudioResponse(event: IVoiceAudioResponse): void {
@@ -216,11 +227,39 @@ class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 
 class VoiceTestNotificationService extends TestNotificationService {
 	readonly notifications: INotification[] = [];
+	readonly prompts: { severity: Severity; message: string; choices: readonly IPromptChoice[] }[] = [];
 
 	override notify(notification: INotification): INotificationHandle {
 		this.notifications.push(notification);
 		return new NoOpNotification();
 	}
+
+	override prompt(severity: Severity, message: string, choices: IPromptChoice[]): INotificationHandle {
+		this.prompts.push({ severity, message, choices });
+		return new NoOpNotification();
+	}
+}
+
+class MutableTestChatEntitlementService extends TestChatEntitlementService {
+	override readonly isInternal: boolean = false;
+	private readonly _onDidChangeEntitlement = new Emitter<void>();
+	override readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
+
+	setEntitlement(entitlement: ChatEntitlement): void {
+		this.entitlement = entitlement;
+		this._onDidChangeEntitlement.fire();
+	}
+
+	transitionEntitlement(intermediate: ChatEntitlement, final: ChatEntitlement): void {
+		this.entitlement = intermediate;
+		this._onDidChangeEntitlement.fire();
+		this.entitlement = final;
+		this._onDidChangeEntitlement.fire();
+	}
+}
+
+class InternalTestChatEntitlementService extends MutableTestChatEntitlementService {
+	override readonly isInternal = true;
 }
 
 class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
@@ -259,6 +298,20 @@ class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 	}
 }
 
+class RecordingVoicePlaybackService extends mock<IVoicePlaybackService>() {
+	readonly pendingSessions = new Set<string>();
+
+	override notifyPlaybackStart(): void { }
+	override notifyPlaybackEnd(): void { }
+	override setPendingResponse(sessionResource: URI, pending: boolean): void {
+		if (pending) {
+			this.pendingSessions.add(sessionResource.toString());
+		} else {
+			this.pendingSessions.delete(sessionResource.toString());
+		}
+	}
+}
+
 class DeferredFirstTtsPlaybackService extends TestTtsPlaybackService {
 	private deferNextStart = true;
 
@@ -273,7 +326,8 @@ class DeferredFirstTtsPlaybackService extends TestTtsPlaybackService {
 }
 
 class TestMicCaptureService extends mock<IMicCaptureService>() {
-	override readonly onPttStart = Event.None;
+	private readonly pttStartEmitter = new Emitter<boolean>();
+	override readonly onPttStart = this.pttStartEmitter.event;
 	override readonly onPttAudioChunk = Event.None;
 	override readonly onPttEnd = Event.None;
 	override readonly onPttDiagnostic = Event.None;
@@ -290,6 +344,13 @@ class TestMicCaptureService extends mock<IMicCaptureService>() {
 	}
 	override pttUp(): void { }
 	override abortPtt(): void { }
+	dispose(): void {
+		this.pttStartEmitter.dispose();
+	}
+
+	firePttStart(passive: boolean): void {
+		this.pttStartEmitter.fire(passive);
+	}
 }
 
 class TestAgentSessionsService extends mock<IAgentSessionsService>() {
@@ -323,10 +384,29 @@ function agentSessionEntry(id: string, label: string | undefined, status: AgentS
 	};
 }
 
+function sentChatSendResult(id: string): ChatSendResult {
+	const response = {
+		id,
+		requestId: `request-${id}`,
+		isComplete: false,
+		isCanceled: false,
+		onDidChange: Event.None,
+		response: { value: [] as readonly IChatProgressResponseContent[] },
+	} as unknown as IChatResponseModel;
+	return {
+		kind: 'sent',
+		data: {
+			agent: {} as never,
+			responseCreatedPromise: Promise.resolve(response),
+			responseCompletePromise: Promise.resolve(),
+		},
+	};
+}
+
 class TestChatService extends mock<IChatService>() {
 	override readonly chatModels = observableValue('chatModels', []);
 	readonly sendRequestOptions: (IChatSendRequestOptions | undefined)[] = [];
-	override getSession(): undefined { return undefined; }
+	override getSession(): IChatModel | undefined { return undefined; }
 	override async sendRequest(_sessionResource: URI, _message: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
 		this.sendRequestOptions.push(options);
 		return { kind: 'rejected', reason: 'test' };
@@ -334,6 +414,78 @@ class TestChatService extends mock<IChatService>() {
 
 	/** A session that never loads: the controller eagerly loads models for waiting sessions. */
 	override async acquireOrLoadSession(): Promise<undefined> { return undefined; }
+}
+
+/**
+ * Chat service that records session creation and sends, so the `new_session`
+ * flag on `send_to_chat` can be checked end to end.
+ */
+class NewSessionChatService extends mock<IChatService>() {
+	override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+	readonly created: URI[] = [];
+	readonly sent: { resource: string; message: string }[] = [];
+	override getSession(): undefined { return undefined; }
+	override startNewLocalSession(): IChatModelReference {
+		const resource = URI.parse(`chat-session://new/${this.created.length + 1}`);
+		this.created.push(resource);
+		return { object: { sessionResource: resource }, dispose: () => { } } as unknown as IChatModelReference;
+	}
+	override async acquireOrLoadSession(): Promise<IChatModelReference> {
+		return { object: {}, dispose: () => { } } as unknown as IChatModelReference;
+	}
+	override async sendRequest(resource: URI, message: string): Promise<ChatSendResult> {
+		this.sent.push({ resource: resource.toString(), message });
+		return sentChatSendResult(`new-session-send-${this.sent.length}`);
+	}
+}
+
+/**
+ * Chat service with real reference-lifecycle semantics: it refcounts the model
+ * references it hands out and drops the session once the last one is disposed,
+ * mirroring how `ChatService` deletes empty untitled local sessions in
+ * `willDisposeModel`. Lets a test tell "the session is still alive" apart from
+ * "voice is targeting a session that no longer exists".
+ */
+class RefCountingChatService extends mock<IChatService>() {
+	override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+	/** Sessions that still exist, keyed by resource string. */
+	readonly live = new Set<string>();
+	private readonly _refCounts = new Map<string, number>();
+	private _createdCount = 0;
+
+	override getSession(): undefined { return undefined; }
+
+	override startNewLocalSession(): IChatModelReference {
+		const resource = URI.parse(`chat-session://new/${++this._createdCount}`);
+		this.live.add(resource.toString());
+		return this._acquire(resource);
+	}
+
+	/** Outstanding references for a session, for asserting nothing is leaked. */
+	refCount(resource: string): number {
+		return this._refCounts.get(resource) ?? 0;
+	}
+
+	private _acquire(resource: URI): IChatModelReference {
+		const key = resource.toString();
+		this._refCounts.set(key, this.refCount(key) + 1);
+		let disposed = false;
+		return {
+			object: { sessionResource: resource },
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				const remaining = this.refCount(key) - 1;
+				this._refCounts.set(key, remaining);
+				if (remaining === 0) {
+					// Last reference gone: an empty untitled local session is deleted.
+					this.live.delete(key);
+				}
+			},
+		} as unknown as IChatModelReference;
+	}
 }
 
 /**
@@ -389,19 +541,38 @@ function pendingConfirmationModel(resource: URI): IChatModel {
 	} as unknown as IChatModel;
 }
 
-function pendingResponsePartModel(resource: URI, part: IChatProgressResponseContent, detail = 'Needs approval', reportPending = true): IChatModel {
+function pendingResponsePartModel(resource: URI, part: IChatProgressResponseContent, detail = 'Needs approval', reportPending = true, requestId = 'req-1'): IChatModel {
 	const response = {
+		onDidChange: Event.None,
 		isPendingConfirmation: observableValue<{ detail?: string } | undefined>('pending', reportPending ? { detail } : undefined),
 		isIncomplete: observableValue('incomplete', false),
 		response: { value: [part], getMarkdown: () => '' },
 	};
-	const lastRequest = { response };
+	const lastRequest = { id: requestId, response };
 	return {
 		sessionResource: resource,
 		title: 'Chat',
 		getRequests: () => [lastRequest],
 		lastRequestObs: observableValue('lastRequest', lastRequest),
 	} as unknown as IChatModel;
+}
+
+function waitingTerminalTool(toolCallId: string, command = 'npm run build'): IChatToolInvocation & { readonly state: ISettableObservable<IChatToolInvocation.State> } {
+	return new class extends mock<IChatToolInvocation>() {
+		override readonly kind = 'toolInvocation' as const;
+		override readonly toolCallId = toolCallId;
+		override readonly toolId = 'runInTerminal';
+		override readonly invocationMessage = 'Run zsh command';
+		override readonly state = observableValue<IChatToolInvocation.State>(`${toolCallId}State`, {
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command },
+			confirmationMessages: {
+				title: 'Run zsh command?',
+				message: 'Installs dependencies - pulls untrusted third-party code.',
+			},
+			confirm: () => { },
+		});
+	}();
 }
 
 function completedResponseModel(markdown: string, errorMessage?: string, isCanceled = false): IChatModel {
@@ -422,8 +593,44 @@ function completedResponseModel(markdown: string, errorMessage?: string, isCance
 
 class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
+	override readonly onDidChangeWidgetVisibility = Event.None;
 	override readonly onDidAddWidget = Event.None;
-	override getAllWidgets() { return []; }
+	override readonly onDidRemoveWidget: Event<IChatWidget>;
+	override lastFocusedWidget: IChatWidgetService['lastFocusedWidget'];
+	constructor(private readonly widgets: IChatWidget[] = [], onDidRemoveWidget = Event.None) {
+		super();
+		this.onDidRemoveWidget = onDidRemoveWidget;
+	}
+
+	override getAllWidgets() { return this.widgets; }
+	override getWidgetBySessionResource(): undefined { return undefined; }
+
+	focus(resource: URI): void {
+		this.lastFocusedWidget = {
+			viewModel: { sessionResource: resource },
+		} as IChatWidgetService['lastFocusedWidget'];
+	}
+}
+
+class MaterializingChatWidget extends mock<IChatWidget>() {
+	private readonly _onDidChangeViewModel = new Emitter<{ previousSessionResource: URI | undefined; currentSessionResource: URI | undefined }>();
+	override readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
+	override viewModel: IChatWidget['viewModel'];
+
+	constructor(resource: URI) {
+		super();
+		this.viewModel = { sessionResource: resource } as IChatWidget['viewModel'];
+	}
+
+	materialize(resource: URI): void {
+		const previousSessionResource = this.viewModel?.sessionResource;
+		this.viewModel = { sessionResource: resource } as IChatWidget['viewModel'];
+		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: resource });
+	}
+
+	dispose(): void {
+		this._onDidChangeViewModel.dispose();
+	}
 }
 
 class TestCommandService extends mock<ICommandService>() {
@@ -437,6 +644,25 @@ class TestCommandService extends mock<ICommandService>() {
 			this.acceptedInputs.push(args[0]);
 		}
 		return result as T;
+	}
+}
+
+/** Command service whose chat pane adopts the session on `switchToSession`. */
+class AdoptingCommandService extends TestCommandService {
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		if (commandId === '_chat.voice.switchToSession') {
+			return true as T;
+		}
+		return super.executeCommand<T>(commandId, ...args);
+	}
+}
+
+class RejectingAcceptCommandService extends TestCommandService {
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		if (commandId === '_chat.voice.acceptInput') {
+			throw new Error('accept failed');
+		}
+		return super.executeCommand<T>(commandId, ...args);
 	}
 }
 
@@ -476,9 +702,18 @@ suite('VoiceSessionController', () => {
 		}(),
 		agentSessionsService: IAgentSessionsService = new TestAgentSessionsService(),
 		notificationService: INotificationService = new VoiceTestNotificationService(),
-	): IVoiceSessionController {
+		chatEntitlementService: IChatEntitlementService = Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Pro }),
+		voicePlaybackService: IVoicePlaybackService = new class extends mock<IVoicePlaybackService>() {
+			override notifyPlaybackStart(): void { }
+			override notifyPlaybackEnd(): void { }
+		}(),
+		chatWidgetService: IChatWidgetService = new TestChatWidgetService(),
+	): VoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
+		if (micCaptureService instanceof TestMicCaptureService) {
+			store.add(micCaptureService);
+		}
 		return store.add(new VoiceSessionController(
 			voiceClientService,
 			micCaptureService,
@@ -487,10 +722,7 @@ suite('VoiceSessionController', () => {
 				override setDelegate(): void { }
 				override async respondToSession(): Promise<IVoiceDispatchResult> { return { ok: true }; }
 			}(),
-			new class extends mock<IVoicePlaybackService>() {
-				override notifyPlaybackStart(): void { }
-				override notifyPlaybackEnd(): void { }
-			}(),
+			voicePlaybackService,
 			agentSessionsService,
 			chatService,
 			commandService,
@@ -508,9 +740,10 @@ suite('VoiceSessionController', () => {
 				override async playSignal(): Promise<void> { }
 			}(),
 			new TestAccessibilityService(),
-			new TestChatWidgetService(),
+			chatWidgetService,
 			notificationService,
 			promptsService,
+			chatEntitlementService,
 		));
 	}
 
@@ -527,6 +760,172 @@ suite('VoiceSessionController', () => {
 		};
 		return { changeEmitter, parts, response: state as unknown as IChatResponseModel, state };
 	}
+
+	test('reports whether a coding session is in progress when each voice request starts', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const micCaptureService = new TestMicCaptureService();
+		const focusedSession = agentSessionEntry('vscode-chat://focused', 'Focused session', AgentSessionStatus.Completed);
+		const backgroundSession = agentSessionEntry('vscode-chat://background', 'Background session', AgentSessionStatus.InProgress);
+		const loadedModel = new class extends mock<IChatModel>() { };
+		const chatService = new class extends TestChatService {
+			override getSession(): IChatModel | undefined {
+				return focusedSession.status === AgentSessionStatus.InProgress ? loadedModel : undefined;
+			}
+		};
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			undefined,
+			chatService,
+			undefined,
+			new TestAgentSessionsService([focusedSession, backgroundSession]),
+		);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+		controller.setActiveSessionShown(focusedSession.resource);
+
+		controller['_pttCurrentTurnId'] = 'turn-idle';
+		micCaptureService.firePttStart(false);
+		focusedSession.status = AgentSessionStatus.InProgress;
+		controller['_pttCurrentTurnId'] = 'turn-active';
+		micCaptureService.firePttStart(true);
+
+		assert.deepStrictEqual(voiceClientService.pttStarts, [
+			{ turnId: 'turn-idle', hasActiveSession: false, passive: false },
+			{ turnId: 'turn-active', hasActiveSession: true, passive: true },
+		]);
+	});
+
+	test('does not connect without a paid Copilot entitlement', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const notificationService = new VoiceTestNotificationService();
+		const chatEntitlementService = new MutableTestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Free;
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			notificationService,
+			chatEntitlementService,
+		);
+
+		await controller.connect(mainWindow);
+
+		assert.strictEqual(controller.isConnecting.get(), false);
+		assert.strictEqual(controller.isConnected.get(), false);
+		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Voice Mode requires a paid GitHub Copilot plan.']);
+	});
+
+	test('disconnects when the paid Copilot entitlement is lost', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatEntitlementService = new MutableTestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Pro;
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			chatEntitlementService,
+		);
+		controller['_isConnected'].set(true, undefined);
+
+		chatEntitlementService.setEntitlement(ChatEntitlement.Free);
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		assert.strictEqual(controller.isConnected.get(), false);
+	});
+
+	test('stays connected across a paid-to-paid entitlement transition', async () => {
+		const chatEntitlementService = new MutableTestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Pro;
+		const controller = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			chatEntitlementService,
+		);
+		controller['_isConnected'].set(true, undefined);
+
+		chatEntitlementService.transitionEntitlement(ChatEntitlement.Unresolved, ChatEntitlement.Business);
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		assert.strictEqual(controller.isConnected.get(), true);
+	});
+
+	test('restricts Voice Mode for external Enterprise users but allows internal staff', async () => {
+		const externalNotifications = new VoiceTestNotificationService();
+		const externalEntitlement = new MutableTestChatEntitlementService();
+		externalEntitlement.entitlement = ChatEntitlement.Enterprise;
+		const externalController = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			externalNotifications,
+			externalEntitlement,
+		);
+
+		const internalNotifications = new VoiceTestNotificationService();
+		const internalEntitlement = new InternalTestChatEntitlementService();
+		internalEntitlement.entitlement = ChatEntitlement.Enterprise;
+		const internalController = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			internalNotifications,
+			internalEntitlement,
+		);
+
+		await externalController.connect(mainWindow);
+		await internalController.connect(mainWindow);
+
+		assert.deepStrictEqual({
+			externalConnecting: externalController.isConnecting.get(),
+			externalNotifications: externalNotifications.notifications.map(notification => notification.message),
+			internalConnecting: internalController.isConnecting.get(),
+			internalNotifications: internalNotifications.notifications.map(notification => notification.message),
+		}, {
+			externalConnecting: false,
+			externalNotifications: ['Voice Mode is not available for GitHub Copilot Enterprise accounts.'],
+			internalConnecting: true,
+			internalNotifications: [],
+		});
+	});
 
 	test('includes response errors in the summary sent to the voice backend', () => {
 		const controller = createController(new TestVoiceClientService());
@@ -680,6 +1079,50 @@ suite('VoiceSessionController', () => {
 			prepareCalls: 1,
 			startCaptureCalls: 0,
 			sessionCommands: ['start'],
+		});
+	});
+
+	test('setMuted gates outgoing audio while keeping the session connected', async () => {
+		const sentChunks: string[] = [];
+		const voiceClientService = new class extends TestVoiceClientService {
+			override sendPttAudioChunk(chunk: string): void { sentChunks.push(chunk); }
+		}();
+		const audioChunkEmitter = store.add(new Emitter<string>());
+		const micCaptureService = new class extends TestMicCaptureService {
+			override readonly onPttAudioChunk = audioChunkEmitter.event;
+		}();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }),
+		);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+
+		// Unmuted: chunks flow to the backend.
+		audioChunkEmitter.fire('chunk-1');
+		// Muted: chunks are dropped, session stays connected.
+		controller.setMuted(true);
+		audioChunkEmitter.fire('chunk-2');
+		// Unmuted again: chunks flow once more.
+		controller.setMuted(false);
+		audioChunkEmitter.fire('chunk-3');
+
+		assert.deepStrictEqual({
+			sentChunks,
+			micMuted: micCaptureService.isMuted,
+			isMuted: controller.isMuted.get(),
+			connected: controller.isConnected.get(),
+		}, {
+			sentChunks: ['chunk-1', 'chunk-3'],
+			micMuted: false,
+			isMuted: false,
+			connected: true,
 		});
 	});
 
@@ -857,6 +1300,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 
 		assert.deepStrictEqual({
 			afterDrop,
@@ -912,6 +1356,7 @@ suite('VoiceSessionController', () => {
 
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 
 		assert.deepStrictEqual({
 			afterDrop,
@@ -1346,6 +1791,7 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual({
 			pendingContext: pendingContext ? {
 				id: pendingContext['id'],
+				session_type: pendingContext['session_type'],
 				is_active: pendingContext['is_active'],
 				agent_state: pendingContext['agent_state'],
 				agent_state_detail: pendingContext['agent_state_detail'],
@@ -1362,6 +1808,7 @@ suite('VoiceSessionController', () => {
 		}, {
 			pendingContext: {
 				id: sessionResource.toString(),
+				session_type: 'chat',
 				is_active: true,
 				agent_state: 'waiting_for_confirmation',
 				agent_state_detail: [
@@ -1388,6 +1835,7 @@ suite('VoiceSessionController', () => {
 			resolvedContext: {
 				id: sessionResource.toString(),
 				label: 'Chat',
+				session_type: 'chat',
 				is_active: true,
 				agent_state: 'idle',
 			},
@@ -1638,6 +2086,188 @@ suite('VoiceSessionController', () => {
 				confirmationType: scenario.expectedType,
 			},
 		})));
+	});
+
+	test('assigns occurrence ids to same-text generic confirmations', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/sequential-confirmations');
+		const confirmation = (): IChatConfirmation => ({
+			kind: 'confirmation',
+			title: 'Allow this action?',
+			message: 'Review the requested action.',
+			data: {},
+		});
+		const pendingIdFor = Reflect.get(controller, '_pendingIdFor') as (sessionId: string) => string;
+		chatService.setModels([pendingResponsePartModel(sessionResource, confirmation(), 'Needs approval', true, 'routed-request')]);
+		const firstPendingId = pendingIdFor.call(controller, sessionResource.toString());
+		chatService.setModels([pendingResponsePartModel(sessionResource, confirmation(), 'Needs approval', true, 'routed-request')]);
+		const secondPendingId = pendingIdFor.call(controller, sessionResource.toString());
+
+		assert.notStrictEqual(firstPendingId, secondPendingId);
+	});
+
+	test('replaces an in-flight tool approval with the next identical approval', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/sequential-tool-approvals');
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
+			state: string;
+			detail?: string;
+			confirmation_type?: VoiceConfirmationType;
+		};
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
+
+		controller.setActiveSessionShown(sessionResource);
+		controller.setTargetSession(sessionResource);
+		const firstTool = waitingTerminalTool('first-tool');
+		const firstModel = pendingResponsePartModel(sessionResource, firstTool, 'Needs approval', true, 'routed-request');
+		chatService.setModels([firstModel]);
+		const firstState = getAgentStateInfo.call(controller, firstModel);
+		handleStateChange.call(controller, sessionResource.toString(), firstState.state, firstState.detail, undefined, sessionResource.toString(), firstState.confirmation_type);
+
+		const secondTool = waitingTerminalTool('second-tool');
+		const secondModel = pendingResponsePartModel(sessionResource, secondTool, 'Needs approval', true, 'routed-request');
+		chatService.setModels([secondModel]);
+		const secondState = getAgentStateInfo.call(controller, secondModel);
+		Reflect.set(controller, '_pttHeld', true);
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		(Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void }).set('listening', undefined);
+		handleStateChange.call(controller, sessionResource.toString(), secondState.state, secondState.detail, undefined, sessionResource.toString(), secondState.confirmation_type);
+
+		assert.deepStrictEqual({
+			requests: voiceClientService.requests.map(request => ({ kind: request.kind, pendingId: request.pendingId })),
+			listeningTurnHeld: Reflect.get(controller, '_pttHeld'),
+		}, {
+			requests: [
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', firstTool) },
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', secondTool) },
+			],
+			listeningTurnHeld: false,
+		});
+	});
+
+	test('narrates three approvals when one tool invocation is re-armed', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/rearmed-tool-approvals');
+		const tool = waitingTerminalTool('rearmed-tool');
+		const model = pendingResponsePartModel(sessionResource, tool, 'Needs approval', true, 'routed-request');
+		const toolState = tool.state as IChatToolInvocation['state'] & {
+			set(value: IChatToolInvocation.State, transaction: undefined): void;
+		};
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
+			state: string;
+			detail?: string;
+			confirmation_type?: VoiceConfirmationType;
+		};
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
+		const markNarrationHeard = Reflect.get(controller, '_markNarrationHeard') as (narrationId: string) => void;
+		const pendingIds: (string | undefined)[] = [];
+
+		controller.setActiveSessionShown(sessionResource);
+		controller.setTargetSession(sessionResource);
+		chatService.setModels([model]);
+
+		const narrateCurrentApproval = () => {
+			const state = getAgentStateInfo.call(controller, model);
+			handleStateChange.call(controller, sessionResource.toString(), state.state, state.detail, undefined, sessionResource.toString(), state.confirmation_type);
+			const request = voiceClientService.requests.at(-1)!;
+			pendingIds.push(request.pendingId);
+			markNarrationHeard.call(controller, request.narrationId);
+		};
+		const rearm = (command: string) => toolState.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command },
+			confirmationMessages: {
+				title: 'Run zsh command?',
+				message: 'Installs dependencies - pulls untrusted third-party code.',
+			},
+			confirm: () => { },
+		}, undefined);
+
+		narrateCurrentApproval();
+		rearm('npm install');
+		narrateCurrentApproval();
+		rearm('npm test');
+		narrateCurrentApproval();
+
+		assert.deepStrictEqual({
+			requestCount: voiceClientService.requests.length,
+			uniquePendingIds: new Set(pendingIds).size,
+			kinds: voiceClientService.requests.map(request => request.kind),
+		}, {
+			requestCount: 3,
+			uniquePendingIds: 3,
+			kinds: ['confirmation', 'confirmation', 'confirmation'],
+		});
+	});
+
+	test('confirmation watchdog narrates a sequential approval missed by the transition path', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const sessionResource = URI.parse('chat-session:/watchdog-sequential-tool-approvals');
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => {
+			state: string;
+			detail?: string;
+			confirmation_type?: VoiceConfirmationType;
+		};
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
+		const markNarrationHeard = Reflect.get(controller, '_markNarrationHeard') as (narrationId: string) => void;
+		const armConfirmationFlushWatchdog = Reflect.get(controller, '_armConfirmationFlushWatchdog') as (sessionId: string, label: string, isTransition: boolean) => void;
+
+		controller.setActiveSessionShown(sessionResource);
+		controller.setTargetSession(sessionResource);
+		const firstTool = waitingTerminalTool('first-watchdog-tool');
+		const firstModel = pendingResponsePartModel(sessionResource, firstTool, 'Needs approval', true, 'routed-request');
+		chatService.setModels([firstModel]);
+		const firstState = getAgentStateInfo.call(controller, firstModel);
+		handleStateChange.call(controller, sessionResource.toString(), firstState.state, firstState.detail, undefined, sessionResource.toString(), firstState.confirmation_type);
+		markNarrationHeard.call(controller, voiceClientService.requests[0].narrationId);
+
+		const secondTool = waitingTerminalTool('second-watchdog-tool', 'npm install');
+		chatService.setModels([pendingResponsePartModel(sessionResource, secondTool, 'Needs approval', true, 'routed-request')]);
+		Reflect.set(controller, '_pttHeld', true);
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		(Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void }).set('listening', undefined);
+		armConfirmationFlushWatchdog.call(controller, sessionResource.toString(), 'Chat', true);
+		clock.tick(1_500);
+
+		assert.deepStrictEqual({
+			requests: voiceClientService.requests.map(request => ({ kind: request.kind, pendingId: request.pendingId })),
+			listeningTurnHeld: Reflect.get(controller, '_pttHeld'),
+		}, {
+			requests: [
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', firstTool) },
+				{ kind: 'confirmation', pendingId: derivePendingId('routed-request', secondTool) },
+			],
+			listeningTurnHeld: false,
+		});
 	});
 
 	test('same confirmation text with a new type is not deduplicated', async () => {
@@ -2609,7 +3239,7 @@ suite('VoiceSessionController', () => {
 		const controller = createController(voiceClientService, ttsPlaybackService);
 		const sessionId = 'chat-session:/checkpoint-reread';
 		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: VoiceNarrationKind, text: string, reuseId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata) => boolean;
-		const recentlyRead = Reflect.get(controller, '_recentlyReadResponse') as Map<string, { transcript: string; at: number }>;
+		const lastHeard = Reflect.get(controller, '_lastHeardTranscriptById') as Map<string, string>;
 		await controller.connect(mainWindow);
 		controller.setActiveSessionShown(URI.parse(sessionId));
 
@@ -2626,7 +3256,7 @@ suite('VoiceSessionController', () => {
 			codingSessionId: sessionId,
 			responseId: checkpointId,
 		});
-		recentlyRead.set(sessionId, { transcript: 'already heard', at: Date.now() });
+		lastHeard.set(sessionId, 'already heard');
 		voiceClientService.fireAudioResponse({
 			audio: 'duplicate',
 			isFirstChunk: true,
@@ -2726,7 +3356,7 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
-	test('cross-session substantive audio preempts active checkpoint playback', async () => {
+	test('cross-session substantive audio stays deferred while another session owns voice', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const controller = createController(voiceClientService, ttsPlaybackService);
@@ -2764,7 +3394,7 @@ suite('VoiceSessionController', () => {
 			playedAudio: ttsPlaybackService.playedAudio,
 		}, {
 			stopCount: 1,
-			playedAudio: ['checkpoint', 'substantive-response'],
+			playedAudio: ['checkpoint'],
 		});
 	});
 
@@ -2814,7 +3444,7 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['editing', 'validating']);
 	});
 
-	test('cross-session checkpoint replaces active checkpoint', async () => {
+	test('cross-session checkpoint stays deferred while another session owns voice', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const controller = createController(voiceClientService, ttsPlaybackService);
@@ -2857,7 +3487,7 @@ suite('VoiceSessionController', () => {
 			playedAudio: ttsPlaybackService.playedAudio,
 		}, {
 			stopCount: 1,
-			playedAudio: ['first-checkpoint', 'second-checkpoint'],
+			playedAudio: ['first-checkpoint'],
 		});
 	});
 
@@ -3372,6 +4002,247 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(controller.pendingToolConfirmations.get().length, 0);
 	});
 
+	test('switching through a draft keeps voice in its original session until the user returns', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const voiceSession = URI.parse('agent-host-copilot:/voice-session');
+		const otherSession = URI.parse('agent-host-copilot:/other-session');
+		const shownSessionId = Reflect.get(controller, '_shownSessionId') as () => string | undefined;
+		const shouldDeferForSession = Reflect.get(controller, '_shouldDeferForSession') as (sessionId: string) => boolean;
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+
+		controller.setActiveSessionShown(voiceSession);
+		controller.setActiveSessionShown(null);
+
+		assert.deepStrictEqual({
+			targetSession: controller.targetSession.get()?.toString(),
+			shownSession: shownSessionId.call(controller),
+			defersVoiceSession: shouldDeferForSession.call(controller, voiceSession.toString()),
+		}, {
+			targetSession: voiceSession.toString(),
+			shownSession: undefined,
+			defersVoiceSession: true,
+		});
+
+		voiceClientService.fireAudioResponse({
+			audio: 'saved voice-session response',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: voiceSession.toString(),
+			responseId: 'voice-response',
+			transcript: 'Saved voice-session response.',
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'other-session response',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: otherSession.toString(),
+			responseId: 'other-response',
+			transcript: 'Other-session response.',
+		});
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, []);
+
+		controller.setActiveSessionShown(otherSession);
+
+		assert.deepStrictEqual({
+			targetSession: controller.targetSession.get()?.toString(),
+			shownSession: shownSessionId.call(controller),
+			defersVoiceSession: shouldDeferForSession.call(controller, voiceSession.toString()),
+		}, {
+			targetSession: voiceSession.toString(),
+			shownSession: otherSession.toString(),
+			defersVoiceSession: true,
+		});
+
+		Reflect.set(controller, '_currentNarratable', (resource: URI) => resource.toString() === voiceSession.toString()
+			? { kind: 'confirmation', text: 'Approve the saved command.' }
+			: { kind: 'confirmation', text: 'Approve the other command.' });
+		controller.setActiveSessionShown(voiceSession);
+
+		assert.deepStrictEqual({
+			targetSession: controller.targetSession.get()?.toString(),
+			shownSession: shownSessionId.call(controller),
+			defersVoiceSession: shouldDeferForSession.call(controller, voiceSession.toString()),
+			playedAudio: ttsPlaybackService.playedAudio,
+			narrations: voiceClientService.requests.map(request => ({ sessionId: request.sessionId, kind: request.kind, text: request.text })),
+		}, {
+			targetSession: voiceSession.toString(),
+			shownSession: voiceSession.toString(),
+			defersVoiceSession: false,
+			playedAudio: ['saved voice-session response'],
+			narrations: [{ sessionId: voiceSession.toString(), kind: 'confirmation', text: 'Approve the saved command.' }],
+		});
+	});
+
+	test('switching away mid-response defers the remaining audio until the voice session returns', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const voiceSession = URI.parse('agent-host-copilot:/voice-session');
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+		controller.setActiveSessionShown(voiceSession);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'response beginning',
+			isFirstChunk: true,
+			isFinal: false,
+			codingSessionId: voiceSession.toString(),
+			responseId: 'streaming-response',
+			transcript: 'Response beginning.',
+		});
+		controller.setActiveSessionShown(null);
+		voiceClientService.fireAudioResponse({
+			audio: 'response ending',
+			isFirstChunk: false,
+			isFinal: true,
+			codingSessionId: voiceSession.toString(),
+			responseId: 'streaming-response',
+			transcript: 'Response beginning response ending.',
+		});
+
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['response beginning']);
+		controller.setActiveSessionShown(voiceSession);
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['response beginning', 'response ending']);
+	});
+
+	test('draft voice ownership survives navigation and promotes only when that draft is created', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const otherSession = URI.parse('agent-host-copilot:/other-session');
+		const createdDraft = URI.parse('agent-host-copilot:/created-draft');
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+
+		controller.setActiveSessionShown(null);
+		controller.setActiveSessionShown(otherSession);
+		assert.deepStrictEqual({
+			hasDraftTarget: controller.hasDraftTarget.get(),
+			targetSession: controller.targetSession.get(),
+		}, {
+			hasDraftTarget: true,
+			targetSession: undefined,
+		});
+
+		controller.setActiveSessionShown(null);
+		controller.promoteDraftTarget(createdDraft);
+		controller.setActiveSessionShown(createdDraft);
+		assert.deepStrictEqual({
+			hasDraftTarget: controller.hasDraftTarget.get(),
+			targetSession: controller.targetSession.get()?.toString(),
+		}, {
+			hasDraftTarget: false,
+			targetSession: createdDraft.toString(),
+		});
+	});
+
+	test('untagged solicited narration dropped after retargeting retries when its session returns', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const firstSession = URI.parse('agent-host-copilot:/first-session');
+		const secondSession = URI.parse('agent-host-copilot:/second-session');
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response', text: string) => boolean;
+		Reflect.set(controller, '_currentNarratable', (resource: URI) => resource.toString() === firstSession.toString()
+			? { kind: 'response', text: 'The first task is complete.' }
+			: undefined);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+		controller.setActiveSessionShown(firstSession);
+		assert.strictEqual(narrate.call(controller, firstSession.toString(), 'response', 'The first task is complete.'), true);
+		const firstNarrationId = voiceClientService.requests[0].narrationId;
+
+		controller.setTargetSession(secondSession);
+		controller.setActiveSessionShown(secondSession);
+		voiceClientService.fireAudioResponse({
+			audio: 'stale first-session narration',
+			isFirstChunk: true,
+			isFinal: false,
+			responseId: firstNarrationId,
+			transcript: 'The first task',
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'stale first-session continuation',
+			isFirstChunk: false,
+			isFinal: true,
+			responseId: firstNarrationId,
+			transcript: 'The first task is complete.',
+		});
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, []);
+
+		controller.setTargetSession(firstSession);
+		controller.setActiveSessionShown(firstSession);
+		assert.deepStrictEqual(voiceClientService.requests.map(request => ({
+			sessionId: request.sessionId,
+			kind: request.kind,
+			text: request.text,
+		})), [
+			{ sessionId: firstSession.toString(), kind: 'response', text: 'The first task is complete.' },
+			{ sessionId: firstSession.toString(), kind: 'response', text: 'The first task is complete.' },
+		]);
+	});
+
+	test('switching away interrupts active owner playback and defers queued audio', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const voiceSession = URI.parse('agent-host-copilot:/voice-session');
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+		controller.setActiveSessionShown(voiceSession);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'currently playing',
+			isFirstChunk: true,
+			isFinal: false,
+			codingSessionId: voiceSession.toString(),
+			responseId: 'current-response',
+			transcript: 'Currently playing.',
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'first queued response',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: voiceSession.toString(),
+			responseId: 'first-queued-response',
+			transcript: 'First queued response.',
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'second queued response',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: voiceSession.toString(),
+			responseId: 'second-queued-response',
+			transcript: 'Second queued response.',
+		});
+		controller.setActiveSessionShown(null);
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			stopCount: ttsPlaybackService.stopCount,
+		}, {
+			playedAudio: ['currently playing'],
+			stopCount: 1,
+		});
+
+		controller.setActiveSessionShown(voiceSession);
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['currently playing', 'first queued response']);
+		ttsPlaybackService.stopPlayback();
+		(Reflect.get(controller, '_processQueue') as () => void).call(controller);
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['currently playing', 'first queued response', 'second queued response']);
+	});
+
 	test('reports only genuine approvals as approvals', async () => {
 		// One tool now carries approve, reject, answer and skip. Widening the
 		// approval event to match would silently change what it counts.
@@ -3524,6 +4395,48 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(buildPendingPayload.call(controller, model)?.questions?.map(question => question.title), ['Which region?']);
 	});
 
+	test('a late retired approval does not mask the final response', () => {
+		const controller = createController(new TestVoiceClientService());
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { state: string; last_response_summary?: string };
+		const requestId = 'request-late-retired-tool';
+		const original = waitingTerminalTool('tool-call-late-retired', 'echo high');
+		const pendingId = derivePendingId(requestId, original);
+
+		assert.strictEqual(markPendingIdResolved(pendingId), true);
+		original.state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
+
+		// The authoritative response is complete, but a provider/model refresh has
+		// rehydrated the already-handled confirmation as a different object.
+		const lateCopy = waitingTerminalTool('tool-call-late-retired', 'echo high');
+		const response = {
+			isPendingConfirmation: observableValue<{ detail?: string } | undefined>('pending', { detail: 'Needs approval' }),
+			isIncomplete: observableValue('incomplete', false),
+			response: { value: [lateCopy], getMarkdown: () => 'Done — output was high.' },
+		};
+		const lastRequest = { id: requestId, response };
+		const model = { getRequests: () => [lastRequest] } as unknown as IChatModel;
+
+		const info = getAgentStateInfo.call(controller, model);
+		const latePendingId = derivePendingId(requestId, lateCopy);
+
+		assert.deepStrictEqual(info, {
+			state: 'idle',
+			last_response_summary: 'Done — output was high.',
+		});
+		assert.strictEqual(latePendingId, pendingId);
+		assert.strictEqual(isPendingIdResolved(latePendingId), true);
+
+		lateCopy.state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
+	});
+
 	test('sends each agent session label so two waiting sessions can be told apart', () => {
 		// The label is the only human-readable handle the backend has. Without it
 		// every session is "Untitled" and naming one out loud cannot disambiguate
@@ -3579,6 +4492,132 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(session.agent_state, 'waiting_for_confirmation');
 		assert.strictEqual(session.label, 'Auth fix');
+	});
+
+	test('focus transfers voice ownership and narrates a pending background response', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const voicePlaybackService = new RecordingVoicePlaybackService();
+		const chatWidgetService = new TestChatWidgetService();
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined, voicePlaybackService, chatWidgetService,
+		);
+		const focusedSession = URI.parse('vscode-chat://focused-panel-session');
+		const backgroundSession = URI.parse('vscode-chat://background-panel-session');
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+		) => void;
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+		controller.setTargetSession(focusedSession);
+
+		handleStateChange.call(controller, focusedSession.toString(), 'idle', undefined, 'Focused response.', focusedSession.toString());
+		handleStateChange.call(controller, backgroundSession.toString(), 'idle', undefined, 'Background response.', focusedSession.toString());
+
+		assert.deepStrictEqual(voiceClientService.requests.map(request => request.text), ['Focused response.']);
+		assert.ok(voicePlaybackService.pendingSessions.has(backgroundSession.toString()));
+
+		chatWidgetService.focus(backgroundSession);
+		(Reflect.get(controller, '_onFocusedSessionChanged') as () => void).call(controller);
+
+		assert.deepStrictEqual(voiceClientService.requests.map(request => request.text), ['Focused response.', 'Background response.']);
+		assert.strictEqual(controller.targetSession.get()?.toString(), backgroundSession.toString());
+	});
+
+	test('materializing an untitled chat preserves Voice Mode ownership', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const untitledSession = URI.parse('agent-host-copilotcli:/untitled-voice-session');
+		const materializedSession = URI.parse('agent-host-copilotcli:/materialized-voice-session');
+		const widget = store.add(new MaterializingChatWidget(untitledSession));
+		const chatWidgetService = new TestChatWidgetService([widget]);
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, chatWidgetService,
+		);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+		controller.setTargetSession(untitledSession);
+
+		widget.materialize(materializedSession);
+
+		assert.strictEqual(controller.isConnected.get(), true);
+		assert.strictEqual(controller.targetSession.get()?.toString(), materializedSession.toString());
+	});
+
+	test('stops tracking a removed chat widget', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const initialSession = URI.parse('agent-host-copilotcli:/initial-session');
+		const removedSession = URI.parse('agent-host-copilotcli:/removed-session');
+		const widget = store.add(new MaterializingChatWidget(initialSession));
+		const widgetRemovals = store.add(new Emitter<IChatWidget>());
+		const chatWidgetService = new TestChatWidgetService([widget], widgetRemovals.event);
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, chatWidgetService,
+		);
+
+		widgetRemovals.fire(widget);
+		Reflect.set(controller, '_lastShownSessionId', undefined);
+		widget.materialize(removedSession);
+
+		assert.strictEqual(Reflect.get(controller, '_lastShownSessionId'), undefined);
+	});
+
+	test('grounds the active session with its selected model and attachment names', () => {
+		const chatService = new ControllableChatService();
+		const resource = URI.parse('vscode-chat://regular/session-aware');
+		const lastRequest = {
+			id: 'request-1',
+			response: {
+				isPendingConfirmation: observableValue('pending', undefined),
+				isIncomplete: observableValue('incomplete', false),
+				response: { value: [], getMarkdown: () => '' },
+			},
+		};
+		const model = {
+			sessionResource: resource,
+			title: 'Session awareness',
+			lastMessageDate: Date.now(),
+			getRequests: () => [lastRequest],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+			inputModel: {
+				state: observableValue('inputState', {
+					selectedModel: {
+						identifier: 'copilot/gpt-5',
+						metadata: { name: 'GPT-5', vendor: 'copilot' },
+					},
+					attachments: [{ kind: 'file', name: 'voiceSessionController.ts' }, { kind: 'file', name: 'README.md' }],
+				}),
+			},
+		} as unknown as IChatModel;
+		chatService.setModels([model]);
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService);
+		controller.setActiveSessionShown(resource);
+		const buildSessionContext = Reflect.get(controller, '_buildSessionContext') as () => IVoiceSessionContext;
+
+		const [session] = buildSessionContext.call(controller).sessions;
+
+		assert.deepStrictEqual({
+			session_type: session.session_type,
+			is_active: session.is_active,
+			selected_model: session.selected_model,
+			attachment_names: session.attachment_names,
+			attachment_count: session.attachment_count,
+		}, {
+			session_type: 'chat',
+			is_active: true,
+			selected_model: { identifier: 'copilot/gpt-5', name: 'GPT-5', vendor: 'copilot' },
+			attachment_names: ['voiceSessionController.ts', 'README.md'],
+			attachment_count: 2,
+		});
 	});
 
 	test('an older tool confirmation holds the turn ahead of a newer form', () => {
@@ -3871,6 +4910,9 @@ suite('VoiceSessionController', () => {
 		const sessionId = 'agent-host-copilot:/session-1';
 		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response' | 'confirmation', text: string) => boolean;
 		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		controller.setActiveSessionShown(URI.parse(sessionId));
 
 		assert.strictEqual(narrate.call(controller, sessionId, 'response', 'Done'), true);
 		voiceClientService.fireAudioResponse({
@@ -3879,13 +4921,12 @@ suite('VoiceSessionController', () => {
 			isFinal: false,
 			responseId: 'narration-1',
 		});
-		voiceClientService.fireSpeechStarted();
+		voiceClientService.fireSpeechStarted(Reflect.get(controller, '_activePassiveTurnId'));
 		voiceClientService.fireNarrationInterrupted({
 			narrationId: 'narration-1',
 			codingSessionId: sessionId,
 		});
 		Reflect.set(controller, '_currentNarratable', () => ({ kind: 'response', text: 'Done' }));
-		controller.setActiveSessionShown(URI.parse(sessionId));
 		voiceClientService.fireNarrationUnblocked({
 			narrationId: 'narration-1',
 			codingSessionId: sessionId,
@@ -4204,7 +5245,258 @@ suite('VoiceSessionController', () => {
 		});
 		await voiceClientService.toolResultReceived;
 
-		assert.deepStrictEqual(commandService.acceptedInputs, ['send this when listening stops']);
+		assert.deepStrictEqual({
+			acceptedInputs: commandService.acceptedInputs,
+			toolResults: voiceClientService.toolResults,
+			awaitingReply: Reflect.get(controller, '_awaitingReplyAudio'),
+		}, {
+			acceptedInputs: ['send this when listening stops'],
+			toolResults: [{ callId: 'manual-transcription', result: 'ok' }],
+			awaitingReply: true,
+		});
+	});
+
+	test('send_to_chat with new_session routes the text to the freshly created session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-send',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+			toolResults: voiceClientService.toolResults,
+			awaitingReply: Reflect.get(controller, '_awaitingReplyAudio'),
+		}, {
+			created: 1,
+			sent: [{ resource: 'chat-session://new/1', message: 'refactor the upload service' }],
+			acceptedInputs: [],
+			toolResults: [{ callId: 'new-session-send', result: 'ok' }],
+			awaitingReply: true,
+		});
+	});
+
+	test('send_to_chat with new_session and no text creates and targets a session without sending', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-empty',
+			name: 'send_to_chat',
+			args: { text: '', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		const target = (Reflect.get(controller, '_targetSession') as { get(): URI | undefined }).get();
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+			target: target?.toString(),
+			toolResults: voiceClientService.toolResults,
+			awaitingReply: Reflect.get(controller, '_awaitingReplyAudio'),
+			voiceState: controller.voiceState.get(),
+			status: controller.statusText.get(),
+		}, {
+			created: 1,
+			sent: [],
+			acceptedInputs: [],
+			target: 'chat-session://new/1',
+			toolResults: [{ callId: 'new-session-empty', result: 'error' }],
+			awaitingReply: false,
+			voiceState: 'idle',
+			status: 'Hold to speak...',
+		});
+	});
+
+	test('send_to_chat without new_session keeps the request in the current session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'same-session-send',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+			toolResults: voiceClientService.toolResults,
+			awaitingReply: Reflect.get(controller, '_awaitingReplyAudio'),
+		}, {
+			created: 0,
+			sent: [],
+			acceptedInputs: ['refactor the upload service'],
+			toolResults: [{ callId: 'same-session-send', result: 'ok' }],
+			awaitingReply: true,
+		});
+	});
+
+	test('send_to_chat reports an error and clears awaiting reply when pane delivery fails', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new RejectingAcceptCommandService();
+		const controller = createController(voiceClientService, undefined, commandService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'failed-pane-send',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			acceptedInputs: commandService.acceptedInputs,
+			toolResults: voiceClientService.toolResults,
+			awaitingReply: Reflect.get(controller, '_awaitingReplyAudio'),
+			voiceState: controller.voiceState.get(),
+			status: controller.statusText.get(),
+		}, {
+			acceptedInputs: [],
+			toolResults: [{ callId: 'failed-pane-send', result: 'error' }],
+			awaitingReply: false,
+			voiceState: 'idle',
+			status: 'Hold to speak...',
+		});
+	});
+
+	test('send_to_chat with new_session keeps the created session alive when no pane adopts it', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		// TestCommandService leaves `_chat.voice.switchToSession` unhandled, so
+		// this is the "no chat pane picked it up" case.
+		const commandService = new TestCommandService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-unadopted',
+			name: 'send_to_chat',
+			args: { text: '', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const target = (Reflect.get(controller, '_targetSession') as { get(): URI | undefined }).get();
+		assert.deepStrictEqual({
+			target: target?.toString(),
+			targetStillExists: target ? chatService.live.has(target.toString()) : false,
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			target: 'chat-session://new/1',
+			targetStillExists: true,
+			retainedRefs: 1,
+		});
+	});
+
+	test('newSessionAsTarget releases an unadopted session on retarget', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, chatService);
+
+		controller.newSessionAsTarget();
+		await Promise.resolve();
+		await Promise.resolve();
+		controller.setTargetSession(URI.parse('chat-session://existing/1'));
+
+		assert.deepStrictEqual({
+			targetStillExists: chatService.live.has('chat-session://new/1'),
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			targetStillExists: false,
+			retainedRefs: 0,
+		});
+	});
+
+	test('newSessionAsTarget releases an unadopted session on disconnect', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, chatService);
+
+		controller.newSessionAsTarget();
+		await Promise.resolve();
+		await Promise.resolve();
+		controller.disconnect();
+
+		assert.deepStrictEqual({
+			targetStillExists: chatService.live.has('chat-session://new/1'),
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			targetStillExists: false,
+			retainedRefs: 0,
+		});
+	});
+
+	test('send_to_chat with new_session releases the reference once a pane adopts the session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new AdoptingCommandService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-adopted',
+			name: 'send_to_chat',
+			args: { text: '', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		// The pane holds its own reference, so voice must not keep one too.
+		assert.strictEqual(chatService.refCount('chat-session://new/1'), 0);
+	});
+
+	test('send_to_chat with new_session outranks a pinned submit session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		// A focus change pinned an earlier session; an explicit "start a new
+		// session" has to win over it, or the request lands in the pinned one.
+		Reflect.set(controller, '_pinnedSubmitSession', URI.parse('chat-session://pinned/1'));
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-over-pin',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			sent: chatService.sent,
+			pinned: (Reflect.get(controller, '_pinnedSubmitSession') as URI | undefined)?.toString(),
+		}, {
+			sent: [{ resource: 'chat-session://new/1', message: 'refactor the upload service' }],
+			pinned: undefined,
+		});
 	});
 
 	test('auto-listen is skipped when window does not have focus (multi-window hands-free)', () => {
@@ -4450,6 +5742,121 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(mic.abortCalls, 0);
 		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
 	});
+
+	test('names the cause when the account is not permitted', () => {
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 4003, reason: 'not allowed', kind: 'fatal' });
+
+		assert.ok(controller.statusText.get().includes('access'), controller.statusText.get());
+		assert.strictEqual(controller.voiceState.get(), 'error');
+		assert.strictEqual(notificationService.prompts.length, 1);
+		assert.strictEqual(notificationService.prompts[0].choices.length, 0);
+	});
+
+	test('treats an idle timeout as expected rather than an error', () => {
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 1001, reason: 'Session idle timeout', kind: 'expected' });
+
+		assert.strictEqual(controller.voiceState.get(), 'idle');
+		assert.strictEqual(notificationService.prompts.length, 0, 'an expected end of session must not interrupt with a toast');
+	});
+
+	test('falls back to the server reason for a code this build does not know', () => {
+		const controller = createController(new TestVoiceClientService());
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 4002, reason: 'Backend says hello', kind: 'fatal' });
+
+		assert.strictEqual(controller.statusText.get(), 'Backend says hello');
+	});
+
+	test('never leaves Reconnecting displayed after a terminal close', () => {
+		const controller = createController(new TestVoiceClientService());
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 1000, reason: '', kind: 'expected' });
+
+		assert.ok(!controller.statusText.get().startsWith('Reconnecting'), controller.statusText.get());
+		assert.strictEqual(controller.isReconnecting.get(), false);
+	});
+
+	test('does not offer an action when no configurable backend URL is available', () => {
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 0, reason: '', kind: 'fatal', clientSide: true });
+
+		assert.strictEqual(notificationService.prompts.length, 1);
+		assert.strictEqual(notificationService.prompts[0].choices.length, 0);
+	});
+
+	test('an immediate fatal close after open does not activate the microphone', () => {
+		// Auto-listen goes through pttDown, so a startCapture counter would pass
+		// even if it fired.
+		const micCaptureService = new RecordingMicCaptureService();
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, micCaptureService);
+		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+		handleFatalDisconnect.call(controller, { code: 4001, reason: 'Sign in', kind: 'fatal' });
+		clock.tick(2000);
+
+		assert.strictEqual(micCaptureService.pttDownCalls.length, 0, 'auto-listen must not fire after a terminal close');
+	});
+
+	test('the connect watchdog does not tear down a scheduled reconnect', () => {
+		// A reconnect sleeps between attempts, so a gap longer than the watchdog
+		// timeout must not be mistaken for a hung handshake. Before this guard the
+		// first slow retry was killed ~10s in and reported as unreachable.
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const armWatchdog = Reflect.get(controller, '_armConnectWatchdog') as () => void;
+
+		Reflect.set(controller, '_isConnecting', observableValue('isConnecting', false));
+		Reflect.set(controller, '_isReconnecting', observableValue('isReconnecting', true));
+		armWatchdog.call(controller);
+		clock.tick(11_000);
+
+		assert.strictEqual(notificationService.notifications.length, 0, 'a reconnect must not raise the unreachable toast');
+	});
+
+	test('an open socket is not reported as connected until the backend acks', () => {
+		// A rejected connect is accepted before it is closed so the close frame can
+		// carry a reason, so `onopen` fires for doomed sockets too. Committing
+		// connected on open flashed a live UI on every reconnect attempt.
+		const client = new TestVoiceClientService();
+		const controller = createController(client);
+		const commitConnected = Reflect.get(controller, '_commitConnected') as (viaFallback?: boolean) => void;
+
+		Reflect.set(client, 'connected', false);
+		commitConnected.call(controller);
+		assert.strictEqual(controller.isConnected.get(), false, 'a closed socket must never commit connected');
+
+		Reflect.set(client, 'connected', true);
+		commitConnected.call(controller);
+		assert.strictEqual(controller.isConnected.get(), true, 'the ack must promote the socket to a live session');
+	});
+
+	test('a known transient code keeps its localized message despite a backend reason', () => {
+		// Every transient close carries a reason, so resolving the raw text first
+		// meant 4029/4500/4503 never reached the strings the registry defines.
+		const controller = createController(new TestVoiceClientService());
+		const resolve = Reflect.get(controller, '_reconnectingMessage') as (code: number, reason: string) => string;
+
+		const busy = resolve.call(controller, 4029, 'Voice service is at capacity, try again shortly');
+		assert.ok(busy.includes('at capacity'), busy);
+		assert.ok(!busy.includes('try again shortly'), 'the localized clause must win over the backend reason');
+
+		const unknown = resolve.call(controller, 4321, 'a code the client has never heard of');
+		assert.ok(unknown.includes('a code the client has never heard of'), 'an unknown code still falls back to the reason');
+	});
 });
 
 suite('VoiceSessionController live transcription', () => {
@@ -4510,9 +5917,14 @@ suite('VoiceSessionController live transcription', () => {
 		instantiationService.stub(IChatWidgetService, {
 			lastFocusedWidget: undefined,
 			onDidAddWidget: Event.None,
+			onDidRemoveWidget: Event.None,
 			onDidChangeFocusedSession: Event.None,
+			onDidChangeWidgetVisibility: Event.None,
 			getAllWidgets: () => [],
 		});
+		const chatEntitlementService = new TestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Pro;
+		instantiationService.stub(IChatEntitlementService, chatEntitlementService);
 
 		const controller = store.add(instantiationService.createInstance(VoiceSessionController));
 		controller['_isConnected'].set(true, undefined);
@@ -4657,4 +6069,6 @@ suite('VoiceSessionController live transcription', () => {
 			persisted: ['open the file'],
 		});
 	});
+
+
 });

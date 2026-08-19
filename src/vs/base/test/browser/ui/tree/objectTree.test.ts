@@ -5,9 +5,13 @@
 
 import assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { TreeRenderer } from '../../../../browser/ui/tree/abstractTree.js';
 import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
 import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
+import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
 import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
+import { Emitter, Event } from '../../../../common/event.js';
+import { SetMap } from '../../../../common/map.js';
 import { runWithFakedTimers } from '../../../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
@@ -217,6 +221,71 @@ suite('ObjectTree', function () {
 		}
 		disposeTemplate(): void { }
 	}
+
+	test('applies renderer row class names', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const renderer = new class extends Renderer {
+			readonly rowClassName = 'test-tree-row';
+		};
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [renderer]);
+		try {
+			tree.layout(200);
+			tree.setChildren(null, [{ element: 0 }, { element: 1 }]);
+
+			assert.strictEqual(container.querySelectorAll('.monaco-list-row.test-tree-row').length, 2);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('disposing an older render preserves the current node mapping', function () {
+		const onDidChangeTwistieState = new Emitter<number>();
+		const renderer: ITreeRenderer<number, void, void> = {
+			templateId: 'default',
+			onDidChangeTwistieState: onDidChangeTwistieState.event,
+			renderTemplate() { },
+			renderElement() { },
+			renderTwistie(_element, twistieElement) {
+				twistieElement.dataset.renderCount = String(Number(twistieElement.dataset.renderCount ?? 0) + 1);
+				return true;
+			},
+			disposeTemplate() { }
+		};
+		const model = new ObjectTreeModel<number>('test');
+		model.setChildren(null, [{ element: 1 }]);
+		const treeRenderer = new TreeRenderer(
+			renderer,
+			model,
+			model.onDidChangeCollapseState,
+			{ elements: [], onDidChange: Event.None },
+			new SetMap<ITreeNode<number, void>, HTMLDivElement>()
+		);
+
+		try {
+			const node = model.getNode(1);
+			const firstTemplate = treeRenderer.renderTemplate(document.createElement('div'));
+			const secondTemplate = treeRenderer.renderTemplate(document.createElement('div'));
+			treeRenderer.renderElement(node, 0, firstTemplate, { height: 100 });
+			treeRenderer.renderElement(node, 0, secondTemplate, { height: 100 });
+
+			treeRenderer.disposeElement(node, 0, firstTemplate, { height: 100 });
+			onDidChangeTwistieState.fire(1);
+
+			assert.deepStrictEqual({
+				firstRenderCount: firstTemplate.twistie.dataset.renderCount,
+				secondRenderCount: secondTemplate.twistie.dataset.renderCount
+			}, {
+				firstRenderCount: '1',
+				secondRenderCount: '2'
+			});
+		} finally {
+			treeRenderer.dispose();
+			onDidChangeTwistieState.dispose();
+		}
+	});
 
 	class IdentityProvider implements IIdentityProvider<number> {
 		getId(element: number): { toString(): string } {

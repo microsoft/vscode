@@ -117,11 +117,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			}));
 		}
 
-		this._register(collapseButton.onDidClick(() => {
-			const value = this._isExpanded.get();
-			this._domNode?.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
-			this._isExpanded.set(!value, undefined);
-		}));
+		this._register(collapseButton.onDidClick(() => this.toggleExpanded()));
 
 		// Initialize the expanded state based on the subclass's isExpanded() method
 		this._isExpanded.set(this.isExpanded(), undefined);
@@ -160,6 +156,12 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		}));
 
 		return this._domNode;
+	}
+
+	protected toggleExpanded(): void {
+		const value = this._isExpanded.get();
+		this._domNode?.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+		this._isExpanded.set(!value, undefined);
 	}
 
 	protected abstract initContent(): HTMLElement;
