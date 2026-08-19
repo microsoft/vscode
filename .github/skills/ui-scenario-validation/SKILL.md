@@ -1,6 +1,6 @@
 ---
 name: ui-scenario-validation
-description: Use when reproducing a UI bug or verifying a fix by driving a real VS Code window end to end and capturing evidence. Writes a scenario file, runs it against a dev build or installed Insiders, and produces a chaptered video, per-step screenshots, a Playwright trace, and an HTML report to attach to an issue or pull request.
+description: Use when reproducing a UI bug or verifying a fix by driving a real VS Code window end to end and capturing evidence. Writes a scenario file, runs it against a dev build or installed Insiders, and produces a captioned video, per-step screenshots, a Playwright trace, and an HTML report to attach to an issue or pull request.
 ---
 
 # UI Scenario Validation
@@ -13,7 +13,7 @@ instead (see the `smoke-tests` skill) — this skill is for one-off, issue-deriv
 
 A scenario is a small JavaScript file run by `test/mcp/out/runScenario.js`. Nothing else has to be
 configured: the runner launches VS Code, records video and a trace, captures a screenshot at every
-step boundary, writes the report, and annotates the recording with step titles.
+step boundary, writes the report, and captions the recording with each step and its result.
 
 ## Prepare
 
@@ -22,7 +22,7 @@ npm install                        # once
 npm --prefix test/mcp run compile  # after any change under test/mcp
 ```
 
-Add `ffmpeg` and `ffprobe` to `PATH` to get chapter titles on the video. Without them the run still
+Add `ffmpeg` and `ffprobe` to `PATH` to get the caption band on the video. Without them the run still
 succeeds and the raw recording is kept.
 
 | Target | Extra flags | Also required | Use for |
@@ -47,8 +47,10 @@ an unmerged change, run the dev build from a checkout that contains it.
 
 ## Write the scenario
 
-Keep the file outside the repository, next to the run it produces — for example
-`.build/vscode-playwright-mcp/<issue>.js`.
+Save the file next to the run it produces, for example
+`.build/vscode-playwright-mcp/<issue>.cjs`. The **`.cjs`** extension matters: this package is an
+ES module package, so a CommonJS scenario named `.js` fails to load. An ES module scenario with a
+default export works too.
 
 ```js
 const os = require('os');
@@ -128,7 +130,7 @@ Each step receives a `context` with `app`, `workbench`, `code`, `page`, and `ski
 ## Run it
 
 ```bash
-node test/mcp/out/runScenario.js <scenario.js> --build "<app-root>"
+node test/mcp/out/runScenario.js <scenario.cjs> --build "<app-root>"
 ```
 
 Exit code `0` means every step passed, `1` means the run failed or was aborted, `2` a usage error.
@@ -139,13 +141,15 @@ Evidence is written to `.build/vscode-playwright-mcp/evidence/<run-id>/`:
 |------|----------|
 | `report.html` | Step table, outcome, embedded video |
 | `manifest.json` | Step timestamps, statuses, artifact paths, environment |
-| `videos/annotated.mp4` | Recording with a full-screen card before each step |
+| `videos/annotated.mp4` | Recording with a caption band showing each step and its validation result |
 | `videos/*.webm` | The raw recording |
 | `*.png` | Per-step screenshots |
 | `logs/` | Playwright trace, window and server logs |
 
-Chapter cards are inserted **between** segments, so no recorded frame is hidden. Re-render them
-after editing a manifest with `node test/mcp/out/renderEvidenceChapters.js <run-dir>`.
+The caption band is added **below** the recorded frame rather than drawn over it, so no recorded
+pixel is hidden and the recording keeps its original length. Each caption carries the step number
+and id, its status, the step title, and the validation detail the step reported. Re-render after
+editing a manifest with `node test/mcp/out/renderEvidenceChapters.js <run-dir>`.
 
 ## What makes evidence trustworthy
 
@@ -173,7 +177,7 @@ the issue or pull request by dragging it into the comment box.
   server with `cwd` `test/mcp` and command `npm run start-stdio`.
 - **Automated validation on a pull request.** `microsoft/vscode-engineering` runs the same harness
   in CI: labelling a pull request `~requires-ui-validation` researches the change, runs a scenario
-  against the exact merge candidate, and posts the per-step result with chaptered video. Use this
+  against the exact merge candidate, and posts the per-step result with captioned video. Use this
   skill when a scenario is not yet covered there, or to iterate locally before proposing one.
 
 <example>

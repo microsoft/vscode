@@ -18,11 +18,13 @@ import { renderChapters } from './renderEvidenceChapters';
  * configuring an MCP server:
  *
  * ```
- * node test/mcp/out/runScenario.js <scenario.js> [--build <app-root>]
+ * node test/mcp/out/runScenario.js <scenario.cjs> [--build <app-root>]
  * ```
  *
- * The scenario file is plain CommonJS and is not part of this repository, so it
- * can be written next to the run it produces.
+ * The scenario file is not part of this repository, so it can be written next to
+ * the run it produces. Give a CommonJS scenario a `.cjs` extension, because this
+ * package is an ES module package; an ES module scenario with a default export
+ * works too.
  */
 
 export interface ScenarioContext {
@@ -65,6 +67,8 @@ export interface Scenario {
 class SkipStep extends Error { }
 
 function loadScenario(scenarioPath: string): Scenario {
+	// A CommonJS scenario needs a `.cjs` extension because this package is an ES
+	// module package; an ES module scenario exporting a default works as well.
 	const loaded = require(scenarioPath) as Scenario | { default?: Scenario };
 	const scenario = ('default' in loaded && loaded.default ? loaded.default : loaded) as Scenario;
 	if (!scenario || typeof scenario !== 'object') {
@@ -163,7 +167,7 @@ export async function runScenario(scenario: Scenario): Promise<{ runPath: string
 if (require.main === module) {
 	const scenarioArgument = process.argv.slice(2).find(argument => !argument.startsWith('--'));
 	if (!scenarioArgument) {
-		console.error('Usage: node test/mcp/out/runScenario.js <scenario.js> [--build <app-root>]');
+		console.error('Usage: node test/mcp/out/runScenario.js <scenario.cjs> [--build <app-root>]');
 		process.exit(2);
 	}
 	const scenarioPath = path.resolve(scenarioArgument);
