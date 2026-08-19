@@ -48,6 +48,11 @@ if (fs.existsSync(testDataPath)) {
 	fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
 }
 fs.mkdirSync(testDataPath, { recursive: true });
+// Keep the launched instance out of the real extensions directory. Without this
+// a `--build` run loads whatever the user has installed, which both changes the
+// product under test and copies that extension's logs into the evidence bundle.
+const extensionsPath = path.join(testDataPath, 'extensions-dir');
+fs.mkdirSync(extensionsPath, { recursive: true });
 process.once('exit', () => {
 	try {
 		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
@@ -244,14 +249,11 @@ export async function getApplication({ recordVideo, workspacePath, userSettings,
 	if (extraArgs?.some(arg => arg === '--user-data-dir' || arg.startsWith('--user-data-dir='))) {
 		throw new Error('Per-run extraArgs cannot override the isolated user data directory.');
 	}
-	const testCodePath = getDevElectronPath();
-	const electronPath = testCodePath;
-	if (!fs.existsSync(electronPath || '')) {
-		throw new Error(`Cannot find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
-	}
-	process.env.VSCODE_REPOSITORY = rootPath;
-	process.env.VSCODE_DEV = '1';
-	process.env.VSCODE_CLI = '1';
+	// The from-source environment is resolved once at module load, which is also
+	// where the Electron path is validated. Re-applying it here would set
+	// `VSCODE_DEV=1` for `--build` runs as well: a packaged build then behaves as
+	// if it were running from a checkout and never opens a window, so launching
+	// against an installed build times out waiting for its first window.
 	delete process.env.ELECTRON_RUN_AS_NODE; // Ensure we run as Node.js
 
 	await setup();
@@ -262,6 +264,7 @@ export async function getApplication({ recordVideo, workspacePath, userSettings,
 		// Use provided workspace path, or fall back to rootPath on CI (GitHub Actions)
 		workspacePath: workspacePath ?? (process.env.GITHUB_ACTIONS ? rootPath : undefined),
 		userDataDir: path.join(testDataPath, 'd'),
+		extensionsPath,
 		useInMemorySecretStorage: true,
 		logger,
 		logsPath: logsRootPath,
