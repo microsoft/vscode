@@ -424,6 +424,9 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
+		if (this.renderer.rowClassName) {
+			container.classList.add(this.renderer.rowClassName);
+		}
 		const el = append(container, $('.monaco-tl-row'));
 		const indent = append(el, $('.monaco-tl-indent'));
 		const twistie = append(el, $('.monaco-tl-twistie'));
@@ -447,9 +450,11 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 		this.renderer.disposeElement?.(node, index, templateData.templateData, { ...details, indent: templateData.indentSize });
 
-		if (typeof details?.height === 'number') {
+		if (typeof details?.height === 'number' && this.renderedNodes.get(node) === templateData) {
 			this.renderedNodes.delete(node);
-			this.renderedElements.delete(node.element);
+			if (this.renderedElements.get(node.element) === node) {
+				this.renderedElements.delete(node.element);
+			}
 		}
 	}
 
@@ -3108,6 +3113,22 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		const stickyScrollNode = this.stickyScrollController?.getNode(this.getNode(location));
 		return this.view.getRelativeTop(index, stickyScrollNode?.position ?? this.stickyScrollController?.height);
+	}
+
+	/**
+	 * Returns the absolute top offset of an element in the tree's scroll/content
+	 * space, or `undefined` when the element is not in the tree. Unlike
+	 * {@link getRelativeTop}, this reads the layout height model, so it also
+	 * resolves elements outside the rendered viewport.
+	 */
+	getElementTop(location: TRef): number | undefined {
+		const index = this.model.getListIndex(location);
+
+		if (index === -1) {
+			return undefined;
+		}
+
+		return this.view.getElementTop(index);
 	}
 
 	getViewState(identityProvider = this.options.identityProvider): AbstractTreeViewState {

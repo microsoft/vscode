@@ -14,6 +14,7 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IObservable } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
+import { ThemeColor } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
@@ -55,6 +56,8 @@ export interface IQuickItem {
 	 * directly.
 	 */
 	iconClass?: string;
+	/** Theme color applied to the quick item's icon. */
+	iconColor?: ThemeColor;
 	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
 	/**
@@ -207,6 +210,13 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional anchor for the picker
 	 */
 	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
+
+	/**
+	 * Placement of the quick input relative to {@link anchor}.
+	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
+	 * and auto-sizes its width to match. Defaults to `'above'`.
+	 */
+	anchorPosition?: 'above' | 'overlay';
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
@@ -368,6 +378,13 @@ export interface IQuickInput extends IDisposable {
 	 * An optional anchor for the quick input.
 	 */
 	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
+
+	/**
+	 * Placement of the quick input relative to {@link anchor}.
+	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
+	 * and auto-sizes its width to match. Defaults to `'above'`.
+	 */
+	anchorPosition?: 'above' | 'overlay';
 
 	/**
 	 * Shows the quick input.

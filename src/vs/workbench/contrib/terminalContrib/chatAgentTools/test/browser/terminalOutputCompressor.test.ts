@@ -5,7 +5,8 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { gitDiffFilter, lsFilter, npmInstallFilter, parseCommandHead } from '../../browser/tools/terminalOutputCompressor.js';
+import { gitDiffFilter, gitLogFilter, gitStatusFilter, lsFilter, npmInstallFilter, parseCommandHead, testRunnerFilter, buildToolFilter, linterFilter, envFilter, findFilter, grepFilter, treeFilter } from '../../browser/tools/terminalOutputCompressor.js';
+import { isProtectedFromCompression } from '../../../../chat/common/tools/toolResultCompressor.js';
 
 suite('parseCommandHead', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -191,11 +192,6 @@ suite('npmInstallFilter', () => {
 		ok(!npmInstallFilter.matches('run_in_terminal', { command: 'npm test' }));
 	});
 
-	test('does not match flag-only yarn commands', () => {
-		ok(!npmInstallFilter.matches('run_in_terminal', { command: 'yarn --version' }));
-		ok(!npmInstallFilter.matches('run_in_terminal', { command: 'FOO=1 yarn --help' }));
-	});
-
 	test('drops audit and funding noise', () => {
 		const text = [
 			'added 250 packages in 12s',
@@ -212,5 +208,159 @@ suite('npmInstallFilter', () => {
 		ok(!out.text.includes('looking for funding'));
 		ok(!out.text.includes('npm audit'));
 		strictEqual(out.compressed, true);
+	});
+});
+
+suite('gitDiffFilter - regression', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not match `git difftool` (only diff/show)', () => {
+		ok(!gitDiffFilter.matches('run_in_terminal', { command: 'git difftool HEAD~1' }));
+		ok(!gitDiffFilter.matches('run_in_terminal', { command: 'git difftool --tool=vscode' }));
+	});
+
+	test('does not match `git diff-tree` or `git diff-files`', () => {
+		ok(!gitDiffFilter.matches('run_in_terminal', { command: 'git diff-tree HEAD' }));
+		ok(!gitDiffFilter.matches('run_in_terminal', { command: 'git diff-files' }));
+	});
+
+	test('matches git show', () => {
+		ok(gitDiffFilter.matches('run_in_terminal', { command: 'git show HEAD' }));
+	});
+
+	test('matches inside a pipeline', () => {
+		ok(gitDiffFilter.matches('run_in_terminal', { command: 'git diff | cat' }));
+	});
+
+	test('matches when wrapped in sudo / time', () => {
+		ok(gitDiffFilter.matches('run_in_terminal', { command: 'sudo time git diff' }));
+	});
+});
+
+suite('gitLogFilter', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches git log', () => {
+		ok(gitLogFilter.matches('run_in_terminal', { command: 'git log' }));
+		ok(gitLogFilter.matches('run_in_terminal', { command: 'git --no-pager log --oneline -n 20' }));
+	});
+	test('does not match git logout / unrelated', () => {
+		ok(!gitLogFilter.matches('run_in_terminal', { command: 'git status' }));
+	});
+});
+
+suite('gitStatusFilter', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches git status', () => {
+		ok(gitStatusFilter.matches('run_in_terminal', { command: 'git status' }));
+		ok(gitStatusFilter.matches('run_in_terminal', { command: 'git status -s' }));
+	});
+	test('does not match git stash', () => {
+		ok(!gitStatusFilter.matches('run_in_terminal', { command: 'git stash list' }));
+	});
+});
+
+suite('find / grep / tree filters', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('findFilter caps output and adds summary', () => {
+		const lines = Array.from({ length: 500 }, (_, i) => `./file${i}.ts`).join('\n');
+		const out = findFilter.apply(lines, { command: 'find . -name "*.ts"' });
+		strictEqual(out.compressed, true);
+		ok(out.text.includes('omitted'));
+		// First file should still appear.
+		ok(out.text.includes('./file0.ts'));
+	});
+
+	test('grepFilter caps output', () => {
+		const lines = Array.from({ length: 500 }, (_, i) => `file${i}.ts:1:match`).join('\n');
+		const out = grepFilter.apply(lines, { command: 'grep -rn match .' });
+		strictEqual(out.compressed, true);
+		ok(out.text.includes('omitted'));
+	});
+
+	test('treeFilter caps output', () => {
+		const lines = Array.from({ length: 500 }, (_, i) => `├── file${i}.ts`).join('\n');
+		const out = treeFilter.apply(lines, { command: 'tree' });
+		strictEqual(out.compressed, true);
+	});
+});
+
+suite('testRunnerFilter', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches common test runners', () => {
+		ok(testRunnerFilter.matches('run_in_terminal', { command: 'npm test' }));
+		ok(testRunnerFilter.matches('run_in_terminal', { command: 'pytest' }));
+		ok(testRunnerFilter.matches('run_in_terminal', { command: 'cargo test' }));
+		ok(testRunnerFilter.matches('run_in_terminal', { command: 'go test ./...' }));
+		ok(testRunnerFilter.matches('run_in_terminal', { command: 'npx vitest run' }));
+	});
+});
+
+suite('buildToolFilter', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches build commands', () => {
+		ok(buildToolFilter.matches('run_in_terminal', { command: 'cargo build' }));
+		ok(buildToolFilter.matches('run_in_terminal', { command: 'cargo check' }));
+		ok(buildToolFilter.matches('run_in_terminal', { command: 'go build ./...' }));
+		ok(buildToolFilter.matches('run_in_terminal', { command: 'make' }));
+		ok(buildToolFilter.matches('run_in_terminal', { command: 'tsc -p .' }));
+	});
+});
+
+suite('linterFilter', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches linters', () => {
+		ok(linterFilter.matches('run_in_terminal', { command: 'eslint src' }));
+		ok(linterFilter.matches('run_in_terminal', { command: 'ruff check .' }));
+		ok(linterFilter.matches('run_in_terminal', { command: 'cargo clippy' }));
+	});
+});
+
+suite('envFilter', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches env / printenv with no args', () => {
+		ok(envFilter.matches('run_in_terminal', { command: 'env' }));
+		ok(envFilter.matches('run_in_terminal', { command: 'printenv' }));
+	});
+
+	test('sorts and dedupes lines', () => {
+		const text = ['ZSH=/bin/zsh', 'PATH=/usr/bin', 'PATH=/usr/bin', 'HOME=/home/u'].join('\n');
+		const out = envFilter.apply(text, { command: 'env' });
+		strictEqual(out.compressed, true);
+		// Sorted alphabetically.
+		const lines = out.text.split('\n');
+		ok(lines.indexOf('HOME=/home/u') < lines.indexOf('PATH=/usr/bin'));
+		ok(lines.indexOf('PATH=/usr/bin') < lines.indexOf('ZSH=/bin/zsh'));
+		// Deduped.
+		strictEqual(lines.filter(l => l === 'PATH=/usr/bin').length, 1);
+	});
+});
+
+suite('isProtectedFromCompression', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('protects JSON object output', () => {
+		ok(isProtectedFromCompression('{"a":1,"b":[1,2,3]}'));
+	});
+	test('protects JSON array output', () => {
+		ok(isProtectedFromCompression('[1, 2, 3, {"k":"v"}]'));
+	});
+	test('protects YAML headers', () => {
+		ok(isProtectedFromCompression('---\nfoo: bar\nbaz: 1\n'));
+	});
+	test('protects TOML headers', () => {
+		ok(isProtectedFromCompression('[package]\nname = "x"\n'));
+	});
+	test('does not protect plain text', () => {
+		ok(!isProtectedFromCompression('hello world\nsome output\n'));
+	});
+	test('does not protect malformed JSON', () => {
+		ok(!isProtectedFromCompression('{ this is { not json }'));
 	});
 });

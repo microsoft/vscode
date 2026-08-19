@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptReference, Raw } from '@vscode/prompt-tsx';
-import type { ChatRequest, ChatRequestEditedFileEvent, ChatResponseStream, ChatResult, LanguageModelToolResult } from 'vscode';
+import type { ChatLanguageModelToolReference, ChatRequest, ChatRequestEditedFileEvent, ChatResponseStream, ChatResult, LanguageModelToolResult } from 'vscode';
 import { FilterReason } from '../../../platform/networking/common/openai';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { isLocation, toLocation } from '../../../util/common/types';
@@ -441,6 +441,27 @@ export class RenderedUserMessageMetadata {
 export class GlobalContextMessageMetadata {
 	constructor(
 		readonly renderedGlobalContext: Raw.ChatCompletionContentPart[],
+		readonly cacheKey: string
+	) { }
+}
+
+/**
+ * Captures the customizations-index variable value (the bundled
+ * `<instructions>`/`<skills>`/`<agents>` text) as it appeared on the first
+ * turn of the conversation. Reused on subsequent turns so per-turn churn in
+ * any of those listings (e.g. the active mode swapping which subagent entry
+ * appears in `<agents>`) does not invalidate the system prompt cache. The
+ * cacheKey invalidates the snapshot when something genuinely changed (e.g.
+ * the user opened a different workspace mid-conversation).
+ *
+ * The {@link toolReferences} carry byte offsets into {@link value} and must
+ * be captured together — current-turn references built against current-turn
+ * text would mis-slice the frozen value.
+ */
+export class CustomizationsIndexMetadata {
+	constructor(
+		readonly value: string,
+		readonly toolReferences: readonly ChatLanguageModelToolReference[] | undefined,
 		readonly cacheKey: string
 	) { }
 }

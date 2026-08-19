@@ -1,0 +1,53 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-used-context.chat-collapsible-content-animatable {
+	> .chat-collapsible-content-animation {
+		display: grid;
+		grid-template-rows: 1fr;
+		opacity: 1;
+		visibility: visible;
+
+		> .chat-collapsible-content-animation-inner {
+			min-height: 0;
+			overflow: hidden;
+		}
+	}
+
+	&.chat-collapsible-content-animated.chat-used-context-collapsed > .chat-collapsible-content-animation {
+		grid-template-rows: 0fr;
+		opacity: 0;
+		visibility: hidden;
+	}
+
+	&.chat-collapsible-content-animated > .chat-collapsible-content-animation {
+		transition:
+			grid-template-rows 180ms cubic-bezier(0.2, 0, 0, 1),
+			opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+			visibility 0s;
+	}
+
+	&.chat-collapsible-content-animated.chat-used-context-collapsed > .chat-collapsible-content-animation {
+		transition:
+			grid-template-rows 180ms cubic-bezier(0.2, 0, 0, 1),
+			opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+			visibility 0s linear 180ms;
+	}
+
+	&.chat-used-context-collapsed .chat-used-context-list {
+		display: block;
+	}
+}
+
+.monaco-reduce-motion .chat-collapsible-content-animation,
+.monaco-workbench.monaco-reduce-motion .chat-collapsible-content-animation {
+	transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-collapsible-content-animation {
+		transition: none !important;
+	}
+}

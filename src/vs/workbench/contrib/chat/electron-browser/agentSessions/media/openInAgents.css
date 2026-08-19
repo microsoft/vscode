@@ -9,25 +9,11 @@
 	align-items: center;
 	height: 22px;
 	padding: 0 4px;
-	margin: 0 10px 0 2px;
 	border-radius: 5px;
 	cursor: pointer;
 	color: var(--vscode-titleBar-activeForeground);
 	-webkit-app-region: no-drag;
 	white-space: nowrap;
-	position: relative;
-}
-
-/* Vertical separator drawn as an absolutely positioned pseudo-element so it isn't clipped by any ancestor `overflow: hidden`. */
-.monaco-workbench .open-in-agents-titlebar-widget::after {
-	content: '';
-	position: absolute;
-	right: -6px;
-	top: 4px;
-	bottom: 4px;
-	width: 1px;
-	background-color: var(--vscode-widget-border, rgba(128, 128, 128, 0.5));
-	pointer-events: none;
 }
 
 .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {

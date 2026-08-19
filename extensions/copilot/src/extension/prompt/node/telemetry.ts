@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { TextDocument } from 'vscode';
+import type { ChatRequestModeInstructions, TextDocument } from 'vscode';
 import { ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocumentSnapshot';
 import { ITelemetryService, TelemetryProperties } from '../../../platform/telemetry/common/telemetry';
@@ -17,6 +17,38 @@ export function createTelemetryWithId(): ConversationalBaseTelemetryData {
 	const uniqueId = generateUuid();
 	const baseTelemetry = TelemetryData.createAndMarkAsIssued({ messageId: uniqueId });
 	return new ConversationalTelemetryData(baseTelemetry);
+}
+
+/**
+ * Legacy telemetry compatibility allowlist of custom-provider agents that should still
+ * be reported under their own name rather than the generic `custom` bucket.
+ *
+ * The Plan agent is contributed via a `ChatCustomAgentProvider`, so `isBuiltin` is `false`
+ * even though it is shipped by Copilot. Downstream metrics (e.g. `chat_panel_plan_mode`) key
+ * off the literal value `plan`, so it must be preserved here.
+ */
+const NAMED_CUSTOM_AGENT_MODES = new Set(['plan']);
+
+/**
+ * Resolves the mode name to report in telemetry for a request's mode instructions.
+ *
+ * Built-in modes (Ask, Edit, Agent) report their lowercased name. Custom-provider agents
+ * report `custom`, except for those in {@link NAMED_CUSTOM_AGENT_MODES} which are reported
+ * under their own name for backwards compatibility with downstream metrics.
+ *
+ * @returns the resolved mode name, or `undefined` when no mode instructions are present.
+ */
+export function getModeNameForTelemetry(modeInstructions: ChatRequestModeInstructions | undefined): string | undefined {
+	if (!modeInstructions) {
+		return undefined;
+	}
+
+	const modeName = modeInstructions.name.toLowerCase();
+	if (modeInstructions.isBuiltin || NAMED_CUSTOM_AGENT_MODES.has(modeName)) {
+		return modeName;
+	}
+
+	return 'custom';
 }
 
 export class ConversationalTelemetryData<P extends TelemetryProperties, M extends { [key: string]: number }> {

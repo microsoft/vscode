@@ -261,7 +261,6 @@ describe('Token envelope validators', function () {
 			code_review_enabled: false,
 			codesearch: false,
 			copilotignore_enabled: false,
-			vsc_electron_fetcher_v2: false,
 			public_suggestions: 'enabled',
 			telemetry: 'enabled',
 		};
@@ -281,7 +280,6 @@ describe('Token envelope validators', function () {
 			code_review_enabled: false,
 			codesearch: false,
 			copilotignore_enabled: false,
-			vsc_electron_fetcher_v2: false,
 			public_suggestions: 'enabled',
 			telemetry: 'enabled',
 			limited_user_quotas: null,
@@ -347,7 +345,6 @@ describe('Token envelope validators', function () {
 				code_review_enabled: false,
 				codesearch: false,
 				copilotignore_enabled: false,
-				vsc_electron_fetcher_v2: false,
 				public_suggestions: 'enabled',
 				telemetry: 'enabled',
 			};
@@ -609,6 +606,21 @@ describe('CopilotToken class', function () {
 		const disabledToken = new CopilotToken(createTestExtendedTokenInfo({ blackbird_clientside_indexing: false }));
 		expect(enabledToken.isExpandedClientSideIndexingEnabled()).toBe(true);
 		expect(disabledToken.isExpandedClientSideIndexingEnabled()).toBe(false);
+	});
+
+	it('isBlackbirdExternalIndexingEnabled returns false when flag is absent', function () {
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=test' }));
+		expect(token.isBlackbirdExternalIndexingEnabled()).toBe(false);
+	});
+
+	it('isBlackbirdExternalIndexingEnabled returns false when flag is 0', function () {
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'blackbird_external_indexing=0;tid=test' }));
+		expect(token.isBlackbirdExternalIndexingEnabled()).toBe(false);
+	});
+
+	it('isBlackbirdExternalIndexingEnabled returns true when flag is 1', function () {
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'blackbird_external_indexing=1;tid=test' }));
+		expect(token.isBlackbirdExternalIndexingEnabled()).toBe(true);
 	});
 });
 

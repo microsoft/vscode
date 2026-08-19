@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand, type PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ContributionEnablementState, IEnablementModel } from '../enablement.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
@@ -32,11 +32,19 @@ export type IAgentPluginMcpServerDefinition = IMcpServerDefinition;
 
 export interface IAgentPlugin {
 	readonly uri: URI;
+	readonly format: PluginFormat;
 	/** Human-readable display name for the plugin. */
 	readonly label: string;
 	readonly enablement: IObservable<ContributionEnablementState>;
-	/** Removes this plugin from its discovery source (config or installed storage). */
-	remove(): void;
+	/**
+	 * When `true`, the plugin is blocked by enterprise policy. It remains
+	 * visible (shown as disabled) but its contributions are inactive and the
+	 * user cannot re-enable it. Folded into {@link enablement} so all gating
+	 * consumers honor it automatically.
+	 */
+	readonly policyBlocked?: IObservable<boolean>;
+	/** Removes this plugin from its discovery source (config or installed storage). Undefined for policy-managed plugins that cannot be removed by the user. */
+	remove?(): void;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;
@@ -54,13 +62,19 @@ export interface IAgentPluginService {
 }
 
 export interface IAgentPluginDiscovery extends IDisposable {
-	readonly plugins: IObservable<readonly IAgentPlugin[]>;
+	readonly plugins: IObservable<readonly IAgentPlugin[] | undefined>;
 	start(enablementModel: IEnablementModel): void;
 }
 
-export function getCanonicalPluginCommandId(plugin: { readonly uri: URI }, commandName: string): string {
-	const pluginSegment = basename(plugin.uri);
-	const prefix = normalizePluginToken(pluginSegment);
+export const enum AgentPluginDiscoveryPriority {
+	Configured = 10,
+	Marketplace = 20,
+	Extension = 30,
+	CopilotCli = 40,
+}
+
+export function getCanonicalPluginCommandId(plugin: { readonly uri: URI; readonly label?: string }, commandName: string): string {
+	const prefix = (plugin.label ? normalizePluginToken(plugin.label) : '') || normalizePluginToken(basename(plugin.uri));
 	const normalizedCommand = normalizePluginToken(commandName);
 	if (normalizedCommand.startsWith(`${prefix}:`)) {
 		return normalizedCommand;
@@ -87,17 +101,23 @@ function normalizePluginToken(value: string): string {
 }
 
 class AgentPluginDiscoveryRegistry {
-	private readonly _discovery: SyncDescriptor0<IAgentPluginDiscovery>[] = [];
+	private readonly _discovery: { readonly descriptor: SyncDescriptor0<IAgentPluginDiscovery>; readonly priority: AgentPluginDiscoveryPriority; readonly order: number }[] = [];
+	private _order = 0;
 
-	register(descriptor: SyncDescriptor0<IAgentPluginDiscovery>): void {
-		this._discovery.push(descriptor);
+	register(descriptor: SyncDescriptor0<IAgentPluginDiscovery>, priority: AgentPluginDiscoveryPriority): IDisposable {
+		const registration = { descriptor, priority, order: this._order++ };
+		this._discovery.push(registration);
+		return toDisposable(() => {
+			const index = this._discovery.indexOf(registration);
+			if (index >= 0) {
+				this._discovery.splice(index, 1);
+			}
+		});
 	}
 
-	getAll(): readonly SyncDescriptor0<IAgentPluginDiscovery>[] {
-		return this._discovery;
+	getAll(): readonly { readonly descriptor: SyncDescriptor0<IAgentPluginDiscovery>; readonly priority: AgentPluginDiscoveryPriority; readonly order: number }[] {
+		return [...this._discovery].sort((a, b) => a.priority - b.priority || a.order - b.order);
 	}
 }
 
 export const agentPluginDiscoveryRegistry = new AgentPluginDiscoveryRegistry();
-
-

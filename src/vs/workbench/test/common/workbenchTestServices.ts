@@ -790,12 +790,13 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	context: Lazy<ChatEntitlementContext> | undefined;
 
 	readonly organisations: undefined;
-	readonly isInternal = false;
+	readonly isInternal: boolean = false;
 	readonly sku = undefined;
 	readonly copilotTrackingId = undefined;
 
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly onDidChangeUsageBasedBilling = Event.None;
 	readonly quotas = {};
 
 	update(token: CancellationToken): Promise<void> {
@@ -814,12 +815,14 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
 
+	acceptQuotas(): void { }
+	clearQuotas(): void { }
 	markAnonymousRateLimited(): void { }
 	markSetupCompleted(): void { }
 	setForceHidden(_hidden: boolean): void { }
 
-	readonly previewFeaturesDisabled = false;
 	readonly clientByokEnabled = false;
+	readonly hasByokModels = false;
 }
 
 export class TestLifecycleService extends Disposable implements ILifecycleService {

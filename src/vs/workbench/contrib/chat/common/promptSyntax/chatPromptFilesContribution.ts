@@ -181,11 +181,16 @@ CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): 
 		promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None),
 	]);
 
-	// Combine all files and collect extension-contributed ones
+	// Combine all files and collect extension- and plugin-contributed ones.
+	// Plugin files are included so the copilot extension can trust them and
+	// serve them to the LLM without a confirmation dialog when connected to a
+	// remote (where they are emitted as vscode-local:/... URIs).
 	const result: IExtensionPromptFileResult[] = [];
 	for (const file of [...agents, ...instructions, ...prompts, ...skills, ...hooks]) {
 		if (file.storage === PromptsStorage.extension) {
 			result.push({ uri: file.uri.toJSON(), type: file.type, extensionId: file.extension.identifier.value });
+		} else if (file.storage === PromptsStorage.plugin) {
+			result.push({ uri: file.uri.toJSON(), type: file.type, extensionId: file.pluginUri.toString() });
 		}
 	}
 

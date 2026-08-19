@@ -21,10 +21,10 @@ import { createExtensionUnitTestingServices } from '../../../test/node/services'
 import { IToolCallingLoopOptions, ToolCallingLoop } from '../../node/toolCallingLoop';
 
 class UsageCapturingStream extends ChatResponseStreamImpl {
-	public readonly usages: Array<{ promptTokens: number; completionTokens: number }>;
+	public readonly usages: Array<{ promptTokens: number; completionTokens: number; copilotCredits: number | undefined }>;
 
 	constructor() {
-		const usages: Array<{ promptTokens: number; completionTokens: number }> = [];
+		const usages: Array<{ promptTokens: number; completionTokens: number; copilotCredits: number | undefined }> = [];
 		super(
 			() => { },
 			() => { },
@@ -35,7 +35,8 @@ class UsageCapturingStream extends ChatResponseStreamImpl {
 			(usage) => {
 				usages.push({
 					promptTokens: usage.promptTokens,
-					completionTokens: usage.completionTokens
+					completionTokens: usage.completionTokens,
+					copilotCredits: usage.copilotCredits
 				});
 			}
 		);
@@ -65,6 +66,36 @@ class UsageTestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptions> 
 				prompt_tokens: 100,
 				completion_tokens: 20,
 				total_tokens: 120
+			},
+			resolvedModel: 'gpt-4.1'
+		};
+	}
+}
+
+class CreditsTestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptions> {
+	protected override async buildPrompt(_buildPromptContext: IBuildPromptContext): Promise<IBuildPromptResult> {
+		return {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world')] }],
+		};
+	}
+
+	protected override async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
+		return [];
+	}
+
+	// Each model call bills 5 credits (5 * 1e9 nano-AIU).
+	protected override async fetch(): Promise<ChatResponse> {
+		return {
+			type: ChatFetchResponseType.Success,
+			value: 'test-response',
+			requestId: 'request-id',
+			serverRequestId: undefined,
+			usage: {
+				prompt_tokens: 100,
+				completion_tokens: 20,
+				total_tokens: 120,
+				copilot_usage: { total_nano_aiu: 5_000_000_000 }
 			},
 			resolvedModel: 'gpt-4.1'
 		};
@@ -136,7 +167,7 @@ describe('ToolCallingLoop usage reporting', () => {
 
 		await loop.runOne(stream, 0, tokenSource.token);
 
-		expect(stream.usages).toEqual([{ promptTokens: 100, completionTokens: 20 }]);
+		expect(stream.usages).toEqual([{ promptTokens: 100, completionTokens: 20, copilotCredits: undefined }]);
 	});
 
 	it('does not report usage for subagent requests', async () => {
@@ -158,5 +189,49 @@ describe('ToolCallingLoop usage reporting', () => {
 		await loop.runOne(stream, 0, tokenSource.token);
 
 		expect(stream.usages).toHaveLength(0);
+	});
+
+	it('reports credits-only usage for subagent requests', async () => {
+		const request = createMockChatRequest({
+			subAgentInvocationId: 'subagent-credits-test',
+			subAgentName: 'search'
+		});
+		const loop = instantiationService.createInstance(
+			CreditsTestToolCallingLoop,
+			{
+				conversation: createConversation(request.prompt),
+				toolCallLimit: 1,
+				request,
+			}
+		);
+		disposables.add(loop);
+		const stream = new UsageCapturingStream();
+
+		await loop.runOne(stream, 0, tokenSource.token);
+
+		// Subagents report their running credit total with no token counts so the
+		// subagent tool can surface its own cost without inflating the parent widget.
+		expect(stream.usages).toEqual([{ promptTokens: 0, completionTokens: 0, copilotCredits: 5 }]);
+	});
+
+	it('accumulates copilot credits across iterations within a turn', async () => {
+		const request = createMockChatRequest();
+		const loop = instantiationService.createInstance(
+			CreditsTestToolCallingLoop,
+			{
+				conversation: createConversation(request.prompt),
+				toolCallLimit: 5,
+				request,
+			}
+		);
+		disposables.add(loop);
+		const stream = new UsageCapturingStream();
+
+		// Two model calls in the same turn: the per-request credits must be the
+		// running total (5, then 10), not just the final call's 5.
+		await loop.runOne(stream, 0, tokenSource.token);
+		await loop.runOne(stream, 1, tokenSource.token);
+
+		expect(stream.usages.map(u => u.copilotCredits)).toEqual([5, 10]);
 	});
 });

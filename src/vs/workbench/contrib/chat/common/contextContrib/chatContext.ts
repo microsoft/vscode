@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
 
 export interface IChatContextItem {
-	icon?: ThemeIcon;
+	iconPath?: ChatContextIconPath;
 	label?: string;
 	resourceUri?: URI;
 	modelDescription?: string;
@@ -32,6 +32,6 @@ export interface IChatExplicitContextProvider {
 }
 
 export interface IChatResourceContextProvider {
-	provideChatContext(resource: URI, withValue: boolean, token: CancellationToken): Promise<IChatContextItem | undefined>;
+	provideChatContext(resource: URI, withValue: boolean, viewType: string | undefined, token: CancellationToken): Promise<IChatContextItem | undefined>;
 	resolveChatContext(context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
 }

@@ -1,0 +1,136 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
+
+suite('Chat Accessibility Help', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only describes inline attachment references when supported', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			supported: getAccessibilityHelpText('agentView', keybindingService, true).includes('type # or @'),
+			unsupported: getAccessibilityHelpText('agentView', keybindingService, false).includes('type # or @'),
+		}, {
+			supported: true,
+			unsupported: false,
+		});
+	});
+
+	test('describes long pasted text attachments', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text'),
+		}, {
+			agentView: true,
+			inlineChat: true,
+		});
+	});
+
+	test('describes the VS Code pet context menu', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const helpText = getAccessibilityHelpText('agentView', keybindingService, true);
+
+		assert.deepStrictEqual({
+			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
+			navigation: helpText.includes('use the up and down arrow keys to choose'),
+			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
+			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
+			petThrowing: helpText.includes('flick it in any direction') && helpText.includes('gravity pulls it down') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
+			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
+			petScale: helpText.includes('position and selected size are shared across chats and windows') && helpText.includes('remembered after you restart'),
+		}, {
+			keybinding: true,
+			navigation: true,
+			actions: true,
+			petMovement: true,
+			petHopping: true,
+			petThrowing: true,
+			petRevival: true,
+			petScale: true,
+		});
+	});
+
+	test('only describes the selection side chat affordance in the sessions window', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			sessionsWindow: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Ask Question'),
+			regularWindow: getAccessibilityHelpText('agentView', keybindingService, true, false).includes('Ask Question'),
+		}, {
+			sessionsWindow: true,
+			regularWindow: false,
+		});
+	});
+
+	test('only describes the sticky prompt header when it is shown', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const shownHelp = getAccessibilityHelpText('agentView', keybindingService, true, false, true);
+		const hiddenHelp = getAccessibilityHelpText('agentView', keybindingService, true, false, false);
+
+		assert.deepStrictEqual({
+			shown: shownHelp.includes('pinned to the top of the transcript'),
+			notShown: hiddenHelp.includes('pinned to the top of the transcript'),
+			byDefault: getAccessibilityHelpText('agentView', keybindingService, true).includes('pinned to the top of the transcript'),
+			navigationButtons: shownHelp.includes('Go to Previous Prompt') || shownHelp.includes('Go to Next Prompt'),
+		}, {
+			shown: true,
+			notShown: false,
+			byDefault: false,
+			navigationButtons: false,
+		});
+	});
+
+	test('only describes spoken agent progress in agent mode', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('brief progress updates'),
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('brief progress updates'),
+		}, {
+			agentView: true,
+			panelChat: false,
+		});
+	});
+
+	test('documents transcript Find everywhere it is enabled, but not in quick chat', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+		}, {
+			panelChat: true,
+			agentView: true,
+			editsView: true,
+			quickChat: false,
+			inlineChat: false,
+		});
+	});
+});
