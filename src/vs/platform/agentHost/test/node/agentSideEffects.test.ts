@@ -1446,6 +1446,22 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('a replayed call no client provides completes as a visible failure', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			// No active client contributes the tool, so the call can only be failed.
+			agent.fireProgress({ kind: 'client_tool_invoked', chat: URI.parse(defaultChatUri), toolCallId: 'tu_orphan', toolName: 'openBrowserPage', toolInput: '{}' });
+
+			const parts = stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts ?? [];
+			const toolCalls = parts.filter(part => part.kind === ResponsePartKind.ToolCall).map(part => part.toolCall);
+			assert.deepStrictEqual(
+				toolCalls.map(tc => ({ id: tc.toolCallId, status: tc.status, success: tc.status === ToolCallStatus.Completed ? tc.success : undefined })),
+				[{ id: 'tu_orphan', status: ToolCallStatus.Completed, success: false }],
+			);
+		});
+
 		test('does not duplicate a Codex provider-owned failure when sendMessage resolves', async () => {
 			setupSession();
 			disposables.add(sideEffects.registerProgressListener(agent));

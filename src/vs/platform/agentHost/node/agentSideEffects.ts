@@ -1009,6 +1009,22 @@ export class AgentSideEffects extends Disposable {
 			// The runtime is parked on this call, so failing it is the only way to unwind the turn.
 			this._logService.warn(`[AgentSideEffects] No active client provides replayed tool ${signal.toolName}; failing ${signal.toolCallId}`);
 			const error = { message: localize('agentHost.clientTool.noOwner', "No connected client provides the tool \"{0}\".", signal.toolName), code: 'toolUnavailable' };
+			// A completion for a call that was never started reduces to nothing, so open it first.
+			this._stateManager.dispatchServerAction(sessionKey, {
+				type: ActionType.ChatToolCallStart,
+				turnId,
+				toolCallId: signal.toolCallId,
+				toolName: signal.toolName,
+				displayName: signal.toolName,
+			});
+			this._stateManager.dispatchServerAction(sessionKey, {
+				type: ActionType.ChatToolCallReady,
+				turnId,
+				toolCallId: signal.toolCallId,
+				invocationMessage: signal.toolName,
+				toolInput: signal.toolInput,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
 			this._stateManager.dispatchServerAction(sessionKey, {
 				type: ActionType.ChatToolCallComplete,
 				turnId,
