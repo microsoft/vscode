@@ -226,8 +226,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		}
 
 		// A policy can also react to the mere *presence* of managed settings rather than to a
-		// declared key (see `thirdPartyAgentEnabledValue`). Probe for that too, so the Policy
-		// Diagnostics report attributes it to the governing channels instead of the account.
+		// declared key, so probe for that too and attribute it to the governing channels.
 		if (source === PolicyValueSource.Account && policyData.managedSettingsActive === true
 			&& valueProvider({ ...policyData, managedSettingsActive: false }) !== value) {
 			const channels = new Set<ManagedSettingsChannel>();

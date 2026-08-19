@@ -195,8 +195,8 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					// Mirrors the third-party harness policies: reacts to the presence of managed
-					// settings rather than to a declared key, so it declares no `managedSettings`.
+					// Mirrors the third-party harness policies: keys off the presence of managed
+					// settings, so it deliberately declares no `managedSettings`.
 					value: thirdPartyAgentEnabledValue,
 				}
 			}
@@ -512,9 +512,7 @@ suite('AccountPolicyService', () => {
 	});
 
 	test('managed settings: their mere presence disables the third-party harnesses', async () => {
-		// The enterprise sets a runtime-owned key VS Code never declares. It still counts as
-		// governance, because managed settings are enforced by the Copilot runtime and never
-		// reach the Claude/Codex harnesses.
+		// A runtime-owned key VS Code never declares still counts as governance.
 		const fileManagedSettingsService = new FakeFileManagedSettingsService({ 'permissions.deny': '["Bash"]' });
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, undefined, fileManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));

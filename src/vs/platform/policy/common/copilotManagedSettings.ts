@@ -207,16 +207,12 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
 
 /**
  * `value` callback shared by the third-party agent harness policies (`Claude3PIntegration`,
- * `Codex3PIntegration`). It forces the harness off in two cases:
+ * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
+ * or when the user is governed by managed settings at all.
  *
- * - the account disables chat preview features, the original gate; and
- * - the user is governed by Copilot managed settings at all
- *   ({@link IPolicyData.managedSettingsActive}). Managed settings are composed and enforced by
- *   the Copilot runtime and never reach the Claude or Codex harnesses, so leaving those
- *   harnesses available would hand a governed user an ungoverned path around every managed
- *   control the enterprise set.
- *
- * Returns `undefined` otherwise, so an ungoverned user's own setting falls through.
+ * Managed settings are composed and enforced by the Copilot runtime and never reach the Claude or
+ * Codex harnesses, so leaving them available would hand a governed user an ungoverned path around
+ * every managed control the enterprise set.
  */
 export function thirdPartyAgentEnabledValue(policyData: IPolicyData): boolean | undefined {
 	return policyData.chat_preview_features_enabled === false || policyData.managedSettingsActive === true
