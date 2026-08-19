@@ -7,5 +7,6 @@ steps:
     path: s
     fetchDepth: 1
     fetchTags: false
+    persistCredentials: true
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode
