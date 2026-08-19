@@ -300,14 +300,14 @@ suite('NativeExtensionsScanerService Test', () => {
 		assert.deepStrictEqual(actual!.manifest.displayName, 'Hello World');
 	});
 
-	test('scan existing extension without language uses platform language for nls', async () => {
+	test('scan existing extension falls back to platform language for nls when language is undefined', async () => {
 		const extensionLocation = await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', displayName: '%displayName%' }));
 		await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.nls.json'), VSBuffer.fromString(JSON.stringify({ displayName: 'Hello World' })));
-		// Localized bundle for the platform language. In tests the platform language is 'en'.
+		// Localized bundle for the platform language
 		const nlsLocation = joinPath(extensionLocation, `package.nls.${platform.language}.json`);
 		await instantiationService.get(IFileService).writeFile(nlsLocation, VSBuffer.fromString(JSON.stringify({ displayName: 'Hello World Localized' })));
 		// Not built, so the scanner would skip localization. Simulate a built environment to exercise the language lookup.
-		instantiationService.stub(INativeEnvironmentService, { ...instantiationService.get(INativeEnvironmentService), isBuilt: true });
+		instantiationService.stub(INativeEnvironmentService, 'isBuilt', true);
 		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		// No language is passed - this simulates the incremental scan after an extension install/update
