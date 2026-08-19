@@ -119,6 +119,11 @@ export class AgentHostSessionListStore extends Disposable {
 		return this._pendingNewSessions.has(this._key(provider, rawId));
 	}
 
+	/** Stop treating a locally-created session as pending without adding it to the visible list. */
+	clearPendingNewSession(provider: string, rawId: string): void {
+		this._pendingNewSessions.delete(this._key(provider, rawId));
+	}
+
 	resetCache(): void {
 		this._cacheValid = false;
 		this._mutationGeneration++;

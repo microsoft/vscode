@@ -193,6 +193,7 @@ async function main(): Promise<void> {
 		loggerService,
 		disposables,
 		disableTelemetry: options.quiet,
+		transientProxyConfiguration: false,
 		hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
 		providerInfrastructure: options.quiet ? undefined : {

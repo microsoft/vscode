@@ -8,8 +8,6 @@ import { Event } from '../../../base/common/event.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Schemas } from '../../../base/common/network.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { ConfigurationService } from '../../configuration/common/configurationService.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { FileService } from '../../files/common/fileService.js';
@@ -18,7 +16,6 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILoggerService, ILogService } from '../../log/common/log.js';
-import { IPolicyService, NullPolicyService } from '../../policy/common/policy.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -73,6 +70,7 @@ export interface ICreateAgentHostRuntimeOptions {
 	readonly loggerService: ILoggerService | undefined;
 	readonly disposables: DisposableStore;
 	readonly disableTelemetry?: boolean;
+	readonly transientProxyConfiguration: boolean;
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly providerConfigurations: readonly IAgentCustomizationSettingsRegistration[];
 	readonly providerInfrastructure?: IAgentHostProviderInfrastructureOptions;
@@ -90,41 +88,25 @@ export interface IAgentHostRuntime {
 }
 
 /**
- * Register `IPolicyService`, `IConfigurationService`, `IAgentHostProxyResolver`,
- * and `IRequestService` into the agent host's DI container — the services that
- * `IAgentSdkDownloader` (and proxy-aware network diagnostics) depend on.
+ * Register `IAgentHostProxyResolver` and `IRequestService` into the agent host's
+ * DI container — the services that `IAgentSdkDownloader` (and proxy-aware
+ * network diagnostics) depend on.
  *
  * Used by both entry points (`agentHostMain.ts` and `agentHostServerMain.ts`)
  * to avoid drift between them. The order of registration matters because
- * `RequestService` injects `IConfigurationService`; consumers (the downloader
- * itself, and through it `ClaudeAgentSdkService` / `CodexAgent`) must be
- * constructed AFTER this call.
- *
- * Reads the default profile's `settings.json` from `<appSettingsHome>` —
- * the same file the workbench writes user settings to. Initialization is
- * async because the settings file is read off disk.
- *
- * `NullPolicyService` matches the pattern used by sibling node-side processes
- * (server, CLI). Enterprise policy enforcement happens in the main process and
- * lands in `settings.json`; we don't re-resolve it here. `RequestService` runs
- * in `'local'` mode because the agent host runs on the user's machine.
+ * Consumers (the downloader itself, and through it `ClaudeAgentSdkService` /
+ * `CodexAgent`) must be constructed AFTER this call. The resolver is bound to
+ * `IAgentConfigurationService` after `AgentService` creates the host-owned
+ * configuration service.
  */
-export async function registerAgentHostNetworkServices(
+export function registerAgentHostNetworkServices(
 	services: ServiceCollection,
-	fileService: IFileService,
-	environmentService: INativeEnvironmentService,
 	logService: ILogService,
 	disposables: DisposableStore,
-): Promise<IAgentHostNetworkServices> {
-	const policyService = new NullPolicyService();
-	services.set(IPolicyService, policyService);
-	const settingsResource = joinPath(environmentService.appSettingsHome, 'settings.json');
-	const configurationService = disposables.add(new ConfigurationService(settingsResource, fileService, policyService, logService));
-	await configurationService.initialize();
-	services.set(IConfigurationService, configurationService);
-	const proxyResolver = disposables.add(new AgentHostProxyResolver(configurationService, logService));
+): IAgentHostNetworkServices {
+	const proxyResolver = disposables.add(new AgentHostProxyResolver(logService));
 	services.set(IAgentHostProxyResolver, proxyResolver);
-	const requestService = disposables.add(new AgentHostRequestService(configurationService, environmentService, logService, proxyResolver));
+	const requestService = disposables.add(new AgentHostRequestService(logService, proxyResolver));
 	services.set(IRequestService, requestService);
 	return { proxyResolver, requestService };
 }
@@ -142,7 +124,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		[ISessionDataService, sessionDataService],
 		[IProductService, productService],
 	);
-	const networkServices = await registerAgentHostNetworkServices(services, fileService, environmentService, logService, disposables);
+	const networkServices = registerAgentHostNetworkServices(services, logService, disposables);
 	const proxyResolver = networkServices.proxyResolver;
 	const fetchFn = proxyResolver.fetch.bind(proxyResolver);
 	const telemetryService = await createAgentHostTelemetryService({
@@ -175,6 +157,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			},
 		};
 		const agentService = instantiationService.createInstance(AgentService, agentServiceOptions, services);
+		proxyResolver.bindConfigurationService(agentService.configurationService, options.transientProxyConfiguration);
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		services.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);

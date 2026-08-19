@@ -119,6 +119,7 @@ async function startAgentHost(): Promise<void> {
 			logService,
 			loggerService,
 			disposables,
+			transientProxyConfiguration: true,
 			hostLaunchKind,
 			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
 			providerInfrastructure: {

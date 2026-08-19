@@ -50,7 +50,10 @@ export function createTestAgentService(
 	const proxyResolver: IAgentHostProxyResolver = {
 		_serviceBrand: undefined,
 		onDidRegisterConnection: Event.None,
+		onDidChangeConfiguration: Event.None,
 		register: () => Disposable.None,
+		bindConfigurationService: () => { },
+		getConfigurationValue: () => undefined,
 		resolveProxy: async () => undefined,
 		fetch: fetchFn,
 	};
