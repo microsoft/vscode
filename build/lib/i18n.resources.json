@@ -83,10 +83,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/agentEditorComments",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/assignment",
 			"project": "vscode-workbench"
 		},
@@ -96,6 +92,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/extensions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/externalEditorImport",
 			"project": "vscode-workbench"
 		},
 		{
@@ -368,10 +368,6 @@
 		},
 		{
 			"name": "vs/workbench/services/actions",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/services/agentHost",
 			"project": "vscode-workbench"
 		},
 		{
@@ -689,6 +685,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/promptTimeline",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/providers/copilotChatSessions",
 			"project": "vscode-sessions"
 		},
@@ -701,10 +701,6 @@
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/customViewTest",
-			"project": "vscode-sessions"
-		},
-		{
 			"name": "vs/sessions/contrib/fileTreeView",
 			"project": "vscode-sessions"
 		},
@@ -714,10 +710,6 @@
 		},
 		{
 			"name": "vs/sessions/contrib/search",
-			"project": "vscode-sessions"
-		},
-		{
-			"name": "vs/sessions/contrib/sideChat",
 			"project": "vscode-sessions"
 		},
 		{

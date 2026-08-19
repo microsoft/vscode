@@ -325,8 +325,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 	private readonly providerSetupPart: MutableDisposable<ChatProviderSetupPart> = this._register(new MutableDisposable());
-	/** Set once the user closes the provider list, so it stays closed. */
-	private providerSetupDismissed = false;
 
 	private readonly _gettingStartedTipPart = this._register(new MutableDisposable<DisposableStore>());
 	private _gettingStartedTipPartRef: ChatTipContentPart | undefined;
@@ -1191,8 +1189,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * bring-your-own-key models configured, and with AI features still visible.
 	 */
 	private shouldShowProviderSetup(): boolean {
-		return !this.providerSetupDismissed
-			&& this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
+		return this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
 			&& !this.chatEntitlementService.hasByokModels
 			&& !this.chatEntitlementService.sentiment.hidden;
 	}
@@ -1230,12 +1227,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					if (!this.providerSetupPart.value) {
 						dom.clearNode(this.welcomeMessageContainer);
 						this.welcomePart.clear();
-						const part = this.providerSetupPart.value = this.instantiationService.createInstance(ChatProviderSetupPart, { showDismiss: true });
-						this._register(part.onDidDismiss(() => {
-							this.providerSetupDismissed = true;
-							this.setInputVisible(true);
-							this.renderWelcomeViewContentIfNeeded();
-						}));
+						const part = this.providerSetupPart.value = this.instantiationService.createInstance(ChatProviderSetupPart);
 						dom.append(this.welcomeMessageContainer, part.element);
 					}
 					this.updateChatViewVisibility();

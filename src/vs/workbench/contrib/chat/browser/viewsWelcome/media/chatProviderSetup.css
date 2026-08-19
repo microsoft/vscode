@@ -28,16 +28,8 @@
 
 .chat-provider-setup-intro {
 	display: flex;
-	align-items: flex-start;
-	gap: 8px;
-}
-
-.chat-provider-setup-heading {
-	display: flex;
-	flex: 1;
 	flex-direction: column;
 	gap: 2px;
-	min-width: 0;
 }
 
 .chat-provider-setup-title {
@@ -49,44 +41,16 @@
 	letter-spacing: -0.005em;
 }
 
-/* Quiet until sought: the panel is the point, dismissing it is the exception. */
-.chat-provider-setup-dismiss {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	width: 22px;
-	height: 22px;
-	padding: 0;
-	border: none;
-	border-radius: 5px;
-	background: none;
-	color: var(--vscode-descriptionForeground);
-	cursor: pointer;
-	opacity: 0.7;
-	transition: background 120ms ease, opacity 120ms ease;
-}
-
-.chat-provider-setup-dismiss:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 9%, transparent);
-	color: var(--vscode-foreground);
-	opacity: 1;
-}
-
-.chat-provider-setup-dismiss:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
-	opacity: 1;
-}
-
-.chat-provider-setup-dismiss .codicon {
-	font-size: 14px;
-}
-
 /*
  * One container around the group, not three around each row. The list is a
  * single object, so it gets a single edge; the rows inside are separated by
  * hairlines rather than each being re-boxed.
+ */
+/*
+ * The same grouped object as the modal's sign-in step: one container, rows
+ * separated by hairlines, toggles rather than buttons. Someone who has seen
+ * the modal should recognise this immediately instead of learning a second
+ * design for the same decision.
  */
 .chat-provider-setup-list {
 	display: flex;
@@ -97,25 +61,16 @@
 	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
 }
 
-/*
- * A row is a line of text you can click, not a card. Dropping the border,
- * the fill and the button leaves only the three things that carry meaning --
- * mark, name, description -- and the hover does the work the box was doing.
- */
 .chat-provider-setup-row {
 	display: flex;
 	align-items: center;
 	gap: 10px;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 9px 11px;
+	padding: 10px 12px;
 	border: none;
 	border-top: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 9%, transparent);
-	border-radius: 0;
 	background: none;
-	color: inherit;
-	font: inherit;
-	text-align: left;
 	cursor: pointer;
 	transition: background 100ms ease;
 }
@@ -128,9 +83,79 @@
 	background: color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
 }
 
-.chat-provider-setup-row:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
+.chat-provider-setup-row.selected {
+	background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent);
+}
+
+.chat-provider-setup-row.selected:hover {
+	background: color-mix(in srgb, var(--vscode-focusBorder) 14%, transparent);
+}
+
+/*
+ * The real input stays in the accessibility tree and keeps keyboard focus;
+ * the pill below is its skin. Clipped rather than faded because a native
+ * checkbox still paints its box at low opacity.
+ */
+.chat-provider-setup-checkbox {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	appearance: none;
+	-webkit-appearance: none;
+	background: none;
+	clip-path: inset(50%);
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.chat-provider-setup-toggle {
+	position: relative;
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	box-sizing: border-box;
+	width: 30px;
+	height: 18px;
+	padding: 2px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 22%, transparent);
+	/* High-contrast themes carry meaning in borders, where the tint vanishes. */
+	outline: 1px solid var(--vscode-contrastBorder, transparent);
 	outline-offset: -1px;
+	transition: background 140ms ease;
+}
+
+.chat-provider-setup-row:hover .chat-provider-setup-toggle {
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 32%, transparent);
+}
+
+.chat-provider-setup-row.selected .chat-provider-setup-toggle {
+	background: var(--vscode-button-background);
+}
+
+/*
+ * The ring keeps the knob legible on light themes, where the neutral track
+ * composites to a pale grey and a white knob would sit near 1.5:1.
+ */
+.chat-provider-setup-toggle-knob {
+	width: 14px;
+	height: 14px;
+	border-radius: 999px;
+	background: var(--vscode-button-foreground, #ffffff);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.3);
+	transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chat-provider-setup-row.selected .chat-provider-setup-toggle-knob {
+	transform: translateX(12px);
+}
+
+.chat-provider-setup-checkbox:focus-visible + .chat-provider-setup-toggle {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .chat-provider-setup-mark {
@@ -141,7 +166,12 @@
 	width: 18px;
 	height: 18px;
 	color: var(--vscode-foreground);
-	opacity: 0.9;
+	opacity: 0.7;
+	transition: opacity 140ms ease;
+}
+
+.chat-provider-setup-row.selected .chat-provider-setup-mark {
+	opacity: 1;
 }
 
 .chat-provider-setup-mark .codicon {
@@ -188,34 +218,45 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-/* Points where the row goes; appears on approach rather than shouting. */
-.chat-provider-setup-go {
+.chat-provider-setup-footer {
 	display: flex;
-	align-items: center;
-	flex: 0 0 auto;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0;
-	transition: opacity 100ms ease;
+	justify-content: flex-end;
 }
 
-.chat-provider-setup-row:hover .chat-provider-setup-go,
-.chat-provider-setup-row:focus-visible .chat-provider-setup-go {
-	opacity: 1;
+.chat-provider-setup-continue {
+	padding: 5px 16px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 5px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 120ms ease;
 }
 
-.chat-provider-setup-go .codicon {
-	font-size: 14px;
+.chat-provider-setup-continue:hover:not(:disabled) {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.chat-provider-setup-continue:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.chat-provider-setup-continue:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 /*
- * Wide surfaces (the Agents composer) lay the rows out side by side. They
- * stay plain lines there too -- only the direction changes.
+ * Wide surfaces (the Agents composer) lay the rows out side by side. Same
+ * object, only the direction changes.
  */
 @container (min-width: 620px) {
 	.chat-provider-setup-list {
 		flex-direction: row;
 		align-items: stretch;
-		gap: 4px;
 	}
 
 	.chat-provider-setup-row {

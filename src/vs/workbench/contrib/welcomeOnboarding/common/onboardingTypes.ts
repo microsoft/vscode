@@ -13,6 +13,7 @@ import { IProductOnboardingTheme } from '../../../../base/common/product.js';
 export const enum OnboardingStepId {
 	SignIn = 'onboarding.signIn',
 	Personalize = 'onboarding.personalize',
+	ImportFromEditor = 'onboarding.importFromEditor',
 	AiPreference = 'onboarding.aiPreference',
 	AgentSessions = 'onboarding.agentSessions',
 }
@@ -23,13 +24,15 @@ export const enum OnboardingStepId {
 export function getOnboardingStepTitle(stepId: OnboardingStepId): string {
 	switch (stepId) {
 		case OnboardingStepId.SignIn:
-			return localize('onboarding.step.signIn', "Sign In");
+			return localize('onboarding.step.signIn', "Let's Get Started");
 		case OnboardingStepId.Personalize:
 			return localize('onboarding.step.personalize', "Make It Yours");
+		case OnboardingStepId.ImportFromEditor:
+			return localize('onboarding.step.importFromEditor', "Bring Your Setup Along");
 		case OnboardingStepId.AiPreference:
 			return localize('onboarding.step.aiPreference', "Your AI Style");
 		case OnboardingStepId.AgentSessions:
-			return localize('onboarding.step.agentSessions', "Build with AI Agents");
+			return localize('onboarding.step.agentSessions', "You're All Set");
 	}
 }
 
@@ -39,13 +42,15 @@ export function getOnboardingStepTitle(stepId: OnboardingStepId): string {
 export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 	switch (stepId) {
 		case OnboardingStepId.SignIn:
-			return localize('onboarding.step.signIn.subtitle', "Sync settings, unlock AI features, and connect to GitHub");
+			return localize('onboarding.step.signIn.subtitle', "Pick where your AI models come from. You can change this whenever you like");
 		case OnboardingStepId.Personalize:
-			return localize('onboarding.step.personalize.subtitle', "Choose your theme and keyboard mapping");
+			return localize('onboarding.step.personalize.subtitle', "Pick a theme and keyboard shortcuts that feel like home");
+		case OnboardingStepId.ImportFromEditor:
+			return localize('onboarding.step.importFromEditor.subtitle', "Already use another editor? Bring your settings, keybindings, and extensions with you");
 		case OnboardingStepId.AiPreference:
 			return localize('onboarding.step.aiPreference.subtitle', "Choose how much AI collaboration fits your workflow");
 		case OnboardingStepId.AgentSessions:
-			return localize('onboarding.step.agentSessions.subtitle', "Open Chat anytime with {0}", isMacintosh ? '\u2318\u2303I' : 'Ctrl+Alt+I');
+			return localize('onboarding.step.agentSessions.subtitle', "Open Chat anytime with {0} and start building", isMacintosh ? '\u2318\u2303I' : 'Ctrl+Alt+I');
 	}
 }
 

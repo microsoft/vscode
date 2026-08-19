@@ -7,14 +7,13 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 
@@ -22,12 +21,12 @@ const $ = dom.$;
 
 type ChatProviderSetupClassification = {
 	owner: 'eli-w-king';
-	comment: 'Tracks which AI provider a signed-out user chooses from the chat panel setup list.';
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider row that was activated.' };
+	comment: 'Tracks which AI providers a signed-out user turns on from the chat panel setup list.';
+	providers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma separated ids of the providers that were switched on.' };
 };
 
 type ChatProviderSetupEvent = {
-	provider: string;
+	providers: string;
 };
 
 interface IChatProviderRow {
@@ -37,38 +36,26 @@ interface IChatProviderRow {
 	readonly icon?: ThemeIcon;
 	readonly name: string;
 	readonly description: string;
-	readonly actionLabel: string;
-	readonly primary?: boolean;
 	readonly commandId: string;
 }
 
-export interface IChatProviderSetupOptions {
-	/**
-	 * Renders a close affordance. Surfaces with no other way past the panel —
-	 * the Agents window composer — need one; the editor sidebar reveals its
-	 * input as soon as a provider exists.
-	 */
-	readonly showDismiss?: boolean;
-}
-
 /**
- * The signed-out chat panel. Instead of a single "Sign In" call to action that
- * hides every other way of working, this lists the ways to get models and lets
- * the user pick one without leaving chat.
+ * The signed-out chat surface. Instead of a single "Sign In" call to action
+ * that hides every other way of working, this lists the ways to get models.
  *
- * The list adapts to the width it is given: a narrow sidebar stacks the rows,
- * a wide composer lays them out side by side. Both come from the same DOM, so
- * there is one structure to reason about rather than two layouts to sync.
+ * It deliberately mirrors the onboarding modal's sign-in step — the same toggle
+ * rows, the same grouped container, Copilot already on — so a user who has seen
+ * one recognises the other rather than learning two designs for one decision.
  */
 export class ChatProviderSetupPart extends Disposable {
 
 	readonly element: HTMLElement;
 
-	private readonly _onDidDismiss = this._register(new Emitter<void>());
-	readonly onDidDismiss: Event<void> = this._onDidDismiss.event;
+	/** Providers switched on; Copilot leads by default. */
+	private readonly selected = new Set<string>(['copilot']);
+	private continueButton: HTMLButtonElement | undefined;
 
 	constructor(
-		private readonly options: IChatProviderSetupOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -87,44 +74,42 @@ export class ChatProviderSetupPart extends Disposable {
 
 	private render(): void {
 		const intro = dom.append(this.element, $('.chat-provider-setup-intro'));
-		const heading = dom.append(intro, $('.chat-provider-setup-heading'));
-		const title = dom.append(heading, $('h2.chat-provider-setup-title'));
-		title.textContent = localize('chat.providerSetup.title', "Choose how to get models");
-
-		if (this.options.showDismiss) {
-			const dismiss = dom.append(intro, $<HTMLButtonElement>('button.chat-provider-setup-dismiss'));
-			dismiss.type = 'button';
-			dismiss.appendChild(renderIcon(Codicon.close));
-			dismiss.setAttribute('aria-label', localize('chat.providerSetup.dismiss.aria', "Dismiss provider setup"));
-			dismiss.title = localize('chat.providerSetup.dismiss', "Dismiss");
-			this._register(dom.addDisposableListener(dismiss, dom.EventType.CLICK, () => {
-				this._onDidDismiss.fire();
-			}));
-		}
+		const title = dom.append(intro, $('h2.chat-provider-setup-title'));
+		title.textContent = localize('chat.providerSetup.title', "Let's get you set up");
+		const subtitle = dom.append(intro, $('p.chat-provider-setup-subtitle'));
+		subtitle.textContent = localize('chat.providerSetup.subtitle', "Turn on what you'd like to use. You can add more later.");
 
 		const list = dom.append(this.element, $('.chat-provider-setup-list'));
 		list.setAttribute('role', 'group');
 		list.setAttribute('aria-label', localize('chat.providerSetup.list.aria', "Ways to get models"));
 
-		const rows: IChatProviderRow[] = [
+		for (const row of this.getRows()) {
+			this.renderRow(list, row);
+		}
+
+		const footer = dom.append(this.element, $('.chat-provider-setup-footer'));
+		const button = this.continueButton = dom.append(footer, $<HTMLButtonElement>('button.chat-provider-setup-continue'));
+		button.type = 'button';
+		this.updateContinueLabel();
+		this._register(dom.addDisposableListener(button, dom.EventType.CLICK, () => this.runContinue()));
+
+		status(localize('chat.providerSetup.aria.status', "Choose how to get models. GitHub Copilot is selected."));
+	}
+
+	private getRows(): readonly IChatProviderRow[] {
+		return [
 			{
 				id: 'copilot',
 				icon: Codicon.github,
 				name: localize('chat.providerSetup.copilot.name', "GitHub Copilot"),
 				description: localize('chat.providerSetup.copilot.description', "Free with your GitHub account."),
-				actionLabel: localize('chat.providerSetup.copilot.action', "Sign in"),
-				primary: true,
 				commandId: CHAT_SETUP_ACTION_ID,
 			},
 			{
 				id: 'chatgpt',
 				markClass: 'openai',
 				name: localize('chat.providerSetup.chatgpt.name', "ChatGPT"),
-				description: localize('chat.providerSetup.chatgpt.description', "Use your OpenAI account or key."),
-				// Not "Sign in": there is no OpenAI OAuth here, this opens the
-				// model manager where an account or key is added. The label
-				// should name what actually happens.
-				actionLabel: localize('chat.providerSetup.chatgpt.action', "Set up"),
+				description: localize('chat.providerSetup.chatgpt.description', "Your OpenAI account or key."),
 				commandId: MANAGE_CHAT_COMMAND_ID,
 			},
 			{
@@ -132,26 +117,30 @@ export class ChatProviderSetupPart extends Disposable {
 				icon: Codicon.key,
 				name: localize('chat.providerSetup.byok.name', "Your own key"),
 				description: localize('chat.providerSetup.byok.description', "Anthropic, Azure, OpenRouter."),
-				actionLabel: localize('chat.providerSetup.byok.action', "Configure"),
 				commandId: MANAGE_CHAT_COMMAND_ID,
 			},
 		];
-
-		for (const row of rows) {
-			this.renderRow(list, row);
-		}
-
-		status(localize('chat.providerSetup.aria.status', "Choose how to get models. {0} options available.", rows.length));
 	}
 
+	/**
+	 * The whole row is the switch's label, so the entire line is a hit target
+	 * and the description is announced with the control rather than after it.
+	 */
 	private renderRow(list: HTMLElement, descriptor: IChatProviderRow): void {
-		// The whole row is the control. A row that only exists to hold a button
-		// is a box drawn around a button, so the box and the button collapse
-		// into one thing you can click.
-		const row = dom.append(list, $<HTMLButtonElement>('button.chat-provider-setup-row'));
-		row.type = 'button';
-		row.classList.toggle('primary', !!descriptor.primary);
-		row.setAttribute('aria-label', localize('chat.providerSetup.action.aria', "{0} — {1}", descriptor.name, descriptor.actionLabel));
+		const selected = this.selected.has(descriptor.id);
+		const row = dom.append(list, $('label.chat-provider-setup-row'));
+		row.classList.toggle('selected', selected);
+
+		const checkbox = dom.append(row, $<HTMLInputElement>('input.chat-provider-setup-checkbox'));
+		checkbox.type = 'checkbox';
+		checkbox.checked = selected;
+		// A switch role matches the toggle affordance and reads as on/off.
+		checkbox.setAttribute('role', 'switch');
+		checkbox.setAttribute('aria-label', localize('chat.providerSetup.select.aria', "Use {0}", descriptor.name));
+
+		const toggle = dom.append(row, $('span.chat-provider-setup-toggle'));
+		toggle.setAttribute('aria-hidden', 'true');
+		dom.append(toggle, $('span.chat-provider-setup-toggle-knob'));
 
 		const mark = dom.append(row, $('span.chat-provider-setup-mark'));
 		if (descriptor.markClass) {
@@ -165,15 +154,54 @@ export class ChatProviderSetupPart extends Disposable {
 		const name = dom.append(copy, $('span.chat-provider-setup-name'));
 		name.textContent = descriptor.name;
 		const description = dom.append(copy, $('span.chat-provider-setup-description'));
+		description.id = `chat-provider-setup-description-${descriptor.id}`;
 		description.textContent = descriptor.description;
+		checkbox.setAttribute('aria-describedby', description.id);
 
-		const chevron = dom.append(row, $('span.chat-provider-setup-go'));
-		chevron.appendChild(renderIcon(Codicon.chevronRight));
-		chevron.setAttribute('aria-hidden', 'true');
-
-		this._register(dom.addDisposableListener(row, dom.EventType.CLICK, () => {
-			this.telemetryService.publicLog2<ChatProviderSetupEvent, ChatProviderSetupClassification>('chat.providerSetup.selected', { provider: descriptor.id });
-			this.commandService.executeCommand(descriptor.commandId);
+		this._register(dom.addDisposableListener(checkbox, dom.EventType.CHANGE, () => {
+			if (checkbox.checked) {
+				this.selected.add(descriptor.id);
+			} else {
+				this.selected.delete(descriptor.id);
+			}
+			row.classList.toggle('selected', checkbox.checked);
+			status(checkbox.checked
+				? localize('chat.providerSetup.selected', "{0} selected.", descriptor.name)
+				: localize('chat.providerSetup.deselected', "{0} deselected.", descriptor.name));
+			this.updateContinueLabel();
 		}));
+	}
+
+	private updateContinueLabel(): void {
+		if (!this.continueButton) {
+			return;
+		}
+		const any = this.selected.size > 0;
+		this.continueButton.disabled = !any;
+		this.continueButton.textContent = localize('chat.providerSetup.continue', "Continue");
+	}
+
+	/**
+	 * Acts on everything switched on. Copilot owns the real sign-in; the others
+	 * need a key, so they hand off to chat model management once Copilot is
+	 * under way.
+	 */
+	private runContinue(): void {
+		const rows = this.getRows().filter(row => this.selected.has(row.id));
+		if (!rows.length) {
+			return;
+		}
+
+		this.telemetryService.publicLog2<ChatProviderSetupEvent, ChatProviderSetupClassification>('chat.providerSetup.selected', { providers: rows.map(row => row.id).join(',') });
+
+		if (this.selected.has('copilot')) {
+			this.commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+		}
+
+		// Anything beyond Copilot needs a key, which lives in chat model
+		// management. Handing off there keeps this panel from duplicating it.
+		if (rows.some(row => row.id !== 'copilot')) {
+			this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
+		}
 	}
 }

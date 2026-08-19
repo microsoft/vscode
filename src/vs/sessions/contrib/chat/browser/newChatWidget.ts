@@ -888,13 +888,11 @@ export class NewChatWidget extends Disposable {
 	private _renderProviderSetup(container: HTMLElement, workspacePicker: HTMLElement): void {
 		const host = dom.append(container, dom.$('.new-session-provider-setup'));
 		const part = this._register(new MutableDisposable<DisposableStore>());
-		let dismissed = false;
 
 		this._register(autorun(reader => {
 			const entitlement = this.chatEntitlementService.entitlementObs.read(reader);
 			const sentiment = this.chatEntitlementService.sentimentObs.read(reader);
-			const needsProvider = !dismissed
-				&& entitlement === ChatEntitlement.Unknown
+			const needsProvider = entitlement === ChatEntitlement.Unknown
 				&& !this.chatEntitlementService.hasByokModels
 				&& !sentiment.hidden;
 
@@ -911,15 +909,7 @@ export class NewChatWidget extends Disposable {
 
 			const store = new DisposableStore();
 			part.value = store;
-			const setup = store.add(this.instantiationService.createInstance(ChatProviderSetupPart, { showDismiss: true }));
-			store.add(setup.onDidDismiss(() => {
-				dismissed = true;
-				dom.clearNode(host);
-				host.classList.add('hidden');
-				workspacePicker.classList.remove('hidden');
-				container.classList.remove('provider-setup-active');
-				part.clear();
-			}));
+			const setup = store.add(this.instantiationService.createInstance(ChatProviderSetupPart));
 			dom.append(host, setup.element);
 		}));
 	}

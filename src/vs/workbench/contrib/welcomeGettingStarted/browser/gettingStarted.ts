@@ -955,8 +955,14 @@ export class GettingStartedPage extends EditorPane {
 
 		const footer = $('.footer', {}, ...footerChildren);
 
+		// The 2026 onboarding walks people through setup directly, so the
+		// walkthrough list would only repeat that in a weaker form. Reuse the
+		// existing empty state, which gives Recent the full width, rather than
+		// leaving an empty column behind.
+		const hideWalkthroughs = this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding') === true;
+
 		const layoutLists = () => {
-			if (gettingStartedList.itemCount) {
+			if (gettingStartedList.itemCount && !hideWalkthroughs) {
 				this.container.classList.remove('noWalkthroughs');
 				reset(rightColumn, gettingStartedList.getDomElement());
 			}

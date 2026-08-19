@@ -1324,3 +1324,114 @@
 		transition: none !important;
 	}
 }
+
+/* Import from another editor step */
+.onboarding-a-import {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	width: 100%;
+}
+
+.onboarding-a-import-group {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 20px;
+	border-radius: 12px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+	background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+}
+
+.onboarding-a-import-group-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.onboarding-a-import-group-text {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.onboarding-a-import-group-label {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.onboarding-a-import-group-description {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}
+
+.onboarding-a-import-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+.onboarding-a-import-action.monaco-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	min-width: 0;
+	padding: 4px 10px;
+	min-height: 28px;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.3333333333;
+	white-space: nowrap;
+	align-self: flex-start;
+}
+
+.onboarding-a-import-action.disabled {
+	opacity: 1;
+}
+
+.onboarding-a-import-categories {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.onboarding-a-import-category {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.onboarding-a-import-category-icon {
+	display: flex;
+	align-items: center;
+	color: inherit;
+}
+
+@media (max-width: 840px) {
+	.onboarding-a-import-group-header {
+		flex-direction: column;
+	}
+
+	.onboarding-a-import-actions {
+		width: 100%;
+	}
+
+	.onboarding-a-import-action {
+		width: 100%;
+	}
+}
