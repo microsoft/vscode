@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Limiter, raceTimeout, retry, Sequencer } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname, isAbsolute, join, normalize, resolve, sep } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
@@ -66,7 +66,7 @@ import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js'
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
-import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
+import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerNotificationMethod, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
@@ -146,6 +146,31 @@ const CLIENT_INFO = {
 	// changes.
 	version: '0.1.0',
 };
+
+const CODEX_IGNORED_NOTIFICATION_METHODS = [
+	'thread/started', // thread/start response is authoritative for session materialization.
+	'thread/status/changed', // Codex thread status is not surfaced in Agent Host state yet.
+	'thread/settings/updated', // VS Code owns session config; Codex settings echoes are not consumed yet.
+	'thread/goal/updated', // Goals are not surfaced in the Agent Host UI yet.
+	'thread/goal/cleared', // Goals are not surfaced in the Agent Host UI yet.
+	'thread/compacted', // Deprecated completion echo; the contextCompaction item owns UI progress.
+	'remoteControl/status/changed', // Remote-control state is not part of the VS Code integration.
+	'serverRequest/resolved', // We resolve requests through JSON-RPC responses, so this echo is informational.
+	'item/autoApprovalReview/started', // Informational; the completed notification drives the denied-action card.
+] as const satisfies readonly ServerNotificationMethod[];
+
+export async function initializeCodexAppServerClient(client: ICodexAppServerClient, register: (disposable: IDisposable) => void): Promise<void> {
+	// Install defensive handlers before initialize because app-server can
+	// coalesce its response and required initial snapshots in one stdout chunk.
+	for (const method of CODEX_IGNORED_NOTIFICATION_METHODS) {
+		register(client.onNotification(method, () => { /* intentionally ignored */ }));
+	}
+	await client.request<'initialize'>('initialize', {
+		clientInfo: CLIENT_INFO,
+		capabilities: { experimentalApi: true, requestAttestation: false, optOutNotificationMethods: [...CODEX_IGNORED_NOTIFICATION_METHODS] },
+	});
+	client.notify<'initialized'>('initialized', undefined as never);
+}
 
 const CODEX_DESKTOP_ROLLOUT_PREFIX_LENGTH = 16 * 1024;
 const CODEX_DESKTOP_ROLLOUT_PREFIX_CONCURRENCY = 8;
@@ -1919,11 +1944,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 		// Initialize handshake. Failure here is fatal for the connection.
 		try {
-			await client.request<'initialize'>('initialize', {
-				clientInfo: CLIENT_INFO,
-				capabilities: { experimentalApi: true, requestAttestation: false, optOutNotificationMethods: null },
-			});
-			client.notify<'initialized'>('initialized', undefined as never);
+			await initializeCodexAppServerClient(client, disposable => this._register(disposable));
 			void this._refreshAccount(client);
 		} catch (err) {
 			client.dispose();
@@ -1933,7 +1954,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 
 		// Wire global notification → SessionAction dispatch.
-		this._registerIgnoredNotifications(client);
 		this._register(client.onNotification('account/login/completed', () => {
 			void this._refreshAccount(client).then(() => this._queueModelRefresh());
 		}));
@@ -2468,23 +2488,6 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _fireSteeringConsumed(session: ICodexSession, id: string): void {
 		this._onDidChatProgress.fire({ kind: 'steering_consumed', chat: session.chatChannel!, id });
-	}
-
-	private _registerIgnoredNotifications(client: ICodexAppServerClient): void {
-		const ignored = [
-			'thread/started', // thread/start response is authoritative for session materialization.
-			'thread/status/changed', // Codex thread status is not surfaced in Agent Host state yet.
-			'thread/settings/updated', // VS Code owns session config; Codex settings echoes are not consumed yet.
-			'thread/goal/updated', // Goals are not surfaced in the Agent Host UI yet.
-			'thread/goal/cleared', // Goals are not surfaced in the Agent Host UI yet.
-			'thread/compacted', // Deprecated completion echo; the contextCompaction item owns UI progress.
-			'remoteControl/status/changed', // Remote-control state is not part of the VS Code integration.
-			'serverRequest/resolved', // We resolve requests through JSON-RPC responses, so this echo is informational.
-			'item/autoApprovalReview/started', // Informational; the completed notification drives the denied-action card.
-		] as const;
-		for (const method of ignored) {
-			this._register(client.onNotification(method, () => { /* intentionally ignored */ }));
-		}
 	}
 
 	private async _refreshAccount(client: ICodexAppServerClient, publish = true): Promise<ICodexAccountState> {
