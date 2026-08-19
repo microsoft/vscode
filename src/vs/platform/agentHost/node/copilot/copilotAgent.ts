@@ -2303,10 +2303,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._copilotChatDiscovery;
 	}
 
-	whenChatsDiscovered(): Promise<void> {
-		return this._startCopilotChatDiscovery();
-	}
-
 	private _runCopilotChatDiscovery(): Promise<void> {
 		return this._copilotChatDiscoverySequencer.queue(async () => {
 			for (let attempt = 0; ; attempt++) {

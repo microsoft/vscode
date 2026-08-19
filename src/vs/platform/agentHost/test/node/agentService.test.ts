@@ -3790,43 +3790,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(session => session.toString()), [legacy.toString()]);
 		});
 
-		test('the first listing already contains chats discovered while migration is enabled', async () => {
-			class DiscoveryReadyAgent extends MockAgent {
-				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
-				override readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
-				discoverable: readonly IAgentDiscoveredChat[] = [];
-
-				// Mirrors the real provider: discovery resolves once it has *emitted*,
-				// leaving the service to register the chats asynchronously.
-				async whenChatsDiscovered(): Promise<void> {
-					this._onDidDiscoverChats.fire(this.discoverable);
-				}
-
-				override fireDiscoveredChats(chats: readonly IAgentDiscoveredChat[]): void { this._onDidDiscoverChats.fire(chats); }
-				override dispose(): void {
-					this._onDidDiscoverChats.dispose();
-					super.dispose();
-				}
-			}
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.configurationService.updateRootConfig({
-				[AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All,
-				[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true,
-			});
-			const agent = disposables.add(new DiscoveryReadyAgent('copilot'));
-			const legacy = AgentSession.uri('copilot', 'legacy-adoptable');
-			agent.discoverable = [discoveredChat(legacy)];
-			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
-			svc.registerProvider(agent);
-
-			// No polling: the very first listing must be authoritative, otherwise a
-			// client releases the legacy row before its migrated twin exists (#331266).
-			assert.deepStrictEqual(
-				(await svc.listSessions()).map(session => session.session.toString()),
-				[legacy.toString()],
-			);
-		});
-
 		test('a late-registered provider gets its own native discovery pass', async () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
