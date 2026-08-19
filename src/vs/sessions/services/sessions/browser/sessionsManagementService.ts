@@ -4,26 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { disposableTimeout, raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
-import { buildHostLocalEventsPath, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { buildHostLocalEventsPath, dedupeMigratedCopilotCliSessions, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
@@ -35,9 +33,6 @@ import { localize } from '../../../../nls.js';
 
 /** Storage key for the last session type used to create a quick chat. */
 const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUsedSessionType';
-
-/** How long a provider gets to complete its first discovery pass before it is treated as settled. */
-const INITIAL_DISCOVERY_TIMEOUT_MS = 20_000;
 
 export class SessionsManagementService extends Disposable implements ISessionsManagementService {
 
@@ -88,10 +83,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly automationSession: IObservable<ISession | undefined> = this._automationSession;
 
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
-	/** Providers whose initial discovery pass has settled, successfully or not. */
-	private readonly _discoveredProviders = new Set<string>();
-	/** When the agent-host readiness gate started, so it cannot withhold rows forever. */
-	private readonly _migrationGateStartedAt = Date.now();
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
 
@@ -114,7 +105,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IPathService private readonly pathService: IPathService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -124,12 +114,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._updateSessionTypes();
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
-		// Nothing else fires when the gate expires, so refresh the list once it does.
-		this._register(disposableTimeout(() => {
-			if (!this._discoveredProviders.has(LOCAL_AGENT_HOST_PROVIDER_ID)) {
-				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
-			}
-		}, INITIAL_DISCOVERY_TIMEOUT_MS));
 		this._sessionTypes = this._collectSessionTypes();
 
 		// Mirror follow-up chat requests (sent from within an existing chat
@@ -159,7 +143,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private _onProvidersChanged(e: ISessionsProvidersChangeEvent): void {
 		for (const provider of e.removed) {
 			this._providerListeners.deleteAndDispose(provider.id);
-			this._discoveredProviders.delete(provider.id);
 		}
 		if (e.added.length) {
 			this._subscribeToProviders(e.added);
@@ -177,27 +160,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
 			}
 			this._providerListeners.set(provider.id, disposables);
-			this._trackSessionsDiscovered(provider);
 		}
-	}
-
-	private _trackSessionsDiscovered(provider: ISessionsProvider): void {
-		if (!provider.whenSessionsDiscovered) {
-			this._discoveredProviders.add(provider.id);
-			return;
-		}
-		// Bounded: a provider that never finishes discovering degrades into the
-		// ungated behaviour instead of hiding legacy rows forever.
-		raceTimeout(provider.whenSessionsDiscovered().catch(err => this.logService.warn(`[SessionsManagement] initial discovery failed for provider '${provider.id}'`, err)), INITIAL_DISCOVERY_TIMEOUT_MS).finally(() => {
-			// Identity, not id: a provider can be unregistered and replaced, and the
-			// stale settle must not vouch for its replacement.
-			if (this.sessionsProvidersService.getProvider(provider.id) !== provider) {
-				return;
-			}
-			this._discoveredProviders.add(provider.id);
-			// Readiness can unhide legacy rows, so refresh the list.
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
-		});
 	}
 
 	private _handleDidReplaceSession(from: ISession, to: ISession): void {
@@ -279,47 +242,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * entry even after the extension stops reporting it. Drop the legacy entry so
 	 * exactly one row shows per session.
 	 *
-	 * While migration is enabled, a legacy row is also withheld until the local
-	 * agent-host provider has finished its first discovery pass, so the list does
-	 * not briefly show both a legacy row and its twin. This is presentation only:
-	 * opening a legacy resource redirects through
-	 * {@link resolveSessionResource} regardless. It is bounded by
-	 * {@link INITIAL_DISCOVERY_TIMEOUT_MS} so an agent host that is disabled,
-	 * blocked by policy, or broken cannot hide legacy sessions permanently.
+	 * A legacy row that has no twin yet stays visible: opening it redirects through
+	 * {@link resolveSessionResource} and adopts it, so it is never a dead end.
 	 */
 	private _dedupeMigratedCopilotCliSessions(sessions: ISession[]): ISession[] {
-		if (this.configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true
-			&& !this._discoveredProviders.has(LOCAL_AGENT_HOST_PROVIDER_ID)
-			&& Date.now() - this._migrationGateStartedAt < INITIAL_DISCOVERY_TIMEOUT_MS) {
-			return sessions.filter(session => session.resource.scheme !== COPILOT_CLI_EH_SCHEME);
-		}
-		let migratedRawIds: Set<string> | undefined;
-		for (const session of sessions) {
-			if (session.resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
-				const rawId = getCopilotCliSessionRawId(session.resource);
-				if (rawId) {
-					(migratedRawIds ??= new Set<string>()).add(rawId);
-				}
-			}
-		}
-		if (!migratedRawIds) {
-			return sessions;
-		}
-		const result = sessions.filter(session => {
-			// Only the legacy extension-host scheme (`copilotcli:`) denotes a stale
-			// entry to drop. Remote agent-host Copilot sessions
-			// (`remote-<authority>-copilotcli:`) share the `copilotcli` session type but
-			// are distinct sessions that must never be deduped against a local migrated
-			// id, and the migrated entry itself uses `agent-host-copilotcli:`.
-			if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
-				const rawId = getCopilotCliSessionRawId(session.resource);
-				if (rawId && migratedRawIds!.has(rawId)) {
-					return false;
-				}
-			}
-			return true;
-		});
-		return result;
+		return dedupeMigratedCopilotCliSessions(sessions, session => session.resource);
 	}
 
 	getSession(resource: URI): ISession | undefined {

@@ -168,16 +168,6 @@ export interface ISessionsProvider {
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
-	/**
-	 * Optional. Settles once the provider's initial discovery pass has run, so
-	 * consumers can tell "this provider has no sessions" apart from "this
-	 * provider has not looked yet". Providers that populate `getSessions()`
-	 * synchronously may omit it and are treated as discovered immediately.
-	 *
-	 * Must be idempotent and memoized, and must never reject: a provider that
-	 * fails discovery still settles so consumers are not blocked.
-	 */
-	whenSessionsDiscovered?(): Promise<void>;
 
 	/**
 	 * Optional. Redirects a resource that this provider supersedes to the one it

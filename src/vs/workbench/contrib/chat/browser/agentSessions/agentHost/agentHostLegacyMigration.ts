@@ -11,7 +11,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
-import { getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
+import { migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 
 /** How long an adoption probe may take before falling back to the legacy resource. */
 export const LEGACY_MIGRATION_TIMEOUT_MS = 10_000;
@@ -25,35 +25,26 @@ export const LEGACY_MIGRATION_TIMEOUT_MS = 10_000;
  * that is not ours to adopt fails that subscribe and falls back to the legacy
  * resource, so an external session is never worse off than it is today.
  *
- * `declined` memoizes definitive refusals so a repeat open costs no round-trip.
- * A timeout is deliberately not recorded: a slow host must not pin a session to
- * the legacy path for the rest of the window's life.
+ * A failure is deliberately not remembered. The host maps every restore failure
+ * to `SessionNotFound`, so a refusal is indistinguishable from a transient one
+ * (host restarting, still starting up) — caching it would silently pin a session
+ * to the legacy path for the rest of the window's life. Probes only happen on an
+ * explicit open, so retrying costs little.
  */
 export async function adoptLegacyCopilotCliResource(
 	connection: IAgentConnection | undefined,
 	resource: URI,
 	logService: ILogService,
-	declined?: Set<string>,
 ): Promise<URI | undefined> {
 	const twin = migratedCopilotCliResource(resource);
 	if (!twin || !connection) {
-		return undefined;
-	}
-	const rawId = getCopilotCliSessionRawId(twin);
-	if (!rawId || declined?.has(rawId)) {
 		return undefined;
 	}
 	const store = new DisposableStore();
 	try {
 		const ref = store.add(connection.getSubscription(StateComponents.Session, twin, 'AgentHostLegacyMigration'));
 		const settled = await raceTimeout(whenSubscriptionSettles(ref.object as IAgentSubscription<SessionState>, store), LEGACY_MIGRATION_TIMEOUT_MS);
-		if (settled === true) {
-			return twin;
-		}
-		if (settled === false) {
-			declined?.add(rawId);
-		}
-		return undefined;
+		return settled === true ? twin : undefined;
 	} catch (err) {
 		logService.warn(`[AgentHost] legacy migration probe failed for ${resource.toString()}`, err);
 		return undefined;

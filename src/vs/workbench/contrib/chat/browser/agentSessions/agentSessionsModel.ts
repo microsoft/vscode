@@ -16,7 +16,6 @@ import { derived, IObservable, observableSignalFromEvent } from '../../../../../
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -28,10 +27,9 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
+import { dedupeMigratedCopilotCliSessions } from '../copilotCliEventsUri.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isAgentHostTarget, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -519,10 +517,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	get sessions(): IAgentSession[] { return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values())); }
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());
-	/** Providers that have completed at least one full refresh, successful or not. */
-	private readonly _resolvedProviders = new Set<string>();
-	/** Providers with a full refresh requested but not yet executed. */
-	private readonly _pendingProviderRefreshes = new Set<string>();
 
 	private readonly cache: AgentSessionsCache;
 	private readonly logger: AgentSessionsLogger;
@@ -537,7 +531,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -602,43 +595,15 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	/**
 	 * Hide the extension-host `copilotcli:` row when its agent-host
 	 * `agent-host-copilotcli:` twin is present, so the list shows a single entry
-	 * per legacy Copilot CLI session — the agent-host one, which migrates on open.
+	 * per legacy Copilot CLI session — the agent-host one.
 	 *
-	 * While migration is enabled the legacy rows are also withheld until the
-	 * agent-host provider has resolved once. Its first listing is authoritative
-	 * for which sessions are adoptable, so releasing them earlier would surface a
-	 * row that still opens through the extension host and can never migrate. Resolve failures still mark the provider resolved, so a broken
-	 * agent host releases the rows rather than emptying the list.
+	 * A legacy row with no twin yet stays visible: opening it redirects through the
+	 * agent host and adopts it, so it is never a dead end.
 	 *
-	 * Only display is deduped; {@link getSession} and the cache use the full map so
-	 * a hidden row can still resolve.
+	 * Only display is deduped; {@link getSession} and the cache use the full map.
 	 */
 	private _dedupeMigratedCopilotCliSessions(sessions: IAgentSession[]): IAgentSession[] {
-		if (this.configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true
-			&& !this._resolvedProviders.has(COPILOT_CLI_LOCAL_AH_SCHEME)) {
-			return sessions.filter(session => session.resource.scheme !== COPILOT_CLI_EH_SCHEME);
-		}
-		let migratedRawIds: Set<string> | undefined;
-		for (const session of sessions) {
-			if (session.resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
-				const rawId = getCopilotCliSessionRawId(session.resource);
-				if (rawId) {
-					(migratedRawIds ??= new Set<string>()).add(rawId);
-				}
-			}
-		}
-		if (!migratedRawIds) {
-			return sessions;
-		}
-		return sessions.filter(session => {
-			if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
-				const rawId = getCopilotCliSessionRawId(session.resource);
-				if (rawId && migratedRawIds!.has(rawId)) {
-					return false;
-				}
-			}
-			return true;
-		});
+		return dedupeMigratedCopilotCliSessions(sessions, session => session.resource);
 	}
 
 	private _changedSignal: IObservable<void> | undefined;
@@ -691,29 +656,18 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			resolver = new ThrottledDelayer<void>(500);
 			this.resolvers.set(provider, resolver);
 		}
-		// Throttling drops superseded triggers, so a pending full refresh must not be
-		// downgraded to an event-only resolve that happens to win the window.
-		if (options.refreshProvider) {
-			this._pendingProviderRefreshes.add(provider);
-		}
 
 		return resolver.trigger(async token => {
 			if (token.isCancellationRequested || this.lifecycleService.willShutdown) {
 				return;
 			}
-			const refreshProvider = this._pendingProviderRefreshes.delete(provider) || options.refreshProvider;
 
 			try {
 				this._onWillResolve.fire(provider);
-				return await this.doResolveProvider(provider, { refreshProvider }, token);
+				return await this.doResolveProvider(provider, options, token);
 			} catch (error) {
 				this.logger.logIfTrace(`Error resolving sessions for provider ${provider}: ${error instanceof Error ? error.stack : String(error)}`);
 			} finally {
-				// Only a full refresh is authoritative: an event-only resolve can be one
-				// of several discovery batches, with more twins still to come.
-				if (refreshProvider) {
-					this._resolvedProviders.add(provider);
-				}
 				this._onDidResolve.fire(provider);
 			}
 		});

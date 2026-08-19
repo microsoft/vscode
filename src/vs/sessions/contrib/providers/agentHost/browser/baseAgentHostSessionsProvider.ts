@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
@@ -5076,11 +5076,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._refreshSessions();
 	}
 
-	private readonly _sessionsDiscovered = new DeferredPromise<void>();
-
-	/** Legacy ids this host has already declined, so a retry costs no round-trip. */
-	private readonly _unmigratableLegacyIds = new Set<string>();
-
 	/**
 	 * Redirects a legacy extension-host Copilot CLI resource to its agent-host
 	 * twin, adopting it on the way.
@@ -5096,12 +5091,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (rawId && this._sessionCache.has(rawId)) {
 			return migratedCopilotCliResource(resource); // already adopted; no round-trip
 		}
-		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._unmigratableLegacyIds);
-	}
-
-	whenSessionsDiscovered(): Promise<void> {
-		this._ensureSessionCache();
-		return this._sessionsDiscovered.p;
+		return adoptLegacyCopilotCliResource(this.connection, resource, this._logService);
 	}
 
 	protected async _refreshSessions(announceExistingAsAdded = false): Promise<void> {
@@ -5117,9 +5107,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// A successful return (even an empty list) means the cache is
 			// authoritative. Mark it initialized and reset the backoff.
 			this._cacheInitialized = true;
-			if (!this._sessionsDiscovered.isSettled) {
-				this._sessionsDiscovered.complete();
-			}
 			this._sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
 			const currentKeys = new Set<string>();
 			const listedAgentProviders = new Set<string>();

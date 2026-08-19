@@ -23,9 +23,6 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { adoptLegacyCopilotCliResource } from './agentHost/agentHostLegacyMigration.js';
 
-/** Legacy ids the host has declined, shared by every open path in this window. */
-const declinedLegacyCopilotCliIds = new Set<string>();
-
 //#region Session Opener Registry
 
 export interface ISessionOpenerParticipant {
@@ -71,7 +68,6 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 		accessor.get(IAgentHostConnectionsService).ambientConnection,
 		resource,
 		logService,
-		declinedLegacyCopilotCliIds,
 	) ?? resource;
 
 	for (const participant of sessionOpenerRegistry.getParticipants()) {

@@ -115,6 +115,39 @@ export function getCopilotCliSessionRawId(sessionResource: URI | undefined): str
 }
 
 /**
+ * Drops the legacy extension-host row for any Copilot CLI session that also has
+ * a local agent-host row, so a migrated session is listed once.
+ *
+ * Only `copilotcli:` is ever dropped, and only against `agent-host-copilotcli:`.
+ * A remote agent-host session (`remote-<authority>-copilotcli:`) shares the
+ * Copilot CLI session type and can carry the same raw id as a local one, but is
+ * a different session and must never be deduped against it.
+ */
+export function dedupeMigratedCopilotCliSessions<T>(items: readonly T[], resourceOf: (item: T) => URI): T[] {
+	let migratedRawIds: Set<string> | undefined;
+	for (const item of items) {
+		const resource = resourceOf(item);
+		if (resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
+			const rawId = getCopilotCliSessionRawId(resource);
+			if (rawId) {
+				(migratedRawIds ??= new Set<string>()).add(rawId);
+			}
+		}
+	}
+	if (!migratedRawIds) {
+		return items.slice();
+	}
+	return items.filter(item => {
+		const resource = resourceOf(item);
+		if (resource.scheme !== COPILOT_CLI_EH_SCHEME) {
+			return true;
+		}
+		const rawId = getCopilotCliSessionRawId(resource);
+		return !rawId || !migratedRawIds.has(rawId);
+	});
+}
+
+/**
  * The local agent-host resource a legacy extension-host Copilot CLI session
  * would migrate to, or `undefined` when `resource` is not such a session.
  * Synchronous by design: open paths must not pay a round-trip for the

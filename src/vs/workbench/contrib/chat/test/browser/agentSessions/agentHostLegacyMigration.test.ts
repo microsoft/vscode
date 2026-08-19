@@ -57,17 +57,17 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 		);
 	});
 
-	test('declines when the host refuses the twin, and remembers the refusal', async () => {
+	test('retries after a refusal instead of pinning the session to the legacy path', async () => {
 		const { connection, subscribed } = createConnection('refused');
-		const declined = new Set<string>();
 
-		const first = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), declined);
-		const second = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), declined);
+		const first = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService());
+		const second = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService());
 
-		// A refused session must not pay a round-trip on every subsequent open.
+		// The host reports every restore failure as SessionNotFound, so a refusal
+		// cannot be told apart from a transient one and must not be remembered.
 		assert.deepStrictEqual(
-			{ first, second, subscribes: subscribed.length, declined: [...declined] },
-			{ first: undefined, second: undefined, subscribes: 1, declined: [RAW_ID] },
+			{ first, second, subscribes: subscribed.length },
+			{ first: undefined, second: undefined, subscribes: 2 },
 		);
 	});
 
