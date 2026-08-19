@@ -7,7 +7,7 @@
 	background-color: var(--modern-ui-editor-tab-hover-background);
 }
 
-.modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.fixture-hover:not(.selected):not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a,
+.modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.fixture-hover:not(.selected):not(.active) .tab-label:not(.monaco-decoration-itemColor) a,
 .modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.fixture-hover:not(.selected):not(.active) > .tab-actions .action-label {
 	color: var(--modern-ui-editor-tab-hover-foreground) !important;
 }

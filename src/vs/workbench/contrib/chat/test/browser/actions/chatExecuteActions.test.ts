@@ -17,7 +17,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { ChatEditingSessionSubmitAction, ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenModelPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenModelPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -477,32 +477,5 @@ suite('ChatSubmitAction', () => {
 		});
 
 		assert.deepStrictEqual(acceptedOptions, { cancelCurrentRequest: true });
-	});
-
-	test('shows pending action while submission awaits dispatch', () => {
-		const items = MenuRegistry.getMenuItems(MenuId.ChatExecute)
-			.filter((candidate): candidate is IMenuItem => isIMenuItem(candidate));
-		const pendingItem = items.find(item => item.command.id === 'workbench.action.chat.submitPending');
-		const sendItem = items.find(item => item.command.id === ChatEditingSessionSubmitAction.ID);
-		assert.ok(pendingItem?.when);
-		assert.ok(sendItem?.when);
-
-		const context = {
-			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => ({
-				[ChatContextKeys.hasActiveRequest.key]: false,
-				[ChatContextKeys.chatModeKind.key]: ChatModeKind.Agent,
-				[ChatContextKeys.withinEditSessionDiff.key]: false,
-				[ChatContextKeys.inputSubmitPending.key]: true,
-				[ChatContextKeys.inputRouting.key]: false,
-			})[key] as T,
-		};
-
-		assert.deepStrictEqual({
-			pending: pendingItem.when.evaluate(context),
-			send: sendItem.when.evaluate(context),
-		}, {
-			pending: true,
-			send: false,
-		});
 	});
 });

@@ -39,7 +39,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
  * The width (in pixels) of the editor card border drawn on every side when the
- * Modern UI Update experiment is enabled (`styleOverrides/media/editorBorder.css`).
+ * Modern UI Update experiment is enabled (`modernUI/media/editorBorder.css`).
  * The editor reserves this thickness when laying out its contents so they sit
  * inside the frame instead of overflowing (and being clipped by) the border.
  * Keep in sync with the `--vscode-strokeThickness` (1px) token used there.
@@ -1443,7 +1443,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const { top, bottom } = getFloatingEditorVerticalMargins(this.layoutService, mainWindow);
 			height = Math.max(0, height - top - bottom);
 
-			// Reserve space for the Modern UI editor border (styleOverrides/media/editorBorder.css) so content doesn't get clipped.
+			// Reserve space for the Modern UI editor border (modernUI/media/editorBorder.css) so content doesn't get clipped.
 			if (!this.element.classList.contains('modal-editor-part')) {
 				width = Math.max(0, width - EDITOR_FRAME_BORDER_WIDTH * 2);
 				height = Math.max(0, height - EDITOR_FRAME_BORDER_WIDTH * 2);

@@ -115,7 +115,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// untitled chat-input resource to the freshly-minted real resource so
 			// the provisional `getOrCreate` for the real resource seeds it.
 			this._importConversationStore.rename(request.untitledResource, item.resource);
-			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, workingDirectory);
+			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider);
 		}
 
 		return item;

@@ -1357,7 +1357,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				isWorkspaceFile,
 			);
 		};
-		const renderSelectionCheckbox = (row: HTMLElement, customization: IPromptPath): void => {
+		const renderSelectionCheckbox = (row: HTMLElement, customization: IPromptPath, onSelectionChange?: () => void): void => {
 			const checkboxContainer = DOM.append(row, $('.item-sync-checkbox.prompt-migration-checkbox'));
 			const checkboxTitle = localize('customizationMigrationSelectAriaLabel', "Select {0}", customization.name ?? basename(customization.uri));
 			const checkbox = this.migrationPageDisposables.add(new Checkbox(checkboxTitle, this.isCustomizationSelectedForMigration(customization), defaultCheckboxStyles));
@@ -1365,12 +1365,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.migrationPageDisposables.add(checkbox.onChange(() => {
 				this.setCustomizationSelectedForMigration(customization, checkbox.checked);
 				this.updateCustomizationMigrationActionState();
+				onSelectionChange?.();
 			}));
 		};
 
-		const renderItem = (container: HTMLElement, customization: IPromptPath): void => {
+		const renderItem = (container: HTMLElement, customization: IPromptPath, onSelectionChange?: () => void): void => {
 			const row = DOM.append(container, $('div.ai-customization-list-item.prompt-migration-item'));
-			renderSelectionCheckbox(row, customization);
+			renderSelectionCheckbox(row, customization, onSelectionChange);
 
 			const itemLeft = DOM.append(row, $('span.item-left'));
 			const displayName = customization.name ?? basename(customization.uri);
@@ -1421,6 +1422,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 				this.renderCustomizationMigrationPage();
 			}));
+			const updateGroupCheckboxState = (): void => {
+				groupCheckbox.checked = customizations.every(customization => this.isCustomizationSelectedForMigration(customization));
+			};
 			const groupToggle = DOM.append(groupHeader, $('button.prompt-migration-group-toggle')) as HTMLButtonElement;
 			groupToggle.type = 'button';
 			const groupId = `prompt-migration-group-${category.id}-${groupKey}`;
@@ -1455,7 +1459,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 
 			for (const customization of customizations) {
-				renderItem(groupItems, customization);
+				renderItem(groupItems, customization, updateGroupCheckboxState);
 			}
 		};
 

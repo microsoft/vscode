@@ -47,7 +47,7 @@ const VIEWSTATE_STORAGE_KEY = 'workbench.quickInput.viewState';
 const QUICK_INPUT_MOTION_CLOSING_CLASS = 'quick-input-widget-closing';
 const QUICK_INPUT_OVERLAY_CLASS = 'quick-input-widget-overlay';
 const QUICK_INPUT_CLOSE_ANIMATION_DURATION = 150;
-const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['style-override', 'monaco-enable-motion'];
+const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'];
 
 type QuickInputViewState = {
 	readonly top?: number;
@@ -63,11 +63,9 @@ type QuickInputOverlayLayoutCorrection = {
 	readonly width: number;
 };
 
-export function getQuickInputWidth(availableWidth: number): number {
-	return Math.min(availableWidth * 0.62, 600);
-}
-
 export class QuickInputController extends Disposable {
+	private static readonly MAX_WIDTH = 600; // Max total width of quick input widget
+
 	private idPrefix: string;
 	private ui: QuickInputUI | undefined;
 	private dimension?: dom.IDimension;
@@ -944,7 +942,7 @@ export class QuickInputController extends Disposable {
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
-			let width = getQuickInputWidth(this.dimension!.width);
+			let width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
 
 			let listHeight = this.dimension && this.dimension.height * 0.4;

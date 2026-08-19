@@ -171,7 +171,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.autoUpdateDelay': {
 				type: 'number',
-				default: 2,
+				default: 12,
 				minimum: 0,
 				markdownDescription: localize('extensions.autoUpdateDelay', "Controls the delay in hours after an extension update is published before it is automatically installed. Only applies when `#extensions.autoUpdate#` is set to `on`. This delay helps avoid installing potentially problematic updates immediately after release."),
 				scope: ConfigurationScope.APPLICATION,

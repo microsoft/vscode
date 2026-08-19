@@ -115,6 +115,7 @@ main {
 	display: flex;
 	flex-direction: column;
 	gap: 20px;
+	min-width: 0;
 }
 
 .sidebar-panel {
@@ -132,6 +133,7 @@ main {
 	display: flex;
 	flex-direction: column;
 	gap: 20px;
+	min-width: 0;
 }
 
 .section-block {
@@ -205,6 +207,7 @@ main {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+	min-width: 0;
 }
 
 label {
@@ -573,6 +576,7 @@ code {
 
 
 #validation-results {
+	min-width: 0;
 	margin-top: 8px;
 }
 
@@ -580,10 +584,26 @@ code {
 	display: none;
 }
 
+.validation-table-container {
+	width: 100%;
+	min-width: 0;
+	overflow-x: auto;
+}
+
 .validation-table {
 	width: 100%;
+	min-width: 640px;
 	border-collapse: collapse;
+	table-layout: fixed;
 	font-size: 12px;
+}
+
+.validation-column-key {
+	width: 32%;
+}
+
+.validation-column-status {
+	width: 112px;
 }
 
 .validation-table th {
@@ -598,8 +618,9 @@ code {
 }
 
 .validation-table td {
-	padding: 4px 8px;
+	padding: 6px 8px;
 	border-bottom: 1px solid var(--border);
+	vertical-align: top;
 }
 
 .validation-table code {
@@ -616,12 +637,24 @@ code {
 	padding-inline: calc(8px + var(--validation-depth) * 16px) 8px;
 	background: transparent;
 	border-radius: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .validation-key code.nested::before {
 	content: '\21B3';
 	margin-inline-end: 6px;
 	color: var(--text-secondary);
+}
+
+.validation-status {
+	white-space: nowrap;
+}
+
+.validation-description {
+	color: var(--text-secondary);
+	line-height: 1.5;
 }
 
 .validation-ok {

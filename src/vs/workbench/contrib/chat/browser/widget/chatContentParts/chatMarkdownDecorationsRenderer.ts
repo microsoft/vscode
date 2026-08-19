@@ -13,6 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -172,7 +173,7 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 					this.renderFileWidget(content, href, a, store);
 				} else if (href.startsWith('command:')) {
 					this.injectKeybindingHint(a, href, this.keybindingService);
-				} else if (richLinksEnabled) {
+				} else if (richLinksEnabled || href.toLowerCase().startsWith(`${AGENT_HOST_SESSION_LINK_SCHEME}:`)) {
 					this.richLinkDecorator.value.decorate(a, href, store);
 				}
 			}

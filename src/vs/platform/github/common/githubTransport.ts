@@ -438,16 +438,30 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			this._rateLimits.updateFromResponse(account, response, body);
 			this._logRateLimit(account, response.headers.get('x-ratelimit-resource') ?? 'core');
 			if (response.status === 304) {
-				if (!cached || response.headers.get('etag') !== null && response.headers.get('etag') !== cached.etag) {
-					throw new GitHubRequestError('GitHub returned 304 without the exact cached representation', 'malformedResponse', 304);
+				if (!cached) {
+					throw new GitHubRequestError('GitHub returned 304 without a cached representation', 'malformedResponse', 304);
 				}
+				// A 304 confirms the cached body is current, but the validator itself may be reissued
+				// (for example a strong tag echoed as weak). Adopt it so the next revalidation sends
+				// the validator GitHub last handed out instead of resending a stale one forever.
+				const revalidatedEtag = response.headers.get('etag') ?? cached.etag;
+				const revalidatedLink = response.headers.get('link') ?? cached.link;
+				if (revalidatedEtag !== cached.etag) {
+					this._logService?.trace(`[GitHubTransport] Adopting reissued validator for ${operation}`);
+				}
+				this._restCache.set(cacheKey, {
+					...cached,
+					etag: revalidatedEtag,
+					link: revalidatedLink,
+					fetchedAt: this._scheduler.now(),
+				});
 				this._logService?.trace(`[GitHubTransport] Reused cached representation for ${operation}`);
 				return {
 					data: this._parseJson<T>(cached.body, 'Cached GitHub response was not valid JSON'),
 					statusCode: 304,
-					etag: cached.etag,
+					etag: revalidatedEtag,
 					finalUrl: cached.finalUrl,
-					link: cached.link,
+					link: revalidatedLink,
 					observedAt: this._scheduler.now(),
 				};
 			}

@@ -4,14 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { joinPath } from '../../../base/common/resources.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { ConfigurationService } from '../../configuration/common/configurationService.js';
-import { INativeEnvironmentService } from '../../environment/common/environment.js';
-import { IFileService } from '../../files/common/files.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { IPolicyService, NullPolicyService } from '../../policy/common/policy.js';
 import { IRequestService } from '../../request/common/request.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
@@ -22,41 +16,25 @@ export interface IAgentHostNetworkServices {
 }
 
 /**
- * Register `IPolicyService`, `IConfigurationService`, `IAgentHostProxyResolver`,
- * and `IRequestService` into the agent host's DI container — the services that
- * `IAgentSdkDownloader` (and proxy-aware network diagnostics) depend on.
+ * Register `IAgentHostProxyResolver` and `IRequestService` into the agent host's
+ * DI container — the services that `IAgentSdkDownloader` (and proxy-aware
+ * network diagnostics) depend on.
  *
  * Used by both entry points (`agentHostMain.ts` and `agentHostServerMain.ts`)
  * to avoid drift between them. The order of registration matters because
- * `RequestService` injects `IConfigurationService`; consumers (the downloader
- * itself, and through it `ClaudeAgentSdkService` / `CodexAgent`) must be
- * constructed AFTER this call.
- *
- * Reads the default profile's `settings.json` from `<appSettingsHome>` —
- * the same file the workbench writes user settings to. Initialization is
- * async because the settings file is read off disk.
- *
- * `NullPolicyService` matches the pattern used by sibling node-side processes
- * (server, CLI). Enterprise policy enforcement happens in the main process and
- * lands in `settings.json`; we don't re-resolve it here. `RequestService` runs
- * in `'local'` mode because the agent host runs on the user's machine.
+ * Consumers (the downloader itself, and through it `ClaudeAgentSdkService` /
+ * `CodexAgent`) must be constructed AFTER this call. The resolver is bound to
+ * `IAgentConfigurationService` after `AgentService` creates the host-owned
+ * configuration service.
  */
-export async function registerAgentHostNetworkServices(
+export function registerAgentHostNetworkServices(
 	diServices: ServiceCollection,
-	fileService: IFileService,
-	environmentService: INativeEnvironmentService,
 	logService: ILogService,
 	disposables: DisposableStore,
-): Promise<IAgentHostNetworkServices> {
-	const policyService = new NullPolicyService();
-	diServices.set(IPolicyService, policyService);
-	const settingsResource = joinPath(environmentService.appSettingsHome, 'settings.json');
-	const configurationService = disposables.add(new ConfigurationService(settingsResource, fileService, policyService, logService));
-	await configurationService.initialize();
-	diServices.set(IConfigurationService, configurationService);
-	const proxyResolver = disposables.add(new AgentHostProxyResolver(configurationService, logService));
+): IAgentHostNetworkServices {
+	const proxyResolver = disposables.add(new AgentHostProxyResolver(logService));
 	diServices.set(IAgentHostProxyResolver, proxyResolver);
-	const requestService = disposables.add(new AgentHostRequestService(configurationService, environmentService, logService, proxyResolver));
+	const requestService = disposables.add(new AgentHostRequestService(logService, proxyResolver));
 	diServices.set(IRequestService, requestService);
 	return { proxyResolver, requestService };
 }

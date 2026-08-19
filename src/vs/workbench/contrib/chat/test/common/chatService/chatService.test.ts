@@ -189,7 +189,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		const contextKeyService = testDisposables.add(new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
@@ -200,7 +201,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
-		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService())));
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
@@ -1034,7 +1035,6 @@ suite('ChatService', () => {
 
 		const model = testService.getSession(sessionResource) as ChatModel;
 		assert.strictEqual(model.getPendingRequests().length, 1, 'queued message should wait while the streamed turn is in progress');
-		assert.strictEqual(queued.requestId, model.getPendingRequests()[0].request.id, 'queued result should identify the pending request it created');
 
 		isCompleteObs.set(true, undefined);
 		await invoked.p;

@@ -10,7 +10,7 @@ import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, EXTENSION_UNIFICATION_EXTENSION_IDS, overrideIdentifiersFromKey } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../platform/jsonschemas/common/jsonContributionRegistry.js';
-import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, mcpSchemaId } from '../../services/configuration/common/configuration.js';
+import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, MCP_CONFIGURATION_KEY, mcpSchemaId } from '../../services/configuration/common/configuration.js';
 import { hasKey, isObject, isUndefined } from '../../../base/common/types.js';
 import { ExtensionIdentifierMap, IExtensionManifest } from '../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
@@ -418,7 +418,27 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			type: 'object',
 			default: {},
 			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
-			$ref: workspaceSettingsSchemaId
+			allOf: [
+				{ $ref: workspaceSettingsSchemaId },
+				{
+					properties: {
+						[MCP_CONFIGURATION_KEY]: {
+							type: 'object',
+							default: {
+								inputs: [],
+								servers: {
+									'mcp-server-time': {
+										command: 'uvx',
+										args: ['mcp_server_time', '--local-timezone=America/Los_Angeles']
+									}
+								}
+							},
+							description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
+							$ref: mcpSchemaId
+						}
+					}
+				}
+			]
 		},
 		'launch': {
 			type: 'object',
@@ -431,20 +451,6 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			default: { version: '2.0.0', tasks: [] },
 			description: nls.localize('workspaceConfig.tasks.description', "Workspace task configurations"),
 			$ref: tasksSchemaId
-		},
-		'mcp': {
-			type: 'object',
-			default: {
-				inputs: [],
-				servers: {
-					'mcp-server-time': {
-						command: 'uvx',
-						args: ['mcp_server_time', '--local-timezone=America/Los_Angeles']
-					}
-				}
-			},
-			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
-			$ref: mcpSchemaId
 		},
 		'extensions': {
 			type: 'object',

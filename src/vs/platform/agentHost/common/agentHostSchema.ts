@@ -460,6 +460,38 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 
+/**
+ * Independently synchronized proxy settings retain their VS Code `http.*`
+ * names, matching other flat namespaced root keys such as `agentMerge.*`.
+ */
+export const AgentHostProxyConfigKey = {
+	Proxy: 'http.proxy',
+	ProxyKerberosServicePrincipal: 'http.proxyKerberosServicePrincipal',
+	NoProxy: 'http.noProxy',
+} as const;
+
+const agentHostProxyConfigDefinition = {
+	[AgentHostProxyConfigKey.Proxy]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.httpProxy.title', "HTTP Proxy"),
+		description: localize('agentHost.config.httpProxy.description', "The proxy URL used by network requests from the Agent Host."),
+	}),
+	[AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.httpProxyKerberosServicePrincipal.title', "HTTP Proxy Kerberos Service Principal"),
+		description: localize('agentHost.config.httpProxyKerberosServicePrincipal.description', "The Kerberos service principal used to authenticate with the HTTP proxy."),
+	}),
+	[AgentHostProxyConfigKey.NoProxy]: schemaProperty<string[]>({
+		type: 'array',
+		title: localize('agentHost.config.httpNoProxy.title', "HTTP No Proxy"),
+		description: localize('agentHost.config.httpNoProxy.description', "Domain names that bypass the configured HTTP proxy."),
+		items: { type: 'string', title: localize('agentHost.config.httpNoProxy.item.title', "Domain") },
+		default: [],
+	}),
+};
+
+export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
+
 /** Root config key forwarded from the renderer for active-agent title generation. */
 export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
 
@@ -678,6 +710,7 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 };
 
 export const platformRootSchema = createSchema({
+	...agentHostProxyConfigDefinition,
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

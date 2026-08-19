@@ -21,6 +21,7 @@ export interface HeaderProps {
 	readonly showPopout: boolean;
 	readonly hideDisconnect: boolean;
 	readonly centerConnectButton: boolean;
+	readonly isMuted: boolean;
 	readonly onMicDown: (e: MouseEvent) => void;
 	readonly onMicUp: () => void;
 	readonly onConnectClick: (e: MouseEvent) => void;
@@ -28,6 +29,7 @@ export interface HeaderProps {
 	readonly onCloseClick: (e: MouseEvent) => void;
 	readonly onToggleClick: (e: MouseEvent) => void;
 	readonly onMicContextMenu: (e: MouseEvent) => void;
+	readonly onMuteClick: (e: MouseEvent) => void;
 	readonly onPopoutClick: (e: MouseEvent) => void;
 	readonly onFeedbackClick: (e: MouseEvent) => void;
 	readonly expanded: boolean;
@@ -86,6 +88,14 @@ export function createHeader(): HeaderComponent {
 	connIndicator.append(connDot, connDisc);
 	addKeyboardActivation(connIndicator);
 
+	// Mute microphone button — toggles whether captured audio is sent to the
+	// backend. Shown only while connected. Visual state clearly reflects mute.
+	const muteBtn = dom.$('span.codicon.codicon-mic');
+	muteBtn.role = 'button';
+	muteBtn.tabIndex = 0;
+	muteBtn.style.cssText = `font-size:${FONT_SIZE.iconSm};cursor:pointer;-webkit-app-region:no-drag;flex-shrink:0;border-radius:4px;padding:2px;`;
+	addKeyboardActivation(muteBtn);
+
 	// Placeholder text — clickable, shows PTT keybinding
 	const placeholderText = dom.$('span.voice-placeholder-text');
 	placeholderText.role = 'button';
@@ -128,7 +138,7 @@ export function createHeader(): HeaderComponent {
 		}
 	`;
 
-	container.append(copilotIcon, micBtn, placeholderText, connIndicator, spacer, popoutBtn, closeBtn, connStyle);
+	container.append(copilotIcon, micBtn, placeholderText, connIndicator, muteBtn, spacer, popoutBtn, closeBtn, connStyle);
 
 	return {
 		element: container,
@@ -174,6 +184,22 @@ export function createHeader(): HeaderComponent {
 			// Connection indicator
 			connIndicator.style.display = showConnected && !props.hideDisconnect ? 'inline-flex' : 'none';
 			connIndicator.onclick = props.onDisconnectClick;
+
+			// Mute microphone button — shown only when connected
+			muteBtn.style.display = showConnected ? '' : 'none';
+			muteBtn.classList.toggle('codicon-mic', !props.isMuted);
+			muteBtn.classList.toggle('codicon-mute', props.isMuted);
+			const muteColor = props.isMuted ? 'var(--vscode-editorError-foreground)' : 'var(--vscode-descriptionForeground)';
+			muteBtn.style.color = muteColor;
+			const muteLabel = props.isMuted
+				? localize('agentsVoice.unmuteMic', "Unmute Microphone")
+				: localize('agentsVoice.muteMic', "Mute Microphone");
+			muteBtn.ariaLabel = muteLabel;
+			muteBtn.title = muteLabel;
+			muteBtn.setAttribute('aria-pressed', props.isMuted ? 'true' : 'false');
+			muteBtn.onmouseenter = () => { muteBtn.style.color = 'var(--vscode-foreground)'; };
+			muteBtn.onmouseleave = () => { muteBtn.style.color = muteColor; };
+			muteBtn.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); props.onMuteClick(e); };
 
 			// Spacer / center connect button
 			const showConnBtnCenter = !showConnected && props.centerConnectButton;

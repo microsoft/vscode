@@ -156,8 +156,9 @@ function isInlineChat(widget: IChatWidget): boolean {
 	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isInlineChat);
 }
 
-export function isChatInputWindow(widget: IChatWidget): boolean {
-	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isChatInputWindow);
+/** Whether the widget is a short-lived, single-task chat surface. */
+function isTransientChat(widget: IChatWidget): boolean {
+	return widget.location !== ChatAgentLocation.Chat || isInlineChat(widget) || isQuickChat(widget);
 }
 
 export function getImmediateSilentSlashCommandPart(parsedRequest: IParsedChatRequest): ChatRequestSlashCommandPart | undefined {
@@ -288,6 +289,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
 	readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
+	private _submitHandlerInFlight = false;
 
 	private _onDidChangeAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
 	readonly onDidChangeAgent = this._onDidChangeAgent.event;
@@ -890,10 +892,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input' ? this.inlineInputPart : this.inputPart;
 	}
 
-	get contextPicker() {
-		return this.viewOptions.contextPicker;
-	}
-
 	/**
 	 * The main input part at the buttom of the chat widget. Use `input` to get the active input (main or inline editing part).
 	 */
@@ -1015,7 +1013,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
 		}
 
-		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this) && !this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.inChatInputWindow)) {
+		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
@@ -2332,20 +2330,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			inputEditorMinLines: this.viewOptions.inputEditorMinLines,
-			inputEditorMaxHeight: this.viewOptions.inputEditorMaxHeight,
-			deferredNotificationsEnabled: this.viewOptions.deferredNotificationsEnabled,
+			isTransientChat: isTransientChat(this),
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
-			modelPickerSessionType: this.viewOptions.modelPickerSessionType,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
-			onDidChangeModelPickerVisibility: this.viewOptions.onDidChangeModelPickerVisibility,
-			inputPickerPosition: this.viewOptions.inputPickerPosition,
-			inputPickerContainer: this.viewOptions.inputPickerContainer,
-			inputPickerAnchor: this.viewOptions.inputPickerAnchor,
-			inputPickerOpenOnMouseUp: this.viewOptions.inputPickerOpenOnMouseUp,
-			contextPicker: this.viewOptions.contextPicker,
 		};
 
 		if (this.viewModel?.editing) {
@@ -2857,33 +2847,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 
-		const hasCustomSubmitHandler = !!this.viewOptions.submitHandler;
-		if (hasCustomSubmitHandler) {
-			this.input.setSubmitPending(true, true);
+		if (!options?.preserveInput) {
+			// preserveInput submissions (e.g. /compact or programmatic maintenance
+			// requests) leave the input draft untouched, so they must not stop an
+			// unrelated dictation and flush its final transcript into that draft.
+			await stopDictationForEditor(this.inputEditor);
 		}
 
-		try {
-			if (!options?.preserveInput) {
-				// preserveInput submissions (e.g. /compact or programmatic maintenance
-				// requests) leave the input draft untouched, so they must not stop an
-				// unrelated dictation and flush its final transcript into that draft.
-				await stopDictationForEditor(this.inputEditor);
-				if (hasCustomSubmitHandler) {
-					// Finalizing dictation can edit the input, which clears pending state.
-					this.input.setSubmitPending(true, true);
-				}
-			}
-
-			if (this.viewModel) {
-				markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
-			}
-			return await this._acceptInput(query ? { query } : undefined, options);
-		} catch (error) {
-			if (hasCustomSubmitHandler) {
-				this.input.setSubmitPending(false);
-			}
-			throw error;
+		if (this.viewModel) {
+			markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
 		}
+		return this._acceptInput(query ? { query } : undefined, options);
 	}
 
 	async rerunLastRequest(): Promise<void> {
@@ -3041,9 +3015,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const start = Date.now();
 			await this.input.generating;
 			if (Date.now() - start > generatingAutoSubmitWindow) {
-				if (this.viewOptions.submitHandler) {
-					this.input.setSubmitPending(false);
-				}
 				return;
 			}
 		}
@@ -3053,25 +3024,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (!this.viewModel) {
-			if (this.viewOptions.submitHandler) {
-				this.input.setSubmitPending(false);
-			}
 			return;
 		}
 
 		let savedBeforeSend = false;
 		// Check if a custom submit handler wants to handle this submission
 		if (this.viewOptions.submitHandler) {
-			const inputValue = !query ? this.getInput() : query.query;
-			await saveAllBeforeChatSend(this.configurationService, this.editorService);
-			savedBeforeSend = true;
-			const attachedContext = this.input.getAttachedContext().asArray();
-			const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput);
-			if (handled) {
+			if (this._submitHandlerInFlight) {
 				return;
 			}
-			// The handler declined to route this submission; restore the send button.
-			this.input.setSubmitPending(false);
+			this._submitHandlerInFlight = true;
+			try {
+				const inputValue = !query ? this.getInput() : query.query;
+				await saveAllBeforeChatSend(this.configurationService, this.editorService);
+				savedBeforeSend = true;
+				const attachedContext = this.input.getAttachedContext().asArray();
+				const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput);
+				if (handled) {
+					return;
+				}
+			} finally {
+				this._submitHandlerInFlight = false;
+			}
 		}
 
 		const isUserQuery = !query;

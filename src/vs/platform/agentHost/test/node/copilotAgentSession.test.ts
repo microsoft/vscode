@@ -93,6 +93,19 @@ class MockCopilotSession {
 	readonly compactCalls: unknown[] = [];
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
+	readonly fleetStartCalls: Array<{ prompt?: string }> = [];
+	fleetStartResult: { started: boolean } = { started: true };
+	fleetStartError: unknown = undefined;
+	/** Awaited inside `rpc.fleet.start` so a test can hold the RPC in flight. */
+	fleetStartGate: Promise<void> | undefined;
+	/** Invoked inside `rpc.fleet.start` before it settles, so a test can emit SDK events (e.g. a racing `session.idle`). */
+	onFleetStart: (() => void) | undefined = undefined;
+	/** Invoked inside `rpc.mode.set`, so a test can race an abort against turn preflight. */
+	onModeSet: (() => void) | undefined = undefined;
+	/** Invoked inside `rpc.commands.list`, so a test can race an abort against slash-command resolution (before the fleet turn captures its token). */
+	onCommandList: (() => void) | undefined = undefined;
+	/** Ordered log of the SDK RPCs/sends relevant to turn preflight, so tests can assert cross-RPC ordering. */
+	readonly operationLog: string[] = [];
 	readonly mcpEnableCalls: Array<{ serverName: string }> = [];
 	readonly mcpDisableCalls: Array<{ serverName: string }> = [];
 	readonly mcpStartServerCalls: Array<{ serverName: string }> = [];
@@ -222,6 +235,7 @@ class MockCopilotSession {
 
 	// Stubs for methods the wrapper / session class calls
 	async send(request: unknown) {
+		this.operationLog.push('send');
 		this.sendRequests.push(request);
 		return `message-${this.sendRequests.length}`;
 	}
@@ -241,12 +255,15 @@ class MockCopilotSession {
 		mode: {
 			get: async () => ({ mode: 'interactive' as const }),
 			set: async (params: { mode: 'interactive' | 'plan' | 'autopilot' }) => {
+				this.operationLog.push('mode.set');
 				this.modeSetCalls.push({ mode: params.mode });
+				this.onModeSet?.();
 			},
 		},
 		permissions: {
 			setAllowAll: async (params: { mode?: PermissionAllowAllMode }) => {
 				const mode = params.mode ?? 'off';
+				this.operationLog.push('permissions.setAllowAll');
 				this.permissionModeSetCalls.push(mode);
 				return { success: this.permissionModeSetSuccess, enabled: mode === 'on', mode };
 			},
@@ -278,11 +295,25 @@ class MockCopilotSession {
 		commands: {
 			list: async (params?: unknown) => {
 				this.commandListCalls.push(params ?? null);
+				this.onCommandList?.();
 				return this.commandListResult;
 			},
 			invoke: async (params: { name: string; input?: string }) => {
+				this.operationLog.push('commands.invoke');
 				this.commandInvokeCalls.push(params);
 				return this.commandInvokeResult;
+			},
+		},
+		fleet: {
+			start: async (params: { prompt?: string }) => {
+				this.operationLog.push('fleet.start');
+				this.fleetStartCalls.push(params);
+				this.onFleetStart?.();
+				await this.fleetStartGate;
+				if (this.fleetStartError !== undefined) {
+					throw this.fleetStartError;
+				}
+				return this.fleetStartResult;
 			},
 		},
 		tasks: {
@@ -349,6 +380,7 @@ class MockCopilotSession {
 		options: {
 			update: async (params: { sandboxConfig?: unknown; isExperimentalMode?: boolean }) => {
 				if (params.sandboxConfig !== undefined) {
+					this.operationLog.push('options.update:sandbox');
 					this.sandboxConfigUpdates.push(params.sandboxConfig);
 				}
 				if (params.isExperimentalMode !== undefined) {
@@ -2221,6 +2253,394 @@ suite('CopilotAgentSession', () => {
 			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
 			responseParts: [],
 			turnComplete: [],
+		});
+	});
+
+	suite('/fleet lifecycle (issue #8837)', () => {
+		const fleetCommand = (aliases?: string[]) => ({
+			name: 'fleet',
+			kind: 'builtin' as const,
+			description: 'Fan the plan out across parallel subagents',
+			allowDuringAgentExecution: false,
+			...(aliases ? { aliases } : {}),
+		});
+
+		test('canonical built-in /fleet starts via rpc.fleet.start, keeps the turn open, and completes once on idle', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+
+			await session.send('/fleet the full analysis', undefined, 'turn-fleet', 'interactive');
+
+			assert.deepStrictEqual({
+				fleetStartCalls: mockSession.fleetStartCalls,
+				commandInvokeCalls: mockSession.commandInvokeCalls,
+				sendRequests: mockSession.sendRequests,
+				turnCompleteBeforeIdle: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				fleetStartCalls: [{ prompt: 'the full analysis' }],
+				commandInvokeCalls: [],
+				sendRequests: [],
+				turnCompleteBeforeIdle: 0,
+				hasActiveTurn: true,
+			});
+
+			mockSession.fire('assistant.message_delta', { deltaContent: 'Deploying fleet' } as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const actions = getActions(signals);
+			const responseParts = actions.filter(a => a.type === ActionType.ChatResponsePart) as ChatResponsePartAction[];
+			const turnComplete = actions.filter(a => a.type === ActionType.ChatTurnComplete) as ChatTurnCompleteAction[];
+			assert.deepStrictEqual({
+				responsePartTurnIds: responseParts.map(a => a.turnId),
+				turnCompleteTurnIds: turnComplete.map(a => a.turnId),
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				responsePartTurnIds: ['turn-fleet'],
+				turnCompleteTurnIds: ['turn-fleet'],
+				hasActiveTurn: false,
+			});
+		});
+
+		test('fleet preflight applies mode, permission, and sandbox before fleet.start and skips commands.invoke and the outer send', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+
+			const log = mockSession.operationLog;
+			const modeIdx = log.indexOf('mode.set');
+			const permIdx = log.indexOf('permissions.setAllowAll');
+			const sandboxIdx = log.indexOf('options.update:sandbox');
+			const startIdx = log.indexOf('fleet.start');
+			assert.deepStrictEqual({
+				strictPreflightOrder: modeIdx >= 0 && permIdx > modeIdx && sandboxIdx > permIdx && startIdx > sandboxIdx,
+				fleetStartCount: log.filter(op => op === 'fleet.start').length,
+				invokedGenericCommand: log.includes('commands.invoke'),
+				sentThroughNormalSend: log.includes('send'),
+			}, {
+				strictPreflightOrder: true,
+				fleetStartCount: 1,
+				invokedGenericCommand: false,
+				sentThroughNormalSend: false,
+			});
+		});
+
+		test('a client command named `fleet` still routes through commands.invoke', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.commandListResult = {
+				commands: [{ name: 'fleet', kind: 'client', description: 'A client command', allowDuringAgentExecution: true }],
+			};
+			mockSession.commandInvokeResult = { kind: 'completed', message: 'client fleet done' };
+
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+
+			assert.deepStrictEqual({
+				fleetStartCalls: mockSession.fleetStartCalls,
+				commandInvokeCalls: mockSession.commandInvokeCalls,
+			}, {
+				fleetStartCalls: [],
+				commandInvokeCalls: [{ name: 'fleet', input: 'go' }],
+			});
+		});
+
+		test('resolves fleet via alias and case-insensitively, and omits an empty prompt', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand(['fl'])] };
+
+			await session.send('/FLEET the full analysis', undefined, 'turn-fleet-1', 'interactive');
+			await session.send('/fl', undefined, 'turn-fleet-2', 'interactive');
+
+			assert.deepStrictEqual(mockSession.fleetStartCalls, [
+				{ prompt: 'the full analysis' },
+				{},
+			]);
+		});
+
+		test('rejects /fleet attachments before any SDK side effect', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+
+			await assert.rejects(session.send(
+				'/fleet go',
+				[{ type: MessageAttachmentKind.Resource, uri: 'file:///workspace/file.ts', label: 'file.ts', displayKind: 'document' }],
+				'turn-fleet',
+				'interactive',
+			));
+
+			assert.deepStrictEqual({
+				operationLog: mockSession.operationLog,
+				fleetStartCalls: mockSession.fleetStartCalls,
+				commandInvokeCalls: mockSession.commandInvokeCalls,
+				sendRequests: mockSession.sendRequests,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				operationLog: [],
+				fleetStartCalls: [],
+				commandInvokeCalls: [],
+				sendRequests: [],
+				hasActiveTurn: false,
+			});
+		});
+
+		test('started:false surfaces an error and clears the turn without an SDK send', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+			mockSession.fleetStartResult = { started: false };
+
+			await assert.rejects(session.send('/fleet go', undefined, 'turn-fleet', 'interactive'));
+
+			assert.deepStrictEqual({
+				fleetStartCalls: mockSession.fleetStartCalls,
+				sendRequests: mockSession.sendRequests,
+				commandInvokeCalls: mockSession.commandInvokeCalls,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				fleetStartCalls: [{ prompt: 'go' }],
+				sendRequests: [],
+				commandInvokeCalls: [],
+				hasActiveTurn: false,
+			});
+		});
+
+		test('a fleet.start rejection propagates and clears the turn', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+			mockSession.fleetStartError = new Error('fleet boom');
+
+			await assert.rejects(session.send('/fleet go', undefined, 'turn-fleet', 'interactive'), /fleet boom/);
+			assert.strictEqual(session.hasActiveTurn, false);
+		});
+
+		test('a session.idle racing fleet.start settlement completes the turn exactly once', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+			// Emit the terminal idle while `fleet.start` is still in flight.
+			mockSession.onFleetStart = () => mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+
+			const turnComplete = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete) as ChatTurnCompleteAction[];
+			assert.deepStrictEqual({
+				turnCompleteTurnIds: turnComplete.map(a => a.turnId),
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				turnCompleteTurnIds: ['turn-fleet'],
+				hasActiveTurn: false,
+			});
+		});
+
+		test('a fleet.start rejection after idle already completed the turn does not emit a second terminal action', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+			mockSession.fleetStartError = new Error('late boom');
+			mockSession.onFleetStart = () => mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			// Must not reject: idle is authoritative once it has completed the turn.
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+
+			const actions = getActions(signals);
+			assert.deepStrictEqual({
+				turnCompleteCount: actions.filter(a => a.type === ActionType.ChatTurnComplete).length,
+				chatErrorCount: actions.filter(a => a.type === ActionType.ChatError).length,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				turnCompleteCount: 1,
+				chatErrorCount: 0,
+				hasActiveTurn: false,
+			});
+		});
+
+		test('an aborted idle after a successful fleet start tears the turn down without a success completion', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+
+			// Marking the turn running ensures an abort before the first SDK event tears it down.
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				turnCompleteCount: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				turnCompleteCount: 0,
+				hasActiveTurn: false,
+			});
+		});
+
+		test('an abort racing fleet.start settlement discards the turn without a success completion', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+			// Abort while `fleet.start` is in flight, then deliver the aborted terminal
+			// idle (which resets the live abort token and leaves the pending turn open).
+			mockSession.onFleetStart = () => {
+				void session.abort();
+				mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			};
+
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+
+			assert.deepStrictEqual({
+				turnCompleteCount: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				chatErrorCount: getActions(signals).filter(a => a.type === ActionType.ChatError).length,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				turnCompleteCount: 0,
+				chatErrorCount: 0,
+				hasActiveTurn: false,
+			});
+		});
+
+		test('an abort during fleet preflight does not start the fleet loop', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+			// Abort while the shared preflight (mode/permission/sandbox/MCP) is running,
+			// before `fleet.start` would be invoked.
+			mockSession.onModeSet = () => {
+				void session.abort();
+				mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			};
+
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+
+			assert.deepStrictEqual({
+				fleetStartCalls: mockSession.fleetStartCalls,
+				sentThroughNormalSend: mockSession.operationLog.includes('send'),
+				turnCompleteCount: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				chatErrorCount: getActions(signals).filter(a => a.type === ActionType.ChatError).length,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				fleetStartCalls: [],
+				sentThroughNormalSend: false,
+				turnCompleteCount: 0,
+				chatErrorCount: 0,
+				hasActiveTurn: false,
+			});
+		});
+
+		test('an abort during slash-command resolution does not start the fleet loop', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+			// Abort while `rpc.commands.list` (slash-command resolution) is in flight —
+			// before `_startFleet` runs. The aborted `session.idle` resets the live token
+			// and leaves the pending turn open, so only a token captured before this await
+			// reflects the cancellation. Reading a fresh token would start the fleet loop
+			// after the user cancelled.
+			mockSession.onCommandList = () => {
+				void session.abort();
+				mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			};
+
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+
+			assert.deepStrictEqual({
+				fleetStartCalls: mockSession.fleetStartCalls,
+				sentThroughNormalSend: mockSession.operationLog.includes('send'),
+				turnCompleteCount: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				chatErrorCount: getActions(signals).filter(a => a.type === ActionType.ChatError).length,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				fleetStartCalls: [],
+				sentThroughNormalSend: false,
+				turnCompleteCount: 0,
+				chatErrorCount: 0,
+				hasActiveTurn: false,
+			});
+		});
+
+		test('binds the fleet user.message event id to the original turn (message after RPC resolves)', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase });
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+			mockSession.fire('user.message', { content: 'Fleet deployed: go' } as SessionEventPayload<'user.message'>['data'], { id: 'evt-fleet' });
+
+			assert.deepStrictEqual(sessionDatabase.setTurnEventIdCalls, [{ turnId: 'turn-fleet', eventId: 'evt-fleet' }]);
+		});
+
+		test('binds the fleet user.message event id to the original turn (message before RPC resolves)', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase });
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+			mockSession.onFleetStart = () => mockSession.fire('user.message', { content: 'Fleet deployed: go' } as SessionEventPayload<'user.message'>['data'], { id: 'evt-fleet' });
+
+			await session.send('/fleet go', undefined, 'turn-fleet', 'interactive');
+
+			assert.deepStrictEqual(sessionDatabase.setTurnEventIdCalls, [{ turnId: 'turn-fleet', eventId: 'evt-fleet' }]);
+		});
+
+		test('plan review and ask_user during an active fleet turn do not hit the no-active-turn fallback', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.commandListResult = { commands: [fleetCommand()] };
+			mockSession.planReadResult = { exists: true, content: '## Plan', path: '/sessions/abc/plan.md' };
+
+			await session.send('/fleet the full analysis', undefined, 'turn-fleet', 'interactive');
+
+			const planReviewPromise = runtime.handleExitPlanModeRequest(
+				{ summary: '## Plan summary', actions: ['interactive'], recommendedAction: 'interactive' },
+				{ sessionId: 'test-session-1' },
+			);
+			const askUserPromise = runtime.handleUserInputRequest({ question: 'Proceed?' }, { sessionId: 'test-session-1' });
+
+			// Plan review awaits `rpc.plan.read()` before raising its request, so let the microtask settle.
+			await timeout(0);
+			const inputRequests = getActions(signals).filter(a => a.type === ActionType.ChatInputRequested);
+			assert.strictEqual(inputRequests.length, 2, 'plan review and ask_user should each raise an input request while fleet is active');
+
+			session.dispose();
+			assert.deepStrictEqual({
+				planReview: await planReviewPromise,
+				askUser: await askUserPromise,
+			}, {
+				planReview: { approved: false },
+				askUser: { answer: '', wasFreeform: true },
+			});
+		});
+	});
+
+	test('applies the effective mode before invoking a non-fleet runtime command', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		// Establish a stale prior SDK mode, then clear setup noise from the trace.
+		await session.applyMode('plan');
+		mockSession.operationLog.length = 0;
+		mockSession.commandListResult = {
+			commands: [{ name: 'env', kind: 'builtin', description: 'Show environment', allowDuringAgentExecution: true }],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'done' };
+
+		await session.send('/env', undefined, 'turn-env', 'interactive');
+
+		const log = mockSession.operationLog;
+		assert.deepStrictEqual({
+			modeBeforeInvoke: log.indexOf('mode.set') >= 0 && log.indexOf('mode.set') < log.indexOf('commands.invoke'),
+			lastModeApplied: mockSession.modeSetCalls.at(-1),
+		}, {
+			modeBeforeInvoke: true,
+			lastModeApplied: { mode: 'interactive' },
+		});
+	});
+
+	test('reapplies an agent-prompt mode override before the SDK send', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{ name: 'refine', kind: 'builtin', description: 'Refine', allowDuringAgentExecution: true }],
+		};
+		mockSession.commandInvokeResult = { kind: 'agent-prompt', prompt: 'do it', displayPrompt: 'do it', mode: 'autopilot' };
+
+		await session.send('/refine now', undefined, 'turn-refine', 'interactive');
+
+		const log = mockSession.operationLog;
+		assert.deepStrictEqual({
+			modeSetCalls: mockSession.modeSetCalls,
+			sendRequests: mockSession.sendRequests,
+			firstModeBeforeInvoke: log.indexOf('mode.set') < log.indexOf('commands.invoke'),
+			overrideModeAfterInvokeBeforeSend: log.lastIndexOf('mode.set') > log.indexOf('commands.invoke') && log.lastIndexOf('mode.set') < log.indexOf('send'),
+		}, {
+			modeSetCalls: [{ mode: 'interactive' }, { mode: 'autopilot' }],
+			sendRequests: [{ prompt: 'do it', attachments: undefined }],
+			firstModeBeforeInvoke: true,
+			overrideModeAfterInvokeBeforeSend: true,
 		});
 	});
 
@@ -5912,7 +6332,7 @@ suite('CopilotAgentSession', () => {
 
 		test('tool-call aggregate emits once with cancelled result across abort and idle', async () => {
 			const telemetryService = new CapturingTelemetryService();
-			const { session, mockSession } = await createAgentSession(disposables, {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				telemetryService,
 				clientSnapshot: { tools: [{ name: 'grep' }, { name: 'edit' }], plugins: [], mcpServers: {} },
 			});
@@ -5923,51 +6343,99 @@ suite('CopilotAgentSession', () => {
 				messageId: 'msg-tools',
 				content: '',
 				model: 'gpt-x',
+				apiCallId: 'api-tools',
 				toolRequests: [
 					{ toolCallId: 'tc-1', name: 'grep', arguments: {} },
 					{ toolCallId: 'tc-2', name: 'edit', arguments: {} },
 				],
-			} as SessionEventPayload<'assistant.message'>['data']);
+			} as SessionEventPayload<'assistant.message'>['data'], { id: 'evt-tools' });
 			mockSession.fire('assistant.message', {
 				messageId: 'msg-final',
 				content: 'done',
 				model: 'gpt-x',
-			} as SessionEventPayload<'assistant.message'>['data']);
+				apiCallId: 'api-final',
+			} as SessionEventPayload<'assistant.message'>['data'], { id: 'evt-final' });
 			mockSession.fire('abort', { reason: 'user_abort' } as SessionEventPayload<'abort'>['data']);
 			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
 
-			assert.deepStrictEqual(telemetryService.events.map(event => {
-				const data = event.data as Record<string, unknown>;
-				return {
-					eventName: event.eventName,
-					provider: data.provider,
-					requestId: data.requestId,
-					responseType: data.responseType,
-					toolCounts: data.toolCounts,
-					model: data.model,
-					numRequests: data.numRequests,
-					turnIndex: data.turnIndex,
-					messageCharLen: data.messageCharLen,
-					availableToolCount: data.availableToolCount,
-					totalToolCalls: data.totalToolCalls,
-					parallelToolCallRounds: data.parallelToolCallRounds,
-					parallelToolCallsTotal: data.parallelToolCallsTotal,
-				};
-			}), [{
-				eventName: 'toolCallDetails',
-				provider: 'copilot',
-				requestId: 'turn-tool-details',
-				responseType: 'cancelled',
-				toolCounts: JSON.stringify({ grep: 1, edit: 1 }),
+			assert.deepStrictEqual({
+				telemetry: telemetryService.events.map(event => {
+					const data = event.data as Record<string, unknown>;
+					return {
+						eventName: event.eventName,
+						provider: data.provider,
+						requestId: data.requestId,
+						responseType: data.responseType,
+						toolCounts: data.toolCounts,
+						model: data.model,
+						numRequests: data.numRequests,
+						turnIndex: data.turnIndex,
+						messageCharLen: data.messageCharLen,
+						availableToolCount: data.availableToolCount,
+						totalToolCalls: data.totalToolCalls,
+						parallelToolCallRounds: data.parallelToolCallRounds,
+						parallelToolCallsTotal: data.parallelToolCallsTotal,
+					};
+				}),
+				modelCalls: signals.filter(signal => signal.kind === 'model_call_completed').map(signal => ({
+					turnId: signal.kind === 'model_call_completed' ? signal.turnId : undefined,
+					modelCallId: signal.kind === 'model_call_completed' ? signal.modelCallId : undefined,
+				})),
+			}, {
+				telemetry: [{
+					eventName: 'toolCallDetails',
+					provider: 'copilot',
+					requestId: 'turn-tool-details',
+					responseType: 'cancelled',
+					toolCounts: JSON.stringify({ grep: 1, edit: 1 }),
+					model: 'gpt-x',
+					numRequests: 2,
+					turnIndex: 0,
+					messageCharLen: 11,
+					availableToolCount: 2,
+					totalToolCalls: 2,
+					parallelToolCallRounds: 1,
+					parallelToolCallsTotal: 2,
+				}],
+				modelCalls: [
+					{ turnId: 'turn-tool-details', modelCallId: 'api-tools' },
+					{ turnId: 'turn-tool-details', modelCallId: 'api-final' },
+				],
+			});
+		});
+
+		test('split assistant messages count as one model call', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+			});
+			session.resetTurnState('turn-split-message');
+			await session.send('hello agent', undefined, 'turn-split-message');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-part-1',
+				content: 'reasoning',
 				model: 'gpt-x',
-				numRequests: 2,
-				turnIndex: 0,
-				messageCharLen: 11,
-				availableToolCount: 2,
-				totalToolCalls: 2,
-				parallelToolCallRounds: 1,
-				parallelToolCallsTotal: 2,
-			}]);
+				chunkIndex: 0,
+				chunkCount: 2,
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-part-2',
+				content: 'answer',
+				model: 'gpt-x',
+				chunkIndex: 1,
+				chunkCount: 2,
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				numRequests: (telemetryService.events.find(event => event.eventName === 'toolCallDetails')?.data as Record<string, unknown> | undefined)?.numRequests,
+				modelCallIds: signals.filter(signal => signal.kind === 'model_call_completed').map(signal => signal.kind === 'model_call_completed' ? signal.modelCallId : undefined),
+			}, {
+				numRequests: 1,
+				modelCallIds: ['msg-part-2'],
+			});
 		});
 
 		test('tool approval waits for permission outcome and falls back only at completion', async () => {

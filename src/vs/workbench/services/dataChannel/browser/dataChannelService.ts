@@ -60,6 +60,19 @@ interface ICachedLinkPresentation {
 	readonly presentation: ILinkPresentation;
 }
 
+export const linkPresentationProviderInitialKinds: LinkPresentationKind[] = [
+	'resource',
+	'issue',
+	'pullRequest',
+	'commit',
+	'file',
+	'folder',
+	'session',
+	'chat',
+	'repository',
+	'branch',
+];
+
 const linkPresentationProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ILinkPresentationProviderContribution[]>({
 	extensionPoint: 'linkPresentationProviders',
 	jsonSchema: {
@@ -80,7 +93,7 @@ const linkPresentationProviderExtensionPoint = ExtensionsRegistry.registerExtens
 				},
 				initialKind: {
 					type: 'string',
-					enum: ['resource', 'issue', 'pullRequest', 'commit', 'file', 'folder', 'session', 'repository', 'branch'],
+					enum: linkPresentationProviderInitialKinds,
 					description: localize('linkPresentationProvider.initialKind', "The initial semantic kind shown while the provider resolves its first presentation."),
 				},
 				enablement: {

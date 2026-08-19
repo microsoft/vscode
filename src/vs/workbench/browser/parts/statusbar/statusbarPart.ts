@@ -126,7 +126,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	 * experiment so its items remain centered. The part grows by this amount and
 	 * the matching padding is applied in `floatingPanels.css`.
 	 */
-	static readonly FLOATING_BOTTOM_PADDING = 10;
+	static readonly FLOATING_BOTTOM_PADDING = 6;
 
 	//#region IView
 

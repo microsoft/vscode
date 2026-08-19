@@ -100,17 +100,6 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('does not describe the Agents-only floating input window in panel chat', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
-
-		assert.strictEqual(
-			getAccessibilityHelpText('panelChat', keybindingService, true).includes('floating chat input window'),
-			false,
-		);
-	});
-
 	test('only describes spoken agent progress in agent mode', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
@@ -136,14 +125,12 @@ suite('Chat Accessibility Help', () => {
 			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
 			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
 			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
-			chatInputWindow: getAccessibilityHelpText('chatInputWindow', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
 		}, {
 			panelChat: true,
 			agentView: true,
 			editsView: true,
 			quickChat: false,
 			inlineChat: false,
-			chatInputWindow: false,
 		});
 	});
 });

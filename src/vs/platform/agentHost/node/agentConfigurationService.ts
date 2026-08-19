@@ -16,7 +16,7 @@ import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, 
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
-import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
+import { agentHostProxyConfigSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -411,6 +411,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
 				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
 				...agentMergeRootConfigSchema.validateOrDefault(parsed, {}),
+				...agentHostProxyConfigSchema.validateOrDefault(parsed, {}),
 			};
 		} catch (err) {
 			const code = err && typeof err === 'object' && hasKey(err, { code: true }) ? String(err.code) : undefined;

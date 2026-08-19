@@ -105,6 +105,5 @@ suite('NewChatVoiceTargetService', () => {
 		assert.strictEqual(isNewChatVoiceSessionActive(true, false, URI.parse('agent-host-copilot:/session-1'), false), false);
 		assert.strictEqual(isNewChatVoiceSessionActive(true, false, undefined, false), false);
 		assert.strictEqual(isNewChatVoiceSessionActive(false, false, undefined, true), false);
-		assert.strictEqual(isNewChatVoiceSessionActive(true, false, undefined, true, true), false);
 	});
 });

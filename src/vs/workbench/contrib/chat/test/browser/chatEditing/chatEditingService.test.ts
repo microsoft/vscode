@@ -22,6 +22,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
@@ -92,7 +93,8 @@ suite('ChatEditingService', function () {
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
-		collection.set(IChatDebugService, new ChatDebugServiceImpl(new TestConfigurationService()));
+		const contextKeyService = store.add(new MockContextKeyService());
+		collection.set(IChatDebugService, store.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {
 				return Disposable.None;

@@ -10,6 +10,7 @@ import { extUriBiasedIgnorePathCase, isEqual, type IExtUri } from '../../../../.
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { RootState, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -211,6 +212,19 @@ export interface IAgentHostNewSessionFolderService {
 	 * folder the user last picked instead of resetting to the first folder.
 	 */
 	getDefaultFolder(): URI | undefined;
+
+	/**
+	 * The folder a *new* (not-yet-started) session should use, resolved with the
+	 * same precedence a freshly created chat would apply: a still-valid explicit
+	 * per-session choice, else the still-valid sticky {@link getDefaultFolder},
+	 * else the first current workspace folder, else `undefined` (no folders).
+	 *
+	 * Used to reselect a draft's primary when the folder it pointed at is removed
+	 * from the workspace. Every candidate is validated against the *current*
+	 * workspace folders, so the removed folder is never returned regardless of the
+	 * order in which workspace-change listeners run.
+	 */
+	resolveNewSessionPrimary(sessionResource: URI): URI | undefined;
 }
 
 export class AgentHostNewSessionFolderService extends Disposable implements IAgentHostNewSessionFolderService {
@@ -231,6 +245,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 	constructor(
 		@IChatService chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -241,6 +256,26 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 		// default ({@link _defaultFolder}) is intentionally left untouched.
 		this._register(chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
+				this.clear(sessionResource);
+			}
+		}));
+
+		// Clear selections for folders actually removed from the workspace while retaining the sticky default.
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(e => {
+			if (e.removed.length === 0) {
+				return;
+			}
+			const extUri = this._uriIdentityService.extUri;
+			const currentFolders = this._workspaceContextService.getWorkspace().folders;
+			const staleSessions: URI[] = [];
+			for (const [sessionResource, folder] of this._folders) {
+				const wasRemoved = e.removed.some(removed => extUri.isEqual(removed.uri, folder));
+				const stillPresent = currentFolders.some(current => extUri.isEqual(current.uri, folder));
+				if (wasRemoved && !stillPresent) {
+					staleSessions.push(sessionResource);
+				}
+			}
+			for (const sessionResource of staleSessions) {
 				this.clear(sessionResource);
 			}
 		}));
@@ -268,10 +303,24 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 
 	getDefaultFolder(): URI | undefined {
 		const stored = this._defaultFolder;
-		if (stored && this._workspaceContextService.getWorkspace().folders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder.uri, stored))) {
+		if (stored && this._workspaceContextService.getWorkspace().folders.some(folder => this._uriIdentityService.extUri.isEqual(folder.uri, stored))) {
 			return stored;
 		}
 		return undefined;
+	}
+
+	resolveNewSessionPrimary(sessionResource: URI): URI | undefined {
+		const folders = this._workspaceContextService.getWorkspace().folders;
+		// An explicit choice is honored only while it is still a workspace folder;
+		// the chip records only workspace folders, so a removed one is skipped here
+		// even before the workspace-change listener clears it (order-independent).
+		// Uses the same provider-aware comparator as removal detection so both
+		// checks agree on case-sensitive remotes.
+		const explicit = this._folders.get(sessionResource);
+		if (explicit && folders.some(folder => this._uriIdentityService.extUri.isEqual(folder.uri, explicit))) {
+			return explicit;
+		}
+		return this.getDefaultFolder() ?? folders[0]?.uri;
 	}
 }
 

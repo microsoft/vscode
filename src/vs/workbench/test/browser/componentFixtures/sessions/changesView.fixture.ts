@@ -37,7 +37,7 @@ import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChan
 // eslint-disable-next-line local/code-import-patterns
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
+import { SinglePaneChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService, SessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -153,7 +153,7 @@ const changesViewContainer: ViewContainer = {
 const changesViewDescriptor: IViewDescriptor = {
 	id: CHANGES_VIEW_ID,
 	name: localize2('fixtureChangesView', 'Changes'),
-	ctorDescriptor: new SyncDescriptor(ChangesViewPane),
+	ctorDescriptor: new SyncDescriptor(SinglePaneChangesViewPane),
 	containerIcon: Codicon.gitCompare,
 };
 
@@ -386,6 +386,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 	container.style.width = `${VIEW_WIDTH}px`;
 	container.style.height = `${height}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+	container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
 
 	const host = dom.append(container, dom.$('.part.auxiliarybar'));
 	host.style.width = '100%';
@@ -450,7 +451,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 		},
 	});
 
-	const view = disposableStore.add(instantiationService.createInstance(ChangesViewPane, {
+	const view = disposableStore.add(instantiationService.createInstance(SinglePaneChangesViewPane, {
 		id: CHANGES_VIEW_ID,
 		title: 'Changes',
 		minimumBodySize: 0,

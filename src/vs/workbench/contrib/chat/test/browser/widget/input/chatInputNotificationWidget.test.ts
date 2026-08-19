@@ -210,11 +210,45 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('skips notifications that opt out of transient chats without hiding others', () => {
+		const transient = createWidget({ delegate: { isTransientChat: true } });
+		const persistent = createWidget({ delegate: { isTransientChat: false } });
+		const rendered = (widget: ChatInputNotificationWidget) => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+
+		for (const { notificationService } of [transient, persistent]) {
+			showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+			showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], hideInTransientChats: true });
+		}
+
+		assert.deepStrictEqual({
+			transient: rendered(transient.widget),
+			persistent: rendered(persistent.widget),
+		}, {
+			transient: 'Ordinary notification',
+			persistent: 'Model promotion',
+		});
+	});
+
+	test('reactively hides notifications that opt out of started sessions', () => {
+		const sessionStarted = observableValue('sessionStarted', false);
+		const { widget, notificationService } = createWidget({ delegate: { sessionStarted } });
+		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+		showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], hideInStartedSessions: true });
+
+		const rendered = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		const before = rendered();
+		sessionStarted.set(true, undefined);
+
+		assert.deepStrictEqual({ before, after: rendered() }, {
+			before: 'Model promotion',
+			after: 'Ordinary notification',
+		});
+	});
+
 	test('standard workbench defers notifications for the first session only', () => {
 		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
 		let hasSessions = false;
 		const harness = {
-			options: {},
 			environmentService: { isSessionsWindow: false },
 			chatService: { hasSessions: () => hasSessions },
 			_deferredNotificationsEnabled: deferredNotificationsEnabled,
@@ -249,7 +283,6 @@ suite('ChatInputNotificationWidget', () => {
 	test('Agents window bypasses the workbench first-session gate', () => {
 		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', false);
 		const harness = {
-			options: {},
 			environmentService: { isSessionsWindow: true },
 			chatService: { hasSessions: () => false },
 			_deferredNotificationsEnabled: deferredNotificationsEnabled,
@@ -263,25 +296,6 @@ suite('ChatInputNotificationWidget', () => {
 		update.call(harness);
 
 		assert.strictEqual(deferredNotificationsEnabled.get(), true);
-	});
-
-	test('widget option disables deferred notifications', () => {
-		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
-		const harness = {
-			options: { deferredNotificationsEnabled: false },
-			environmentService: { isSessionsWindow: true },
-			chatService: { hasSessions: () => true },
-			_deferredNotificationsEnabled: deferredNotificationsEnabled,
-			_isFirstWorkbenchSession: undefined as boolean | undefined,
-		};
-		const update = Reflect.get(ChatInputPart.prototype, 'updateDeferredNotificationsEligibility') as (
-			this: typeof harness,
-			event?: { previousSessionResource: URI | undefined; currentSessionResource: URI | undefined },
-		) => void;
-
-		update.call(harness);
-
-		assert.strictEqual(deferredNotificationsEnabled.get(), false);
 	});
 
 	test('renders markdown descriptions as rich content', () => {

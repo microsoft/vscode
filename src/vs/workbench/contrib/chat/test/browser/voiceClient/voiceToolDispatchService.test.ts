@@ -8,7 +8,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IVoiceModelSelectionResult, IVoiceToolDispatchDelegate, resolveVoiceModel, VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -76,22 +76,12 @@ suite('VoiceToolDispatchService - session actions', () => {
 		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
 			override get model(): IAgentSessionsModel {
 				return {
-					sessions: (options.agentSessionResources ?? []).map(resource => ({
-						isArchived: () => false,
-						resource,
-						label: 'Agent session',
-						status: AgentSessionStatus.NeedsInput,
-						timing: {},
-						changes: undefined,
-					})),
+					sessions: (options.agentSessionResources ?? []).map(resource => ({ isArchived: () => false, resource })),
 				} as IAgentSessionsModel;
 			}
 		};
 		const chatService = new class extends mock<IChatService>() {
 			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', options.chatModels ?? []);
-			override getSession(resource: URI): IChatModel | undefined {
-				return this.chatModels.get().find(model => model.sessionResource.toString() === resource.toString());
-			}
 		};
 		const service = new VoiceToolDispatchService(
 			agentSessionsService,
@@ -211,23 +201,6 @@ suite('VoiceToolDispatchService - session actions', () => {
 			label: 'New chat',
 			session_type: 'chat',
 			state: 'idle',
-			is_active: true,
-			insertions: 0,
-			deletions: 0,
-		});
-	});
-
-	test('reports Agent Host sessions using the backend session id', async () => {
-		const resource = URI.parse('agent-host-copilotcli:/waiting-session');
-		const { service } = createActionHarness({ currentResource: resource, agentSessionResources: [resource] });
-
-		const result = await dispatch(service, 'get_session_info');
-
-		assert.deepStrictEqual(result.sessions[0], {
-			id: 'copilotcli:/waiting-session',
-			label: 'Agent session',
-			session_type: 'agent',
-			state: 'waiting_for_input',
 			is_active: true,
 			insertions: 0,
 			deletions: 0,

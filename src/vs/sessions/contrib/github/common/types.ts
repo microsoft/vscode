@@ -6,6 +6,9 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
 
+export const OPEN_PULL_REQUEST_ACTION_ID = 'workbench.agentSessions.action.openPullRequest';
+export const OPEN_ISSUE_ACTION_ID = 'workbench.agentSessions.action.openIssue';
+
 //#region Session Context
 
 /**

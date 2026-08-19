@@ -60,6 +60,7 @@ interface ITurnTiming {
 	readonly permissionLevel: string | undefined;
 	readonly interactionMode: SessionMode | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
+	readonly completedModelCallIds: Set<string>;
 	firstProgressMs: number | undefined;
 	currentStage: AgentHostTurnFailureStage;
 
@@ -142,7 +143,7 @@ export class AgentHostTurnTracker extends Disposable {
 		}));
 	}
 
-	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown)): void {
+	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown)): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
@@ -151,10 +152,11 @@ export class AgentHostTurnTracker extends Disposable {
 			turnId,
 			model,
 			modelTelemetryKind,
-			modelSelectionKind: model === undefined ? 'default' : model === 'auto' ? 'auto' : 'explicit',
+			modelSelectionKind,
 			permissionLevel,
 			interactionMode,
 			clientContext,
+			completedModelCallIds: new Set(),
 			firstProgressMs: undefined,
 			currentStage: 'validation',
 			quietStopWatch: StopWatch.create(false),
@@ -313,6 +315,10 @@ export class AgentHostTurnTracker extends Disposable {
 		}
 	}
 
+	modelCallCompleted(session: string, turnId: string, modelCallId: string): void {
+		this._turnTimings.get(this._key(session, turnId))?.completedModelCallIds.add(modelCallId);
+	}
+
 	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		return timing ? { model: timing.model, modelTelemetryKind: timing.modelTelemetryKind } : undefined;
@@ -348,6 +354,7 @@ export class AgentHostTurnTracker extends Disposable {
 			isMultiRoot: workspace?.isMultiRoot ?? false,
 			folderCount: workspace?.folderCount ?? 0,
 			billedNanoAiu: usage?.billedNanoAiu,
+			modelCallCount: timing.completedModelCallIds.size,
 		});
 
 		// Paired recovery event: the turn was reported as hung but did finish,

@@ -97,6 +97,13 @@ declare module 'vscode' {
 		readonly warningText?: Record<string, string>;
 
 		/**
+		 * Optional informational text to display in the model picker hover as an info banner.
+		 * The keys are info categories (e.g. "model_relocated") and the values are markdown strings.
+		 * Unlike {@link warningText}, this renders with an info icon and never signals a problem with the model.
+		 */
+		readonly infoText?: Record<string, string>;
+
+		/**
 		 * Optional promotional information for this model. When present, indicates the model
 		 * is currently experiencing a promotional discount.
 		 */

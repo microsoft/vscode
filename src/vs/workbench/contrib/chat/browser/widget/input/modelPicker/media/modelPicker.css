@@ -139,6 +139,7 @@
 }
 
 .chat-model-hover-warning-text,
+.chat-model-hover-info-text,
 .chat-model-hover-promo-text {
 	display: flex;
 	gap: 6px;
@@ -154,12 +155,14 @@
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
+.chat-model-hover-info-text > .codicon,
 .chat-model-hover-promo-text > .codicon {
 	flex-shrink: 0;
 	color: var(--vscode-notificationsInfoIcon-foreground);
 }
 
 .chat-model-hover-warning-text p,
+.chat-model-hover-info-text p,
 .chat-model-hover-promo-text p,
 .chat-model-hover-description p {
 	margin: 0;

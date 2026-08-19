@@ -31,7 +31,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IRecentWorkspace, ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers
@@ -43,7 +43,6 @@ import { Menus } from '../../../browser/menus.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
-import { buildSessionWorkspacePickerCatalog } from './sessionWorkspacePickerModel.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
@@ -409,10 +408,32 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _getAvailableTabs(): ITabDescriptor[] {
-		return [...buildSessionWorkspacePickerCatalog({
-			providers: this.sessionsProvidersService.getProviders(),
-			remoteAgentHostsEnabled: this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId),
-		}).tabs];
+		const byLabel = new Map<string, ITabDescriptor>();
+		const remoteAgentHostsEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+		if (remoteAgentHostsEnabled) {
+			byLabel.set(SESSION_WORKSPACE_GROUP_REMOTE, {
+				id: SESSION_WORKSPACE_GROUP_REMOTE,
+				icon: Codicon.beaker,
+				tooltip: `${SESSION_WORKSPACE_GROUP_REMOTE} (${localize('workspacePicker.experimental', "Experimental")})`,
+			});
+		}
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (provider.supportsLocalWorkspaces && !byLabel.has(SESSION_WORKSPACE_GROUP_LOCAL)) {
+				byLabel.set(SESSION_WORKSPACE_GROUP_LOCAL, { id: SESSION_WORKSPACE_GROUP_LOCAL });
+			}
+			for (const action of provider.browseActions) {
+				if (action.group === SESSION_WORKSPACE_GROUP_REMOTE && !remoteAgentHostsEnabled) {
+					continue;
+				}
+				if (action.group && !byLabel.has(action.group)) {
+					byLabel.set(action.group, { id: action.group });
+				}
+			}
+		}
+		return Array.from(byLabel.values()).sort((a, b) =>
+			a.id === SESSION_WORKSPACE_GROUP_LOCAL ? -1
+				: b.id === SESSION_WORKSPACE_GROUP_LOCAL ? 1
+					: a.id.localeCompare(b.id));
 	}
 
 	/**
@@ -739,14 +760,15 @@ export class WorkspacePicker extends Disposable {
 	 * currently active tab when tabs are shown.
 	 */
 	protected _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
-		const providers = this.sessionsProvidersService.getProviders();
-		const catalog = buildSessionWorkspacePickerCatalog({
-			providers,
-			localBrowseAction: providers.some(provider => provider.supportsLocalWorkspaces) ? this._localBrowseAction : undefined,
-			remoteAgentHostsEnabled: this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId),
-			activeGroup: this._isTabFiltered() ? this._activeTab : undefined,
-		});
-		return [...catalog.browseActions];
+		const all = this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
+		const hasLocalSupport = this.sessionsProvidersService.getProviders().some(p => p.supportsLocalWorkspaces);
+		if (hasLocalSupport) {
+			all.unshift(this._localBrowseAction);
+		}
+		if (!this._isTabFiltered()) {
+			return all;
+		}
+		return all.filter(a => a.group === this._activeTab);
 	}
 
 	/**
@@ -798,19 +820,19 @@ export class WorkspacePicker extends Disposable {
 
 		// Collect recent workspaces from picker storage across all providers
 		const allProviders = this.sessionsProvidersService.getProviders();
+		const providerIds = new Set(allProviders.map(p => p.id));
 		const availableTabs = this._getAvailableTabs();
 		const activeGroup = this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
 		const workspaceGroupAction = this.options.getWorkspaceGroupAction?.(activeGroup);
-		const catalog = buildSessionWorkspacePickerCatalog({
-			providers: allProviders,
-			recentWorkspaces: this._getRecentWorkspaces(),
-			localBrowseAction: allProviders.some(provider => provider.supportsLocalWorkspaces) ? this._localBrowseAction : undefined,
-			remoteAgentHostsEnabled: this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId),
-			activeGroup: this._isTabFiltered() ? this._activeTab : undefined,
-		});
+		const tabFilter = this._isTabFiltered()
+			? (w: IResolvedFolderWorkspace) => w.workspace.group === this._activeTab
+			: undefined;
+		// Own recents first, then VS Code recents (merged and deduplicated by the service)
 		const recentWorkspaces = workspaceGroupAction?.hideWorkspaceItems
 			? []
-			: catalog.workspaces;
+			: this._getRecentWorkspaces()
+				.filter(w => providerIds.has(w.providerId))
+				.filter(w => !tabFilter || tabFilter(w));
 
 		// Build flat list in recency order (no source grouping)
 		for (const { workspace, providerId } of recentWorkspaces) {
@@ -831,7 +853,7 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		// Browse actions from all providers (filtered to the active tab)
-		const allBrowseActions = workspaceGroupAction?.hideWorkspaceItems ? [] : catalog.browseActions;
+		const allBrowseActions = workspaceGroupAction?.hideWorkspaceItems ? [] : this._getAllBrowseActions();
 		// Remote providers with connection status — shown as dynamic rows
 		// in the Manage submenu on the Remote tab.
 		const remoteProviders = allProviders.filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
@@ -1036,21 +1058,28 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _restoreSelectedWorkspace(): IRestoredWorkspaceSelection | undefined {
+		// Try the checked entry first
+		const checked = this._restoreCheckedWorkspace();
+		if (checked && this._canRestoreProviderWorkspace(checked.providerId)) {
+			return {
+				resolved: checked,
+				source: NewSessionWorkspacePreselectionSource.CheckedWorkspace,
+			};
+		}
+
+		// Agents-owned recents are ordered before VS Code's general recents.
 		try {
-			const restored = buildSessionWorkspacePickerCatalog({
-				providers: this.sessionsProvidersService.getProviders(),
-				recentWorkspaces: this.recentWorkspacesService.getRecentWorkspaces(),
-				ownRecentWorkspaces: this.recentWorkspacesService.getRecentWorkspaces(false),
-				remoteAgentHostsEnabled: this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId),
-				canUseProvider: providerId => this._canRestoreProviderWorkspace(providerId),
-				isProviderUnavailable: providerId => this._isProviderUnavailable(providerId),
-			}).defaultWorkspace;
-			return restored ? {
-				resolved: restored,
-				source: restored.checked
-					? NewSessionWorkspacePreselectionSource.CheckedWorkspace
-					: NewSessionWorkspacePreselectionSource.RecentWorkspace,
-			} : undefined;
+			for (const recent of this.recentWorkspacesService.getRecentWorkspaces()) {
+				const folderUri = recent.workspace.folders[0]?.root;
+				if (!folderUri || !this._canRestoreProviderWorkspace(recent.providerId) || isWorktreeWorkspaceUri(folderUri) || this._isProviderUnavailable(recent.providerId)) {
+					continue;
+				}
+				return {
+					resolved: recent,
+					source: NewSessionWorkspacePreselectionSource.RecentWorkspace,
+				};
+			}
+			return undefined;
 		} catch {
 			return undefined;
 		}
@@ -1234,7 +1263,7 @@ export class WorkspacePicker extends Disposable {
 
 	// -- Recent workspaces (sessions' own history) --
 
-	protected _getRecentWorkspaces(): IRecentWorkspace[] {
+	protected _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
 		return this.recentWorkspacesService.getRecentWorkspaces();
 	}
 

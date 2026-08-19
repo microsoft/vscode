@@ -38,6 +38,7 @@ export type LinkPresentationKind =
 	| 'file'
 	| 'folder'
 	| 'session'
+	| 'chat'
 	| 'repository'
 	| 'branch';
 
@@ -123,6 +124,7 @@ function isLinkPresentationKind(value: unknown): value is LinkPresentationKind {
 		|| value === 'file'
 		|| value === 'folder'
 		|| value === 'session'
+		|| value === 'chat'
 		|| value === 'repository'
 		|| value === 'branch';
 }

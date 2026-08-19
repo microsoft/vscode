@@ -22,7 +22,6 @@ import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, markPending
 import { getVoiceConfirmationType } from '../../common/voiceClient/voiceConfirmation.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
 
 /**
  * Callbacks that require access to the chat widget or view state.
@@ -567,7 +566,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 						: 'unknown';
 			const lastActivity = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created ?? 0;
 			return {
-				id: (toAgentHostBackendSessionUri(session.resource) ?? session.resource).toString(),
+				id: session.resource.toString(),
 				label: session.label || undefined,
 				session_type: 'agent' as const,
 				state,
@@ -591,7 +590,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			const inProgress = model.hasActiveRequest?.get();
 			const lastActivity = model.lastMessageDate || 0;
 			sessionData.push({
-				id: (toAgentHostBackendSessionUri(model.sessionResource) ?? model.sessionResource).toString(),
+				id: sessionId,
 				label: model.title || undefined,
 				session_type: 'chat',
 				state: needsInput ? 'waiting_for_input' : inProgress ? 'working' : 'idle',

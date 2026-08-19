@@ -257,7 +257,6 @@ registerAction2(class extends Action2 {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
 		const handsFree = accessor.get(IConfigurationService).getValue<boolean>('agents.voice.handsFree') === true;
-		const omniHasFocus = accessor.get(IContextKeyService).getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
 		const activeWindow = getActiveWindow();
 		voiceController.setActiveWindow(activeWindow);
 
@@ -273,13 +272,8 @@ registerAction2(class extends Action2 {
 
 		// An explicit press in another composer transfers Voice Mode ownership to
 		// that composer. The draft sentinel deliberately clears the concrete target.
-		const currentSession = omniHasFocus
-			? undefined
-			: await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
-		voiceController.setOmniInputActive(omniHasFocus);
-		if (omniHasFocus) {
-			voiceController.setDraftTarget();
-		} else if (currentSession) {
+		const currentSession = await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+		if (currentSession) {
 			try {
 				const resource = URI.parse(currentSession);
 				if (resource.scheme === 'sessions-voice') {

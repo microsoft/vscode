@@ -24,7 +24,7 @@ import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext 
 import { SessionsCategories } from '../../../../common/categories.js';
 import { RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
@@ -439,15 +439,31 @@ registerAction2(class FindSessionAction extends Action2 {
 registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsView.sectionNewSession',
+			id: NEW_SESSION_FOR_WORKSPACE_ACTION_ID,
 			title: localize2('newSessionForWorkspace', "New Session"),
 			icon: Codicon.plus,
-			menu: [{
-				id: SessionSectionToolbarMenuId,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
-			}]
+			menu: [
+				{
+					id: SessionSectionToolbarMenuId,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						SessionSectionHasNonCloudRepositoryContext,
+						ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'))
+				},
+				{
+					id: SessionSectionToolbarMenuId,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
+						ContextKeyExpr.or(
+							ChatContextKeys.enabled.negate(),
+							SessionSectionHasNonCloudRepositoryContext.negate()),
+					),
+				},
+			]
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISessionSection): Promise<void> {

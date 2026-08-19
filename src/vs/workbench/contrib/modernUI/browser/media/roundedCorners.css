@@ -1,0 +1,317 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Modern UI module: "Rounded Corners".
+ *
+ * Applies a disciplined, three-tier corner-radius system across the workbench
+ * based on the role each surface plays:
+ *
+ *   - Outer radius (8px): overlays / anything floating above the rest of the UI
+ *     (quick input, hovers, suggest, context menus, toasts, dialogs, find,
+ *     rename, color picker, ...).
+ *   - Inner radius (6px): non-control containers that sit within the UI
+ *     (notification center surfaces, ...).
+ *   - Controls (4px): all interactable UI controls (text inputs, selects,
+ *     list/tree rows, ...).
+ *
+ * All rules are gated behind the `.modern-ui` class, which
+ * the ModernUIContribution toggles onto the workbench container(s) when
+ * the `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ * Without that class these rules never apply.
+ */
+
+/* =============================================================================
+ * Controls (4px) — inputs, selects, list/tree rows, anything interactable.
+ * ========================================================================== */
+
+/* Text inputs and find inputs */
+.modern-ui .monaco-inputbox,
+.modern-ui .monaco-findInput,
+.modern-ui .monaco-findInput .monaco-inputbox {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.modern-ui .browser-root .browser-url-container {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* Select / dropdown controls */
+.modern-ui .monaco-select-box,
+.modern-ui .monaco-select-box-dropdown-container {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* List / tree rows (including the notification center list rows) */
+.modern-ui .monaco-list .monaco-list-row:not(.separator) {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* Action bar labels / keybindings (toolbar icon buttons) */
+.modern-ui .monaco-action-bar .action-label,
+.modern-ui .monaco-action-bar .action-item .keybinding {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/*
+ * Split buttons (dropdown action items — e.g. the extension list/editor
+ * "Install"/"Disable" buttons). These connect a primary action label to a
+ * trailing dropdown chevron with a 1px separator between them. Rounding each
+ * label on all corners (via the rule above) puts radii on the inner seam where
+ * the two segments meet. Round only the outer edges of the pair — left corners
+ * on the primary label, right corners on the chevron — so the seam stays flat.
+ */
+.modern-ui .monaco-action-bar .action-item.action-dropdown-item > .action-label {
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+}
+
+.modern-ui .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label {
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.modern-ui .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* Update indicator (title-bar "Update" button — base CSS uses medium, but as a
+ * control it belongs to the controls tier). */
+.modern-ui .monaco-action-bar .update-indicator {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/*
+ * Agent status pill (experimental title-bar widget). A connected pill/badge
+ * group whose segments hardcode 5-6px per-corner radii, with a few intentional
+ * flat (0) seams where segments butt together. Re-map every rounded corner to
+ * the controls tier while preserving each segment's shape and the flat seams.
+ */
+
+/* All-corners segments */
+.modern-ui .agent-status-pill,
+.modern-ui .agent-status-badge,
+.modern-ui .agent-status-badge-section:only-child,
+.modern-ui .agent-status-esc-button,
+.modern-ui .agent-status-enter-button {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* Leading-edge segments (rounded left, flat right) */
+.modern-ui .agent-status-pill .agent-status-input-area,
+.modern-ui .agent-status-command-center-toolbar,
+.modern-ui .agent-status-badge-section:first-child,
+.modern-ui .agent-status-badge-section.sparkle .action-container {
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+}
+
+/* Trailing-edge segments (flat left, rounded right) */
+.modern-ui .agent-status-badge-section:last-child,
+.modern-ui .agent-status-badge-section.sparkle:last-child .dropdown-action-container {
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+/* Intentional flat seams where a segment butts up against its neighbour */
+.modern-ui .agent-status-line-separator + .agent-status-input-area,
+.modern-ui .agent-status-pill.compact-mode .agent-status-badge-section.sparkle .action-container {
+	border-radius: 0;
+}
+
+/* Scrollbar sliders (panels, editor, lists — all consistent) */
+.modern-ui .monaco-scrollable-element > .scrollbar > .slider {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* Match the minimap viewport slider to the adjacent editor scrollbar. */
+.modern-ui .monaco-editor .minimap-slider .minimap-slider-horizontal {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/*
+ * Diff editor "fake united slider": when the overview ruler is shown, the diff
+ * editor draws its own combined viewport slider (`.diffViewport`, spanning both
+ * overview rulers). The modified editor's real scrollbar slider sits over the
+ * right edge of that band. Rounding all four corners floats the right corners
+ * clear of the joined viewport and breaks the combined widget, so round only
+ * the left corners (facing the editor) and keep the right side flat/flush.
+ *
+ * Gate on the `has-diff-overview` state class so this only applies when the
+ * combined slider is actually present: with `diffEditor.renderOverviewRuler`
+ * off there is no `.diffViewport`, so the real slider is the sole scrollbar and
+ * should stay rounded on all corners like every other scrollbar. The
+ * `modified-in-monaco-diff-editor` class lives on the `.monaco-editor` root, so
+ * target the slider as a descendant.
+ */
+.modern-ui .monaco-diff-editor.has-diff-overview .modified-in-monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical > .slider {
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+}
+
+/* Terminal uses xterm.js' own scrollbar (.xterm-scrollable-element) */
+.modern-ui .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+	border-radius: var(--vscode-cornerRadius-small);
+	/* Inset the slider so both left and right rounded corners are visible */
+	left: calc(var(--vscode-strokeThickness));
+	width: calc(100% - var(--vscode-strokeThickness));
+}
+
+/* Editor sticky scroll container */
+.modern-ui .monaco-editor .sticky-widget {
+	border-radius: 0;
+	overflow: hidden;
+	width: 100%;
+}
+
+/* =============================================================================
+ * Inner (6px) — non-control containers that live within the UI.
+ * ========================================================================== */
+
+/*
+ * Workbench parts (side bar, panel, auxiliary bar). The editor part is framed
+ * separately by the "Editor Border" module; round the remaining parts to the
+ * inner tier so the whole workbench reads as a set of distinct rounded
+ * surfaces. `overflow: hidden` clips their content to the rounded corners.
+ */
+.modern-ui .monaco-grid-view .part:is(.sidebar, .panel, .auxiliarybar) {
+	overflow: hidden;
+}
+
+/*
+ * Settings editor row container. The focused/hovered row paints a background
+ * (and the focused row draws an outline) on this element, so round it to the
+ * inner tier to match.
+ */
+.modern-ui .settings-editor .settings-tree-container .setting-item-contents.settings-row-inner-container {
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+/* =============================================================================
+ * Outer (8px) — overlays / floating UI above the rest of the workbench.
+ * ========================================================================== */
+
+/* Quick input (command palette, quick open) */
+.modern-ui .quick-input-widget {
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
+}
+
+/* Editor / workbench hover, suggest and parameter hint widgets */
+.modern-ui .monaco-hover,
+.modern-ui .editor-widget.suggest-widget,
+.modern-ui .monaco-editor .parameter-hints-widget {
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
+}
+
+/* Only boundary rows adopt the overlay's outer corners; interior rows keep the Control radius. */
+.modern-ui .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator):first-child {
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+}
+.modern-ui .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator):last-child {
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+}
+
+/* Context menus and general menu surfaces */
+.modern-ui .monaco-menu .monaco-action-bar.vertical {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/*
+ * Notification center (floats above the status bar). It already clips its
+ * children with `overflow: hidden`. Match the final row's bottom corners to the
+ * container so its focused and hover backgrounds follow the outer surface.
+ */
+.modern-ui.monaco-workbench > .notifications-center {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.modern-ui.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:last-child {
+	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+}
+
+/*
+ * Notification toasts. The visible, shadowed surface is the nested
+ * `.notifications-list-container`, wrapped by `.notification-toast` (and its
+ * scrollable element / list row). The base styles round every one of these
+ * layers to the same radius; round them together here too, otherwise a larger
+ * radius on the outer wrapper leaves a gap at the corner where the smaller
+ * inner radius shows through. Matching the base structure also gives these
+ * rules enough specificity to replace its control-tier radius.
+ */
+.modern-ui.monaco-workbench > .notifications-toasts .notifications-list-container,
+.modern-ui.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast,
+.modern-ui.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-scrollable-element,
+.modern-ui.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list:not(.element-focused):focus:before,
+.modern-ui.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* Modal dialogs */
+.modern-ui .monaco-dialog-box {
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
+}
+
+/* Editor find / replace widget */
+.modern-ui .monaco-editor .find-widget {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* Rename input widget */
+.modern-ui .monaco-editor .rename-box {
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
+}
+
+/* Color picker widget */
+.modern-ui .colorpicker-widget {
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
+}
+
+/* =============================================================================
+ * Sashes — round the hover/drag affordance ends (mirrors the Agents window).
+ * ========================================================================== */
+.modern-ui .monaco-sash:before {
+	border-radius: calc(var(--vscode-sash-hover-size) / 2);
+}
+
+/* Keep the diff editor's bottom boundary from clipping the sash radius. */
+.modern-ui .monaco-diff-editor > .monaco-sash.vertical:before {
+	height: calc(100% - (var(--vscode-sash-hover-size) / 2));
+}
+
+.modern-ui .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
+	border-radius: var(--vscode-sash-size);
+}
+
+.modern-ui.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-entry {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.modern-ui.monaco-workbench .terminal-resize-overlay {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/*
+ * Short numeric count badges (e.g. Search result and tree item counts) are small
+ * and roughly circular, so a full-circle radius reads as a clean round dot. (The
+ * activity-bar badge is a separate `.badge .badge-content` element, not a
+ * `.monaco-count-badge`, so it is unaffected by these rules.)
+ */
+.modern-ui.monaco-workbench .monaco-count-badge:not(.long) {
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+/*
+ * Long text badges (`.long`, e.g. the Run and Debug call-stack "Running" /
+ * "Paused" state labels) are wide pills. A full-circle radius turns them into
+ * stadium-shaped capsules; the controls-tier radius keeps them as rectangular
+ * pills, matching the base `countBadge.css` intent where `.long` is squared off.
+ */
+.modern-ui.monaco-workbench .monaco-count-badge.long {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.modern-ui.monaco-workbench .part.panel .scm-view .scm-editor-container {
+	border-radius: var(--vscode-cornerRadius-small);
+}

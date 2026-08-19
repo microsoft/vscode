@@ -149,10 +149,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
-				getHeaderHeight: () => {
-					const { total, offset } = (this.activeGroup as EditorGroupView).titleHeight;
-					return total - offset;
-				},
+				getTitleHeight: () => (this.activeGroup as EditorGroupView).titleHeight.total,
 			},
 		));
 

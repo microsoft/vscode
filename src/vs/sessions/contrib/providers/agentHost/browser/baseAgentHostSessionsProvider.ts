@@ -62,6 +62,87 @@ import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFil
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
+
+function mergeSessionChangeEvents(events: readonly ISessionChangeEvent[]): ISessionChangeEvent {
+	const changes = new Map<string, { added?: ISession; removed?: ISession; changed?: ISession }>();
+	for (const event of events) {
+		for (const session of event.added) {
+			changes.set(session.sessionId, { removed: changes.get(session.sessionId)?.removed, added: session });
+		}
+		for (const session of event.removed) {
+			changes.set(session.sessionId, { removed: session });
+		}
+		for (const session of event.changed) {
+			const change = changes.get(session.sessionId);
+			if (change?.removed && !change.added) {
+				continue;
+			}
+			if (change?.added) {
+				change.added = session;
+			} else {
+				changes.set(session.sessionId, { changed: session });
+			}
+		}
+	}
+
+	const added: ISession[] = [];
+	const removed: ISession[] = [];
+	const changed: ISession[] = [];
+	for (const change of changes.values()) {
+		if (change.added) {
+			added.push(change.added);
+		}
+		if (change.removed) {
+			removed.push(change.removed);
+		}
+		if (change.changed) {
+			changed.push(change.changed);
+		}
+	}
+	return {
+		added,
+		removed,
+		changed,
+	};
+}
+
+function debounceSessionChangeEvents(notifications: Event<ISessionChangeEvent>, immediate: Event<ISessionChangeEvent>, disposable: DisposableStore): Event<ISessionChangeEvent> {
+	const event: Event<ISessionChangeEvent> = (listener, thisArgs) => {
+		const store = new DisposableStore();
+		let pending: ISessionChangeEvent[] | undefined;
+		store.add(toDisposable(() => {
+			pending?.splice(0);
+			pending = undefined;
+		}));
+
+		const takePending = (event?: ISessionChangeEvent): ISessionChangeEvent | undefined => {
+			if (!pending?.length) {
+				pending = undefined;
+				return event;
+			}
+			const events = pending?.splice(0) ?? [];
+			pending = undefined;
+			if (event) {
+				events.push(event);
+			}
+			return mergeSessionChangeEvents(events);
+		};
+		const debounced = Event.debounce<ISessionChangeEvent, ISessionChangeEvent[]>(notifications, (events, event) => {
+			pending = events ?? [];
+			pending.push(event);
+			return pending;
+		}, SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS, false, false, undefined, store);
+		const onDebounced = Event.filter<ISessionChangeEvent, undefined>(
+			Event.map(debounced, () => takePending(), store),
+			(event): event is ISessionChangeEvent => event !== undefined,
+			store,
+		);
+		store.add(Event.any(onDebounced, Event.map(immediate, event => takePending(event) ?? event, store))(listener, thisArgs));
+		return store;
+	};
+	return Event.map(event, event => event, disposable);
+}
 
 // Well-known config chips whose last-resolved schemas are cached and seeded into
 // new drafts, so they stay visible (disabled) while a draft re-resolves rather
@@ -2303,7 +2384,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
 	protected readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
-	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
+	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
+	private readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
+	readonly onDidChangeSessions = debounceSessionChangeEvents(this._onDidChangeSessionsFromNotifications.event, this._onDidChangeSessions.event, this._store);
 
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
@@ -2544,7 +2627,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// opts in via `_enableSessionCachePersistence` (which sets the storage
 		// key). They are safe to register unconditionally because they only act
 		// at event time and read the key lazily.
-		this._register(this._onDidChangeSessions.event(e => {
+		this._register(this._onDidChangeSessionsImmediately(e => {
 			if (!this._shouldTrackSessionCacheChanges()) {
 				return;
 			}
@@ -5247,7 +5330,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const waitDisposables = new DisposableStore();
 		try {
 			const sessionPromise = new Promise<ISession | undefined>((resolve) => {
-				waitDisposables.add(this._onDidChangeSessions.event(e => {
+				waitDisposables.add(this._onDidChangeSessionsImmediately(e => {
 					// Prefer this send's own id within the batch before falling
 					// back to an acceptable novel session.
 					const exact = e.added.find(s => s.resource.path.substring(1) === ownRawId && matches(ownRawId, s.resource.scheme));
@@ -5334,7 +5417,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const existing = this._sessionCache.get(rawId);
 		if (existing) {
 			if (this.updateAdapter(existing, meta)) {
-				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [existing] });
+				this._onDidChangeSessionsFromNotifications.fire({ added: [], removed: [], changed: [existing] });
 			}
 			this._syncActiveClient();
 			return;
@@ -5342,7 +5425,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);
-		this._onDidChangeSessions.fire({ added: [cached], removed: [], changed: [] });
+		this._onDidChangeSessionsFromNotifications.fire({ added: [cached], removed: [], changed: [] });
 		this._syncActiveClient();
 	}
 
@@ -5350,7 +5433,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = AgentSession.id(session);
 		const cached = this._removeCachedSession(rawId);
 		if (cached) {
-			this._onDidChangeSessions.fire({ added: [], removed: [cached], changed: [] });
+			this._onDidChangeSessionsFromNotifications.fire({ added: [], removed: [cached], changed: [] });
 			cached.dispose();
 		}
 		this._syncActiveClient();
@@ -5477,7 +5560,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 
 			if (didChange) {
-				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+				this._onDidChangeSessionsFromNotifications.fire({ added: [], removed: [], changed: [cached] });
 			}
 		});
 

@@ -417,7 +417,7 @@ export class FileIconThemeLoader {
 
 		// When usesCurrentColor is set, image icons are rendered as masks filled with the current text color
 		const imageIconStyle = (iconPath: css.CssFragment): css.CssFragment => iconThemeDocument.usesCurrentColor
-			? css.inline`background-color: currentColor; background-image: none; mask: ${iconPath} no-repeat left center; mask-size: 16px; -webkit-mask: ${iconPath} no-repeat left center; -webkit-mask-size: 16px;`
+			? css.inline`background-color: currentColor; background-image: none; mask: ${iconPath} no-repeat var(--file-icon-mask-position, left center); mask-size: var(--file-icon-mask-size, 16px); -webkit-mask: ${iconPath} no-repeat var(--file-icon-mask-position, left center); -webkit-mask-size: var(--file-icon-mask-size, 16px);`
 			: css.inline`background-image: ${iconPath};`;
 
 		for (const defId in selectorByDefinitionId) {

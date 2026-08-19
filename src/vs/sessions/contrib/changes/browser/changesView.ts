@@ -2039,7 +2039,6 @@ registerAction2(ChangesDiffStatsAction);
 
 /**
  * Opens the Changes view and reveals (expands + focuses) the CI checks section.
- * Used by the CI failures banner above the chat input.
  */
 class RevealCIChecksAction extends Action2 {
 	static readonly ID = REVEAL_CI_CHECKS_COMMAND_ID;

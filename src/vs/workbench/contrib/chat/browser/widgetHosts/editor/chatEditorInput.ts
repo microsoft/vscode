@@ -24,11 +24,11 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../../../common/editor/editorInput.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
-import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatEditorTitleMaxLength, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
+import { IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, isNewChatSessionTypeUsable } from '../../../common/constants.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
-import { LocalChatSessionUri, getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IClearEditingSessionConfirmationOptions } from '../../actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
@@ -123,7 +123,22 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override copy(): EditorInput {
-		return this.instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), {});
+		return this.instantiationService.createInstance(ChatEditorInput, this.getNewResourceForCopy(), {});
+	}
+
+	/**
+	 * A split or duplicate opens a new, empty chat of the same session type as the
+	 * source, falling back to a generic editor URI when that type is unknown or
+	 * cannot start a new session.
+	 */
+	private getNewResourceForCopy(): URI {
+		const sourceType = this._sessionResource ? getChatSessionType(this._sessionResource) : undefined;
+		if (sourceType !== undefined
+			&& (sourceType === localChatSessionType || isAgentHostTarget(sourceType))
+			&& isNewChatSessionTypeUsable(sourceType, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get())) {
+			return getNewChatSessionResource(sourceType);
+		}
+		return ChatEditorInput.getNewEditorUri();
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -236,7 +251,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 
 			if (this.shouldReplaceEmptyLocalSession(this._sessionResource)) {
-				const defaultResource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get());
+				const defaultResource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
 				if (getChatSessionType(defaultResource) !== localChatSessionType) {
 					let modelRef: IChatModelReference | undefined;
 					try {
@@ -261,7 +276,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			if (this.options.explicitSessionType === localChatSessionType) {
 				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveExplicitLocal' });
 			} else {
-				const defaultResource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get());
+				const defaultResource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
 				if (getChatSessionType(defaultResource) === localChatSessionType) {
 					this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitled' });
 				} else {
@@ -306,7 +321,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			&& this.options.explicitSessionType !== localChatSessionType
 			&& !!this.model
 			&& !this.model.hasRequests
-			&& getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get()) !== localChatSessionType;
+			&& getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get()) !== localChatSessionType;
 	}
 
 	/**

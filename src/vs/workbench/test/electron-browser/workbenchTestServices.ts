@@ -95,7 +95,6 @@ export class TestNativeHostService implements INativeHostService {
 	async getWindows(): Promise<IOpenedMainWindow[]> { return []; }
 	async getActiveWindowId(): Promise<number | undefined> { return undefined; }
 	async getActiveWindowPosition(): Promise<IRectangle | undefined> { return undefined; }
-	async getWindowPosition(): Promise<IRectangle | undefined> { return undefined; }
 	async getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> { return undefined; }
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;

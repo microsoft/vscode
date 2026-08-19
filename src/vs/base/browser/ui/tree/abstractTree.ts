@@ -450,9 +450,11 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 		this.renderer.disposeElement?.(node, index, templateData.templateData, { ...details, indent: templateData.indentSize });
 
-		if (typeof details?.height === 'number') {
+		if (typeof details?.height === 'number' && this.renderedNodes.get(node) === templateData) {
 			this.renderedNodes.delete(node);
-			this.renderedElements.delete(node.element);
+			if (this.renderedElements.get(node.element) === node) {
+				this.renderedElements.delete(node.element);
+			}
 		}
 	}
 

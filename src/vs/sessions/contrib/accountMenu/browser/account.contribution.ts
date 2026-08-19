@@ -21,7 +21,7 @@ import { appendUpdateMenuItems as registerUpdateMenuItems } from '../../../../wo
 import { Menus } from '../../../browser/menus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $, addDisposableListener, append, disposableWindowInterval, EventType, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventType, getDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -30,7 +30,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { registerUpdateTitleBarMenuPlacement } from '../../../../workbench/contrib/update/browser/updateTitleBarEntry.js';
-import { ChatEntitlement, ChatEntitlementService, getChatPlanName, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, getChatPlanName, getQuotaReset, getQuotaUsage, IChatEntitlementService, IQuotaSnapshot, QuotaUsageKind } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -663,24 +663,54 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private appendCopilotUsage(accountSection: HTMLElement, panelStore: DisposableStore): void {
-		const quota = this.chatEntitlementService.quotas.premiumChat ?? this.chatEntitlementService.quotas.chat;
 		const usage = append(accountSection, $('.sessions-account-titlebar-panel-provider-usage'));
+		const contentStore = panelStore.add(new DisposableStore());
+
+		const render = () => {
+			contentStore.clear();
+			clearNode(usage);
+			this.renderCopilotUsage(usage, contentStore);
+		};
+		render();
+
+		// The panel is built from the cached snapshot while the embedded dashboard kicks off a
+		// fresh entitlement request, so rebuild the row once that lands rather than leaving it
+		// stale until the panel is reopened.
+		panelStore.add(this.chatEntitlementService.onDidChangeQuotaRemaining(render));
+		panelStore.add(this.chatEntitlementService.onDidChangeEntitlement(render));
+	}
+
+	private renderCopilotUsage(usage: HTMLElement, store: DisposableStore): void {
+		const quota = this.chatEntitlementService.quotas.premiumChat ?? this.chatEntitlementService.quotas.chat;
 		const planRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.primary'));
 		append(planRow, $('span.sessions-account-titlebar-panel-provider-plan', undefined, this.getCopilotPlanLabel()));
-		if (quota && !quota.unlimited) {
-			const usedPercentage = Math.max(0, Math.floor(100 - quota.percentRemaining));
-			const usageValue = append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-value', { tabIndex: 0 }));
+
+		const quotaUsage = getQuotaUsage(quota);
+		if (!quota || !quotaUsage) {
+			return;
+		}
+
+		const formatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
+
+		if (quotaUsage.kind === QuotaUsageKind.CreditsUsed) {
+			const creditsFormatted = formatter.value.format(quotaUsage.creditsUsed);
+			append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-value', {
+				'aria-label': localize('copilotCreditsUsedTotal', "{0} credits used", creditsFormatted)
+			}, creditsFormatted));
+		} else {
+			const usedPercentage = Math.floor(quotaUsage.usedPercentage);
 			const percentageLabel = localize('copilotCreditsUsedPercentageValue', "{0}%", usedPercentage);
 			const percentageAriaLabel = localize('copilotCreditsUsedPercentage', "{0}% credits used", usedPercentage);
+			const { used, total } = quotaUsage;
+
+			// Revealing the ratio is the only interaction, so this is a tab stop only when there is a ratio to reveal.
+			const usageValue = append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-value', used !== undefined && total !== undefined ? { tabIndex: 0 } : undefined));
 			usageValue.textContent = percentageLabel;
 			usageValue.setAttribute('aria-label', percentageAriaLabel);
-			if (quota.entitlement) {
-				const formatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
-				const used = quota.creditsUsed ?? (quota.quotaRemaining !== undefined
-					? quota.entitlement - quota.quotaRemaining
-					: quota.entitlement * (100 - quota.percentRemaining) / 100);
-				const creditsValue = localize('copilotCreditsUsedRatioValue', "{0} / {1}", formatter.value.format(used), formatter.value.format(quota.entitlement));
-				const creditsAriaLabel = localize('copilotCreditsUsedRatio', "{0} / {1} credits used", formatter.value.format(used), formatter.value.format(quota.entitlement));
+
+			if (used !== undefined && total !== undefined) {
+				const creditsValue = localize('copilotCreditsUsedRatioValue', "{0} / {1}", formatter.value.format(used), formatter.value.format(total));
+				const creditsAriaLabel = localize('copilotCreditsUsedRatio', "{0} / {1} credits used", formatter.value.format(used), formatter.value.format(total));
 				const showCredits = () => {
 					usageValue.textContent = creditsValue;
 					usageValue.setAttribute('aria-label', creditsAriaLabel);
@@ -689,20 +719,21 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 					usageValue.textContent = percentageLabel;
 					usageValue.setAttribute('aria-label', percentageAriaLabel);
 				};
-				panelStore.add(addDisposableListener(usageValue, EventType.MOUSE_ENTER, showCredits));
-				panelStore.add(addDisposableListener(usageValue, EventType.MOUSE_LEAVE, showPercentage));
-				panelStore.add(addDisposableListener(usageValue, EventType.FOCUS, showCredits));
-				panelStore.add(addDisposableListener(usageValue, EventType.BLUR, showPercentage));
+				store.add(addDisposableListener(usageValue, EventType.MOUSE_ENTER, showCredits));
+				store.add(addDisposableListener(usageValue, EventType.MOUSE_LEAVE, showPercentage));
+				store.add(addDisposableListener(usageValue, EventType.FOCUS, showCredits));
+				store.add(addDisposableListener(usageValue, EventType.BLUR, showPercentage));
 			}
-			const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
-			const resetLabel = this.getCopilotResetLabel(quota.resetAt);
-			if (resetLabel) {
-				append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, resetLabel));
-			} else {
-				detailRow.classList.add('without-reset');
-			}
-			append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('copilotCreditsUsedLabel', "Credits used")));
 		}
+
+		const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
+		const resetLabel = this.getCopilotResetLabel(quota);
+		if (resetLabel) {
+			append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, resetLabel));
+		} else {
+			detailRow.classList.add('without-reset');
+		}
+		append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('copilotCreditsUsedLabel', "Credits used")));
 	}
 
 	private appendChatGPTUsage(accountSection: HTMLElement): void {
@@ -734,20 +765,15 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('chatGPTLimitUsedLabel', "Limit used")));
 	}
 
-	private getCopilotResetLabel(resetAt: number | undefined): string | undefined {
-		if (resetAt) {
-			const resetDate = new Date(resetAt * 1000);
-			return localize('copilotCreditsResetAt', "Resets {0} at {1}", accountDateFormatter.value.format(resetDate), accountTimeFormatter.value.format(resetDate));
-		}
-
-		const { resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
-		if (!resetDate) {
+	private getCopilotResetLabel(quota: IQuotaSnapshot | undefined): string | undefined {
+		const reset = getQuotaReset(quota, this.chatEntitlementService.quotas);
+		if (!reset) {
 			return undefined;
 		}
-		const date = new Date(resetDate);
-		return resetDateHasTime
-			? localize('copilotCreditsResetAt', "Resets {0} at {1}", accountDateFormatter.value.format(date), accountTimeFormatter.value.format(date))
-			: localize('copilotCreditsReset', "Resets {0}", accountDateFormatter.value.format(date));
+
+		return reset.hasTime
+			? localize('copilotCreditsResetAt', "Resets {0} at {1}", accountDateFormatter.value.format(reset.date), accountTimeFormatter.value.format(reset.date))
+			: localize('copilotCreditsReset', "Resets {0}", accountDateFormatter.value.format(reset.date));
 	}
 
 	private getChatGPTLimitLabel(windowDurationMins: number | undefined): string {

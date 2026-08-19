@@ -11,9 +11,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
@@ -26,6 +26,7 @@ import { Menus } from '../../../browser/menus.js';
 import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
@@ -108,19 +109,14 @@ class OpenPullRequestAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const openerService = accessor.get(IOpenerService);
+		const commandService = accessor.get(ICommandService);
 		const sessionsService = accessor.get(ISessionsService);
 		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}
 
-		const gitHubInfo = activeSession.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
-		if (!gitHubInfo?.pullRequest?.uri) {
-			return;
-		}
-
-		await openerService.open(gitHubInfo.pullRequest.uri);
+		await commandService.executeCommand(OPEN_PULL_REQUEST_ACTION_ID, activeSession);
 	}
 }
 

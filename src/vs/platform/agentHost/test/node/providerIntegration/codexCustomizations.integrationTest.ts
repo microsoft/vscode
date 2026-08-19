@@ -104,6 +104,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 	});
 
 	suiteTeardown(async function () {
+		this.timeout(60_000);
 		await stopServer(server);
 		await rm(userHomeDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 	});

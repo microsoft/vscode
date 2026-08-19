@@ -92,7 +92,7 @@ function setup(disposables: DisposableStore, settings: Record<string, unknown>) 
 	const configurationService = new TestConfigurationService(settings);
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true) });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
 	disposables.add(instantiationService.createInstance(AgentHostCopilotCliSettingsContribution));
 	return { agentHostService };
 }

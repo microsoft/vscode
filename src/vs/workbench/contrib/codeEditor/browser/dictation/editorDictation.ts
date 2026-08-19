@@ -28,7 +28,7 @@ import { EditOperation } from '../../../../../editor/common/core/editOperation.j
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { toAction } from '../../../../../base/common/actions.js';
@@ -71,6 +71,18 @@ export class EditorDictationStartAction extends EditorAction2 {
 				secondary: isWindows ? [
 					KeyMod.Alt | KeyCode.Backquote
 				] : undefined
+			},
+			menu: {
+				id: MenuId.EditorContext,
+				group: '1_modification',
+				order: 6,
+				// Only surface in the context menu when a dictation engine is
+				// available and the editor is editable. No persistent toolbar
+				// button is added; the entry point stays confined to the menu.
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(HasSpeechProvider, BuiltinDictationConfigured),
+					EditorContextKeys.readOnly.toNegated()
+				)
 			}
 		});
 	}

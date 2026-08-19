@@ -10,16 +10,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ILanguageModelChatResponse, ILanguageModelChatSelector } from '../../common/languageModels.js';
+import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 
 type CleanupTestService = {
 	_configurationService: {
 		getValue: () => string;
 	};
-	_languageModelsService: {
-		selectLanguageModels: (selector: ILanguageModelChatSelector) => Promise<string[]>;
-		sendChatRequest: (...args: never[]) => Promise<ILanguageModelChatResponse>;
-	};
+	_languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>;
 	_llmCleanupModelTreatment: string | undefined;
 	_promptsService: {
 		getDictationInstructions: (token: CancellationToken) => Promise<string | undefined>;
@@ -330,6 +327,49 @@ suite('ChatSpeechToTextService', () => {
 			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
+		]);
+	});
+
+	test('disables reasoning for Luna cleanup only', async () => {
+		const requestConfigurations: Array<ILanguageModelChatRequestOptions['configuration']> = [];
+		const createService = (configuredModel: string): CleanupTestService => {
+			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+			service._configurationService = {
+				getValue: () => configuredModel,
+			};
+			service._llmCleanupModelTreatment = undefined;
+			service._languageModelsService = {
+				selectLanguageModels: async () => ['test-model'],
+				sendChatRequest: async (_modelId, _from, _messages, options) => {
+					requestConfigurations.push(options.configuration);
+					return {
+						stream: (async function* () {
+							yield { type: 'text', value: 'cleaned transcript' } as const;
+						})(),
+						result: Promise.resolve(undefined),
+					};
+				},
+			};
+			service._promptsService = {
+				getDictationInstructions: async () => undefined,
+			};
+			service._logService = {
+				info: () => { },
+				warn: () => { },
+				trace: () => { },
+			};
+			return service;
+		};
+
+		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('Luna transcript', CancellationToken.None);
+		const fallbackService = createService('gpt-5.6-luna');
+		let selectionCall = 0;
+		fallbackService._languageModelsService.selectLanguageModels = async () => selectionCall++ === 0 ? [] : ['test-model'];
+		await fallbackService._cleanupWithLanguageModel('utility fallback transcript', CancellationToken.None);
+
+		assert.deepStrictEqual(requestConfigurations, [
+			{ reasoningEffort: 'none' },
+			undefined,
 		]);
 	});
 

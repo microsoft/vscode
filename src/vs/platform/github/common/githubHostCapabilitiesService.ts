@@ -17,10 +17,16 @@ const unavailableCapabilities: GitHubHostCapabilities = {
 	checkContextRequiredness: false,
 };
 
+/**
+ * GitHub rejects any query that selects `__Type.fields` more than twice with an
+ * `INTROSPECTION_LIMIT_EXCEEDED` error, so the two `fields` selections below are the entire budget.
+ * `RequirableByPullRequest` therefore only gets an existence check: `isRequired` is the sole field
+ * of that interface, so the interface being present implies the field is available.
+ */
 const capabilitiesQuery = `query AgentHostGitHubCapabilities {
 	pullRequest: __type(name: "PullRequest") { fields { name } }
 	repository: __type(name: "Repository") { fields { name } }
-	requirableByPullRequest: __type(name: "RequirableByPullRequest") { fields { name } }
+	requirableByPullRequest: __type(name: "RequirableByPullRequest") { name }
 	rateLimit { limit remaining used resetAt }
 }`;
 
@@ -31,7 +37,7 @@ interface ITypeFields {
 interface ICapabilitiesProbe {
 	readonly pullRequest?: ITypeFields;
 	readonly repository?: ITypeFields;
-	readonly requirableByPullRequest?: ITypeFields;
+	readonly requirableByPullRequest?: { readonly name?: string };
 }
 
 interface ICapabilitiesProbeResult {
@@ -135,24 +141,33 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			'enrichment',
 		);
 		if (response.errors.length > 0) {
+			const schemaValidation = response.errors.every(isSchemaValidationError);
+			const detail = response.errors.map(formatGraphQLError).join('; ');
+			if (schemaValidation) {
+				this._logService?.debug(`[GitHubHostCapabilitiesService] Host ${credential.account.host} lacks the expected GraphQL schema, disabling GraphQL capabilities: ${detail}`);
+			} else {
+				// Disabling GraphQL forces every pull request fragment onto incomplete REST fallbacks,
+				// which silently stalls Agent Merge, so an unexpected probe error must be visible.
+				this._logService?.warn(`[GitHubHostCapabilitiesService] Capability probe for ${credential.account.host} returned errors, disabling GraphQL capabilities: ${detail}`);
+			}
 			return {
 				capabilities: unavailableCapabilities,
-				cache: response.errors.every(isSchemaValidationError),
+				cache: schemaValidation,
 			};
 		}
 		if (!response.data?.pullRequest) {
+			this._logService?.warn(`[GitHubHostCapabilitiesService] Capability probe for ${credential.account.host} did not return the PullRequest type, disabling GraphQL capabilities`);
 			return { capabilities: unavailableCapabilities, cache: false };
 		}
 		const pullRequestFields = fieldNames(response.data.pullRequest);
 		const repositoryFields = fieldNames(response.data.repository);
-		const requirableFields = fieldNames(response.data.requirableByPullRequest);
 		return {
 			capabilities: {
 				graphql: true,
 				mergeQueue: pullRequestFields.has('mergeQueueEntry') && repositoryFields.has('mergeQueue'),
 				internalMergeStatus: false,
 				reviewThreads: pullRequestFields.has('reviewThreads'),
-				checkContextRequiredness: requirableFields.has('isRequired'),
+				checkContextRequiredness: typeof response.data.requirableByPullRequest?.name === 'string',
 			},
 			cache: true,
 		};
@@ -170,6 +185,11 @@ function formatCapabilities(capabilities: GitHubHostCapabilities): string {
 
 function capabilityErrorKind(error: unknown): string {
 	return error instanceof Error ? error.name : typeof error;
+}
+
+function formatGraphQLError(error: GitHubGraphQLError): string {
+	const kind = error.type ?? error.extensions?.code;
+	return kind ? `${kind}: ${error.message ?? 'no message'}` : error.message ?? 'unknown error';
 }
 
 function waitForCapabilities(promise: Promise<GitHubHostCapabilities>, signal: AbortSignal): Promise<GitHubHostCapabilities> {

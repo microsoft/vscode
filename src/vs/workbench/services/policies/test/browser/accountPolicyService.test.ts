@@ -12,7 +12,7 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../..
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
 import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, INativeManagedSettingsService, IFileManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
@@ -396,22 +396,35 @@ suite('AccountPolicyService', () => {
 		// All three channels provide the same key with different values.
 		// Server says 'enable', MDM says 'disable', File says 'file-value'.
 		// Native MDM should win.
-		const fileManagedSettingsService = new FakeFileManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'file-value' });
-		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
+		const fileManagedSettingsService = new FakeFileManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'file-value', [COPILOT_SANDBOX_ENABLED_KEY]: true });
+		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable', [COPILOT_SANDBOX_ENABLED_KEY]: false }));
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService, fileManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
 		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
 
-		const policyData: IPolicyData = { managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' } };
+		const policyData: IPolicyData = { managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable', [COPILOT_SANDBOX_ENABLED_KEY]: true } };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
 		await defaultAccountService.refresh();
 
 		await policyConfiguration.initialize();
 
-		// Native MDM value 'disable' wins — policy is forced to false
-		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
-		assert.strictEqual(policyService.getPolicyValueSource('PolicySettingF'), PolicyValueSource.NativeMdm);
+		const initialSandbox = policyService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY);
+		const managedSettingsChanged = Event.toPromise(policyService.onDidChangeManagedSettings);
+		nativeManagedSettingsService.setManagedSettings({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
+		await managedSettingsChanged;
+
+		assert.deepStrictEqual({
+			policy: policyService.getPolicyValue('PolicySettingF'),
+			source: policyService.getPolicyValueSource('PolicySettingF'),
+			initialSandbox,
+			updatedSandbox: policyService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY),
+		}, {
+			policy: false,
+			source: PolicyValueSource.NativeMdm,
+			initialSandbox: false,
+			updatedSandbox: true,
+		});
 	});
 
 	test('managed settings: file-based settings apply when server and MDM are empty', async () => {

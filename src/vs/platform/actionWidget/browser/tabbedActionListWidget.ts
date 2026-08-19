@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
-import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
@@ -52,10 +51,8 @@ export interface ITabDescriptor {
 export interface ITabbedActionListShowOptions<T> {
 	/** Logical user / source identifier passed through to {@link ActionList}. */
 	readonly user: string;
-	/** Element or explicit coordinates the popup is anchored to. */
-	readonly anchor: HTMLElement | IAnchor;
-	/** Optional context-view container. Defaults to the active layout container. */
-	readonly container?: HTMLElement;
+	/** Element the popup is anchored to. */
+	readonly anchor: HTMLElement;
 	/** Tabs rendered in order. */
 	readonly tabs: readonly ITabDescriptor[];
 	/** Initially active tab id. Must match an entry in {@link tabs}. */
@@ -264,7 +261,7 @@ export class TabbedActionListWidget extends Disposable {
 				this._onDidHide.fire();
 			},
 			get anchorPosition() { return listRef?.anchorPosition; },
-		}, options.container, false);
+		}, undefined, false);
 
 		if (isSwap) {
 			this._swappingTab = false;

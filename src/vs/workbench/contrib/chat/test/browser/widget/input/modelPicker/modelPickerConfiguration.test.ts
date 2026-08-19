@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IAnchor } from '../../../../../../../../base/browser/ui/contextview/contextview.js';
-import { AnchorPosition } from '../../../../../../../../base/common/layout.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../../platform/extensions/common/extensions.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -171,73 +169,6 @@ suite('ModelPickerConfiguration', () => {
 				{ className: 'chat-model-picker-config-option', label: '32K', checked: false, ariaDescription: 'Default' },
 				{ className: 'chat-model-picker-config-option', label: '64K', checked: true, ariaDescription: undefined },
 			],
-		});
-	});
-
-	test('uses the host action widget placement and visibility lifecycle', () => {
-		const model = createModel();
-		const container = document.createElement('div');
-		const button = document.createElement('a');
-		const anchor: IAnchor = { x: 10, y: 20, width: 30, height: 1 };
-		const visibility: boolean[] = [];
-		let shownPlacement: { anchor: unknown; container: unknown; anchorPosition: AnchorPosition | undefined } | undefined;
-		let onHide: (() => void) | undefined;
-		const actionWidgetService = {
-			show: (
-				_id: string,
-				_supportsPreview: boolean,
-				_items: IActionListItem<IActionWidgetDropdownAction>[],
-				delegate: { onHide: () => void },
-				shownAnchor: unknown,
-				shownContainer: unknown,
-				_actions: unknown,
-				_accessibilityProvider: unknown,
-				options: IActionListOptions,
-			) => {
-				onHide = delegate.onHide;
-				shownPlacement = {
-					anchor: shownAnchor,
-					container: shownContainer,
-					anchorPosition: options.anchorPosition,
-				};
-			},
-			focusItemById: () => { },
-			updateItems: () => { },
-			hide: () => onHide?.(),
-		} as unknown as IActionWidgetService;
-		const access: IModelConfigurationAccess = {
-			getModelConfiguration: () => ({}),
-			setModelConfiguration: async () => { },
-			getModelConfigurationActions: () => [],
-		};
-		const controller = new ModelPickerConfiguration({
-			getSelectedModel: () => model,
-			getConfigurationAccess: () => access,
-			isDisabled: () => false,
-			shouldShowCacheBreakHint: () => false,
-			getCacheBreakLearnMoreLink: () => undefined,
-			dismissCacheBreakHint: () => { },
-			onDidChangeVisibility: visible => { visibility.push(visible); },
-			getActionWidgetContainer: () => container,
-			getActionWidgetAnchor: () => anchor,
-			getAnchorPosition: () => AnchorPosition.BELOW,
-		}, actionWidgetService, { publicLog2: () => { } } as unknown as ITelemetryService);
-
-		controller.show(button);
-		controller.show(button);
-		controller.show(button);
-		controller.dispose();
-
-		assert.deepStrictEqual({
-			shownPlacement,
-			visibility,
-		}, {
-			shownPlacement: {
-				anchor,
-				container,
-				anchorPosition: AnchorPosition.BELOW,
-			},
-			visibility: [true, false, true, false],
 		});
 	});
 

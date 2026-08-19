@@ -13,9 +13,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
-import { getByokLmSelectionModelId, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
-import { AgentHostByokModelsEnabledEnvVar, isAgentHostByokModelsEnabled } from '../../common/agentService.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
@@ -691,10 +690,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * shared proxy handle for this launcher (started lazily on first use).
 	 */
 	private _resolveByokSessionConfig(sessionId: string): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
-		const envValue = process.env[AgentHostByokModelsEnabledEnvVar];
 		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
-		const enabled = isAgentHostByokModelsEnabled(envValue, rootConfigValue);
-		this._logService.trace(`[Copilot:${sessionId}] BYOK session configuration enabled: ${enabled} (environment: ${envValue ?? 'unset'}, root config: ${rootConfigValue ?? 'unset'})`);
+		const { enabled, trace } = resolveByokLmEnablement(rootConfigValue);
+		this._logService.trace(`[Copilot:${sessionId}] BYOK session configuration ${trace}`);
 		if (!enabled) {
 			return Promise.resolve({});
 		}
