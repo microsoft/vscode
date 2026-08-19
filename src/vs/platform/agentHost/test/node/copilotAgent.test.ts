@@ -36,8 +36,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostByokModelsEnabledEnvVar } from '../../common/agentService.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
@@ -59,6 +58,7 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION } from '../../node/copilot/prompts/toolInstructions.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -68,6 +68,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { join } from '../../../../base/common/path.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
 import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
@@ -712,6 +713,8 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
 	private readonly _onDidRegisterConnection = new Emitter<void>();
 	readonly onDidRegisterConnection = this._onDidRegisterConnection.event;
+	private readonly _onDidChangeConfiguration = new Emitter<void>();
+	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
 	resolveProxyCalls = 0;
 	resolvedProxy: string | undefined;
@@ -728,6 +731,16 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 				this._connections.delete(clientId);
 			}
 		});
+	}
+
+	bindConfigurationService(_configurationService: IAgentConfigurationService, _transient: boolean): void { }
+
+	getConfigurationValue<T>(_key: string): T | undefined {
+		return undefined;
+	}
+
+	fireConfigurationChange(): void {
+		this._onDidChangeConfiguration.fire();
 	}
 
 	async resolveProxy(_url: string): Promise<string | undefined> {
@@ -855,7 +868,7 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService; rootConfig?: Record<string, unknown>; now?: () => number }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; rootConfig?: Record<string, unknown>; now?: () => number }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
@@ -897,17 +910,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	});
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
 	services.set(IAgentHostProxyResolver, options?.proxyResolver ?? new TestProxyResolver());
-	services.set(IAgentHostCustomizationEnablementService, {
-		_serviceBrand: undefined,
-		onDidChange: Event.None,
-		initializeSession: async () => { },
-		getWorkingDirectoryState: () => ({ kind: 'pending' }),
-		resolve: () => ({ kind: 'pending', reason: 'session' }),
-		applyClientGlobalEnablement: () => ({ kind: 'pending', reason: 'session' }),
-		replaceEnablement: () => ({ kind: 'pending', reason: 'session' }),
-		setEnablement: () => ({ kind: 'pending', reason: 'session' }),
-		whenIdle: async () => { },
-	} satisfies ICustomizationEnablementService);
+	services.set(IAgentHostCustomizationEnablementService, options?.customizationEnablementService ?? createNoopCustomizationEnablementService());
 	services.set(IByokLmBridgeRegistry, options?.byokBridgeRegistry ?? new ByokLmBridgeRegistry());
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);
@@ -1037,6 +1040,36 @@ async function disposeAgent(agent: CopilotAgent): Promise<void> {
 suite('CopilotAgent', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('initializes enablement before disabling the built-in GitHub MCP server at launch', async () => {
+		let initializedSession: string | undefined;
+		const disabledRootMcpServers = (CopilotAgent.prototype as unknown as {
+			_disabledRootMcpServers(this: {
+				readonly id: string;
+				_isGitHubMcpServerEnabled(): boolean;
+				readonly _customizationEnablementService: {
+					initializeSession(session: string): Promise<void>;
+					resolve(session: string, target: { readonly name: string }): { kind: 'resolved'; enablement: readonly [{ kind: CustomizationEnablementKind.Session; enabled: boolean }]; enabled: boolean; workingDirectory: { kind: 'workspaceless' } };
+				};
+			}, session: URI, sessionId: string, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
+		})._disabledRootMcpServers;
+		const result = await disabledRootMcpServers.call({
+			id: 'copilotcli',
+			_isGitHubMcpServerEnabled: () => true,
+			_customizationEnablementService: {
+				initializeSession: async session => { initializedSession = session; },
+				resolve: (_session, target) => {
+					const enabled = target.name !== GITHUB_MCP_SERVER_NAME;
+					return { kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Session, enabled }], enabled, workingDirectory: { kind: 'workspaceless' } };
+				},
+			},
+		}, AgentSession.uri('copilotcli', 'session'), 'sdk-session', { mcpServers: {} });
+
+		assert.deepStrictEqual({ initializedSession, result }, {
+			initializedSession: AgentSession.uri('copilotcli', 'session').toString(),
+			result: [GITHUB_MCP_SERVER_NAME],
+		});
+	});
 
 	test('selects provider-native autonomous session config and respects policy', async () => {
 		const { agent, configurationService } = createTestAgentContext(disposables);
@@ -3390,6 +3423,111 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('refreshes the proxy when Agent Host proxy configuration changes', async () => {
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			const proxy = 'http://configured-proxy.example:8080';
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			try {
+				await agent.listChatsToMigrate();
+				proxyResolver.resolvedProxy = proxy;
+				proxyResolver.fireConfigurationChange();
+				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
+					await timeout(0);
+				}
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					resolveProxyCalls: proxyResolver.resolveProxyCalls,
+					httpProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTP_PROXY'],
+					httpsProxy: getCreatedClientOptions(agent).at(-1)?.env?.['HTTPS_PROXY'],
+				}, {
+					startCallCount: 2,
+					stopCallCount: 1,
+					resolveProxyCalls: 3,
+					httpProxy: proxy,
+					httpsProxy: proxy,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('forwards the configured Kerberos proxy SPN to the Copilot runtime', async () => {
+			const client = new TestCopilotClient([]);
+			const kerberosSpn = 'HTTP/proxy.example';
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: kerberosSpn },
+			});
+			try {
+				await agent.listChatsToMigrate();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['COPILOT_PROXY_KERBEROS_SPN'], kerberosSpn);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('preserves an explicit Kerberos proxy SPN environment override', async () => {
+			const client = new TestCopilotClient([]);
+			const configuredSpn = 'HTTP/configured.proxy';
+			const environmentSpn = 'HTTP/environment.proxy';
+			const previous = process.env['COPILOT_PROXY_KERBEROS_SPN'];
+			process.env['COPILOT_PROXY_KERBEROS_SPN'] = environmentSpn;
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: configuredSpn },
+			});
+			try {
+				await agent.listChatsToMigrate();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['COPILOT_PROXY_KERBEROS_SPN'], environmentSpn);
+			} finally {
+				if (previous === undefined) {
+					delete process.env['COPILOT_PROXY_KERBEROS_SPN'];
+				} else {
+					process.env['COPILOT_PROXY_KERBEROS_SPN'] = previous;
+				}
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restarts the Copilot runtime when the Kerberos proxy SPN changes', async () => {
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			const initialSpn = 'HTTP/initial.proxy';
+			const changedSpn = 'HTTP/changed.proxy';
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: initialSpn },
+			});
+			try {
+				await agent.listChatsToMigrate();
+				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: changedSpn });
+				proxyResolver.fireConfigurationChange();
+				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
+					await timeout(0);
+				}
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					kerberosSpn: getCreatedClientOptions(agent).at(-1)?.env?.['COPILOT_PROXY_KERBEROS_SPN'],
+				}, {
+					startCallCount: 2,
+					stopCallCount: 1,
+					kerberosSpn: changedSpn,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('resolves the proxy on first client start without a bridge', async () => {
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
@@ -3555,6 +3693,62 @@ suite('CopilotAgent', () => {
 				await agent.listChatsToMigrate();
 
 				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['RUBBER_DUCK_AGENT'], undefined);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('enables the built-in GitHub MCP server by default and removes its environment variable when disabled', async () => {
+			const enabledClient = new TestCopilotClient([]);
+			const { agent: enabledAgent } = createTestAgentContext(disposables, { copilotClient: enabledClient });
+			const previousEnvValue = process.env['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'];
+			try {
+				await enabledAgent.listChatsToMigrate();
+				process.env['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'] = 'true';
+
+				const disabledClient = new TestCopilotClient([]);
+				const { agent: disabledAgent } = createTestAgentContext(disposables, {
+					copilotClient: disabledClient,
+					rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				});
+				try {
+					await disabledAgent.listChatsToMigrate();
+					assert.deepStrictEqual([
+						getCreatedClientOptions(enabledAgent).at(-1)?.env?.['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'],
+						getCreatedClientOptions(disabledAgent).at(-1)?.env?.['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'],
+					], ['true', undefined]);
+				} finally {
+					await disposeAgent(disabledAgent);
+				}
+			} finally {
+				if (previousEnvValue === undefined) {
+					delete process.env['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'];
+				} else {
+					process.env['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'] = previousEnvValue;
+				}
+				await disposeAgent(enabledAgent);
+			}
+		});
+
+		test('restarts the client when built-in GitHub MCP support is enabled', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+			});
+			try {
+				await agent.listChatsToMigrate();
+				configurationService.updateRootConfig({ [AgentHostGitHubMcpServerEnabledConfigKey]: true });
+				await Promise.resolve();
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					stopCount: client.stopCount,
+					env: getCreatedClientOptions(agent).at(-1)?.env?.['COPILOT_ENABLE_BUILTIN_GITHUB_MCP'],
+				}, {
+					stopCount: 1,
+					env: 'true',
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -4202,9 +4396,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('BYOK models follow synchronized root configuration when there is no environment override', async () => {
-		const previousEnvValue = process.env[AgentHostByokModelsEnabledEnvVar];
-		delete process.env[AgentHostByokModelsEnabledEnvVar];
+	test('BYOK models follow synchronized root configuration', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const { agent, configurationService } = createTestAgentContext(disposables, {
 			byokBridgeRegistry,
@@ -4234,11 +4426,6 @@ suite('CopilotAgent', () => {
 				disabledAgain: [],
 			});
 		} finally {
-			if (previousEnvValue === undefined) {
-				delete process.env[AgentHostByokModelsEnabledEnvVar];
-			} else {
-				process.env[AgentHostByokModelsEnabledEnvVar] = previousEnvValue;
-			}
 			await disposeAgent(agent);
 		}
 	});
@@ -5951,7 +6138,18 @@ suite('CopilotAgent', () => {
 				}
 			}
 
-			const { agent, stateManager } = createTestAgentContext(disposables, { pluginManager: new PassthroughPluginManager() });
+			const pendingEnablementService: ICustomizationEnablementService = {
+				_serviceBrand: undefined,
+				onDidChange: Event.None,
+				initializeSession: async () => { },
+				getWorkingDirectoryState: () => ({ kind: 'pending' }),
+				resolve: () => ({ kind: 'pending', reason: 'session' }),
+				applyClientGlobalEnablement: () => ({ kind: 'pending', reason: 'session' }),
+				replaceEnablement: () => ({ kind: 'pending', reason: 'session' }),
+				setEnablement: () => ({ kind: 'pending', reason: 'session' }),
+				whenIdle: async () => { },
+			};
+			const { agent, stateManager } = createTestAgentContext(disposables, { pluginManager: new PassthroughPluginManager(), customizationEnablementService: pendingEnablementService });
 			try {
 				const firstSession = AgentSession.uri('copilotcli', 'first-enable-state');
 				const secondSession = AgentSession.uri('copilotcli', 'second-enable-state');
@@ -6862,6 +7060,36 @@ suite('CopilotAgent', () => {
 				// for its session-backed chat at create time, which is
 				// independent of the host-minted AH session id.
 				assert.strictEqual(capturedConfig?.sessionId, JSON.parse(result.providerData!).sdkSessionId);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('getModel reports the creation model while the backing is still deferred', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'prov-default-model'),
+					model: { id: 'gpt-x' },
+					workingDirectories: [URI.file('/workspace')],
+				});
+				const chat = defaultChatUri(result.session);
+				const context = exactChatContext(result.session, chat, result.session);
+
+				// The first turn's telemetry reads the bound model before the
+				// send materializes the session, so the reserved backing must
+				// already carry it.
+				const beforeSend = agent.chats.getModel?.(chat, context);
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, context);
+
+				assert.deepStrictEqual({ beforeSend, afterMaterialize: agent.chats.getModel?.(chat, context) }, {
+					beforeSend: { id: 'gpt-x' },
+					afterMaterialize: { id: 'gpt-x' },
+				});
 			} finally {
 				await disposeAgent(agent);
 			}

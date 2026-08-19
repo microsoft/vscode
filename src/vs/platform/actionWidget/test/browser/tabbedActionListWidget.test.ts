@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IContextViewDelegate, IContextViewService } from '../../../contextview/browser/contextView.js';
@@ -38,19 +37,17 @@ class FakeContextViewService implements Partial<IContextViewService> {
 	private _container: HTMLElement | undefined;
 	private _activeDelegate: IContextViewDelegate | undefined;
 	private _activeRenderDisposables: { dispose(): void } | undefined;
-	lastContainer: HTMLElement | undefined;
 
 	get isVisible(): boolean {
 		return !!this._activeDelegate;
 	}
 
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement): { close: () => void } {
+	showContextView(delegate: IContextViewDelegate): { close: () => void } {
 		// Tear down any previous render before showing a new one.
 		this.hideContextView();
 		this._activeDelegate = delegate;
-		this.lastContainer = container;
 		this._container = document.createElement('div');
-		(container ?? document.body).appendChild(this._container);
+		document.body.appendChild(this._container);
 		const result = delegate.render(this._container);
 		if (result && typeof (result as { dispose?: () => void }).dispose === 'function') {
 			this._activeRenderDisposables = result as { dispose(): void };
@@ -189,31 +186,5 @@ suite('TabbedActionListWidget', () => {
 		contextView.hideContextView();
 		assert.strictEqual(hidden, 1, `expected onDidHide to fire once, got ${hidden}; widget visible: ${widget.isVisible}`);
 		assert.strictEqual(widget.isVisible, false);
-	});
-
-	test('supports an explicit popup container and coordinate anchor', () => {
-		const { widget, contextView } = createWidget(disposables);
-		const popupContainer = document.createElement('div');
-		document.body.appendChild(popupContainer);
-		disposables.add({ dispose: () => popupContainer.remove() });
-		const anchor: IAnchor = { x: 10, y: 20, width: 30, height: 1 };
-
-		widget.show<ITestItem>({
-			user: 'test',
-			anchor,
-			container: popupContainer,
-			tabs: [{ id: 'Local' }, { id: 'Remote' }],
-			initialTab: 'Local',
-			createActionList: () => ({ items: [action('a')] }),
-			delegate: { onSelect: () => { }, onHide: () => { } },
-		});
-
-		assert.deepStrictEqual({
-			container: contextView.lastContainer === popupContainer,
-			anchor: contextView.getContextViewElement().parentElement === popupContainer,
-		}, {
-			container: true,
-			anchor: true,
-		});
 	});
 });

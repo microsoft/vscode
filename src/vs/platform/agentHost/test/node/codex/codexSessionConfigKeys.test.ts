@@ -25,6 +25,8 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
+import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	const instantiationService = new TestInstantiationService();
@@ -42,6 +44,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
 	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
+	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);

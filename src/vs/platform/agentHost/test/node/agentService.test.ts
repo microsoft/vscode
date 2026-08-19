@@ -39,7 +39,7 @@ import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agent
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -55,11 +55,13 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
+import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -1175,6 +1177,17 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('resourceRead', () => {
+
+		test('returns binary resources as Base64 when requested', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/logs.zip' });
+			await fileService.writeFile(uri, VSBuffer.wrap(Uint8Array.from([80, 75, 0, 1, 255])));
+
+			assert.deepStrictEqual(await service.resourceRead(uri, ContentEncoding.Base64), {
+				data: 'UEsAAf8=',
+				encoding: ContentEncoding.Base64,
+				contentType: 'application/octet-stream',
+			});
+		});
 
 		test('maps missing files to NotFound', async () => {
 			const uri = URI.from({ scheme: Schemas.inMemory, path: '/missing.txt' });
@@ -3383,7 +3396,7 @@ suite('AgentService (node dispatcher)', () => {
 			const unknown = AgentSession.uri('copilot', 'filter-unknown');
 			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
 			await register(agent, [discoveredChat(registered), discoveredChat(deleted)]);
-			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(deleted);
+			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.tombstone(deleted);
 
 			const known = await (svc as unknown as { _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> })._filterKnownSessions([registered, deleted, unknown]);
 			const reRegistered = await register(agent, [discoveredChat(deleted)]);
@@ -3923,7 +3936,7 @@ suite('AgentService (node dispatcher)', () => {
 			const legacy = AgentSession.uri('copilot', 'deleted-adoptable-legacy');
 			svc.registerProvider(agent);
 			await svc.listSessions();
-			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(legacy);
+			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.tombstone(legacy);
 			agent.fireDiscoveredChats([{
 				...discoveredChat(legacy),
 				_meta: withSessionEhcliAdoptable(undefined),
@@ -4037,14 +4050,16 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.listExternalChatsCalls, 1);
 		});
 
-		test('a discovery signal does not bypass completed legacy migration semantics', async () => {
+		test('listSessions rejects an unavailable migration catalog and retries it on the next call', async () => {
 			class NotYetMigratableAgent extends MockAgent {
 				migrationCalls = 0;
 				enumerable = false;
 			}
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.configurationService.updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All });
 			const agent = disposables.add(new NotYetMigratableAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'legacy-migration-not-ready');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listChatsToMigrate = async () => {
 				agent.migrationCalls++;
 				return agent.enumerable
@@ -4052,18 +4067,20 @@ suite('AgentService (node dispatcher)', () => {
 					: undefined;
 			};
 			svc.registerProvider(agent);
-			await svc.listSessions();
+			await assert.rejects(svc.listSessions(), /cannot enumerate its native session catalog yet/);
+			const callsAfterFailure = agent.migrationCalls;
 
 			agent.enumerable = true;
-			agent.fireDiscoveredChats([]);
 			await timeout(0);
-
+			const listed = await svc.listSessions();
 			assert.deepStrictEqual({
-				migrationCalls: agent.migrationCalls,
-				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+				retriedBeforeFailure: callsAfterFailure > 1,
+				retriedAfterFailure: agent.migrationCalls > callsAfterFailure,
+				listed: listed.map(session => session.session.toString()),
 			}, {
-				migrationCalls: 1,
-				registered: [],
+				retriedBeforeFailure: true,
+				retriedAfterFailure: true,
+				listed: [legacy.toString()],
 			});
 		});
 
@@ -5763,13 +5780,16 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('stores GitHub Copilot token for operation handlers', async () => {
 			service.registerProvider(copilotAgent);
+			const changes: { resource: string; token: string | undefined }[] = [];
+			disposables.add(service.authenticationService.onDidChangeAuthToken(event => changes.push({ resource: event.resource, token: event.token })));
 
 			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
 
-			assert.deepStrictEqual({ result, token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }), authenticateCalls: copilotAgent.authenticateCalls }, {
+			assert.deepStrictEqual({ result, token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }), authenticateCalls: copilotAgent.authenticateCalls, changes }, {
 				result: { authenticated: true },
 				token: 'copilot-token',
 				authenticateCalls: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' }],
+				changes: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' }],
 			});
 		});
 
@@ -6190,6 +6210,90 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.restoreSession(sessionResource);
 
 			assert.deepStrictEqual(readSessionMultiRootMetadata(localService.stateManager.getSessionState(sessionResource.toString())?._meta), multiRoot);
+		});
+
+		test('restores persisted orchestration metadata', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			await createAgentSession(copilotAgent);
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+			const orchestration = {
+				parentSession: 'copilot:/parent',
+				creatorSession: 'copilot:/creator',
+				coordinateWithCreator: true,
+				notifyOnIdle: 'always',
+			} as const;
+			await db.setMetadata(AH_META_ORCHESTRATION_DB_KEY, JSON.stringify(orchestration));
+
+			await localService.restoreSession(sessionResource);
+
+			assert.deepStrictEqual(readSessionOrchestration(localService.stateManager.getSessionState(sessionResource.toString())?._meta), orchestration);
+		});
+
+		test('does not consume a child notification when its creator cannot be resolved', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const child = await localService.createSession({ provider: 'copilot' });
+			const orchestration: ISessionOrchestration = {
+				parentSession: 'copilot:/missing',
+				creatorSession: 'copilot:/missing',
+				coordinateWithCreator: true,
+				notifyOnIdle: 'once',
+				creatorNotificationState: 'waitingForCompletion',
+			};
+			const coordinator = localService as unknown as {
+				_sessionCoordination: {
+					setOrchestration(session: string, value: ISessionOrchestration): Promise<void>;
+					handleStatusChange(session: string, status: SessionStatus): Promise<void>;
+				};
+			};
+			await coordinator._sessionCoordination.setOrchestration(child.toString(), orchestration);
+
+			await coordinator._sessionCoordination.handleStatusChange(child.toString(), SessionStatus.Idle);
+
+			assert.deepStrictEqual(readSessionOrchestration(localService.stateManager.getSessionSummary(child.toString())?._meta), orchestration);
+		});
+
+		test('restores a cold creator before delivering and consuming a child notification', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const creator = await localService.createSession({ provider: 'copilot' });
+			const child = await localService.createSession({ provider: 'copilot' });
+			const orchestration: ISessionOrchestration = {
+				parentSession: creator.toString(),
+				creatorSession: creator.toString(),
+				coordinateWithCreator: true,
+				notifyOnIdle: 'once',
+				creatorNotificationState: 'waitingForCompletion',
+			};
+			const coordinator = localService as unknown as {
+				_sessionCoordination: {
+					setOrchestration(session: string, value: ISessionOrchestration): Promise<void>;
+					handleStatusChange(session: string, status: SessionStatus): Promise<void>;
+				};
+			};
+			await coordinator._sessionCoordination.setOrchestration(child.toString(), orchestration);
+			localService.stateManager.removeSession(creator.toString());
+			assert.strictEqual(localService.stateManager.getSessionState(creator.toString()), undefined);
+			let notificationStarted = false;
+			disposables.add(localService.stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.channel === buildDefaultChatUri(creator) && envelope.action.type === ActionType.ChatTurnStarted && envelope.action.message.origin.kind === MessageKind.SystemNotification) {
+					notificationStarted = true;
+				}
+			}));
+
+			await coordinator._sessionCoordination.handleStatusChange(child.toString(), SessionStatus.Idle);
+
+			assert.ok(localService.stateManager.getSessionState(creator.toString()));
+			assert.strictEqual(notificationStarted, true);
+			assert.deepStrictEqual(readSessionOrchestration(localService.stateManager.getSessionSummary(child.toString())?._meta), {
+				...orchestration,
+				creatorNotificationState: 'notified',
+			});
 		});
 
 		test('restores persisted source-control provenance', async () => {
@@ -7657,6 +7761,107 @@ suite('AgentService (node dispatcher)', () => {
 				leakedBeforeRestart: false,
 				markerPersisted: chatUri.toString(),
 				leakedAfterRestart: false,
+			});
+		});
+
+		test('createSession carries client-owned _meta slots and drops unknown ones', async () => {
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+
+			const session = await svc.createSession({
+				provider: 'copilot',
+				workingDirectories: [URI.file('/repo')],
+				_meta: {
+					...withChatSurfaceMeta(withEphemeralSessionMeta(undefined, true), { surface: 'terminal', shellType: 'pwsh', osName: 'Windows' }),
+					// Session `_meta` is a whitelist, so an unrecognized slot must not survive.
+					'vscode.chat.unknownFutureSlot': { hello: 'world' },
+				},
+			});
+
+			const state = svc.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				ephemeral: readEphemeralSessionMeta(state ?? {}).isEphemeral,
+				surface: readChatSurfaceMeta(state ?? {}),
+				unknownSlot: state?._meta?.['vscode.chat.unknownFutureSlot'],
+			}, {
+				ephemeral: true,
+				surface: { surface: 'terminal', shellType: 'pwsh', osName: 'Windows' },
+				unknownSlot: undefined,
+			});
+		});
+
+		test('ephemeral session teardown clears its discovery tombstone', async () => {
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+
+			const session = await svc.createSession({
+				provider: 'copilot',
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			const tombstonedBeforeDispose = await registry.isTombstoned(session);
+			await svc.disposeSession(session);
+
+			assert.deepStrictEqual({
+				tombstonedBeforeDispose,
+				tombstonedAfterDispose: await registry.isTombstoned(session),
+			}, {
+				tombstonedBeforeDispose: true,
+				tombstonedAfterDispose: false,
+			});
+		});
+
+		test('ephemeral sessions never appear in direct or overlay listSessions paths', async () => {
+			const perSession = createPerSessionDataService();
+			const overlaySession = AgentSession.uri('copilot', 'ephemeral-overlay-session');
+			const directSession = AgentSession.uri('copilot', 'ephemeral-direct-session');
+			class LeakyAgent extends MockAgent {
+				override async listSessions(): Promise<IAgentSessionMetadata[]> {
+					return [
+						{ session: overlaySession, startTime: Date.now(), modifiedTime: Date.now() },
+						{ session: directSession, startTime: Date.now(), modifiedTime: Date.now() },
+					];
+				}
+			}
+
+			const agent = disposables.add(new LeakyAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+			await svc.createSession({
+				provider: 'copilot',
+				session: overlaySession,
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			await svc.createSession({
+				provider: 'copilot',
+				session: directSession,
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+
+			const firstList = await svc.listSessions();
+			const registeredBeforeRestart = await svc.getRegisteredSessions();
+
+			const restartedAgent = disposables.add(new LeakyAgent('copilot'));
+			const restarted = disposables.add(new AgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			restarted.registerProvider(restartedAgent);
+			const afterRestart = await restarted.listSessions();
+
+			assert.deepStrictEqual({
+				overlayIncludesEphemeral: svc.stateManager.getOverlaySessionSummaries().some(s => s.resource === overlaySession.toString()),
+				directListIncludesEphemeral: firstList.some(s => s.session.toString() === directSession.toString()),
+				registeredBeforeRestart: registeredBeforeRestart.map(s => s.toString()),
+				restartedListIncludesEphemeral: afterRestart.some(s => s.session.toString() === overlaySession.toString() || s.session.toString() === directSession.toString()),
+				registeredAfterRestart: (await restarted.getRegisteredSessions()).map(s => s.toString()),
+			}, {
+				overlayIncludesEphemeral: false,
+				directListIncludesEphemeral: false,
+				registeredBeforeRestart: [],
+				restartedListIncludesEphemeral: false,
+				registeredAfterRestart: [],
 			});
 		});
 

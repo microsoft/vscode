@@ -17,9 +17,10 @@ import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { CodexClientCustomizationStore, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
-import type { ICodexMcpServerEntry } from '../../../node/codex/codexMcpServers.js';
+import type { ICodexMcpServerConfigJson, ICodexMcpServerEntry } from '../../../node/codex/codexMcpServers.js';
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 import { McpCustomizationController, type IMcpCustomizationControllerOptions } from '../../../node/shared/mcpCustomizationController.js';
+import { createGitHubMcpServerConfiguration, getGitHubMcpTools } from '../../../node/shared/githubMcpServer.js';
 
 /**
  * Exactly the state `_resolveConversationSession` reads: the provider id it
@@ -63,6 +64,21 @@ interface ICodexMcpRequestHarness {
 	};
 }
 
+interface ICodexGitHubMcpHarness {
+	_buildSessionMcpServers(session: {
+		readonly sessionId: string;
+		readonly workingDirectory: URI;
+	}): Record<string, ICodexMcpServerConfigJson>;
+}
+
+interface ICodexGitHubEndpointChangeHarness {
+	_handleGitHubEndpointChange(): void;
+}
+
+interface ICodexAuthenticateHarness {
+	authenticate(resource: string, token: string): Promise<boolean>;
+}
+
 function resolveConversationSession(harness: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined {
 	const resolver = (CodexAgent.prototype as unknown as {
 		_resolveConversationSession(this: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined;
@@ -91,6 +107,123 @@ function emptyHarness(): ICodexConversationResolverHarness {
 suite('CodexAgent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('GitHub MCP injection respects unowned server enablement', () => {
+		const createHarness = (enabled: boolean, customizationEnabled: boolean, token: string | undefined): ICodexGitHubMcpHarness => Object.assign(Object.create(CodexAgent.prototype), {
+			_configurationService: { getRootValue: () => undefined },
+			_sessionMcpDiscoveries: new Map(),
+			_enabledClientPlugins: () => [],
+			_mcpAuthTokens: new Map(),
+			_githubMcpServerEnabled: enabled,
+			_githubToken: token,
+			_gitHubMcpServerConfiguration: token ? createGitHubMcpServerConfiguration('https://api.githubcopilot.com') : undefined,
+			_isMcpServerEnabledForSdk: (_session: unknown, name: string) => name !== 'github-mcp-server' || customizationEnabled,
+		});
+
+		const enabledServers = createHarness(true, true, 'token')._buildSessionMcpServers({ sessionId: 'enabled', workingDirectory: URI.file('/work') });
+		const customizationDisabledServers = createHarness(true, false, 'token')._buildSessionMcpServers({ sessionId: 'customization-disabled', workingDirectory: URI.file('/work') });
+		const settingDisabledServers = createHarness(false, true, 'token')._buildSessionMcpServers({ sessionId: 'setting-disabled', workingDirectory: URI.file('/work') });
+		const unauthenticatedServers = createHarness(true, true, undefined)._buildSessionMcpServers({ sessionId: 'unauthenticated', workingDirectory: URI.file('/work') });
+
+		assert.deepStrictEqual({
+			enabled: enabledServers['github-mcp-server'],
+			customizationDisabled: customizationDisabledServers['github-mcp-server'],
+			settingDisabled: settingDisabledServers['github-mcp-server'],
+			unauthenticated: unauthenticatedServers['github-mcp-server'],
+		}, {
+			enabled: {
+				url: 'https://api.githubcopilot.com/mcp',
+				http_headers: {
+					'X-MCP-Features': 'remote_mcp_ui_apps,mcp_apps_disable_form_deferral',
+					'X-MCP-Tools': getGitHubMcpTools(false).join(','),
+				},
+			},
+			customizationDisabled: undefined,
+			settingDisabled: undefined,
+			unauthenticated: undefined,
+		});
+
+		const aliasedServers = Object.assign(Object.create(CodexAgent.prototype), {
+			_configurationService: { getRootValue: () => ({ alias: { type: 'http', url: 'https://api.githubcopilot.com/mcp/' } }) },
+			_sessionMcpDiscoveries: new Map(),
+			_enabledClientPlugins: () => [],
+			_mcpAuthTokens: new Map(),
+			_githubMcpServerEnabled: true,
+			_githubToken: 'token',
+			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.githubcopilot.com'),
+			_isMcpServerEnabledForSdk: () => true,
+		}) as ICodexGitHubMcpHarness;
+		assert.deepStrictEqual(aliasedServers._buildSessionMcpServers({ sessionId: 'alias', workingDirectory: URI.file('/work') }), {
+			alias: { url: 'https://api.githubcopilot.com/mcp/' },
+		});
+	});
+
+	test('clears GitHub MCP credentials when the GitHub endpoint changes', () => {
+		const proxyTokens: string[] = [];
+		let modelRefreshes = 0;
+		let reconciliations = 0;
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_githubToken: 'token',
+			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.enterprise.githubcopilot.com'),
+			_connection: { kind: 'ready', proxyHandle: { setToken: (token: string) => proxyTokens.push(token) } },
+			_queueModelRefresh: () => { modelRefreshes++; },
+			_sessions: new Map([['session', {}]]),
+			_reconcileMaterializedCustomizations: async () => { reconciliations++; },
+		}) as ICodexGitHubEndpointChangeHarness & { _githubToken?: string; _gitHubMcpServerConfiguration?: object };
+
+		harness._handleGitHubEndpointChange();
+
+		assert.deepStrictEqual({
+			token: harness._githubToken,
+			configuration: harness._gitHubMcpServerConfiguration,
+			proxyTokens,
+			modelRefreshes,
+			reconciliations,
+		}, {
+			token: undefined,
+			configuration: undefined,
+			proxyTokens: [''],
+			modelRefreshes: 1,
+			reconciliations: 1,
+		});
+	});
+
+	test('does not commit stale GitHub authentication after an endpoint change', async () => {
+		const resolution = new DeferredPromise<ReturnType<typeof createGitHubMcpServerConfiguration>>();
+		const proxyTokens: string[] = [];
+		let reconciliations = 0;
+		const copilotResource = { resource: 'https://api.github.com/copilot_internal/user' };
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_gitHubEndpointService: { getCopilotResource: () => copilotResource, getRepoResource: () => ({ resource: 'https://api.github.com' }) },
+			_githubAuthenticationGeneration: 0,
+			_githubToken: undefined,
+			_gitHubMcpServerConfiguration: undefined,
+			_resolveGitHubMcpServerConfiguration: async () => resolution.p,
+			_connection: { kind: 'ready', proxyHandle: { setToken: (token: string) => proxyTokens.push(token) } },
+			_queueModelRefresh: () => { },
+			_sessions: new Map([['session', {}]]),
+			_reconcileMaterializedCustomizations: async () => { reconciliations++; },
+			_logService: new NullLogService(),
+			_refreshProviderConfiguration: async () => { },
+		}) as ICodexAuthenticateHarness & ICodexGitHubEndpointChangeHarness & { _githubToken?: string; _gitHubMcpServerConfiguration?: object };
+
+		const authenticating = harness.authenticate(copilotResource.resource, 'old-token');
+		harness._handleGitHubEndpointChange();
+		resolution.complete(createGitHubMcpServerConfiguration('https://api.enterprise.githubcopilot.com'));
+		await authenticating;
+
+		assert.deepStrictEqual({
+			token: harness._githubToken,
+			configuration: harness._gitHubMcpServerConfiguration,
+			proxyTokens,
+			reconciliations,
+		}, {
+			token: undefined,
+			configuration: undefined,
+			proxyTokens: [''],
+			reconciliations: 1,
+		});
+	});
 
 	test('prefers transient host context over conversation URI shape', () => {
 		const session = AgentSession.uri('codex', 'session-1');
