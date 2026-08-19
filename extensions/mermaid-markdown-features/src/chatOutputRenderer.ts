@@ -27,7 +27,7 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 		private readonly _webviewManager: MermaidWebviewManager
 	) { }
 
-	async renderChatOutput({ value }: vscode.ChatOutputDataItem, chatOutputWebview: vscode.ChatOutputWebview, _ctx: unknown, _token: vscode.CancellationToken): Promise<void> {
+	async renderChatOutput({ value }: vscode.ChatOutputDataItem, chatOutputWebview: vscode.ChatOutputWebview, ctx: vscode.ChatOutputRenderContext, _token: vscode.CancellationToken): Promise<void> {
 		const webview = chatOutputWebview.webview;
 		const decoded = decodeMermaidData(value);
 		const mermaidSource = decoded.source;
@@ -45,6 +45,8 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 		disposables.push(webview.onDidReceiveMessage(message => {
 			if (message.type === 'openInEditor') {
 				void vscode.commands.executeCommand('_mermaid-markdown.openInEditor', { mermaidWebviewId: webviewId });
+			} else if (message.type === 'openInModal') {
+				void chatOutputWebview.openInModal(title ?? vscode.l10n.t('Mermaid Diagram'));
 			}
 		}));
 
@@ -65,6 +67,7 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 		const mermaidScript = vscode.Uri.joinPath(mediaRoot, 'index.js');
 		const codiconsUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'codicon.css'));
 		const openInEditorLabel = vscode.l10n.t('Open Diagram in Editor');
+		const openInModalLabel = vscode.l10n.t('Open Diagram in Modal');
 
 		webview.html = `
 			<!DOCTYPE html>
@@ -87,10 +90,17 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 					.mermaid.rendered {
 						visibility: visible;
 					}
-					.open-in-editor-btn {
+					.diagram-actions {
 						position: absolute;
 						top: 8px;
 						right: 8px;
+						display: flex;
+						gap: 4px;
+						z-index: 100;
+						opacity: 0;
+						transition: opacity 0.2s;
+					}
+					.diagram-action {
 						display: flex;
 						align-items: center;
 						justify-content: center;
@@ -101,16 +111,12 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 						border: 1px solid var(--vscode-editorWidget-border);
 						border-radius: 6px;
 						cursor: pointer;
-						z-index: 100;
-						opacity: 0;
-						transition: opacity 0.2s;
 					}
-					body:hover .open-in-editor-btn,
-					.open-in-editor-btn:focus {
+					body:hover .diagram-actions,
+					.diagram-actions:focus-within {
 						opacity: 1;
 					}
-					.open-in-editor-btn:hover {
-						opacity: 1;
+					.diagram-action:hover {
 						background: var(--vscode-toolbar-hoverBackground);
 					}
 				</style>
@@ -118,7 +124,10 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 
 			<body data-vscode-context='${JSON.stringify({ preventDefaultContextMenuItems: true, mermaidWebviewId: webviewId })}' data-vscode-mermaid-webview-id="${webviewId}">
 				${renderMermaidConfigSpan()}
-				<button class="open-in-editor-btn" title="${openInEditorLabel}" aria-label="${openInEditorLabel}"><i class="codicon codicon-open-preview" aria-hidden="true"></i></button>
+				<div class="diagram-actions">
+					${ctx.isInModal ? '' : `<button class="diagram-action open-in-modal-btn" type="button" title="${openInModalLabel}" aria-label="${openInModalLabel}"><i class="codicon codicon-screen-full" aria-hidden="true"></i></button>`}
+					<button class="diagram-action open-in-editor-btn" type="button" title="${openInEditorLabel}" aria-label="${openInEditorLabel}"><i class="codicon codicon-open-preview" aria-hidden="true"></i></button>
+				</div>
 				<pre class="mermaid">
 					${escapeHtmlText(mermaidSource)}
 				</pre>

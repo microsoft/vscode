@@ -200,6 +200,7 @@ suite('ChatMarkdownContentPart', () => {
 			registerRenderer: () => ({ dispose: () => { } }),
 			hasCodeBlockRenderer: identifier => identifier.toLowerCase() === 'mermaid',
 			renderOutputPart: async () => { throw new Error('Unexpected output render'); },
+			openOutputInModal: async () => { throw new Error('Unexpected modal output render'); },
 			renderCodeBlock: async (identifier, data) => {
 				renderedCodeBlockOutputs.push({ identifier, text: new TextDecoder().decode(data) });
 				return {
