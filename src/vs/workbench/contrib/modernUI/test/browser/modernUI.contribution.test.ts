@@ -546,6 +546,19 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('inherits the customized activity bar background when inactive', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark');
+		theme.setCustomColors({ [MODERN_ACTIVITY_BAR_BACKGROUND]: '#123456' });
+
+		assert.deepStrictEqual({
+			background: theme.getColor(MODERN_ACTIVITY_BAR_BACKGROUND)?.toString(),
+			inactiveBackground: theme.getColor(MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND)?.toString(),
+		}, {
+			background: '#123456',
+			inactiveBackground: '#123456',
+		});
+	});
+
 	test('hides collapsed primary side bar grips without hiding constrained auxiliary sash grips', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui nosidebar nopanel';
