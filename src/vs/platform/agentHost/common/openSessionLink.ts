@@ -25,15 +25,17 @@ export const AGENT_HOST_SESSION_LINK_PATTERN = /^agent-host-session:\/\/[^/?#]+\
 
 export type AgentSessionLinkStatus = 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error';
 
-export function createAgentSessionLinkPresentation(title: string, description: string | undefined, status: AgentSessionLinkStatus): ILinkPresentation {
+export function createAgentSessionLinkPresentation(title: string, description: string | undefined, status: AgentSessionLinkStatus, kind: 'session' | 'chat' = 'session'): ILinkPresentation {
 	const presentationStatus = getAgentSessionLinkPresentationStatus(status);
 	return {
-		kind: 'session',
+		kind,
 		title,
 		...(description ? { detail: description } : {}),
 		status: presentationStatus,
 		tooltip: localize('agentSessionLink.tooltip', "{0} · {1}", title, presentationStatus.label),
-		ariaLabel: localize('agentSessionLink.ariaLabel', "Agent session {0}, {1}", title, presentationStatus.label),
+		ariaLabel: kind === 'chat'
+			? localize('agentChatLink.ariaLabel', "Agent chat {0}, {1}", title, presentationStatus.label)
+			: localize('agentSessionLink.ariaLabel', "Agent session {0}, {1}", title, presentationStatus.label),
 	};
 }
 
@@ -124,7 +126,12 @@ export function parseOpenSessionLinkChatId(uri: URI | string): string | undefine
 		return undefined;
 	}
 	const match = /(?:^|&)chat=([^&]+)/.exec(parsed.query);
-	const chatId = match ? decodeURIComponent(match[1]) : undefined;
+	let chatId: string | undefined;
+	try {
+		chatId = match ? decodeURIComponent(match[1]) : undefined;
+	} catch {
+		return undefined;
+	}
 	return chatId === DEFAULT_CHAT_ID ? undefined : chatId;
 }
 

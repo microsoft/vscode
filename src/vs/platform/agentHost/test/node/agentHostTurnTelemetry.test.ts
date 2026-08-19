@@ -159,6 +159,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		agent.fireProgress({ kind: 'action', resource: URI.parse(chatUri), action });
 	}
 
+	function fireModelCallCompleted(turnId: string, modelCallId: string, chatUri = defaultChatUri): void {
+		agent.fireProgress({ kind: 'model_call_completed', resource: URI.parse(chatUri), turnId, modelCallId });
+	}
+
 	function completedEvents(): { eventName: string; data: unknown }[] {
 		return telemetry.events.filter(e => e.eventName === 'agentHost.turnCompleted');
 	}
@@ -292,6 +296,77 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		}]);
 	});
 
+	test('counts unique completed model responses on the turn', () => {
+		setupSession();
+		startTurn('turn-model-calls');
+
+		fireModelCallCompleted('turn-model-calls', 'call-1');
+		fireModelCallCompleted('turn-model-calls', 'call-1');
+		fireModelCallCompleted('turn-model-calls', 'call-2');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-model-calls', duration: 1000 });
+
+		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).modelCallCount, 2);
+	});
+
+	test('does not attribute a stale model response to the active turn', () => {
+		setupSession();
+		startTurn('turn-old');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-old', duration: 1000 });
+		startTurn('turn-active');
+
+		fireModelCallCompleted('turn-old', 'late-call');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-active', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { turnId: data.turnId, modelCallCount: data.modelCallCount };
+		}), [
+			{ turnId: 'turn-old', modelCallCount: 0 },
+			{ turnId: 'turn-active', modelCallCount: 0 },
+		]);
+	});
+
+	test('attributes subagent model responses only to the subagent turn', () => {
+		setupSession();
+		startTurn('turn-parent');
+		const subagentChatUri = buildSubagentChatUri(sessionUri, 'call-subagent');
+		stateManager.addChat(sessionKey, subagentChatUri);
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-parent',
+			toolCallId: 'call-subagent',
+			toolName: 'task',
+			displayName: 'Task',
+		});
+		agent.fireProgress({
+			kind: 'subagent_started',
+			chat: URI.parse(defaultChatUri),
+			toolCallId: 'call-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+		});
+
+		const subagentTurnId = stateManager.getActiveTurnId(subagentChatUri);
+		assert.ok(subagentTurnId);
+		agent.fireProgress({
+			kind: 'model_call_completed',
+			resource: URI.parse(defaultChatUri),
+			turnId: 'turn-parent',
+			modelCallId: 'subagent-model-call',
+			parentToolCallId: 'call-subagent',
+		});
+		fire({ type: ActionType.ChatTurnComplete, turnId: subagentTurnId, duration: 1000 }, subagentChatUri);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { isSubagentSession: data.isSubagentSession, modelCallCount: data.modelCallCount };
+		}), [
+			{ isSubagentSession: true, modelCallCount: 1 },
+			{ isSubagentSession: false, modelCallCount: 0 },
+		]);
+	});
+
 	test('emits turnCompleted with the multi-root working-directory shape', () => {
 		setupSession(true, ['file:///work/app', 'file:///work/api']);
 		startTurn('turn-mr', 'hello');
@@ -319,6 +394,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-byok', duration: 1000 });
 		startTurn('turn-unknown', 'hello', 'unadvertised/private-model');
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-unknown', duration: 1000 });
+		agent.chatModel = { id: 'openrouter/private-model' };
+		startTurn('turn-default');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-default', duration: 1000 });
 
 		assert.deepStrictEqual(completedEvents().map(event => {
 			const data = event.data as Record<string, unknown>;
@@ -326,6 +404,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		}), [
 			{ model: 'byokModel', modelSelectionKind: 'explicit', isBYOK: true },
 			{ model: 'unknown', modelSelectionKind: 'explicit', isBYOK: false },
+			{ model: 'byokModel', modelSelectionKind: 'default', isBYOK: true },
 		]);
 	});
 
@@ -350,6 +429,53 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	});
 
+	test('uses the concrete provider default across turn outcomes while preserving Default selection', () => {
+		setupSession();
+		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
+		agent.chatModel = { id: 'gpt-5.5' };
+
+		startTurn('turn-success');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-success', duration: 1000 });
+		startTurn('turn-error');
+		fire({ type: ActionType.ChatError, turnId: 'turn-error', duration: 1000, error: { errorType: 'oops', message: 'fail' } });
+		startTurn('turn-cancelled');
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-cancelled', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				model: capturedModel(data),
+				modelSelectionKind: data.modelSelectionKind,
+				result: data.result,
+			};
+		}), [
+			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'default', result: 'success' },
+			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'default', result: 'error' },
+			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'default', result: 'cancelled' },
+		]);
+	});
+
+	test('does not treat an Auto provider default as the effective model', () => {
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: 'auto', name: 'Auto', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
+		]);
+		agent.chatModel = { id: 'auto' };
+		startTurn('turn-default');
+
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-default', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			model: data.model,
+			modelSelectionKind: data.modelSelectionKind,
+		}, {
+			model: undefined,
+			modelSelectionKind: 'default',
+		});
+	});
+
 	test('timeToFirstProgress is undefined when no visible progress arrives before completion', () => {
 		setupSession();
 		startTurn('turn-1');
@@ -360,6 +486,53 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.timeToFirstProgress, undefined);
+	});
+
+	test('reports the latest per-turn billed nano-AIU from usage updates when available', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } });
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } } });
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 20, outputTokens: 10 } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).billedNanoAiu, 2_000_000_000);
+	});
+
+	test('does not report billed nano-AIU when the provider does not supply it', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 10, outputTokens: 5 } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).billedNanoAiu, undefined);
+	});
+
+	test('attributes billed nano-AIU only to the parent turn, which already includes subagent cost', () => {
+		setupSession();
+		const subagentChatUri = buildSubagentChatUri(sessionUri, 'tool-call-1');
+		stateManager.addChat(sessionKey, subagentChatUri);
+
+		startTurn('turn-parent');
+		startTurn('turn-subagent', 'hello', undefined, subagentChatUri);
+
+		// The parent aggregate already folds in the subagent's charge; the
+		// subagent chat additionally reports its own component.
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-parent', usage: { _meta: { copilotUsage: { totalNanoAiu: 3_000_000_000 } } } });
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-subagent', usage: { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } }, subagentChatUri);
+
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-subagent', duration: 1000 }, subagentChatUri);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { turnId: data.turnId, isSubagentSession: data.isSubagentSession, billedNanoAiu: data.billedNanoAiu };
+		}), [
+			{ turnId: 'turn-subagent', isSubagentSession: true, billedNanoAiu: undefined },
+			{ turnId: 'turn-parent', isSubagentSession: false, billedNanoAiu: 3_000_000_000 },
+		]);
 	});
 
 	test('emits result=cancelled on ChatTurnCancelled', () => {

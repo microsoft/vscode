@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken } from '../../../base/common/cancellation.js';
+import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
@@ -17,7 +20,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
+import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
 import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentHostAuthTokenRequest, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
 
@@ -66,6 +69,53 @@ export const enum AgentHostIpcChannels {
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
+
+export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';
+export const AGENT_HOST_DEBUG_LOGS_MAX_BYTES = 16 * 1024 * 1024;
+/** Maximum number of files in one Agent Host debug-log artifact. */
+export const AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES = 1000;
+/**
+ * Maximum payload of a single {@link IAgentHostDebugLogsChunk}. Debug-log
+ * artifacts are streamed in chunks of at most this size so a remote agent host
+ * never has to encode a whole archive into one JSON-RPC message.
+ */
+export const AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES = 1024 * 1024;
+/**
+ * Upper bound on the *uncompressed* logs staged for an archive artifact. Log
+ * text compresses heavily, so this is deliberately far larger than
+ * {@link AGENT_HOST_DEBUG_LOGS_MAX_BYTES} — which still bounds the archive that
+ * is actually transferred. It only exists to keep zipping work finite.
+ */
+export const AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES = 256 * 1024 * 1024;
+/**
+ * Upper bound on any single file inside an artifact. Oversized files are
+ * reduced to their trailing bytes rather than dropped, so a very large process
+ * log still contributes the portion that explains a recent failure.
+ */
+export const AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+export interface IAgentHostDebugLogsArtifactEntry {
+	readonly path: string;
+	readonly size: number;
+}
+
+export interface IAgentHostDebugLogsArtifact {
+	readonly kind: AgentHostDebugLogsArtifactKind;
+	readonly resource: URI;
+	readonly providerLogsIncluded: boolean;
+	readonly size: number;
+	readonly uncompressedSize: number;
+	/** Exact regular files staged in the artifact. Paths are relative, normalized, and unique. */
+	readonly entries: readonly IAgentHostDebugLogsArtifactEntry[];
+}
+
+/** One bounded slice of a debug-log artifact, read via `readDebugLogsChunk`. */
+export interface IAgentHostDebugLogsChunk {
+	/** Raw bytes for this slice. Empty once `position` is at or past the end. */
+	readonly data: VSBuffer;
+	/** `true` when this slice reaches the end of the artifact. */
+	readonly eof: boolean;
+}
 
 /** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
 export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
@@ -144,16 +194,9 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
 /**
- * Configuration key controlling whether the agent host *wires up* the BYOK
- * ("bring your own key") language-model bridge: the renderer LM handler, the
- * reverse-RPC channel, and the per-connection link to the node-side OpenAI
- * proxy + bridge registry. When `true` (the default), the renderer's BYOK
- * server channel and the per-connection bridge are wired so extension-provided
- * BYOK models are reachable from agent-host sessions. When `false`, the proxy
- * and registry are still constructed but stay inert — the BYOK server channel
- * and the per-connection bridge are not wired, so the registry stays empty and
- * extension-provided BYOK models are never reachable from agent-host sessions.
- * The agent host process must be restarted for changes to take effect.
+ * Configuration key controlling whether extension-provided BYOK ("bring your
+ * own key") models are published and included in new agent-host sessions.
+ * Changes are synchronized to the running agent host.
  */
 export const AgentHostByokModelsEnabledSettingId = 'chat.agentHost.byokModels.enabled';
 
@@ -181,13 +224,6 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
  * `'false'`; absent means "default" (`false`).
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
-
-/**
- * Environment variable form of {@link AgentHostByokModelsEnabledSettingId}.
- * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`true`).
- */
-export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
 
 /**
  * Overrides the grace period (in milliseconds) before an idle, fully
@@ -249,6 +285,19 @@ export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.en
  * `'off'`.
  */
 export const AgentHostSdkSandboxWindowsEnabledSettingId = 'chat.agentHost.sdkSandbox.enabledWindows';
+
+export type AgentHostCopilotSandboxSettingId =
+	| AgentSandboxSettingId.AgentSandboxEnabled
+	| AgentSandboxSettingId.AgentSandboxWindowsEnabled
+	| typeof AgentHostSdkSandboxEnabledSettingId
+	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
+
+export function getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
+	if (customTerminalToolEnabled) {
+		return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
+	}
+	return windows ? AgentHostSdkSandboxWindowsEnabledSettingId : AgentHostSdkSandboxEnabledSettingId;
+}
 
 /**
  * Selects whether the regular workbench surfaces Codex from the agent host
@@ -593,7 +642,6 @@ export interface IAgentSdkStarterSettings {
 	readonly codexBinaryArgs?: readonly string[];
 	readonly claudeAgentEnabled?: boolean;
 	readonly codexAgentEnabled?: boolean;
-	readonly byokModelsEnabled?: boolean;
 }
 
 export function buildAgentSdkEnv(
@@ -617,9 +665,6 @@ export function buildAgentSdkEnv(
 	}
 	if (settings.codexAgentEnabled !== undefined) {
 		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
-	}
-	if (settings.byokModelsEnabled !== undefined) {
-		setIfMissing(AgentHostByokModelsEnabledEnvVar, settings.byokModelsEnabled ? 'true' : 'false');
 	}
 	return out;
 }
@@ -741,6 +786,8 @@ export interface IAgentHostManagementService {
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
 }
@@ -873,6 +920,10 @@ export interface IAgentService {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
+	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
+
+	readDebugLogsChunk?(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
+
 	// ---- Protocol methods (sessions process protocol) ----------------------
 
 	/**
@@ -937,7 +988,7 @@ export interface IAgentService {
 	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
 	 * or reading files from the remote filesystem).
 	 */
-	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 
 	/**
 	 * Write content to a file on the agent host's filesystem.
@@ -1100,6 +1151,14 @@ export interface IAgentConnection {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
+
+	/**
+	 * Read one bounded slice of an artifact previously returned by
+	 * {@link collectDebugLogs}. Only artifacts this host produced are readable.
+	 */
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
+
 	/**
 	 * Create an additional peer chat inside an existing session. `chat` is a
 	 * client-chosen chat URI (see {@link buildChatUri}). The host adds the
@@ -1118,7 +1177,7 @@ export interface IAgentConnection {
 
 	// ---- Filesystem operations ----------------------------------------------
 	resourceList(uri: URI): Promise<ResourceListResult>;
-	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
 	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;

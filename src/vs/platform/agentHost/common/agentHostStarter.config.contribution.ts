@@ -6,7 +6,7 @@
 import * as nls from '../../../nls.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -36,6 +36,7 @@ import {
 import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
+	AgentHostByokModelsEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
@@ -61,6 +62,12 @@ import { AgentMergeConfigKey, AgentMergeSettingId } from './agentMerge.js';
 //     (renderer registration for the settings UI).
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+// Experiment values resolve in the renderer, so they must sync to the agent host through root config.
+type AgentHostStarterConfigurationPropertySchema = IConfigurationPropertySchema & (
+	| { experiment?: never }
+	| Required<Pick<IConfigurationPropertySchema, 'experiment' | 'agentHost'>>
+);
 
 // Custom managed-settings resolvers for the enterprise OTel policies. The simple pass-through
 // keys use `managedSettingValue(KEY)`; these three combine or transform the managed value:
@@ -102,7 +109,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[AgentMergeSettingId.Enabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready."),
+			description: nls.localize('chat.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready."),
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -110,7 +117,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.AddressReviews]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.addressReviews', "Controls whether enabled Agent Merge sessions address unresolved review threads, changes-requested reviews, and new pull request comments from repository maintainers or the Copilot pull request reviewer."),
+			description: nls.localize('chat.agentMerge.addressReviews', "Controls whether enabled Agent Merge sessions address unresolved review threads, changes-requested reviews, and new pull request comments from repository maintainers or the Copilot pull request reviewer."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -118,7 +125,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.FixCI]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.fixCI', "Controls whether enabled Agent Merge sessions ask the agent to fix failed required CI checks."),
+			description: nls.localize('chat.agentMerge.fixCI', "Controls whether enabled Agent Merge sessions ask the agent to fix failed required CI checks."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -126,7 +133,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.ResolveConflicts]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.resolveConflicts', "Controls whether enabled Agent Merge sessions ask the agent to update branches that are behind or resolve merge conflicts."),
+			description: nls.localize('chat.agentMerge.resolveConflicts', "Controls whether enabled Agent Merge sessions ask the agent to update branches that are behind or resolve merge conflicts."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -134,7 +141,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.MergePullRequest]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.mergePullRequest', "Controls whether the Agent Host automatically merges or enqueues pull requests for enabled Agent Merge sessions after all selected maintenance work is complete."),
+			description: nls.localize('chat.agentMerge.mergePullRequest', "Controls whether the Agent Host automatically merges or enqueues pull requests for enabled Agent Merge sessions after all selected maintenance work is complete."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -144,12 +151,12 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['auto', 'squash', 'merge', 'rebase'],
 			enumDescriptions: [
-				nls.localize('chat.agentHost.agentMerge.mergeMethod.auto', "Uses the first repository-compatible method in this order: squash, merge commit, rebase."),
-				nls.localize('chat.agentHost.agentMerge.mergeMethod.squash', "Uses squash merge when the repository permits it."),
-				nls.localize('chat.agentHost.agentMerge.mergeMethod.merge', "Uses a merge commit when the repository permits it."),
-				nls.localize('chat.agentHost.agentMerge.mergeMethod.rebase', "Uses rebase merge when the repository permits it."),
+				nls.localize('chat.agentMerge.mergeMethod.auto', "Uses the first repository-compatible method in this order: squash, merge commit, rebase."),
+				nls.localize('chat.agentMerge.mergeMethod.squash', "Uses squash merge when the repository permits it."),
+				nls.localize('chat.agentMerge.mergeMethod.merge', "Uses a merge commit when the repository permits it."),
+				nls.localize('chat.agentMerge.mergeMethod.rebase', "Uses rebase merge when the repository permits it."),
 			],
-			description: nls.localize('chat.agentHost.agentMerge.mergeMethod', "Controls the native merge method used by Agent Merge."),
+			description: nls.localize('chat.agentMerge.mergeMethod', "Controls the native merge method used by Agent Merge."),
 			default: 'auto',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -157,7 +164,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.ReplyAttribution]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.agentMerge.replyAttribution', "Controls whether review-thread replies posted by Agent Merge include an automated-reply attribution note."),
+			description: nls.localize('chat.agentMerge.replyAttribution', "Controls whether review-thread replies posted by Agent Merge include an automated-reply attribution note."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -237,10 +244,11 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostByokModelsEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, the agent host wires up the BYOK ('bring your own key') language-model bridge so extension-provided BYOK models can run in agent-host sessions. The agent host process must be restarted for changes to take effect."),
+			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, extension-provided BYOK ('bring your own key') models can run in agent-host sessions. Changes are synchronized to the running agent host and do not require a restart."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
+			agentHost: { key: AgentHostByokModelsEnabledConfigKey, localOnly: true },
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {
 			type: 'boolean',
@@ -530,5 +538,5 @@ configurationRegistry.registerConfiguration({
 				},
 			},
 		},
-	}
+	} satisfies Record<string, AgentHostStarterConfigurationPropertySchema>
 });
