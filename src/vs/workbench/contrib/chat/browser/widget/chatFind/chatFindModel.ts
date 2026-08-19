@@ -13,7 +13,7 @@ import { annotateSpecialMarkdownContentWithSource } from '../../../common/widget
 import { moveResponseOutcomeToolsAfterFinalResponse } from '../chatListRenderer.js';
 
 /** Upper bound on tracked matches, mirroring `LIMIT_FIND_COUNT` in `textModelSearch.ts`, so a pathological regex can't pin the UI. */
-const MAX_FIND_MATCHES = 9999;
+export const MAX_FIND_MATCHES = 9999;
 
 export interface IChatFindOptions {
 	readonly isRegex: boolean;
@@ -149,7 +149,8 @@ export class ChatFindModel extends Disposable {
 	private _invalidRegex = false;
 
 	constructor(
-		private readonly getItems: () => readonly ChatTreeItem[]
+		private readonly getItems: () => readonly ChatTreeItem[],
+		private readonly getViewportAnchorItemId: () => string | undefined = () => undefined
 	) {
 		super();
 	}
@@ -180,8 +181,16 @@ export class ChatFindModel extends Disposable {
 	}
 
 	setQuery(query: string, options: IChatFindOptions): void {
+		const changed = query !== this._query
+			|| options.isRegex !== this._options.isRegex
+			|| options.matchCase !== this._options.matchCase
+			|| options.wholeWord !== this._options.wholeWord;
 		this._query = query;
 		this._options = options;
+		if (changed) {
+			this._activeAnchor = undefined;
+			this._activeIndex = -1;
+		}
 		this.recompute();
 	}
 
@@ -215,13 +224,17 @@ export class ChatFindModel extends Disposable {
 			return;
 		}
 
-		const segments = buildSegments(this.getItems());
+		const items = this.getItems();
+		const segments = buildSegments(items);
 		const matches: IChatFindMatch[] = [];
-		for (const segment of segments) {
-			if (matches.length >= MAX_FIND_MATCHES) {
-				break;
+		// Newest first: both the segment walk and each segment's matches are reversed, since
+		// `buildSegments` produces them in transcript order. The cap therefore keeps the most
+		// recent matches, which are the ones a user is realistically trying to reach.
+		for (let index = segments.length - 1; index >= 0 && matches.length < MAX_FIND_MATCHES; index--) {
+			const segmentMatches = findMatchesInSegment(segments[index], regex, MAX_FIND_MATCHES - matches.length);
+			for (let occurrence = segmentMatches.length - 1; occurrence >= 0; occurrence--) {
+				matches.push(segmentMatches[occurrence]);
 			}
-			matches.push(...findMatchesInSegment(segment, regex, MAX_FIND_MATCHES - matches.length));
 		}
 
 		this._matches = matches;
@@ -230,13 +243,14 @@ export class ChatFindModel extends Disposable {
 			this._activeIndex = matches.findIndex(m => m.itemId === previousAnchor.itemId && m.partIndex === previousAnchor.partIndex && m.occurrenceIndex === previousAnchor.occurrenceIndex);
 		}
 		if (this._activeIndex < 0) {
-			this._activeIndex = matches.length > 0 ? 0 : -1;
+			this._activeIndex = this._seedActiveIndex(matches, items);
 		}
 		this._updateAnchor();
 
 		this._onDidChangeMatches.fire();
 	}
 
+	/** Moves to the next match in navigation order, which is the next one *back* in the transcript. */
 	next(): IChatFindMatch | undefined {
 		if (this._matches.length === 0) {
 			return undefined;
@@ -247,6 +261,7 @@ export class ChatFindModel extends Disposable {
 		return this.activeMatch;
 	}
 
+	/** Moves to the previous match in navigation order, which is the next one *forward* in the transcript. */
 	previous(): IChatFindMatch | undefined {
 		if (this._matches.length === 0) {
 			return undefined;
@@ -265,8 +280,63 @@ export class ChatFindModel extends Disposable {
 		this._invalidRegex = false;
 	}
 
+	/**
+	 * Drops the active match and settles on the one taking its place, continuing in `previous`'s
+	 * direction. Used when a match turns out to be unreachable, so the reported total only ever
+	 * counts positions navigation can actually visit.
+	 */
+	dropActiveMatch(previous: boolean): IChatFindMatch | undefined {
+		if (this._activeIndex < 0 || this._activeIndex >= this._matches.length) {
+			return undefined;
+		}
+		this._matches = [
+			...this._matches.slice(0, this._activeIndex),
+			...this._matches.slice(this._activeIndex + 1),
+		];
+		if (this._matches.length === 0) {
+			this._activeIndex = -1;
+		} else if (previous) {
+			// Removing the active match shifts later matches down, so the previous one is one back.
+			this._activeIndex = this._activeIndex === 0 ? this._matches.length - 1 : this._activeIndex - 1;
+		} else if (this._activeIndex >= this._matches.length) {
+			this._activeIndex = 0;
+		}
+		this._updateAnchor();
+		this._onDidChangeMatches.fire();
+		return this.activeMatch;
+	}
+
 	private _updateAnchor(): void {
 		const active = this.activeMatch;
 		this._activeAnchor = active ? { itemId: active.itemId, partIndex: active.partIndex, occurrenceIndex: active.occurrenceIndex } : undefined;
+	}
+
+	/**
+	 * Picks where to start when no previous active match survived: the newest match that is not
+	 * below the viewport, so Find begins at what the user is looking at rather than at the end of
+	 * the transcript. Falls back to the newest match overall when everything on screen is older
+	 * than every match.
+	 */
+	private _seedActiveIndex(matches: readonly IChatFindMatch[], items: readonly ChatTreeItem[]): number {
+		if (matches.length === 0) {
+			return -1;
+		}
+		const anchorItemId = this.getViewportAnchorItemId();
+		if (anchorItemId === undefined) {
+			return 0;
+		}
+		const positions = new Map<string, number>();
+		items.forEach((item, position) => positions.set(item.id, position));
+		const anchorPosition = positions.get(anchorItemId);
+		if (anchorPosition === undefined) {
+			return 0;
+		}
+		// Matches run newest first, so the first one at or above the anchor is the nearest
+		// match at or before what the viewport is showing.
+		const seeded = matches.findIndex(match => {
+			const position = positions.get(match.itemId);
+			return position !== undefined && position <= anchorPosition;
+		});
+		return seeded >= 0 ? seeded : 0;
 	}
 }

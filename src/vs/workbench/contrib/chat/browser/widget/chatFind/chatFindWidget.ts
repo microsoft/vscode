@@ -5,12 +5,13 @@
 
 import './chatFindWidget.css';
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Delayer } from '../../../../../../base/common/async.js';
+import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
 import { createRegExp } from '../../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Range as EditorRange } from '../../../../../../editor/common/core/range.js';
+import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
 import { IEditorDecorationsCollection } from '../../../../../../editor/common/editorCommon.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -25,7 +26,7 @@ import { IChatListItemTemplate } from '../chatListRenderer.js';
 import { CodeBlockPart } from '../chatContentParts/codeBlockPart.js';
 import { ChatFindCommandId } from './chatFindCommandIds.js';
 import { getChatFindHighlightRegistry, supportsCssHighlightApi } from './chatFindHighlights.js';
-import { ChatFindModel, IChatFindMatch } from './chatFindModel.js';
+import { ChatFindModel, IChatFindMatch, MAX_FIND_MATCHES } from './chatFindModel.js';
 
 export interface IChatFindHost {
 	readonly transcriptDomNode: HTMLElement;
@@ -35,12 +36,31 @@ export interface IChatFindHost {
 	getTemplateDataForRequestId(requestId: string | undefined): IChatListItemTemplate | undefined;
 	readonly onDidRerenderRow: Event<IChatListItemTemplate>;
 	editorsInUse(): Iterable<CodeBlockPart>;
+	/** Scroll offset of the transcript, in list content space. */
+	getScrollTop(): number;
+	setScrollTop(scrollTop: number): void;
+	/** Height of the transcript's visible area. */
+	getRenderHeight(): number;
+	/** Id of the last item intersecting the viewport, used to start Find from what is on screen. */
+	getViewportAnchorItemId(): string | undefined;
 }
 
 /** Upper bound on the number of DOM ranges highlighted at once (only ever the currently mounted/visible rows). */
 const MAX_VISIBLE_HIGHLIGHTS = 500;
 
 const CHAT_FIND_WIDGET_INITIAL_WIDTH = 350;
+
+/**
+ * How long typing settles before Find searches. Searching per keystroke publishes a count for
+ * every prefix, so the label counts up and down while the user is still typing.
+ */
+const SEARCH_DEBOUNCE_DELAY = 150;
+
+/**
+ * Bounds how many times the result count waits for a fresh search to supersede the one it was
+ * waiting on, so continuous typing can't keep the label pending forever.
+ */
+const MAX_SETTLE_WAITS = 20;
 
 const CURRENT_MATCH_HIGHLIGHT_NAME = 'chat-find-current-match';
 const OTHER_MATCH_HIGHLIGHT_NAME = 'chat-find-other-match';
@@ -155,6 +175,27 @@ export function rangesEqual(a: Range, b: Range): boolean {
 		&& a.endContainer === b.endContainer && a.endOffset === b.endOffset;
 }
 
+/** Breathing room kept between a revealed match and the edge of the transcript viewport. */
+const MATCH_REVEAL_PADDING = 30;
+
+/**
+ * The scroll offset that brings a match spanning `top`..`bottom` (measured from the top of the
+ * viewport) into view, or `undefined` when it is already comfortably visible. Moves by the least
+ * amount that clears the padding, and aligns the top of a match too tall to fit.
+ */
+export function computeRevealScrollTop(scrollTop: number, renderHeight: number, top: number, bottom: number): number | undefined {
+	const alignTop = () => Math.max(0, scrollTop + top - MATCH_REVEAL_PADDING);
+	if (top < MATCH_REVEAL_PADDING) {
+		return alignTop();
+	}
+	if (bottom > renderHeight - MATCH_REVEAL_PADDING) {
+		return bottom - top > renderHeight - 2 * MATCH_REVEAL_PADDING
+			? alignTop()
+			: Math.max(0, scrollTop + bottom - renderHeight + MATCH_REVEAL_PADDING);
+	}
+	return undefined;
+}
+
 interface ILocatedCodeMatch {
 	readonly codeBlock: CodeBlockPart;
 	readonly range: EditorRange;
@@ -203,14 +244,25 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	private readonly _repaintScheduler = this._register(new MutableDisposable());
 	private readonly _revealScheduler = this._register(new MutableDisposable());
 	private readonly _recomputeDelayer = this._register(new Delayer<void>(200));
+	private readonly _searchDelayer = this._register(new Delayer<void>(SEARCH_DEBOUNCE_DELAY));
 	private readonly _codeDecorations = new Map<CodeBlockPart, IEditorDecorationsCollection>();
 
 	private _lastFocusedElement: HTMLElement | undefined;
 	private _lastNavigationWasPrevious = false;
 	private _unlocatableSkips = 0;
+	private _pendingSearch: Promise<void> | undefined;
+	/** Pending while the active match is still being located, which can drop unreachable matches. */
+	private _settleBarrier: DeferredPromise<void> | undefined;
 
 	/** Bounds the skip walk so a query whose matches are all unlocatable cannot spin. */
 	private static readonly MAX_UNLOCATABLE_SKIPS = 50;
+
+	/**
+	 * Frames to wait for a revealed row to mount before treating a match as unreachable. The list
+	 * mounts and re-measures rows over several frames after a long scroll, so a single frame is
+	 * not enough to tell "not there yet" from "not there".
+	 */
+	private static readonly MAX_LOCATE_ATTEMPTS = 4;
 
 	constructor(
 		private readonly host: IChatFindHost,
@@ -224,6 +276,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		super({
 			showCommonFindToggles: true,
 			showResultCount: true,
+			matchesLimit: MAX_FIND_MATCHES,
 			initialWidth: CHAT_FIND_WIDGET_INITIAL_WIDTH,
 			enableSash: true,
 			appendCaseSensitiveActionId: ChatFindCommandId.ToggleFindCaseSensitive,
@@ -240,7 +293,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		this._findWidgetFocusedKey = ChatContextKeys.findWidgetFocused.bindTo(contextKeyService);
 		this._findInputFocusedKey = ChatContextKeys.findInputFocused.bindTo(contextKeyService);
 
-		this._model = this._register(new ChatFindModel(() => this.host.getItems()));
+		this._model = this._register(new ChatFindModel(() => this.host.getItems(), () => this.host.getViewportAnchorItemId()));
 		this._register(this._model.onDidChangeMatches(() => this._onMatchesChanged()));
 
 		this._register(this.host.onDidChangeContent(() => {
@@ -271,6 +324,10 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 			this._lastFocusedElement = this._targetWindow.document.activeElement as HTMLElement | undefined;
 		}
 		this._findWidgetVisibleKey.set(true);
+		// Opening reads the result count before the seed text has reached the model, which would
+		// otherwise report "No results" for a query that does match. Holding the count here keeps
+		// the first number the user sees the real one.
+		this._beginSettle();
 		if (focus) {
 			super.reveal(seedText);
 		} else {
@@ -284,6 +341,11 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		super.hide();
 		this._findWidgetVisibleKey.reset();
 		this._recomputeDelayer.cancel();
+		this._searchDelayer.cancel();
+		this._pendingSearch = undefined;
+		this._completeSettle();
+		this._revealScheduler.clear();
+		this._repaintScheduler.clear();
 		this._clearHighlights();
 		this._model.clear();
 		this._restoreFocus();
@@ -292,7 +354,28 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	find(previous: boolean): void {
 		this._lastNavigationWasPrevious = previous;
 		this._unlocatableSkips = 0;
+		if (this._flushPendingSearch()) {
+			// The query had not been searched yet, so Enter lands on its first match rather than
+			// stepping past it into the second.
+			this._navigateToActive();
+			void this.updateResultCount();
+			return;
+		}
 		this._advanceActiveMatch(previous);
+	}
+
+	/**
+	 * Runs a debounced search now, if one is still waiting. Returns whether it ran, so navigation
+	 * acts on the query the user actually typed rather than the previous one.
+	 */
+	private _flushPendingSearch(): boolean {
+		if (!this._pendingSearch) {
+			return false;
+		}
+		this._searchDelayer.cancel();
+		this._pendingSearch = undefined;
+		this._model.setQuery(this.inputValue, this._currentFindOptions());
+		return true;
 	}
 
 	private _advanceActiveMatch(previous: boolean): void {
@@ -306,19 +389,28 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	}
 
 	/**
-	 * Moves past a match the DOM cannot produce, so navigation never appears to do nothing. The
-	 * index predicts where the renderer will put content, and a part nested in a lazily-built
-	 * container has no DOM node to land on; rather than stall, continue in the same direction.
+	 * Moves past a match that turns out not to exist in the DOM, so navigation never appears to do
+	 * nothing. The match is dropped rather than stepped over: leaving it in would advertise a
+	 * position in the result count that navigation can never land on.
 	 */
 	private _skipUnlocatableMatch(): void {
 		if (this._unlocatableSkips >= ChatFindWidget.MAX_UNLOCATABLE_SKIPS) {
+			this._completeSettle();
 			return;
 		}
 		this._unlocatableSkips++;
-		this._advanceActiveMatch(this._lastNavigationWasPrevious);
+		this._model.dropActiveMatch(this._lastNavigationWasPrevious);
+		// Keeps the same settle barrier: the count stays pending until the walk lands somewhere,
+		// so the label never shows a total that is one drop away from changing.
+		this._navigateToActive();
 	}
 
 	findFirst(): void {
+		this._unlocatableSkips = 0;
+		// A deliberate action (toggling an option) supersedes any keystroke still waiting out the
+		// debounce, so the pending search is dropped rather than left to re-navigate afterwards.
+		this._searchDelayer.cancel();
+		this._pendingSearch = undefined;
 		this._model.setQuery(this.inputValue, this._currentFindOptions());
 		this._navigateToActive();
 	}
@@ -348,12 +440,62 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	}
 
 	protected _onInputChanged(): boolean {
-		this._model.setQuery(this.inputValue, this._currentFindOptions());
-		this._navigateToActive();
+		this._unlocatableSkips = 0;
+		this._scheduleSearch();
+		// The label is only refreshed once the search settles, so this optimistic answer just
+		// keeps the navigation buttons usable in the meantime; `updateResultCount` corrects it.
 		return this._model.matches.length > 0;
 	}
 
+	/**
+	 * Runs the search once typing pauses. Searching per keystroke would publish a count for every
+	 * prefix, and each of those counts can then shed unreachable matches, so the label ends up
+	 * ticking up and down before landing on the real number.
+	 */
+	private _scheduleSearch(): void {
+		const search = this._searchDelayer.trigger(() => {
+			this._model.setQuery(this.inputValue, this._currentFindOptions());
+			this._navigateToActive();
+		});
+		this._pendingSearch = search;
+		search.catch(() => { }).finally(() => {
+			if (this._pendingSearch === search) {
+				this._pendingSearch = undefined;
+			}
+		});
+	}
+
+	/** Marks the start of locating an active match, if one is not already in progress. */
+	private _beginSettle(): void {
+		this._settleBarrier ??= new DeferredPromise<void>();
+	}
+
+	/** Marks the active match as located, dropped, or given up on, releasing the result count. */
+	private _completeSettle(): void {
+		const barrier = this._settleBarrier;
+		this._settleBarrier = undefined;
+		void barrier?.complete();
+	}
+
+	/**
+	 * Waits for the query to be searched and its active match to be located. Locating can drop
+	 * matches that turn out to be unreachable, so reading the count before then reports a total
+	 * that is about to change.
+	 */
+	private async _whenSettled(): Promise<void> {
+		for (let attempt = 0; attempt < MAX_SETTLE_WAITS; attempt++) {
+			const pending = [this._pendingSearch, this._settleBarrier?.p].filter(isDefined);
+			if (!pending.length) {
+				return;
+			}
+			// A newer search may have started while awaiting, so re-check rather than assume
+			// this was the last one.
+			await Promise.all(pending).catch(() => { });
+		}
+	}
+
 	protected async _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined> {
+		await this._whenSettled();
 		if (this._model.isInvalidRegex) {
 			return undefined;
 		}
@@ -387,8 +529,10 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	private _navigateToActive(): void {
 		const match = this._model.activeMatch;
 		this._clearHighlights();
+		this._beginSettle();
 
 		if (!match) {
+			this._completeSettle();
 			return;
 		}
 
@@ -400,9 +544,21 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, () => this._revealActiveMatch(match));
 	}
 
-	private _revealActiveMatch(match: IChatFindMatch): void {
+	private _revealActiveMatch(match: IChatFindMatch, attempt: number = 0): void {
 		const locatedMatch = this._locateMatch(match);
 		if (!locatedMatch) {
+			// The row may simply not have mounted yet. The list renders rows as it scrolls and,
+			// with dynamic heights, re-measures them over the following frames, so a long jump —
+			// wrapping from the oldest match to the newest, say — lands well before the target
+			// row exists. Give it a few frames before concluding the match isn't there.
+			if (attempt < ChatFindWidget.MAX_LOCATE_ATTEMPTS) {
+				const item = this._findItemForMatch(match);
+				if (item) {
+					this.host.reveal(item);
+				}
+				this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, () => this._revealActiveMatch(match, attempt + 1));
+				return;
+			}
 			this._repaintVisibleHighlights();
 			this._skipUnlocatableMatch();
 			return;
@@ -411,6 +567,8 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 			const revealCodeMatch = () => {
 				locatedMatch.codeBlock.editor.revealRangeInCenter(locatedMatch.range);
 				this._repaintVisibleHighlights();
+				this._revealRect(this._codeMatchRect(locatedMatch));
+				this._completeSettle();
 			};
 			if (openAncestorDisclosures(this.host.transcriptDomNode, locatedMatch.codeBlock.element)) {
 				this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, revealCodeMatch);
@@ -424,15 +582,76 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		const opened = this._openAncestorDisclosures(range);
 		this._repaintVisibleHighlights();
 		if (opened) {
-			this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, () => this._scrollRangeIntoView(range));
+			this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, () => {
+				this._revealRect(this._rangeRect(range));
+				this._completeSettle();
+			});
 		} else {
-			this._scrollRangeIntoView(range);
+			this._revealRect(this._rangeRect(range));
+			this._completeSettle();
 		}
 	}
 
-	private _scrollRangeIntoView(range: Range | undefined): void {
-		const container = range && (range.startContainer.nodeType === this._targetWindow.Node.ELEMENT_NODE ? range.startContainer as Element : range.startContainer.parentElement);
-		container?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+	/**
+	 * Scrolls the transcript so `rect` is in view, in either direction, and reports whether it
+	 * moved.
+	 *
+	 * Deliberately not `Element.scrollIntoView`: the chat list picks up native scrolling by
+	 * reading the container's `scrollTop` and resetting it to `0` (see `scrollToActiveElement` in
+	 * `listView.ts`), so the browser can only ever hand it a downward delta. Scrolling up — which
+	 * is now the common direction, since matches run newest first — would silently do nothing.
+	 */
+	private _scrollRectIntoView(rect: { readonly top: number; readonly bottom: number } | undefined): boolean {
+		if (!rect) {
+			return false;
+		}
+		const viewportTop = this.host.transcriptDomNode.getBoundingClientRect().top;
+		const scrollTop = computeRevealScrollTop(
+			this.host.getScrollTop(),
+			this.host.getRenderHeight(),
+			rect.top - viewportTop,
+			rect.bottom - viewportTop
+		);
+		if (scrollTop === undefined) {
+			return false;
+		}
+		this.host.setScrollTop(scrollTop);
+		return true;
+	}
+
+	/** Scrolls to a match and repaints once the rows the scroll brought into view have mounted. */
+	private _revealRect(rect: { readonly top: number; readonly bottom: number } | undefined): void {
+		if (this._scrollRectIntoView(rect)) {
+			this._scheduleRepaint();
+		}
+	}
+
+	/** The match's own rectangle, falling back to its element for ranges that measure as empty. */
+	private _rangeRect(range: Range): { readonly top: number; readonly bottom: number } | undefined {
+		const rect = range.getBoundingClientRect();
+		if (rect.height > 0) {
+			return rect;
+		}
+		const element = range.startContainer.nodeType === this._targetWindow.Node.ELEMENT_NODE
+			? range.startContainer as Element
+			: range.startContainer.parentElement;
+		return element?.getBoundingClientRect();
+	}
+
+	/**
+	 * The matched line's rectangle inside an embedded editor. Only visible lines exist in the DOM,
+	 * so the position is derived from the editor's layout rather than looked up as a node.
+	 */
+	private _codeMatchRect(codeMatch: ILocatedCodeMatch): { readonly top: number; readonly bottom: number } | undefined {
+		const editor = codeMatch.codeBlock.editor;
+		const editorDomNode = editor.getDomNode();
+		if (!editorDomNode) {
+			return undefined;
+		}
+		const lineTop = editorDomNode.getBoundingClientRect().top
+			+ editor.getTopForLineNumber(codeMatch.range.startLineNumber)
+			- editor.getScrollTop();
+		return { top: lineTop, bottom: lineTop + editor.getOption(EditorOption.lineHeight) };
 	}
 
 	private _findItemForMatch(match: IChatFindMatch): ChatTreeItem | undefined {
@@ -620,6 +839,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	}
 
 	override dispose(): void {
+		this._completeSettle();
 		this._clearHighlights();
 		super.dispose();
 	}

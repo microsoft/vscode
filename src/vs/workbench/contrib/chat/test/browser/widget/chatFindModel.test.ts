@@ -52,11 +52,13 @@ suite('ChatFindModel', () => {
 		const model = new ChatFindModel(() => items);
 		model.setQuery('array', { isRegex: false, matchCase: false, wholeWord: false });
 
-		// One "array" in the request, two in the response markdown text.
-		assert.strictEqual(model.matches.length, 3);
-		assert.strictEqual(model.matches[0].itemId, 'req1');
-		assert.strictEqual(model.matches[1].itemId, 'resp1');
-		assert.strictEqual(model.matches[2].itemId, 'resp1');
+		// One "array" in the request, two in the response markdown text. Navigation runs newest
+		// first, so the response's matches come before the request's, in reverse order.
+		assert.deepStrictEqual(model.matches.map(match => ({ itemId: match.itemId, occurrenceIndex: match.occurrenceIndex })), [
+			{ itemId: 'resp1', occurrenceIndex: 1 },
+			{ itemId: 'resp1', occurrenceIndex: 0 },
+			{ itemId: 'req1', occurrenceIndex: 0 },
+		]);
 		model.dispose();
 	});
 
@@ -111,8 +113,9 @@ suite('ChatFindModel', () => {
 		}
 	});
 
-	test('caps the total match count across segments', () => {
-		// Two segments that each exceed the cap on their own: the total must still be bounded.
+	test('caps the total match count, keeping the newest', () => {
+		// Two segments that each exceed the cap on their own: the total must still be bounded,
+		// and truncation must drop the oldest rather than the most recent.
 		const many = new Array(9000).fill('needle').join(' ');
 		const items = [
 			fakeResponse('resp1', [markdown(many)]),
@@ -122,6 +125,60 @@ suite('ChatFindModel', () => {
 		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
 
 		assert.strictEqual(model.matches.length, 9999);
+		assert.strictEqual(model.matches[0].itemId, 'resp2', 'navigation starts at the newest match');
+		model.dispose();
+	});
+
+	test('starts at the match nearest the viewport rather than the end of the transcript', () => {
+		// Most of a chat is in the past, so Find starts from what the user is looking at.
+		const items = [
+			fakeResponse('resp1', [markdown('needle one')]),
+			fakeResponse('resp2', [markdown('needle two')]),
+			fakeResponse('resp3', [markdown('needle three')]),
+		];
+		const model = new ChatFindModel(() => items, () => 'resp2');
+		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
+
+		assert.deepStrictEqual({
+			order: model.matches.map(match => match.itemId),
+			activeIndex: model.activeIndex,
+			activeItemId: model.activeMatch?.itemId,
+		}, {
+			order: ['resp3', 'resp2', 'resp1'],
+			activeIndex: 1,
+			activeItemId: 'resp2',
+		});
+		model.dispose();
+	});
+
+	test('falls back to the newest match when every match is below the viewport', () => {
+		const items = [
+			fakeResponse('resp1', [markdown('no match here')]),
+			fakeResponse('resp2', [markdown('needle two')]),
+			fakeResponse('resp3', [markdown('needle three')]),
+		];
+		const model = new ChatFindModel(() => items, () => 'resp1');
+		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
+
+		assert.strictEqual(model.activeMatch?.itemId, 'resp3');
+		model.dispose();
+	});
+
+	test('re-seeds from the viewport when a new query has no surviving anchor', () => {
+		let anchorItemId = 'resp3';
+		const items = [
+			fakeResponse('resp1', [markdown('alpha beta')]),
+			fakeResponse('resp2', [markdown('alpha beta')]),
+			fakeResponse('resp3', [markdown('alpha beta')]),
+		];
+		const model = new ChatFindModel(() => items, () => anchorItemId);
+
+		model.setQuery('alpha', { isRegex: false, matchCase: false, wholeWord: false });
+		assert.strictEqual(model.activeMatch?.itemId, 'resp3');
+
+		anchorItemId = 'resp1';
+		model.setQuery('beta', { isRegex: false, matchCase: false, wholeWord: false });
+		assert.strictEqual(model.activeMatch?.itemId, 'resp1', 'the new query starts from the moved viewport');
 		model.dispose();
 	});
 
@@ -134,8 +191,8 @@ suite('ChatFindModel', () => {
 			partIndex: match.partIndex,
 			occurrenceIndex: match.occurrenceIndex,
 		})), [
-			{ partIndex: 1, occurrenceIndex: 0 },
 			{ partIndex: 1, occurrenceIndex: 1 },
+			{ partIndex: 1, occurrenceIndex: 0 },
 		]);
 		model.dispose();
 	});
@@ -203,6 +260,58 @@ suite('ChatFindModel', () => {
 		model.dispose();
 	});
 
+	test('dropping the active match keeps the total honest and settles on its successor', () => {
+		// A match Find cannot reach must leave the result count entirely, or the counter
+		// advertises a position navigation can never land on.
+		const items = [fakeResponse('resp1', [markdown('a a a')])];
+		const model = new ChatFindModel(() => items);
+		model.setQuery('a', { isRegex: false, matchCase: false, wholeWord: false });
+		model.next();
+
+		const dropped = model.matches[1];
+		model.dropActiveMatch(false);
+
+		assert.deepStrictEqual({
+			total: model.matches.length,
+			activeIndex: model.activeIndex,
+			keptDropped: model.matches.includes(dropped),
+		}, {
+			total: 2,
+			activeIndex: 1,
+			keptDropped: false,
+		});
+		model.dispose();
+	});
+
+	test('dropping the last match wraps to the first, and backwards drops step back', () => {
+		const items = [fakeResponse('resp1', [markdown('a a a')])];
+		const model = new ChatFindModel(() => items);
+		model.setQuery('a', { isRegex: false, matchCase: false, wholeWord: false });
+
+		model.previous();
+		assert.strictEqual(model.activeIndex, 2, 'starts on the last match');
+		model.dropActiveMatch(false);
+		assert.strictEqual(model.activeIndex, 0, 'dropping the last match wraps forwards');
+
+		model.dropActiveMatch(true);
+		assert.strictEqual(model.activeIndex, 0, 'dropping backwards from the first wraps to the end');
+		assert.strictEqual(model.matches.length, 1);
+		model.dispose();
+	});
+
+	test('dropping every match leaves no active match', () => {
+		const items = [fakeResponse('resp1', [markdown('a')])];
+		const model = new ChatFindModel(() => items);
+		model.setQuery('a', { isRegex: false, matchCase: false, wholeWord: false });
+
+		model.dropActiveMatch(false);
+
+		assert.strictEqual(model.matches.length, 0);
+		assert.strictEqual(model.activeIndex, -1);
+		assert.strictEqual(model.activeMatch, undefined);
+		model.dispose();
+	});
+
 	test('clearing the query clears matches', () => {
 		const items = [fakeResponse('resp1', [markdown('needle')])];
 		const model = new ChatFindModel(() => items);
@@ -237,8 +346,8 @@ suite('ChatFindModel', () => {
 			scopeStartPartIndex: match.scopeStartPartIndex,
 			occurrenceIndex: match.occurrenceIndex,
 		})), [
-			{ partIndex: 1, scopeStartPartIndex: undefined, occurrenceIndex: 0 },
 			{ partIndex: -1, scopeStartPartIndex: 3, occurrenceIndex: 0 },
+			{ partIndex: 1, scopeStartPartIndex: undefined, occurrenceIndex: 0 },
 		]);
 		model.dispose();
 	});
